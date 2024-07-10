@@ -76,8 +76,8 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   constructor({attrs}: m.CVnode<LogPanelAttrs>) {
     this.rowsMonitor = new Monitor([
       () => attrs.filterStore.state,
-      () => globals.timeline.visibleTimeSpan.start,
-      () => globals.timeline.visibleTimeSpan.end,
+      () => globals.timeline.visibleWindow.toTimeSpan().start,
+      () => globals.timeline.visibleWindow.toTimeSpan().end,
     ]);
 
     this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
@@ -135,8 +135,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   private reloadData(attrs: LogPanelAttrs) {
     this.queryLimiter.schedule(async () => {
-      const visibleState = globals.timeline.visibleTimeSpan;
-      const visibleSpan = new TimeSpan(visibleState.start, visibleState.end);
+      const visibleSpan = globals.timeline.visibleWindow.toTimeSpan();
 
       if (this.filterMonitor.ifStateChanged()) {
         await updateLogView(attrs.engine, attrs.filterStore.state);

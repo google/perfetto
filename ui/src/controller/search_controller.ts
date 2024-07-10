@@ -36,7 +36,7 @@ export interface SearchControllerArgs {
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
-  private previousSpan: TimeSpan;
+  private previousSpan?: TimeSpan;
   private previousResolution: duration;
   private previousOmniboxState?: OmniboxState;
   private updateInProgress: boolean;
@@ -45,7 +45,6 @@ export class SearchController extends Controller<'main'> {
   constructor(args: SearchControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.previousSpan = new TimeSpan(Time.fromRaw(0n), Time.fromRaw(1n));
     this.updateInProgress = false;
     this.setupInProgress = true;
     this.previousResolution = 1n;
@@ -73,11 +72,11 @@ export class SearchController extends Controller<'main'> {
     if (omniboxState === undefined || omniboxState.mode === 'COMMAND') {
       return;
     }
-    const newSpan = globals.timeline.visibleTimeSpan;
+    const newSpan = globals.timeline.visibleWindow.toTimeSpan();
     const newOmniboxState = omniboxState;
     const newResolution = globals.getCurResolution();
     if (
-      this.previousSpan.containsSpan(newSpan.start, newSpan.end) &&
+      this.previousSpan?.containsSpan(newSpan.start, newSpan.end) &&
       this.previousResolution === newResolution &&
       this.previousOmniboxState === newOmniboxState
     ) {

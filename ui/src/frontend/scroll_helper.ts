@@ -24,7 +24,7 @@ import {globals} from './globals';
 // Given a timestamp, if |ts| is not currently in view move the view to
 // center |ts|, keeping the same zoom level.
 export function horizontalScrollToTs(ts: time) {
-  const visibleWindow = globals.timeline.visibleWindowTime;
+  const visibleWindow = globals.timeline.visibleWindow;
   if (!visibleWindow.contains(ts)) {
     // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
     const halfDuration = visibleWindow.duration / 2;
@@ -147,7 +147,7 @@ function focusHorizontalRangePercentage(
 }
 
 function focusHorizontalRangeImpl(start: time, end: time): void {
-  const visible = globals.timeline.visibleWindowTime;
+  const visible = globals.timeline.visibleWindow;
   const aoi = HighPrecisionTimeSpan.fromTime(start, end);
   const fillRatio = 5; // Default amount to make the AOI fill the viewport
   const padRatio = (fillRatio - 1) / 2;

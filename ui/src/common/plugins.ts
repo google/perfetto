@@ -332,7 +332,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     },
 
     get viewport(): TimeSpan {
-      return globals.timeline.visibleTimeSpan;
+      return globals.timeline.visibleWindow.toTimeSpan();
     },
   };
 

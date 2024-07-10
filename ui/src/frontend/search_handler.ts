@@ -33,7 +33,7 @@ function setToNext(current: number) {
 
 export function executeSearch(reverse = false) {
   const index = globals.state.searchIndex;
-  const vizWindow = globals.timeline.visibleTimeSpan;
+  const vizWindow = globals.timeline.visibleWindow.toTimeSpan();
   const startNs = vizWindow.start;
   const endNs = vizWindow.end;
   const currentTs = globals.currentSearchResults.tses[index];

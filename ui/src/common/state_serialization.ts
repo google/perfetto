@@ -52,7 +52,7 @@ import {TimeSpan} from '../base/time';
  * @returns A @type {SerializedAppState} object, @see state_serialization_schema.ts
  */
 export function serializeAppState(): SerializedAppState {
-  const vizWindow = globals.timeline.visibleTimeSpan;
+  const vizWindow = globals.timeline.visibleWindow.toTimeSpan();
 
   const notes = new Array<SerializedNote>();
   for (const [id, note] of Object.entries(globals.state.notes)) {

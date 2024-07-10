@@ -137,13 +137,17 @@ export class NotesPanel implements Panel {
     ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     ctx.clip();
 
-    const span = globals.timeline.visibleTimeSpan;
+    const visibleWindow = globals.timeline.visibleWindow;
     const {visibleTimeScale} = globals.timeline;
-    if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
+    if (size.width > TRACK_SHELL_WIDTH && visibleWindow.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
       const offset = globals.timestampOffset();
-      const tickGen = new TickGenerator(span, maxMajorTicks, offset);
+      const tickGen = new TickGenerator(
+        visibleWindow.toTimeSpan(),
+        maxMajorTicks,
+        offset,
+      );
       for (const {type, time} of tickGen) {
         const px = Math.floor(map.timeToPx(time));
         if (type === TickType.MAJOR) {
@@ -160,8 +164,10 @@ export class NotesPanel implements Panel {
       // TODO(hjd): We should still render area selection marks in viewport is
       // *within* the area (e.g. both lhs and rhs are out of bounds).
       if (
-        (note.noteType === 'DEFAULT' && !span.contains(note.timestamp)) ||
-        (note.noteType === 'SPAN' && !span.overlaps(note.start, note.end))
+        (note.noteType === 'DEFAULT' &&
+          !visibleWindow.contains(note.timestamp)) ||
+        (note.noteType === 'SPAN' &&
+          !visibleWindow.overlaps(note.start, note.end))
       ) {
         continue;
       }
@@ -212,7 +218,7 @@ export class NotesPanel implements Panel {
     // View preview note flag when hovering on notes panel.
     if (!aNoteIsHovered && this.hoveredX !== null) {
       const timestamp = visibleTimeScale.pxToHpTime(this.hoveredX).toTime();
-      if (span.contains(timestamp)) {
+      if (visibleWindow.contains(timestamp)) {
         globals.dispatch(Actions.setHoveredNoteTimestamp({ts: timestamp}));
         const x = visibleTimeScale.timeToPx(timestamp);
         const left = Math.floor(x + TRACK_SHELL_WIDTH);

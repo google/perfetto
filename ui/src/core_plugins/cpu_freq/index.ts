@@ -201,7 +201,7 @@ class CpuFreqTrack implements Track {
 
   render(ctx: CanvasRenderingContext2D, size: Size): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {visibleTimeScale, visibleWindowTime} = globals.timeline;
+    const {visibleTimeScale, visibleWindow} = globals.timeline;
     const data = this.fetcher.data;
 
     if (data === undefined || data.timestamps.length === 0) {
@@ -244,8 +244,8 @@ class CpuFreqTrack implements Track {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
     };
 
-    const start = visibleWindowTime.start;
-    const end = visibleWindowTime.end;
+    const start = visibleWindow.start;
+    const end = visibleWindow.end;
 
     const [rawStartIdx] = searchSegment(data.timestamps, start.toTime());
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;

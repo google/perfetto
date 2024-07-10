@@ -154,11 +154,7 @@ export class Timeline {
   }
 
   // Get the bounds of the visible window as a high-precision time span
-  get visibleWindowTime(): HighPrecisionTimeSpan {
+  get visibleWindow(): HighPrecisionTimeSpan {
     return this._visibleWindow;
-  }
-
-  get visibleTimeSpan(): TimeSpan {
-    return this._visibleWindow.toTimeSpan();
   }
 }

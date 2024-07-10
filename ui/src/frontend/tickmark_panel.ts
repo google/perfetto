@@ -47,13 +47,17 @@ export class TickmarkPanel implements Panel {
     ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     ctx.clip();
 
-    const visibleSpan = globals.timeline.visibleTimeSpan;
-    if (size.width > TRACK_SHELL_WIDTH && visibleSpan.duration > 0n) {
+    const visibleWindow = globals.timeline.visibleWindow;
+    if (size.width > TRACK_SHELL_WIDTH && visibleWindow.duration > 0) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
 
       const offset = globals.timestampOffset();
-      const tickGen = new TickGenerator(visibleSpan, maxMajorTicks, offset);
+      const tickGen = new TickGenerator(
+        visibleWindow.toTimeSpan(),
+        maxMajorTicks,
+        offset,
+      );
       for (const {type, time} of tickGen) {
         const px = Math.floor(map.timeToPx(time));
         if (type === TickType.MAJOR) {
@@ -66,7 +70,7 @@ export class TickmarkPanel implements Panel {
     for (let i = 0; i < data.tsStarts.length; i++) {
       const tStart = Time.fromRaw(data.tsStarts[i]);
       const tEnd = Time.fromRaw(data.tsEnds[i]);
-      if (!visibleSpan.overlaps(tStart, tEnd)) {
+      if (!visibleWindow.overlaps(tStart, tEnd)) {
         continue;
       }
       const rectStart =

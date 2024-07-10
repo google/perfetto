@@ -375,7 +375,7 @@ export abstract class BaseSliceTrack<
   }
 
   async onUpdate(): Promise<void> {
-    const {visibleTimeScale: timeScale, visibleWindowTime: vizTime} =
+    const {visibleTimeScale: timeScale, visibleWindow: vizTime} =
       globals.timeline;
 
     const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
@@ -391,7 +391,7 @@ export abstract class BaseSliceTrack<
   render(ctx: CanvasRenderingContext2D, size: Size): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
-    const {visibleTimeScale: timeScale, visibleWindowTime: vizTime} =
+    const {visibleTimeScale: timeScale, visibleWindow: vizTime} =
       globals.timeline;
 
     // In any case, draw whatever we have (which might be stale/incomplete).
@@ -958,13 +958,13 @@ export abstract class BaseSliceTrack<
   getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect | undefined {
     this.updateSliceAndTrackHeight();
 
-    const {windowSpan, visibleTimeScale, visibleTimeSpan} = globals.timeline;
+    const {windowSpan, visibleTimeScale, visibleWindow} = globals.timeline;
 
     const pxEnd = windowSpan.end;
     const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);
     const right = Math.min(visibleTimeScale.timeToPx(tEnd), pxEnd);
 
-    const visible = visibleTimeSpan.overlaps(tStart, tEnd);
+    const visible = visibleWindow.overlaps(tStart, tEnd);
 
     const totalSliceHeight = this.computedRowSpacing + this.computedSliceHeight;
 

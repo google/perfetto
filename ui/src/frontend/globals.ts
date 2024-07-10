@@ -829,7 +829,7 @@ export async function getTimeSpanOfSelectionOrVisibleWindow(): Promise<TimeSpan>
   if (exists(range)) {
     return new TimeSpan(range.start, range.end);
   } else {
-    return globals.timeline.visibleTimeSpan;
+    return globals.timeline.visibleWindow.toTimeSpan();
   }
 }
 
