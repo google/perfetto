@@ -29,7 +29,7 @@ import {PLUGIN_ID} from '../pluginId';
 
 class PinCujScopedJank implements MetricHandler {
   /**
-   * Match metric key & return parsed data if successful.
+   * Matches metric key & return parsed data if successful.
    *
    * @param {string} metricKey The metric key to match.
    * @returns {CujScopedMetricData | undefined} Parsed data or undefined if no match.
@@ -50,13 +50,13 @@ class PinCujScopedJank implements MetricHandler {
   }
 
   /**
-   * Function to add the debug tracks for cuj Scoped jank metrics
+   * Adds the debug tracks for cuj Scoped jank metrics
    * registerStaticTrack used when plugin adds tracks onTraceload()
    * addDebugSliceTrack used for adding tracks using the command
    *
    * @param {CujScopedMetricData} metricData Parsed metric data for the cuj scoped jank
    * @param {PluginContextTrace} ctx PluginContextTrace for trace related properties and methods
-   * @param {TrackType} type 'static' when called onTraceload and 'debug' when called through command
+   * @param {TrackType} type 'static' for onTraceload and 'debug' for command
    * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
    */
   public addMetricTrack(
