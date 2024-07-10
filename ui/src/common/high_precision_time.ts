@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,272 +12,230 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../base/logging';
-import {Span, Time, time} from '../base/time';
+import {assertUnreachable} from '../base/logging';
+import {Time, time} from '../base/time';
 
 export type RoundMode = 'round' | 'floor' | 'ceil';
-export type Timeish = HighPrecisionTime | time;
 
-// Stores a time as a bigint and an offset which is capable of:
-// - Storing and reproducing "Time"s without losing precision.
-// - Storing time with sub-nanosecond precision.
-// This class is immutable - each operation returns a new object.
+/**
+ * Represents a time value in trace processor's time units, which is capable of
+ * representing a time with at least 64 bit integer precision and 53 bits of
+ * fractional precision.
+ *
+ * This class is immutable - any methods that modify this time will return a new
+ * copy containing instead.
+ */
 export class HighPrecisionTime {
-  // Time in nanoseconds == base + offset
-  // offset is kept in the range 0 <= x < 1 to avoid losing precision
-  readonly base: bigint;
-  readonly offset: number;
+  // This is the high precision time representing 0
+  static readonly ZERO = new HighPrecisionTime(Time.fromRaw(0n));
 
-  static get ZERO(): HighPrecisionTime {
-    return new HighPrecisionTime(0n);
+  // time value == |integral| + |fractional|
+  // |fractional| is kept in the range 0 <= x < 1 to avoid losing precision
+  readonly integral: time;
+  readonly fractional: number;
+
+  /**
+   * Constructs a HighPrecisionTime object.
+   *
+   * @param integral The integer part of the time value.
+   * @param fractional The fractional part of the time value.
+   */
+  constructor(integral: time, fractional: number = 0) {
+    // Normalize |fractional| to the range 0.0 <= x < 1.0
+    const fractionalFloor = Math.floor(fractional);
+    this.integral = (integral + BigInt(fractionalFloor)) as time;
+    this.fractional = fractional - fractionalFloor;
   }
 
-  constructor(base: bigint = 0n, offset: number = 0) {
-    // Normalize offset to sit in the range 0.0 <= x < 1.0
-    const offsetFloor = Math.floor(offset);
-    this.base = base + BigInt(offsetFloor);
-    this.offset = offset - offsetFloor;
-  }
-
-  static fromTime(timestamp: time): HighPrecisionTime {
-    return new HighPrecisionTime(timestamp, 0);
-  }
-
-  static fromNanos(nanos: number | bigint) {
-    if (typeof nanos === 'number') {
-      return new HighPrecisionTime(0n, nanos);
-    } else if (typeof nanos === 'bigint') {
-      return new HighPrecisionTime(nanos);
-    } else {
-      const value: never = nanos;
-      throw new Error(`Value ${value} is neither a number nor a bigint`);
-    }
-  }
-
-  static fromSeconds(seconds: number) {
-    const nanos = seconds * 1e9;
-    const offset = nanos - Math.floor(nanos);
-    return new HighPrecisionTime(BigInt(Math.floor(nanos)), offset);
-  }
-
-  static max(a: HighPrecisionTime, b: HighPrecisionTime): HighPrecisionTime {
-    return a.gt(b) ? a : b;
-  }
-
-  static min(a: HighPrecisionTime, b: HighPrecisionTime): HighPrecisionTime {
-    return a.lt(b) ? a : b;
-  }
-
-  toTime(roundMode: RoundMode = 'floor'): time {
-    switch (roundMode) {
+  /**
+   * Converts to an integer time value.
+   *
+   * @param round How to round ('round', 'floor', or 'ceil').
+   */
+  toTime(round: RoundMode = 'floor'): time {
+    switch (round) {
       case 'round':
-        return Time.fromRaw(this.base + BigInt(Math.round(this.offset)));
+        return Time.fromRaw(
+          this.integral + BigInt(Math.round(this.fractional)),
+        );
       case 'floor':
-        return Time.fromRaw(this.base);
+        return Time.fromRaw(this.integral);
       case 'ceil':
-        return Time.fromRaw(this.base + BigInt(Math.ceil(this.offset)));
+        return Time.fromRaw(this.integral + BigInt(Math.ceil(this.fractional)));
       default:
-        const exhaustiveCheck: never = roundMode;
-        throw new Error(`Unhandled roundMode case: ${exhaustiveCheck}`);
+        assertUnreachable(round);
     }
   }
 
-  get nanos(): number {
-    // WARNING: Number(bigint) can be surprisingly slow.
-    // WARNING: Precision may be lost here.
-    return Number(this.base) + this.offset;
+  /**
+   * Converts to a JavaScript number. Precision loss should be expected when
+   * integral values are large.
+   */
+  toNumber(): number {
+    return Number(this.integral) + this.fractional;
   }
 
-  get seconds(): number {
-    // WARNING: Number(bigint) can be surprisingly slow.
-    // WARNING: Precision may be lost here.
-    return (Number(this.base) + this.offset) / 1e9;
-  }
-
-  add(other: HighPrecisionTime): HighPrecisionTime {
+  /**
+   * Adds another HighPrecisionTime to this one and returns the result.
+   *
+   * @param time A HighPrecisionTime object to add.
+   */
+  add(time: HighPrecisionTime): HighPrecisionTime {
     return new HighPrecisionTime(
-      this.base + other.base,
-      this.offset + other.offset,
+      Time.add(this.integral, time.integral),
+      this.fractional + time.fractional,
     );
   }
 
-  addNanos(nanos: number | bigint): HighPrecisionTime {
-    return this.add(HighPrecisionTime.fromNanos(nanos));
+  /**
+   * Adds an integer time value to this HighPrecisionTime and returns the result.
+   *
+   * @param t A time value to add.
+   */
+  addTime(t: time): HighPrecisionTime {
+    return new HighPrecisionTime(Time.add(this.integral, t), this.fractional);
   }
 
-  addSeconds(seconds: number): HighPrecisionTime {
-    return new HighPrecisionTime(this.base, this.offset + seconds * 1e9);
+  /**
+   * Adds a floating point time value to this one and returns the result.
+   *
+   * @param n A floating point value to add.
+   */
+  addNumber(n: number): HighPrecisionTime {
+    return new HighPrecisionTime(this.integral, this.fractional + n);
   }
 
-  addTime(ts: time): HighPrecisionTime {
-    return new HighPrecisionTime(this.base + ts, this.offset);
-  }
-
-  sub(other: HighPrecisionTime): HighPrecisionTime {
+  /**
+   * Subtracts another HighPrecisionTime from this one and returns the result.
+   *
+   * @param time A HighPrecisionTime object to subtract.
+   */
+  sub(time: HighPrecisionTime): HighPrecisionTime {
     return new HighPrecisionTime(
-      this.base - other.base,
-      this.offset - other.offset,
+      Time.sub(this.integral, time.integral),
+      this.fractional - time.fractional,
     );
   }
 
-  subTime(ts: time): HighPrecisionTime {
-    return new HighPrecisionTime(this.base - ts, this.offset);
+  /**
+   * Subtract an integer time value from this HighPrecisionTime and returns the
+   * result.
+   *
+   * @param t A time value to subtract.
+   */
+  subTime(t: time): HighPrecisionTime {
+    return new HighPrecisionTime(Time.sub(this.integral, t), this.fractional);
   }
 
-  subNanos(nanos: number | bigint): HighPrecisionTime {
-    return this.add(HighPrecisionTime.fromNanos(-nanos));
+  /**
+   * Subtracts a floating point time value from this one and returns the result.
+   *
+   * @param n A floating point value to subtract.
+   */
+  subNumber(n: number): HighPrecisionTime {
+    return new HighPrecisionTime(this.integral, this.fractional - n);
   }
 
-  divide(divisor: number): HighPrecisionTime {
-    return this.multiply(1 / divisor);
+  /**
+   * Checks if this HighPrecisionTime is approximately equal to another, within
+   * a given epsilon.
+   *
+   * @param other A HighPrecisionTime object to compare.
+   * @param epsilon The tolerance for equality check.
+   */
+  equals(other: HighPrecisionTime, epsilon: number = 1e-6): boolean {
+    return Math.abs(this.sub(other).toNumber()) < epsilon;
   }
 
-  multiply(factor: number): HighPrecisionTime {
-    const factorFloor = Math.floor(factor);
-    const newBase = this.base * BigInt(factorFloor);
-    const additionalBit = Number(this.base) * (factor - factorFloor);
-    const newOffset = factor * this.offset + additionalBit;
-    return new HighPrecisionTime(newBase, newOffset);
+  /**
+   * Checks if this time value is within the range defined by [start, end).
+   *
+   * @param start The start of the time range (inclusive).
+   * @param end The end of the time range (exclusive).
+   */
+  containedWithin(start: time, end: time): boolean {
+    return this.integral >= start && this.integral < end;
   }
 
-  // Return true if other time is within some epsilon, default 1 femtosecond
-  eq(other: Timeish, epsilon: number = 1e-6): boolean {
-    const x = HighPrecisionTime.fromHPTimeOrTime(other);
-    return Math.abs(this.sub(x).nanos) < epsilon;
+  /**
+   * Checks if this HighPrecisionTime is less than a given time.
+   *
+   * @param t A time value.
+   */
+  lt(t: time): boolean {
+    return this.integral < t;
   }
 
-  private static fromHPTimeOrTime(
-    x: HighPrecisionTime | time,
-  ): HighPrecisionTime {
-    if (x instanceof HighPrecisionTime) {
-      return x;
-    } else if (typeof x === 'bigint') {
-      return HighPrecisionTime.fromTime(x);
-    } else {
-      const y: never = x;
-      throw new Error(`Invalid type ${y}`);
-    }
+  /**
+   * Checks if this HighPrecisionTime is less than or equal to a given time.
+   *
+   * @param t A time value.
+   */
+  lte(t: time): boolean {
+    return (
+      this.integral < t ||
+      (this.integral === t && Math.abs(this.fractional - 0.0) < Number.EPSILON)
+    );
   }
 
-  lt(other: Timeish): boolean {
-    const x = HighPrecisionTime.fromHPTimeOrTime(other);
-    if (this.base < x.base) {
-      return true;
-    } else if (this.base === x.base) {
-      return this.offset < x.offset;
-    } else {
-      return false;
-    }
+  /**
+   * Checks if this HighPrecisionTime is greater than a given time.
+   *
+   * @param t A time value.
+   */
+  gt(t: time): boolean {
+    return (
+      this.integral > t ||
+      (this.integral === t && Math.abs(this.fractional - 0.0) > Number.EPSILON)
+    );
   }
 
-  lte(other: Timeish): boolean {
-    if (this.eq(other)) {
-      return true;
-    } else {
-      return this.lt(other);
-    }
+  /**
+   * Checks if this HighPrecisionTime is greater than or equal to a given time.
+   *
+   * @param t A time value.
+   */
+  gte(t: time): boolean {
+    return this.integral >= t;
   }
 
-  gt(other: Timeish): boolean {
-    return !this.lte(other);
-  }
-
-  gte(other: Timeish): boolean {
-    return !this.lt(other);
-  }
-
-  clamp(lower: HighPrecisionTime, upper: HighPrecisionTime): HighPrecisionTime {
-    if (this.lt(lower)) {
-      return lower;
-    } else if (this.gt(upper)) {
-      return upper;
+  /**
+   * Clamps this HighPrecisionTime to be within the specified range.
+   *
+   * @param lower The lower bound of the range.
+   * @param upper The upper bound of the range.
+   */
+  clamp(lower: time, upper: time): HighPrecisionTime {
+    if (this.integral < lower) {
+      return new HighPrecisionTime(lower);
+    } else if (this.integral >= upper) {
+      return new HighPrecisionTime(upper);
     } else {
       return this;
     }
   }
 
-  toString(): string {
-    const offsetAsString = this.offset.toString();
-    if (offsetAsString === '0') {
-      return this.base.toString();
-    } else {
-      return `${this.base}${offsetAsString.substring(1)}`;
-    }
-  }
-
+  /**
+   * Returns the absolute value of this HighPrecisionTime.
+   */
   abs(): HighPrecisionTime {
-    if (this.base >= 0n) {
+    if (this.integral >= 0n) {
       return this;
     }
-    const newBase = -this.base;
-    const newOffset = -this.offset;
-    return new HighPrecisionTime(newBase, newOffset);
-  }
-}
-
-export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
-  readonly start: HighPrecisionTime;
-  readonly end: HighPrecisionTime;
-
-  static readonly ZERO = new HighPrecisionTimeSpan(
-    HighPrecisionTime.ZERO,
-    HighPrecisionTime.ZERO,
-  );
-
-  constructor(start: time | HighPrecisionTime, end: time | HighPrecisionTime) {
-    this.start =
-      start instanceof HighPrecisionTime
-        ? start
-        : HighPrecisionTime.fromTime(start);
-    this.end =
-      end instanceof HighPrecisionTime ? end : HighPrecisionTime.fromTime(end);
-    assertTrue(
-      this.start.lte(this.end),
-      `TimeSpan start [${this.start}] cannot be greater than end [${this.end}]`,
-    );
+    const newIntegral = Time.fromRaw(-this.integral);
+    const newFractional = -this.fractional;
+    return new HighPrecisionTime(newIntegral, newFractional);
   }
 
-  static fromTime(start: time, end: time): HighPrecisionTimeSpan {
-    return new HighPrecisionTimeSpan(
-      HighPrecisionTime.fromTime(start),
-      HighPrecisionTime.fromTime(end),
-    );
-  }
-
-  get duration(): HighPrecisionTime {
-    return this.end.sub(this.start);
-  }
-
-  get midpoint(): HighPrecisionTime {
-    return this.start.add(this.end).divide(2);
-  }
-
-  equals(other: Span<HighPrecisionTime>): boolean {
-    return this.start.eq(other.start) && this.end.eq(other.end);
-  }
-
-  contains(x: HighPrecisionTime | Span<HighPrecisionTime>): boolean {
-    if (x instanceof HighPrecisionTime) {
-      return this.start.lte(x) && x.lt(this.end);
+  /**
+   * Converts this HighPrecisionTime to a string representation.
+   */
+  toString(): string {
+    const fractionalAsString = this.fractional.toString();
+    if (fractionalAsString === '0') {
+      return this.integral.toString();
     } else {
-      return this.start.lte(x.start) && x.end.lte(this.end);
+      return `${this.integral}${fractionalAsString.substring(1)}`;
     }
-  }
-
-  intersectsInterval(x: Span<HighPrecisionTime>): boolean {
-    return !(x.end.lte(this.start) || x.start.gte(this.end));
-  }
-
-  intersects(start: HighPrecisionTime, end: HighPrecisionTime): boolean {
-    return !(end.lte(this.start) || start.gte(this.end));
-  }
-
-  add(time: HighPrecisionTime): Span<HighPrecisionTime> {
-    return new HighPrecisionTimeSpan(this.start.add(time), this.end.add(time));
-  }
-
-  // Move the start and end away from each other a certain amount
-  pad(time: HighPrecisionTime): Span<HighPrecisionTime> {
-    return new HighPrecisionTimeSpan(this.start.sub(time), this.end.add(time));
   }
 }

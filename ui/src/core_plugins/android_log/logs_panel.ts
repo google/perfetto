@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {duration, Span, time, Time, TimeSpan} from '../../base/time';
+import {time, Time, TimeSpan} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {raf} from '../../core/raf_scheduler';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -76,8 +76,8 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   constructor({attrs}: m.CVnode<LogPanelAttrs>) {
     this.rowsMonitor = new Monitor([
       () => attrs.filterStore.state,
-      () => globals.timeline.visibleTimeSpan.start,
-      () => globals.timeline.visibleTimeSpan.end,
+      () => globals.timeline.visibleWindow.toTimeSpan().start,
+      () => globals.timeline.visibleWindow.toTimeSpan().end,
     ]);
 
     this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
@@ -135,8 +135,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   private reloadData(attrs: LogPanelAttrs) {
     this.queryLimiter.schedule(async () => {
-      const visibleState = globals.timeline.visibleTimeSpan;
-      const visibleSpan = new TimeSpan(visibleState.start, visibleState.end);
+      const visibleSpan = globals.timeline.visibleWindow.toTimeSpan();
 
       if (this.filterMonitor.ifStateChanged()) {
         await updateLogView(attrs.engine, attrs.filterStore.state);
@@ -322,7 +321,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
 
 async function updateLogEntries(
   engine: Engine,
-  span: Span<time, duration>,
+  span: TimeSpan,
   pagination: Pagination,
 ): Promise<LogEntries> {
   const rowsResult = await engine.query(`

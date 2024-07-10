@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Hotkey} from '../base/hotkeys';
-import {Span, duration, time} from '../base/time';
+import {TimeSpan, duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
 import {PrimaryTrackSortKey} from '../common/state';
@@ -253,7 +253,7 @@ export interface PluginContextTrace extends PluginContext {
     setViewportTime(start: time, end: time): void;
 
     // A span representing the current viewport location
-    readonly viewport: Span<time, duration>;
+    readonly viewport: TimeSpan;
   };
 
   // Control over the bottom details pane.

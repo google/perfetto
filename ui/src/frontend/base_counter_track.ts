@@ -448,7 +448,7 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   async onUpdate(): Promise<void> {
-    const {visibleTimeScale: timeScale, visibleWindowTime: vizTime} =
+    const {visibleTimeScale: timeScale, visibleWindow: vizTime} =
       globals.timeline;
 
     const windowSizePx = Math.max(1, timeScale.pxSpan.delta);

@@ -73,7 +73,7 @@ class TrackUtilsPlugin implements Plugin {
           if (firstTrack) {
             console.log(firstTrack);
             verticalScrollToTrack(firstTrack.key, true);
-            const traceTime = globals.stateTraceTimeTP();
+            const traceTime = globals.traceContext;
             globals.makeSelection(
               Actions.selectArea({
                 start: traceTime.start,

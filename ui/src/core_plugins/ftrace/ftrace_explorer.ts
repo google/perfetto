@@ -107,8 +107,8 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 
   constructor({attrs}: m.CVnode<FtraceExplorerAttrs>) {
     this.monitor = new Monitor([
-      () => globals.timeline.visibleTimeSpan.start,
-      () => globals.timeline.visibleTimeSpan.end,
+      () => globals.timeline.visibleWindow.toTimeSpan().start,
+      () => globals.timeline.visibleWindow.toTimeSpan().end,
       () => attrs.filterStore.state,
     ]);
 
@@ -269,7 +269,7 @@ async function lookupFtraceEvents(
   count: number,
   filter: FtraceFilter,
 ): Promise<FtracePanelData> {
-  const {start, end} = globals.timeline.visibleTimeSpan;
+  const {start, end} = globals.timeline.visibleWindow.toTimeSpan();
 
   const excludeList = filter.excludeList;
   const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');

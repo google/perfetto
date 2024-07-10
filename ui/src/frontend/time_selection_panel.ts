@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {duration, Span, time, Time, TimeSpan} from '../base/time';
+import {time, Time, TimeSpan} from '../base/time';
 import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
 
 import {
@@ -153,7 +153,7 @@ export class TimeSelectionPanel implements Panel {
     ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     ctx.clip();
 
-    const span = globals.timeline.visibleTimeSpan;
+    const span = globals.timeline.visibleWindow.toTimeSpan();
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
@@ -203,11 +203,7 @@ export class TimeSelectionPanel implements Panel {
     drawIBar(ctx, xPos, this.bounds(size), label);
   }
 
-  renderSpan(
-    ctx: CanvasRenderingContext2D,
-    size: Size,
-    span: Span<time, duration>,
-  ) {
+  renderSpan(ctx: CanvasRenderingContext2D, size: Size, span: TimeSpan) {
     const {visibleTimeScale} = globals.timeline;
     const xLeft = visibleTimeScale.timeToPx(span.start);
     const xRight = visibleTimeScale.timeToPx(span.end);
