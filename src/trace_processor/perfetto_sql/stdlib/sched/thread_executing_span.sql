@@ -17,6 +17,7 @@
 INCLUDE PERFETTO MODULE graphs.critical_path;
 INCLUDE PERFETTO MODULE graphs.search;
 INCLUDE PERFETTO MODULE intervals.overlap;
+INCLUDE PERFETTO MODULE intervals.intersect;
 
 -- A 'thread_executing_span' is thread_state span starting with a runnable slice
 -- until the next runnable slice that's woken up by a process (as opposed
@@ -463,32 +464,50 @@ AS (
 CREATE PERFETTO MACRO _critical_path_by_intervals(_intervals_table TableOrSubQuery,
                                                   _node_table TableOrSubQuery)
 RETURNS TableOrSubQuery AS (
-  WITH interval_nodes AS (
+  WITH _nodes AS (
     SELECT * FROM $_node_table
-  ), span_starts AS (
+  ), _intervals AS (
     SELECT
-      interval_nodes.utid AS root_utid,
+      ROW_NUMBER() OVER(ORDER BY ts) AS id,
+      ts,
+      dur,
+      utid AS root_utid
+    FROM $_intervals_table
+  ), _critical_path AS (
+    SELECT
+      ROW_NUMBER() OVER(ORDER BY ts) AS id,
       root_id,
-      span.id,
-      MAX(span.ts, intervals.ts) AS ts,
-      MIN(span.ts + span.dur, intervals.ts + intervals.dur) AS end_ts
+      id AS cr_id,
+      ts,
+      dur
     FROM _critical_path_by_roots!(
       _intervals_to_roots!($_intervals_table, $_node_table),
-      interval_nodes) span
-    JOIN interval_nodes ON interval_nodes.id = root_id
-    -- TODO(zezeozue): Replace with interval_intersect when partitions are supported
-    JOIN (SELECT * FROM $_intervals_table) intervals ON interval_nodes.utid = intervals.utid
-        AND ((span.ts BETWEEN intervals.ts AND intervals.ts + intervals.dur)
-             OR (intervals.ts BETWEEN span.ts AND span.ts + span.dur))
-  ) SELECT
-      span_starts.root_utid,
-      span_starts.root_id,
-      span_starts.id,
-      span_starts.ts,
-      span_starts.end_ts - span_starts.ts AS dur,
-      interval_nodes.utid AS utid
-    FROM span_starts
-    JOIN interval_nodes USING(id));
+      _nodes)
+  ), _span AS (
+    SELECT
+      _root_nodes.utid AS root_utid,
+      _nodes.utid,
+      cr.root_id,
+      cr.cr_id,
+      cr.id,
+      cr.ts,
+      cr.dur
+    FROM _critical_path cr
+    JOIN _nodes _root_nodes ON _root_nodes.id = cr.root_id
+    JOIN _nodes ON _nodes.id = cr.cr_id
+  ) SELECT DISTINCT
+      _span.root_utid,
+      _span.utid,
+      _span.root_id,
+      _span.cr_id AS id,
+      ii.ts,
+      ii.dur,
+      _intervals.ts AS interval_ts,
+      _intervals.dur AS interval_dur
+    FROM _interval_intersect!(_span, _intervals, (root_utid)) ii
+    JOIN _span ON _span.id = ii.id_0
+    JOIN _intervals ON _intervals.id = ii.id_1
+);
 
 -- Generates the critical path for a given utid over the <ts, dur> interval.
 -- The duration of a thread executing span in the critical path is the range between the
@@ -515,6 +534,6 @@ RETURNS TABLE(
   -- Utid of thread with thread_state.
   utid INT
 ) AS
-SELECT * FROM _critical_path_by_intervals!(
+SELECT root_utid, root_id, id, ts, dur, utid FROM _critical_path_by_intervals!(
   (SELECT $root_utid AS utid, $ts as ts, $dur AS dur),
   _wakeup_graph);
