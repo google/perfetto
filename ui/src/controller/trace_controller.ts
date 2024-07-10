@@ -1099,13 +1099,13 @@ export class TraceController extends Controller<States> {
   private zoomPendingDeeplink(visStart: string, visEnd: string) {
     const visualStart = Time.fromRaw(BigInt(visStart));
     const visualEnd = Time.fromRaw(BigInt(visEnd));
-    const traceTime = globals.stateTraceTimeTP();
+    const traceContext = globals.traceContext;
 
     if (
       !(
         visualStart < visualEnd &&
-        traceTime.start <= visualStart &&
-        visualEnd <= traceTime.end
+        traceContext.start <= visualStart &&
+        visualEnd <= traceContext.end
       )
     ) {
       return;

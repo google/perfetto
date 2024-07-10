@@ -25,7 +25,6 @@ import {
   ConversionJobStatus,
 } from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {
@@ -45,7 +44,6 @@ import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {Analytics, initAnalytics} from './analytics';
 import {Timeline} from './timeline';
 import {SliceSqlId} from './sql_types';
-import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
@@ -683,24 +681,6 @@ class Globals {
   // be cleaned up explicitly.
   shutdown() {
     raf.shutdown();
-  }
-
-  // Get a timescale that covers the entire trace
-  getTraceTimeScale(pxSpan: PxSpan): TimeScale {
-    const {start, end} = this.traceContext;
-    const traceTime = HighPrecisionTimeSpan.fromTime(start, end);
-    return new TimeScale(traceTime, pxSpan);
-  }
-
-  // Get the trace time bounds
-  stateTraceTime(): HighPrecisionTimeSpan {
-    const {start, end} = this.traceContext;
-    return HighPrecisionTimeSpan.fromTime(start, end);
-  }
-
-  stateTraceTimeTP(): Span<time, duration> {
-    const {start, end} = this.traceContext;
-    return new TimeSpan(start, end);
   }
 
   // How many pixels to use for one quanta of horizontal resolution

@@ -30,7 +30,8 @@ export function calcCachedBucketSize(numRows: number): duration | undefined {
     return undefined;
   }
 
-  const traceDuration = globals.stateTraceTimeTP().duration;
+  const traceContext = globals.traceContext;
+  const traceDuration = traceContext.end - traceContext.start;
 
   // For large traces, going through the raw table in the most zoomed-out
   // states can be very expensive as this can involve going through O(millions

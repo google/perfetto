@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {duration, Span, Time, time} from '../base/time';
+import {Time, TimeSpan, time} from '../base/time';
 import {colorForCpu} from '../core/colorizer';
 import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
 
@@ -37,6 +37,7 @@ import {
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {PxSpan, TimeScale} from './time_scale';
+import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 
 export class OverviewTimelinePanel implements Panel {
   private static HANDLE_SIZE_PX = 5;
@@ -46,7 +47,6 @@ export class OverviewTimelinePanel implements Panel {
   private width = 0;
   private gesture?: DragGestureHandler;
   private timeScale?: TimeScale;
-  private traceTime?: Span<time, duration>;
   private dragStrategy?: DragStrategy;
   private readonly boundOnMouseMove = this.onMouseMove.bind(this);
 
@@ -54,11 +54,14 @@ export class OverviewTimelinePanel implements Panel {
   // https://github.com/Microsoft/TypeScript/issues/1373
   onupdate({dom}: m.CVnodeDOM) {
     this.width = dom.getBoundingClientRect().width;
-    this.traceTime = globals.stateTraceTimeTP();
-    const traceTime = globals.stateTraceTime();
+    const traceTime = globals.traceContext;
     if (this.width > TRACK_SHELL_WIDTH) {
       const pxSpan = new PxSpan(TRACK_SHELL_WIDTH, this.width);
-      this.timeScale = new TimeScale(traceTime, pxSpan);
+      const hpTraceTime = HighPrecisionTimeSpan.fromTime(
+        traceTime.start,
+        traceTime.end,
+      );
+      this.timeScale = new TimeScale(hpTraceTime, pxSpan);
       if (this.gesture === undefined) {
         this.gesture = new DragGestureHandler(
           dom as HTMLElement,
@@ -101,15 +104,18 @@ export class OverviewTimelinePanel implements Panel {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     if (this.width === undefined) return;
-    if (this.traceTime === undefined) return;
     if (this.timeScale === undefined) return;
     const headerHeight = 20;
     const tracksHeight = size.height - headerHeight;
+    const traceContext = new TimeSpan(
+      globals.traceContext.start,
+      globals.traceContext.end,
+    );
 
-    if (size.width > TRACK_SHELL_WIDTH && this.traceTime.duration > 0n) {
+    if (size.width > TRACK_SHELL_WIDTH && traceContext.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(this.width - TRACK_SHELL_WIDTH);
       const offset = globals.timestampOffset();
-      const tickGen = new TickGenerator(this.traceTime, maxMajorTicks, offset);
+      const tickGen = new TickGenerator(traceContext, maxMajorTicks, offset);
 
       // Draw time labels
       ctx.font = '10px Roboto Condensed';
