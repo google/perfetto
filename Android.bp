@@ -17474,6 +17474,7 @@ java_library {
         canonical_path_from_root: false,
     },
     sdk_version: "system_server_current",
+    min_sdk_version: "35",
     apex_available: [
         "com.android.profiling",
     ],
