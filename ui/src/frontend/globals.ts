@@ -308,7 +308,9 @@ class Globals {
       () => this.dispatch(Actions.togglePerfDebug({})),
     );
 
-    this._serviceWorkerController = new ServiceWorkerController();
+    this._serviceWorkerController = new ServiceWorkerController(
+      getServingRoot(),
+    );
     this._testing =
       /* eslint-disable @typescript-eslint/strict-boolean-expressions */
       self.location && self.location.search.indexOf('testing=1') >= 0;
