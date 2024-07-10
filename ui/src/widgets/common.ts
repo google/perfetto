@@ -22,44 +22,49 @@ import {assertUnreachable} from '../base/logging';
 export type Style = string | Partial<CSSStyleDeclaration>;
 
 export interface HTMLAttrs {
-  ref?: string; // This is a common attribute used in Perfetto.
-  style?: Style;
-  id?: string;
-  title?: string;
-  className?: string;
-  onclick?: (e: PointerEvent) => void;
-  onmouseover?: (e: MouseEvent) => void;
-  onmouseout?: (e: MouseEvent) => void;
-  onmousedown?: (e: MouseEvent) => void;
-  onmouseup?: (e: MouseEvent) => void;
-  onmousemove?: (e: MouseEvent) => void;
-  onload?: (e: Event) => void;
+  readonly ref?: string; // This is a common attribute used in Perfetto.
+  readonly style?: Style;
+  readonly id?: string;
+  readonly title?: string;
+  readonly className?: string;
+  readonly onclick?: (e: PointerEvent) => void;
+  readonly onmouseover?: (e: MouseEvent) => void;
+  readonly onmouseout?: (e: MouseEvent) => void;
+  readonly onmousedown?: (e: MouseEvent) => void;
+  readonly onmouseup?: (e: MouseEvent) => void;
+  readonly onmousemove?: (e: MouseEvent) => void;
+  readonly onload?: (e: Event) => void;
 }
 
-export interface HTMLInputAttrs extends HTMLAttrs {
-  disabled?: boolean;
-  type?: string;
-  onchange?: (e: Event) => void;
-  oninput?: (e: KeyboardEvent) => void;
-  onkeydown?: (e: KeyboardEvent) => void;
-  onkeyup?: (e: KeyboardEvent) => void;
-  value?: string;
-  placeholder?: string;
+export interface HTMLFocusableAttrs extends HTMLAttrs {
+  readonly onblur?: (e: FocusEvent) => void;
+  readonly onfocus?: (e: FocusEvent) => void;
+}
+
+export interface HTMLInputAttrs extends HTMLFocusableAttrs {
+  readonly disabled?: boolean;
+  readonly type?: string;
+  readonly onchange?: (e: Event) => void;
+  readonly oninput?: (e: KeyboardEvent) => void;
+  readonly onkeydown?: (e: KeyboardEvent) => void;
+  readonly onkeyup?: (e: KeyboardEvent) => void;
+  readonly value?: string;
+  readonly placeholder?: string;
 }
 
 export interface HTMLCheckboxAttrs extends HTMLInputAttrs {
-  checked?: boolean;
+  readonly checked?: boolean;
 }
 
 export interface HTMLButtonAttrs extends HTMLInputAttrs {}
 
 export interface HTMLAnchorAttrs extends HTMLAttrs {
-  href?: string;
-  target?: string;
+  readonly href?: string;
+  readonly target?: string;
 }
 
 export interface HTMLLabelAttrs extends HTMLAttrs {
-  for?: string;
+  readonly for?: string;
 }
 
 export enum Intent {

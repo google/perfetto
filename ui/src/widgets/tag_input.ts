@@ -14,18 +14,16 @@
 
 import m from 'mithril';
 
-import {HTMLAttrs} from './common';
+import {HTMLFocusableAttrs} from './common';
 import {Icon} from './icon';
 import {findRef} from '../base/dom_utils';
 
-export interface TagInputAttrs extends HTMLAttrs {
+export interface TagInputAttrs extends HTMLFocusableAttrs {
   value?: string;
   onChange?: (text: string) => void;
   tags: ReadonlyArray<string>;
   onTagAdd: (text: string) => void;
   onTagRemove: (index: number) => void;
-  onfocus?: () => void;
-  onblur?: () => void;
   placeholder?: string;
 }
 
