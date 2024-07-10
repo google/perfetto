@@ -352,7 +352,7 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
             columnName: 'self_size',
           },
           {
-            name: 'Object Size',
+            name: 'Object Count',
             unit: '',
             columnName: 'self_count',
           },

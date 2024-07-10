@@ -195,7 +195,7 @@ async function computeFlamegraphTree(
       `_flamegraph_raw_top_down_${uuid}`,
       `
         select *
-        from _viz_flamegraph_filter_and_hash!(_flamegraph_sourcee_${uuid})
+        from _viz_flamegraph_filter_and_hash!(_flamegraph_source_${uuid})
       `,
     ),
   );
