@@ -25,11 +25,12 @@ export class BorderDragStrategy extends DragStrategy {
   }
 
   onDrag(x: number) {
-    let tStart = this.map.pxToHpTime(this.moveStart ? x : this.pixelBounds[0]);
-    let tEnd = this.map.pxToHpTime(!this.moveStart ? x : this.pixelBounds[1]);
-    if (tStart.gt(tEnd)) {
+    const moveStartPx = this.moveStart ? x : this.pixelBounds[0];
+    const moveEndPx = !this.moveStart ? x : this.pixelBounds[1];
+    const tStart = this.map.pxToHpTime(Math.min(moveStartPx, moveEndPx));
+    const tEnd = this.map.pxToHpTime(Math.max(moveStartPx, moveEndPx));
+    if (moveStartPx > moveEndPx) {
       this.moveStart = !this.moveStart;
-      [tEnd, tStart] = [tStart, tEnd];
     }
     super.updateGlobals(tStart, tEnd);
     this.pixelBounds = [this.map.hpTimeToPx(tStart), this.map.hpTimeToPx(tEnd)];

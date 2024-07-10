@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
-import {Duration, duration, Span, time, Time, TimeSpan} from '../base/time';
+import {Duration, time, Time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
 import {
@@ -790,7 +790,7 @@ export class TraceController extends Controller<States> {
     publishThreads(threads);
   }
 
-  private async loadTimelineOverview(trace: Span<time, duration>) {
+  private async loadTimelineOverview(trace: TimeSpan) {
     clearOverviewData();
     const engine = assertExists<Engine>(this.engine);
     const stepSize = Duration.max(1n, trace.duration / 100n);
@@ -1099,13 +1099,13 @@ export class TraceController extends Controller<States> {
   private zoomPendingDeeplink(visStart: string, visEnd: string) {
     const visualStart = Time.fromRaw(BigInt(visStart));
     const visualEnd = Time.fromRaw(BigInt(visEnd));
-    const traceTime = globals.stateTraceTimeTP();
+    const traceContext = globals.traceContext;
 
     if (
       !(
         visualStart < visualEnd &&
-        traceTime.start <= visualStart &&
-        visualEnd <= traceTime.end
+        traceContext.start <= visualStart &&
+        visualEnd <= traceContext.end
       )
     ) {
       return;
@@ -1277,9 +1277,7 @@ async function getTraceTimeDetails(
   };
 }
 
-async function getTraceTimeBounds(
-  engine: Engine,
-): Promise<Span<time, duration>> {
+async function getTraceTimeBounds(engine: Engine): Promise<TimeSpan> {
   const result = await engine.query(
     `select start_ts as startTs, end_ts as endTs from trace_bounds`,
   );
@@ -1311,9 +1309,7 @@ async function getNumberOfGpus(engine: Engine): Promise<number> {
   return result.firstRow({gpuCount: NUM}).gpuCount;
 }
 
-async function getTracingMetadataTimeBounds(
-  engine: Engine,
-): Promise<Span<time, duration>> {
+async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
   const queryRes = await engine.query(`select
        name,
        int_value as intValue

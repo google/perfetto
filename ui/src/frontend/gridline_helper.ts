@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {duration, Span, time, Time} from '../base/time';
+import {duration, time, Time, TimeSpan} from '../base/time';
 
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -136,18 +136,18 @@ export function getMaxMajorTicks(width: number) {
 export class TickGenerator implements Iterable<Tick> {
   private _tickPattern: TickType[];
   private _patternSize: duration;
-  private _timeSpan: Span<time, duration>;
+  private _timeSpan: TimeSpan;
   private _offset: time;
 
   constructor(
-    timeSpan: Span<time, duration>,
+    timeSpan: TimeSpan,
     maxMajorTicks: number,
     offset: time = Time.ZERO,
   ) {
     assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
     assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
 
-    this._timeSpan = timeSpan.add(-offset);
+    this._timeSpan = timeSpan.translate(-offset);
     this._offset = offset;
     const minStepSize = BigInt(
       Math.floor(Number(timeSpan.duration) / maxMajorTicks),
@@ -197,7 +197,7 @@ export function drawGridLines(
   ctx.strokeStyle = TRACK_BORDER_COLOR;
   ctx.lineWidth = 1;
 
-  const span = globals.timeline.visibleTimeSpan;
+  const span = globals.timeline.visibleWindow.toTimeSpan();
   if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
     const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
     const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
