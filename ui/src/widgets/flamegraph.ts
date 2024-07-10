@@ -730,7 +730,7 @@ function displaySize(totalSize: number, unit: string): string {
     ['', 1],
     [unit === 'B' ? 'Ki' : 'K', step],
     [unit === 'B' ? 'Mi' : 'M', Math.pow(step, 2)],
-    [unit === 'G' ? 'Gi' : 'G', Math.pow(step, 3)],
+    [unit === 'B' ? 'Gi' : 'G', Math.pow(step, 3)],
   ];
   let unitsIndex = Math.trunc(Math.log(totalSize) / Math.log(step));
   unitsIndex = unitsIndex > units.length - 1 ? units.length - 1 : unitsIndex;
