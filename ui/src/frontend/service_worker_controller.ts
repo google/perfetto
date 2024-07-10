@@ -18,7 +18,6 @@
 // The actual service worker code is in src/service_worker.
 // Design doc: http://go/perfetto-offline.
 
-import {getServingRoot} from '../base/http_utils';
 import {reportError} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 
@@ -55,6 +54,8 @@ class BypassCache {
 export class ServiceWorkerController {
   private _bypassed = false;
   private _installing = false;
+
+  constructor(private servingRoot: string) {}
 
   // Caller should reload().
   async setBypass(bypass: boolean) {
@@ -93,9 +94,7 @@ export class ServiceWorkerController {
   }
 
   async install() {
-    // This must happen before any await, because in continuations
-    // document.currentScript (which getServingRoot() depends on) is null.
-    const versionDir = getServingRoot().split('/').slice(-2)[0];
+    const versionDir = this.servingRoot.split('/').slice(-2)[0];
 
     if (!('serviceWorker' in navigator)) return; // Not supported.
 
