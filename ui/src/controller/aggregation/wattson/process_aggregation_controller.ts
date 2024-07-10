@@ -162,6 +162,7 @@ export class WattsonProcessAggregationController extends AggregationController {
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'avg_mw',
+        sum: true,
       },
       {
         title: 'Total estimated energy (mWs)',
