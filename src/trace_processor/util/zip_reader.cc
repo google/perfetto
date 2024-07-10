@@ -16,28 +16,45 @@
 
 #include "src/trace_processor/util/zip_reader.h"
 
-#include <time.h>
+#include <cstdint>
+#include <cstring>
+#include <ctime>
+#include <limits>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/streaming_line_reader.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-#include <zlib.h>  // For crc32().
+#include <zconf.h>
+#include <zlib.h>
 #endif
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 
 namespace {
 
 // Entry signatures.
 const uint32_t kFileHeaderSig = 0x04034b50;
 const uint32_t kCentralDirectorySig = 0x02014b50;
+
+enum GeneralPurposeBitFlag : uint32_t {
+  kEncrypted = 1 << 0,
+  k8kSlidingDictionary = 1u << 1,
+  kShannonFaro = 1u << 2,
+  kUnknown = ~((1u << 3) - 1),
+};
 
 // Compression flags.
 const uint16_t kNoCompression = 0;
@@ -56,134 +73,123 @@ T ReadAndAdvance(const uint8_t** ptr) {
 ZipReader::ZipReader() = default;
 ZipReader::~ZipReader() = default;
 
-base::Status ZipReader::Parse(const void* data, size_t len) {
-  const uint8_t* input = static_cast<const uint8_t*>(data);
-  const uint8_t* const input_begin = input;
-  const uint8_t* const input_end = input + len;
-  auto input_avail = [&] { return static_cast<size_t>(input_end - input); };
+base::Status ZipReader::Parse(TraceBlobView tbv) {
+  reader_.PushBack(std::move(tbv));
 
   // .zip file sequence:
   // [ File 1 header (30 bytes) ]
   // [ File 1 name ]
   // [ File 1 extra fields (optional) ]
   // [ File 1 compressed payload ]
+  // [ File 1 data descriptor (optional) ]
   //
   // [ File 2 header (30 bytes) ]
   // [ File 2 name ]
   // [ File 2 extra fields (optional) ]
   // [ File 2 compressed payload ]
+  // [ File 2 data descriptor (optional) ]
   //
   // [ Central directory (ignored) ]
-  while (input < input_end) {
-    // Initial state, we are building up the file header.
-    if (cur_.raw_hdr_size < kZipFileHdrSize) {
-      size_t copy_size =
-          std::min(input_avail(), kZipFileHdrSize - cur_.raw_hdr_size);
-      memcpy(&cur_.raw_hdr[cur_.raw_hdr_size], input, copy_size);
-      cur_.raw_hdr_size += copy_size;
-      input += copy_size;
-
-      // If we got all the kZipFileHdrSize bytes, parse the zip file header now.
-      if (cur_.raw_hdr_size == kZipFileHdrSize) {
-        const uint8_t* hdr_it = &cur_.raw_hdr[0];
-        cur_.hdr.signature = ReadAndAdvance<uint32_t>(&hdr_it);
-        if (cur_.hdr.signature == kCentralDirectorySig) {
-          // We reached the central directory at the end of file.
-          // We don't make any use here of the central directory, so we just
-          // ignore everything else after this point.
-          // Here we abuse the ZipFile class a bit. The Central Directory header
-          // has a different layout. The first 4 bytes (signature) match, the
-          // rest don't but the sizeof(central dir) is >> sizeof(file header) so
-          // we are fine.
-          // We do this rather than retuning because we could have further
-          // Parse() calls (imagine parsing bytes one by one), and we need a way
-          // to keep track of the "keep eating input without doing anything".
-          cur_.ignore_bytes_after_fname = std::numeric_limits<size_t>::max();
-          input = input_end;
-          break;
-        }
-        if (cur_.hdr.signature != kFileHeaderSig) {
-          return base::ErrStatus(
-              "Invalid signature found at offset 0x%zx. Actual=%x, expected=%x",
-              static_cast<size_t>(input - input_begin) - kZipFileHdrSize,
-              cur_.hdr.signature, kFileHeaderSig);
-        }
-
-        cur_.hdr.version = ReadAndAdvance<uint16_t>(&hdr_it);
-        cur_.hdr.flags = ReadAndAdvance<uint16_t>(&hdr_it);
-        cur_.hdr.compression = ReadAndAdvance<uint16_t>(&hdr_it);
-        cur_.hdr.mtime = ReadAndAdvance<uint16_t>(&hdr_it);
-        cur_.hdr.mdate = ReadAndAdvance<uint16_t>(&hdr_it);
-        cur_.hdr.checksum = ReadAndAdvance<uint32_t>(&hdr_it);
-        cur_.hdr.compressed_size = ReadAndAdvance<uint32_t>(&hdr_it);
-        cur_.hdr.uncompressed_size = ReadAndAdvance<uint32_t>(&hdr_it);
-        cur_.hdr.fname_len = ReadAndAdvance<uint16_t>(&hdr_it);
-        cur_.hdr.extra_field_len = ReadAndAdvance<uint16_t>(&hdr_it);
-        PERFETTO_DCHECK(static_cast<size_t>(hdr_it - cur_.raw_hdr) ==
-                        kZipFileHdrSize);
-
-        // We support only up to version 2.0 (20). Higher versions define
-        // more advanced features that we don't support (zip64 extensions,
-        // encryption).
-        // Flag bits 1,2 define the compression strength for deflating (which
-        // zlib supports transparently). Other bits define other compression
-        // methods that we don't support.
-        if ((cur_.hdr.version > 20) || (cur_.hdr.flags & ~3) != 0) {
-          return base::ErrStatus(
-              "Unsupported zip features at offset 0x%zx. version=%x, flags=%x",
-              static_cast<size_t>(input - input_begin) - kZipFileHdrSize,
-              cur_.hdr.version, cur_.hdr.flags);
-        }
-        cur_.compressed_data.reset(new uint8_t[cur_.hdr.compressed_size]);
-        cur_.ignore_bytes_after_fname = cur_.hdr.extra_field_len;
+  for (;;) {
+    if (cur_.hdr.signature == 0) {
+      std::optional<TraceBlobView> hdr =
+          reader_.SliceOff(reader_.start_offset(), kZipFileHdrSize);
+      if (!hdr) {
+        return base::OkStatus();
       }
-      continue;
+      PERFETTO_CHECK(reader_.PopFrontBytes(kZipFileHdrSize));
+
+      const uint8_t* hdr_it = hdr->data();
+      cur_.hdr.signature = ReadAndAdvance<uint32_t>(&hdr_it);
+      if (cur_.hdr.signature == kCentralDirectorySig) {
+        // We reached the central directory at the end of file.
+        // We don't make any use here of the central directory, so we just
+        // ignore everything else after this point.
+        // Here we abuse the ZipFile class a bit. The Central Directory header
+        // has a different layout. The first 4 bytes (signature) match, the
+        // rest don't but the sizeof(central dir) is >> sizeof(file header) so
+        // we are fine.
+        // We do this rather than retuning because we could have further
+        // Parse() calls (imagine parsing bytes one by one), and we need a way
+        // to keep track of the "keep eating input without doing anything".
+        cur_.ignore_bytes_after_fname = std::numeric_limits<size_t>::max();
+        continue;
+      }
+      if (cur_.hdr.signature != kFileHeaderSig) {
+        return base::ErrStatus(
+            "Invalid signature found at offset 0x%zx. Actual=%x, expected=%x",
+            reader_.start_offset() - kZipFileHdrSize, cur_.hdr.signature,
+            kFileHeaderSig);
+      }
+
+      cur_.hdr.version = ReadAndAdvance<uint16_t>(&hdr_it);
+      cur_.hdr.flags = ReadAndAdvance<uint16_t>(&hdr_it);
+      cur_.hdr.compression = ReadAndAdvance<uint16_t>(&hdr_it);
+      cur_.hdr.mtime = ReadAndAdvance<uint16_t>(&hdr_it);
+      cur_.hdr.mdate = ReadAndAdvance<uint16_t>(&hdr_it);
+      cur_.hdr.checksum = ReadAndAdvance<uint32_t>(&hdr_it);
+      cur_.hdr.compressed_size = ReadAndAdvance<uint32_t>(&hdr_it);
+      cur_.hdr.uncompressed_size = ReadAndAdvance<uint32_t>(&hdr_it);
+      cur_.hdr.fname_len = ReadAndAdvance<uint16_t>(&hdr_it);
+      cur_.hdr.extra_field_len = ReadAndAdvance<uint16_t>(&hdr_it);
+      PERFETTO_DCHECK(static_cast<size_t>(hdr_it - hdr->data()) ==
+                      kZipFileHdrSize);
+
+      // We support only up to version 2.0 (20). Higher versions define
+      // more advanced features that we don't support (zip64 extensions,
+      // encryption).
+      // Disallow encryption or any flags we don't know how to handle.
+      if ((cur_.hdr.version > 20) || (cur_.hdr.flags & kEncrypted) ||
+          (cur_.hdr.flags & kUnknown)) {
+        return base::ErrStatus(
+            "Unsupported zip features at offset 0x%zx. version=%x, flags=%x",
+            reader_.start_offset(), cur_.hdr.version, cur_.hdr.flags);
+      }
+      cur_.ignore_bytes_after_fname = cur_.hdr.extra_field_len;
     }
 
     // Build up the file name.
     if (cur_.hdr.fname.size() < cur_.hdr.fname_len) {
-      size_t name_left = cur_.hdr.fname_len - cur_.hdr.fname.size();
-      size_t copy_size = std::min(name_left, input_avail());
-      cur_.hdr.fname.append(reinterpret_cast<const char*>(input), copy_size);
-      input += copy_size;
-      continue;
+      std::optional<TraceBlobView> fname_tbv =
+          reader_.SliceOff(reader_.start_offset(), cur_.hdr.fname_len);
+      if (!fname_tbv) {
+        return base::OkStatus();
+      }
+      PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.fname_len));
+      cur_.hdr.fname = std::string(
+          reinterpret_cast<const char*>(fname_tbv->data()), cur_.hdr.fname_len);
     }
 
     // Skip any bytes if extra fields were present.
     if (cur_.ignore_bytes_after_fname > 0) {
-      size_t skip_size = std::min(input_avail(), cur_.ignore_bytes_after_fname);
-      cur_.ignore_bytes_after_fname -= skip_size;
-      input += skip_size;
-      continue;
+      size_t avail = reader_.avail();
+      if (avail < cur_.ignore_bytes_after_fname) {
+        PERFETTO_CHECK(reader_.PopFrontBytes(avail));
+        cur_.ignore_bytes_after_fname -= avail;
+        return base::OkStatus();
+      }
+      PERFETTO_CHECK(reader_.PopFrontBytes(cur_.ignore_bytes_after_fname));
+      cur_.ignore_bytes_after_fname = 0;
     }
 
     // Build up the compressed payload
-    if (cur_.compressed_data_written < cur_.hdr.compressed_size) {
-      size_t needed = cur_.hdr.compressed_size - cur_.compressed_data_written;
-      size_t copy_size = std::min(needed, input_avail());
-      memcpy(&cur_.compressed_data[cur_.compressed_data_written], input,
-             copy_size);
-      cur_.compressed_data_written += copy_size;
-      input += copy_size;
-      continue;
+    std::optional<TraceBlobView> compressed =
+        reader_.SliceOff(reader_.start_offset(), cur_.hdr.compressed_size);
+    if (!compressed) {
+      return base::OkStatus();
     }
+    PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.compressed_size));
 
     // We have accumulated the whole header, file name and compressed payload.
-    PERFETTO_DCHECK(cur_.raw_hdr_size == kZipFileHdrSize);
     PERFETTO_DCHECK(cur_.hdr.fname.size() == cur_.hdr.fname_len);
-    PERFETTO_DCHECK(cur_.compressed_data_written == cur_.hdr.compressed_size);
+    PERFETTO_DCHECK(compressed->size() == cur_.hdr.compressed_size);
     PERFETTO_DCHECK(cur_.ignore_bytes_after_fname == 0);
 
     files_.emplace_back();
     files_.back().hdr_ = std::move(cur_.hdr);
-    files_.back().compressed_data_ = std::move(cur_.compressed_data);
+    files_.back().compressed_data_ = std::move(*compressed);
     cur_ = FileParseState();  // Reset the parsing state for the next file.
-
-  }  // while (input < input_end)
-
-  // At this point we must have consumed all input.
-  PERFETTO_DCHECK(input_avail() == 0);
-  return base::OkStatus();
+  }                           // while (input < input_end)
 }
 
 ZipFile* ZipReader::Find(const std::string& path) {
@@ -201,23 +207,21 @@ ZipFile& ZipFile::operator=(ZipFile&& other) noexcept = default;
 
 base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   out_data->clear();
-
-  auto res = DoDecompressionChecks();
-  if (!res.ok())
-    return res;
+  RETURN_IF_ERROR(DoDecompressionChecks());
 
   if (hdr_.compression == kNoCompression) {
-    const uint8_t* data = compressed_data_.get();
+    const uint8_t* data = compressed_data_.data();
     out_data->insert(out_data->end(), data, data + hdr_.compressed_size);
     return base::OkStatus();
   }
 
-  if (hdr_.uncompressed_size == 0)
+  if (hdr_.uncompressed_size == 0) {
     return base::OkStatus();
+  }
 
   PERFETTO_DCHECK(hdr_.compression == kDeflate);
   GzipDecompressor dec(GzipDecompressor::InputMode::kRawDeflate);
-  dec.Feed(compressed_data_.get(), hdr_.compressed_size);
+  dec.Feed(compressed_data_.data(), hdr_.compressed_size);
 
   out_data->resize(hdr_.uncompressed_size);
   auto dec_res = dec.ExtractOutput(out_data->data(), out_data->size());
@@ -243,23 +247,20 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
 
 base::Status ZipFile::DecompressLines(LinesCallback callback) const {
   using ResultCode = GzipDecompressor::ResultCode;
+  RETURN_IF_ERROR(DoDecompressionChecks());
 
-  auto res = DoDecompressionChecks();
-  if (!res.ok())
-    return res;
-
-  StreamingLineReader line_reader(callback);
+  StreamingLineReader line_reader(std::move(callback));
 
   if (hdr_.compression == kNoCompression) {
     line_reader.Tokenize(
-        base::StringView(reinterpret_cast<const char*>(compressed_data_.get()),
+        base::StringView(reinterpret_cast<const char*>(compressed_data_.data()),
                          hdr_.compressed_size));
     return base::OkStatus();
   }
 
   PERFETTO_DCHECK(hdr_.compression == kDeflate);
   GzipDecompressor dec(GzipDecompressor::InputMode::kRawDeflate);
-  dec.Feed(compressed_data_.get(), hdr_.compressed_size);
+  dec.Feed(compressed_data_.data(), hdr_.compressed_size);
 
   static constexpr size_t kChunkSize = 32768;
   GzipDecompressor::Result dec_res;
@@ -278,24 +279,19 @@ base::Status ZipFile::DecompressLines(LinesCallback callback) const {
 
 // Common logic for both Decompress() and DecompressLines().
 base::Status ZipFile::DoDecompressionChecks() const {
-  PERFETTO_DCHECK(compressed_data_);
-
   if (hdr_.compression == kNoCompression) {
     PERFETTO_CHECK(hdr_.compressed_size == hdr_.uncompressed_size);
     return base::OkStatus();
   }
-
   if (hdr_.compression != kDeflate) {
     return base::ErrStatus("Zip compression mode not supported (%u)",
                            hdr_.compression);
   }
-
   if (!IsGzipSupported()) {
     return base::ErrStatus(
         "Cannot open zip file. Gzip is not enabled in the current build. "
         "Rebuild with enable_perfetto_zlib=true");
   }
-
   return base::OkStatus();
 }
 
@@ -330,6 +326,4 @@ std::string ZipFile::GetDatetimeStr() const {
   return buf;
 }
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

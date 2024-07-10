@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/zip/zip_trace_reader.h"
 
 #include <algorithm>
-#include <cinttypes>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -37,9 +36,11 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
+#include "src/trace_processor/util/zip_reader.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
+namespace perfetto::trace_processor {
 namespace {
 
 // Proto traces should always parsed first as they might contains clock sync
@@ -93,9 +94,8 @@ bool ZipTraceReader::Entry::operator<(const Entry& rhs) const {
   return std::tie(name, index) < std::tie(rhs.name, rhs.index);
 }
 
-util::Status ZipTraceReader::Parse(TraceBlobView blob) {
-  zip_reader_.Parse(blob.data(), blob.size());
-  return base::OkStatus();
+base::Status ZipTraceReader::Parse(TraceBlobView blob) {
+  return zip_reader_.Parse(std::move(blob));
 }
 
 void ZipTraceReader::NotifyEndOfFile() {
@@ -130,7 +130,7 @@ base::Status ZipTraceReader::NotifyEndOfFileImpl() {
 }
 
 base::StatusOr<std::vector<ZipTraceReader::Entry>>
-ZipTraceReader::ExtractEntries(std::vector<util::ZipFile> files) const {
+ZipTraceReader::ExtractEntries(std::vector<util::ZipFile> files) {
   // TODO(carlsacab): There is a lot of unnecessary copying going on here.
   // ZipTraceReader can directly parse the ZIP file and given that we know the
   // decompressed size we could directly decompress into TraceBlob chunks and
@@ -154,5 +154,4 @@ ZipTraceReader::ExtractEntries(std::vector<util::ZipFile> files) const {
   return std::move(entries);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
