@@ -18,10 +18,49 @@ import {Optional} from '../base/utils';
 import {UntypedEventSet} from '../core/event_set';
 import {LegacySelection, Selection} from '../core/selection_manager';
 import {Size} from '../base/geom';
+import {TimeScale} from '../frontend/time_scale';
+import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 
 export interface TrackContext {
   // This track's key, used for making selections et al.
-  trackKey: string;
+  readonly trackKey: string;
+}
+
+/**
+ * Contextual information about the track passed to track lifecycle hooks &
+ * render hooks with additional information about the timeline/canvas.
+ */
+export interface TrackRenderContext extends TrackContext {
+  /**
+   * The time span of the visible window.
+   */
+  readonly visibleWindow: HighPrecisionTimeSpan;
+
+  /**
+   * The dimensions of the track on the canvas in pixels.
+   */
+  readonly size: Size;
+
+  /**
+   * Suggested data resolution.
+   *
+   * This number is the number of time units that corresponds to 1 pixel on the
+   * screen, rounded down to the nearest power of 2. The minimum value is 1.
+   *
+   * It's up to the track whether it would like to use this resolution or
+   * calculate their own based on the timespan and the track dimensions.
+   */
+  readonly resolution: duration;
+
+  /**
+   * Canvas context used for rendering.
+   */
+  readonly ctx: CanvasRenderingContext2D;
+
+  /**
+   * A time scale used for translating between pixels and time.
+   */
+  readonly timescale: TimeScale;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -89,44 +128,75 @@ export interface SliceRect {
   visible: boolean;
 }
 
+/**
+ * Contextual information passed to mouse events.
+ */
+export interface TrackMouseEvent {
+  /**
+   * X coordinate of the mouse event w.r.t. the top-left of the track.
+   */
+  readonly x: number;
+
+  /**
+   * Y coordinate of the mouse event w.r.t the top-left of the track.
+   */
+  readonly y: number;
+
+  /**
+   * A time scale used for translating between pixels and time.
+   */
+  readonly timescale: TimeScale;
+}
+
 export interface Track {
   /**
-   * Optional: Called once before onUpdate is first called.
+   * Optional lifecycle hook called on the first render cycle. Should be used to
+   * create any required resources.
    *
-   * If this function returns a Promise, this promise is awaited before onUpdate
-   * or onDestroy is called. Any calls made to these functions in the meantime
-   * will be queued up and the hook will be called later once onCreate returns.
+   * These lifecycle hooks are asynchronous, but they are run synchronously,
+   * meaning that perfetto will wait for each one to complete before calling the
+   * next one, so the user doesn't have to serialize these calls manually.
    *
    * Exactly when this hook is called is left purposely undefined. The only
-   * guarantee is that it will be called once before onUpdate is first called.
+   * guarantee is that it will be called exactly once before the first call to
+   * onUpdate().
    *
-   * @param ctx Our track context object.
+   * Note: On the first render cycle, both onCreate and onUpdate are called one
+   * after another.
    */
-  onCreate?(ctx: TrackContext): Promise<void> | void;
+  onCreate?(ctx: TrackContext): Promise<void>;
 
   /**
-   * Optional: Called every render cycle while the track is visible, just before
-   * render().
-   * If this function returns a Promise, this promise is awaited before another
-   * onUpdate is called or onDestroy is called.
+   * Optional lifecycle hook called on every render cycle.
+   *
+   * The track should inspect things like the visible window, track size, and
+   * resolution to work out whether any data needs to be reloaded based on these
+   * properties and perform a reload.
    */
-  onUpdate?(): Promise<void> | void;
+  onUpdate?(ctx: TrackRenderContext): Promise<void>;
 
   /**
-   * Optional: Called when the track is no longer visible. Should be used to
-   * clean up resources.
-   * This function can return nothing or a promise. The promise is currently
-   * ignored.
+   * Optional lifecycle hook called when the track is no longer visible. Should
+   * be used to clear up any resources.
    */
-  onDestroy?(): Promise<void> | void;
+  onDestroy?(): Promise<void>;
 
-  render(ctx: CanvasRenderingContext2D, size: Size): void;
+  /**
+   * Required method used to render the track's content to the canvas, called
+   * synchronously on every render cycle.
+   */
+  render(ctx: TrackRenderContext): void;
   onFullRedraw?(): void;
-  getSliceRect?(tStart: time, tEnd: time, depth: number): SliceRect | undefined;
+  getSliceRect?(
+    ctx: TrackRenderContext,
+    tStart: time,
+    tEnd: time,
+    depth: number,
+  ): Optional<SliceRect>;
   getHeight(): number;
   getTrackShellButtons?(): m.Children;
-  onMouseMove?(position: {x: number; y: number}): void;
-  onMouseClick?(position: {x: number; y: number}): boolean;
+  onMouseMove?(event: TrackMouseEvent): void;
+  onMouseClick?(event: TrackMouseEvent): boolean;
   onMouseOut?(): void;
 
   /**

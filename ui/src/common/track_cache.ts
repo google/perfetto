@@ -15,17 +15,18 @@
 import {Optional, exists} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Store} from '../base/store';
-import {Size} from '../base/geom';
 import {Track, TrackContext, TrackDescriptor, TrackRef} from '../public';
 
 import {ObjectByKey, State, TrackState} from './state';
 import {AsyncLimiter} from '../base/async_limiter';
 import {assertFalse} from '../base/logging';
+import {TrackRenderContext} from '../public/tracks';
 
 export interface TrackCacheEntry extends Disposable {
-  track: Track;
+  readonly trackKey: string;
+  readonly track: Track;
   desc: TrackDescriptor;
-  render(ctx: CanvasRenderingContext2D, size: Size): void;
+  render(ctx: TrackRenderContext): void;
   getError(): Optional<Error>;
 }
 
@@ -117,7 +118,7 @@ export class TrackManager {
         trackKey: key,
       };
       const track = trackDesc.trackFactory(trackContext);
-      const entry = new TrackFSM(track, trackDesc, trackContext);
+      const entry = new TrackFSM(key, track, trackDesc, trackContext);
 
       // Push track into the safe cache.
       this.newTracks.set(key, entry);
@@ -178,15 +179,19 @@ export class TrackManager {
 async function* trackLifecycle(
   track: Track,
   ctx: TrackContext,
-): AsyncGenerator<void, void, void> {
+): AsyncGenerator<void, void, TrackRenderContext> {
   try {
-    yield;
+    // Wait for parameters to be passed in before initializing the track
+    const trackRenderCtx = yield;
     await Promise.resolve(track.onCreate?.(ctx));
+    await Promise.resolve(track.onUpdate?.(trackRenderCtx));
+
+    // Wait for parameters to be passed in before subsequent calls to onUpdate()
     while (true) {
-      await Promise.resolve(track.onUpdate?.());
-      yield;
+      await Promise.resolve(track.onUpdate?.(yield));
     }
   } finally {
+    // Ensure we always clean up, even on throw or early return
     await Promise.resolve(track.onDestroy?.());
   }
 }
@@ -196,6 +201,7 @@ async function* trackLifecycle(
  * hooks are called synchronously and in the correct order.
  */
 class TrackFSM implements TrackCacheEntry {
+  public readonly trackKey: string;
   public readonly track: Track;
   public readonly desc: TrackDescriptor;
 
@@ -206,7 +212,13 @@ class TrackFSM implements TrackCacheEntry {
   private error?: Error;
   private isDisposed = false;
 
-  constructor(track: Track, desc: TrackDescriptor, ctx: TrackContext) {
+  constructor(
+    trackKey: string,
+    track: Track,
+    desc: TrackDescriptor,
+    ctx: TrackContext,
+  ) {
+    this.trackKey = trackKey;
     this.track = track;
     this.desc = desc;
     this.ctx = ctx;
@@ -219,7 +231,7 @@ class TrackFSM implements TrackCacheEntry {
     this.generator.next();
   }
 
-  render(ctx: CanvasRenderingContext2D, size: Size): void {
+  render(ctx: TrackRenderContext): void {
     assertFalse(this.isDisposed);
 
     // The generator will ensure that track lifecycle calls don't overlap, but
@@ -229,7 +241,8 @@ class TrackFSM implements TrackCacheEntry {
     // avoid enqueueing more than one next().
     this.limiter
       .schedule(async () => {
-        await this.generator.next();
+        // Pass in the parameters to onUpdate() here (i.e. the track size)
+        await this.generator.next(ctx);
       })
       .catch((e) => {
         // Errors thrown inside lifecycle hooks will bubble up through the
@@ -239,7 +252,7 @@ class TrackFSM implements TrackCacheEntry {
       });
 
     // Always call render synchronously
-    this.track.render(ctx, size);
+    this.track.render(ctx);
   }
 
   [Symbol.dispose](): void {

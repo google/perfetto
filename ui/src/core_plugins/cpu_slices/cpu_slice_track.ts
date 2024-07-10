@@ -30,10 +30,11 @@ import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Size} from '../../base/geom';
+import {Vector} from '../../base/geom';
 import {Engine, Track} from '../../public';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
+import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -53,7 +54,7 @@ const CPU_SLICE_FLAGS_INCOMPLETE = 1;
 const CPU_SLICE_FLAGS_REALTIME = 2;
 
 export class CpuSliceTrack implements Track {
-  private mousePos?: {x: number; y: number};
+  private mousePos?: Vector;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
@@ -90,8 +91,11 @@ export class CpuSliceTrack implements Track {
     this.lastRowId = it.firstRow({lastRowId: NUM}).lastRowId;
   }
 
-  async onUpdate() {
-    await this.fetcher.requestDataForCurrentTime();
+  async onUpdate({
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): Promise<void> {
+    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 
   async onBoundsChange(
@@ -163,9 +167,10 @@ export class CpuSliceTrack implements Track {
     return TRACK_HEIGHT;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: Size): void {
+  render(trackCtx: TrackRenderContext): void {
+    const {ctx, size, timescale} = trackCtx;
+
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {visibleTimeScale} = globals.timeline;
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -177,15 +182,17 @@ export class CpuSliceTrack implements Track {
       this.getHeight(),
       0,
       size.width,
-      visibleTimeScale.timeToPx(data.start),
-      visibleTimeScale.timeToPx(data.end),
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
     );
 
-    this.renderSlices(ctx, size, data);
+    this.renderSlices(trackCtx, data);
   }
 
-  renderSlices(ctx: CanvasRenderingContext2D, size: Size, data: Data): void {
-    const {visibleTimeScale, visibleWindow} = globals.timeline;
+  renderSlices(
+    {ctx, timescale, size, visibleWindow}: TrackRenderContext,
+    data: Data,
+  ): void {
     assertTrue(data.startQs.length === data.endQs.length);
     assertTrue(data.startQs.length === data.utids.length);
 
@@ -220,8 +227,8 @@ export class CpuSliceTrack implements Track {
       ) {
         tEnd = endTime;
       }
-      const rectStart = visibleTimeScale.timeToPx(tStart);
-      const rectEnd = visibleTimeScale.timeToPx(tEnd);
+      const rectStart = timescale.timeToPx(tStart);
+      const rectEnd = timescale.timeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
       const threadInfo = globals.threads.get(utid);
@@ -309,8 +316,8 @@ export class CpuSliceTrack implements Track {
         const tEnd = Time.fromRaw(data.endQs[startIndex]);
         const utid = data.utids[startIndex];
         const color = colorForThread(globals.threads.get(utid));
-        const rectStart = visibleTimeScale.timeToPx(tStart);
-        const rectEnd = visibleTimeScale.timeToPx(tEnd);
+        const rectStart = timescale.timeToPx(tStart);
+        const rectEnd = timescale.timeToPx(tEnd);
         const rectWidth = Math.max(1, rectEnd - rectStart);
 
         // Draw a rectangle around the slice that is currently selected.
@@ -321,7 +328,7 @@ export class CpuSliceTrack implements Track {
         ctx.closePath();
         // Draw arrow from wakeup time of current slice.
         if (details.wakeupTs) {
-          const wakeupPos = visibleTimeScale.timeToPx(details.wakeupTs);
+          const wakeupPos = timescale.timeToPx(details.wakeupTs);
           const latencyWidth = rectStart - wakeupPos;
           drawDoubleHeadedArrow(
             ctx,
@@ -355,9 +362,7 @@ export class CpuSliceTrack implements Track {
 
       // Draw diamond if the track being drawn is the cpu of the waker.
       if (this.cpu === details.wakerCpu && details.wakeupTs) {
-        const wakeupPos = Math.floor(
-          visibleTimeScale.timeToPx(details.wakeupTs),
-        );
+        const wakeupPos = Math.floor(timescale.timeToPx(details.wakeupTs));
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
         ctx.fillStyle = 'black';
@@ -384,17 +389,16 @@ export class CpuSliceTrack implements Track {
     }
   }
 
-  onMouseMove(pos: {x: number; y: number}) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
-    this.mousePos = pos;
+    this.mousePos = {x, y};
     if (data === undefined) return;
-    const {visibleTimeScale} = globals.timeline;
-    if (pos.y < MARGIN_TOP || pos.y > MARGIN_TOP + RECT_HEIGHT) {
+    if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
       globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
       return;
     }
-    const t = visibleTimeScale.pxToHpTime(pos.x);
+    const t = timescale.pxToHpTime(x);
     let hoveredUtid = -1;
 
     for (let i = 0; i < data.startQs.length; i++) {
@@ -421,11 +425,10 @@ export class CpuSliceTrack implements Track {
     this.mousePos = undefined;
   }
 
-  onMouseClick({x}: {x: number}) {
+  onMouseClick({x, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
     if (data === undefined) return false;
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(x);
+    const time = timescale.pxToHpTime(x);
     const index = search(data.startQs, time.toTime());
     const id = index === -1 ? undefined : data.ids[index];
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions

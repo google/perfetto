@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../base/bigint_math';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {createStore, Store} from '../base/store';
 import {duration, Time, time, TimeSpan} from '../base/time';
@@ -27,12 +26,7 @@ import {
 import {createEmptyState} from '../common/empty_state';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {
-  EngineConfig,
-  RESOLUTION_DEFAULT,
-  State,
-  getLegacySelection,
-} from '../common/state';
+import {EngineConfig, State, getLegacySelection} from '../common/state';
 import {TabManager} from '../common/tab_registry';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 import {TrackManager} from '../common/track_cache';
@@ -544,29 +538,6 @@ class Globals {
     this.aggregateDataStore.set(kind, data);
   }
 
-  getCurResolution(): duration {
-    // Truncate the resolution to the closest power of 2 (in nanosecond space).
-    // We choose to work in ns space because resolution is consumed be track
-    // controllers for quantization and they rely on resolution to be a power
-    // of 2 in nanosecond form. This is property does not hold if we work in
-    // second space.
-    //
-    // This effectively means the resolution changes approximately every 6 zoom
-    // levels. Logic: each zoom level represents a delta of 0.1 * (visible
-    // window span). Therefore, zooming out by six levels is 1.1^6 ~= 2.
-    // Similarily, zooming in six levels is 0.9^6 ~= 0.5.
-    const timeScale = this.timeline.visibleTimeScale;
-    // TODO(b/186265930): Remove once fixed:
-    if (timeScale.pxSpan.delta === 0) {
-      console.error(`b/186265930: Bad pxToSec suppressed`);
-      return RESOLUTION_DEFAULT;
-    }
-
-    const timePerPx = BigInt(Math.floor(timeScale.pxToDuration(this.quantPx)));
-
-    return BigintMath.bitFloor(timePerPx);
-  }
-
   getCurrentEngine(): EngineConfig | undefined {
     return this.state.engine;
   }
@@ -681,12 +652,6 @@ class Globals {
   // be cleaned up explicitly.
   shutdown() {
     raf.shutdown();
-  }
-
-  // How many pixels to use for one quanta of horizontal resolution
-  get quantPx(): number {
-    const quantPx = (self as {} as {quantPx: number | undefined}).quantPx;
-    return quantPx ?? 1;
   }
 
   get commandManager(): CommandManager {

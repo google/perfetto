@@ -22,15 +22,13 @@ import {uuidv4Sql} from '../base/uuid';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {raf} from '../core/raf_scheduler';
 import {CacheKey} from '../core/timeline_cache';
-import {Track} from '../public/tracks';
+import {Track, TrackMouseEvent, TrackRenderContext} from '../public/tracks';
 import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
-import {globals} from './globals';
-import {Size} from '../base/geom';
 import {NewTrackArgs} from './track';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 
@@ -447,23 +445,21 @@ export abstract class BaseCounterTrack implements Track {
     this.limits = await this.createTableAndFetchLimits(false);
   }
 
-  async onUpdate(): Promise<void> {
-    const {visibleTimeScale: timeScale, visibleWindow: vizTime} =
-      globals.timeline;
-
-    const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
-    const rawStartNs = vizTime.start.toTime();
-    const rawEndNs = vizTime.end.toTime();
-    const rawCountersKey = CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
+  async onUpdate({visibleWindow, size}: TrackRenderContext): Promise<void> {
+    const windowSizePx = Math.max(1, size.width);
+    const timespan = visibleWindow.toTimeSpan();
+    const rawCountersKey = CacheKey.create(
+      timespan.start,
+      timespan.end,
+      windowSizePx,
+    );
 
     // If the visible time range is outside the cached area, requests
     // asynchronously new data from the SQL engine.
     await this.maybeRequestData(rawCountersKey);
   }
 
-  render(ctx: CanvasRenderingContext2D, size: Size) {
-    const {visibleTimeScale: timeScale} = globals.timeline;
-
+  render({ctx, size, timescale}: TrackRenderContext): void {
     // In any case, draw whatever we have (which might be stale/incomplete).
     const limits = this.limits;
     const data = this.counters;
@@ -474,8 +470,8 @@ export abstract class BaseCounterTrack implements Track {
         this.getHeight(),
         0,
         size.width,
-        timeScale.timeToPx(this.countersKey.start),
-        timeScale.timeToPx(this.countersKey.end),
+        timescale.timeToPx(this.countersKey.start),
+        timescale.timeToPx(this.countersKey.end),
       );
       return;
     }
@@ -509,7 +505,7 @@ export abstract class BaseCounterTrack implements Track {
     ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
     const calculateX = (ts: time) => {
-      return Math.floor(timeScale.timeToPx(ts));
+      return Math.floor(timescale.timeToPx(ts));
     };
     const calculateY = (value: number) => {
       return (
@@ -596,7 +592,7 @@ export abstract class BaseCounterTrack implements Track {
       const xEnd =
         hover.tsEnd === undefined
           ? endPx
-          : Math.floor(timeScale.timeToPx(hover.tsEnd));
+          : Math.floor(timescale.timeToPx(hover.tsEnd));
       const y =
         MARGIN_TOP +
         effectiveHeight -
@@ -655,17 +651,16 @@ export abstract class BaseCounterTrack implements Track {
       this.getHeight(),
       0,
       size.width,
-      timeScale.timeToPx(this.countersKey.start),
-      timeScale.timeToPx(this.countersKey.end),
+      timescale.timeToPx(this.countersKey.start),
+      timescale.timeToPx(this.countersKey.end),
     );
   }
 
-  onMouseMove(pos: {x: number; y: number}) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.counters;
     if (data === undefined) return;
-    this.mousePos = pos;
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(pos.x);
+    this.mousePos = {x, y};
+    const time = timescale.pxToHpTime(x);
 
     const [left, right] = searchSegment(data.timestamps, time.toTime());
 

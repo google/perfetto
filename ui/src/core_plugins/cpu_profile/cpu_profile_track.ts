@@ -20,10 +20,10 @@ import {colorForSample} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {globals} from '../../frontend/globals';
-import {Size} from '../../base/geom';
 import {TimeScale} from '../../frontend/time_scale';
 import {Engine, Track} from '../../public';
 import {LONG, NUM} from '../../trace_processor/query_result';
+import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
 
 const BAR_HEIGHT = 3;
 const MARGIN_TOP = 4.5;
@@ -48,8 +48,11 @@ export class CpuProfileTrack implements Track {
     this.utid = utid;
   }
 
-  async onUpdate(): Promise<void> {
-    await this.fetcher.requestDataForCurrentTime();
+  async onUpdate({
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): Promise<void> {
+    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 
   async onBoundsChange(
@@ -95,8 +98,7 @@ export class CpuProfileTrack implements Track {
     return MARGIN_TOP + RECT_HEIGHT - 1;
   }
 
-  render(ctx: CanvasRenderingContext2D, _size: Size): void {
-    const {visibleTimeScale: timeScale} = globals.timeline;
+  render({ctx, timescale: timeScale}: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return;
@@ -176,13 +178,12 @@ export class CpuProfileTrack implements Track {
     }
   }
 
-  onMouseMove({x, y}: {x: number; y: number}) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
     if (data === undefined) return;
-    const {visibleTimeScale: timeScale} = globals.timeline;
-    const time = timeScale.pxToHpTime(x);
+    const time = timescale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());
-    const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
+    const index = this.findTimestampIndex(left, timescale, data, x, y, right);
     this.hoveredTs =
       index === -1 ? undefined : Time.fromRaw(data.tsStarts[index]);
   }
@@ -191,15 +192,14 @@ export class CpuProfileTrack implements Track {
     this.hoveredTs = undefined;
   }
 
-  onMouseClick({x, y}: {x: number; y: number}) {
+  onMouseClick({x, y, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
     if (data === undefined) return false;
-    const {visibleTimeScale: timeScale} = globals.timeline;
 
-    const time = timeScale.pxToHpTime(x);
+    const time = timescale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());
 
-    const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
+    const index = this.findTimestampIndex(left, timescale, data, x, y, right);
 
     if (index !== -1) {
       const id = data.ids[index];

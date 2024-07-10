@@ -18,14 +18,11 @@ import {Time} from '../base/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
-import {
-  getMaxMajorTicks,
-  TickGenerator,
-  TickType,
-  timeScaleForVisibleWindow,
-} from './gridline_helper';
+import {getMaxMajorTicks, TickGenerator, TickType} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
+import {PxSpan, TimeScale} from './time_scale';
+import {canvasClip} from '../common/canvas_utils';
 
 // This is used to display the summary of search results.
 export class TickmarkPanel implements Panel {
@@ -37,29 +34,30 @@ export class TickmarkPanel implements Panel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
-    const {visibleTimeScale} = globals.timeline;
+    const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
 
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
-    ctx.clip();
+    ctx.translate(TRACK_SHELL_WIDTH, 0);
+    canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
+    this.renderPanel(ctx, trackSize);
+    ctx.restore();
+  }
 
+  private renderPanel(ctx: CanvasRenderingContext2D, size: Size): void {
     const visibleWindow = globals.timeline.visibleWindow;
-    if (size.width > TRACK_SHELL_WIDTH && visibleWindow.duration > 0) {
-      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
-      const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timespan = visibleWindow.toTimeSpan();
+
+    if (size.width > 0 && timespan.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width);
 
       const offset = globals.timestampOffset();
-      const tickGen = new TickGenerator(
-        visibleWindow.toTimeSpan(),
-        maxMajorTicks,
-        offset,
-      );
+      const tickGen = new TickGenerator(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
-        const px = Math.floor(map.timeToPx(time));
+        const px = Math.floor(timescale.timeToPx(time));
         if (type === TickType.MAJOR) {
           ctx.fillRect(px, 0, 1, size.height);
         }
@@ -73,9 +71,8 @@ export class TickmarkPanel implements Panel {
       if (!visibleWindow.overlaps(tStart, tEnd)) {
         continue;
       }
-      const rectStart =
-        Math.max(visibleTimeScale.timeToPx(tStart), 0) + TRACK_SHELL_WIDTH;
-      const rectEnd = visibleTimeScale.timeToPx(tEnd) + TRACK_SHELL_WIDTH;
+      const rectStart = Math.max(timescale.timeToPx(tStart), 0);
+      const rectEnd = timescale.timeToPx(tEnd);
       ctx.fillStyle = '#ffe263';
       ctx.fillRect(
         Math.floor(rectStart),
@@ -88,9 +85,10 @@ export class TickmarkPanel implements Panel {
     if (index !== -1 && index < globals.currentSearchResults.tses.length) {
       const start = globals.currentSearchResults.tses[index];
       if (start !== -1n) {
-        const triangleStart =
-          Math.max(visibleTimeScale.timeToPx(Time.fromRaw(start)), 0) +
-          TRACK_SHELL_WIDTH;
+        const triangleStart = Math.max(
+          timescale.timeToPx(Time.fromRaw(start)),
+          0,
+        );
         ctx.fillStyle = '#000';
         ctx.beginPath();
         ctx.moveTo(triangleStart, size.height);
