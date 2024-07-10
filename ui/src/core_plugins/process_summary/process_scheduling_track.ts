@@ -214,7 +214,7 @@ export class ProcessSchedulingTrack implements Track {
       const tEnd = Time.fromRaw(data.ends[i]);
 
       // Cull slices that lie completely outside the visible window
-      if (!visibleTimeSpan.intersects(tStart, tEnd)) continue;
+      if (!visibleTimeSpan.overlaps(tStart, tEnd)) continue;
 
       const utid = data.utids[i];
       const cpu = data.cpus[i];

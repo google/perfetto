@@ -964,7 +964,7 @@ export abstract class BaseSliceTrack<
     const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);
     const right = Math.min(visibleTimeScale.timeToPx(tEnd), pxEnd);
 
-    const visible = visibleTimeSpan.intersects(tStart, tEnd);
+    const visible = visibleTimeSpan.overlaps(tStart, tEnd);
 
     const totalSliceHeight = this.computedRowSpacing + this.computedSliceHeight;
 

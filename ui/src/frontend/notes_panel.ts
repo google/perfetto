@@ -161,7 +161,7 @@ export class NotesPanel implements Panel {
       // *within* the area (e.g. both lhs and rhs are out of bounds).
       if (
         (note.noteType === 'DEFAULT' && !span.contains(note.timestamp)) ||
-        (note.noteType === 'SPAN' && !span.intersects(note.start, note.end))
+        (note.noteType === 'SPAN' && !span.overlaps(note.start, note.end))
       ) {
         continue;
       }

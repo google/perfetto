@@ -66,7 +66,7 @@ export class TickmarkPanel implements Panel {
     for (let i = 0; i < data.tsStarts.length; i++) {
       const tStart = Time.fromRaw(data.tsStarts[i]);
       const tEnd = Time.fromRaw(data.tsEnds[i]);
-      if (!visibleSpan.intersects(tStart, tEnd)) {
+      if (!visibleSpan.overlaps(tStart, tEnd)) {
         continue;
       }
       const rectStart =

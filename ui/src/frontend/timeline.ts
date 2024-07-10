@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {time, Span, duration} from '../base/time';
+import {time, TimeSpan} from '../base/time';
 import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 import {Area, State} from '../common/state';
 import {raf} from '../core/raf_scheduler';
@@ -37,14 +37,14 @@ export class Timeline {
   private _visibleWindow: HighPrecisionTimeSpan;
   private _timeScale: TimeScale;
   private _windowSpan = PxSpan.ZERO;
-  private readonly traceSpan;
-  private readonly store;
+  private readonly traceSpan: TimeSpan;
+  private readonly store: Store<State>;
 
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
   private _selectedArea?: Area;
 
-  constructor(store: Store<State>, traceSpan: Span<time, duration>) {
+  constructor(store: Store<State>, traceSpan: TimeSpan) {
     this.store = store;
     this.traceSpan = traceSpan;
     this._visibleWindow = HighPrecisionTimeSpan.fromTime(
@@ -110,7 +110,7 @@ export class Timeline {
   }
 
   // Set visible window using an integer time span
-  updateVisibleTime(ts: Span<time, duration>) {
+  updateVisibleTime(ts: TimeSpan) {
     this.updateVisibleTimeHP(HighPrecisionTimeSpan.fromTime(ts.start, ts.end));
   }
 
@@ -158,7 +158,7 @@ export class Timeline {
     return this._visibleWindow;
   }
 
-  get visibleTimeSpan(): Span<time, duration> {
+  get visibleTimeSpan(): TimeSpan {
     return this._visibleWindow.toTimeSpan();
   }
 }

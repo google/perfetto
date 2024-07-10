@@ -15,7 +15,7 @@
 import {BigintMath} from '../base/bigint_math';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {createStore, Store} from '../base/store';
-import {duration, Span, Time, time, TimeSpan} from '../base/time';
+import {duration, Time, time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args} from '../common/arg_types';
@@ -824,9 +824,7 @@ function findTimeRangeOfSlice(slice: Partial<SliceLike>): {
 
 // Returns the time span of the current selection, or the visible window if
 // there is no current selection.
-export async function getTimeSpanOfSelectionOrVisibleWindow(): Promise<
-  Span<time, duration>
-> {
+export async function getTimeSpanOfSelectionOrVisibleWindow(): Promise<TimeSpan> {
   const range = await globals.findTimeRangeOfSelection();
   if (exists(range)) {
     return new TimeSpan(range.start, range.end);

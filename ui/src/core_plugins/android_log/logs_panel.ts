@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {duration, Span, time, Time, TimeSpan} from '../../base/time';
+import {time, Time, TimeSpan} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {raf} from '../../core/raf_scheduler';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -322,7 +322,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
 
 async function updateLogEntries(
   engine: Engine,
-  span: Span<time, duration>,
+  span: TimeSpan,
   pagination: Pagination,
 ): Promise<LogEntries> {
   const rowsResult = await engine.query(`

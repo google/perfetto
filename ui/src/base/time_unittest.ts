@@ -14,6 +14,8 @@
 
 import {Duration, Time, Timecode, TimeSpan} from '../base/time';
 
+const t = Time.fromRaw;
+
 test('Duration.format', () => {
   expect(Duration.format(0n)).toEqual('0s');
   expect(Duration.format(3_000_000_000n)).toEqual('3s');
@@ -63,31 +65,25 @@ test('Duration.fromMillis', () => {
 });
 
 test('timecode', () => {
-  expect(new Timecode(Time.fromRaw(0n)).toString(' ')).toEqual(
-    '00:00:00.000 000 000',
-  );
-  expect(new Timecode(Time.fromRaw(123n)).toString(' ')).toEqual(
-    '00:00:00.000 000 123',
-  );
-  expect(new Timecode(Time.fromRaw(60_000_000_000n)).toString(' ')).toEqual(
+  expect(new Timecode(t(0n)).toString(' ')).toEqual('00:00:00.000 000 000');
+  expect(new Timecode(t(123n)).toString(' ')).toEqual('00:00:00.000 000 123');
+  expect(new Timecode(t(60_000_000_000n)).toString(' ')).toEqual(
     '00:01:00.000 000 000',
   );
-  expect(new Timecode(Time.fromRaw(12_345_678_910n)).toString(' ')).toEqual(
+  expect(new Timecode(t(12_345_678_910n)).toString(' ')).toEqual(
     '00:00:12.345 678 910',
   );
-  expect(new Timecode(Time.fromRaw(86_400_000_000_000n)).toString(' ')).toEqual(
+  expect(new Timecode(t(86_400_000_000_000n)).toString(' ')).toEqual(
     '1d00:00:00.000 000 000',
   );
-  expect(
-    new Timecode(Time.fromRaw(31_536_000_000_000_000n)).toString(' '),
-  ).toEqual('365d00:00:00.000 000 000');
-  expect(new Timecode(Time.fromRaw(-123n)).toString(' ')).toEqual(
-    '-00:00:00.000 000 123',
+  expect(new Timecode(t(31_536_000_000_000_000n)).toString(' ')).toEqual(
+    '365d00:00:00.000 000 000',
   );
+  expect(new Timecode(t(-123n)).toString(' ')).toEqual('-00:00:00.000 000 123');
 });
 
 function mkSpan(start: bigint, end: bigint) {
-  return new TimeSpan(Time.fromRaw(start), Time.fromRaw(end));
+  return new TimeSpan(t(start), t(end));
 }
 
 describe('TimeSpan', () => {
@@ -115,45 +111,38 @@ describe('TimeSpan', () => {
   it('checks containment', () => {
     const x = mkSpan(10n, 20n);
 
-    expect(x.contains(Time.fromRaw(9n))).toBeFalsy();
-    expect(x.contains(Time.fromRaw(10n))).toBeTruthy();
-    expect(x.contains(Time.fromRaw(15n))).toBeTruthy();
-    expect(x.contains(Time.fromRaw(20n))).toBeFalsy();
-    expect(x.contains(Time.fromRaw(21n))).toBeFalsy();
-
-    expect(x.contains(mkSpan(12n, 18n))).toBeTruthy();
-    expect(x.contains(mkSpan(5n, 25n))).toBeFalsy();
-    expect(x.contains(mkSpan(5n, 15n))).toBeFalsy();
-    expect(x.contains(mkSpan(15n, 25n))).toBeFalsy();
-    expect(x.contains(mkSpan(0n, 10n))).toBeFalsy();
-    expect(x.contains(mkSpan(20n, 30n))).toBeFalsy();
+    expect(x.contains(t(9n))).toBeFalsy();
+    expect(x.contains(t(10n))).toBeTruthy();
+    expect(x.contains(t(15n))).toBeTruthy();
+    expect(x.contains(t(20n))).toBeFalsy();
+    expect(x.contains(t(21n))).toBeFalsy();
   });
 
-  it('checks intersection with span', () => {
+  it('checks containment of another span', () => {
     const x = mkSpan(10n, 20n);
 
-    expect(x.intersectsInterval(mkSpan(0n, 10n))).toBeFalsy();
-    expect(x.intersectsInterval(mkSpan(5n, 15n))).toBeTruthy();
-    expect(x.intersectsInterval(mkSpan(12n, 18n))).toBeTruthy();
-    expect(x.intersectsInterval(mkSpan(15n, 25n))).toBeTruthy();
-    expect(x.intersectsInterval(mkSpan(20n, 30n))).toBeFalsy();
-    expect(x.intersectsInterval(mkSpan(5n, 25n))).toBeTruthy();
+    expect(x.containsSpan(t(12n), t(18n))).toBeTruthy();
+    expect(x.containsSpan(t(5n), t(25n))).toBeFalsy();
+    expect(x.containsSpan(t(5n), t(15n))).toBeFalsy();
+    expect(x.containsSpan(t(15n), t(25n))).toBeFalsy();
+    expect(x.containsSpan(t(0n), t(10n))).toBeFalsy();
+    expect(x.containsSpan(t(20n), t(30n))).toBeFalsy();
   });
 
-  it('checks intersection', () => {
+  it('checks overlap', () => {
     const x = mkSpan(10n, 20n);
 
-    expect(x.intersects(Time.fromRaw(0n), Time.fromRaw(10n))).toBeFalsy();
-    expect(x.intersects(Time.fromRaw(5n), Time.fromRaw(15n))).toBeTruthy();
-    expect(x.intersects(Time.fromRaw(12n), Time.fromRaw(18n))).toBeTruthy();
-    expect(x.intersects(Time.fromRaw(15n), Time.fromRaw(25n))).toBeTruthy();
-    expect(x.intersects(Time.fromRaw(20n), Time.fromRaw(30n))).toBeFalsy();
-    expect(x.intersects(Time.fromRaw(5n), Time.fromRaw(25n))).toBeTruthy();
+    expect(x.overlaps(t(0n), t(10n))).toBeFalsy();
+    expect(x.overlaps(t(5n), t(15n))).toBeTruthy();
+    expect(x.overlaps(t(12n), t(18n))).toBeTruthy();
+    expect(x.overlaps(t(15n), t(25n))).toBeTruthy();
+    expect(x.overlaps(t(20n), t(30n))).toBeFalsy();
+    expect(x.overlaps(t(5n), t(25n))).toBeTruthy();
   });
 
   it('can add', () => {
     const x = mkSpan(10n, 20n);
-    expect(x.add(5n)).toEqual(mkSpan(15n, 25n));
+    expect(x.translate(5n)).toEqual(mkSpan(15n, 25n));
   });
 
   it('can pad', () => {
