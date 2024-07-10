@@ -258,6 +258,7 @@ class Globals {
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
   permalinkHash?: string;
+  showTraceErrorPopup = true;
 
   traceContext = defaultTraceContext;
 
