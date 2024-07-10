@@ -99,7 +99,7 @@ class TraceViewer implements m.ClassComponent {
         const timeline = globals.timeline;
 
         this.keepCurrentSelection = true;
-        const tDelta = timeline.visibleTimeScale.pxDeltaToDuration(pannedPx);
+        const tDelta = timeline.visibleTimeScale.pxToDuration(pannedPx);
         timeline.panVisibleWindow(tDelta);
 
         // If the user has panned they no longer need the hint.

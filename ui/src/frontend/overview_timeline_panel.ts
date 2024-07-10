@@ -58,7 +58,7 @@ export class OverviewTimelinePanel implements Panel {
     const traceTime = globals.stateTraceTime();
     if (this.width > TRACK_SHELL_WIDTH) {
       const pxSpan = new PxSpan(TRACK_SHELL_WIDTH, this.width);
-      this.timeScale = TimeScale.fromHPTimeSpan(traceTime, pxSpan);
+      this.timeScale = new TimeScale(traceTime, pxSpan);
       if (this.gesture === undefined) {
         this.gesture = new DragGestureHandler(
           dom as HTMLElement,

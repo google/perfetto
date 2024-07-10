@@ -11,17 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {HighPrecisionTime} from '../../common/high_precision_time';
 import {DragStrategy} from './drag_strategy';
 
 export class OuterDragStrategy extends DragStrategy {
   private dragStartPx = 0;
 
   onDrag(x: number) {
-    const dragBeginTime = this.map.pxToHpTime(this.dragStartPx);
-    const dragEndTime = this.map.pxToHpTime(x);
-    const tStart = HighPrecisionTime.min(dragBeginTime, dragEndTime);
-    const tEnd = HighPrecisionTime.max(dragBeginTime, dragEndTime);
+    const tStart = this.map.pxToHpTime(Math.min(x, this.dragStartPx));
+    const tEnd = this.map.pxToHpTime(Math.max(x, this.dragStartPx));
     super.updateGlobals(tStart, tEnd);
   }
 
