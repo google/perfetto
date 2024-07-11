@@ -65,8 +65,6 @@ FROM min_distance;
 CREATE PERFETTO TABLE android_process_metadata(
   -- Process upid.
   upid INT,
-  -- Process pid.
-  pid INT,
   -- Process name.
   process_name STRING,
   -- Android app UID.
@@ -82,7 +80,6 @@ CREATE PERFETTO TABLE android_process_metadata(
 ) AS
 SELECT
   process.upid,
-  process.pid,
   -- workaround for b/169226092: the bug has been fixed it Android T, but
   -- we support ingesting traces from older Android versions.
   CASE
@@ -103,5 +100,4 @@ FROM process
 LEFT JOIN _uid_package_count ON process.android_appid = _uid_package_count.uid
 LEFT JOIN _android_package_for_process(
   process.android_appid, _uid_package_count.cnt, process.name
-) AS plist
-ORDER BY upid;
+) AS plist;
