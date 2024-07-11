@@ -114,7 +114,6 @@ const METRICS = [
   'chrome_dropped_frames',
   // TODO(289365196): Reenable:
   // 'chrome_long_latency',
-  'trace_metadata',
   'android_trusty_workqueues',
 ];
 const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map((m) => {

@@ -21,6 +21,7 @@
 // - Not directly rely on any other plugins.
 // - Be approved by one of Perfetto UI owners.
 export const defaultPlugins = [
+  'com.google.PixelMemory',
   'dev.perfetto.AndroidBinderVizPlugin',
   'dev.perfetto.AndroidClientServer',
   'dev.perfetto.AndroidCujs',
@@ -36,11 +37,12 @@ export const defaultPlugins = [
   'dev.perfetto.PinSysUITracks',
   'dev.perfetto.RestorePinnedTrack',
   'dev.perfetto.TimelineSync',
+  'dev.perfetto.TraceMetadata',
+  'org.kernel.LinuxKernelDevices',
   'perfetto.AndroidLog',
   'perfetto.Annotation',
   'perfetto.AsyncSlices',
   'perfetto.ChromeScrollJank',
-  'perfetto.ThreadSlices',
   'perfetto.Counter',
   'perfetto.CpuFreq',
   'perfetto.CpuProfile',
@@ -56,8 +58,7 @@ export const defaultPlugins = [
   'perfetto.ProcessSummary',
   'perfetto.Sched',
   'perfetto.Screenshots',
+  'perfetto.ThreadSlices',
   'perfetto.ThreadState',
-  'org.kernel.LinuxKernelDevices',
   'perfetto.TrackUtils',
-  'com.google.PixelMemory',
 ];
