@@ -55,12 +55,7 @@ export class WattsonEstimateAggregationController extends AggregationController 
   ): string {
     const duration = area.end - area.start;
     let query = `
-      DROP TABLE IF EXISTS _ss_converted_to_mw;
-      CREATE PERFETTO TABLE _ss_converted_to_mw AS
-      SELECT *,
-        ((IFNULL(l3_hit_value, 0) + IFNULL(l3_miss_value, 0)) * 1000 / dur)
-          + static_curve as dsu_scu_curve
-      FROM _system_state_curves;
+      INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
 
       DROP TABLE IF EXISTS _ui_selection_window;
       CREATE PERFETTO TABLE _ui_selection_window AS
@@ -71,7 +66,7 @@ export class WattsonEstimateAggregationController extends AggregationController 
       DROP TABLE IF EXISTS _windowed_cpuss_estimate;
       CREATE VIRTUAL TABLE _windowed_cpuss_estimate
       USING
-        SPAN_JOIN(_ui_selection_window, _ss_converted_to_mw);
+        SPAN_JOIN(_ui_selection_window, _system_state_mw);
 
       CREATE VIEW ${this.kind} AS
     `;
@@ -85,8 +80,8 @@ export class WattsonEstimateAggregationController extends AggregationController 
       query += `
         SELECT
         '${estimateTrack}' as name,
-        ROUND(SUM(${estimateTrack}_curve * dur) / ${duration}, 2) as power,
-        ROUND(SUM(${estimateTrack}_curve * dur) / 1000000000, 2) as energy
+        ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 2) as power,
+        ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 2) as energy
         FROM _windowed_cpuss_estimate
       `;
     });
