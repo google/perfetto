@@ -39,6 +39,7 @@ import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 import {assertExists} from '../base/logging';
+import {PxSpan, TimeScale} from './time_scale';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -49,7 +50,10 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
 
 // Checks if the mousePos is within 3px of the start or end of the
 // current selected time range.
-function onTimeRangeBoundary(mousePos: number): 'START' | 'END' | null {
+function onTimeRangeBoundary(
+  timescale: TimeScale,
+  mousePos: number,
+): 'START' | 'END' | null {
   const selection = globals.state.selection;
   if (selection.kind === 'area') {
     // If frontend selectedArea exists then we are in the process of editing the
@@ -57,9 +61,8 @@ function onTimeRangeBoundary(mousePos: number): 'START' | 'END' | null {
     const area = globals.timeline.selectedArea
       ? globals.timeline.selectedArea
       : selection;
-    const {visibleTimeScale} = globals.timeline;
-    const start = visibleTimeScale.timeToPx(area.start);
-    const end = visibleTimeScale.timeToPx(area.end);
+    const start = timescale.timeToPx(area.start);
+    const end = timescale.timeToPx(area.end);
     const startDrag = mousePos - TRACK_SHELL_WIDTH;
     const startDistance = Math.abs(start - startDrag);
     const endDistance = Math.abs(end - startDrag);
@@ -86,6 +89,7 @@ class TraceViewer implements m.ClassComponent {
   private timeSelectionPanel = new TimeSelectionPanel();
   private notesPanel = new NotesPanel();
   private tickmarkPanel = new TickmarkPanel();
+  private timelineWidthPx?: number;
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
@@ -98,8 +102,14 @@ class TraceViewer implements m.ClassComponent {
       onPanned: (pannedPx: number) => {
         const timeline = globals.timeline;
 
+        if (this.timelineWidthPx === undefined) return;
+
         this.keepCurrentSelection = true;
-        const tDelta = timeline.visibleTimeScale.pxToDuration(pannedPx);
+        const timescale = new TimeScale(
+          timeline.visibleWindow,
+          new PxSpan(0, this.timelineWidthPx),
+        );
+        const tDelta = timescale.pxToDuration(pannedPx);
         timeline.panVisibleWindow(tDelta);
 
         // If the user has panned they no longer need the hint.
@@ -117,7 +127,12 @@ class TraceViewer implements m.ClassComponent {
         raf.scheduleRedraw();
       },
       editSelection: (currentPx: number) => {
-        return onTimeRangeBoundary(currentPx) !== null;
+        if (this.timelineWidthPx === undefined) return false;
+        const timescale = new TimeScale(
+          globals.timeline.visibleWindow,
+          new PxSpan(0, this.timelineWidthPx),
+        );
+        return onTimeRangeBoundary(timescale, currentPx) !== null;
       },
       onSelection: (
         dragStartX: number,
@@ -129,32 +144,38 @@ class TraceViewer implements m.ClassComponent {
       ) => {
         const traceTime = globals.traceContext;
         const timeline = globals.timeline;
-        const {visibleTimeScale} = timeline;
+
+        if (this.timelineWidthPx === undefined) return;
+
+        // TODO(stevegolton): Don't get the windowSpan from globals, get it from
+        // here!
+        const {visibleWindow} = timeline;
+        const timespan = visibleWindow.toTimeSpan();
         this.keepCurrentSelection = true;
+
+        const timescale = new TimeScale(
+          timeline.visibleWindow,
+          new PxSpan(0, this.timelineWidthPx),
+        );
+
         if (editing) {
           const selection = globals.state.selection;
           if (selection.kind === 'area') {
             const area = globals.timeline.selectedArea
               ? globals.timeline.selectedArea
               : selection;
-            let newTime = visibleTimeScale
+            let newTime = timescale
               .pxToHpTime(currentX - TRACK_SHELL_WIDTH)
               .toTime();
             // Have to check again for when one boundary crosses over the other.
-            const curBoundary = onTimeRangeBoundary(prevX);
+            const curBoundary = onTimeRangeBoundary(timescale, prevX);
             if (curBoundary == null) return;
             const keepTime = curBoundary === 'START' ? area.end : area.start;
             // Don't drag selection outside of current screen.
             if (newTime < keepTime) {
-              newTime = Time.max(
-                newTime,
-                visibleTimeScale.timeSpan.start.toTime(),
-              );
+              newTime = Time.max(newTime, timespan.start);
             } else {
-              newTime = Time.min(
-                newTime,
-                visibleTimeScale.timeSpan.end.toTime(),
-              );
+              newTime = Time.min(newTime, timespan.end);
             }
             // When editing the time range we always use the saved tracks,
             // since these will not change.
@@ -168,12 +189,11 @@ class TraceViewer implements m.ClassComponent {
           let startPx = Math.min(dragStartX, currentX) - TRACK_SHELL_WIDTH;
           let endPx = Math.max(dragStartX, currentX) - TRACK_SHELL_WIDTH;
           if (startPx < 0 && endPx < 0) return;
-          const {pxSpan} = visibleTimeScale;
-          startPx = clamp(startPx, pxSpan.start, pxSpan.end);
-          endPx = clamp(endPx, pxSpan.start, pxSpan.end);
+          startPx = clamp(startPx, 0, this.timelineWidthPx);
+          endPx = clamp(endPx, 0, this.timelineWidthPx);
           timeline.selectArea(
-            visibleTimeScale.pxToHpTime(startPx).toTime('floor'),
-            visibleTimeScale.pxToHpTime(endPx).toTime('ceil'),
+            timescale.pxToHpTime(startPx).toTime('floor'),
+            timescale.pxToHpTime(endPx).toTime('ceil'),
           );
           timeline.areaY.start = dragStartY;
           timeline.areaY.end = currentY;
@@ -320,7 +340,7 @@ class TraceViewer implements m.ClassComponent {
           panels: scrollingPanels,
           onPanelStackResize: (width) => {
             const timelineWidth = width - TRACK_SHELL_WIDTH;
-            globals.timeline.updateLocalLimits(0, timelineWidth);
+            this.timelineWidthPx = timelineWidth;
           },
         }),
       ),

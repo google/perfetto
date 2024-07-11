@@ -15,10 +15,6 @@
 import {assertTrue} from '../base/logging';
 import {duration, time, Time, TimeSpan} from '../base/time';
 
-import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
-import {globals} from './globals';
-import {TimeScale} from './time_scale';
-
 const micros = 1000n;
 const millis = 1000n * micros;
 const seconds = 1000n * millis;
@@ -134,10 +130,10 @@ export function getMaxMajorTicks(width: number) {
 
 // An iterable which generates a series of ticks for a given timescale.
 export class TickGenerator implements Iterable<Tick> {
-  private _tickPattern: TickType[];
-  private _patternSize: duration;
-  private _timeSpan: TimeSpan;
-  private _offset: time;
+  private readonly _tickPattern: TickType[];
+  private readonly _patternSize: duration;
+  private readonly _timeSpan: TimeSpan;
+  private readonly _offset: time;
 
   constructor(
     timeSpan: TimeSpan,
@@ -176,39 +172,6 @@ export class TickGenerator implements Iterable<Tick> {
         patternIndex = patternIndex % this._tickPattern.length;
         const type = this._tickPattern[patternIndex];
         yield {type, time: Time.add(time, this._offset)};
-      }
-    }
-  }
-}
-
-// Gets the timescale associated with the current visible window.
-export function timeScaleForVisibleWindow(
-  startPx: number,
-  endPx: number,
-): TimeScale {
-  return globals.timeline.getTimeScale(startPx, endPx);
-}
-
-export function drawGridLines(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-): void {
-  ctx.strokeStyle = TRACK_BORDER_COLOR;
-  ctx.lineWidth = 1;
-
-  const span = globals.timeline.visibleWindow.toTimeSpan();
-  if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
-    const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
-    const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
-    const offset = globals.timestampOffset();
-    for (const {type, time} of new TickGenerator(span, maxMajorTicks, offset)) {
-      const px = Math.floor(map.timeToPx(time));
-      if (type === TickType.MAJOR) {
-        ctx.beginPath();
-        ctx.moveTo(px + 0.5, 0);
-        ctx.lineTo(px + 0.5, height);
-        ctx.stroke();
       }
     }
   }

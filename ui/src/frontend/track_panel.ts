@@ -17,16 +17,20 @@ import m from 'mithril';
 
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
-import {time} from '../base/time';
+import {TimeSpan, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {TrackCacheEntry} from '../common/track_cache';
 import {raf} from '../core/raf_scheduler';
 import {SliceRect, Track, TrackTags} from '../public';
 
 import {checkerboard} from './checkerboard';
-import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
+import {
+  SELECTION_FILL_COLOR,
+  TRACK_BORDER_COLOR,
+  TRACK_SHELL_WIDTH,
+} from './css_constants';
 import {globals} from './globals';
-import {drawGridLines} from './gridline_helper';
+import {TickGenerator, TickType, getMaxMajorTicks} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {verticalScrollToTrack} from './scroll_helper';
@@ -35,11 +39,13 @@ import {classNames} from '../base/classnames';
 import {Button, ButtonBar} from '../widgets/button';
 import {Popup} from '../widgets/popup';
 import {canvasClip} from '../common/canvas_utils';
-import {TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from './time_scale';
 import {getLegacySelection} from '../common/state';
 import {CloseTrackButton} from './close_track_button';
 import {exists} from '../base/utils';
 import {Intent} from '../widgets/common';
+import {TrackRenderContext} from '../public/tracks';
+import {calculateResolution} from '../common/resolution';
 
 function getTitleSize(title: string): string | undefined {
   const length = title.length;
@@ -278,6 +284,19 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
   private mouseDownY?: number;
   private selectionOccurred = false;
 
+  private getTargetContainerSize(event: MouseEvent): number {
+    const target = event.target as HTMLElement;
+    return target.getBoundingClientRect().width;
+  }
+
+  private getTargetTimeScale(event: MouseEvent): TimeScale {
+    const timeWindow = globals.timeline.visibleWindow;
+    return new TimeScale(
+      timeWindow,
+      new PxSpan(0, this.getTargetContainerSize(event)),
+    );
+  }
+
   view(node: m.CVnode<TrackContentAttrs>) {
     const attrs = node.attrs;
     return m(
@@ -288,7 +307,12 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         },
         className: classNames(attrs.hasError && 'pf-track-content-error'),
         onmousemove: (e: MouseEvent) => {
-          attrs.track.onMouseMove?.(currentTargetOffset(e));
+          const {x, y} = currentTargetOffset(e);
+          attrs.track.onMouseMove?.({
+            x,
+            y,
+            timescale: this.getTargetTimeScale(e),
+          });
           raf.scheduleRedraw();
         },
         onmouseout: () => {
@@ -323,7 +347,14 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
             return;
           }
           // Returns true if something was selected, so stop propagation.
-          if (attrs.track.onMouseClick?.(currentTargetOffset(e))) {
+          const {x, y} = currentTargetOffset(e);
+          if (
+            attrs.track.onMouseClick?.({
+              x,
+              y,
+              timescale: this.getTargetTimeScale(e),
+            })
+          ) {
             e.stopPropagation();
           }
           raf.scheduleRedraw();
@@ -419,6 +450,7 @@ interface TrackPanelAttrs {
 export class TrackPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = true;
+  private previousTrackContext?: TrackRenderContext;
 
   constructor(private readonly attrs: TrackPanelAttrs) {}
 
@@ -460,8 +492,11 @@ export class TrackPanel implements Panel {
     }
   }
 
-  highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: Size) {
-    const {visibleTimeScale} = globals.timeline;
+  highlightIfTrackSelected(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size,
+  ) {
     const selection = globals.state.selection;
     if (selection.kind !== 'area') {
       return;
@@ -470,69 +505,112 @@ export class TrackPanel implements Panel {
     if (selection.tracks.includes(this.attrs.trackKey)) {
       ctx.fillStyle = SELECTION_FILL_COLOR;
       ctx.fillRect(
-        visibleTimeScale.timeToPx(selection.start) + TRACK_SHELL_WIDTH,
+        timescale.timeToPx(selection.start),
         0,
-        visibleTimeScale.durationToPx(selectedAreaDuration),
+        timescale.durationToPx(selectedAreaDuration),
         size.height,
       );
     }
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
-    ctx.save();
-    canvasClip(
-      ctx,
-      TRACK_SHELL_WIDTH,
-      0,
-      size.width - TRACK_SHELL_WIDTH,
-      size.height,
-    );
-
-    drawGridLines(ctx, size.width, size.height);
-
-    const track = this.attrs.trackFSM;
+    const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
 
     ctx.save();
     ctx.translate(TRACK_SHELL_WIDTH, 0);
+    canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
+
+    const visibleWindow = globals.timeline.visibleWindow;
+    const timespan = visibleWindow.toTimeSpan();
+    const timescale = new TimeScale(
+      visibleWindow,
+      new PxSpan(0, trackSize.width),
+    );
+    drawGridLines(ctx, timespan, timescale, trackSize);
+
+    const track = this.attrs.trackFSM;
+
     if (track !== undefined) {
-      const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
+      const trackRenderCtx: TrackRenderContext = {
+        trackKey: track.trackKey,
+        visibleWindow,
+        size: trackSize,
+        resolution: calculateResolution(visibleWindow, trackSize.width),
+        ctx,
+        timescale,
+      };
+      this.previousTrackContext = trackRenderCtx;
       if (!track.getError()) {
-        track.render(ctx, trackSize);
+        track.render(trackRenderCtx);
       }
     } else {
-      checkerboard(ctx, size.height, 0, size.width - TRACK_SHELL_WIDTH);
+      checkerboard(ctx, trackSize.height, 0, trackSize.width);
     }
-    ctx.restore();
 
-    this.highlightIfTrackSelected(ctx, size);
+    this.highlightIfTrackSelected(ctx, timescale, trackSize);
 
-    const {visibleTimeScale} = globals.timeline;
     // Draw vertical line when hovering on the notes panel.
-    renderHoveredNoteVertical(ctx, visibleTimeScale, size);
-    renderHoveredCursorVertical(ctx, visibleTimeScale, size);
-    renderWakeupVertical(ctx, visibleTimeScale, size);
-    renderNoteVerticals(ctx, visibleTimeScale, size);
+    renderHoveredNoteVertical(ctx, timescale, trackSize);
+    renderHoveredCursorVertical(ctx, timescale, trackSize);
+    renderWakeupVertical(ctx, timescale, trackSize);
+    renderNoteVerticals(ctx, timescale, trackSize);
 
     ctx.restore();
   }
 
   getSliceRect(tStart: time, tDur: time, depth: number): SliceRect | undefined {
-    if (this.attrs.trackFSM === undefined) {
+    if (
+      this.attrs.trackFSM === undefined ||
+      this.previousTrackContext === undefined
+    ) {
       return undefined;
     }
-    return this.attrs.trackFSM.track.getSliceRect?.(tStart, tDur, depth);
+    return this.attrs.trackFSM.track.getSliceRect?.(
+      this.previousTrackContext,
+      tStart,
+      tDur,
+      depth,
+    );
+  }
+}
+
+export function drawGridLines(
+  ctx: CanvasRenderingContext2D,
+  timespan: TimeSpan,
+  timescale: TimeScale,
+  size: Size,
+): void {
+  ctx.strokeStyle = TRACK_BORDER_COLOR;
+  ctx.lineWidth = 1;
+
+  if (size.width > 0 && timespan.duration > 0n) {
+    const maxMajorTicks = getMaxMajorTicks(size.width);
+    const offset = globals.timestampOffset();
+    for (const {type, time} of new TickGenerator(
+      timespan,
+      maxMajorTicks,
+      offset,
+    )) {
+      const px = Math.floor(timescale.timeToPx(time));
+      if (type === TickType.MAJOR) {
+        ctx.beginPath();
+        ctx.moveTo(px + 0.5, 0);
+        ctx.lineTo(px + 0.5, size.height);
+        ctx.stroke();
+      }
+    }
   }
 }
 
 export function renderHoveredCursorVertical(
   ctx: CanvasRenderingContext2D,
-  visibleTimeScale: TimeScale,
+  timescale: TimeScale,
   size: Size,
 ) {
   if (globals.state.hoverCursorTimestamp !== -1n) {
     drawVerticalLineAtTime(
       ctx,
-      visibleTimeScale,
+      timescale,
       globals.state.hoverCursorTimestamp,
       size.height,
       `#344596`,
@@ -542,13 +620,13 @@ export function renderHoveredCursorVertical(
 
 export function renderHoveredNoteVertical(
   ctx: CanvasRenderingContext2D,
-  visibleTimeScale: TimeScale,
+  timescale: TimeScale,
   size: Size,
 ) {
   if (globals.state.hoveredNoteTimestamp !== -1n) {
     drawVerticalLineAtTime(
       ctx,
-      visibleTimeScale,
+      timescale,
       globals.state.hoveredNoteTimestamp,
       size.height,
       `#aaa`,
@@ -558,7 +636,7 @@ export function renderHoveredNoteVertical(
 
 export function renderWakeupVertical(
   ctx: CanvasRenderingContext2D,
-  visibleTimeScale: TimeScale,
+  timescale: TimeScale,
   size: Size,
 ) {
   const currentSelection = getLegacySelection(globals.state);
@@ -569,7 +647,7 @@ export function renderWakeupVertical(
     ) {
       drawVerticalLineAtTime(
         ctx,
-        visibleTimeScale,
+        timescale,
         globals.sliceDetails.wakeupTs,
         size.height,
         `black`,
@@ -580,7 +658,7 @@ export function renderWakeupVertical(
 
 export function renderNoteVerticals(
   ctx: CanvasRenderingContext2D,
-  visibleTimeScale: TimeScale,
+  timescale: TimeScale,
   size: Size,
 ) {
   // All marked areas should have semi-transparent vertical lines
@@ -591,7 +669,7 @@ export function renderNoteVerticals(
         'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
       drawVerticalLineAtTime(
         ctx,
-        visibleTimeScale,
+        timescale,
         note.start,
         size.height,
         transparentNoteColor,
@@ -599,7 +677,7 @@ export function renderNoteVerticals(
       );
       drawVerticalLineAtTime(
         ctx,
-        visibleTimeScale,
+        timescale,
         note.end,
         size.height,
         transparentNoteColor,
@@ -608,7 +686,7 @@ export function renderNoteVerticals(
     } else if (note.noteType === 'DEFAULT') {
       drawVerticalLineAtTime(
         ctx,
-        visibleTimeScale,
+        timescale,
         note.timestamp,
         size.height,
         note.color,

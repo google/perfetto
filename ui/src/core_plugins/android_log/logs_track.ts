@@ -16,9 +16,8 @@ import {Time, duration, time} from '../../base/time';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {globals} from '../../frontend/globals';
-import {Size} from '../../base/geom';
 import {Engine, LONG, NUM, Track} from '../../public';
+import {TrackRenderContext} from '../../public/tracks';
 
 export interface Data extends TrackData {
   // Total number of log events within [start, end], before any quantization.
@@ -54,8 +53,11 @@ export class AndroidLogTrack implements Track {
 
   constructor(private engine: Engine) {}
 
-  async onUpdate(): Promise<void> {
-    await this.fetcher.requestDataForCurrentTime();
+  async onUpdate({
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): Promise<void> {
+    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 
   async onDestroy(): Promise<void> {
@@ -102,15 +104,13 @@ export class AndroidLogTrack implements Track {
     return result;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: Size): void {
-    const {visibleTimeScale} = globals.timeline;
-
+  render({ctx, size, timescale}: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
 
-    const dataStartPx = visibleTimeScale.timeToPx(data.start);
-    const dataEndPx = visibleTimeScale.timeToPx(data.end);
+    const dataStartPx = timescale.timeToPx(data.start);
+    const dataEndPx = timescale.timeToPx(data.end);
 
     checkerboardExcept(
       ctx,
@@ -123,7 +123,7 @@ export class AndroidLogTrack implements Track {
 
     const quantWidth = Math.max(
       EVT_PX,
-      visibleTimeScale.durationToPx(data.resolution),
+      timescale.durationToPx(data.resolution),
     );
     const blockH = RECT_HEIGHT / LEVELS.length;
     for (let i = 0; i < data.timestamps.length; i++) {
@@ -135,7 +135,7 @@ export class AndroidLogTrack implements Track {
         if (!hasEventsForCurColor) continue;
         ctx.fillStyle = LEVELS[lev].color;
         const timestamp = Time.fromRaw(data.timestamps[i]);
-        const px = Math.floor(visibleTimeScale.timeToPx(timestamp));
+        const px = Math.floor(timescale.timeToPx(timestamp));
         ctx.fillRect(px, MARGIN_TOP + blockH * lev, quantWidth, blockH);
       } // for(lev)
     } // for (timestamps)

@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Duration} from '../base/time';
+import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {createStore, TrackDescriptor} from '../public';
+import {TrackRenderContext} from '../public/tracks';
 
 import {createEmptyState} from './empty_state';
+import {HighPrecisionTime} from './high_precision_time';
+import {HighPrecisionTimeSpan} from './high_precision_time_span';
 import {TrackManager} from './track_cache';
 
 function makeMockTrack() {
@@ -41,8 +46,15 @@ async function settle() {
 let mockTrack: ReturnType<typeof makeMockTrack>;
 let td: TrackDescriptor;
 let trackManager: TrackManager;
-const ctx = new CanvasRenderingContext2D();
-const size = {width: 123, height: 123};
+const visibleWindow = new HighPrecisionTimeSpan(HighPrecisionTime.ZERO, 0);
+const dummyCtx: TrackRenderContext = {
+  trackKey: 'foo',
+  ctx: new CanvasRenderingContext2D(),
+  size: {width: 123, height: 123},
+  visibleWindow,
+  resolution: Duration.ZERO,
+  timescale: new TimeScale(visibleWindow, new PxSpan(0, 0)),
+};
 
 beforeEach(() => {
   mockTrack = makeMockTrack();
@@ -58,7 +70,7 @@ describe('TrackManager', () => {
   it('calls track lifecycle hooks', async () => {
     const entry = trackManager.resolveTrack('foo', td);
 
-    entry.render(ctx, size);
+    entry.render(dummyCtx);
     await settle();
     expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
     expect(mockTrack.onUpdate).toHaveBeenCalledTimes(1);
@@ -74,7 +86,7 @@ describe('TrackManager', () => {
     await settle();
     expect(mockTrack.onCreate).not.toHaveBeenCalled();
 
-    entry.render(ctx, size);
+    entry.render(dummyCtx);
     await settle();
     expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
   });
@@ -82,12 +94,12 @@ describe('TrackManager', () => {
   it('reuses tracks', async () => {
     const first = trackManager.resolveTrack('foo', td);
     trackManager.flushOldTracks();
-    first.render(ctx, size);
+    first.render(dummyCtx);
     await settle();
 
     const second = trackManager.resolveTrack('foo', td);
     trackManager.flushOldTracks();
-    second.render(ctx, size);
+    second.render(dummyCtx);
     await settle();
 
     expect(first).toBe(second);
@@ -97,7 +109,7 @@ describe('TrackManager', () => {
 
   it('destroys tracks when they are not resolved for one cycle', async () => {
     const entry = trackManager.resolveTrack('foo', td);
-    entry.render(ctx, size);
+    entry.render(dummyCtx);
 
     // Double flush should destroy all tracks
     trackManager.flushOldTracks();
@@ -117,7 +129,7 @@ describe('TrackManager', () => {
 
     await settle();
 
-    expect(() => entry.render(ctx, size)).toThrow();
+    expect(() => entry.render(dummyCtx)).toThrow();
   });
 
   it('contains crash inside onCreate()', async () => {
@@ -129,7 +141,7 @@ describe('TrackManager', () => {
       throw e;
     });
 
-    entry.render(ctx, size);
+    entry.render(dummyCtx);
     await settle();
 
     expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
@@ -147,7 +159,7 @@ describe('TrackManager', () => {
       throw e;
     });
 
-    entry.render(ctx, size);
+    entry.render(dummyCtx);
     await settle();
 
     expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
@@ -164,7 +176,7 @@ describe('TrackManager', () => {
       throw e;
     });
 
-    entry.render(ctx, size);
+    entry.render(dummyCtx);
     await settle();
 
     // Ensure we don't crash while disposing

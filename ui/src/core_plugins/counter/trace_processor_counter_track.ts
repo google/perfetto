@@ -18,6 +18,7 @@ import {
   BaseCounterTrack,
   BaseCounterTrackArgs,
 } from '../../frontend/base_counter_track';
+import {TrackMouseEvent} from '../../public/tracks';
 
 interface TraceProcessorCounterTrackArgs extends BaseCounterTrackArgs {
   trackId: number;
@@ -44,9 +45,8 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
     `;
   }
 
-  onMouseClick({x}: {x: number}): boolean {
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(x).toTime('floor');
+  onMouseClick({x, timescale}: TrackMouseEvent): boolean {
+    const time = timescale.pxToHpTime(x).toTime('floor');
 
     const query = `
       select
