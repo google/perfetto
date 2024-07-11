@@ -34,8 +34,7 @@
 #include "src/bigtrace/orchestrator/orchestrator_impl.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace bigtrace {
+namespace perfetto::bigtrace {
 namespace {
 
 struct CommandLineOptions {
@@ -202,8 +201,7 @@ base::Status OrchestratorMain(int argc, char** argv) {
 }
 
 }  // namespace
-}  // namespace bigtrace
-}  // namespace perfetto
+}  // namespace perfetto::bigtrace
 
 int main(int argc, char** argv) {
   auto status = perfetto::bigtrace::OrchestratorMain(argc, argv);
