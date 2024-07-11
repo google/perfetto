@@ -31,7 +31,7 @@ import {globals} from './globals';
 import {
   getMaxMajorTicks,
   MIN_PX_PER_STEP,
-  TickGenerator,
+  generateTicks,
   TickType,
 } from './gridline_helper';
 import {Size} from '../base/geom';
@@ -115,7 +115,7 @@ export class OverviewTimelinePanel implements Panel {
     if (size.width > TRACK_SHELL_WIDTH && traceContext.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(this.width - TRACK_SHELL_WIDTH);
       const offset = globals.timestampOffset();
-      const tickGen = new TickGenerator(traceContext, maxMajorTicks, offset);
+      const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
       // Draw time labels
       ctx.font = '10px Roboto Condensed';

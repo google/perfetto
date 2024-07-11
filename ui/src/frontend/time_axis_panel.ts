@@ -22,7 +22,7 @@ import {globals} from './globals';
 import {
   getMaxMajorTicks,
   MIN_PX_PER_STEP,
-  TickGenerator,
+  generateTicks,
   TickType,
 } from './gridline_helper';
 import {Size} from '../base/geom';
@@ -94,7 +94,7 @@ export class TimeAxisPanel implements Panel {
     // Draw time axis.
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const tickGen = new TickGenerator(timespan, maxMajorTicks, offset);
+      const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         if (type === TickType.MAJOR) {
           const position = Math.floor(timescale.timeToPx(time));

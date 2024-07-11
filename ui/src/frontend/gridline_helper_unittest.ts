@@ -14,7 +14,7 @@
 
 import {Time, TimeSpan} from '../base/time';
 
-import {getPattern, TickGenerator, TickType} from './gridline_helper';
+import {getPattern, generateTicks, TickType} from './gridline_helper';
 
 test('gridline helper to have sensible step sizes', () => {
   expect(getPattern(1n)).toEqual([1n, '|']);
@@ -31,9 +31,9 @@ test('gridline helper to have sensible step sizes', () => {
   expect(getPattern(100n)).toEqual([100n, '|....:....']);
 });
 
-describe('TickGenerator', () => {
+describe('generateTicks', () => {
   it('can generate ticks with span starting at origin', () => {
-    const tickGen = new TickGenerator(
+    const tickGen = generateTicks(
       new TimeSpan(Time.fromRaw(0n), Time.fromRaw(10n)),
       1,
     );
@@ -54,7 +54,7 @@ describe('TickGenerator', () => {
   });
 
   it('can generate ticks when span has an offset', () => {
-    const tickGen = new TickGenerator(
+    const tickGen = generateTicks(
       new TimeSpan(Time.fromRaw(10n), Time.fromRaw(20n)),
       1,
     );
@@ -75,7 +75,7 @@ describe('TickGenerator', () => {
   });
 
   it('can generate ticks when span is large', () => {
-    const tickGen = new TickGenerator(
+    const tickGen = generateTicks(
       new TimeSpan(Time.fromRaw(1000000000n), Time.fromRaw(2000000000n)),
       1,
     );
@@ -97,13 +97,14 @@ describe('TickGenerator', () => {
 
   it('throws an error when timespan duration is 0', () => {
     expect(() => {
-      new TickGenerator(TimeSpan.ZERO, 1);
+      Array.from(generateTicks(TimeSpan.ZERO, 1));
     }).toThrow(Error);
   });
 
   it('throws an error when max ticks is 0', () => {
+    const nonZeroTimeSpan = new TimeSpan(Time.fromRaw(0n), Time.fromRaw(1n));
     expect(() => {
-      new TickGenerator(new TimeSpan(Time.fromRaw(0n), Time.fromRaw(1n)), 0);
+      Array.from(generateTicks(nonZeroTimeSpan, 0));
     }).toThrow(Error);
   });
 });
