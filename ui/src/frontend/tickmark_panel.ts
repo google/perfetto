@@ -18,7 +18,7 @@ import {Time} from '../base/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
-import {getMaxMajorTicks, TickGenerator, TickType} from './gridline_helper';
+import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {PxSpan, TimeScale} from './time_scale';
@@ -55,7 +55,7 @@ export class TickmarkPanel implements Panel {
       const maxMajorTicks = getMaxMajorTicks(size.width);
 
       const offset = globals.timestampOffset();
-      const tickGen = new TickGenerator(timespan, maxMajorTicks, offset);
+      const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));
         if (type === TickType.MAJOR) {
