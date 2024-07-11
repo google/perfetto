@@ -26,7 +26,7 @@ import {
   profileType,
 } from '../../frontend/legacy_flamegraph_panel';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {NUM} from '../../trace_processor/query_result';
+import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {
   LegacySelection,
   PerfSamplesSelection,
@@ -76,21 +76,27 @@ class PerfSamplesProfilePlugin implements Plugin {
       });
     }
     const tResult = await ctx.engine.query(`
-      select distinct utid, tid
+      select distinct
+        utid,
+        tid,
+        thread.name as threadName
       from perf_sample
       join thread using (utid)
       where callsite_id is not null
     `);
     for (
-      const it = tResult.iter({utid: NUM, tid: NUM});
+      const it = tResult.iter({utid: NUM, tid: NUM, threadName: STR_NULL});
       it.valid();
       it.next()
     ) {
-      const utid = it.utid;
-      const tid = it.tid;
+      const {threadName, utid, tid} = it;
+      const displayName =
+        threadName === null
+          ? `Thread Callstacks ${tid}`
+          : `${threadName} Callstacks ${tid}`;
       ctx.registerTrack({
         uri: `perfetto.PerfSamplesProfile#Thread${utid}`,
-        displayName: `Thread Callstacks ${tid}`,
+        displayName,
         kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
         utid,
         trackFactory: ({trackKey}) =>
