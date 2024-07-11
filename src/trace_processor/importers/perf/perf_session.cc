@@ -92,19 +92,26 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
 base::StatusOr<RefPtr<PerfEventAttr>> PerfSession::FindAttrForRecord(
     const perf_event_header& header,
     const TraceBlobView& payload) const {
+  if (header.type >= PERF_RECORD_USER_TYPE_START) {
+    return RefPtr<PerfEventAttr>();
+  }
+
   RefPtr<PerfEventAttr> first(attrs_by_id_.GetIterator().value().get());
   if (has_single_perf_event_attr_) {
     return first;
   }
 
-  if (header.type >= PERF_RECORD_USER_TYPE_START ||
-      (header.type != PERF_RECORD_SAMPLE && !first->sample_id_all())) {
-    return RefPtr<PerfEventAttr>();
+  if (header.type != PERF_RECORD_SAMPLE && !first->sample_id_all()) {
+    return first;
   }
 
   uint64_t id;
   if (!ReadEventId(header, payload, id)) {
     return base::ErrStatus("Failed to read record id");
+  }
+
+  if (id == 0) {
+    return first;
   }
 
   auto it = FindAttrForEventId(id);
