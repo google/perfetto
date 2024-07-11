@@ -1304,7 +1304,6 @@ class TrackDecider {
       threadName: STR_NULL,
       hasSched: NUM_NULL,
       hasHeapInfo: NUM_NULL,
-      chromeProcessLabels: STR,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -1337,7 +1336,6 @@ class TrackDecider {
           ? PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK
           : PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
         name: `${upid === null ? tid : pid} summary`,
-        labels: it.chromeProcessLabels.split(','),
       });
 
       const name = getTrackName({
