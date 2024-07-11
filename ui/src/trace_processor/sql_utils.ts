@@ -223,3 +223,16 @@ export async function createView(
     },
   };
 }
+
+export async function createVirtualTable(
+  engine: Engine,
+  tableName: string,
+  using: string,
+): Promise<AsyncDisposable> {
+  await engine.query(`CREATE VIRTUAL TABLE ${tableName} USING ${using}`);
+  return {
+    [Symbol.asyncDispose]: async () => {
+      await engine.tryQuery(`DROP TABLE IF EXISTS ${tableName}`);
+    },
+  };
+}

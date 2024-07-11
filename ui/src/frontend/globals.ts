@@ -25,7 +25,7 @@ import {
 } from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
 import {MetricResult} from '../common/metric_data';
-import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {CurrentSearchResults} from '../common/search_data';
 import {EngineConfig, State, getLegacySelection} from '../common/state';
 import {TabManager} from '../common/tab_registry';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
@@ -33,7 +33,7 @@ import {TrackManager} from '../common/track_cache';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
-import {EngineBase} from '../trace_processor/engine';
+import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {Analytics, initAnalytics} from './analytics';
 import {Timeline} from './timeline';
@@ -45,6 +45,12 @@ import {CallsiteInfo} from '../common/legacy_flamegraph_util';
 import {LegacyFlamegraphCache} from '../core/legacy_flamegraph_cache';
 import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
+import {
+  createSearchOverviewTrack,
+  SearchOverviewTrack,
+} from './search_overview_track';
+import {AppContext} from './app_context';
+import {TraceContext} from './trace_context';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -166,32 +172,6 @@ export interface LegacySelectionArgs {
   pendingScrollId: number | undefined;
 }
 
-export interface TraceContext {
-  traceTitle: string; // File name and size of the current trace.
-  traceUrl: string; // URL of the Trace.
-  readonly start: time;
-  readonly end: time;
-
-  // This is the ts value at the time of the Unix epoch.
-  // Normally some large negative value, because the unix epoch is normally in
-  // the past compared to ts=0.
-  readonly realtimeOffset: time;
-
-  // This is the timestamp that we should use for our offset when in UTC mode.
-  // Usually the most recent UTC midnight compared to the trace start time.
-  readonly utcOffset: time;
-
-  // Trace TZ is like UTC but keeps into account also the timezone_off_mins
-  // recorded into the trace, to show timestamps in the device local time.
-  readonly traceTzOffset: time;
-
-  // The list of CPUs in the trace
-  readonly cpus: number[];
-
-  // The number of gpus in the trace
-  readonly gpuCount: number;
-}
-
 export const defaultTraceContext: TraceContext = {
   traceTitle: '',
   traceUrl: '',
@@ -207,7 +187,7 @@ export const defaultTraceContext: TraceContext = {
 /**
  * Global accessors for state/dispatch in the frontend.
  */
-class Globals {
+class Globals implements AppContext {
   readonly root = getServingRoot();
 
   private _testing = false;
@@ -244,6 +224,7 @@ class Globals {
   private _trackManager = new TrackManager(this._store);
   private _selectionManager = new SelectionManager(this._store);
   private _hasFtrace: boolean = false;
+  private _searchOverviewTrack?: SearchOverviewTrack;
 
   omnibox = new OmniboxManager();
   areaFlamegraphCache = new LegacyFlamegraphCache('area');
@@ -256,11 +237,36 @@ class Globals {
 
   traceContext = defaultTraceContext;
 
-  setTraceContext(traceCtx: TraceContext): void {
+  // This is the app's equivalent of a plugin's onTraceLoad() function.
+  // TODO(stevegolton): Eventually initialization that should be done on trace
+  // load should be moved into here, and then we can remove TraceController
+  // entirely
+  async onTraceLoad(engine: Engine, traceCtx: TraceContext): Promise<void> {
     this.traceContext = traceCtx;
-    const {start, end} = this.traceContext;
+
+    const {start, end} = traceCtx;
     const traceSpan = new TimeSpan(start, end);
     this._timeline = new Timeline(this._store, traceSpan);
+
+    // TODO(stevegolton): Even though createSearchOverviewTrack() returns a
+    // disposable, we completely ignore it as we assume the dispose action
+    // includes just dropping some tables, and seeing as this object will live
+    // for the duration of the trace/engine, there's no need to drop anything as
+    // the tables will be dropped along with the trace anyway.
+    //
+    // Note that this is no worse than a lot of the rest of the app where tables
+    // are created with no way to drop them.
+    //
+    // Once we fix the story around loading new traces, we should tidy this up.
+    // We could for example have a matching globals.onTraceUnload() that
+    // performs any tear-down before the old engine is dropped. This might seem
+    // pointless, but it could at least block until any currently running update
+    // cycles complete, to avoid leaving promises open on old engines that will
+    // never resolve.
+    //
+    // Alternatively we could decide that we don't want to support switching
+    // traces at all, in which case we can ignore tear down entirely.
+    this._searchOverviewTrack = await createSearchOverviewTrack(engine, this);
   }
 
   // Used for permalink load by trace_controller.ts.
@@ -276,11 +282,6 @@ class Globals {
     trackKeys: [],
     sources: [],
     totalResults: 0,
-  };
-  searchSummary: SearchSummary = {
-    tsStarts: new BigInt64Array(0),
-    tsEnds: new BigInt64Array(0),
-    count: new Uint8Array(0),
   };
 
   engines = new Map<string, EngineBase>();
@@ -487,6 +488,10 @@ class Globals {
 
   get hasFtrace(): boolean {
     return this._hasFtrace;
+  }
+
+  get searchOverviewTrack() {
+    return this._searchOverviewTrack;
   }
 
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
