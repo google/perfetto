@@ -249,7 +249,6 @@ export interface TrackState {
   uri: string;
   key: string;
   name: string;
-  labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
   closeable?: boolean;
