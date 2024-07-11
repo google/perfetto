@@ -16,10 +16,20 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
-CREATE OR REPLACE PERFETTO FUNCTION process_metadata_proto(upid INT)
-RETURNS PROTO
-AS
-SELECT NULL_IF_EMPTY(AndroidProcessMetadata(
+DROP VIEW IF EXISTS process_metadata_table;
+CREATE PERFETTO VIEW process_metadata_table AS
+SELECT android_process_metadata.*, pid FROM android_process_metadata
+JOIN process USING(upid);
+
+DROP VIEW IF EXISTS uid_package_count;
+CREATE PERFETTO VIEW uid_package_count AS
+SELECT * FROM _uid_package_count;
+
+DROP VIEW IF EXISTS process_metadata;
+CREATE PERFETTO VIEW process_metadata AS
+SELECT
+  upid,
+  NULL_IF_EMPTY(AndroidProcessMetadata(
     'name', process_name,
     'uid', uid,
     'pid', pid,
@@ -28,21 +38,13 @@ SELECT NULL_IF_EMPTY(AndroidProcessMetadata(
       'apk_version_code', version_code,
       'debuggable', debuggable
     ))
-  ))
-FROM android_process_metadata
-WHERE upid = $upid;
-
-DROP VIEW IF EXISTS process_metadata;
-CREATE PERFETTO VIEW process_metadata AS
-SELECT
-  upid,
-  process_metadata_proto(upid) AS metadata
-FROM android_process_metadata;
+  )) AS metadata
+FROM process_metadata_table;
 
 -- Given a process name, return if it is debuggable.
 CREATE OR REPLACE PERFETTO FUNCTION is_process_debuggable(process_name STRING)
 RETURNS BOOL AS
 SELECT p.debuggable
-FROM android_process_metadata p
+FROM process_metadata_table p
 WHERE p.process_name = $process_name
 LIMIT 1;
