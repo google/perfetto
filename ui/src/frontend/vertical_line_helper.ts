@@ -14,7 +14,6 @@
 
 import {time} from '../base/time';
 
-import {TRACK_SHELL_WIDTH} from './css_constants';
 import {TimeScale} from './time_scale';
 
 export function drawVerticalLineAtTime(
@@ -25,7 +24,7 @@ export function drawVerticalLineAtTime(
   color: string,
   lineWidth = 2,
 ) {
-  const xPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(time));
+  const xPos = Math.floor(timeScale.timeToPx(time));
   drawVerticalLine(ctx, xPos, height, color, lineWidth);
 }
 

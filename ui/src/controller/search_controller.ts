@@ -21,6 +21,7 @@ import {
   SearchSummary,
 } from '../common/search_data';
 import {OmniboxState} from '../common/state';
+import {calculateResolution} from '../common/resolution';
 import {CPU_SLICE_TRACK_KIND} from '../core/track_kinds';
 import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
@@ -33,6 +34,10 @@ import {Controller} from './controller';
 export interface SearchControllerArgs {
   engine: Engine;
 }
+
+// This is a hack to get the controller working - the controller doesn't know
+// how wide the timeline is, so we just assume its 1000px.
+const FIXED_SEARCH_WINDOW_WIDTH = 1000;
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
@@ -72,11 +77,15 @@ export class SearchController extends Controller<'main'> {
     if (omniboxState === undefined || omniboxState.mode === 'COMMAND') {
       return;
     }
-    const newSpan = globals.timeline.visibleWindow.toTimeSpan();
+    const newSpan = globals.timeline.visibleWindow;
     const newOmniboxState = omniboxState;
-    const newResolution = globals.getCurResolution();
+    const newResolution = calculateResolution(
+      newSpan,
+      FIXED_SEARCH_WINDOW_WIDTH,
+    );
+    const newTimeSpan = newSpan.toTimeSpan();
     if (
-      this.previousSpan?.containsSpan(newSpan.start, newSpan.end) &&
+      this.previousSpan?.containsSpan(newTimeSpan.start, newTimeSpan.end) &&
       this.previousResolution === newResolution &&
       this.previousOmniboxState === newOmniboxState
     ) {
@@ -86,7 +95,7 @@ export class SearchController extends Controller<'main'> {
     // TODO(hjd): We should restrict this to the start of the trace but
     // that is not easily available here.
     // N.B. Timestamps can be negative.
-    const {start, end} = newSpan.pad(newSpan.duration);
+    const {start, end} = newTimeSpan.pad(newTimeSpan.duration);
     this.previousSpan = new TimeSpan(start, end);
     this.previousResolution = newResolution;
     this.previousOmniboxState = newOmniboxState;
@@ -111,8 +120,8 @@ export class SearchController extends Controller<'main'> {
     this.updateInProgress = true;
     const computeSummary = this.update(
       search,
-      newSpan.start,
-      newSpan.end,
+      newTimeSpan.start,
+      newTimeSpan.end,
       newResolution,
     ).then((summary) => {
       publishSearch(summary);

@@ -20,7 +20,6 @@ import {raf} from '../core/raf_scheduler';
 import {Store} from '../public';
 
 import {ratelimit} from './rate_limiters';
-import {PxSpan, TimeScale} from './time_scale';
 
 interface Range {
   start?: number;
@@ -35,8 +34,6 @@ const MIN_DURATION = 10;
  */
 export class Timeline {
   private _visibleWindow: HighPrecisionTimeSpan;
-  private _timeScale: TimeScale;
-  private _windowSpan = PxSpan.ZERO;
   private readonly traceSpan: TimeSpan;
   private readonly store: Store<State>;
 
@@ -51,7 +48,6 @@ export class Timeline {
       traceSpan.start,
       traceSpan.end,
     );
-    this._timeScale = new TimeScale(this._visibleWindow, new PxSpan(0, 0));
   }
 
   // This is a giant hack. Basically, removing visible window from the state
@@ -74,7 +70,6 @@ export class Timeline {
       .scale(ratio, centerPoint, MIN_DURATION)
       .fitWithin(this.traceSpan.start, this.traceSpan.end);
 
-    this.updateTimeScale();
     this.rateLimitedPoker();
   }
 
@@ -82,7 +77,6 @@ export class Timeline {
     this._visibleWindow = this._visibleWindow
       .translate(delta)
       .fitWithin(this.traceSpan.start, this.traceSpan.end);
-    this.updateTimeScale();
     this.rateLimitedPoker();
   }
 
@@ -120,37 +114,7 @@ export class Timeline {
       this.traceSpan.start,
       this.traceSpan.end,
     );
-    this.updateTimeScale();
     this.rateLimitedPoker();
-  }
-
-  private updateTimeScale(): void {
-    this._timeScale = new TimeScale(this._visibleWindow, this._windowSpan);
-  }
-
-  updateLocalLimits(pxStart: number, pxEnd: number) {
-    // Numbers received here can be negative or equal, but we should fix that
-    // before updating the timescale.
-    pxStart = Math.max(0, pxStart);
-    pxEnd = Math.max(0, pxEnd);
-    if (pxStart === pxEnd) pxEnd = pxStart + 1;
-    this._windowSpan = new PxSpan(pxStart, pxEnd);
-    this.updateTimeScale();
-  }
-
-  // Get the time scale for the visible window
-  get visibleTimeScale(): TimeScale {
-    return this._timeScale;
-  }
-
-  // Produces a TimeScale object for this time window provided start and end px
-  getTimeScale(startPx: number, endPx: number): TimeScale {
-    return new TimeScale(this._visibleWindow, new PxSpan(startPx, endPx));
-  }
-
-  // Get the bounds of the window in pixels
-  get windowSpan(): PxSpan {
-    return this._windowSpan;
   }
 
   // Get the bounds of the visible window as a high-precision time span
