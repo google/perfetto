@@ -45,8 +45,6 @@ import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
 import {AggregationsTabs} from './aggregation_tab';
-import {addSqlTableTab} from './sql_table/tab';
-import {SqlTables} from './sql_table/well_known_tables';
 import {
   findCurrentSelection,
   focusOtherFlow,
@@ -58,6 +56,8 @@ import {Utid} from './sql_types';
 import {getThreadInfo} from './thread_and_process_info';
 import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 import {DisposableStack} from '../base/disposable_stack';
+import {addSqlTableTab} from './sql_table_tab';
+import {SqlTables} from './well_known_sql_tables';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;

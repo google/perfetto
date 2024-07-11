@@ -38,10 +38,10 @@ import {
   BreakdownByThreadState,
   breakDownIntervalByThreadState,
 } from './sql/thread_state';
-import {addSqlTableTab} from './sql_table/tab';
-import {SqlTables} from './sql_table/well_known_tables';
 import {asSliceSqlId} from './sql_types';
 import {DurationWidget} from './widgets/duration';
+import {addSqlTableTab} from './sql_table_tab';
+import {SqlTables} from './well_known_sql_tables';
 
 interface ContextMenuItem {
   name: string;

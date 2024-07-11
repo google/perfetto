@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTableDescription} from './table';
+import {SqlTableDescription} from './widgets/sql/table/table';
 
 const sliceTable: SqlTableDescription = {
   imports: ['slices.slices'],

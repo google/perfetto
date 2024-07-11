@@ -16,10 +16,13 @@ import m from 'mithril';
 
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {Details, DetailsSchema} from '../../frontend/sql/details/details';
-import {wellKnownTypes} from '../../frontend/sql/details/well_known_types';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {
+  Details,
+  DetailsSchema,
+} from '../../frontend/widgets/sql/details/details';
+import {wellKnownTypes} from '../../frontend/widgets/sql/details/well_known_types';
 
 import d = DetailsSchema;
 

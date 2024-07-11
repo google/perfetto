@@ -14,7 +14,7 @@
 
 import {uuidv4} from '../../base/uuid';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {addSqlTableTab} from '../../frontend/sql_table/tab';
+import {addSqlTableTab} from '../../frontend/sql_table_tab';
 import {asUtid} from '../../frontend/sql_types';
 import {
   BottomTabToSCSAdapter,
