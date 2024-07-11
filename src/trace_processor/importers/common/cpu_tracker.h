@@ -56,7 +56,8 @@ class CpuTracker {
   // Sets or updates the information for the specified CPU in the CpuTable.
   tables::CpuTable::Id SetCpuInfo(uint32_t cpu,
                                   base::StringView processor,
-                                  uint32_t cluster_id);
+                                  uint32_t cluster_id,
+                                  std::optional<uint32_t> capacity);
 
  private:
   TraceProcessorContext* const context_;

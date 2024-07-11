@@ -1417,3 +1417,71 @@ class Parsing(TestSuite):
         ORDER BY ts;
         """,
         out=Path('sched_waking_instants_compact_sched.out'))
+
+  def test_cpu_capacity_present(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+      packet {
+        cpu_info {
+          cpus {
+            processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 300000
+            frequencies: 576000
+            capacity: 256
+          }
+          cpus {
+            processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 300000
+            frequencies: 576000
+            capacity: 1024
+          }
+        }
+      }
+      """),
+        query="""
+      SELECT
+        cpu,
+        cluster_id,
+        capacity,
+        processor
+      FROM cpu
+      ORDER BY cpu
+      """,
+        out=Csv("""
+      "cpu","cluster_id","capacity","processor"
+      0,0,256,"AArch64 Processor rev 13 (aarch64)"
+      1,0,1024,"AArch64 Processor rev 13 (aarch64)"
+      """))
+
+  def test_cpu_capacity_not_present(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+      packet {
+        cpu_info {
+          cpus {
+            processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 300000
+            frequencies: 576000
+          }
+          cpus {
+            processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 300000
+            frequencies: 576000
+          }
+        }
+      }
+      """),
+        query="""
+      SELECT
+        cpu,
+        cluster_id,
+        capacity,
+        processor
+      FROM cpu
+      ORDER BY cpu
+      """,
+        out=Csv("""
+      "cpu","cluster_id","capacity","processor"
+      0,0,"[NULL]","AArch64 Processor rev 13 (aarch64)"
+      1,0,"[NULL]","AArch64 Processor rev 13 (aarch64)"
+      """))

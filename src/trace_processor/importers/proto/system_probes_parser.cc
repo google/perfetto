@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -738,7 +739,7 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_soc_model,
         Variadic::String(
-	    context_->storage->InternString(packet.android_soc_model())));
+            context_->storage->InternString(packet.android_soc_model())));
   }
 
   page_size_ = packet.page_size();
@@ -770,8 +771,11 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
 
     last_cpu_freqs = freqs;
 
-    tables::CpuTable::Id ucpu =
-        context_->cpu_tracker->SetCpuInfo(cpu_id, cpu.processor(), cluster_id);
+    std::optional<uint32_t> capacity =
+        cpu.has_capacity() ? std::make_optional(cpu.capacity()) : std::nullopt;
+
+    tables::CpuTable::Id ucpu = context_->cpu_tracker->SetCpuInfo(
+        cpu_id, cpu.processor(), cluster_id, capacity);
 
     for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
       uint32_t freq = *freq_it;
