@@ -19,8 +19,8 @@
 #ifndef SRC_BIGTRACE_WORKER_WORKER_IMPL_H_
 #define SRC_BIGTRACE_WORKER_WORKER_IMPL_H_
 
-namespace perfetto {
-namespace bigtrace {
+namespace perfetto::bigtrace {
+
 class WorkerImpl final : public protos::BigtraceWorker::Service {
  public:
   grpc::Status QueryTrace(
@@ -28,7 +28,7 @@ class WorkerImpl final : public protos::BigtraceWorker::Service {
       const protos::BigtraceQueryTraceArgs* args,
       protos::BigtraceQueryTraceResponse* response) override;
 };
-}  // namespace bigtrace
-}  // namespace perfetto
+
+}  // namespace perfetto::bigtrace
 
 #endif  // SRC_BIGTRACE_WORKER_WORKER_IMPL_H_

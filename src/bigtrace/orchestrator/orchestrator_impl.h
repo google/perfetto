@@ -21,8 +21,8 @@
 #ifndef SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
 #define SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
 
-namespace perfetto {
-namespace bigtrace {
+namespace perfetto::bigtrace {
+
 class OrchestratorImpl final : public protos::BigtraceOrchestrator::Service {
  public:
   explicit OrchestratorImpl(std::unique_ptr<protos::BigtraceWorker::Stub> stub,
@@ -33,11 +33,25 @@ class OrchestratorImpl final : public protos::BigtraceOrchestrator::Service {
       grpc::ServerWriter<protos::BigtraceQueryResponse>* writer) override;
 
  private:
+  class Semaphore {
+   public:
+    explicit Semaphore(uint32_t count) : count_(count) {}
+    void Acquire();
+    void Release();
+
+   private:
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    uint32_t count_;
+  };
   std::unique_ptr<protos::BigtraceWorker::Stub> stub_;
   std::unique_ptr<base::ThreadPool> pool_;
   std::mutex write_lock_;
+  // Used to interleave requests to the Orchestrator to distribute jobs more
+  // fairly
+  Semaphore semaphore_;
 };
-}  // namespace bigtrace
-}  // namespace perfetto
+
+}  // namespace perfetto::bigtrace
 
 #endif  // SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_

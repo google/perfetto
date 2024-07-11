@@ -19,8 +19,8 @@
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
-namespace perfetto {
-namespace bigtrace {
+namespace perfetto::bigtrace {
+
 grpc::Status WorkerImpl::QueryTrace(
     grpc::ServerContext*,
     const protos::BigtraceQueryTraceArgs* args,
@@ -51,5 +51,4 @@ grpc::Status WorkerImpl::QueryTrace(
   return grpc::Status::OK;
 }
 
-}  // namespace bigtrace
-}  // namespace perfetto
+}  // namespace perfetto::bigtrace

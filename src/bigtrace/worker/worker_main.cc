@@ -23,8 +23,7 @@
 #include "perfetto/ext/base/getopt.h"
 #include "src/bigtrace/worker/worker_impl.h"
 
-namespace perfetto {
-namespace bigtrace {
+namespace perfetto::bigtrace {
 namespace {
 
 struct CommandLineOptions {
@@ -67,8 +66,7 @@ base::Status WorkerMain(int argc, char** argv) {
 }
 
 }  // namespace
-}  // namespace bigtrace
-}  // namespace perfetto
+}  // namespace perfetto::bigtrace
 
 int main(int argc, char** argv) {
   auto status = perfetto::bigtrace::WorkerMain(argc, argv);
