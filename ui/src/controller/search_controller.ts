@@ -13,18 +13,12 @@
 // limitations under the License.
 
 import {sqliteString} from '../base/string_utils';
-import {Duration, duration, time, Time, TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
-import {
-  CurrentSearchResults,
-  SearchSource,
-  SearchSummary,
-} from '../common/search_data';
+import {CurrentSearchResults, SearchSource} from '../common/search_data';
 import {OmniboxState} from '../common/state';
-import {calculateResolution} from '../common/resolution';
 import {CPU_SLICE_TRACK_KIND} from '../core/track_kinds';
 import {globals} from '../frontend/globals';
-import {publishSearch, publishSearchResult} from '../frontend/publish';
+import {publishSearchResult} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
@@ -35,41 +29,19 @@ export interface SearchControllerArgs {
   engine: Engine;
 }
 
-// This is a hack to get the controller working - the controller doesn't know
-// how wide the timeline is, so we just assume its 1000px.
-const FIXED_SEARCH_WINDOW_WIDTH = 1000;
-
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
-  private previousSpan?: TimeSpan;
-  private previousResolution: duration;
   private previousOmniboxState?: OmniboxState;
   private updateInProgress: boolean;
-  private setupInProgress: boolean;
 
   constructor(args: SearchControllerArgs) {
     super('main');
     this.engine = args.engine;
     this.updateInProgress = false;
-    this.setupInProgress = true;
-    this.previousResolution = 1n;
-    this.setup().finally(() => {
-      this.setupInProgress = false;
-      this.run();
-    });
-  }
-
-  private async setup() {
-    await this.query(`create virtual table search_summary_window
-      using window;`);
-    await this.query(`create virtual table search_summary_sched_span using
-      span_join(sched PARTITIONED cpu, search_summary_window);`);
-    await this.query(`create virtual table search_summary_slice_span using
-      span_join(slice PARTITIONED track_id, search_summary_window);`);
   }
 
   run() {
-    if (this.setupInProgress || this.updateInProgress) {
+    if (this.updateInProgress) {
       return;
     }
 
@@ -77,35 +49,17 @@ export class SearchController extends Controller<'main'> {
     if (omniboxState === undefined || omniboxState.mode === 'COMMAND') {
       return;
     }
-    const newSpan = globals.timeline.visibleWindow;
     const newOmniboxState = omniboxState;
-    const newResolution = calculateResolution(
-      newSpan,
-      FIXED_SEARCH_WINDOW_WIDTH,
-    );
-    const newTimeSpan = newSpan.toTimeSpan();
-    if (
-      this.previousSpan?.containsSpan(newTimeSpan.start, newTimeSpan.end) &&
-      this.previousResolution === newResolution &&
-      this.previousOmniboxState === newOmniboxState
-    ) {
+    if (this.previousOmniboxState === newOmniboxState) {
       return;
     }
 
     // TODO(hjd): We should restrict this to the start of the trace but
     // that is not easily available here.
     // N.B. Timestamps can be negative.
-    const {start, end} = newTimeSpan.pad(newTimeSpan.duration);
-    this.previousSpan = new TimeSpan(start, end);
-    this.previousResolution = newResolution;
     this.previousOmniboxState = newOmniboxState;
     const search = newOmniboxState.omnibox;
     if (search === '' || (search.length < 4 && !newOmniboxState.force)) {
-      publishSearch({
-        tsStarts: new BigInt64Array(0),
-        tsEnds: new BigInt64Array(0),
-        count: new Uint8Array(0),
-      });
       publishSearchResult({
         eventIds: new Float64Array(0),
         tses: new BigInt64Array(0),
@@ -117,92 +71,17 @@ export class SearchController extends Controller<'main'> {
       return;
     }
 
-    this.updateInProgress = true;
-    const computeSummary = this.update(
-      search,
-      newTimeSpan.start,
-      newTimeSpan.end,
-      newResolution,
-    ).then((summary) => {
-      publishSearch(summary);
-    });
-
     const computeResults = this.specificSearch(search).then((searchResults) => {
       publishSearchResult(searchResults);
     });
 
-    Promise.all([computeSummary, computeResults]).finally(() => {
+    Promise.all([computeResults]).finally(() => {
       this.updateInProgress = false;
       this.run();
     });
   }
 
   onDestroy() {}
-
-  private async update(
-    search: string,
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<SearchSummary> {
-    const searchLiteral = escapeSearchQuery(search);
-
-    const quantum = resolution * 10n;
-    start = Time.quantFloor(start, quantum);
-
-    const windowDur = Duration.max(Time.diff(end, start), 1n);
-    await this.query(`update search_summary_window set
-      window_start=${start},
-      window_dur=${windowDur},
-      quantum=${quantum}
-      where rowid = 0;`);
-
-    const utidRes = await this.query(`select utid from thread join process
-      using(upid) where thread.name glob ${searchLiteral}
-      or process.name glob ${searchLiteral}`);
-
-    const utids = [];
-    for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
-      utids.push(it.utid);
-    }
-
-    const cpus = globals.traceContext.cpus;
-    const maxCpu = Math.max(...cpus, -1);
-
-    const res = await this.query(`
-        select
-          (quantum_ts * ${quantum} + ${start}) as tsStart,
-          ((quantum_ts+1) * ${quantum} + ${start}) as tsEnd,
-          min(count(*), 255) as count
-          from (
-              select
-              quantum_ts
-              from search_summary_sched_span
-              where utid in (${utids.join(',')}) and cpu <= ${maxCpu}
-            union all
-              select
-              quantum_ts
-              from search_summary_slice_span
-              where name glob ${searchLiteral}
-          )
-          group by quantum_ts
-          order by quantum_ts;`);
-
-    const numRows = res.numRows();
-    const summary: SearchSummary = {
-      tsStarts: new BigInt64Array(numRows),
-      tsEnds: new BigInt64Array(numRows),
-      count: new Uint8Array(numRows),
-    };
-
-    const it = res.iter({tsStart: LONG, tsEnd: LONG, count: NUM});
-    for (let row = 0; it.valid(); it.next(), ++row) {
-      summary.tsStarts[row] = it.tsStart;
-      summary.tsEnds[row] = it.tsEnd;
-      summary.count[row] = it.count;
-    }
-    return summary;
-  }
 
   private async specificSearch(search: string) {
     const searchLiteral = escapeSearchQuery(search);

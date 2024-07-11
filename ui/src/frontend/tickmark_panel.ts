@@ -14,8 +14,6 @@
 
 import m from 'mithril';
 
-import {Time} from '../base/time';
-
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
@@ -33,20 +31,19 @@ export class TickmarkPanel implements Panel {
     return m('.tickbar');
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
-    const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
-
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size): void {
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
+    const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
     ctx.save();
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
-    this.renderPanel(ctx, trackSize);
+    this.renderTrack(ctx, trackSize);
     ctx.restore();
   }
 
-  private renderPanel(ctx: CanvasRenderingContext2D, size: Size): void {
+  private renderTrack(ctx: CanvasRenderingContext2D, size: Size): void {
     const visibleWindow = globals.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
     const timespan = visibleWindow.toTimeSpan();
@@ -64,42 +61,9 @@ export class TickmarkPanel implements Panel {
       }
     }
 
-    const data = globals.searchSummary;
-    for (let i = 0; i < data.tsStarts.length; i++) {
-      const tStart = Time.fromRaw(data.tsStarts[i]);
-      const tEnd = Time.fromRaw(data.tsEnds[i]);
-      if (!visibleWindow.overlaps(tStart, tEnd)) {
-        continue;
-      }
-      const rectStart = Math.max(timescale.timeToPx(tStart), 0);
-      const rectEnd = timescale.timeToPx(tEnd);
-      ctx.fillStyle = '#ffe263';
-      ctx.fillRect(
-        Math.floor(rectStart),
-        0,
-        Math.ceil(rectEnd - rectStart),
-        size.height,
-      );
+    const searchOverviewRenderer = globals.searchOverviewTrack;
+    if (searchOverviewRenderer) {
+      searchOverviewRenderer.render(ctx, size);
     }
-    const index = globals.state.searchIndex;
-    if (index !== -1 && index < globals.currentSearchResults.tses.length) {
-      const start = globals.currentSearchResults.tses[index];
-      if (start !== -1n) {
-        const triangleStart = Math.max(
-          timescale.timeToPx(Time.fromRaw(start)),
-          0,
-        );
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.moveTo(triangleStart, size.height);
-        ctx.lineTo(triangleStart - 3, 0);
-        ctx.lineTo(triangleStart + 3, 0);
-        ctx.lineTo(triangleStart, size.height);
-        ctx.fill();
-        ctx.closePath();
-      }
-    }
-
-    ctx.restore();
   }
 }

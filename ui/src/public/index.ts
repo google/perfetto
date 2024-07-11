@@ -20,9 +20,9 @@ import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
 import {PrimaryTrackSortKey} from '../common/state';
 import {Engine} from '../trace_processor/engine';
-import {TraceContext} from '../frontend/globals';
 import {PromptOption} from '../frontend/omnibox_manager';
 import {LegacyDetailsPanel, TrackDescriptor, TrackTags} from './tracks';
+import {TraceContext} from '../frontend/trace_context';
 
 export {Engine} from '../trace_processor/engine';
 export {
@@ -300,7 +300,7 @@ export interface PluginContextTrace extends PluginContext {
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;
 
-  trace: TraceContext;
+  readonly trace: TraceContext;
 
   // When the trace is opened via postMessage deep-linking, returns the sub-set
   // of postMessageData.pluginArgs[pluginId] for the current plugin. If not
