@@ -2837,6 +2837,27 @@ message UnsymbolizedFrames {
 
 // End of protos/perfetto/metrics/android/unsymbolized_frames.proto
 
+// Begin of protos/perfetto/metrics/android/wattson_app_startup.proto
+
+message AndroidWattsonTimePeriodMetric {
+  optional int32 metric_version = 1;
+  repeated AndroidWattsonEstimateInfo period_info = 2;
+}
+
+message AndroidWattsonEstimateInfo {
+  optional int32 period_id = 1;
+  optional int64 period_dur = 2;
+  repeated AndroidWattsonRailEstimate rail = 3;
+}
+
+message AndroidWattsonRailEstimate {
+  optional string name = 1;
+  optional float estimate_mw = 2;
+  repeated AndroidWattsonRailEstimate rail = 3;
+}
+
+// End of protos/perfetto/metrics/android/wattson_app_startup.proto
+
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
@@ -2884,7 +2905,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 69
+// Next id: 70
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -3078,6 +3099,9 @@ message TraceMetrics {
 
   // Android Broadcasts aggregated metrics
   optional AndroidBroadcastsMetric android_broadcasts = 68;
+
+  // Android Wattson app startup metrics.
+  optional AndroidWattsonTimePeriodMetric wattson_app_startup = 69;
 
   // Android
   // Demo extensions.
