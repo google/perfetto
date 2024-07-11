@@ -152,15 +152,18 @@ base::Status RecordParser::InternSample(Sample sample) {
     // tokenization. (Actually at tokenization time we do estimate a trace_ts if
     // no perf ts is present, but for samples we want this to be as accurate as
     // possible)
-    base::ErrStatus("Can not parse samples with no PERF_SAMPLE_TIME field");
+    return base::ErrStatus(
+        "Can not parse samples with no PERF_SAMPLE_TIME field");
   }
 
   if (!sample.pid_tid.has_value()) {
-    base::ErrStatus("Can not parse samples with no PERF_SAMPLE_TID field");
+    return base::ErrStatus(
+        "Can not parse samples with no PERF_SAMPLE_TID field");
   }
 
   if (!sample.cpu.has_value()) {
-    base::ErrStatus("Can not parse samples with no PERF_SAMPLE_CPU field");
+    return base::ErrStatus(
+        "Can not parse samples with no PERF_SAMPLE_CPU field");
   }
 
   UniqueTid utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
@@ -298,6 +301,9 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
 
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
+  if (!sample.cpu.has_value()) {
+    return base::ErrStatus("No cpu for sample");
+  }
   sample.attr->GetOrCreateCounter(*sample.cpu)
       .AddDelta(sample.trace_ts, static_cast<double>(period));
   return base::OkStatus();
