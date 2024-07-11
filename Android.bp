@@ -12520,6 +12520,7 @@ filegroup {
         "src/trace_processor/importers/proto/perf_sample_tracker_unittest.cc",
         "src/trace_processor/importers/proto/profile_packet_sequence_state_unittest.cc",
         "src/trace_processor/importers/proto/proto_trace_parser_impl_unittest.cc",
+        "src/trace_processor/importers/proto/proto_trace_tokenizer_unittest.cc",
         "src/trace_processor/importers/proto/string_encoding_utils_unittests.cc",
     ],
 }
