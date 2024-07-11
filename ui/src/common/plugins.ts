@@ -16,7 +16,7 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Registry} from '../base/registry';
 import {TimeSpan, time} from '../base/time';
-import {TraceContext, globals} from '../frontend/globals';
+import {globals} from '../frontend/globals';
 import {
   Command,
   LegacyDetailsPanel,
@@ -45,6 +45,7 @@ import {defaultPlugins} from '../core/default_plugins';
 import {PromptOption} from '../frontend/omnibox_manager';
 import {horizontalScrollToTs} from '../frontend/scroll_helper';
 import {DisposableStack} from '../base/disposable_stack';
+import {TraceContext} from '../frontend/trace_context';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular

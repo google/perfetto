@@ -30,7 +30,7 @@ import {
   TRACK_SHELL_WIDTH,
 } from './css_constants';
 import {globals} from './globals';
-import {TickGenerator, TickType, getMaxMajorTicks} from './gridline_helper';
+import {generateTicks, TickType, getMaxMajorTicks} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {verticalScrollToTrack} from './scroll_helper';
@@ -586,11 +586,7 @@ export function drawGridLines(
   if (size.width > 0 && timespan.duration > 0n) {
     const maxMajorTicks = getMaxMajorTicks(size.width);
     const offset = globals.timestampOffset();
-    for (const {type, time} of new TickGenerator(
-      timespan,
-      maxMajorTicks,
-      offset,
-    )) {
+    for (const {type, time} of generateTicks(timespan, maxMajorTicks, offset)) {
       const px = Math.floor(timescale.timeToPx(time));
       if (type === TickType.MAJOR) {
         ctx.beginPath();

@@ -128,51 +128,35 @@ export function getMaxMajorTicks(width: number) {
   return Math.max(1, Math.floor(width / MIN_PX_PER_STEP));
 }
 
-// An iterable which generates a series of ticks for a given timescale.
-export class TickGenerator implements Iterable<Tick> {
-  private readonly _tickPattern: TickType[];
-  private readonly _patternSize: duration;
-  private readonly _timeSpan: TimeSpan;
-  private readonly _offset: time;
+export function* generateTicks(
+  timeSpan: TimeSpan,
+  maxMajorTicks: number,
+  offset: time = Time.ZERO,
+): Generator<Tick> {
+  assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
+  assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
 
-  constructor(
-    timeSpan: TimeSpan,
-    maxMajorTicks: number,
-    offset: time = Time.ZERO,
+  timeSpan = timeSpan.translate(-offset);
+  const minStepSize = BigInt(
+    Math.floor(Number(timeSpan.duration) / maxMajorTicks),
+  );
+  const [patternSize, pattern] = getPattern(minStepSize);
+  const tickPattern = tickPatternToArray(pattern);
+
+  const stepSize = patternSize / BigInt(tickPattern.length);
+  const start = Time.quantFloor(timeSpan.start, patternSize);
+  const end = timeSpan.end;
+  let patternIndex = 0;
+
+  for (
+    let time = start;
+    time < end;
+    time = Time.add(time, stepSize), patternIndex++
   ) {
-    assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
-    assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
-
-    this._timeSpan = timeSpan.translate(-offset);
-    this._offset = offset;
-    const minStepSize = BigInt(
-      Math.floor(Number(timeSpan.duration) / maxMajorTicks),
-    );
-    const [size, pattern] = getPattern(minStepSize);
-    this._patternSize = size;
-    this._tickPattern = tickPatternToArray(pattern);
-  }
-
-  // Returns an iterable, so this object can be iterated over directly using the
-  // `for x of y` notation. The use of a generator here is just to make things
-  // more elegant compared to creating an array of ticks and building an
-  // iterator for it.
-  *[Symbol.iterator](): Generator<Tick> {
-    const stepSize = this._patternSize / BigInt(this._tickPattern.length);
-    const start = Time.quantFloor(this._timeSpan.start, this._patternSize);
-    const end = this._timeSpan.end;
-    let patternIndex = 0;
-
-    for (
-      let time = start;
-      time < end;
-      time = Time.add(time, stepSize), patternIndex++
-    ) {
-      if (time >= this._timeSpan.start) {
-        patternIndex = patternIndex % this._tickPattern.length;
-        const type = this._tickPattern[patternIndex];
-        yield {type, time: Time.add(time, this._offset)};
-      }
+    if (time >= timeSpan.start) {
+      patternIndex = patternIndex % tickPattern.length;
+      const type = tickPattern[patternIndex];
+      yield {type, time: Time.add(time, offset)};
     }
   }
 }
