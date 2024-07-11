@@ -69,7 +69,6 @@ export interface AddTrackArgs {
   key?: string;
   uri: string;
   name: string;
-  labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
   closeable?: boolean;
@@ -211,7 +210,6 @@ export const StateActions = {
         name,
         trackSortKey: track.trackSortKey,
         trackGroup: track.trackGroup,
-        labels: track.labels,
         uri: track.uri,
         closeable: track.closeable,
       };
