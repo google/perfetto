@@ -846,10 +846,10 @@ class Parsing(TestSuite):
         }
         """),
         query="""
-        INCLUDE PERFETTO MODULE android.process_metadata;
+        SELECT RUN_METRIC('android/process_metadata.sql');
 
         SELECT upid, process_name, uid, shared_uid, package_name, version_code
-        FROM android_process_metadata
+        FROM process_metadata_table
         WHERE upid != 0;
         """,
         out=Csv("""

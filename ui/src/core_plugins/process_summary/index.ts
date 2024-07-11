@@ -44,7 +44,7 @@ class ProcessSummaryPlugin implements Plugin {
         select
           _process_available_info_summary.upid,
           null as utid,
-          process.pid,
+          pid,
           null as tid,
           process.name as processName,
           null as threadName,
