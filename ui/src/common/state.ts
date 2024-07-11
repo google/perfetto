@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../base/bigint_math';
 import {time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {
@@ -92,9 +91,6 @@ export interface OmniboxState {
   mode: OmniboxMode;
   force?: boolean;
 }
-
-// This is simply an arbitrarily large number to default to.
-export const RESOLUTION_DEFAULT = BigintMath.bitFloor(1_000_000_000_000n);
 
 export interface Area {
   start: time;

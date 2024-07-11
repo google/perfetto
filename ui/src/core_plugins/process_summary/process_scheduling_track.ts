@@ -24,10 +24,11 @@ import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Size} from '../../base/geom';
 import {Engine, Track} from '../../public';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
+import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
+import {Vector} from '../../base/geom';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -53,7 +54,7 @@ export interface Config {
 }
 
 export class ProcessSchedulingTrack implements Track {
-  private mousePos?: {x: number; y: number};
+  private mousePos?: Vector;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private cpuCount: number;
@@ -108,8 +109,11 @@ export class ProcessSchedulingTrack implements Track {
     }
   }
 
-  async onUpdate(): Promise<void> {
-    await this.fetcher.requestDataForCurrentTime();
+  async onUpdate({
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): Promise<void> {
+    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 
   async onDestroy(): Promise<void> {
@@ -186,9 +190,8 @@ export class ProcessSchedulingTrack implements Track {
     return TRACK_HEIGHT;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: Size): void {
+  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {visibleTimeScale, visibleWindow} = globals.timeline;
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -200,8 +203,8 @@ export class ProcessSchedulingTrack implements Track {
       this.getHeight(),
       0,
       size.width,
-      visibleTimeScale.timeToPx(data.start),
-      visibleTimeScale.timeToPx(data.end),
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
     );
 
     assertTrue(data.starts.length === data.ends.length);
@@ -219,8 +222,8 @@ export class ProcessSchedulingTrack implements Track {
       const utid = data.utids[i];
       const cpu = data.cpus[i];
 
-      const rectStart = Math.floor(visibleTimeScale.timeToPx(tStart));
-      const rectEnd = Math.floor(visibleTimeScale.timeToPx(tEnd));
+      const rectStart = Math.floor(timescale.timeToPx(tStart));
+      const rectEnd = Math.floor(timescale.timeToPx(tEnd));
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
       const threadInfo = globals.threads.get(utid);
@@ -259,20 +262,19 @@ export class ProcessSchedulingTrack implements Track {
     }
   }
 
-  onMouseMove(pos: {x: number; y: number}) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
-    this.mousePos = pos;
+    this.mousePos = {x, y};
     if (data === undefined) return;
-    if (pos.y < MARGIN_TOP || pos.y > MARGIN_TOP + RECT_HEIGHT) {
+    if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
       globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
       return;
     }
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
-    const cpu = Math.floor((pos.y - MARGIN_TOP) / (cpuTrackHeight + 1));
-    const {visibleTimeScale} = globals.timeline;
-    const t = visibleTimeScale.pxToHpTime(pos.x).toTime('floor');
+    const cpu = Math.floor((y - MARGIN_TOP) / (cpuTrackHeight + 1));
+    const t = timescale.pxToHpTime(x).toTime('floor');
 
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {

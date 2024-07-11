@@ -25,12 +25,7 @@ import {Button, ButtonBar} from '../widgets/button';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
-import {
-  getMaxMajorTicks,
-  TickGenerator,
-  TickType,
-  timeScaleForVisibleWindow,
-} from './gridline_helper';
+import {getMaxMajorTicks, TickGenerator, TickType} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {isTraceLoaded} from './sidebar';
@@ -38,6 +33,8 @@ import {Timestamp} from './widgets/timestamp';
 import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public';
+import {PxSpan, TimeScale} from './time_scale';
+import {canvasClip} from '../common/canvas_utils';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -63,8 +60,8 @@ function getStartTimestamp(note: Note | SpanNote) {
 export class NotesPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = false;
-
-  hoveredX: null | number = null;
+  private timescale?: TimeScale; // The timescale from the last render()
+  private hoveredX: null | number = null;
 
   render(): m.Children {
     const allCollapsed = Object.values(globals.state.trackGroups).every(
@@ -127,29 +124,33 @@ export class NotesPanel implements Panel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
-    let aNoteIsHovered = false;
-
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
+    const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
+
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
-    ctx.clip();
+    ctx.translate(TRACK_SHELL_WIDTH, 0);
+    canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
+    this.renderPanel(ctx, trackSize);
+    ctx.restore();
+  }
+
+  private renderPanel(ctx: CanvasRenderingContext2D, size: Size): void {
+    let aNoteIsHovered = false;
 
     const visibleWindow = globals.timeline.visibleWindow;
-    const {visibleTimeScale} = globals.timeline;
-    if (size.width > TRACK_SHELL_WIDTH && visibleWindow.duration > 0n) {
-      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
-      const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timespan = visibleWindow.toTimeSpan();
+
+    this.timescale = timescale;
+
+    if (size.width > 0 && timespan.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width);
       const offset = globals.timestampOffset();
-      const tickGen = new TickGenerator(
-        visibleWindow.toTimeSpan(),
-        maxMajorTicks,
-        offset,
-      );
+      const tickGen = new TickGenerator(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
-        const px = Math.floor(map.timeToPx(time));
+        const px = Math.floor(timescale.timeToPx(time));
         if (type === TickType.MAJOR) {
           ctx.fillRect(px, 0, 1, size.height);
         }
@@ -177,15 +178,15 @@ export class NotesPanel implements Panel {
 
       const selection = globals.state.selection;
       const isSelected = selection.kind === 'note' && selection.id === note.id;
-      const x = visibleTimeScale.timeToPx(timestamp);
-      const left = Math.floor(x + TRACK_SHELL_WIDTH);
+      const x = timescale.timeToPx(timestamp);
+      const left = Math.floor(x);
 
       // Draw flag or marker.
       if (note.noteType === 'SPAN') {
         this.drawAreaMarker(
           ctx,
           left,
-          Math.floor(visibleTimeScale.timeToPx(note.end) + TRACK_SHELL_WIDTH),
+          Math.floor(timescale.timeToPx(note.end)),
           note.color,
           isSelected,
         );
@@ -217,11 +218,11 @@ export class NotesPanel implements Panel {
 
     // View preview note flag when hovering on notes panel.
     if (!aNoteIsHovered && this.hoveredX !== null) {
-      const timestamp = visibleTimeScale.pxToHpTime(this.hoveredX).toTime();
+      const timestamp = timescale.pxToHpTime(this.hoveredX).toTime();
       if (visibleWindow.contains(timestamp)) {
         globals.dispatch(Actions.setHoveredNoteTimestamp({ts: timestamp}));
-        const x = visibleTimeScale.timeToPx(timestamp);
-        const left = Math.floor(x + TRACK_SHELL_WIDTH);
+        const x = timescale.timeToPx(timestamp);
+        const left = Math.floor(x);
         this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);
       }
     }
@@ -240,7 +241,7 @@ export class NotesPanel implements Panel {
     ctx.strokeStyle = color;
     const topOffset = 10;
     // Don't draw in the track shell section.
-    if (x >= TRACK_SHELL_WIDTH) {
+    if (x >= 0) {
       // Draw left triangle.
       ctx.beginPath();
       ctx.moveTo(x, topOffset);
@@ -260,7 +261,7 @@ export class NotesPanel implements Panel {
     ctx.stroke();
 
     // Start line after track shell section, join triangles.
-    const startDraw = Math.max(x, TRACK_SHELL_WIDTH);
+    const startDraw = Math.max(x, 0);
     ctx.beginPath();
     ctx.moveTo(startDraw, topOffset);
     ctx.lineTo(xEnd, topOffset);
@@ -294,6 +295,10 @@ export class NotesPanel implements Panel {
   }
 
   private onClick(x: number, _: number) {
+    if (!this.timescale) {
+      return;
+    }
+
     // Select the hovered note, or create a new single note & select it
     if (x < 0) return;
     for (const note of Object.values(globals.state.notes)) {
@@ -302,8 +307,7 @@ export class NotesPanel implements Panel {
         return;
       }
     }
-    const {visibleTimeScale} = globals.timeline;
-    const timestamp = visibleTimeScale.pxToHpTime(x).toTime();
+    const timestamp = this.timescale.pxToHpTime(x).toTime();
     const id = uuidv4();
     const color = randomColor();
     globals.dispatchMultiple([
@@ -313,13 +317,17 @@ export class NotesPanel implements Panel {
   }
 
   private hitTestNote(x: number, note: SpanNote | Note): boolean {
-    const timeScale = globals.timeline.visibleTimeScale;
-    const noteX = timeScale.timeToPx(getStartTimestamp(note));
+    if (!this.timescale) {
+      return false;
+    }
+
+    const timescale = this.timescale;
+    const noteX = timescale.timeToPx(getStartTimestamp(note));
     if (note.noteType === 'SPAN') {
       return (
         (noteX <= x && x < noteX + AREA_TRIANGLE_WIDTH) ||
-        (timeScale.timeToPx(note.end) > x &&
-          x > timeScale.timeToPx(note.end) - AREA_TRIANGLE_WIDTH)
+        (timescale.timeToPx(note.end) > x &&
+          x > timescale.timeToPx(note.end) - AREA_TRIANGLE_WIDTH)
       );
     } else {
       const width = FLAG_WIDTH;

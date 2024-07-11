@@ -19,11 +19,10 @@ import {colorForTid} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {globals} from '../../frontend/globals';
-import {Size} from '../../base/geom';
 import {Engine, Track} from '../../public';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
+import {TrackRenderContext} from '../../public/tracks';
 
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
@@ -101,8 +100,11 @@ export class ProcessSummaryTrack implements Track {
     `);
   }
 
-  async onUpdate(): Promise<void> {
-    await this.fetcher.requestDataForCurrentTime();
+  async onUpdate({
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): Promise<void> {
+    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 
   async onBoundsChange(
@@ -151,8 +153,9 @@ export class ProcessSummaryTrack implements Track {
     return TRACK_HEIGHT;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: Size): void {
-    const {visibleTimeScale} = globals.timeline;
+  render(trackCtx: TrackRenderContext): void {
+    const {ctx, size, timescale} = trackCtx;
+
     const data = this.fetcher.data;
     if (data === undefined) {
       return;
@@ -165,10 +168,17 @@ export class ProcessSummaryTrack implements Track {
       this.getHeight(),
       0,
       size.width,
-      visibleTimeScale.timeToPx(data.start),
-      visibleTimeScale.timeToPx(data.end),
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
     );
 
+    this.renderSummary(trackCtx, data);
+  }
+
+  private renderSummary(
+    {ctx, timescale}: TrackRenderContext,
+    data: Data,
+  ): void {
     const startPx = 0;
     const bottomY = TRACK_HEIGHT;
 
@@ -182,7 +192,7 @@ export class ProcessSummaryTrack implements Track {
     for (let i = 0; i < data.utilizations.length; i++) {
       const startTime = Time.fromRaw(data.starts[i]);
       const utilization = data.utilizations[i];
-      lastX = Math.floor(visibleTimeScale.timeToPx(startTime));
+      lastX = Math.floor(timescale.timeToPx(startTime));
       ctx.lineTo(lastX, lastY);
       lastY = MARGIN_TOP + Math.round(SUMMARY_HEIGHT * (1 - utilization));
       ctx.lineTo(lastX, lastY);

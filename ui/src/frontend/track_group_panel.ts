@@ -22,11 +22,11 @@ import {TrackTags} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
-import {drawGridLines} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {
   CrashButton,
+  drawGridLines,
   renderChips,
   renderHoveredCursorVertical,
   renderHoveredNoteVertical,
@@ -36,6 +36,9 @@ import {
 } from './track_panel';
 import {canvasClip} from '../common/canvas_utils';
 import {Button} from '../widgets/button';
+import {TrackRenderContext} from '../public/tracks';
+import {calculateResolution} from '../common/resolution';
+import {PxSpan, TimeScale} from './time_scale';
 
 interface Attrs {
   groupKey: string;
@@ -169,17 +172,20 @@ export class TrackGroupPanel implements Panel {
     }
   }
 
-  highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: Size) {
-    const {visibleTimeScale} = globals.timeline;
+  highlightIfTrackSelected(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size,
+  ) {
     const selection = globals.state.selection;
     if (selection.kind !== 'area') return;
     const selectedAreaDuration = selection.end - selection.start;
     if (selection.tracks.includes(this.groupKey)) {
       ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';
       ctx.fillRect(
-        visibleTimeScale.timeToPx(selection.start) + TRACK_SHELL_WIDTH,
+        timescale.timeToPx(selection.start),
         0,
-        visibleTimeScale.durationToPx(selectedAreaDuration),
+        timescale.durationToPx(selectedAreaDuration),
         size.height,
       );
     }
@@ -190,34 +196,45 @@ export class TrackGroupPanel implements Panel {
 
     if (!collapsed) return;
 
+    const trackSize = {
+      width: size.width - TRACK_SHELL_WIDTH,
+      height: size.height,
+    };
+
     ctx.save();
-    canvasClip(
-      ctx,
-      TRACK_SHELL_WIDTH,
-      0,
-      size.width - TRACK_SHELL_WIDTH,
-      size.height,
+    ctx.translate(TRACK_SHELL_WIDTH, 0);
+    canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
+
+    const visibleWindow = globals.timeline.visibleWindow;
+    const timespan = visibleWindow.toTimeSpan();
+    const timescale = new TimeScale(
+      visibleWindow,
+      new PxSpan(0, trackSize.width),
     );
-    drawGridLines(ctx, size.width, size.height);
+
+    drawGridLines(ctx, timespan, timescale, trackSize);
 
     if (track) {
-      ctx.save();
-      ctx.translate(TRACK_SHELL_WIDTH, 0);
-      const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
       if (!track.getError()) {
-        track.render(ctx, trackSize);
+        const trackRenderCtx: TrackRenderContext = {
+          visibleWindow,
+          size: trackSize,
+          ctx,
+          trackKey: track.trackKey,
+          resolution: calculateResolution(visibleWindow, trackSize.width),
+          timescale,
+        };
+        track.render(trackRenderCtx);
       }
-      ctx.restore();
     }
 
-    this.highlightIfTrackSelected(ctx, size);
+    this.highlightIfTrackSelected(ctx, timescale, size);
 
-    const {visibleTimeScale} = globals.timeline;
     // Draw vertical line when hovering on the notes panel.
-    renderHoveredNoteVertical(ctx, visibleTimeScale, size);
-    renderHoveredCursorVertical(ctx, visibleTimeScale, size);
-    renderWakeupVertical(ctx, visibleTimeScale, size);
-    renderNoteVerticals(ctx, visibleTimeScale, size);
+    renderHoveredNoteVertical(ctx, timescale, size);
+    renderHoveredCursorVertical(ctx, timescale, size);
+    renderWakeupVertical(ctx, timescale, size);
+    renderNoteVerticals(ctx, timescale, size);
 
     ctx.restore();
   }
