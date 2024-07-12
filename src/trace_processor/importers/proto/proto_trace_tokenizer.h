@@ -39,7 +39,7 @@
 namespace perfetto::trace_processor {
 
 // Reads a protobuf trace in chunks and extracts boundaries of trace packets
-// (or subfields, for the case of ftrace) with their timestamps.
+// with their timestamps.
 class ProtoTraceTokenizer {
  public:
   ProtoTraceTokenizer();
@@ -145,9 +145,6 @@ class ProtoTraceTokenizer {
   static constexpr uint8_t kTracePacketTag =
       protozero::proto_utils::MakeTagLengthDelimited(
           protos::pbzero::Trace::kPacketFieldNumber);
-  static constexpr uint16_t kCompresedPacketsTag =
-      protozero::proto_utils::MakeTagLengthDelimited(
-          protos::pbzero::TracePacket::kCompressedPacketsFieldNumber);
 
   base::Status Decompress(TraceBlobView input, TraceBlobView* output);
 
