@@ -25,6 +25,7 @@ namespace perf_importer {
 struct Record;
 }
 
+struct AndroidLogEvent;
 class PacketSequenceStateGeneration;
 class TraceBlobView;
 struct InlineSchedSwitch;
@@ -62,6 +63,12 @@ class PerfRecordParser {
  public:
   virtual ~PerfRecordParser();
   virtual void ParsePerfRecord(int64_t, perf_importer::Record) = 0;
+};
+
+class AndroidLogEventParser {
+ public:
+  virtual ~AndroidLogEventParser();
+  virtual void ParseAndroidLogEvent(int64_t, AndroidLogEvent) = 0;
 };
 
 }  // namespace perfetto::trace_processor
