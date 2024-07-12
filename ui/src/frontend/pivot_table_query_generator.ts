@@ -19,7 +19,7 @@ import {Area, PivotTableQuery, PivotTableState} from '../common/state';
 import {getSelectedTrackKeys} from '../controller/aggregation/slice_aggregation_controller';
 
 import {Aggregation, TableColumn} from './pivot_table_types';
-import {SqlTables} from './sql_table/well_known_tables';
+import {SqlTables} from './well_known_sql_tables';
 
 export interface Table {
   name: string;

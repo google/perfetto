@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineBase} from '../../trace_processor/engine';
-
+import {EngineBase} from '../../../../trace_processor/engine';
 import {Column} from './column';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';

@@ -14,23 +14,26 @@
 
 import m from 'mithril';
 
-import {copyToClipboard} from '../../base/clipboard';
-import {Icons} from '../../base/semantic_icons';
-import {exists} from '../../base/utils';
-import {AddDebugTrackMenu} from '../debug_tracks/add_debug_track_menu';
-import {Button} from '../../widgets/button';
-import {DetailsShell} from '../../widgets/details_shell';
-import {Popup, PopupPosition} from '../../widgets/popup';
+import {copyToClipboard} from '../base/clipboard';
+import {Icons} from '../base/semantic_icons';
+import {exists} from '../base/utils';
+import {Button} from '../widgets/button';
+import {DetailsShell} from '../widgets/details_shell';
+import {Popup, PopupPosition} from '../widgets/popup';
 
-import {Filter, SqlTableState} from './state';
-import {SqlTable} from './table';
-import {SqlTableDescription, tableDisplayName} from './table_description';
-import {Engine} from '../../public';
-import {globals} from '../globals';
-import {assertExists} from '../../base/logging';
-import {uuidv4} from '../../base/uuid';
-import {BottomTab, NewBottomTabArgs} from '../bottom_tab';
-import {addEphemeralTab} from '../../common/addEphemeralTab';
+import {Filter, SqlTableState} from './widgets/sql/table/state';
+import {SqlTable} from './widgets/sql/table/table';
+import {
+  SqlTableDescription,
+  tableDisplayName,
+} from './widgets/sql/table/table_description';
+import {Engine} from '../public';
+import {assertExists} from '../base/logging';
+import {uuidv4} from '../base/uuid';
+import {addEphemeralTab} from '../common/addEphemeralTab';
+import {BottomTab, NewBottomTabArgs} from './bottom_tab';
+import {globals} from './globals';
+import {AddDebugTrackMenu} from './debug_tracks/add_debug_track_menu';
 
 interface SqlTableTabConfig {
   table: SqlTableDescription;

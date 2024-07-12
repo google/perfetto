@@ -14,27 +14,27 @@
 
 import m from 'mithril';
 
-import {copyToClipboard} from '../../base/clipboard';
-import {isString} from '../../base/object_utils';
-import {Icons} from '../../base/semantic_icons';
-import {sqliteString} from '../../base/string_utils';
-import {Duration, Time} from '../../base/time';
-import {Row} from '../../trace_processor/query_result';
+import {copyToClipboard} from '../../../../base/clipboard';
+import {isString} from '../../../../base/object_utils';
+import {Icons} from '../../../../base/semantic_icons';
+import {sqliteString} from '../../../../base/string_utils';
+import {Duration, Time} from '../../../../base/time';
+import {Row} from '../../../../trace_processor/query_result';
 import {
   SqlValue,
   sqlValueToReadableString,
-} from '../../trace_processor/sql_utils';
-import {Anchor} from '../../widgets/anchor';
-import {renderError} from '../../widgets/error';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
-import {SliceRef} from '../sql/slice';
-import {asSliceSqlId} from '../sql_types';
-import {DurationWidget} from '../widgets/duration';
-import {Timestamp} from '../widgets/timestamp';
+} from '../../../../trace_processor/sql_utils';
+import {Anchor} from '../../../../widgets/anchor';
+import {renderError} from '../../../../widgets/error';
+import {MenuItem, PopupMenu2} from '../../../../widgets/menu';
 
 import {Column} from './column';
 import {SqlTableState} from './state';
 import {SliceIdDisplayConfig} from './table_description';
+import {Timestamp} from '../../timestamp';
+import {DurationWidget} from '../../duration';
+import {SliceRef} from '../../../sql/slice';
+import {asSliceSqlId} from '../../../sql_types';
 
 // This file is responsible for rendering a value in a given sell based on the
 // column type.
