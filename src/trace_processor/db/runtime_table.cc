@@ -269,6 +269,102 @@ base::Status RuntimeTable::Builder::AddText(uint32_t idx, const char* ptr) {
   return base::OkStatus();
 }
 
+base::Status RuntimeTable::Builder::AddIntegers(uint32_t idx,
+                                                int64_t res,
+                                                uint32_t count) {
+  auto* col = storage_[idx].get();
+  if (auto* leading_nulls_ptr = std::get_if<uint32_t>(col)) {
+    *col = Fill<NullIntStorage>(*leading_nulls_ptr, std::nullopt);
+  }
+  if (auto* doubles = std::get_if<NullDoubleStorage>(col)) {
+    if (!IsPerfectlyRepresentableAsDouble(res)) {
+      return base::ErrStatus("Column %s contains %" PRId64
+                             " which cannot be represented as a double",
+                             col_names_[idx].c_str(), res);
+    }
+    doubles->AppendMultiple(static_cast<double>(res), count);
+    return base::OkStatus();
+  }
+  auto* ints = std::get_if<NullIntStorage>(col);
+  if (!ints) {
+    return base::ErrStatus("Column %s does not have consistent types",
+                           col_names_[idx].c_str());
+  }
+  ints->AppendMultiple(res, count);
+  return base::OkStatus();
+}
+
+base::Status RuntimeTable::Builder::AddFloats(uint32_t idx,
+                                              double res,
+                                              uint32_t count) {
+  auto* col = storage_[idx].get();
+  if (auto* leading_nulls_ptr = std::get_if<uint32_t>(col)) {
+    *col = Fill<NullDoubleStorage>(*leading_nulls_ptr, std::nullopt);
+  }
+  if (auto* ints = std::get_if<NullIntStorage>(col)) {
+    NullDoubleStorage storage;
+    for (uint32_t i = 0; i < ints->size(); ++i) {
+      std::optional<int64_t> int_val = ints->Get(i);
+      if (!int_val) {
+        storage.AppendMultipleNulls(count);
+        continue;
+      }
+      if (int_val && !IsPerfectlyRepresentableAsDouble(*int_val)) {
+        return base::ErrStatus("Column %s contains %" PRId64
+                               " which cannot be represented as a double",
+                               col_names_[idx].c_str(), *int_val);
+      }
+      storage.AppendMultiple(static_cast<double>(*int_val), count);
+    }
+    *col = std::move(storage);
+  }
+  auto* doubles = std::get_if<NullDoubleStorage>(col);
+  if (!doubles) {
+    return base::ErrStatus("Column %s does not have consistent types",
+                           col_names_[idx].c_str());
+  }
+  doubles->AppendMultiple(res, count);
+  return base::OkStatus();
+}
+
+base::Status RuntimeTable::Builder::AddTexts(uint32_t idx,
+                                             const char* ptr,
+                                             uint32_t count) {
+  auto* col = storage_[idx].get();
+  if (auto* leading_nulls_ptr = std::get_if<uint32_t>(col)) {
+    *col = Fill<StringStorage>(*leading_nulls_ptr, StringPool::Id::Null());
+  }
+  auto* strings = std::get_if<StringStorage>(col);
+  if (!strings) {
+    return base::ErrStatus("Column %s does not have consistent types",
+                           col_names_[idx].c_str());
+  }
+  strings->AppendMultiple(string_pool_->InternString(ptr), count);
+  return base::OkStatus();
+}
+
+base::Status RuntimeTable::Builder::AddNulls(uint32_t idx, uint32_t count) {
+  auto* col = storage_[idx].get();
+  if (auto* leading_nulls = std::get_if<uint32_t>(col)) {
+    (*leading_nulls)++;
+  } else if (auto* ints = std::get_if<NullIntStorage>(col)) {
+    ints->AppendMultipleNulls(count);
+  } else if (auto* strings = std::get_if<StringStorage>(col)) {
+    strings->AppendMultiple(StringPool::Id::Null(), count);
+  } else if (auto* doubles = std::get_if<NullDoubleStorage>(col)) {
+    doubles->AppendMultipleNulls(count);
+  } else {
+    PERFETTO_FATAL("Unexpected column type");
+  }
+  return base::OkStatus();
+}
+
+void RuntimeTable::Builder::AddNonNullIntegersUnchecked(
+    uint32_t idx,
+    const std::vector<int64_t>& res) {
+  std::get<IntStorage>(*storage_[idx]).Append(res);
+}
+
 base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
     uint32_t rows) && {
   std::vector<RefPtr<column::DataLayer>> storage_layers(col_names_.size() + 1);

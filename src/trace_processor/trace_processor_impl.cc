@@ -767,7 +767,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
-    base::Status status = RegisterIntervalIntersectFunctions(
+    base::Status status = perfetto_sql::RegisterIntervalIntersectFunctions(
         *engine_, context_.storage->mutable_string_pool());
   }
 

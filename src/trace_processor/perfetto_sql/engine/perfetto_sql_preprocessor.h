@@ -86,7 +86,8 @@ class PerfettoSqlPreprocessor {
   base::StatusOr<std::optional<SqlSource>> ExecuteTokenZipJoin(
       const SqliteTokenizer& tokenizer,
       const SqliteTokenizer::Token& name_token,
-      std::vector<SqlSource> token_list);
+      std::vector<SqlSource> token_list,
+      bool prefixed);
 
   SqliteTokenizer global_tokenizer_;
   const base::FlatHashMap<std::string, Macro>* macros_ = nullptr;

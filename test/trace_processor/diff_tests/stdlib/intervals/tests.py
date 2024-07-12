@@ -460,17 +460,18 @@ class StdlibIntervals(TestSuite):
 
         CREATE PERFETTO TABLE both AS
         SELECT
-          left_id,
-          right_id,
+          id_0,
+          id_1,
+          cpu,
           cat,
           count() AS c
         FROM (
-          SELECT id_0 AS left_id, id_1 AS right_id, ts, dur, "ii" AS cat
+          SELECT id_0, id_1, ts, dur, cpu, "ii" AS cat
           FROM _interval_intersect!(big_foo, small_foo, (cpu))
           UNION
-          SELECT big_id AS left_id, small_id AS right_id, ts, dur, "sj" AS cat FROM sj_res
+          SELECT big_id AS id_0, small_id AS id_1, ts, dur, cpu, "sj" AS cat FROM sj_res
         )
-          GROUP BY left_id, right_id;
+          GROUP BY id_0, id_1, ts, dur, cpu ;
 
         SELECT
           SUM(c) FILTER (WHERE c == 2) AS good,
@@ -569,14 +570,14 @@ class StdlibIntervals(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT id_0, id_1
+        SELECT id_0, id_1, c0
         FROM _interval_intersect!(A, B, (c0))
         ORDER BY 1, 2;
         """,
         out=Csv("""
-        "id_0","id_1"
-        0,0
-        0,1
+        "id_0","id_1","c0"
+        0,0,10
+        0,1,10
         """))
 
   def test_ii_wrong_partition(self):

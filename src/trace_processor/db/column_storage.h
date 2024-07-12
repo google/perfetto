@@ -62,6 +62,12 @@ class ColumnStorage final : public ColumnStorageBase {
 
   T Get(uint32_t idx) const { return vector_[idx]; }
   void Append(T val) { vector_.emplace_back(val); }
+  void Append(const std::vector<T>& vals) {
+    vector_.insert(vector_.end(), vals.begin(), vals.end());
+  }
+  void AppendMultiple(T val, uint32_t count) {
+    vector_.insert(vector_.end(), count, val);
+  }
   void Set(uint32_t idx, T val) { vector_[idx] = val; }
   PERFETTO_NO_INLINE void ShrinkToFit() { vector_.shrink_to_fit(); }
   const std::vector<T>& vector() const { return vector_; }
@@ -120,6 +126,16 @@ class ColumnStorage<std::optional<T>> final : public ColumnStorageBase {
     } else {
       AppendNull();
     }
+  }
+  void AppendMultipleNulls(uint32_t count) {
+    if (mode_ == Mode::kDense) {
+      data_.resize(data_.size() + static_cast<uint32_t>(count));
+    }
+    valid_.Resize(valid_.size() + static_cast<uint32_t>(count), false);
+  }
+  void AppendMultiple(T val, uint32_t count) {
+    data_.insert(data_.end(), count, val);
+    valid_.Resize(valid_.size() + static_cast<uint32_t>(count), true);
   }
   void Set(uint32_t idx, T val) {
     if (mode_ == Mode::kDense) {
