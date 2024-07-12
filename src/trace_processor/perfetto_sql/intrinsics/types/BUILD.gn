@@ -29,6 +29,7 @@ source_set("types") {
   deps = [
     "../../../../../gn:default_deps",
     "../../../../../include/perfetto/ext/base:base",
+    "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../containers",
   ]
 }

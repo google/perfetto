@@ -21,12 +21,12 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::perfetto_sql {
 
 // Registers all interval intersect related functions with |engine|.
 base::Status RegisterIntervalIntersectFunctions(PerfettoSqlEngine& engine,
                                                 StringPool* pool);
 
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::perfetto_sql
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_INTERVAL_INTERSECT_H_
