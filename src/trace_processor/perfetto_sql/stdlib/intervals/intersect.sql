@@ -41,6 +41,7 @@ RETURNS TableOrSubquery AS
       )
     )
   FROM $tab
+  ORDER BY ts
 );
 
 CREATE PERFETTO MACRO _interval_intersect(
