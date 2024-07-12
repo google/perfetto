@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
@@ -28,6 +29,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class AndroidLogEventParser;
 class ArgsTracker;
 class ArgsTranslationTable;
 class AsyncTrackSetTracker;
@@ -157,6 +159,7 @@ class TraceProcessorContext {
   std::unique_ptr<JsonTraceParser> json_trace_parser;
   std::unique_ptr<FuchsiaRecordParser> fuchsia_record_parser;
   std::unique_ptr<PerfRecordParser> perf_record_parser;
+  std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.

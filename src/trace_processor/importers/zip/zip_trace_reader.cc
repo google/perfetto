@@ -31,7 +31,7 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
-#include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
+#include "src/trace_processor/importers/android_bugreport/android_bugreport_reader.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -110,8 +110,8 @@ base::Status ZipTraceReader::NotifyEndOfFileImpl() {
 
   // Android bug reports are ZIP files and its files do not get handled
   // separately.
-  if (AndroidBugreportParser::IsAndroidBugReport(files)) {
-    return AndroidBugreportParser::Parse(context_, std::move(files));
+  if (AndroidBugreportReader::IsAndroidBugReport(files)) {
+    return AndroidBugreportReader::Parse(context_, std::move(files));
   }
 
   base::StatusOr<std::vector<Entry>> entries = ExtractEntries(std::move(files));
