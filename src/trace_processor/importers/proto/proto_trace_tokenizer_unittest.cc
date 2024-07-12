@@ -60,10 +60,9 @@ TEST(ProtoTraceTokenizerTest, TwoPacketsByteByByte) {
   message->AppendString(/*field_id=*/1, "payload2");
   std::vector<uint8_t> data = message.SerializeAsArray();
 
-  MockFunction<base::Status(TraceBlobView)> cb;
-
   ProtoTraceTokenizer tokenizer;
 
+  MockFunction<base::Status(TraceBlobView)> cb;
   EXPECT_CALL(cb, Call)
       .WillOnce(Invoke([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload1");
@@ -71,6 +70,72 @@ TEST(ProtoTraceTokenizerTest, TwoPacketsByteByByte) {
       }))
       .WillOnce(Invoke([](TraceBlobView out) {
         EXPECT_EQ(ToStringView(out), "payload2");
+        return base::OkStatus();
+      }));
+
+  for (uint8_t c : data) {
+    auto bv = TraceBlobView(TraceBlob::CopyFrom(&c, sizeof(c)));
+    EXPECT_TRUE(tokenizer.Tokenize(std::move(bv), cb.AsStdFunction()).ok());
+  }
+}
+
+TEST(ProtoTraceTokenizerTest, SkipFieldsSingleBlob) {
+  protozero::HeapBuffered<protozero::Message> message;
+  message->AppendVarInt(/*field_id=*/2, 42);
+  message->AppendString(/*field_id=*/1, "payload1");
+  message->AppendString(/*field_id=*/3, "ignored");
+  message->AppendFixed<uint32_t>(/*field_id=*/3, 42);
+  message->AppendString(/*field_id=*/1, "payload2");
+  message->AppendFixed<uint64_t>(/*field_id=*/3, 42);
+  message->AppendString(/*field_id=*/1, "payload3");
+  std::vector<uint8_t> data = message.SerializeAsArray();
+
+  ProtoTraceTokenizer tokenizer;
+
+  MockFunction<base::Status(TraceBlobView)> cb;
+  EXPECT_CALL(cb, Call)
+      .WillOnce(Invoke([](TraceBlobView out) {
+        EXPECT_EQ(ToStringView(out), "payload1");
+        return base::OkStatus();
+      }))
+      .WillOnce(Invoke([](TraceBlobView out) {
+        EXPECT_EQ(ToStringView(out), "payload2");
+        return base::OkStatus();
+      }))
+      .WillOnce(Invoke([](TraceBlobView out) {
+        EXPECT_EQ(ToStringView(out), "payload3");
+        return base::OkStatus();
+      }));
+
+  auto bv = TraceBlobView(TraceBlob::CopyFrom(data.data(), data.size()));
+  EXPECT_TRUE(tokenizer.Tokenize(std::move(bv), cb.AsStdFunction()).ok());
+}
+
+TEST(ProtoTraceTokenizerTest, SkipFieldsSingleByteByByte) {
+  protozero::HeapBuffered<protozero::Message> message;
+  message->AppendVarInt(/*field_id=*/2, 42);
+  message->AppendString(/*field_id=*/1, "payload1");
+  message->AppendString(/*field_id=*/3, "ignored");
+  message->AppendFixed<uint32_t>(/*field_id=*/3, 42);
+  message->AppendString(/*field_id=*/1, "payload2");
+  message->AppendFixed<uint64_t>(/*field_id=*/3, 42);
+  message->AppendString(/*field_id=*/1, "payload3");
+  std::vector<uint8_t> data = message.SerializeAsArray();
+
+  ProtoTraceTokenizer tokenizer;
+
+  MockFunction<base::Status(TraceBlobView)> cb;
+  EXPECT_CALL(cb, Call)
+      .WillOnce(Invoke([](TraceBlobView out) {
+        EXPECT_EQ(ToStringView(out), "payload1");
+        return base::OkStatus();
+      }))
+      .WillOnce(Invoke([](TraceBlobView out) {
+        EXPECT_EQ(ToStringView(out), "payload2");
+        return base::OkStatus();
+      }))
+      .WillOnce(Invoke([](TraceBlobView out) {
+        EXPECT_EQ(ToStringView(out), "payload3");
         return base::OkStatus();
       }));
 
