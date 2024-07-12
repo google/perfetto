@@ -28,11 +28,11 @@ import {
   BreakdownByThreadState,
   BreakdownByThreadStateTreeNode,
 } from './sql/thread_state';
-import {addSqlTableTab} from './sql_table/tab';
-import {SqlTables} from './sql_table/well_known_tables';
 import {getProcessName, getThreadName} from './thread_and_process_info';
 import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
+import {addSqlTableTab} from './sql_table_tab';
+import {SqlTables} from './well_known_sql_tables';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.

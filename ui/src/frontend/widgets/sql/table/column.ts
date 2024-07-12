@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqliteString} from '../../base/string_utils';
+import {sqliteString} from '../../../../base/string_utils';
 
 import {
   ArgSetIdColumn,

@@ -14,23 +14,23 @@
 
 import m from 'mithril';
 
-import {isString} from '../../base/object_utils';
-import {Icons} from '../../base/semantic_icons';
-import {Engine} from '../../trace_processor/engine';
-import {Row} from '../../trace_processor/query_result';
-import {Anchor} from '../../widgets/anchor';
-import {BasicTable} from '../../widgets/basic_table';
-import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
-import {Spinner} from '../../widgets/spinner';
+import {isString} from '../../../../base/object_utils';
+import {Icons} from '../../../../base/semantic_icons';
+import {Engine} from '../../../../trace_processor/engine';
+import {Row} from '../../../../trace_processor/query_result';
+import {Anchor} from '../../../../widgets/anchor';
+import {BasicTable} from '../../../../widgets/basic_table';
+import {Button} from '../../../../widgets/button';
+import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
+import {Spinner} from '../../../../widgets/spinner';
 
 import {ArgumentSelector} from './argument_selector';
 import {argColumn, Column, columnFromSqlTableColumn} from './column';
 import {renderCell} from './render_cell';
 import {SqlTableState} from './state';
 import {isArgSetIdColumn, SqlTableDescription} from './table_description';
-import {Intent} from '../../widgets/common';
-import {addHistogramTab} from '../charts/histogram/tab';
+import {Intent} from '../../../../widgets/common';
+import {addHistogramTab} from '../../../charts/histogram/tab';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
