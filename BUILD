@@ -2193,6 +2193,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/sysui_update_notif_on_ui_mode_changed_metric.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/sql/android/wattson_app_startup.sql",
+        "src/trace_processor/metrics/sql/android/wattson_estimate.sql",
         "src/trace_processor/metrics/sql/android/wattson_rail_relations.sql",
     ],
 )
