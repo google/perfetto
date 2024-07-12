@@ -81,6 +81,6 @@ perfetto_proto_library("@TYPE@") {
     "thread_time_in_state_metric.proto",
     "trace_quality.proto",
     "unsymbolized_frames.proto",
-    "wattson_app_startup.proto",
+    "wattson_in_time_period.proto",
   ]
 }

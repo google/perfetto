@@ -2840,7 +2840,7 @@ message UnsymbolizedFrames {
 
 // End of protos/perfetto/metrics/android/unsymbolized_frames.proto
 
-// Begin of protos/perfetto/metrics/android/wattson_app_startup.proto
+// Begin of protos/perfetto/metrics/android/wattson_in_time_period.proto
 
 message AndroidWattsonTimePeriodMetric {
   optional int32 metric_version = 1;
@@ -2859,7 +2859,7 @@ message AndroidWattsonRailEstimate {
   repeated AndroidWattsonRailEstimate rail = 3;
 }
 
-// End of protos/perfetto/metrics/android/wattson_app_startup.proto
+// End of protos/perfetto/metrics/android/wattson_in_time_period.proto
 
 // Begin of protos/perfetto/metrics/metrics.proto
 

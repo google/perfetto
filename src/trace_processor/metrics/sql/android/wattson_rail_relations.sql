@@ -40,15 +40,15 @@ SELECT
   SUM(dur * cpu7_mw) as cpu7_pws,
   SUM(dur * dsu_scu_mw) as dsu_scu_pws,
   SUM(dur) as total_dur,
-  startup_id
+  period_id
 FROM _windowed_wattson
-GROUP BY startup_id;
+GROUP BY period_id;
 
 -- Root node that has all possible components for the CPUSS added together
 DROP VIEW IF EXISTS _wattson_cpu_rail_total;
 CREATE PERFETTO VIEW _wattson_cpu_rail_total AS
 SELECT
-  startup_id,
+  period_id,
   total_dur,
   'cpu_subsystem' as name,
   (
@@ -57,105 +57,107 @@ SELECT
     dsu_scu_pws
   ) / total_dur as estimate_mw
 FROM _wattson_base_components_pws
-GROUP BY startup_id;
+GROUP BY period_id;
 
 -- Sub-sub-rail, meaning two levels down from the CPU root node
 DROP VIEW IF EXISTS _wattson_cpu_subsubrail_grouped;
 CREATE PERFETTO VIEW _wattson_cpu_subsubrail_grouped AS
 SELECT
-  startup_id,
+  period_id,
   'cpu0' as name,
   map.policy,
   cpu0_pws / total_dur as estimate_mw
 FROM _wattson_base_components_pws
 CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 0
-GROUP BY startup_id
+GROUP BY period_id
 UNION ALL
 SELECT
-  startup_id,
+  period_id,
   'cpu1' as name,
   map.policy,
   cpu1_pws / total_dur as estimate_mw
 FROM _wattson_base_components_pws
 CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 1
-GROUP BY startup_id
+GROUP BY period_id
 UNION ALL
 SELECT
-  startup_id,
+  period_id,
   'cpu2' as name,
   map.policy,
   cpu2_pws / total_dur as estimate_mw
 FROM _wattson_base_components_pws
 CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 2
-GROUP BY startup_id
+GROUP BY period_id
 UNION ALL
 SELECT
-  startup_id,
+  period_id,
   'cpu3' as name,
   map.policy,
   cpu3_pws / total_dur as estimate_mw
 FROM _wattson_base_components_pws
 CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 3
-GROUP BY startup_id
+GROUP BY period_id
 UNION ALL
 SELECT
-  startup_id,
+  period_id,
   'cpu4' as name,
   map.policy,
   cpu4_pws / total_dur as estimate_mw
 FROM _wattson_base_components_pws
 CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 4
-GROUP BY startup_id
+GROUP BY period_id
 UNION ALL
 SELECT
-  startup_id,
+  period_id,
   'cpu5' as name,
   map.policy,
   cpu5_pws / total_dur as estimate_mw
 FROM _wattson_base_components_pws
 CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 5
-GROUP BY startup_id
+GROUP BY period_id
 UNION ALL
 SELECT
-  startup_id,
+  period_id,
   'cpu6' as name,
   map.policy,
   cpu6_pws / total_dur as estimate_mw
 FROM _wattson_base_components_pws
 CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 6
-GROUP BY startup_id
+GROUP BY period_id
 UNION ALL
 SELECT
-  startup_id,
+  period_id,
   'cpu7' as name,
   map.policy,
   cpu7_pws / total_dur as estimate_mw
 FROM _wattson_base_components_pws
 CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 7
-GROUP BY startup_id;
+GROUP BY period_id;
 
 -- Sub-rail, meaning one level down from the CPU root node
 DROP VIEW IF EXISTS _wattson_cpu_subrail_grouped;
 CREATE PERFETTO VIEW _wattson_cpu_subrail_grouped AS
 SELECT
-  startup_id,
+  period_id,
   NULL as policy,
   'DSU_SCU' as name,
   dsu_scu_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws GROUP BY startup_id
+FROM _wattson_base_components_pws
+GROUP BY period_id
 UNION ALL
 SELECT
-  startup_id,
+  period_id,
   policy,
   CONCAT('policy', policy) as name,
   SUM(estimate_mw) as estimate_mw
-FROM _wattson_cpu_subsubrail_grouped GROUP BY startup_id, policy;
+FROM _wattson_cpu_subsubrail_grouped
+GROUP BY period_id, policy;
 
 -- Grouped by CPUs, the smallest building block available
 DROP VIEW IF EXISTS _cpu_subsubrail_estimate_per_startup_proto;
 CREATE PERFETTO VIEW _cpu_subsubrail_estimate_per_startup_proto AS
 SELECT
-  startup_id,
+  period_id,
   policy,
   RepeatedField(
     AndroidWattsonRailEstimate(
@@ -164,13 +166,13 @@ SELECT
     )
   ) AS proto
 FROM _wattson_cpu_subsubrail_grouped
-GROUP BY startup_id, policy;
+GROUP BY period_id, policy;
 
 -- Grouped by CPU policy
 DROP VIEW IF EXISTS _cpu_subrail_estimate_per_startup_proto;
 CREATE PERFETTO VIEW _cpu_subrail_estimate_per_startup_proto AS
 SELECT
-  startup_id,
+  period_id,
   RepeatedField(
     AndroidWattsonRailEstimate(
       'name', name,
@@ -180,14 +182,14 @@ SELECT
   ) AS proto
 FROM _wattson_cpu_subrail_grouped
 -- Some subrails will not have any subsubrails, so LEFT JOIN
-LEFT JOIN _cpu_subsubrail_estimate_per_startup_proto USING (startup_id, policy)
-GROUP BY startup_id;
+LEFT JOIN _cpu_subsubrail_estimate_per_startup_proto USING (period_id, policy)
+GROUP BY period_id;
 
 -- Grouped into single entry for entirety of CPU system
 DROP VIEW IF EXISTS _cpu_rail_estimate_per_startup_proto;
 CREATE PERFETTO VIEW _cpu_rail_estimate_per_startup_proto AS
 SELECT
-  startup_id,
+  period_id,
   RepeatedField(
     AndroidWattsonRailEstimate(
       'name', name,
@@ -196,6 +198,6 @@ SELECT
     )
   ) AS proto
 FROM _wattson_cpu_rail_total
-JOIN _cpu_subrail_estimate_per_startup_proto USING (startup_id)
-GROUP BY startup_id;
+JOIN _cpu_subrail_estimate_per_startup_proto USING (period_id)
+GROUP BY period_id;
 

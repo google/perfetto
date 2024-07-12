@@ -4800,7 +4800,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
         "protos/perfetto/metrics/android/trace_quality.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
-        "protos/perfetto/metrics/android/wattson_app_startup.proto",
+        "protos/perfetto/metrics/android/wattson_in_time_period.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,

@@ -75,7 +75,7 @@ import "protos/perfetto/metrics/android/monitor_contention_agg_metric.proto";
 import "protos/perfetto/metrics/android/app_process_starts_metric.proto";
 import "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto";
 import "protos/perfetto/metrics/android/android_broadcasts_metric.proto";
-import "protos/perfetto/metrics/android/wattson_app_startup.proto";
+import "protos/perfetto/metrics/android/wattson_in_time_period.proto";
 
 // Trace processor metadata
 message TraceMetadata {
