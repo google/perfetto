@@ -65,7 +65,7 @@ class AsyncSlicePlugin implements Plugin {
       const maxDepth = it.maxDepth;
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
+        uri: `/async_slices_${rawName}_${it.parentId}`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
@@ -117,7 +117,7 @@ class AsyncSlicePlugin implements Plugin {
       });
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
+        uri: `/process_${upid}/async_slices_${rawTrackIds}`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
@@ -184,7 +184,7 @@ class AsyncSlicePlugin implements Plugin {
       });
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}.${uid}`,
+        uri: `/async_slices_${rawName}_${uid}`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
