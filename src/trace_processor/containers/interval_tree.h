@@ -18,13 +18,12 @@
 #define SRC_TRACE_PROCESSOR_CONTAINERS_INTERVAL_TREE_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <map>
-#include <memory>
-#include <optional>
-#include <set>
+#include <utility>
 #include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
 
