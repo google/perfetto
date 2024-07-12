@@ -53,10 +53,10 @@ class ProtoTraceTokenizer {
       size_t avail = reader_.avail();
 
       // The header must be at least 2 bytes (1 byte for tag, 1 byte for
-      // size) and can be at most 6 bytes (1 byte for tag + 5 bytes for
-      // size).
+      // size/varint) and can be at most 20 bytes (10 bytes for tag + 10 bytes
+      // for size/varint).
       const size_t kMinHeaderBytes = 2;
-      const size_t kMaxHeaderBytes = 6;
+      const size_t kMaxHeaderBytes = 20;
       std::optional<TraceBlobView> header = reader_.SliceOff(
           start_offset,
           std::min(std::max(avail, kMinHeaderBytes), kMaxHeaderBytes));
@@ -67,8 +67,83 @@ class ProtoTraceTokenizer {
         return base::OkStatus();
       }
 
+      uint64_t tag;
+      const uint8_t* tag_start = header->data();
+      const uint8_t* tag_end = protozero::proto_utils::ParseVarInt(
+          tag_start, header->data() + header->size(), &tag);
+
+      if (PERFETTO_UNLIKELY(tag_end == tag_start)) {
+        return header->size() < kMaxHeaderBytes
+                   ? base::OkStatus()
+                   : base::ErrStatus("Failed to parse tag");
+      }
+
+      if (PERFETTO_UNLIKELY(tag != kTracePacketTag)) {
+        // Other field. Skip.
+        auto field_type = static_cast<uint8_t>(tag & 0b111);
+        switch (field_type) {
+          case static_cast<uint8_t>(
+              protozero::proto_utils::ProtoWireType::kVarInt): {
+            uint64_t varint;
+            const uint8_t* varint_start = tag_end;
+            const uint8_t* varint_end = protozero::proto_utils::ParseVarInt(
+                tag_end, header->data() + header->size(), &varint);
+            if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
+              return header->size() < kMaxHeaderBytes
+                         ? base::OkStatus()
+                         : base::ErrStatus("Failed to skip varint");
+            }
+            PERFETTO_CHECK(reader_.PopFrontBytes(
+                static_cast<size_t>(varint_end - tag_start)));
+            continue;
+          }
+          case static_cast<uint8_t>(
+              protozero::proto_utils::ProtoWireType::kLengthDelimited): {
+            uint64_t varint;
+            const uint8_t* varint_start = tag_end;
+            const uint8_t* varint_end = protozero::proto_utils::ParseVarInt(
+                tag_end, header->data() + header->size(), &varint);
+            if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
+              return header->size() < kMaxHeaderBytes
+                         ? base::OkStatus()
+                         : base::ErrStatus("Failed to skip delimited");
+            }
+
+            size_t size_incl_header =
+                static_cast<size_t>(varint_end - tag_start) + varint;
+            if (size_incl_header > avail) {
+              return base::OkStatus();
+            }
+            PERFETTO_CHECK(reader_.PopFrontBytes(size_incl_header));
+            continue;
+          }
+          case static_cast<uint8_t>(
+              protozero::proto_utils::ProtoWireType::kFixed64): {
+            size_t size_incl_header =
+                static_cast<size_t>(tag_end - tag_start) + 8;
+            if (size_incl_header > avail) {
+              return base::OkStatus();
+            }
+            PERFETTO_CHECK(reader_.PopFrontBytes(size_incl_header));
+            continue;
+          }
+          case static_cast<uint8_t>(
+              protozero::proto_utils::ProtoWireType::kFixed32): {
+            size_t size_incl_header =
+                static_cast<size_t>(tag_end - tag_start) + 4;
+            if (size_incl_header > avail) {
+              return base::OkStatus();
+            }
+            PERFETTO_CHECK(reader_.PopFrontBytes(size_incl_header));
+            continue;
+          }
+          default:
+            return base::ErrStatus("Unknown field type");
+        }
+      }
+
       uint64_t field_size;
-      const uint8_t* size_start = header->data() + 1;
+      const uint8_t* size_start = tag_end;
       const uint8_t* size_end = protozero::proto_utils::ParseVarInt(
           size_start, header->data() + header->size(), &field_size);
 
@@ -88,15 +163,10 @@ class ProtoTraceTokenizer {
         continue;
       }
 
-      // If there's no enough bytes in the reader, then we cannot do anymore.
+      // If there's not enough bytes in the reader, then we cannot do anymore.
       size_t size_incl_header = hdr_size + field_size;
       if (size_incl_header > avail) {
         return base::OkStatus();
-      }
-
-      uint8_t proto_field_tag = *header->data();
-      if (PERFETTO_UNLIKELY(proto_field_tag != kTracePacketTag)) {
-        return base::ErrStatus("Invalid TracePacket tag or size");
       }
 
       auto packet = reader_.SliceOff(start_offset + hdr_size, field_size);
