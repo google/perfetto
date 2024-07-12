@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTableDescription} from '../../frontend/sql_table/table_description';
+import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
 
 export const chromeTasksTable: SqlTableDescription = {
   imports: ['chrome.tasks'],

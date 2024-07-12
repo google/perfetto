@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {arrayEquals} from '../../base/array_utils';
-import {SortDirection} from '../../base/comparison_utils';
-import {isString} from '../../base/object_utils';
-import {sqliteString} from '../../base/string_utils';
-import {raf} from '../../core/raf_scheduler';
-import {Engine} from '../../trace_processor/engine';
-import {NUM, Row} from '../../trace_processor/query_result';
+import {arrayEquals} from '../../../../base/array_utils';
+import {SortDirection} from '../../../../base/comparison_utils';
+import {isString} from '../../../../base/object_utils';
+import {sqliteString} from '../../../../base/string_utils';
+import {raf} from '../../../../core/raf_scheduler';
+import {Engine} from '../../../../trace_processor/engine';
+import {NUM, Row} from '../../../../trace_processor/query_result';
 import {
   constraintsToQueryPrefix,
   constraintsToQuerySuffix,
   SQLConstraints,
-} from '../../trace_processor/sql_utils';
+} from '../../../../trace_processor/sql_utils';
 
 import {
   Column,

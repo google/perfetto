@@ -20,7 +20,7 @@ import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
-import {SqlTables} from '../frontend/sql_table/well_known_tables';
+import {SqlTables} from '../frontend/well_known_sql_tables';
 
 import {NonSerializableState, State, STATE_VERSION} from './state';
 
