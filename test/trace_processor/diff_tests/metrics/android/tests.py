@@ -375,10 +375,10 @@ class AndroidMetrics(TestSuite):
             period_dur: 385136434
             rail {
               name: "cpu_subsystem"
-              estimate_mw: 4568.159180
+              estimate_mw: 4567.958180
               rail {
                 name: "DSU_SCU"
-                estimate_mw: 1142.600708
+                estimate_mw: 1142.399708
               }
               rail {
                 name: "policy0"
