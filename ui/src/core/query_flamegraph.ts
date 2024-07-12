@@ -281,5 +281,5 @@ export const USE_NEW_FLAMEGRAPH_IMPL = featureFlags.register({
   id: 'useNewFlamegraphImpl',
   name: 'Use new flamegraph implementation',
   description: 'Use new flamgraph implementation in details panels.',
-  defaultValue: false,
+  defaultValue: true,
 });
