@@ -90,6 +90,7 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
     const uri = `${VISUALISED_ARGS_SLICE_TRACK_URI_PREFIX}#${uuidv4()}`;
     ctx.registerTrack({
       uri,
+      displayName: argName,
       tags: {
         metric: true, // TODO(stevegolton): Is this track really a metric?
       },

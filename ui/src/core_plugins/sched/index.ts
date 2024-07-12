@@ -31,6 +31,7 @@ class SchedPlugin implements Plugin {
     const runnableThreadCountUri = `/runnable_thread_count`;
     ctx.registerTrack({
       uri: runnableThreadCountUri,
+      displayName: 'Runnable thread count',
       trackFactory: (trackCtx) =>
         new RunnableThreadCountTrack({
           engine: ctx.engine,
