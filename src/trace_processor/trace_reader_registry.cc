@@ -40,6 +40,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kJsonTraceType:
     case kFuchsiaTraceType:
     case kProtoTraceType:
+    case kAndroidLogcatTraceType:
       return false;
   }
   PERFETTO_FATAL("For GCC");
