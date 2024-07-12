@@ -92,6 +92,7 @@ SELECT
   cr.dur,
   cr.ts + cr.dur AS ts_end,
   id_graph.utid,
+  id_graph.utid AS c0,
   root_id_graph.utid AS root_utid
   FROM _critical_path_roots_and_merged cr
   JOIN _wakeup_graph id_graph ON cr.id = id_graph.id
@@ -130,6 +131,7 @@ SELECT
   dur,
   ts + dur AS ts_end,
   utid,
+  utid AS c0,
   thread_state_id,
   state,
   function,
@@ -143,17 +145,18 @@ SELECT
 CREATE PERFETTO TABLE _critical_path_thread_state_slice_raw
 AS
 SELECT
-  id_0 AS cr_id,
-  id_1 AS th_id,
-  ts,
-  dur
-FROM _interval_intersect!(_critical_path_all, _span_thread_state_slice, (utid));
+  cr.id AS cr_id,
+  th.id AS th_id
+FROM __intrinsic_ii_with_interval_tree('_critical_path_all', 'c0') cr
+JOIN __intrinsic_ii_with_interval_tree('_span_thread_state_slice', 'c0') th
+  USING (c0)
+WHERE cr.ts < th.ts_end AND cr.ts_end > th.ts;
 
 CREATE PERFETTO TABLE _critical_path_thread_state_slice
 AS
 SELECT
-  raw.ts,
-  raw.dur,
+  max(cr.ts, th.ts) as ts,
+  min(cr.ts + cr.dur, th.ts + th.dur) - max(cr.ts, th.ts) as dur,
   cr.utid,
   thread_state_id,
   state,
