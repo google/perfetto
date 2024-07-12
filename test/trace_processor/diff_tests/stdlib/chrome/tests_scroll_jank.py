@@ -26,6 +26,25 @@ class ChromeScrollJankStdlib(TestSuite):
         """,
         out=Path('scroll_jank_v3.out'))
 
+  # https://crrev.com/c/5634125 introduces new *ToPresentation slices,
+  # and a new test trace file was added that contains them.
+  # TODO(b/341047059): after M128 is rolled out to stable,
+  # the test using the old trace can be removed.
+  def test_chrome_frames_with_missed_vsyncs_m128(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view_new.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
+
+        SELECT
+          cause_of_jank,
+          sub_cause_of_jank,
+          delay_since_last_frame,
+          vsync_interval
+        FROM chrome_janky_frames;
+        """,
+        out=Path('scroll_jank_v3_new.out'))
+
   def test_chrome_frames_with_missed_vsyncs_percentage(self):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
@@ -68,7 +87,6 @@ class ChromeScrollJankStdlib(TestSuite):
         INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
 
         SELECT
-          event_latency_id,
           scroll_update_id,
           ts,
           delta_y,
@@ -79,12 +97,12 @@ class ChromeScrollJankStdlib(TestSuite):
         LIMIT 5;
         """,
         out=Csv("""
-        "event_latency_id","scroll_update_id","ts","delta_y","relative_offset_y"
-        285,130,1349914859791,-6.932281,-6.932281
-        425,132,1349923327791,-32.999954,-39.932235
-        483,134,1349931893791,-39.999954,-79.932189
-        537,136,1349940237791,-50.000076,-129.932266
-        592,138,1349948670791,-57.999939,-187.932205
+        "scroll_update_id","ts","delta_y","relative_offset_y"
+        130,1349914859791,-6.932281,-6.932281
+        132,1349923327791,-32.999954,-39.932235
+        134,1349931893791,-39.999954,-79.932189
+        136,1349940237791,-50.000076,-129.932266
+        138,1349948670791,-57.999939,-187.932205
         """))
 
   def test_chrome_janky_event_latencies_v3(self):
@@ -194,7 +212,6 @@ class ChromeScrollJankStdlib(TestSuite):
         INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
 
         SELECT
-          event_latency_id,
           scroll_update_id,
           ts,
           delta_y,
@@ -205,22 +222,21 @@ class ChromeScrollJankStdlib(TestSuite):
         LIMIT 5;
         """,
         out=Csv("""
-        "event_latency_id","scroll_update_id","ts","delta_y","relative_offset_y"
-        285,130,1349963342791,-6.932281,-6.932281
-        425,132,1349985554791,-16.573090,-23.505371
-        483,134,1349996680791,-107.517273,-131.022644
-        703,140,1350007850791,-158.728424,-289.751068
-        964,147,1350018935791,-89.808540,-379.559608
+        "scroll_update_id","ts","delta_y","relative_offset_y"
+        130,1349963342791,-6.932281,-6.932281
+        132,1349985554791,-16.573090,-23.505371
+        134,1349996680791,-107.517273,-131.022644
+        140,1350007850791,-158.728424,-289.751068
+        147,1350018935791,-89.808540,-379.559608
         """))
 
   def test_chrome_predictor_metrics(self):
     return DiffTestBlueprint(
         trace=DataPath('scroll_offsets_trace_2.pftrace'),
         query="""
-        INCLUDE PERFETTO MODULE chrome.scroll_jank.predictor_jank;
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.predictor_error;
 
         SELECT
-          event_latency_id,
           scroll_update_id,
           present_ts,
           delta_y,
@@ -228,18 +244,18 @@ class ChromeScrollJankStdlib(TestSuite):
           next_delta,
           predictor_jank,
           delta_threshold
-        FROM chrome_predictor_jank
+        FROM chrome_predictor_error
         WHERE scroll_update_id IS NOT NULL
         ORDER by present_ts
         LIMIT 5;
         """,
         out=Csv("""
-        "event_latency_id","scroll_update_id","present_ts","delta_y","prev_delta","next_delta","predictor_jank","delta_threshold"
-        425,132,1349985554791,-16.573090,-6.932281,-107.517273,0.000000,1.200000
-        483,134,1349996680791,-107.517273,-16.573090,-158.728424,0.000000,1.200000
-        703,140,1350007850791,-158.728424,-107.517273,-89.808540,0.276306,1.200000
-        964,147,1350018935791,-89.808540,-158.728424,-47.583618,0.000000,1.200000
-        1008,148,1350030066791,-47.583618,-89.808540,-98.283493,0.687384,1.200000
+        "scroll_update_id","present_ts","delta_y","prev_delta","next_delta","predictor_jank","delta_threshold"
+        132,1349985554791,-16.573090,-6.932281,-107.517273,0.000000,1.200000
+        134,1349996680791,-107.517273,-16.573090,-158.728424,0.000000,1.200000
+        140,1350007850791,-158.728424,-107.517273,-89.808540,0.276306,1.200000
+        147,1350018935791,-89.808540,-158.728424,-47.583618,0.000000,1.200000
+        148,1350030066791,-47.583618,-89.808540,-98.283493,0.687384,1.200000
         """))
 
   def test_scroll_jank_cause_map(self):
