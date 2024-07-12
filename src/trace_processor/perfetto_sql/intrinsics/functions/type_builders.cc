@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
@@ -296,18 +297,22 @@ struct RowDataframeAgg : public SqliteAggregateFunction<Struct> {
 };
 
 struct IntervalTreeIntervalsAgg
-    : public SqliteAggregateFunction<perfetto_sql::PartitionedIntervals> {
+    : public SqliteAggregateFunction<perfetto_sql::PartitionedTable> {
   static constexpr char kName[] = "__intrinsic_interval_tree_intervals_agg";
   static constexpr int kArgCount = -1;
+  static constexpr int kMinArgCount = 3;
   struct AggCtx : SqliteAggregateContext<AggCtx> {
-    perfetto_sql::PartitionedIntervals intervals;
+    perfetto_sql::PartitionedTable partitions;
+    std::vector<SqlValue> tmp_vals;
   };
 
   static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
     auto argc = static_cast<uint32_t>(rargc);
-    PERFETTO_DCHECK(argc >= 3);
+    PERFETTO_DCHECK(argc >= kMinArgCount);
     auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
+    auto& parts = AggCtx::GetOrCreateContextForStep(ctx).partitions;
 
+    // Fetch and validate the interval.
     IntervalTree::Interval interval;
     interval.id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
     interval.start = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
@@ -318,19 +323,48 @@ struct IntervalTreeIntervalsAgg
     }
     interval.end = interval.start + static_cast<uint64_t>(dur);
 
-    if (argc == 3) {
-      agg_ctx.intervals[0].push_back(std::move(interval));
+    // Fast path for no partitions.
+    if (argc == kMinArgCount) {
+      parts.intervals[0].push_back(std::move(interval));
       return;
     }
 
-    // Create a partition.
-    base::Hasher h;
-    for (uint32_t i = 3 + 1; i < argc; i += 2) {
-      HashSqlValue(h, sqlite::utils::SqliteValueToSqlValue(argv[i]));
+    // On the first |Step()| we need to fetch the names of the partitioned
+    // columns.
+    if (parts.partition_column_names.empty()) {
+      for (uint32_t i = 3; i < argc; i += 2) {
+        parts.partition_column_names.push_back(
+            sqlite::utils::SqliteValueToSqlValue(argv[i]).AsString());
+      }
+      agg_ctx.tmp_vals.resize(parts.partition_column_names.size());
     }
 
-    // Push the interval into the partition.
-    agg_ctx.intervals[h.digest()].push_back(interval);
+    // Create a partition key.
+    base::Hasher h;
+    uint32_t j = 0;
+    for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
+      SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[i]);
+      agg_ctx.tmp_vals[j] = new_val;
+      HashSqlValue(h, new_val);
+      j++;
+    }
+
+    uint64_t key = h.digest();
+    auto* part = parts.intervals.Find(key);
+
+    // If we encountered this partition before we only have to push the interval
+    // into it.
+    if (part) {
+      part->push_back(interval);
+      return;
+    }
+
+    std::vector<SqlValue> part_values;
+    for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
+      part_values.push_back(sqlite::utils::SqliteValueToSqlValue(argv[i]));
+    }
+    parts.partition_values[key] = agg_ctx.tmp_vals;
+    parts.intervals[key].push_back(interval);
   }
 
   static void Final(sqlite3_context* ctx) {
@@ -340,9 +374,9 @@ struct IntervalTreeIntervalsAgg
     }
     return sqlite::result::UniquePointer(
         ctx,
-        std::make_unique<perfetto_sql::PartitionedIntervals>(
-            std::move(raw_agg_ctx.get()->intervals)),
-        "INTERVAL_TREE_PARTITIONS");
+        std::make_unique<perfetto_sql::PartitionedTable>(
+            std::move(raw_agg_ctx.get()->partitions)),
+        perfetto_sql::PartitionedTable::kName);
   }
 };
 

@@ -178,8 +178,9 @@ int TablePointerModule::Filter(sqlite3_vtab_cursor* cur,
         c->table->columns().begin(), c->table->columns().end(),
         [&tok](const ColumnLegacy& col) { return col.name() == tok; });
     if (it == c->table->columns().end()) {
-      return sqlite::utils::SetError(c->pVtab,
-                                     "column does not exist in table");
+      base::StackString<128> err("column '%s' does not exist in table",
+                                 sqlite3_value_text(argv[i]));
+      return sqlite::utils::SetError(c->pVtab, err.c_str());
     }
     c->bound_col_to_table_index[c->col_count++] =
         static_cast<uint32_t>(std::distance(c->table->columns().begin(), it));

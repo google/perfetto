@@ -372,3 +372,55 @@ class IntervalsIntersect(TestSuite):
         "ii_count","thread_count","ii_sum","thread_sum"
         313,313,27540674879,27540674879
         """))
+
+  def test_sanity_multiple_partitions(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        SELECT * FROM _interval_intersect!(
+          (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
+          (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
+          (utid, cpu)
+        );
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1","utid","cpu"
+        70730062200,125364,0,0,1,0
+        70730187564,20297242,1,1,0,0
+        70731483398,24583,9,9,10,3
+        70731458606,24792,8,8,9,3
+        70731393294,42396,5,5,6,3
+        70731435690,22916,6,6,7,3
+        70731161731,35000,3,3,4,3
+        70731196731,196563,4,4,5,3
+        70731438502,55261,7,7,8,6
+        70731135898,25833,2,2,2,3
+        """))
+
+  def test_sanity_single_partitions(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        SELECT * FROM _interval_intersect!(
+          (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
+          (SELECT id, ts, dur, utid, cpu FROM sched WHERE dur > 0 LIMIT 10),
+          (utid)
+        );
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1","utid"
+        70731458606,24792,8,8,9
+        70731161731,35000,3,3,4
+        70731393294,42396,5,5,6
+        70730187564,20297242,1,1,0
+        70731135898,25833,2,2,2
+        70731438502,55261,7,7,8
+        70731483398,24583,9,9,10
+        70731196731,196563,4,4,5
+        70731435690,22916,6,6,7
+        70730062200,125364,0,0,1
+        """))

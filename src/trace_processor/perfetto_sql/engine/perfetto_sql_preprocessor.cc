@@ -229,9 +229,19 @@ base::StatusOr<SqlSource> PerfettoSqlPreprocessor::RewriteInternal(
       continue;
     }
     if (macro_name == "__intrinsic_token_zip_join") {
-      ASSIGN_OR_RETURN(
-          std::optional<SqlSource> res,
-          ExecuteTokenZipJoin(tokenizer, name_token, std::move(token_list)));
+      ASSIGN_OR_RETURN(std::optional<SqlSource> res,
+                       ExecuteTokenZipJoin(tokenizer, name_token,
+                                           std::move(token_list), false));
+      if (res) {
+        tokenizer.Rewrite(rewriter, prev, tok, *std::move(res),
+                          SqliteTokenizer::EndToken::kInclusive);
+      }
+      continue;
+    }
+    if (macro_name == "__intrinsic_prefixed_token_zip_join") {
+      ASSIGN_OR_RETURN(std::optional<SqlSource> res,
+                       ExecuteTokenZipJoin(tokenizer, name_token,
+                                           std::move(token_list), true));
       if (res) {
         tokenizer.Rewrite(rewriter, prev, tok, *std::move(res),
                           SqliteTokenizer::EndToken::kInclusive);
@@ -316,7 +326,8 @@ base::StatusOr<std::optional<SqlSource>>
 PerfettoSqlPreprocessor::ExecuteTokenZipJoin(
     const SqliteTokenizer& tokenizer,
     const SqliteTokenizer::Token& name_token,
-    std::vector<SqlSource> token_list) {
+    std::vector<SqlSource> token_list,
+    bool prefixed) {
   if (token_list.size() != 4) {
     return ErrorAtToken(tokenizer, name_token,
                         "token_zip_join: must have exactly four args");
@@ -353,8 +364,16 @@ PerfettoSqlPreprocessor::ExecuteTokenZipJoin(
                                {first_sources[i], second_sources[i]}));
     res.push_back(invocation_res.sql());
   }
-  return {SqlSource::FromTraceProcessorImplementation(
-      base::Join(res, " " + token_list[3].sql() + " "))};
+
+  if (res.empty()) {
+    return {SqlSource::FromTraceProcessorImplementation("")};
+  }
+
+  std::string zipped = base::Join(res, " " + token_list[3].sql() + " ");
+  if (prefixed) {
+    zipped = " " + token_list[3].sql() + " " + zipped;
+  }
+  return {SqlSource::FromTraceProcessorImplementation(zipped)};
 }
 
 }  // namespace perfetto::trace_processor

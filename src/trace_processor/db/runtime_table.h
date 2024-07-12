@@ -71,10 +71,16 @@ class RuntimeTable : public Table {
     base::Status AddInteger(uint32_t idx, int64_t res);
     base::Status AddFloat(uint32_t idx, double res);
     base::Status AddText(uint32_t idx, const char* ptr);
+    base::Status AddIntegers(uint32_t idx, int64_t res, uint32_t count);
+    base::Status AddFloats(uint32_t idx, double res, uint32_t count);
+    base::Status AddTexts(uint32_t idx, const char* ptr, uint32_t count);
+    base::Status AddNulls(uint32_t idx, uint32_t count);
 
     void AddNonNullIntegerUnchecked(uint32_t idx, int64_t res) {
       std::get<IntStorage>(*storage_[idx]).Append(res);
     }
+    void AddNonNullIntegersUnchecked(uint32_t idx,
+                                     const std::vector<int64_t>& res);
 
     base::StatusOr<std::unique_ptr<RuntimeTable>> Build(uint32_t rows) &&;
 

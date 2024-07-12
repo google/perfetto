@@ -14,7 +14,13 @@
 -- limitations under the License.
 
 CREATE PERFETTO MACRO _ii_df_agg(x Expr, y Expr)
-RETURNS Expr AS ,__intrinsic_stringify!($x), $y;
+RETURNS Expr AS __intrinsic_stringify!($x), $y;
+
+CREATE PERFETTO MACRO _ii_df_bind(x Expr, y Expr)
+RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
+
+CREATE PERFETTO MACRO _ii_df_select(x Expr, y Expr)
+RETURNS Expr AS $x AS $y;
 
 CREATE PERFETTO MACRO _interval_agg(
   tab TableOrSubquery,
@@ -27,7 +33,7 @@ RETURNS TableOrSubquery AS
       id,
       ts,
       dur
-      __intrinsic_token_zip_join!(
+      __intrinsic_prefixed_token_zip_join!(
         $agg_columns,
         $agg_columns,
         _ii_df_agg,
@@ -49,16 +55,29 @@ RETURNS TableOrSubquery AS
     c1 AS dur,
     c2 AS id_0,
     c3 AS id_1
+    __intrinsic_prefixed_token_zip_join!(
+      (c4, c5, c6, c7, c8, c9, c10),
+      $agg_columns,
+      _ii_df_select,
+      __intrinsic_token_comma!()
+    )
   FROM __intrinsic_table_ptr(
     __intrinsic_interval_intersect(
       _interval_agg!($t1, $agg_columns),
-      _interval_agg!($t2, $agg_columns)
+      _interval_agg!($t2, $agg_columns),
+      __intrinsic_stringify!($agg_columns)
     )
   )
   WHERE __intrinsic_table_ptr_bind(c0, 'ts')
     AND __intrinsic_table_ptr_bind(c1, 'dur')
     AND __intrinsic_table_ptr_bind(c2, 'id_0')
     AND __intrinsic_table_ptr_bind(c3, 'id_1')
+    __intrinsic_prefixed_token_zip_join!(
+        (c4, c5, c6, c7, c8, c9, c10),
+        $agg_columns,
+        _ii_df_bind,
+        AND
+      )
 );
 
 CREATE PERFETTO MACRO _interval_intersect_single(
