@@ -43,7 +43,8 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
@@ -318,6 +319,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "zip";
     case kPerfDataTraceType:
       return "perf_data";
+    case kAndroidLogcatTraceType:
+      return "android_logcat";
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -347,6 +350,11 @@ void InitializePreludeTablesViews(sqlite3* db) {
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
+  context_.reader_registry->RegisterTraceReader<AndroidLogReader>(
+      kAndroidLogcatTraceType);
+  context_.android_log_event_parser =
+      std::make_unique<AndroidLogEventParserImpl>(&context_);
+
   context_.reader_registry->RegisterTraceReader<FuchsiaTraceTokenizer>(
       kFuchsiaTraceType);
   context_.fuchsia_record_parser =

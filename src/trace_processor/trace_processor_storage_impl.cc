@@ -115,6 +115,7 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   if (context_.content_analyzer) {
     PacketAnalyzer::Get(&context_)->NotifyEndOfFile();
   }
+
   context_.event_tracker->FlushPendingEvents();
   context_.slice_tracker->FlushPendingSlices();
   context_.args_tracker->Flush();

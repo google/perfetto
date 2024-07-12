@@ -33,6 +33,7 @@ enum TraceType {
   kNinjaLogTraceType,
   kZipFile,
   kPerfDataTraceType,
+  kAndroidLogcatTraceType,
 };
 
 constexpr size_t kGuessTraceMaxLookahead = 64;

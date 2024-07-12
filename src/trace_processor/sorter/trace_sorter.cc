@@ -26,6 +26,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
@@ -221,6 +222,10 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
       context.json_trace_parser->ParseSystraceLine(
           event.ts, token_buffer_.Extract<SystraceLine>(id));
       return;
+    case TimestampedEvent::Type::kAndroidLogEvent:
+      context.android_log_event_parser->ParseAndroidLogEvent(
+          event.ts, token_buffer_.Extract<AndroidLogEvent>(id));
+      return;
     case TimestampedEvent::Type::kInlineSchedSwitch:
     case TimestampedEvent::Type::kInlineSchedWaking:
     case TimestampedEvent::Type::kEtwEvent:
@@ -248,6 +253,7 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kPerfRecord:
     case TimestampedEvent::Type::kJsonValue:
     case TimestampedEvent::Type::kFuchsiaRecord:
+    case TimestampedEvent::Type::kAndroidLogEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -277,6 +283,7 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kPerfRecord:
     case TimestampedEvent::Type::kJsonValue:
     case TimestampedEvent::Type::kFuchsiaRecord:
+    case TimestampedEvent::Type::kAndroidLogEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -311,6 +318,9 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
       return;
     case TimestampedEvent::Type::kPerfRecord:
       base::ignore_result(token_buffer_.Extract<perf_importer::Record>(id));
+      return;
+    case TimestampedEvent::Type::kAndroidLogEvent:
+      base::ignore_result(token_buffer_.Extract<AndroidLogEvent>(id));
       return;
   }
   PERFETTO_FATAL("For GCC");

@@ -14,27 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_BUGREPORT_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_BUGREPORT_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_BUGREPORT_READER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_BUGREPORT_READER_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/status.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/util/zip_reader.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto ::trace_processor {
 
 namespace util {
 class ZipReader;
 }
 
-struct AndroidLogEvent;
 class TraceProcessorContext;
 
 // Trace importer for Android bugreport.zip archives.
-class AndroidBugreportParser {
+class AndroidBugreportReader {
  public:
   static bool IsAndroidBugReport(
       const std::vector<util::ZipFile>& zip_file_entries);
@@ -42,28 +44,24 @@ class AndroidBugreportParser {
                             std::vector<util::ZipFile> zip_file_entries);
 
  private:
-  AndroidBugreportParser(TraceProcessorContext* context,
+  AndroidBugreportReader(TraceProcessorContext* context,
                          std::vector<util::ZipFile> zip_file_entries);
-  ~AndroidBugreportParser();
+  ~AndroidBugreportReader();
   util::Status ParseImpl();
 
   bool DetectYearAndBrFilename();
-  void ParsePersistentLogcat();
-  void ParseDumpstateTxt();
-  void SortAndStoreLogcat();
-  void SortLogEvents();
+  base::StatusOr<std::vector<TimestampedAndroidLogEvent>>
+  ParsePersistentLogcat();
+  base::Status ParseDumpstateTxt(std::vector<TimestampedAndroidLogEvent>);
 
   TraceProcessorContext* const context_;
   std::vector<util::ZipFile> zip_file_entries_;
-  int br_year_ = 0;  // The year when the bugreport has been taken.
+  int32_t br_year_ = 0;  // The year when the bugreport has been taken.
   const util::ZipFile* dumpstate_file_ =
       nullptr;  // The bugreport-xxx-2022-08-04....txt file
   std::string build_fpr_;
-  std::vector<AndroidLogEvent> log_events_;
-  size_t log_events_last_sorted_idx_ = 0;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_BUGREPORT_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_BUGREPORT_READER_H_

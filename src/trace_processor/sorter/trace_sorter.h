@@ -34,6 +34,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
@@ -107,6 +108,15 @@ class TraceSorter {
 
   inline void AddMachineContext(TraceProcessorContext* context) {
     sorter_data_by_machine_.emplace_back(context);
+  }
+
+  inline void PushAndroidLogEvent(
+      int64_t timestamp,
+      AndroidLogEvent event,
+      std::optional<MachineId> machine_id = std::nullopt) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(event));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kAndroidLogEvent,
+                         id, machine_id);
   }
 
   inline void PushPerfRecord(
@@ -262,7 +272,8 @@ class TraceSorter {
       kTrackEvent,
       kSystraceLine,
       kEtwEvent,
-      kMax = kEtwEvent,
+      kAndroidLogEvent,
+      kMax = kAndroidLogEvent,
     };
 
     // Number of bits required to store the max element in |Type|.
