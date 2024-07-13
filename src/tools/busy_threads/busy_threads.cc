@@ -20,6 +20,9 @@
 #include <cinttypes>
 #include <thread>
 
+#include <pthread.h>
+#include <random>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -44,8 +47,10 @@ namespace {
 
 void SetRandomThreadName(uint32_t thread_name_count) {
 #if PERFETTO_HAVE_PTHREADS
-  base::StackString<16> name("busy-%" PRIu32,
-                             static_cast<uint32_t>(rand()) % thread_name_count);
+  thread_local std::random_device rd;
+  thread_local std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(0, thread_name_count - 1);
+  base::StackString<16> name("busy-%" PRIu32, static_cast<uint32_t>(dis(gen)));
   pthread_setname_np(pthread_self(), name.c_str());
 #endif
 }
