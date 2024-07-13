@@ -64,8 +64,10 @@ class PerfSamplesProfilePlugin implements Plugin {
       ctx.registerTrack({
         uri: `/process_${upid}/perf_samples_profile`,
         displayName: `Process Callstacks`,
-        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
-        upid,
+        tags: {
+          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          upid,
+        },
         trackFactory: ({trackKey}) =>
           new ProcessPerfSamplesProfileTrack(
             {
@@ -104,8 +106,10 @@ class PerfSamplesProfilePlugin implements Plugin {
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`,
         displayName,
-        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
-        utid,
+        tags: {
+          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          utid,
+        },
         trackFactory: ({trackKey}) =>
           new ThreadPerfSamplesProfileTrack(
             {

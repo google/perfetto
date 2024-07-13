@@ -143,10 +143,10 @@ export class App implements m.ClassComponent {
         const trackInfo = globals.state.tracks[firstThreadStateTrack];
         const trackDesc = globals.trackManager.resolveTrackInfo(trackInfo.uri);
         if (
-          trackDesc?.kind === THREAD_STATE_TRACK_KIND &&
-          trackDesc?.utid !== undefined
+          trackDesc?.tags?.kind === THREAD_STATE_TRACK_KIND &&
+          trackDesc?.tags?.utid !== undefined
         ) {
-          return trackDesc?.utid;
+          return trackDesc.tags.utid;
         }
       }
     }

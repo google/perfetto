@@ -234,7 +234,7 @@ export class FlowEventsController extends Controller<'main'> {
       // that case experimental_slice_layout is just an expensive way
       // to find out depth === layout_depth.
       const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      const trackIds = trackInfo?.trackIds;
+      const trackIds = trackInfo?.tags?.trackIds;
       if (trackIds === undefined || trackIds.length <= 1) {
         uiTrackIdToInfo.set(uiTrackId, null);
         trackIdToInfo.set(trackId, null);
@@ -243,7 +243,7 @@ export class FlowEventsController extends Controller<'main'> {
 
       const newInfo = {
         uiTrackId,
-        siblingTrackIds: trackIds,
+        siblingTrackIds: [...trackIds],
         sliceIds: [],
         nodes: [],
       };
@@ -362,13 +362,13 @@ export class FlowEventsController extends Controller<'main'> {
       const track = globals.state.tracks[uiTrackId];
       if (track?.uri !== undefined) {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        const kind = trackInfo?.kind;
+        const kind = trackInfo?.tags?.kind;
         if (
           kind === THREAD_SLICE_TRACK_KIND ||
           kind === ACTUAL_FRAMES_SLICE_TRACK_KIND
         ) {
-          if (trackInfo?.trackIds) {
-            for (const trackId of trackInfo.trackIds) {
+          if (trackInfo?.tags?.trackIds) {
+            for (const trackId of trackInfo.tags.trackIds) {
               trackIds.push(trackId);
             }
           }

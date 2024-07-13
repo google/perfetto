@@ -140,7 +140,9 @@ class ChromeScrollJankPlugin implements Plugin {
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank',
       displayName: 'Scroll Jank causes - long tasks',
-      kind: ChromeTasksScrollJankTrack.kind,
+      tags: {
+        kind: ChromeTasksScrollJankTrack.kind,
+      },
       trackFactory: ({trackKey}) => {
         return new ChromeTasksScrollJankTrack({
           engine: ctx.engine,
@@ -159,7 +161,9 @@ class ChromeScrollJankPlugin implements Plugin {
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#toplevelScrolls',
       displayName: 'Chrome Scrolls',
-      kind: CHROME_TOPLEVEL_SCROLLS_KIND,
+      tags: {
+        kind: CHROME_TOPLEVEL_SCROLLS_KIND,
+      },
       trackFactory: ({trackKey}) => {
         return new TopLevelScrollTrack({
           engine: ctx.engine,
@@ -288,7 +292,9 @@ class ChromeScrollJankPlugin implements Plugin {
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#eventLatency',
       displayName: 'Chrome Scroll Input Latencies',
-      kind: CHROME_EVENT_LATENCY_TRACK_KIND,
+      tags: {
+        kind: CHROME_EVENT_LATENCY_TRACK_KIND,
+      },
       trackFactory: ({trackKey}) => {
         return new EventLatencyTrack({engine: ctx.engine, trackKey}, baseTable);
       },
@@ -325,7 +331,9 @@ class ChromeScrollJankPlugin implements Plugin {
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#scrollJankV3',
       displayName: 'Chrome Scroll Janks',
-      kind: ScrollJankV3TrackKind,
+      tags: {
+        kind: ScrollJankV3TrackKind,
+      },
       trackFactory: ({trackKey}) => {
         return new ScrollJankV3Track({
           engine: ctx.engine,

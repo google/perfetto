@@ -179,8 +179,10 @@ class CounterPlugin implements Plugin {
       ctx.registerStaticTrack({
         uri: `/counter_${trackId}`,
         displayName,
-        kind: COUNTER_TRACK_KIND,
-        trackIds: [trackId],
+        tags: {
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [trackId],
+        },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
@@ -246,8 +248,10 @@ class CounterPlugin implements Plugin {
       ctx.registerTrack({
         uri: `/cpu_counter_${trackId}`,
         displayName: name,
-        kind: COUNTER_TRACK_KIND,
-        trackIds: [trackId],
+        tags: {
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [trackId],
+        },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
@@ -310,8 +314,10 @@ class CounterPlugin implements Plugin {
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_counter_${trackId}`,
         displayName: name,
-        kind,
-        trackIds: [trackId],
+        tags: {
+          kind,
+          trackIds: [trackId],
+        },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
@@ -364,8 +370,10 @@ class CounterPlugin implements Plugin {
       ctx.registerTrack({
         uri: `/process_${upid}/counter_${trackId}`,
         displayName: name,
-        kind: COUNTER_TRACK_KIND,
-        trackIds: [trackId],
+        tags: {
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [trackId],
+        },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
@@ -403,8 +411,10 @@ class CounterPlugin implements Plugin {
         ctx.registerTrack({
           uri,
           displayName: name,
-          kind: COUNTER_TRACK_KIND,
-          trackIds: [trackId],
+          tags: {
+            kind: COUNTER_TRACK_KIND,
+            trackIds: [trackId],
+          },
           trackFactory: (trackCtx) => {
             return new TraceProcessorCounterTrack({
               engine: ctx.engine,

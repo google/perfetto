@@ -37,8 +37,10 @@ class CpuSlices implements Plugin {
       ctx.registerTrack({
         uri,
         displayName: name,
-        kind: CPU_SLICE_TRACK_KIND,
-        cpu,
+        tags: {
+          kind: CPU_SLICE_TRACK_KIND,
+          cpu,
+        },
         trackFactory: ({trackKey}) => {
           return new CpuSliceTrack(ctx.engine, trackKey, cpu);
         },

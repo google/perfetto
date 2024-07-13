@@ -360,15 +360,13 @@ class TraceViewer implements m.ClassComponent {
       trackDesc && globals.trackManager.resolveTrack(key, trackDesc);
     const trackFSM = trackCacheEntry;
     const tags = trackCacheEntry?.desc.tags;
-    const trackIds = trackCacheEntry?.desc.trackIds;
     const subtitle = trackCacheEntry?.desc.subtitle;
     return {
       title: name,
+      subtitle,
+      closeable: closeable ?? false,
       tags,
       trackFSM,
-      subtitle,
-      trackIds,
-      closeable: closeable ?? false,
     };
   }
 
@@ -379,11 +377,10 @@ class TraceViewer implements m.ClassComponent {
 
 interface TrackBundle {
   title: string;
+  subtitle?: string;
   closeable: boolean;
   trackFSM?: TrackCacheEntry;
   tags?: TrackTags;
-  subtitle?: string;
-  trackIds?: number[];
 }
 
 export const ViewerPage = createPage({

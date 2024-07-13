@@ -30,8 +30,9 @@ export class FrameAggregationController extends AggregationController {
       // Track will be undefined for track groups.
       if (track?.uri !== undefined) {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
-          trackInfo.trackIds && selectedSqlTrackIds.push(...trackInfo.trackIds);
+        if (trackInfo?.tags?.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
+          trackInfo.tags.trackIds &&
+            selectedSqlTrackIds.push(...trackInfo.tags.trackIds);
         }
       }
     }

@@ -73,10 +73,12 @@ class FramesPlugin implements Plugin {
       ctx.registerTrack({
         uri: `/process_${upid}/expected_frames`,
         displayName,
-        trackIds,
-        kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
           return new ExpectedFramesTrack(engine, maxDepth, trackKey, trackIds);
+        },
+        tags: {
+          trackIds,
+          kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         },
       });
     }
@@ -131,10 +133,12 @@ class FramesPlugin implements Plugin {
       ctx.registerTrack({
         uri: `/process_${upid}/actual_frames`,
         displayName,
-        trackIds,
-        kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
           return new ActualFramesTrack(engine, maxDepth, trackKey, trackIds);
+        },
+        tags: {
+          trackIds,
+          kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         },
       });
     }

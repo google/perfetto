@@ -71,27 +71,6 @@ export interface TrackDescriptor {
   // A factory function returning a new track instance.
   trackFactory: (ctx: TrackContext) => Track;
 
-  // The track "kind", used by various subsystems e.g. aggregation controllers.
-  // This is where "XXX_TRACK_KIND" values should be placed.
-  // TODO(stevegolton): This will be deprecated once we handle group selections
-  // in a more generic way - i.e. EventSet.
-  kind?: string;
-
-  // Optional: list of track IDs represented by this trace.
-  // This list is used for participation in track indexing by track ID.
-  // This index is used by various subsystems to find links between tracks based
-  // on the track IDs used by trace processor.
-  trackIds?: number[];
-
-  // Optional: The CPU number associated with this track.
-  cpu?: number;
-
-  // Optional: The UTID associated with this track.
-  utid?: number;
-
-  // Optional: The UPID associated with this track.
-  upid?: number;
-
   // Optional: A list of tags used for sorting, grouping and "chips".
   tags?: TrackTags;
 
@@ -217,7 +196,13 @@ export interface Track {
 // value pairs.
 export type TrackTags = Partial<WellKnownTrackTags> & {
   // There may be arbitrary other key/value pairs.
-  [key: string]: string | number | boolean | undefined;
+  [key: string]:
+    | undefined
+    | string
+    | number
+    | boolean
+    | ReadonlyArray<string>
+    | ReadonlyArray<number>;
 };
 
 interface WellKnownTrackTags {
@@ -232,4 +217,25 @@ interface WellKnownTrackTags {
 
   // Groupname of the track
   groupName: string;
+
+  // The track "kind", used by various subsystems e.g. aggregation controllers.
+  // This is where "XXX_TRACK_KIND" values should be placed.
+  // TODO(stevegolton): This will be deprecated once we handle group selections
+  // in a more generic way - i.e. EventSet.
+  kind: string;
+
+  // Optional: list of track IDs represented by this trace.
+  // This list is used for participation in track indexing by track ID.
+  // This index is used by various subsystems to find links between tracks based
+  // on the track IDs used by trace processor.
+  trackIds: ReadonlyArray<number>;
+
+  // Optional: The CPU number associated with this track.
+  cpu: number;
+
+  // Optional: The UTID associated with this track.
+  utid: number;
+
+  // Optional: The UPID associated with this track.
+  upid: number;
 }

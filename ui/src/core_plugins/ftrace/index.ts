@@ -68,7 +68,9 @@ class FtraceRawPlugin implements Plugin {
         uri,
         groupName: 'Ftrace Events',
         displayName: `Ftrace Track for CPU ${cpuNum}`,
-        cpu: cpuNum,
+        tags: {
+          cpu: cpuNum,
+        },
         trackFactory: () => {
           return new FtraceRawTrack(ctx.engine, cpuNum, filterStore);
         },

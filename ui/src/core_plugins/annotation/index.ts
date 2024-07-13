@@ -50,8 +50,8 @@ class AnnotationPlugin implements Plugin {
       ctx.registerTrack({
         uri: `/annotation_${id}`,
         displayName: name,
-        kind: THREAD_SLICE_TRACK_KIND,
         tags: {
+          kind: THREAD_SLICE_TRACK_KIND,
           metric: true,
         },
         trackFactory: ({trackKey}) => {
@@ -93,8 +93,8 @@ class AnnotationPlugin implements Plugin {
       ctx.registerTrack({
         uri: `/annotation_counter_${trackId}`,
         displayName: name,
-        kind: COUNTER_TRACK_KIND,
         tags: {
+          kind: COUNTER_TRACK_KIND,
           metric: true,
         },
         trackFactory: (trackCtx) => {
