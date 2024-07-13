@@ -39,7 +39,7 @@ class Wattson implements Plugin {
       const queryKey = `cpu${cpu}_curve`;
       ctx.registerStaticTrack({
         uri: `/wattson/cpu_subsystem_estimate_cpu${cpu}`,
-        displayName: `Cpu${cpu} Estimate`,
+        title: `Cpu${cpu} Estimate`,
         trackFactory: ({trackKey}) =>
           new CpuSubsystemEstimateTrack(ctx.engine, trackKey, queryKey),
         groupName: `Wattson`,
@@ -52,7 +52,7 @@ class Wattson implements Plugin {
 
     ctx.registerStaticTrack({
       uri: `/wattson/cpu_subsystem_estimate_dsu_scu`,
-      displayName: `DSU/SCU Estimate`,
+      title: `DSU/SCU Estimate`,
       trackFactory: ({trackKey}) =>
         new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `dsu_scu`),
       groupName: `Wattson`,

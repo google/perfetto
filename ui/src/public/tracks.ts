@@ -66,27 +66,27 @@ export interface TrackRenderContext extends TrackContext {
 // A definition of a track, including a renderer implementation and metadata.
 export interface TrackDescriptor {
   // A unique identifier for this track.
-  uri: string;
+  readonly uri: string;
 
   // A factory function returning a new track instance.
-  trackFactory: (ctx: TrackContext) => Track;
+  readonly trackFactory: (ctx: TrackContext) => Track;
+
+  // Human readable title. Always displayed.
+  readonly title: string;
+
+  // Human readable subtitle. Sometimes displayed if there is room.
+  readonly subtitle?: string;
 
   // Optional: A list of tags used for sorting, grouping and "chips".
-  tags?: TrackTags;
-
-  // Placeholder - presently unused.
-  displayName: string;
-
-  // Optional: method to look up the start and duration of an event on this track
-  getEventBounds?: (id: number) => Promise<Optional<{ts: time; dur: duration}>>;
+  readonly tags?: TrackTags;
 
   // Optional: A details panel to use when this track is selected.
-  detailsPanel?: TrackSelectionDetailsPanel;
+  readonly detailsPanel?: TrackSelectionDetailsPanel;
 
-  // If this track is used as the summary track for a track group, this list of
-  // labels printed in the track shell as a subtitle when the track is
-  // collapsed, or on the track area when the track is expanded.
-  readonly subtitle?: string;
+  // Optional: method to look up the start and duration of an event on this track
+  readonly getEventBounds?: (
+    id: number,
+  ) => Promise<Optional<{ts: time; dur: duration}>>;
 }
 
 export interface LegacyDetailsPanel {

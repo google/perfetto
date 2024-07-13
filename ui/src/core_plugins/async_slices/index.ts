@@ -66,7 +66,7 @@ class AsyncSlicePlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `/async_slices_${rawName}_${it.parentId}`,
-        displayName,
+        title: displayName,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
@@ -120,7 +120,7 @@ class AsyncSlicePlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `/process_${upid}/async_slices_${rawTrackIds}`,
-        displayName,
+        title: displayName,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
@@ -189,7 +189,7 @@ class AsyncSlicePlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `/async_slices_${rawName}_${uid}`,
-        displayName,
+        title: displayName,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,

@@ -139,7 +139,7 @@ class ChromeScrollJankPlugin implements Plugin {
   ): Promise<void> {
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank',
-      displayName: 'Scroll Jank causes - long tasks',
+      title: 'Scroll Jank causes - long tasks',
       tags: {
         kind: ChromeTasksScrollJankTrack.kind,
       },
@@ -160,7 +160,7 @@ class ChromeScrollJankPlugin implements Plugin {
 
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#toplevelScrolls',
-      displayName: 'Chrome Scrolls',
+      title: 'Chrome Scrolls',
       tags: {
         kind: CHROME_TOPLEVEL_SCROLLS_KIND,
       },
@@ -291,7 +291,7 @@ class ChromeScrollJankPlugin implements Plugin {
 
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#eventLatency',
-      displayName: 'Chrome Scroll Input Latencies',
+      title: 'Chrome Scroll Input Latencies',
       tags: {
         kind: CHROME_EVENT_LATENCY_TRACK_KIND,
       },
@@ -330,7 +330,7 @@ class ChromeScrollJankPlugin implements Plugin {
 
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#scrollJankV3',
-      displayName: 'Chrome Scroll Janks',
+      title: 'Chrome Scroll Janks',
       tags: {
         kind: ScrollJankV3TrackKind,
       },

@@ -113,7 +113,7 @@ class ProcessSummaryPlugin implements Plugin {
 
         ctx.registerTrack({
           uri,
-          displayName: `${upid === null ? tid : pid} schedule`,
+          title: `${upid === null ? tid : pid} schedule`,
           tags: {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
             debuggable: isDebuggable,
@@ -132,7 +132,7 @@ class ProcessSummaryPlugin implements Plugin {
 
         ctx.registerTrack({
           uri,
-          displayName: `${upid === null ? tid : pid} summary`,
+          title: `${upid === null ? tid : pid} summary`,
           tags: {
             kind: PROCESS_SUMMARY_TRACK,
             debuggable: isDebuggable,
@@ -191,7 +191,7 @@ class ProcessSummaryPlugin implements Plugin {
 
     ctx.registerTrack({
       uri: '/kernel',
-      displayName: `Kernel thread summary`,
+      title: `Kernel thread summary`,
       tags: {
         kind: PROCESS_SUMMARY_TRACK,
       },

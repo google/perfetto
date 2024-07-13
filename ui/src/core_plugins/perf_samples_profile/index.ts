@@ -63,7 +63,7 @@ class PerfSamplesProfilePlugin implements Plugin {
       const upid = it.upid;
       ctx.registerTrack({
         uri: `/process_${upid}/perf_samples_profile`,
-        displayName: `Process Callstacks`,
+        title: `Process Callstacks`,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
@@ -105,7 +105,7 @@ class PerfSamplesProfilePlugin implements Plugin {
           : `${threadName} Callstacks ${tid}`;
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`,
-        displayName,
+        title: displayName,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           utid,

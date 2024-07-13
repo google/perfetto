@@ -72,7 +72,7 @@ class FramesPlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `/process_${upid}/expected_frames`,
-        displayName,
+        title: displayName,
         trackFactory: ({trackKey}) => {
           return new ExpectedFramesTrack(engine, maxDepth, trackKey, trackIds);
         },
@@ -132,7 +132,7 @@ class FramesPlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `/process_${upid}/actual_frames`,
-        displayName,
+        title: displayName,
         trackFactory: ({trackKey}) => {
           return new ActualFramesTrack(engine, maxDepth, trackKey, trackIds);
         },

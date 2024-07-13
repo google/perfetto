@@ -67,7 +67,7 @@ class FtraceRawPlugin implements Plugin {
       ctx.registerStaticTrack({
         uri,
         groupName: 'Ftrace Events',
-        displayName: `Ftrace Track for CPU ${cpuNum}`,
+        title: `Ftrace Track for CPU ${cpuNum}`,
         tags: {
           cpu: cpuNum,
         },

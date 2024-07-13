@@ -46,7 +46,7 @@ class LinuxKernelDevices implements Plugin {
 
       ctx.registerStaticTrack({
         uri: `/kernel_devices/${displayName}`,
-        displayName,
+        title: displayName,
         trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
             {

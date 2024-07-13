@@ -74,7 +74,7 @@ class ScreenshotsPlugin implements Plugin {
       const uri = '/screenshots';
       ctx.registerTrack({
         uri,
-        displayName,
+        title: displayName,
         trackFactory: ({trackKey}) => {
           return new ScreenshotsTrack({
             engine: ctx.engine,

@@ -36,7 +36,7 @@ class CpuSlices implements Plugin {
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       ctx.registerTrack({
         uri,
-        displayName: name,
+        title: name,
         tags: {
           kind: CPU_SLICE_TRACK_KIND,
           cpu,

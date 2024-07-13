@@ -55,7 +55,7 @@ class AndroidLog implements Plugin {
     if (logCount > 0) {
       ctx.registerStaticTrack({
         uri: 'perfetto.AndroidLog',
-        displayName: 'Android logs',
+        title: 'Android logs',
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
         trackFactory: () => new AndroidLogTrack(ctx.engine),
       });

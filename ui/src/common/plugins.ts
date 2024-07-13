@@ -315,7 +315,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           ? groups[trackState.trackGroup]
           : undefined;
         return {
-          displayName: trackState.name,
+          title: trackState.name,
           uri: trackState.uri,
           key: trackState.key,
           groupName: group?.name,
