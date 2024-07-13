@@ -154,6 +154,7 @@ export async function addDebugSliceTrack(
   const uri = `debug.slice.${uuidv4()}`;
   ctx.registerTrack({
     uri,
+    displayName: trackName,
     trackFactory: (trackCtx) => {
       return new DebugSliceTrack(ctx.engine, trackCtx, tableName);
     },
@@ -238,6 +239,7 @@ export async function addDebugCounterTrack(
   const uri = `debug.counter.${uuidv4()}`;
   ctx.registerTrack({
     uri,
+    displayName: trackName,
     trackFactory: (trackCtx) => {
       return new DebugCounterTrack(ctx.engine, trackCtx, tableName);
     },
