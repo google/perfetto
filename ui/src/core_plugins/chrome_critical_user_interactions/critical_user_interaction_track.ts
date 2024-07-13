@@ -67,7 +67,7 @@ function convertToCriticalUserInteractionType(
 }
 
 export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack {
-  static readonly kind = CRITICAL_USER_INTERACTIONS_KIND;
+  static readonly kind = `/critical_user_interactions`;
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {

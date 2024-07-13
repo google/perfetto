@@ -18,6 +18,7 @@ import {LegacySelection} from '../common/state';
 import {BottomTab} from '../frontend/bottom_tab';
 
 import {LegacyDetailsPanel, Tab} from '.';
+import {exists} from '../base/utils';
 
 export function getTrackName(
   args: Partial<{
@@ -165,5 +166,26 @@ export class BottomTabToTabAdapter implements Tab {
 
   render(): m.Children {
     return this.bottomTab.viewTab();
+  }
+}
+
+export function getThreadOrProcUri(
+  upid: number | null,
+  utid: number | null,
+): string {
+  if (exists(upid)) {
+    return `/process_${upid}`;
+  } else if (exists(utid)) {
+    return `/thread_${utid}`;
+  } else {
+    throw new Error('No upid or utid defined...');
+  }
+}
+
+export function getThreadUriPrefix(upid: number | null, utid: number): string {
+  if (exists(upid)) {
+    return `/process_${upid}/thread_${utid}`;
+  } else {
+    return `/thread_${utid}`;
   }
 }
