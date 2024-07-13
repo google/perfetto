@@ -107,7 +107,7 @@ export interface TrackDescriptor {
   // If this track is used as the summary track for a track group, this list of
   // labels printed in the track shell as a subtitle when the track is
   // collapsed, or on the track area when the track is expanded.
-  readonly labels?: string[];
+  readonly subtitle?: string;
 }
 
 export interface LegacyDetailsPanel {

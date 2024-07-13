@@ -251,7 +251,7 @@ class TraceViewer implements m.ClassComponent {
         headerPanel = new TrackGroupPanel({
           groupKey: group.key,
           trackFSM: trackBundle.trackFSM,
-          labels: trackBundle.labels,
+          subtitle: trackBundle.subtitle,
           tags: trackBundle.tags,
           collapsed: group.collapsed,
           title: group.name,
@@ -361,12 +361,12 @@ class TraceViewer implements m.ClassComponent {
     const trackFSM = trackCacheEntry;
     const tags = trackCacheEntry?.desc.tags;
     const trackIds = trackCacheEntry?.desc.trackIds;
-    const labels = trackCacheEntry?.desc.labels;
+    const subtitle = trackCacheEntry?.desc.subtitle;
     return {
       title: name,
       tags,
       trackFSM,
-      labels,
+      subtitle,
       trackIds,
       closeable: closeable ?? false,
     };
@@ -382,7 +382,7 @@ interface TrackBundle {
   closeable: boolean;
   trackFSM?: TrackCacheEntry;
   tags?: TrackTags;
-  labels?: string[];
+  subtitle?: string;
   trackIds?: number[];
 }
 

@@ -98,7 +98,7 @@ class ProcessSummaryPlugin implements Plugin {
       const tid = it.tid;
       const hasSched = Boolean(it.hasSched);
       const isDebuggable = Boolean(it.isDebuggable);
-      const labels = it.chromeProcessLabels.split(',');
+      const subtitle = it.chromeProcessLabels;
 
       // Group by upid if present else by utid.
       const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
@@ -121,7 +121,7 @@ class ProcessSummaryPlugin implements Plugin {
           trackFactory: () => {
             return new ProcessSchedulingTrack(ctx.engine, config, cpuCount);
           },
-          labels,
+          subtitle,
         });
       } else {
         const config: ProcessSummaryTrackConfig = {
@@ -138,7 +138,7 @@ class ProcessSummaryPlugin implements Plugin {
             debuggable: isDebuggable,
           },
           trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
-          labels,
+          subtitle,
         });
       }
     }

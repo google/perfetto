@@ -39,6 +39,7 @@ import {Button} from '../widgets/button';
 import {TrackRenderContext} from '../public/tracks';
 import {calculateResolution} from '../common/resolution';
 import {PxSpan, TimeScale} from './time_scale';
+import {exists} from '../base/utils';
 
 interface Attrs {
   groupKey: string;
@@ -46,7 +47,7 @@ interface Attrs {
   collapsed: boolean;
   trackFSM?: TrackCacheEntry;
   tags?: TrackTags;
-  labels?: string[];
+  subtitle?: string;
 }
 
 export class TrackGroupPanel implements Panel {
@@ -59,7 +60,7 @@ export class TrackGroupPanel implements Panel {
   }
 
   render(): m.Children {
-    const {groupKey, title, labels, tags, collapsed, trackFSM} = this.attrs;
+    const {groupKey, title, subtitle, tags, collapsed, trackFSM} = this.attrs;
 
     let name = title;
     if (name[0] === '/') {
@@ -96,11 +97,6 @@ export class TrackGroupPanel implements Panel {
       }
     }
 
-    let child = null;
-    if (labels && labels.length > 0) {
-      child = labels.join(', ');
-    }
-
     const error = trackFSM?.getError();
 
     return m(
@@ -131,7 +127,7 @@ export class TrackGroupPanel implements Panel {
         m(
           '.title-wrapper',
           m('h1.track-title', {title: name}, name, renderChips(tags)),
-          collapsed && child !== null ? m('h2.track-subtitle', child) : null,
+          collapsed && exists(subtitle) && m('h2.track-subtitle', subtitle),
         ),
         m(
           '.track-buttons',
@@ -160,7 +156,7 @@ export class TrackGroupPanel implements Panel {
               hasError: Boolean(trackFSM.getError()),
               height: this.attrs.trackFSM?.track.getHeight(),
             },
-            !collapsed && child !== null ? m('span', child) : null,
+            !collapsed && subtitle !== null ? m('span', subtitle) : null,
           )
         : null,
     );
