@@ -96,7 +96,7 @@ export interface TrackDescriptor {
   tags?: TrackTags;
 
   // Placeholder - presently unused.
-  displayName?: string;
+  displayName: string;
 
   // Optional: method to look up the start and duration of an event on this track
   getEventBounds?: (id: number) => Promise<Optional<{ts: time; dur: duration}>>;
