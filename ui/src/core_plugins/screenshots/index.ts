@@ -50,7 +50,7 @@ export async function decideTracks(
 
   if (count > 0) {
     result.tracksToAdd.push({
-      uri: 'perfetto.Screenshots',
+      uri: '/screenshots',
       name: 'Screenshots',
       trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
     });
@@ -71,7 +71,7 @@ class ScreenshotsPlugin implements Plugin {
 
     if (count > 0) {
       const displayName = 'Screenshots';
-      const uri = 'perfetto.Screenshots';
+      const uri = '/screenshots';
       ctx.registerTrack({
         uri,
         displayName,
