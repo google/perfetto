@@ -22,7 +22,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {getTrackName} from '../../public/utils';
+import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 
 import {ThreadStateTrack} from './thread_state_track';
@@ -48,6 +48,7 @@ class ThreadState implements Plugin {
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
+      const upid = it.upid;
       const tid = it.tid;
       const threadName = it.threadName;
       const displayName = getTrackName({
@@ -58,7 +59,7 @@ class ThreadState implements Plugin {
       });
 
       ctx.registerTrack({
-        uri: `perfetto.ThreadState#${utid}`,
+        uri: `${getThreadUriPrefix(upid, utid)}_state`,
         displayName,
         kind: THREAD_STATE_TRACK_KIND,
         utid,

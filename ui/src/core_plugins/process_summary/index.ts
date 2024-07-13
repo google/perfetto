@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {getThreadOrProcUri} from '../../public/utils';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 
 import {
@@ -101,8 +102,7 @@ class ProcessSummaryPlugin implements Plugin {
 
       // Group by upid if present else by utid.
       const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
-      const type = hasSched ? 'schedule' : 'summary';
-      const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
+      const uri = getThreadOrProcUri(upid, utid);
 
       if (hasSched) {
         const config: ProcessSchedulingTrackConfig = {
@@ -190,7 +190,7 @@ class ProcessSummaryPlugin implements Plugin {
     };
 
     ctx.registerTrack({
-      uri: 'perfetto.ProcessSummary#kernel',
+      uri: '/kernel',
       displayName: `Kernel thread summary`,
       kind: PROCESS_SUMMARY_TRACK,
       trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),

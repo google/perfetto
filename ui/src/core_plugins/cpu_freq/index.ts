@@ -453,7 +453,7 @@ class CpuFreq implements Plugin {
         };
 
         ctx.registerTrack({
-          uri: `perfetto.CpuFreq#${cpu}`,
+          uri: `/cpu_freq_cpu${cpu}`,
           displayName: `Cpu ${cpu} Frequency`,
           kind: CPU_FREQ_TRACK_KIND,
           cpu,

@@ -38,22 +38,28 @@ class Wattson implements Plugin {
     for (const cpu of cpus) {
       const queryKey = `cpu${cpu}_curve`;
       ctx.registerStaticTrack({
-        uri: `perfetto.CpuSubsystemEstimate#CPU${cpu}`,
+        uri: `/wattson/cpu_subsystem_estimate_cpu${cpu}`,
         displayName: `Cpu${cpu} Estimate`,
         kind: CPUSS_ESTIMATE_TRACK_KIND,
         trackFactory: ({trackKey}) =>
           new CpuSubsystemEstimateTrack(ctx.engine, trackKey, queryKey),
         groupName: `Wattson`,
+        tags: {
+          wattson: `CPU${cpu}`,
+        },
       });
     }
 
     ctx.registerStaticTrack({
-      uri: `perfetto.CpuSubsystemEstimate#Dsu_Scu`,
+      uri: `/wattson/cpu_subsystem_estimate_dsu_scu`,
       displayName: `DSU/SCU Estimate`,
       kind: CPUSS_ESTIMATE_TRACK_KIND,
       trackFactory: ({trackKey}) =>
         new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `dsu_scu`),
       groupName: `Wattson`,
+      tags: {
+        wattson: 'Dsu_Scu',
+      },
     });
   }
 }

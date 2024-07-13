@@ -22,8 +22,6 @@ import {CloseTrackButton} from '../../frontend/close_track_button';
 import {NewTrackArgs} from '../../frontend/track';
 
 export class RunnableThreadCountTrack extends BaseCounterTrack {
-  static readonly kind = 'dev.perfetto.Sched.RunnableThreadCount';
-
   constructor(args: NewTrackArgs) {
     super(args);
   }

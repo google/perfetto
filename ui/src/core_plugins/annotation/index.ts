@@ -48,7 +48,7 @@ class AnnotationPlugin implements Plugin {
       const name = it.name;
 
       ctx.registerTrack({
-        uri: `perfetto.Annotation#${id}`,
+        uri: `/annotation_${id}`,
         displayName: name,
         kind: THREAD_SLICE_TRACK_KIND,
         tags: {
@@ -91,7 +91,7 @@ class AnnotationPlugin implements Plugin {
       const name = counterIt.name;
 
       ctx.registerTrack({
-        uri: `perfetto.Annotation#counter${trackId}`,
+        uri: `/annotation_counter_${trackId}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         tags: {

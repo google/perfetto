@@ -25,7 +25,7 @@ class TraceMetadata implements Plugin {
       return;
     }
     ctx.registerStaticTrack({
-      uri: `dev.perfetto.TraceMetadata#ClockSnapshots`,
+      uri: `/clock_snapshots`,
       displayName: 'Clock Snapshots',
       trackFactory: (trackCtx) => {
         return new SimpleSliceTrack(ctx.engine, trackCtx, {

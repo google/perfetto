@@ -26,7 +26,7 @@ import {
   profileType,
 } from '../../frontend/legacy_flamegraph_panel';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {
   LegacySelection,
   PerfSamplesSelection,
@@ -45,6 +45,7 @@ import {
   ProcessPerfSamplesProfileTrack,
   ThreadPerfSamplesProfileTrack,
 } from './perf_samples_profile_track';
+import {getThreadUriPrefix} from '../../public/utils';
 
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;
@@ -61,7 +62,7 @@ class PerfSamplesProfilePlugin implements Plugin {
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       ctx.registerTrack({
-        uri: `perfetto.PerfSamplesProfile#Process${upid}`,
+        uri: `/process_${upid}/perf_samples_profile`,
         displayName: `Process Callstacks`,
         kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
         upid,
@@ -79,23 +80,29 @@ class PerfSamplesProfilePlugin implements Plugin {
       select distinct
         utid,
         tid,
-        thread.name as threadName
+        thread.name as threadName,
+        upid
       from perf_sample
       join thread using (utid)
       where callsite_id is not null
     `);
     for (
-      const it = tResult.iter({utid: NUM, tid: NUM, threadName: STR_NULL});
+      const it = tResult.iter({
+        utid: NUM,
+        tid: NUM,
+        threadName: STR_NULL,
+        upid: NUM_NULL,
+      });
       it.valid();
       it.next()
     ) {
-      const {threadName, utid, tid} = it;
+      const {threadName, utid, tid, upid} = it;
       const displayName =
         threadName === null
           ? `Thread Callstacks ${tid}`
           : `${threadName} Callstacks ${tid}`;
       ctx.registerTrack({
-        uri: `perfetto.PerfSamplesProfile#Thread${utid}`,
+        uri: `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`,
         displayName,
         kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
         utid,
