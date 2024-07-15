@@ -29,20 +29,20 @@ class ThreadSlicesPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
-        INCLUDE PERFETTO MODULE viz.summary.slices;
-        select
-          thread_track.utid as utid,
-          thread_track.id as trackId,
-          thread_track.name as trackName,
-          EXTRACT_ARG(thread_track.source_arg_set_id,
-                      'is_root_in_scope') as isDefaultTrackForScope,
-          tid,
-          thread.name as threadName,
-          max_depth as maxDepth,
-          thread.upid as upid
-        from thread_track
-        join thread using(utid)
-        join _slice_track_summary sts on sts.id = thread_track.id
+      include perfetto module viz.summary.slices;
+      select
+        thread_track.utid as utid,
+        thread_track.id as trackId,
+        thread_track.name as trackName,
+        EXTRACT_ARG(thread_track.source_arg_set_id,
+                    'is_root_in_scope') as isDefaultTrackForScope,
+        tid,
+        thread.name as threadName,
+        max_depth as maxDepth,
+        thread.upid as upid
+      from thread_track
+      join thread using(utid)
+      join _slice_track_summary sts on sts.id = thread_track.id
   `);
 
     const it = result.iter({
@@ -57,14 +57,7 @@ class ThreadSlicesPlugin implements Plugin {
     });
 
     for (; it.valid(); it.next()) {
-      const upid = it.upid;
-      const utid = it.utid;
-      const trackId = it.trackId;
-      const trackName = it.trackName;
-      const tid = it.tid;
-      const threadName = it.threadName;
-      const maxDepth = it.maxDepth;
-
+      const {upid, utid, trackId, trackName, tid, threadName, maxDepth} = it;
       const displayName = getTrackName({
         name: trackName,
         utid,
@@ -74,7 +67,7 @@ class ThreadSlicesPlugin implements Plugin {
       });
 
       ctx.registerTrack({
-        uri: `${getThreadUriPrefix(upid, utid)}_slice`,
+        uri: `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`,
         title: displayName,
         tags: {
           trackIds: [trackId],
