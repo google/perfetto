@@ -39,7 +39,8 @@ class ThreadSlicesPlugin implements Plugin {
         tid,
         thread.name as threadName,
         max_depth as maxDepth,
-        thread.upid as upid
+        thread.upid as upid,
+        is_main_thread as isMainThread
       from thread_track
       join thread using(utid)
       join _slice_track_summary sts on sts.id = thread_track.id
@@ -54,6 +55,7 @@ class ThreadSlicesPlugin implements Plugin {
       threadName: STR_NULL,
       maxDepth: NUM,
       upid: NUM_NULL,
+      isMainThread: NUM_NULL,
     });
 
     for (; it.valid(); it.next()) {
@@ -66,6 +68,8 @@ class ThreadSlicesPlugin implements Plugin {
         kind: 'Slices',
       });
 
+      const chips = it.isMainThread === 1 ? ['main thread'] : [];
+
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`,
         title: displayName,
@@ -73,6 +77,7 @@ class ThreadSlicesPlugin implements Plugin {
           trackIds: [trackId],
           kind: THREAD_SLICE_TRACK_KIND,
         },
+        chips,
         trackFactory: ({trackKey}) => {
           const newTrackArgs = {
             engine: ctx.engine,

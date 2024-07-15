@@ -35,7 +35,8 @@ class ThreadState implements Plugin {
         utid,
         upid,
         tid,
-        thread.name as threadName
+        thread.name as threadName,
+        is_main_thread as isMainThread
       from thread
       join _sched_summary using (utid)
     `);
@@ -45,6 +46,7 @@ class ThreadState implements Plugin {
       upid: NUM_NULL,
       tid: NUM_NULL,
       threadName: STR_NULL,
+      isMainThread: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -58,6 +60,8 @@ class ThreadState implements Plugin {
         kind: THREAD_STATE_TRACK_KIND,
       });
 
+      const chips = it.isMainThread === 1 ? ['main thread'] : [];
+
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_state`,
         title: displayName,
@@ -65,6 +69,7 @@ class ThreadState implements Plugin {
           kind: THREAD_STATE_TRACK_KIND,
           utid,
         },
+        chips,
         trackFactory: ({trackKey}) => {
           return new ThreadStateTrack(
             {
