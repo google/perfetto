@@ -63,11 +63,6 @@ export class TrackGroupPanel implements Panel {
   render(): m.Children {
     const {groupKey, title, subtitle, chips, collapsed, trackFSM} = this.attrs;
 
-    let name = title;
-    if (name[0] === '/') {
-      name = StripPathFromExecutable(name);
-    }
-
     // The shell should be highlighted if the current search result is inside
     // this track group.
     let highlightClass = '';
@@ -127,7 +122,7 @@ export class TrackGroupPanel implements Panel {
         ),
         m(
           '.title-wrapper',
-          m('h1.track-title', {title: name}, name, chips && renderChips(chips)),
+          m('h1.track-title', {title}, title, chips && renderChips(chips)),
           collapsed && exists(subtitle) && m('h2.track-subtitle', subtitle),
         ),
         m(
@@ -235,8 +230,4 @@ export class TrackGroupPanel implements Panel {
 
     ctx.restore();
   }
-}
-
-function StripPathFromExecutable(path: string) {
-  return path.split('/').slice(-1)[0];
 }
