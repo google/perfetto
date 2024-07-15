@@ -12,7 +12,6 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
-
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
@@ -30,7 +29,12 @@ CREATE PERFETTO VIEW cpu (
   -- A string describing this core.
   processor STRING,
   -- Machine identifier, non-null for CPUs on a remote machine.
-  machine_id UINT
+  machine_id UINT,
+  -- Capacity of a CPU of a device, a metric which indicates the
+  -- relative performance of a CPU on a device
+  -- For details see: 
+  -- https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
+  capacity UINT
 ) AS
 SELECT
   id,
@@ -39,7 +43,8 @@ SELECT
   type AS type,
   cluster_id,
   processor,
-  machine_id
+  machine_id,
+  capacity
 FROM
   __intrinsic_cpu
 WHERE
@@ -61,8 +66,13 @@ CREATE PERFETTO VIEW cpu_available_frequencies (
   -- CPU identifier of each machine.
   ucpu UINT
 ) AS
-SELECT id, ucpu AS cpu, freq, ucpu
-FROM __intrinsic_cpu_freq;
+SELECT
+  id,
+  ucpu AS cpu,
+  freq,
+  ucpu
+FROM
+  __intrinsic_cpu_freq;
 
 -- This table holds slices with kernel thread scheduling information. These
 -- slices are collected when the Linux "ftrace" data source is used with the

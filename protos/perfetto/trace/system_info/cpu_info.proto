@@ -29,6 +29,10 @@ message CpuInfo {
     // /sys/devices/system/cpu/cpuX/cpufreq/scaling_available_frequencies
     // where X is the index of this CPU.
     repeated uint32 frequencies = 2;
+
+    // Cpu capacity from /sys/devices/system/cpu/cpuX/cpu_capacity where X is
+    // the index of this CPU.
+    optional uint32 capacity = 3;
   }
 
   // Describes available CPUs, one entry per CPU.
