@@ -110,3 +110,21 @@ perfetto_proto_library("winscope_descriptor") {
   sources = [ "winscope.proto" ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
 }
+
+# Android track_event extensions
+perfetto_proto_library("android_track_event_@TYPE@") {
+  proto_generators = [ "source_set" ]
+  public_deps = [ "../track_event:@TYPE@" ]
+  sources = [
+    "android_track_event.proto",
+  ]
+}
+
+perfetto_proto_library("android_track_event_@TYPE@") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "android_track_event.descriptor"
+  sources = [
+    "android_track_event.proto",
+  ]
+  deps = [ ":android_track_event_source_set" ]
+}

@@ -40,6 +40,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/proto/android_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
@@ -90,6 +91,12 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
 
     status = descriptor_pool_->AddFromFileDescriptorSet(
         kChromeTrackEventDescriptor.data(), kChromeTrackEventDescriptor.size());
+
+    PERFETTO_DCHECK(status.ok());
+
+    status = descriptor_pool_->AddFromFileDescriptorSet(
+        kAndroidTrackEventDescriptor.data(),
+        kAndroidTrackEventDescriptor.size());
 
     PERFETTO_DCHECK(status.ok());
   }
