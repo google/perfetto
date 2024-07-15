@@ -456,6 +456,7 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
       PERFETTO_FATAL("Unexpected column type");
     }
   }
+
   legacy_columns.push_back(ColumnLegacy::IdColumn(
       static_cast<uint32_t>(legacy_columns.size()), 0, "_auto_id",
       ColumnLegacy::kIdFlags | ColumnLegacy::Flag::kHidden));
@@ -469,9 +470,15 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
   table->col_names_ = std::move(col_names_);
 
   table->schema_.columns.reserve(table->columns().size());
-  for (const auto& col : table->columns()) {
+  for (size_t i = 0; i < table->columns().size(); ++i) {
+    const auto& col = table->columns()[i];
+    SqlValue::Type column_type =
+        col.col_type() != ColumnType::kId &&
+                col.storage_base().non_null_size() == 0
+            ? SqlValue::kNull
+            : ColumnLegacy::ToSqlValueType(col.col_type());
     table->schema_.columns.emplace_back(
-        Schema::Column{col.name(), col.type(), col.IsId(), col.IsSorted(),
+        Schema::Column{col.name(), column_type, col.IsId(), col.IsSorted(),
                        col.IsHidden(), col.IsSetId()});
   }
   return {std::move(table)};
