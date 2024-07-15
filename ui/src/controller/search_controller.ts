@@ -90,8 +90,9 @@ export class SearchController extends Controller<'main'> {
     const cpuToTrackId = new Map();
     for (const track of Object.values(globals.state.tracks)) {
       const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
-        exists(trackInfo.cpu) && cpuToTrackId.set(trackInfo.cpu, track.key);
+      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+        exists(trackInfo.tags.cpu) &&
+          cpuToTrackId.set(trackInfo.tags.cpu, track.key);
       }
     }
 
@@ -197,7 +198,7 @@ export class SearchController extends Controller<'main'> {
         const logTracks = Object.values(globals.state.tracks).filter(
           (track) => {
             const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-            return trackDesc && trackDesc.kind === 'AndroidLogTrack';
+            return trackDesc && trackDesc.tags?.kind === 'AndroidLogTrack';
           },
         );
         if (logTracks.length > 0) {

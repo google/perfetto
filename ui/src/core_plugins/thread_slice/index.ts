@@ -75,9 +75,11 @@ class ThreadSlicesPlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_slice`,
-        displayName,
-        trackIds: [trackId],
-        kind: THREAD_SLICE_TRACK_KIND,
+        title: displayName,
+        tags: {
+          trackIds: [trackId],
+          kind: THREAD_SLICE_TRACK_KIND,
+        },
         trackFactory: ({trackKey}) => {
           const newTrackArgs = {
             engine: ctx.engine,

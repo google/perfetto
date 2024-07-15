@@ -26,7 +26,7 @@ class TraceMetadata implements Plugin {
     }
     ctx.registerStaticTrack({
       uri: `/clock_snapshots`,
-      displayName: 'Clock Snapshots',
+      title: 'Clock Snapshots',
       trackFactory: (trackCtx) => {
         return new SimpleSliceTrack(ctx.engine, trackCtx, {
           data: {

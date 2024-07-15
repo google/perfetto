@@ -454,9 +454,11 @@ class CpuFreq implements Plugin {
 
         ctx.registerTrack({
           uri: `/cpu_freq_cpu${cpu}`,
-          displayName: `Cpu ${cpu} Frequency`,
-          kind: CPU_FREQ_TRACK_KIND,
-          cpu,
+          title: `Cpu ${cpu} Frequency`,
+          tags: {
+            kind: CPU_FREQ_TRACK_KIND,
+            cpu,
+          },
           trackFactory: () => new CpuFreqTrack(config, ctx.engine),
         });
       }

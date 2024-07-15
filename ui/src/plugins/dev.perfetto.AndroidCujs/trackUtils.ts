@@ -62,7 +62,7 @@ export function addDebugTrackOnTraceLoad(
 ) {
   ctx.registerStaticTrack({
     uri: uri,
-    displayName: trackName,
+    title: trackName,
     isPinned: true,
     trackFactory: (trackCtx) => {
       return new SimpleSliceTrack(ctx.engine, trackCtx, config);

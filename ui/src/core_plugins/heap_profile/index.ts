@@ -71,9 +71,11 @@ class HeapProfilePlugin implements Plugin {
       const upid = it.upid;
       ctx.registerTrack({
         uri: `/process_${upid}/heap_profile`,
-        displayName: 'Heap Profile',
-        kind: HEAP_PROFILE_TRACK_KIND,
-        upid,
+        title: 'Heap Profile',
+        tags: {
+          kind: HEAP_PROFILE_TRACK_KIND,
+          upid,
+        },
         trackFactory: ({trackKey}) => {
           return new HeapProfileTrack(
             {

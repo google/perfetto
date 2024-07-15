@@ -314,13 +314,13 @@ function getUpidsFromAreaSelection(currentSelection: AreaSelection) {
   for (const trackId of currentSelection.tracks) {
     const track: TrackState | undefined = globals.state.tracks[trackId];
     const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
-    if (trackInfo?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
+    if (trackInfo?.tags?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
       continue;
     }
-    if (trackInfo.upid === undefined) {
+    if (trackInfo.tags?.upid === undefined) {
       continue;
     }
-    upids.push(trackInfo.upid);
+    upids.push(trackInfo.tags?.upid);
   }
   return upids;
 }
@@ -330,13 +330,13 @@ function getUtidsFromAreaSelection(currentSelection: AreaSelection) {
   for (const trackId of currentSelection.tracks) {
     const track: TrackState | undefined = globals.state.tracks[trackId];
     const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
-    if (trackInfo?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
+    if (trackInfo?.tags?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
       continue;
     }
-    if (trackInfo.utid === undefined) {
+    if (trackInfo.tags?.utid === undefined) {
       continue;
     }
-    utids.push(trackInfo.utid);
+    utids.push(trackInfo.tags?.utid);
   }
   return utids;
 }

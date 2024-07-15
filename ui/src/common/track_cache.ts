@@ -148,7 +148,7 @@ export class TrackManager {
     const trackList = Object.entries(this.store.state.tracks);
     trackList.forEach(([key, {uri}]) => {
       const desc = this.trackRegistry.get(uri);
-      for (const trackId of desc?.trackIds ?? []) {
+      for (const trackId of desc?.tags?.trackIds ?? []) {
         const existingKey = trackKeyByTrackId.get(trackId);
         if (exists(existingKey)) {
           throw new Error(
