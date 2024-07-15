@@ -486,6 +486,27 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(thermal.temp()), track);
   }
+
+  for (auto it = sys_stats.cpuidle_state(); it; ++it) {
+    ParseCpuIdleStats(ts, *it);
+  }
+}
+
+void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
+  protos::pbzero::SysStats::CpuIdleState::Decoder cpuidle_state(blob);
+  uint32_t cpu_id = cpuidle_state.cpu_id();
+  for (auto cpuidle_field = cpuidle_state.cpuidle_state_entry(); cpuidle_field;
+       ++cpuidle_field) {
+    protos::pbzero::SysStats::CpuIdleStateEntry::Decoder idle(*cpuidle_field);
+    std::string state = idle.state().ToStdString();
+    uint64_t time = idle.duration_us();
+
+    std::string track_name = "cpuidle." + state;
+    StringId string_id = context_->storage->InternString(track_name.c_str());
+    TrackId track =
+        context_->track_tracker->InternCpuCounterTrack(string_id, cpu_id);
+    context_->event_tracker->PushCounter(ts, static_cast<double>(time), track);
+  }
 }
 
 void SystemProbesParser::ParseProcessTree(ConstBytes blob) {

@@ -79,6 +79,7 @@ from diff_tests.parser.parsing.tests import Parsing
 from diff_tests.parser.parsing.tests_debug_annotation import ParsingDebugAnnotation
 from diff_tests.parser.parsing.tests_memory_counters import ParsingMemoryCounters
 from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
+from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -228,6 +229,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ParsingDebugAnnotation(index_path, 'parser/parsing',
                               'ParsingDebugAnnotation').fetch(),
       *ParsingRssStats(index_path, 'parser/parsing', 'ParsingRssStats').fetch(),
+      *ParsingSysStats(index_path, 'parser/parsing', 'ParsingSysStats').fetch(),
       *ParsingMemoryCounters(index_path, 'parser/parsing',
                              'ParsingMemoryCounters').fetch(),
       *FtraceCrop(index_path, 'parser/ftrace', 'FtraceCrop').fetch(),
