@@ -206,17 +206,11 @@ export type TrackTags = Partial<WellKnownTrackTags> & {
 };
 
 interface WellKnownTrackTags {
-  // A human readable name for this specific track.
-  name: string;
-
   // Controls whether to show the "metric" chip.
   metric: boolean;
 
   // Controls whether to show the "debuggable" chip.
   debuggable: boolean;
-
-  // Groupname of the track
-  groupName: string;
 
   // The track "kind", used by various subsystems e.g. aggregation controllers.
   // This is where "XXX_TRACK_KIND" values should be placed.

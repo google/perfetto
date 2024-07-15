@@ -78,6 +78,7 @@ class FramesPlugin implements Plugin {
         },
         tags: {
           trackIds,
+          upid,
           kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         },
       });
@@ -137,6 +138,7 @@ class FramesPlugin implements Plugin {
           return new ActualFramesTrack(engine, maxDepth, trackKey, trackIds);
         },
         tags: {
+          upid,
           trackIds,
           kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         },
