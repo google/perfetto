@@ -74,6 +74,9 @@
 
     .pf-visible-on-hover {
       visibility: hidden;
+      &.pf-active {
+        visibility: visible;
+      }
     }
 
     &:hover .pf-visible-on-hover {
@@ -236,6 +239,10 @@
       align-self: center;
     }
   }
+}
+
+.pf-track-details-dropdown {
+  width: 400px;
 }
 
 .pf-panel-group {
