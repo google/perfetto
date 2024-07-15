@@ -369,7 +369,12 @@ class TablesSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
-        SELECT * FROM _critical_path_by_roots!(_intervals_to_roots!((SELECT 6 AS utid, trace_start() AS ts, trace_end() - trace_start() AS dur), _wakeup_graph), _wakeup_graph);
+        SELECT *
+        FROM _critical_path_by_roots!(
+          _intervals_to_roots!(
+            (SELECT 6 AS utid, trace_start() AS ts, trace_end() - trace_start() AS dur),
+            _wakeup_graph),
+          _wakeup_graph);
         """,
         out=Csv("""
         "root_id","id","ts","dur"
@@ -390,7 +395,11 @@ class TablesSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
-        SELECT * FROM _critical_path_by_intervals!((SELECT 6 AS utid, trace_start() AS ts, trace_end() - trace_start() AS dur), _wakeup_graph);
+        SELECT root_utid, root_id, id, ts, dur, utid
+        FROM _critical_path_by_intervals!(
+          (SELECT 6 AS utid, trace_start() AS ts, trace_end() - trace_start() AS dur),
+          _wakeup_graph)
+        ORDER BY root_id, ts;
         """,
         out=Csv("""
         "root_utid","root_id","id","ts","dur","utid"
