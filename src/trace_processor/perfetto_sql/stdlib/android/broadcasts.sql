@@ -36,9 +36,9 @@ CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
   -- Name of the process the broadcast was sent to.
   process_name STRING,
   -- Pid of the process the broadcast was sent to.
-  pid STRING,
+  pid INT,
   -- Upid of the process the broadcast was sent to.
-  upid STRING,
+  upid INT,
   -- Id of the broacast queue the broadcast was dispatched from.
   queue_id INT,
   -- Slice id of the broadcast dispatch.

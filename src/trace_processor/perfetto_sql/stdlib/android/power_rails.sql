@@ -33,11 +33,11 @@ CREATE PERFETTO TABLE android_power_rails_counters (
     raw_power_rail_name STRING,
     -- Energy accumulated by this rail since boot in microwatt-seconds
     -- (uWs) (AKA micro-joules). Alias of `counter.value`.
-    energy_since_boot INT,
+    energy_since_boot DOUBLE,
     -- Energy accumulated by this rail at next energy measurement in
     -- microwatt-seconds (uWs) (AKA micro-joules). Alias of `counter.value` of
     -- the next meaningful (with value change) counter value.
-    energy_since_boot_at_end INT,
+    energy_since_boot_at_end DOUBLE,
     -- Average power in mW (milliwatts) over between ts and the next energy
     -- measurement.
     average_power DOUBLE,
