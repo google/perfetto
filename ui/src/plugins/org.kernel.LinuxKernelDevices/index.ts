@@ -45,10 +45,8 @@ class LinuxKernelDevices implements Plugin {
       const displayName = it.name ?? `${trackId}`;
 
       ctx.registerStaticTrack({
-        uri: `org.kernel.LinuxKernelDevices#${displayName}`,
-        displayName,
-        trackIds: [trackId],
-        kind: ASYNC_SLICE_TRACK_KIND,
+        uri: `/kernel_devices/${displayName}`,
+        title: displayName,
         trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
             {
@@ -58,6 +56,10 @@ class LinuxKernelDevices implements Plugin {
             0,
             [trackId],
           );
+        },
+        tags: {
+          kind: ASYNC_SLICE_TRACK_KIND,
+          trackIds: [trackId],
         },
         groupName: `Linux Kernel Devices`,
       });

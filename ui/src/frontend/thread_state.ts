@@ -141,8 +141,8 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   for (const track of Object.values(globals.state.tracks)) {
     if (exists(track?.uri)) {
       const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
-        if (trackInfo?.cpu === cpu) {
+      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+        if (trackInfo?.tags?.cpu === cpu) {
           trackId = track.key;
           break;
         }
@@ -189,8 +189,8 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
             const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
             if (
               trackDesc &&
-              trackDesc.kind === THREAD_STATE_TRACK_KIND &&
-              trackDesc.utid === vnode.attrs.utid
+              trackDesc.tags?.kind === THREAD_STATE_TRACK_KIND &&
+              trackDesc.tags?.utid === vnode.attrs.utid
             ) {
               trackKey = track.key;
             }

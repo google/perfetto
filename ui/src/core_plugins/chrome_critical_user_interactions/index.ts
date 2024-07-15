@@ -50,8 +50,10 @@ class CriticalUserInteractionPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerTrack({
       uri: CriticalUserInteractionTrack.kind,
-      kind: CriticalUserInteractionTrack.kind,
-      displayName: 'Chrome Interactions',
+      tags: {
+        kind: CriticalUserInteractionTrack.kind,
+      },
+      title: 'Chrome Interactions',
       trackFactory: (trackCtx) =>
         new CriticalUserInteractionTrack({
           engine: ctx.engine,

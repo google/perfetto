@@ -31,7 +31,7 @@ class SchedPlugin implements Plugin {
     const runnableThreadCountUri = `/runnable_thread_count`;
     ctx.registerTrack({
       uri: runnableThreadCountUri,
-      displayName: 'Runnable thread count',
+      title: 'Runnable thread count',
       trackFactory: (trackCtx) =>
         new RunnableThreadCountTrack({
           engine: ctx.engine,
@@ -49,7 +49,7 @@ class SchedPlugin implements Plugin {
     const title = 'Active CPU count';
     ctx.registerTrack({
       uri,
-      displayName: title,
+      title: title,
       trackFactory: (trackCtx) => new ActiveCPUCountTrack(trackCtx, ctx.engine),
     });
     ctx.registerCommand({
@@ -63,7 +63,7 @@ class SchedPlugin implements Plugin {
       const title = `Active ${cpuType} CPU count`;
       ctx.registerTrack({
         uri,
-        displayName: title,
+        title: title,
         trackFactory: (trackCtx) =>
           new ActiveCPUCountTrack(trackCtx, ctx.engine, cpuType),
       });

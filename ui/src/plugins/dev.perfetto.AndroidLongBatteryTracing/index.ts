@@ -1171,7 +1171,7 @@ class AndroidLongBatteryTracing implements Plugin {
     }
     ctx.registerStaticTrack({
       uri,
-      displayName: name,
+      title: name,
       trackFactory: (trackCtx) => {
         return new SimpleSliceTrack(ctx.engine, trackCtx, config);
       },
@@ -1204,7 +1204,7 @@ class AndroidLongBatteryTracing implements Plugin {
 
     ctx.registerStaticTrack({
       uri,
-      displayName: name,
+      title: name,
       trackFactory: (trackCtx) => {
         return new SimpleCounterTrack(ctx.engine, trackCtx, config);
       },

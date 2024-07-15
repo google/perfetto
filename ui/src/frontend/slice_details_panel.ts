@@ -232,8 +232,8 @@ export class SliceDetailsPanel extends SlicePanel {
       // TODO(stevegolton): Handle v2.
       if (
         trackDesc &&
-        trackDesc.kind === THREAD_STATE_TRACK_KIND &&
-        trackDesc.utid === threadInfo.utid
+        trackDesc.tags?.kind === THREAD_STATE_TRACK_KIND &&
+        trackDesc.tags?.utid === threadInfo.utid
       ) {
         trackKey = track.key;
       }

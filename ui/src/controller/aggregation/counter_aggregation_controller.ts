@@ -30,8 +30,8 @@ export class CounterAggregationController extends AggregationController {
       const track = globals.state.tracks[trackKey];
       if (track?.uri) {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.kind === COUNTER_TRACK_KIND) {
-          trackInfo.trackIds && trackIds.push(...trackInfo.trackIds);
+        if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
+          trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
         }
       }
     }

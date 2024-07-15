@@ -50,9 +50,11 @@ class CpuProfile implements Plugin {
       const threadName = it.threadName;
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_cpu_samples`,
-        displayName: `${threadName} (CPU Stack Samples)`,
-        kind: CPU_PROFILE_TRACK_KIND,
-        utid,
+        title: `${threadName} (CPU Stack Samples)`,
+        tags: {
+          kind: CPU_PROFILE_TRACK_KIND,
+          utid,
+        },
         trackFactory: () => new CpuProfileTrack(ctx.engine, utid),
       });
     }
