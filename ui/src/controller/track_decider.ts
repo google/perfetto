@@ -1355,9 +1355,10 @@ class TrackDecider {
         tid,
         upid,
       });
+
       const addTrackGroup = Actions.addTrackGroup({
         summaryTrackKey,
-        name,
+        name: stripPathFromExecutable(name),
         key: this.getOrCreateUuid(utid, upid),
         // Perf profiling tracks remain collapsed, otherwise we would have too
         // many expanded process tracks for some perf traces, leading to
@@ -1660,5 +1661,13 @@ class TrackDecider {
       default:
         return PrimaryTrackSortKey.ORDINARY_THREAD;
     }
+  }
+}
+
+function stripPathFromExecutable(path: string) {
+  if (path[0] === '/') {
+    return path.split('/').slice(-1)[0];
+  } else {
+    return path;
   }
 }
