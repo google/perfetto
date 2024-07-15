@@ -91,9 +91,7 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
     ctx.registerTrack({
       uri,
       title: argName,
-      tags: {
-        metric: true, // TODO(stevegolton): Is this track really a metric?
-      },
+      chips: ['metric'],
       trackFactory: (trackCtx) => {
         return new VisualisedArgsTrack({
           engine: ctx.engine,
