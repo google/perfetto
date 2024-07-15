@@ -137,19 +137,19 @@ CREATE PERFETTO TABLE android_garbage_collection_events (
   -- Upid of process running garbage collection.
   upid INT,
   -- Name of thread running garbage collection.
-  thread_name INT,
+  thread_name STRING,
   -- Name of process running garbage collection.
-  process_name INT,
+  process_name STRING,
   -- Type of garbage collection.
   gc_type STRING,
   -- Whether gargage collection is mark compact or copying.
   is_mark_compact INT,
   -- MB reclaimed after garbage collection.
-  reclaimed_mb INT,
+  reclaimed_mb DOUBLE,
   -- Minimum heap size in MB during garbage collection.
-  min_heap_mb INT,
+  min_heap_mb DOUBLE,
   -- Maximum heap size in MB during garbage collection.
-  max_heap_mb INT,
+  max_heap_mb DOUBLE,
   -- Garbage collection id.
   gc_id INT,
   -- Garbage collection timestamp.

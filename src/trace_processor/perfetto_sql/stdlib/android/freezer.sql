@@ -100,7 +100,7 @@ CREATE PERFETTO TABLE android_freezer_events (
   -- Unfreeze reason Integer.
   unfreeze_reason_int INT,
   -- Unfreeze reason String.
-  unfreeze_reason_str INT
+  unfreeze_reason_str STRING
   )
 AS
 WITH

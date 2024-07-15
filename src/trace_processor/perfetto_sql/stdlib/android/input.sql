@@ -76,17 +76,17 @@ CREATE PERFETTO TABLE android_input_events (
   -- Tid of thread receiving the input event.
   tid INT,
   -- Name of thread receiving the input event.
-  thread_name INT,
+  thread_name STRING,
   -- Pid of process receiving the input event.
   pid INT,
   -- Name of process receiving the input event.
-  process_name INT,
+  process_name STRING,
   -- Input event type. See InputTransport.h: InputMessage#Type
-  event_type INT,
+  event_type STRING,
   -- Input event sequence number, monotonically increasing for an event channel and pid.
-  event_seq INT,
+  event_seq STRING,
   -- Input event channel name.
-  event_channel INT,
+  event_channel STRING,
   -- Thread track id of input event dispatching thread.
   dispatch_track_id INT,
   -- Timestamp input event was dispatched.
