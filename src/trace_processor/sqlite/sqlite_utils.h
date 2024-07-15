@@ -235,7 +235,10 @@ inline std::string SqlValueTypeToString(SqlValue::Type type) {
     case SqlValue::Type::kBytes:
       return "BLOB";
     case SqlValue::Type::kNull:
-      PERFETTO_FATAL("Cannot map unknown column type");
+      // Default to BIGINT for columns which contains only NULLs - if we don't
+      // specify the type, sqlite will default to BLOB, which is going to trip
+      // a number of various checks.
+      return "BIGINT";
   }
   PERFETTO_FATAL("Not reached");  // For gcc
 }

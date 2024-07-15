@@ -278,9 +278,6 @@ class ColumnLegacy {
   // Returns the name of the column.
   const char* name() const { return name_; }
 
-  // Returns the type of this Column in terms of SqlValue::Type.
-  SqlValue::Type type() const { return ToSqlValueType(type_); }
-
   // Returns the type of this Column in terms of ColumnType.
   ColumnType col_type() const { return type_; }
 
@@ -382,6 +379,23 @@ class ColumnLegacy {
   }
 
   const ColumnStorageBase& storage_base() const { return *storage_; }
+
+  static SqlValue::Type ToSqlValueType(ColumnType type) {
+    switch (type) {
+      case ColumnType::kInt32:
+      case ColumnType::kUint32:
+      case ColumnType::kInt64:
+      case ColumnType::kId:
+        return SqlValue::Type::kLong;
+      case ColumnType::kDouble:
+        return SqlValue::Type::kDouble;
+      case ColumnType::kString:
+        return SqlValue::Type::kString;
+      case ColumnType::kDummy:
+        PERFETTO_FATAL("ToSqlValueType not allowed on dummy column");
+    }
+    PERFETTO_FATAL("For GCC");
+  }
 
  protected:
   // Returns the backing sparse vector cast to contain data of type T.
@@ -485,23 +499,6 @@ class ColumnLegacy {
     // The non-null flag should always be set for set id columns.
     // The column type should always be kUint32.
     return IsSorted(flags) && !IsNullable(flags) && type == ColumnType::kUint32;
-  }
-
-  static SqlValue::Type ToSqlValueType(ColumnType type) {
-    switch (type) {
-      case ColumnType::kInt32:
-      case ColumnType::kUint32:
-      case ColumnType::kInt64:
-      case ColumnType::kId:
-        return SqlValue::Type::kLong;
-      case ColumnType::kDouble:
-        return SqlValue::Type::kDouble;
-      case ColumnType::kString:
-        return SqlValue::Type::kString;
-      case ColumnType::kDummy:
-        PERFETTO_FATAL("ToSqlValueType not allowed on dummy column");
-    }
-    PERFETTO_FATAL("For GCC");
   }
 
   // Returns the string at the index |idx|.
