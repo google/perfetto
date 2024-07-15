@@ -52,8 +52,8 @@ class AnnotationPlugin implements Plugin {
         title: name,
         tags: {
           kind: THREAD_SLICE_TRACK_KIND,
-          metric: true,
         },
+        chips: ['metric'],
         trackFactory: ({trackKey}) => {
           return new ThreadSliceTrack(
             {
@@ -95,8 +95,8 @@ class AnnotationPlugin implements Plugin {
         title: name,
         tags: {
           kind: COUNTER_TRACK_KIND,
-          metric: true,
         },
+        chips: ['metric'],
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,

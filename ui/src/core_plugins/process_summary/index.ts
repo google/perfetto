@@ -104,6 +104,9 @@ class ProcessSummaryPlugin implements Plugin {
       const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
       const uri = getThreadOrProcUri(upid, utid);
 
+      const chips: string[] = [];
+      isDebuggable && chips.push('debuggable');
+
       if (hasSched) {
         const config: ProcessSchedulingTrackConfig = {
           pidForColor,
@@ -116,8 +119,8 @@ class ProcessSummaryPlugin implements Plugin {
           title: `${upid === null ? tid : pid} schedule`,
           tags: {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
-            debuggable: isDebuggable,
           },
+          chips,
           trackFactory: () => {
             return new ProcessSchedulingTrack(ctx.engine, config, cpuCount);
           },
@@ -135,8 +138,8 @@ class ProcessSummaryPlugin implements Plugin {
           title: `${upid === null ? tid : pid} summary`,
           tags: {
             kind: PROCESS_SUMMARY_TRACK,
-            debuggable: isDebuggable,
           },
+          chips,
           trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
           subtitle,
         });
