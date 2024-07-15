@@ -80,6 +80,8 @@ export interface TrackDescriptor {
   // Optional: A list of tags used for sorting, grouping and "chips".
   readonly tags?: TrackTags;
 
+  readonly chips?: ReadonlyArray<string>;
+
   // Optional: A details panel to use when this track is selected.
   readonly detailsPanel?: TrackSelectionDetailsPanel;
 
@@ -206,12 +208,6 @@ export type TrackTags = Partial<WellKnownTrackTags> & {
 };
 
 interface WellKnownTrackTags {
-  // Controls whether to show the "metric" chip.
-  metric: boolean;
-
-  // Controls whether to show the "debuggable" chip.
-  debuggable: boolean;
-
   // The track "kind", used by various subsystems e.g. aggregation controllers.
   // This is where "XXX_TRACK_KIND" values should be placed.
   // TODO(stevegolton): This will be deprecated once we handle group selections

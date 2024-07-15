@@ -87,11 +87,8 @@ class TrackChip implements m.ClassComponent<TrackChipAttrs> {
   }
 }
 
-export function renderChips(tags?: TrackTags) {
-  return [
-    tags?.metric && m(TrackChip, {text: 'metric'}),
-    tags?.debuggable && m(TrackChip, {text: 'debuggable'}),
-  ];
+export function renderChips(chips: ReadonlyArray<string>) {
+  return chips.map((chip) => m(TrackChip, {text: chip}));
 }
 
 export interface CrashButtonAttrs {
@@ -129,11 +126,12 @@ export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
 }
 
 interface TrackShellAttrs {
-  trackKey: string;
-  title: string;
-  buttons: m.Children;
-  tags?: TrackTags;
-  button?: string;
+  readonly trackKey: string;
+  readonly title: string;
+  readonly buttons: m.Children;
+  readonly tags?: TrackTags;
+  readonly chips?: ReadonlyArray<string>;
+  readonly button?: string;
 }
 
 class TrackShell implements m.ClassComponent<TrackShellAttrs> {
@@ -181,7 +179,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             },
           },
           attrs.title,
-          renderChips(attrs.tags),
+          attrs.chips && renderChips(attrs.chips),
         ),
         m(
           ButtonBar,
@@ -366,14 +364,15 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
 }
 
 interface TrackComponentAttrs {
-  trackKey: string;
-  heightPx?: number;
-  title: string;
-  buttons?: m.Children;
-  tags?: TrackTags;
-  track?: Track;
-  error?: Error | undefined;
-  closeable: boolean;
+  readonly trackKey: string;
+  readonly heightPx?: number;
+  readonly title: string;
+  readonly buttons?: m.Children;
+  readonly tags?: TrackTags;
+  readonly chips?: ReadonlyArray<string>;
+  readonly track?: Track;
+  readonly error?: Error | undefined;
+  readonly closeable: boolean;
 
   // Issues a scrollTo() on this DOM element at creation time. Default: false.
   revealOnCreate?: boolean;
@@ -409,6 +408,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
           title: attrs.title,
           trackKey: attrs.trackKey,
           tags: attrs.tags,
+          chips: attrs.chips,
         }),
         attrs.track &&
           m(TrackContent, {
@@ -442,6 +442,7 @@ interface TrackPanelAttrs {
   trackKey: string;
   title: string;
   tags?: TrackTags;
+  readonly chips?: ReadonlyArray<string>;
   trackFSM?: TrackCacheEntry;
   revealOnCreate?: boolean;
   closeable: boolean;
@@ -469,6 +470,7 @@ export class TrackPanel implements Panel {
           error: attrs.trackFSM.getError(),
           track: attrs.trackFSM.track,
           closeable: attrs.closeable,
+          chips: attrs.chips,
         });
       }
       return m(TrackComponent, {
@@ -481,6 +483,7 @@ export class TrackPanel implements Panel {
         error: attrs.trackFSM.getError(),
         revealOnCreate: attrs.revealOnCreate,
         closeable: attrs.closeable,
+        chips: attrs.chips,
       });
     } else {
       return m(TrackComponent, {
@@ -488,6 +491,7 @@ export class TrackPanel implements Panel {
         title: attrs.title,
         revealOnCreate: attrs.revealOnCreate,
         closeable: attrs.closeable,
+        chips: attrs.chips,
       });
     }
   }

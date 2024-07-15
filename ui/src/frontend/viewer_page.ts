@@ -239,20 +239,22 @@ class TraceViewer implements m.ClassComponent {
           tags: trackBundle.tags,
           trackFSM: trackBundle.trackFSM,
           closeable: trackBundle.closeable,
+          chips: trackBundle.chips,
         });
       },
     );
 
     for (const group of Object.values(globals.state.trackGroups)) {
-      const key = group.summaryTrack;
+      const summaryTrackKey = group.summaryTrack;
       let headerPanel;
-      if (key) {
-        const trackBundle = this.resolveTrack(key);
+      if (summaryTrackKey) {
+        const trackBundle = this.resolveTrack(summaryTrackKey);
         headerPanel = new TrackGroupPanel({
           groupKey: group.key,
           trackFSM: trackBundle.trackFSM,
           subtitle: trackBundle.subtitle,
           tags: trackBundle.tags,
+          chips: trackBundle.chips,
           collapsed: group.collapsed,
           title: group.name,
         });
@@ -274,6 +276,7 @@ class TraceViewer implements m.ClassComponent {
             tags: trackBundle.tags,
             trackFSM: trackBundle.trackFSM,
             closeable: trackBundle.closeable,
+            chips: trackBundle.chips,
           });
           childTracks.push(panel);
         }
@@ -332,6 +335,7 @@ class TraceViewer implements m.ClassComponent {
               trackFSM: trackBundle.trackFSM,
               revealOnCreate: true,
               closeable: trackBundle.closeable,
+              chips: trackBundle.chips,
             });
           }),
         }),
@@ -361,12 +365,14 @@ class TraceViewer implements m.ClassComponent {
     const trackFSM = trackCacheEntry;
     const tags = trackCacheEntry?.desc.tags;
     const subtitle = trackCacheEntry?.desc.subtitle;
+    const chips = trackCacheEntry?.desc.chips;
     return {
       title: name,
       subtitle,
       closeable: closeable ?? false,
       tags,
       trackFSM,
+      chips,
     };
   }
 
@@ -376,11 +382,12 @@ class TraceViewer implements m.ClassComponent {
 }
 
 interface TrackBundle {
-  title: string;
-  subtitle?: string;
-  closeable: boolean;
-  trackFSM?: TrackCacheEntry;
-  tags?: TrackTags;
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly closeable: boolean;
+  readonly trackFSM?: TrackCacheEntry;
+  readonly tags?: TrackTags;
+  readonly chips?: ReadonlyArray<string>;
 }
 
 export const ViewerPage = createPage({
