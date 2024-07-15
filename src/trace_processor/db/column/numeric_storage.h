@@ -54,6 +54,10 @@ class NumericStorageBase : public DataLayer {
 
     std::string DebugString() const override { return "NumericStorage"; }
 
+    bool is_sorted() const { return is_sorted_; }
+
+    ColumnType column_type() const { return storage_type_; }
+
    protected:
     ChainImpl(const void* vector_ptr, ColumnType type, bool is_sorted);
 
@@ -140,6 +144,11 @@ class NumericStorage final : public NumericStorageBase {
       }
 
       return *tok;
+    }
+
+    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override {
+      return std::unique_ptr<DataLayer>(
+          new NumericStorage<T>(vector_, column_type(), is_sorted()));
     }
 
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override {

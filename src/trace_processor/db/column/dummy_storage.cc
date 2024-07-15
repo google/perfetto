@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -67,6 +68,11 @@ std::optional<Token> DummyStorage::ChainImpl::MaxElement(Indices&) const {
 }
 
 std::optional<Token> DummyStorage::ChainImpl::MinElement(Indices&) const {
+  PERFETTO_FATAL("Shouldn't be called");
+}
+
+std::unique_ptr<DataLayer> DummyStorage::ChainImpl::Flatten(
+    std::vector<uint32_t>&) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 

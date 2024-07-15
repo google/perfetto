@@ -309,6 +309,13 @@ class DataLayerChain {
                                     SqlValue value,
                                     const OrderedIndices& indices) const;
 
+  // Returns the pointer to storage DataLayer and modifies indices so that it
+  // maps the data in the column.
+  // If |indices[i] == std::numeric_limits<uint32_t>::max()| the index points to
+  // null value.
+  virtual std::unique_ptr<DataLayer> Flatten(
+      std::vector<uint32_t>& indices) const = 0;
+
   // Returns the SqlValue representing the value at a given index.
   //
   // This function might be very tempting to use as it appears cheap on the
