@@ -82,6 +82,8 @@ export interface TrackDescriptor {
 
   readonly chips?: ReadonlyArray<string>;
 
+  readonly pluginId?: string;
+
   // Optional: A details panel to use when this track is selected.
   readonly detailsPanel?: TrackSelectionDetailsPanel;
 

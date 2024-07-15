@@ -240,6 +240,7 @@ class TraceViewer implements m.ClassComponent {
           trackFSM: trackBundle.trackFSM,
           closeable: trackBundle.closeable,
           chips: trackBundle.chips,
+          pluginId: trackBundle.pluginId,
         });
       },
     );
@@ -277,6 +278,7 @@ class TraceViewer implements m.ClassComponent {
             trackFSM: trackBundle.trackFSM,
             closeable: trackBundle.closeable,
             chips: trackBundle.chips,
+            pluginId: trackBundle.pluginId,
           });
           childTracks.push(panel);
         }
@@ -336,6 +338,7 @@ class TraceViewer implements m.ClassComponent {
               revealOnCreate: true,
               closeable: trackBundle.closeable,
               chips: trackBundle.chips,
+              pluginId: trackBundle.pluginId,
             });
           }),
         }),
@@ -366,6 +369,7 @@ class TraceViewer implements m.ClassComponent {
     const tags = trackCacheEntry?.desc.tags;
     const subtitle = trackCacheEntry?.desc.subtitle;
     const chips = trackCacheEntry?.desc.chips;
+    const plugin = trackCacheEntry?.desc.pluginId;
     return {
       title: name,
       subtitle,
@@ -373,6 +377,7 @@ class TraceViewer implements m.ClassComponent {
       tags,
       trackFSM,
       chips,
+      pluginId: plugin,
     };
   }
 
@@ -388,6 +393,7 @@ interface TrackBundle {
   readonly trackFSM?: TrackCacheEntry;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
+  readonly pluginId?: string;
 }
 
 export const ViewerPage = createPage({

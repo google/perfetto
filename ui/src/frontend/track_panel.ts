@@ -37,7 +37,7 @@ import {verticalScrollToTrack} from './scroll_helper';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {classNames} from '../base/classnames';
 import {Button, ButtonBar} from '../widgets/button';
-import {Popup} from '../widgets/popup';
+import {Popup, PopupPosition} from '../widgets/popup';
 import {canvasClip} from '../common/canvas_utils';
 import {PxSpan, TimeScale} from './time_scale';
 import {getLegacySelection} from '../common/state';
@@ -46,6 +46,15 @@ import {exists} from '../base/utils';
 import {Intent} from '../widgets/common';
 import {TrackRenderContext} from '../public/tracks';
 import {calculateResolution} from '../common/resolution';
+import {featureFlags} from '../core/feature_flags';
+import {Tree, TreeNode} from '../widgets/tree';
+
+export const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
+  id: 'showTrackDetailsButton',
+  name: 'Show track details button',
+  description: 'Show track details button in track shells.',
+  defaultValue: false,
+});
 
 function getTitleSize(title: string): string | undefined {
   const length = title.length;
@@ -132,6 +141,7 @@ interface TrackShellAttrs {
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
   readonly button?: string;
+  readonly pluginId?: string;
 }
 
 class TrackShell implements m.ClassComponent<TrackShellAttrs> {
@@ -185,6 +195,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           ButtonBar,
           {className: 'track-buttons'},
           attrs.buttons,
+          SHOW_TRACK_DETAILS_BUTTON.get() &&
+            this.renderTrackDetailsButton(pinned, attrs),
           m(Button, {
             className: classNames(!pinned && 'pf-visible-on-hover'),
             onclick: () => {
@@ -269,6 +281,42 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     const dstId = trackKey;
     globals.dispatch(Actions.moveTrack({srcId, op: this.dropping, dstId}));
     this.dropping = undefined;
+  }
+
+  private renderTrackDetailsButton(pinned: boolean, attrs: TrackShellAttrs) {
+    return m(
+      Popup,
+      {
+        trigger: m(Button, {
+          className: classNames(!pinned && 'pf-visible-on-hover'),
+          icon: 'info',
+          title: 'Show track details',
+          compact: true,
+        }),
+        position: PopupPosition.RightStart,
+      },
+      m(
+        '.pf-track-details-dropdown',
+        m(
+          Tree,
+          m(TreeNode, {
+            left: 'URI',
+            right: globals.state.tracks[attrs.trackKey]?.uri,
+          }),
+          m(TreeNode, {left: 'Title', right: attrs.title}),
+          m(TreeNode, {left: 'Track Key', right: attrs.trackKey}),
+          m(TreeNode, {left: 'Plugin ID', right: attrs.pluginId}),
+          m(
+            TreeNode,
+            {left: 'Tags'},
+            attrs.tags &&
+              Object.entries(attrs.tags).map(([key, value]) => {
+                return m(TreeNode, {left: key, right: value?.toString()});
+              }),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -373,6 +421,7 @@ interface TrackComponentAttrs {
   readonly track?: Track;
   readonly error?: Error | undefined;
   readonly closeable: boolean;
+  readonly pluginId?: string;
 
   // Issues a scrollTo() on this DOM element at creation time. Default: false.
   revealOnCreate?: boolean;
@@ -409,6 +458,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
           trackKey: attrs.trackKey,
           tags: attrs.tags,
           chips: attrs.chips,
+          pluginId: attrs.pluginId,
         }),
         attrs.track &&
           m(TrackContent, {
@@ -446,6 +496,7 @@ interface TrackPanelAttrs {
   trackFSM?: TrackCacheEntry;
   revealOnCreate?: boolean;
   closeable: boolean;
+  readonly pluginId?: string;
 }
 
 export class TrackPanel implements Panel {
@@ -471,6 +522,7 @@ export class TrackPanel implements Panel {
           track: attrs.trackFSM.track,
           closeable: attrs.closeable,
           chips: attrs.chips,
+          pluginId: attrs.pluginId,
         });
       }
       return m(TrackComponent, {
@@ -484,6 +536,7 @@ export class TrackPanel implements Panel {
         revealOnCreate: attrs.revealOnCreate,
         closeable: attrs.closeable,
         chips: attrs.chips,
+        pluginId: attrs.pluginId,
       });
     } else {
       return m(TrackComponent, {
@@ -492,6 +545,7 @@ export class TrackPanel implements Panel {
         revealOnCreate: attrs.revealOnCreate,
         closeable: attrs.closeable,
         chips: attrs.chips,
+        pluginId: attrs.pluginId,
       });
     }
   }

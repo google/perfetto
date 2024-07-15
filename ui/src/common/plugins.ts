@@ -126,7 +126,10 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     // Silently ignore if context is dead.
     if (!this.alive) return;
 
-    const dispose = globals.trackManager.registerTrack(trackDesc);
+    const dispose = globals.trackManager.registerTrack({
+      ...trackDesc,
+      pluginId: this.pluginId,
+    });
     this.trash.use(dispose);
   }
 
