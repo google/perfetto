@@ -200,6 +200,7 @@ CPU_TABLE = Table(
         C('cluster_id', CppUint32()),
         C('processor', CppString()),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('capacity', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -217,6 +218,13 @@ the same cluster''',
             'machine_id':
                 '''
                   Machine identifier, non-null for CPUs on a remote machine.
+                ''',
+            'capacity':
+                '''
+                  Capacity of a CPU of a device, a metric which indicates the
+                  relative performance of a CPU on a device
+                  For details see: 
+                  https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
                 ''',
         }))
 
@@ -443,10 +451,10 @@ ALL_TABLES = [
     CPU_TABLE,
     EXP_MISSING_CHROME_PROC_TABLE,
     FILEDESCRIPTOR_TABLE,
+    FTRACE_EVENT_TABLE,
+    MACHINE_TABLE,
     METADATA_TABLE,
     PROCESS_TABLE,
     RAW_TABLE,
     THREAD_TABLE,
-    FTRACE_EVENT_TABLE,
-    MACHINE_TABLE,
 ]
