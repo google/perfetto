@@ -257,7 +257,6 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
     for (uint32_t i = 0; i < tabc; i++) {
       tables[i] = sqlite::value::Pointer<PartitionedTable>(
           argv[i], PartitionedTable::kName);
-      t_intervals[i] = &tables[i]->intervals;
 
       // If any of the tables is empty the intersection with it also has to be
       // empty.
@@ -269,6 +268,7 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
         return sqlite::result::UniquePointer(ctx, std::move(ret_table),
                                              "TABLE");
       }
+      t_intervals[i] = &tables[i]->intervals;
     }
 
     std::vector<BuilderColType> col_types(kArgCols + tabc,
