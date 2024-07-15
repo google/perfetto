@@ -21,7 +21,7 @@ import {ColorScheme} from '../core/colorizer';
 import {PrimaryTrackSortKey} from '../common/state';
 import {Engine} from '../trace_processor/engine';
 import {PromptOption} from '../frontend/omnibox_manager';
-import {LegacyDetailsPanel, TrackDescriptor, TrackTags} from './tracks';
+import {LegacyDetailsPanel, TrackDescriptor} from './tracks';
 import {TraceContext} from '../frontend/trace_context';
 
 export {Engine} from '../trace_processor/engine';
@@ -359,7 +359,7 @@ export interface TrackRef {
 }
 
 // A predicate for selecting a subset of tracks.
-export type TrackPredicate = (info: TrackTags) => boolean;
+export type TrackPredicate = (info: TrackDescriptor) => boolean;
 
 // Describes a reference to a group of tracks.
 export interface GroupRef {
