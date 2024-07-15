@@ -60,7 +60,7 @@ beforeEach(() => {
   mockTrack = makeMockTrack();
   td = {
     uri: 'test',
-    displayName: 'foo',
+    title: 'foo',
     trackFactory: () => mockTrack,
   };
   const store = createStore(createEmptyState());

@@ -51,9 +51,9 @@ interface TrackGroupPanelInfo {
   height: number;
 }
 
-function getTrackIds(track: TrackState): number[] {
+function getTrackIds(track: TrackState): ReadonlyArray<number> {
   const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-  return trackDesc?.trackIds ?? [];
+  return trackDesc?.tags?.trackIds ?? [];
 }
 
 export class FlowEventsRendererArgs {

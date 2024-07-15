@@ -107,7 +107,7 @@ class ChromeTasksPlugin implements Plugin {
         trackFactory: ({trackKey}) =>
           new ChromeTasksThreadTrack(ctx.engine, trackKey, asUtid(utid)),
         groupName: `Chrome Tasks`,
-        displayName: `${it.threadName} ${it.tid}`,
+        title: `${it.threadName} ${it.tid}`,
       });
     }
 

@@ -1430,7 +1430,7 @@ class TrackDecider {
 
       this.tracksToAdd.push({
         uri: info.uri,
-        name: info.displayName,
+        name: info.title,
         key,
         // TODO(hjd): Fix how sorting works. Plugins should expose
         // 'sort keys' which the user can use to choose a sort order.

@@ -312,8 +312,8 @@ export class SelectionController extends Controller<'main'> {
     let trackKey = '';
     for (const track of Object.values(globals.state.tracks)) {
       const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.kind === THREAD_SLICE_TRACK_KIND) {
-        const trackIds = trackInfo?.trackIds;
+      if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
+        const trackIds = trackInfo?.tags?.trackIds;
         if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
           trackKey = track.key;
           break;

@@ -60,9 +60,11 @@ class ThreadState implements Plugin {
 
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_state`,
-        displayName,
-        kind: THREAD_STATE_TRACK_KIND,
-        utid,
+        title: displayName,
+        tags: {
+          kind: THREAD_STATE_TRACK_KIND,
+          utid,
+        },
         trackFactory: ({trackKey}) => {
           return new ThreadStateTrack(
             {
