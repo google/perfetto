@@ -86,6 +86,7 @@ export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
   private filters: FlamegraphFilters = {
     showStack: [],
     hideStack: [],
+    showFromFrame: [],
     hideFrame: [],
   };
   private attrs: QueryFlamegraphAttrs;
@@ -142,25 +143,27 @@ async function computeFlamegraphTree(
   engine: Engine,
   dependencySql: string | undefined,
   sql: string,
-  {
-    showStack,
-    hideStack,
-    hideFrame,
-  }: {
-    readonly showStack: ReadonlyArray<string>;
-    readonly hideStack: ReadonlyArray<string>;
-    readonly hideFrame: ReadonlyArray<string>;
-  },
+  {showStack, hideStack, showFromFrame, hideFrame}: FlamegraphFilters,
 ) {
-  const allStackBits = (1 << showStack.length) - 1;
   const showStackFilter =
     showStack.length === 0
       ? '0'
       : showStack.map((x, i) => `((name like '%${x}%') << ${i})`).join(' | ');
+  const showStackBits = (1 << showStack.length) - 1;
+
   const hideStackFilter =
     hideStack.length === 0
       ? 'false'
       : hideStack.map((x) => `name like '%${x}%'`).join(' OR ');
+
+  const showFromFrameFilter =
+    showFromFrame.length === 0
+      ? '0'
+      : showFromFrame
+          .map((x, i) => `((name like '%${x}%') << ${i})`)
+          .join(' | ');
+  const showFromFrameBits = (1 << showFromFrame.length) - 1;
+
   const hideFrameFilter =
     hideFrame.length === 0
       ? 'false'
@@ -181,9 +184,10 @@ async function computeFlamegraphTree(
         select *
         from _viz_flamegraph_prepare_filter!(
           (${sql}),
-          (${hideFrameFilter}),
           (${showStackFilter}),
           (${hideStackFilter}),
+          (${showFromFrameFilter}),
+          (${hideFrameFilter}),
           ${1 << showStack.length}
         )
       `,
@@ -195,7 +199,10 @@ async function computeFlamegraphTree(
       `_flamegraph_raw_top_down_${uuid}`,
       `
         select *
-        from _viz_flamegraph_filter_and_hash!(_flamegraph_source_${uuid})
+        from _viz_flamegraph_filter_and_hash!(
+          _flamegraph_source_${uuid},
+          ${showFromFrameBits}
+        )
       `,
     ),
   );
@@ -219,7 +226,7 @@ async function computeFlamegraphTree(
         select *
         from _viz_flamegraph_accumulate!(
           _flamegraph_top_down_${uuid},
-          ${allStackBits}
+          ${showStackBits}
         )
       `,
     ),
