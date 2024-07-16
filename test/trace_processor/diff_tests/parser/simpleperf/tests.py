@@ -206,3 +206,42 @@ class Simpleperf(TestSuite):
         "cpu","count"
         "[NULL]",9126
         '''))
+
+  def test_linux_perf_unwinding(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/linux_perf_with_symbols.zip'),
+        query=Path('stacks_test.sql'),
+        out=Csv('''
+        "name"
+        "main,A"
+        "main,A,B"
+        "main,A,B,C"
+        "main,A,B,C,D"
+        "main,A,B,C,D,E"
+        "main,A,B,C,E"
+        "main,A,B,D"
+        "main,A,B,D,E"
+        "main,A,B,E"
+        "main,A,C"
+        "main,A,C,D"
+        "main,A,C,D,E"
+        "main,A,C,E"
+        "main,A,D"
+        "main,A,D,E"
+        "main,A,E"
+        "main,B"
+        "main,B,C"
+        "main,B,C,D"
+        "main,B,C,D,E"
+        "main,B,C,E"
+        "main,B,D"
+        "main,B,D,E"
+        "main,B,E"
+        "main,C"
+        "main,C,D"
+        "main,C,D,E"
+        "main,C,E"
+        "main,D"
+        "main,D,E"
+        "main,E"
+        '''))
