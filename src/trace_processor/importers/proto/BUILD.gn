@@ -278,6 +278,7 @@ source_set("unittests") {
     "perf_sample_tracker_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
     "proto_trace_parser_impl_unittest.cc",
+    "proto_trace_reader_unittest.cc",
     "proto_trace_tokenizer_unittest.cc",
     "string_encoding_utils_unittests.cc",
   ]

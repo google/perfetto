@@ -28,9 +28,12 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -159,6 +162,27 @@ class ClockTracker {
   // Returns the internal snapshot id of this set of clocks.
   base::StatusOr<uint32_t> AddSnapshot(const std::vector<ClockTimestamp>&);
 
+  // Sets clock offset for the given clock domain to convert to the host trace
+  // time. This is typically called by the code that reads the RemoteClockSync
+  // packet. Typically only the offset of |trace_time_clock_id_| (which is
+  // CLOCK_BOOTTIME) is used.
+  void SetClockOffset(ClockId clock_id, int64_t offset) {
+    clock_offsets_[clock_id] = offset;
+  }
+
+  // Apply the clock offset to convert remote trace times to host trace time.
+  int64_t ToHostTraceTime(int64_t timestamp) {
+    if (PERFETTO_LIKELY(!context_->machine_id())) {
+      // No need to convert host timestamps.
+      return timestamp;
+    }
+
+    // Find the offset for |trace_time_clock_id_| and apply the offset, or
+    // default offset 0 if not offset is found for |trace_time_clock_id_|.
+    int64_t clock_offset = clock_offsets_[trace_time_clock_id_];
+    return timestamp - clock_offset;
+  }
+
   base::StatusOr<int64_t> ToTraceTime(ClockId clock_id, int64_t timestamp) {
     if (PERFETTO_UNLIKELY(!trace_time_clock_id_used_for_conversion_)) {
       context_->metadata_tracker->SetMetadata(
@@ -167,9 +191,13 @@ class ClockTracker {
       trace_time_clock_id_used_for_conversion_ = true;
     }
     trace_time_clock_id_used_for_conversion_ = true;
+
     if (clock_id == trace_time_clock_id_)
-      return timestamp;
-    return Convert(clock_id, timestamp, trace_time_clock_id_);
+      return ToHostTraceTime(timestamp);
+
+    ASSIGN_OR_RETURN(int64_t ts,
+                     Convert(clock_id, timestamp, trace_time_clock_id_));
+    return ToHostTraceTime(ts);
   }
 
   // If trace clock and source clock are available in the snapshot will return
@@ -194,6 +222,10 @@ class ClockTracker {
 
   void set_cache_lookups_disabled_for_testing(bool v) {
     cache_lookups_disabled_for_testing_ = v;
+  }
+
+  const base::FlatHashMap<ClockId, int64_t>& clock_offsets_for_testing() {
+    return clock_offsets_;
   }
 
  private:
@@ -339,6 +371,7 @@ class ClockTracker {
   std::minstd_rand rnd_;  // For cache eviction.
   uint32_t cur_snapshot_id_ = 0;
   bool trace_time_clock_id_used_for_conversion_ = false;
+  base::FlatHashMap<ClockId, int64_t> clock_offsets_;
 };
 
 }  // namespace trace_processor
