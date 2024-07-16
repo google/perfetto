@@ -37,6 +37,8 @@ import {CustomButton, CustomButtonArgs, customButtonRegistry} from '../frontend/
 export class PluginContextImpl implements PluginContext {
   readonly pluginId: string;
   onDetailsPanelSelectionChange?: (newSelection?: Selection) => void;
+  onTrackSelectionChange?:
+    (trackIDs: string[], trackGroupIds: string[]) => void;
   private trackProviders: TrackProvider[];
 
   constructor(pluginId: string) {
@@ -65,6 +67,12 @@ export class PluginContextImpl implements PluginContext {
   registerOnDetailsPanelSelectionChange(
       onDetailsPanelSelectionChange: (newSelection?: Selection) => void) {
     this.onDetailsPanelSelectionChange = onDetailsPanelSelectionChange;
+  }
+
+  registerOnTrackSelectionChange(
+      onTrackSelectionChange:
+        (trackIds: string[], trackGroupIds: string[]) => void) {
+    this.onTrackSelectionChange = onTrackSelectionChange;
   }
 
   registerCustomButton(button: CustomButtonArgs): void {
@@ -147,6 +155,15 @@ export class PluginManager {
     if (pluginContext.onDetailsPanelSelectionChange) {
       pluginContext.onDetailsPanelSelectionChange(newSelection);
     }
+  }
+
+  onTrackSelectionChange(trackIds?: string[], trackGroupIds?: string[]) {
+    this.contexts.forEach((context)=>{
+      if (context === undefined) return;
+      if (context.onTrackSelectionChange) {
+        context.onTrackSelectionChange(trackIds || [], trackGroupIds ||[]);
+      }
+    });
   }
 }
 

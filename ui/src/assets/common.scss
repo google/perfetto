@@ -397,7 +397,7 @@ $bottom-tab-padding: 10px;
     }
 
     &.selected {
-      background-color: #ebeef9;
+      background-color: var(--track-highlight-background);
     }
 
     &.alternating-thread-track {
@@ -456,8 +456,7 @@ $bottom-tab-padding: 10px;
       opacity: 1;
     }
     &.flash {
-      color:var(--main-background-color);
-      background-color: var(--track-highlight-background) ;
+      color: yellow;
     }
   }
 }
@@ -727,7 +726,6 @@ button.query-ctrl {
     .shell {
       border-right: 1px solid var(--main-foreground-color);
       background-color: var(--collapsed-background);
-      overflow: hidden;
     }
     .track-button {
       color: rgb(60, 86, 136);
@@ -737,9 +735,6 @@ button.query-ctrl {
     background-color: var(--collapsed-background);
     color: var(--main-foreground-color);
     font-weight: bold;
-    .shell {
-      overflow: hidden;
-    }
     span.chip {
       color: #121212;
     }
@@ -753,7 +748,10 @@ button.query-ctrl {
     line-height: 1;
     width: var(--track-shell-width);
     transition: background-color 0.4s;
-
+    overflow: hidden;
+    &.selected {
+      background-color: var(--track-highlight-background);
+    }
     .track-title {
       user-select: text;
     }
@@ -790,22 +788,16 @@ button.query-ctrl {
       position: relative;
       top: -5px;
       grid-area: fold-button;
+      &:hover{
+        cursor: pointer;
+        color: hsl(45, 100%, 48%);
+      }
     }
     .track-button {
       font-size: 20px;
     }
-    &:hover {
-      cursor: pointer;
-      .fold-button {
-        color: hsl(45, 100%, 48%);
-      }
-    }
     &.flash {
-      color:var(--main-background-color);
-      background-color: var(--track-highlight-background);
-    }
-    &.selected {
-      background-color: #ebeef9;
+      color: yellow;
     }
     &.drag {
       background-color: #eee;

@@ -15,7 +15,7 @@
 import {hex} from 'color-convert';
 import m from 'mithril';
 
-import {Actions} from '../common/actions';
+import {Actions, DeferredAction} from '../common/actions';
 import {TrackGroupState, TrackState} from '../common/state';
 import {TPTime} from '../common/time';
 
@@ -182,7 +182,54 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     return m(
         `.track-shell[draggable=true]`,
         {
-          class: `${highlightClass} ${dragClass} ${dropClass}`,
+          class: `${highlightClass} ${dragClass} ${dropClass} ${globals.state.selectedTrackIds.has(attrs.trackState.id)? 'selected': ''}`,
+          onclick: (e: MouseEvent)=>{
+            if (!e.ctrlKey) {
+              globals.dispatch(
+                Actions.clearTrackAndGroupSelection({}));
+            }
+            if (e.shiftKey && globals.state.lastSelectedTrackId) {
+              // Check if parent group of last selected is same as current
+              // If yes, turn all tracks in range to on
+              const lastSelectedTrack =
+                globals.state.tracks[globals.state.lastSelectedTrackId];
+                if (lastSelectedTrack &&
+                    lastSelectedTrack.trackGroup &&
+                    lastSelectedTrack.trackGroup ===
+                    attrs.trackState.trackGroup) {
+                  const parentGroup =
+                    globals.state.trackGroups[lastSelectedTrack.trackGroup];
+                  if (parentGroup) {
+                    const firstTrackIndex = parentGroup.sortOrder.findIndex(
+                      (value)=>value=== lastSelectedTrack.id);
+                    const secondTrackIndex = parentGroup.sortOrder.findIndex(
+                          (value)=>value=== attrs.trackState.id);
+                    let idsToSelect: string[] = [];
+                    if (firstTrackIndex<secondTrackIndex) {
+                      idsToSelect = parentGroup.sortOrder.slice(
+                           firstTrackIndex,
+                           secondTrackIndex+1,
+                         );
+                    } else {
+                      idsToSelect = parentGroup.sortOrder.slice(
+                        secondTrackIndex,
+                        firstTrackIndex+1,
+                      );
+                    }
+                    const actions: DeferredAction[] = [];
+                    idsToSelect.forEach((trackId)=>{
+                      if (!globals.state.selectedTrackIds.has(trackId)) {
+                        actions.push(Actions.toggleTrackSelection({trackId}));
+                      }
+                    });
+                    globals.dispatchMultiple(actions);
+                    return;
+                  }
+                }
+            }
+            globals.dispatch(
+              Actions.toggleTrackSelection({trackId: attrs.trackState.id}));
+          },
           ondragstart: this.ondragstart.bind(this),
           ondragenter: (e: DragEvent)=>{
             e.preventDefault();
@@ -240,7 +287,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
                   globals.state.currentSelection.kind === 'AREA' ?
               m(TrackButton, {
                 action: (e: PerfettoMouseEvent) => {
-                  globals.dispatch(Actions.toggleTrackSelection(
+                  globals.dispatch(Actions.toggleTrackInAreaSelection(
                       {id: attrs.trackState.id, isTrackGroup: false}));
                   e.stopPropagation();
                 },

@@ -189,12 +189,12 @@ export class TrackGroupPanel extends Panel<Attrs> {
         m(`.shell[draggable=true]`,
           {
             onclick: (e: MouseEvent) => {
-              globals.dispatch(Actions.toggleTrackGroupCollapsed({
-                trackGroupId: attrs.trackGroupId,
-              })),
+              globals.dispatch(
+                Actions.toggleTrackGroupSelection(
+                  {trackGroupId: attrs.trackGroupId}));
                   e.stopPropagation();
             },
-            class: `${highlightClass} ${dragClass} ${dropClass}`,
+            class: `${highlightClass} ${dragClass} ${dropClass} ${globals.state.selectedTrackGroupIds.has(attrs.trackGroupId)? 'selected': ''}`,
             ondragstart: this.ondragstart.bind(this),
             ondragenter: (e: DragEvent)=>{
               e.preventDefault();
@@ -209,7 +209,14 @@ export class TrackGroupPanel extends Panel<Attrs> {
           },
 
           m('.fold-button',
-            {...marginStyling},
+            {...marginStyling,
+              onclick: (e: MouseEvent) => {
+                globals.dispatch(Actions.toggleTrackGroupCollapsed({
+                  trackGroupId: attrs.trackGroupId,
+                }));
+                e.stopPropagation();
+              },
+            },
             m('i.material-icons',
               this.trackGroupState.collapsed ? CHEVRON_RIGHT : EXPAND_DOWN)),
           m('h1.track-title',
@@ -227,7 +234,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
               m('i.material-icons.track-button',
                 {
                   onclick: (e: MouseEvent) => {
-                    globals.dispatch(Actions.toggleTrackSelection(
+                    globals.dispatch(Actions.toggleTrackInAreaSelection(
                         {id: attrs.trackGroupId, isTrackGroup: true}));
                     e.stopPropagation();
                   },

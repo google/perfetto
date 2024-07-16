@@ -398,6 +398,7 @@ export interface LogSelection {
   trackId: string;
 }
 
+
 export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
@@ -630,6 +631,10 @@ export interface State {
 
   // Omnibox info.
   omniboxState: OmniboxState;
+
+  selectedTrackIds: Set<string>;
+  selectedTrackGroupIds: Set<string>;
+  lastSelectedTrackId?: string;
 }
 
 export const defaultTraceTime = {

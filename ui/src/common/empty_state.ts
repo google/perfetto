@@ -169,5 +169,7 @@ export function createEmptyState(): State {
     },
 
     filteredTracks: [],
+    selectedTrackGroupIds: new Set<string>(),
+    selectedTrackIds: new Set<string>(),
   };
 }

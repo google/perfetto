@@ -66,6 +66,7 @@ import {
 import {TPDuration, TPTime} from './time';
 import {STR} from './query_result';
 import {remove} from '../base/array_utils';
+import {pluginManager} from './plugins';
 
 export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
 
@@ -1244,7 +1245,7 @@ export const StateActions = {
         };
       },
 
-  toggleTrackSelection(
+  toggleTrackInAreaSelection(
       state: StateDraft, args: {id: string, isTrackGroup: boolean}) {
     const selection = state.currentSelection;
     if (selection === null || selection.kind !== 'AREA') return;
@@ -1510,6 +1511,44 @@ export const StateActions = {
       state: StateDraft,
       args: {filteredTracks: AddTrackLikeArgs[]}) {
     state.filteredTracks = [...args.filteredTracks];
+  },
+
+  clearTrackAndGroupSelection(
+    state: StateDraft,
+    _: {},
+  ) {
+    state.selectedTrackIds.clear();
+    state.selectedTrackGroupIds.clear();
+  },
+
+  toggleTrackSelection(
+    state: StateDraft,
+    args: {trackId: string},
+  ) {
+    if (state.selectedTrackIds.has(args.trackId)) {
+      state.selectedTrackIds.delete(args.trackId);
+    } else {
+      state.selectedTrackIds.add(args.trackId);
+      state.lastSelectedTrackId = args.trackId;
+    }
+    pluginManager.onTrackSelectionChange(
+      Array.from(state.selectedTrackIds),
+      Array.from(state.selectedTrackGroupIds));
+  },
+
+  toggleTrackGroupSelection(
+    state: StateDraft,
+    args: {trackGroupId: string},
+  ) {
+    if (state.selectedTrackGroupIds.has(args.trackGroupId)) {
+      state.selectedTrackGroupIds.delete(args.trackGroupId);
+    } else {
+      state.lastSelectedTrackId = undefined;
+      state.selectedTrackGroupIds.add(args.trackGroupId);
+    }
+    pluginManager.onTrackSelectionChange(
+      Array.from(state.selectedTrackIds),
+      Array.from(state.selectedTrackGroupIds));
   },
 };
 

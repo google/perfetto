@@ -116,6 +116,10 @@ export interface PluginContext {
       onDetailsPanelSelectionChange: (newSelection?: Selection) => void): void;
   // Register a custom button on the timeline
   registerCustomButton(button: CustomButtonArgs): void;
+
+  registerOnTrackSelectionChange(
+    onTrackSelectionChange:
+      (trackIds: string[], trackGroupIds: string[]) => void): void;
 }
 
 export interface PluginInfo {
