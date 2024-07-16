@@ -223,8 +223,24 @@ inline base::Status ValidateFunctionArguments(
   return base::OkStatus();
 }
 
+inline const char* SqlValueTypeToString(SqlValue::Type type) {
+  switch (type) {
+    case SqlValue::Type::kString:
+      return "STRING";
+    case SqlValue::Type::kDouble:
+      return "DOUBLE";
+    case SqlValue::Type::kLong:
+      return "LONG";
+    case SqlValue::Type::kBytes:
+      return "BYTES";
+    case SqlValue::Type::kNull:
+      return "NULL";
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 // Converts the given SqlValue type to the type string SQLite understands.
-inline std::string SqlValueTypeToString(SqlValue::Type type) {
+inline std::string SqlValueTypeToSqliteTypeName(SqlValue::Type type) {
   switch (type) {
     case SqlValue::Type::kString:
       return "TEXT";

@@ -51,14 +51,14 @@ auto CreateTableStrFromState(RuntimeTableFunctionModule::State* state) {
   columns.reserve(state->return_values.size());
   for (const auto& ret : state->return_values) {
     columns.emplace_back(ret.name().ToStdString() + " " +
-                         sqlite::utils::SqlValueTypeToString(
+                         sqlite::utils::SqlValueTypeToSqliteTypeName(
                              sql_argument::TypeToSqlValueType(ret.type())));
   }
   for (const auto& arg : state->prototype.arguments) {
     // Add the "in_" prefix to every argument param to avoid clashes between the
     // output and input parameters.
     columns.emplace_back("in_" + arg.name().ToStdString() + " " +
-                         sqlite::utils::SqlValueTypeToString(
+                         sqlite::utils::SqlValueTypeToSqliteTypeName(
                              sql_argument::TypeToSqlValueType(arg.type())) +
                          " HIDDEN");
   }
