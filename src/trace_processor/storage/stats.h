@@ -271,6 +271,7 @@ namespace stats {
   F(perf_unknown_record_type,             kIndexed, kInfo,     kAnalysis, ""), \
   F(perf_record_skipped,                  kSingle,  kError,    kAnalysis, ""), \
   F(perf_samples_skipped,                 kSingle,  kError,    kAnalysis, ""), \
+  F(perf_counter_skipped_because_no_cpu,  kSingle,  kError,    kAnalysis, ""), \
   F(perf_features_skipped,                kIndexed, kInfo,     kAnalysis, ""), \
   F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,    ""), \
   F(perf_dummy_mapping_used,              kSingle,  kInfo,     kAnalysis, ""), \
