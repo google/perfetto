@@ -64,6 +64,11 @@ constexpr KeyAndId kMeminfoKeys[] = {
     {"VmallocChunk", protos::pbzero::MeminfoCounters::MEMINFO_VMALLOC_CHUNK},
     {"CmaTotal", protos::pbzero::MeminfoCounters::MEMINFO_CMA_TOTAL},
     {"CmaFree", protos::pbzero::MeminfoCounters::MEMINFO_CMA_FREE},
+    {"Gpu", protos::pbzero::MeminfoCounters::MEMINFO_GPU},
+    {"Zram", protos::pbzero::MeminfoCounters::MEMINFO_ZRAM},
+    {"Misc", protos::pbzero::MeminfoCounters::MEMINFO_MISC},
+    {"ION_heap", protos::pbzero::MeminfoCounters::MEMINFO_ION_HEAP},
+    {"ION_heap_pool", protos::pbzero::MeminfoCounters::MEMINFO_ION_HEAP_POOL},
 };
 
 const KeyAndId kVmstatKeys[] = {
