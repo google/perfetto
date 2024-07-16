@@ -57,6 +57,11 @@ enum MeminfoCounters {
   MEMINFO_VMALLOC_CHUNK = 31;
   MEMINFO_CMA_TOTAL = 32;
   MEMINFO_CMA_FREE = 33;
+  MEMINFO_GPU = 34;
+  MEMINFO_ZRAM = 35;
+  MEMINFO_MISC = 36;
+  MEMINFO_ION_HEAP = 37;
+  MEMINFO_ION_HEAP_POOL = 38;
 }
 
 // Counter definitions for Linux's /proc/vmstat.
