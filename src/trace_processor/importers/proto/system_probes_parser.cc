@@ -742,6 +742,14 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             context_->storage->InternString(packet.android_soc_model())));
   }
 
+  if (packet.has_android_hardware_revision()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_hardware_revision,
+        Variadic::String(
+            context_->storage->InternString(
+                packet.android_hardware_revision())));
+  }
+
   page_size_ = packet.page_size();
   if (!page_size_) {
     page_size_ = 4096;
