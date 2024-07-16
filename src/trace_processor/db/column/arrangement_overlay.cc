@@ -205,6 +205,14 @@ std::optional<Token> ArrangementOverlay::ChainImpl::MinElement(
   return inner_->MinElement(indices);
 }
 
+std::unique_ptr<DataLayer> ArrangementOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    i = (*arrangement_)[i];
+  }
+  return inner_->Flatten(indices);
+}
+
 SqlValue ArrangementOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
     uint32_t index) const {
   return inner_->Get_AvoidUsingBecauseSlow((*arrangement_)[index]);

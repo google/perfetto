@@ -17,6 +17,7 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_TYPES_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -26,6 +27,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/string_pool.h"
 
 namespace perfetto::trace_processor {
 

@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_set>
@@ -627,6 +628,12 @@ std::optional<Token> StringStorage::ChainImpl::MinElement(
   }
 
   return *tok;
+}
+
+std::unique_ptr<DataLayer> StringStorage::ChainImpl::Flatten(
+    std::vector<uint32_t>&) const {
+  return std::unique_ptr<DataLayer>(
+      new StringStorage(string_pool_, data_, is_sorted_));
 }
 
 SqlValue StringStorage::ChainImpl::Get_AvoidUsingBecauseSlow(
