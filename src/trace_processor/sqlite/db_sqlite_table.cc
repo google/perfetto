@@ -118,7 +118,7 @@ std::string CreateTableStatementFromSchema(const Table::Schema& schema,
   std::string stmt = "CREATE TABLE x(";
   for (const auto& col : schema.columns) {
     std::string c =
-        col.name + " " + sqlite::utils::SqlValueTypeToString(col.type);
+        col.name + " " + sqlite::utils::SqlValueTypeToSqliteTypeName(col.type);
     if (col.is_hidden) {
       c += " HIDDEN";
     }
