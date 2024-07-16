@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -320,6 +321,18 @@ std::optional<Token> NullOverlay::ChainImpl::MinElement(
   }
 
   return inner_->MinElement(indices);
+}
+
+std::unique_ptr<DataLayer> NullOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    if (non_null_->IsSet(i)) {
+      i = non_null_->CountSetBits(i);
+    } else {
+      i = std::numeric_limits<uint32_t>::max();
+    }
+  }
+  return inner_->Flatten(indices);
 }
 
 SqlValue NullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
