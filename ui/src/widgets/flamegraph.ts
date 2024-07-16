@@ -31,16 +31,13 @@ const LABEL_FONT_STYLE = '12px Roboto Mono';
 const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
 const FILTER_COMMON_TEXT = `
-- "Show Stack: foo" or "SS: foo" to show only stacks containing "foo"
+- "Show Stack: foo" or "SS: foo" or "foo" to show only stacks containing "foo"
 - "Hide Stack: foo" or "HS: foo" to hide all stacks containing "foo"
 - "Show From Frame: foo" or "SFF: foo" to show frames containing "foo" and all descendants
 - "Hide Frame: foo" or "HF: foo" to hide all frames containing "foo"
 `;
 const FILTER_EMPTY_TEXT = `
 Available filters:${FILTER_COMMON_TEXT}
-`;
-const FILTER_INVALID_TEXT = `
-Invalid filter. Please use the following options:${FILTER_COMMON_TEXT}
 `;
 const LABEL_PADDING_PX = 5;
 const LABEL_MIN_WIDTH_FOR_TEXT_PX = 5;
@@ -154,7 +151,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private rawFilterText: string = '';
   private rawFilters: ReadonlyArray<string> = [];
   private filterFocus: boolean = false;
-  private filterChangeFail: boolean = false;
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
@@ -476,18 +472,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             value: this.rawFilterText,
             onChange: (value: string) => {
               self.rawFilterText = value;
-              self.filterChangeFail = false;
               scheduleFullRedraw();
             },
             onTagAdd: (tag: string) => {
-              const filter = normalizeFilter(tag);
-              if (filter === undefined) {
-                self.filterChangeFail = true;
-              } else {
-                self.rawFilters = [...self.rawFilters, filter];
-                self.rawFilterText = '';
-                self.attrs.onFiltersChanged(computeFilters(self.rawFilters));
-              }
+              self.rawFilters = [...self.rawFilters, normalizeFilter(tag)];
+              self.rawFilterText = '';
+              self.attrs.onFiltersChanged(computeFilters(self.rawFilters));
               scheduleFullRedraw();
             },
             onTagRemove(index: number) {
@@ -495,31 +485,20 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               filters.splice(index, 1);
               self.rawFilters = filters;
               self.attrs.onFiltersChanged(computeFilters(self.rawFilters));
-              self.filterChangeFail = false;
               scheduleFullRedraw();
             },
             onfocus() {
               self.filterFocus = true;
-              self.filterChangeFail = false;
             },
             onblur() {
               self.filterFocus = false;
-              self.filterChangeFail = false;
             },
             placeholder: 'Add filter...',
           }),
-          isOpen:
-            self.filterFocus &&
-            (this.rawFilterText.length === 0 || self.filterChangeFail),
+          isOpen: self.filterFocus && this.rawFilterText.length === 0,
           position: PopupPosition.Bottom,
         },
-        m(
-          '.pf-flamegraph-filter-bar-popup-content',
-          (self.rawFilterText === ''
-            ? FILTER_EMPTY_TEXT
-            : FILTER_INVALID_TEXT
-          ).trim(),
-        ),
+        m('.pf-flamegraph-filter-bar-popup-content', FILTER_EMPTY_TEXT.trim()),
       ),
     );
   }
@@ -752,7 +731,7 @@ function displaySize(totalSize: number, unit: string): string {
   return `${resultString} ${units[unitsIndex][0]}${unit}`;
 }
 
-function normalizeFilter(filter: string) {
+function normalizeFilter(filter: string): string {
   const lwr = filter.toLowerCase();
   if (lwr.startsWith('ss: ') || lwr.startsWith('show stack: ')) {
     return 'Show Stack: ' + filter.split(': ', 2)[1];
@@ -763,7 +742,7 @@ function normalizeFilter(filter: string) {
   } else if (lwr.startsWith('hf: ') || lwr.startsWith('hide frame: ')) {
     return 'Hide Frame: ' + filter.split(': ', 2)[1];
   }
-  return undefined;
+  return 'Show Stack: ' + filter;
 }
 
 function computeFilters(rawFilters: readonly string[]): FlamegraphFilters {
