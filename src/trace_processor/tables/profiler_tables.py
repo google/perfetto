@@ -269,7 +269,7 @@ PERF_SAMPLE_TABLE = Table(
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('utid', CppUint32()),
-        C('cpu', CppUint32()),
+        C('cpu', CppOptional(CppUint32())),
         C('cpu_mode', CppString()),
         C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
         C('unwind_error', CppOptional(CppString())),
