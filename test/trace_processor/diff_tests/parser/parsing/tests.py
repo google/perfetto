@@ -1485,3 +1485,71 @@ class Parsing(TestSuite):
       0,0,"[NULL]","AArch64 Processor rev 13 (aarch64)"
       1,0,"[NULL]","AArch64 Processor rev 13 (aarch64)"
       """))
+
+  # Test that the sched slices of a VM guest is ingested and not filtered
+  # because timestamp is far before the tracing session.
+  def test_sched_remote_clock_sync(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_machine_trace.pb'),
+        query="""
+        SELECT ts, cpu.cpu, thread.name, thread.tid
+        FROM sched JOIN cpu USING(ucpu) JOIN thread USING(utid)
+        WHERE cpu.machine_id IS NOT NULL LIMIT 10
+        """,
+        out=Csv("""
+        "ts","cpu","name","tid"
+        5230310112669,5,"kworker/5:7",32536
+        5230310132355,5,"swapper",0
+        5230310284063,4,"traced_probes",550
+        5230310421518,1,"swapper",0
+        5230310428373,3,"swapper",0
+        5230310587630,1,"rcuog/4",49
+        5230310590258,3,"logd.klogd",246
+        5230310592868,1,"swapper",0
+        5230310659357,3,"swapper",0
+        5230310671279,5,"traced_relay",25171
+        """))
+
+  # A query that selects the sched slices of a host vcpu thread and the guest
+  # sched slices. If remote clock sync works, guest sched slices should not be
+  # far off from host vcpu slices, and the query should return both host and
+  # guest slices.
+  def test_sched_remote_clock_sync_vcpu0(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_machine_trace.pb'),
+        query="""
+        SELECT ts, cpu.cpu, utid, machine_id
+        FROM sched JOIN cpu USING (ucpu)
+        WHERE ucpu = 4096
+        UNION
+        SELECT ts, cpu.cpu, utid, machine_id
+        FROM sched JOIN cpu USING (ucpu)
+        WHERE utid = (
+          SELECT utid
+          FROM thread
+          WHERE name = 'crosvm_vcpu0')
+        LIMIT 20
+        """,
+        out=Csv("""
+        "ts","cpu","utid","machine_id"
+        5230311628979,0,1,1
+        5230315517287,0,11,1
+        5230315524649,0,1,1
+        5230315676788,0,10,1
+        5230315684911,0,1,1
+        5230319663217,0,10,1
+        5230319684310,0,1,1
+        5230323692459,0,10,1
+        5230323726976,0,11,1
+        5230323764556,0,1,1
+        5230327702466,0,10,1
+        5230327736100,0,1,1
+        5230331761483,0,10,1
+        5230331800905,0,11,1
+        5230331837332,0,1,1
+        5230421799455,0,10,1
+        5230421810047,0,1,1
+        5230422048874,0,1306,"[NULL]"
+        5230422153284,0,1306,"[NULL]"
+        5230425693562,0,10,1
+        """))
