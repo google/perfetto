@@ -31,10 +31,10 @@ const LABEL_FONT_STYLE = '12px Roboto Mono';
 const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
 const FILTER_COMMON_TEXT = `
-- "Hide Frame: foo" or "HF: foo" to hide all frames containing "foo"
 - "Show Stack: foo" or "SS: foo" to show only stacks containing "foo"
 - "Hide Stack: foo" or "HS: foo" to hide all stacks containing "foo"
-Frame filters are evaluated before stack filters.
+- "Show From Frame: foo" or "SFF: foo" to show frames containing "foo" and all descendants
+- "Hide Frame: foo" or "HF: foo" to hide all frames containing "foo"
 `;
 const FILTER_EMPTY_TEXT = `
 Available filters:${FILTER_COMMON_TEXT}
@@ -96,6 +96,7 @@ export interface FlamegraphQueryData {
 export interface FlamegraphFilters {
   readonly showStack: ReadonlyArray<string>;
   readonly hideStack: ReadonlyArray<string>;
+  readonly showFromFrame: ReadonlyArray<string>;
   readonly hideFrame: ReadonlyArray<string>;
 }
 
@@ -600,6 +601,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             scheduleFullRedraw();
           },
         }),
+        m(Button, {
+          label: 'Show From Frame',
+          onclick: () => {
+            this.rawFilters = [...this.rawFilters, `Show From Frame: ${name}`];
+            this.attrs.onFiltersChanged(computeFilters(this.rawFilters));
+            this.tooltipPos = undefined;
+            scheduleFullRedraw();
+          },
+        }),
       ),
     );
   }
@@ -743,12 +753,14 @@ function displaySize(totalSize: number, unit: string): string {
 }
 
 function normalizeFilter(filter: string) {
-  const lower = filter.toLowerCase();
-  if (lower.startsWith('ss: ') || lower.startsWith('show stack: ')) {
+  const lwr = filter.toLowerCase();
+  if (lwr.startsWith('ss: ') || lwr.startsWith('show stack: ')) {
     return 'Show Stack: ' + filter.split(': ', 2)[1];
-  } else if (lower.startsWith('hs: ') || lower.startsWith('hide stack: ')) {
+  } else if (lwr.startsWith('hs: ') || lwr.startsWith('hide stack: ')) {
     return 'Hide Stack: ' + filter.split(': ', 2)[1];
-  } else if (lower.startsWith('hf: ') || lower.startsWith('hide frame: ')) {
+  } else if (lwr.startsWith('sff: ') || lwr.startsWith('show from frame: ')) {
+    return 'Show From Frame: ' + filter.split(': ', 2)[1];
+  } else if (lwr.startsWith('hf: ') || lwr.startsWith('hide frame: ')) {
     return 'Hide Frame: ' + filter.split(': ', 2)[1];
   }
   return undefined;
@@ -758,16 +770,25 @@ function computeFilters(rawFilters: readonly string[]): FlamegraphFilters {
   const showStack = rawFilters
     .filter((x) => x.startsWith('Show Stack: '))
     .map((x) => x.split(': ', 2)[1]);
-
   assertTrue(
     showStack.length < 32,
     'More than 32 show stack filters is not supported',
   );
+
+  const showFromFrame = rawFilters
+    .filter((x) => x.startsWith('Show From Frame: '))
+    .map((x) => x.split(': ', 2)[1]);
+  assertTrue(
+    showFromFrame.length < 32,
+    'More than 32 show from frame filters is not supported',
+  );
+
   return {
     showStack,
     hideStack: rawFilters
       .filter((x) => x.startsWith('Hide Stack: '))
       .map((x) => x.split(': ', 2)[1]),
+    showFromFrame,
     hideFrame: rawFilters
       .filter((x) => x.startsWith('Hide Frame: '))
       .map((x) => x.split(': ', 2)[1]),
