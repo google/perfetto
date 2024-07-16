@@ -232,7 +232,7 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
             "SPAN_JOIN: Invalid type for column '%s' in table %s: expect LONG "
             "or NULL, but %s found",
             col.second.c_str(), desc.name.c_str(),
-            sqlite::utils::SqlValueTypeToString(col.first).c_str());
+            sqlite::utils::SqlValueTypeToString(col.first));
       }
     }
     if (base::Contains(col.second, ",")) {
@@ -282,7 +282,7 @@ SpanJoinOperatorModule::TableDefinition::CreateVtabCreateTableSection() const {
       cols += col.second + ",";
     } else {
       cols += col.second + " " +
-              sqlite::utils::SqlValueTypeToString(col.first) + ",";
+              sqlite::utils::SqlValueTypeToSqliteTypeName(col.first) + ",";
     }
   }
   return cols;

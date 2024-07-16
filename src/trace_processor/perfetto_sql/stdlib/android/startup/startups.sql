@@ -97,7 +97,7 @@ CREATE PERFETTO TABLE android_startup_processes(
   -- Upid of process on which activity started.
   upid INT,
   -- Type of the startup.
-  startup_type INT
+  startup_type STRING
 ) AS
 -- This is intentionally a materialized query. For some reason, if we don't
 -- materialize, we end up with a query which is an order of magnitude slower :(

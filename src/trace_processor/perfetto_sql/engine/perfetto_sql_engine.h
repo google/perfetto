@@ -284,17 +284,21 @@ class PerfettoSqlEngine {
       bool deterministic = true);
 
   // Get the column names from a statement.
-  // |operator_name| is used in the error message if the statement is invalid.
-  static base::StatusOr<std::vector<std::string>>
-  GetColumnNamesFromSelectStatement(const SqliteEngine::PreparedStatement& stmt,
-                                    const char* tag);
+  // |tag| is used in the error message if the statement is invalid.
+  base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
+      const SqliteEngine::PreparedStatement& stmt,
+      const char* tag) const;
 
   // Validates that the column names in |column_names| match the |schema|.
-  // |operator_name| is used in the error message if the statement is invalid.
-  static base::Status ValidateColumnNames(
+  // Given that PerfettoSQL supports an arbitrary order of columns in the
+  // schema, this function also normalises the schema by reordering the schema
+  // columns to match the order of columns in the query. |tag| is used in the
+  // error message if the statement is invalid.
+  base::StatusOr<std::vector<sql_argument::ArgumentDefinition>>
+  ValidateAndGetEffectiveSchema(
       const std::vector<std::string>& column_names,
       const std::vector<sql_argument::ArgumentDefinition>& schema,
-      const char* operator_name);
+      const char* tag) const;
 
   // Given a module and a key, include the correct file(s) from the module.
   // The key can contain a wildcard to include all files in the module with the
