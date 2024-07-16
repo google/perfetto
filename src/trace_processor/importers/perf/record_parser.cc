@@ -161,11 +161,6 @@ base::Status RecordParser::InternSample(Sample sample) {
         "Can not parse samples with no PERF_SAMPLE_TID field");
   }
 
-  if (!sample.cpu.has_value()) {
-    return base::ErrStatus(
-        "Can not parse samples with no PERF_SAMPLE_CPU field");
-  }
-
   UniqueTid utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
                                                            sample.pid_tid->pid);
   const auto upid = *context_->storage->thread_table()
@@ -179,7 +174,7 @@ base::Status RecordParser::InternSample(Sample sample) {
       InternCallchain(upid, sample.callchain);
 
   context_->storage->mutable_perf_sample_table()->Insert(
-      {sample.trace_ts, utid, *sample.cpu,
+      {sample.trace_ts, utid, sample.cpu,
        context_->storage->InternString(
            ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode)),
        callsite_id, std::nullopt, sample.perf_session->perf_session_id()});
@@ -295,15 +290,18 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
     return UpdateCountersInReadGroups(sample);
   }
 
+  if (!sample.cpu.has_value()) {
+    context_->storage->IncrementStats(
+        stats::perf_counter_skipped_because_no_cpu);
+    return base::OkStatus();
+  }
+
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
     return base::ErrStatus("No period for sample");
   }
 
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
-  if (!sample.cpu.has_value()) {
-    return base::ErrStatus("No cpu for sample");
-  }
   sample.attr->GetOrCreateCounter(*sample.cpu)
       .AddDelta(sample.trace_ts, static_cast<double>(period));
   return base::OkStatus();
@@ -311,7 +309,9 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
 
 base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
   if (!sample.cpu.has_value()) {
-    return base::ErrStatus("No cpu for sample");
+    context_->storage->IncrementStats(
+        stats::perf_counter_skipped_because_no_cpu);
+    return base::OkStatus();
   }
 
   for (const auto& entry : sample.read_groups) {
