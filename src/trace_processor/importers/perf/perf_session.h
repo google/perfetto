@@ -80,6 +80,15 @@ class PerfSession : public RefCounted {
   std::optional<BuildId> LookupBuildId(uint32_t pid,
                                        const std::string& filename) const;
 
+  // The kernel stores the return address for non leaf frames in call chains.
+  // Simpleperf accounts for this when writing perf data files, linux perf does
+  // not. This method returns true if we need to convert return addresses to
+  // call sites when parsing call chains (i.e. if the trace comes from linux
+  // perf).
+  bool needs_pc_adjustment() const { return is_simpleperf_ == false; }
+
+  void SetIsSimpleperf() { is_simpleperf_ = true; }
+
  private:
   struct BuildIdMapKey {
     int32_t pid;
@@ -117,6 +126,8 @@ class PerfSession : public RefCounted {
   // associated). This makes the attr lookup given a record trivial and not
   // dependant no having any id field in the records.
   bool has_single_perf_event_attr_;
+
+  bool is_simpleperf_ = false;
 
   base::FlatHashMap<BuildIdMapKey, BuildId, BuildIdMapKey::Hasher> build_ids_;
 };

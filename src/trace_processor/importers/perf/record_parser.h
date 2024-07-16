@@ -19,7 +19,7 @@
 
 #include <stdint.h>
 #include <cstdint>
-#include <vector>
+#include <optional>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
@@ -31,6 +31,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class MappingTracker;
 class TraceProcessorContext;
 
 namespace perf_importer {
@@ -60,11 +61,13 @@ class RecordParser : public PerfRecordParser {
 
   std::optional<CallsiteId> InternCallchain(
       UniquePid upid,
-      const std::vector<Sample::Frame>& callchain);
+      const std::vector<Sample::Frame>& callchain,
+      bool adjust_pc);
 
   UniquePid GetUpid(const CommonMmapRecordFields& fields) const;
 
-  TraceProcessorContext* context_ = nullptr;
+  TraceProcessorContext* const context_ = nullptr;
+  MappingTracker* const mapping_tracker_;
 };
 
 }  // namespace perf_importer
