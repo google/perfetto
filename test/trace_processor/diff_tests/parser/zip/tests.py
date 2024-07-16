@@ -23,7 +23,7 @@ class Zip(TestSuite):
   def test_perf_proto_sym(self):
     return DiffTestBlueprint(
         trace=DataPath('zip/perf_track_sym.zip'),
-        query=Path('stacks_test.sql'),
+        query=Path('../simpleperf/stacks_test.sql'),
         out=Csv('''
         "name"
         "main,A"
