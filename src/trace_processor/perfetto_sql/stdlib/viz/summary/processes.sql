@@ -29,7 +29,8 @@ GROUP BY upid;
 
 CREATE PERFETTO TABLE _heap_profile_graph_summary AS
 SELECT upid, COUNT() AS graph_object_count
-FROM heap_graph_object;
+FROM heap_graph_object
+GROUP BY upid;
 
 CREATE PERFETTO TABLE _thread_process_grouped_summary AS
 SELECT
