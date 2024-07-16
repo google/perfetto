@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_set>
@@ -337,6 +338,11 @@ std::optional<Token> SetIdStorage::ChainImpl::MinElement(
   }
 
   return *tok;
+}
+
+std::unique_ptr<DataLayer> SetIdStorage::ChainImpl::Flatten(
+    std::vector<uint32_t>&) const {
+  return std::unique_ptr<DataLayer>(new SetIdStorage(values_));
 }
 
 SqlValue SetIdStorage::ChainImpl::Get_AvoidUsingBecauseSlow(

@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -271,6 +272,16 @@ std::optional<Token> DenseNullOverlay::ChainImpl::MinElement(
 
   return (first_null_it == indices.tokens.end()) ? inner_->MinElement(indices)
                                                  : *first_null_it;
+}
+
+std::unique_ptr<DataLayer> DenseNullOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    if (!non_null_->IsSet(i)) {
+      i = std::numeric_limits<uint32_t>::max();
+    }
+  }
+  return inner_->Flatten(indices);
 }
 
 SqlValue DenseNullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(

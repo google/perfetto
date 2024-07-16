@@ -93,6 +93,8 @@ class FakeStorageChain : public DataLayerChain {
 
   std::optional<Token> MinElement(Indices&) const override;
 
+  std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override;
+
   SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 
   void Serialize(StorageProto*) const override;
