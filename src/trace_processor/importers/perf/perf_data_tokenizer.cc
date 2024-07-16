@@ -415,6 +415,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
     }
 
     case feature::ID_SIMPLEPERF_META_INFO: {
+      perf_session_->SetIsSimpleperf();
       feature::SimpleperfMetaInfo meta_info;
       RETURN_IF_ERROR(feature::SimpleperfMetaInfo::Parse(data, meta_info));
       for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
@@ -423,6 +424,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       break;
     }
     case feature::ID_SIMPLEPERF_FILE2: {
+      perf_session_->SetIsSimpleperf();
       RETURN_IF_ERROR(feature::ParseSimpleperfFile2(
           std::move(data), [&](TraceBlobView blob) {
             third_party::simpleperf::proto::pbzero::FileFeature::Decoder file(

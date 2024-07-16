@@ -92,7 +92,7 @@ using FramesTable = tables::StackProfileFrameTable;
 using CallsitesTable = tables::StackProfileCallsiteTable;
 
 RecordParser::RecordParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context), mapping_tracker_(context->mapping_tracker.get()) {}
 
 RecordParser::~RecordParser() = default;
 
@@ -170,8 +170,8 @@ base::Status RecordParser::InternSample(Sample sample) {
   if (sample.callchain.empty() && sample.ip.has_value()) {
     sample.callchain.push_back(Sample::Frame{sample.cpu_mode, *sample.ip});
   }
-  std::optional<CallsiteId> callsite_id =
-      InternCallchain(upid, sample.callchain);
+  std::optional<CallsiteId> callsite_id = InternCallchain(
+      upid, sample.callchain, sample.perf_session->needs_pc_adjustment());
 
   context_->storage->mutable_perf_sample_table()->Insert(
       {sample.trace_ts, utid, sample.cpu,
@@ -184,33 +184,48 @@ base::Status RecordParser::InternSample(Sample sample) {
 
 std::optional<CallsiteId> RecordParser::InternCallchain(
     UniquePid upid,
-    const std::vector<Sample::Frame>& callchain) {
+    const std::vector<Sample::Frame>& callchain,
+    bool adjust_pc) {
   if (callchain.empty()) {
     return std::nullopt;
   }
 
   auto& stack_profile_tracker = *context_->stack_profile_tracker;
-  auto& mapping_tracker = *context_->mapping_tracker;
 
   std::optional<CallsiteId> parent;
   uint32_t depth = 0;
+  // Note callchain is not empty so this is always valid.
+  const auto leaf = --callchain.rend();
   for (auto it = callchain.rbegin(); it != callchain.rend(); ++it) {
+    uint64_t ip = it->ip;
+
+    // For non leaf frames the ip stored in the chain is the return address, but
+    // what we really need is the address of the call instruction. For that we
+    // just need to move the ip one instruction back. Instructions can be of
+    // different sizes depending on the CPU arch (ARM, AARCH64, etc..). For
+    // symbolization to work we don't really need to point at the first byte of
+    // the instruction, any byte of the instruction seems to be enough, so use
+    // -1.
+    if (ip != 0 && it != leaf && adjust_pc) {
+      --ip;
+    }
+
     VirtualMemoryMapping* mapping;
     if (IsInKernel(it->cpu_mode)) {
-      mapping = mapping_tracker.FindKernelMappingForAddress(it->ip);
+      mapping = mapping_tracker_->FindKernelMappingForAddress(ip);
     } else {
-      mapping = mapping_tracker.FindUserMappingForAddress(upid, it->ip);
+      mapping = mapping_tracker_->FindUserMappingForAddress(upid, ip);
     }
 
     if (!mapping) {
       context_->storage->IncrementStats(stats::perf_dummy_mapping_used);
       // Simpleperf will not create mappings for anonymous executable mappings
       // which are used by JITted code (e.g. V8 JavaScript).
-      mapping = mapping_tracker.GetDummyMapping();
+      mapping = mapping_tracker_->GetDummyMapping();
     }
 
     const FrameId frame_id =
-        mapping->InternFrame(mapping->ToRelativePc(it->ip), "");
+        mapping->InternFrame(mapping->ToRelativePc(ip), "");
 
     parent = stack_profile_tracker.InternCallsite(parent, frame_id, depth);
     depth++;
