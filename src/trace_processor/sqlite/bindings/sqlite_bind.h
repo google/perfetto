@@ -19,6 +19,7 @@
 
 #include <sqlite3.h>  // IWYU pragma: export
 #include <cstdint>
+#include <memory>
 
 namespace perfetto::trace_processor::sqlite::bind {
 
@@ -32,6 +33,16 @@ inline int Pointer(sqlite3_stmt* stmt,
                    const char* name,
                    PointerDestructor destructor) {
   return sqlite3_bind_pointer(stmt, static_cast<int>(N), ptr, name, destructor);
+}
+
+template <typename T>
+inline int UniquePointer(sqlite3_stmt* stmt,
+                         uint32_t N,
+                         std::unique_ptr<T> ptr,
+                         const char* name) {
+  return sqlite3_bind_pointer(
+      stmt, static_cast<int>(N), ptr.release(), name,
+      [](void* tab) { std::unique_ptr<T>(static_cast<T*>(tab)); });
 }
 
 }  // namespace perfetto::trace_processor::sqlite::bind
