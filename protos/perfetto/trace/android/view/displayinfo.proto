@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,20 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/android/view/displaycutout.proto";
+
 package perfetto.protos;
 
-message WinscopeExtensions {
-  extensions 1 to 6;
+// Represents DisplayInfo. Describes the characteristics of a particular
+// logical display.
+message DisplayInfoProto {
+  optional int32 logical_width = 1;
+  optional int32 logical_height = 2;
+  optional int32 app_width = 3;
+  optional int32 app_height = 4;
+  // The human-readable name of the display.
+  // Eg: "Built-in Screen"
+  optional string name = 5;
+  optional int32 flags = 6;
+  optional DisplayCutoutProto cutout = 7;
 }
