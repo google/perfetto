@@ -21,12 +21,13 @@ WHERE kind IN (
   'KIND_PHANTOM_REFERENCE',
   'KIND_SOFT_REFERENCE',
   'KIND_WEAK_REFERENCE'
-);
+)
+ORDER BY type_id;
 
 CREATE PERFETTO TABLE _excluded_refs AS
 SELECT ref.id
-FROM _ref_type_ids
-JOIN heap_graph_object robj USING (type_id)
-JOIN heap_graph_reference ref USING (reference_set_id)
+FROM heap_graph_reference ref
+CROSS JOIN heap_graph_object robj USING (reference_set_id)
+CROSS JOIN _ref_type_ids USING (type_id)
 WHERE ref.field_name = 'java.lang.ref.Reference.referent'
 ORDER BY ref.id;
