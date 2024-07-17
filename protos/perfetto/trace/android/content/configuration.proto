@@ -50,7 +50,7 @@ message ConfigurationProto {
 
 // All current configuration data used to select resources
 message ResourcesConfigurationProto {
-  required ConfigurationProto configuration = 1;
+  optional ConfigurationProto configuration = 1;
 
   optional uint32 sdk_version = 2;
   optional uint32 screen_width_px = 3;
