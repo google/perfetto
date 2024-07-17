@@ -5783,7 +5783,7 @@ message DisplayState {
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
 message WinscopeExtensions {
-  extensions 1 to 5;
+  extensions 1 to 6;
 }
 
 // End of protos/perfetto/trace/android/winscope_extensions.proto

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,14 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/android/server/surfaceanimator.proto";
+
 package perfetto.protos;
 
-message WinscopeExtensions {
-  extensions 1 to 6;
+// Represents a {@link com.android.server.wm.WindowContainerThumbnailProto}
+// object
+message WindowContainerThumbnailProto {
+  optional int32 width = 1;
+  optional int32 height = 2;
+  optional SurfaceAnimatorProto surface_animator = 3;
 }
