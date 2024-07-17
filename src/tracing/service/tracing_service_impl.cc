@@ -3627,6 +3627,14 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   } else {
     PERFETTO_ELOG("Unable to read ro.soc.model");
   }
+
+  std::string hw_rev_value = base::GetAndroidProp("ro.boot.hardware.revision");
+  if (!hw_rev_value.empty()) {
+    info->set_android_hardware_revision(hw_rev_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.revision");
+  }
+
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
