@@ -24,15 +24,12 @@
 #include "src/trace_processor/importers/proto/metadata_module.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/network_trace_module.h"
+#include "src/trace_processor/importers/proto/pixel_modem_module.h"
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_PIGWEED)
-#include "src/trace_processor/importers/proto/pixel_modem_module.h"
-#endif
 
 namespace perfetto {
 namespace trace_processor {
@@ -49,10 +46,7 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new MetadataModule(context));
   context->modules.emplace_back(new V8Module(context));
   context->modules.emplace_back(new WinscopeModule(context));
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_PIGWEED)
   context->modules.emplace_back(new PixelModemModule(context));
-#endif
 
   // Ftrace/Etw modules are special, because it has one extra method for parsing
   // ftrace/etw packets. So we need to store a pointer to it separately.
