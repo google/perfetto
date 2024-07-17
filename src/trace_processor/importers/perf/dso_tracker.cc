@@ -39,7 +39,7 @@ void InsertSymbols(const FileFeature::Decoder& file,
                    AddressRangeMap<std::string>& out) {
   for (auto raw_symbol = file.symbol(); raw_symbol; ++raw_symbol) {
     Symbol::Decoder symbol(*raw_symbol);
-    out.DeleteOverlapsAndEmplace(
+    out.TrimOverlapsAndEmplace(
         AddressRange::FromStartAndSize(symbol.vaddr(), symbol.len()),
         symbol.name().ToStdString());
   }

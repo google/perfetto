@@ -18,8 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_ADDRESS_RANGE_H_
 
 #include <algorithm>
-
 #include <cstdint>
+#include <iterator>
 #include <map>
 #include <set>
 #include <tuple>
@@ -274,6 +274,104 @@ class AddressRangeMap {
   const_iterator end() const { return ranges_.end(); }
   iterator erase(const_iterator pos) { return ranges_.erase(pos); }
 
+  // Emplaces a new value into the map by first trimming all overlapping
+  // intervals, deleting them if the overlap is fully contained in the new
+  // range, and splitting into two entries pointing to the same value if a
+  // single entry fully contains the new range. Returns true on success, fails
+  // if the new range is empty (as there is effectively no key to map from).
+  template <typename... Args>
+  bool TrimOverlapsAndEmplace(AddressRange range, Args&&... args) {
+    if (range.empty()) {
+      return false;
+    }
+    auto it = ranges_.upper_bound(range.start());
+    PERFETTO_DCHECK(it == ranges_.end() || range.start() < it->first.end());
+
+    // First check if we need to trim the first overlapping range, if any.
+    if (it != ranges_.end() && it->first.start() < range.start()) {
+      // Range starts after `it->first` starts, but before `it->first` ends, and
+      // so overlaps it:
+      //   it->first:   |-----------?
+      //       range:        |------?
+      PERFETTO_DCHECK(it->first.Overlaps(range));
+
+      // Cache it->first since we'll be mutating it in TrimEntryRange.
+      AddressRange existing_range = it->first;
+
+      // Trim the first overlap to end at the start of the range.
+      //   it->first:   |----|
+      //       range:        |------?
+      it = TrimEntryRange(it,
+                          AddressRange(existing_range.start(), range.start()));
+
+      if (range.end() < existing_range.end()) {
+        // Range also ends before existing_range, thus strictly containing it.
+        //   existing_range:   |-----------|    (previously it->first)
+        //            range:        |----|
+        PERFETTO_DCHECK(existing_range.Contains(range));
+
+        // In this special case, we need to split existing_range into two
+        // ranges, with the same value, and insert the new range between them:
+        //        it->first:   |----|
+        //            range:        |----|
+        //             tail:             |-|
+        // We've already trimmed existing_range (as it->first), so just add
+        // the tail now.
+
+        AddressRange tail(range.end(), existing_range.end());
+        ranges_.emplace_hint(std::next(it, 1), tail, Value(it->second));
+      }
+
+      // After trimming, the current iterated range is now before the new
+      // range. This means it no longer ends after the new range starts, and we
+      // need to advance the iterator to the new upper_bound.
+      ++it;
+      PERFETTO_DCHECK(it == ranges_.upper_bound(range.start()));
+    }
+
+    // Now, check for any ranges which are _fully_ contained inside
+    // the existing range.
+    while (it != ranges_.end() && it->first.end() <= range.end()) {
+      // Range fully contains `it->first`:
+      //   it->first:     |----|
+      //       range:   |-----------|
+      //
+      // We're testing for whether it ends after it->first, and we know it
+      // starts before it->first (because we've already handled the first
+      // overlap), so this existing range is fully contained inside the new
+      // range
+      PERFETTO_DCHECK(range.Contains(it->first));
+      it = ranges_.erase(it);
+    }
+
+    // Finally, check if we need to trim the last range. We know that it
+    // ends after the new range, but it might also start after the new
+    // range, or we might have reached the end, so this is really a check for
+    // overlap.
+    if (it != ranges_.end() && it->first.start() < range.end()) {
+      // Range overlaps with it->first, and ends before `it->first`:
+      //   it->first:     |----------|
+      //       range:   |-----|
+      PERFETTO_DCHECK(range.Overlaps(it->first));
+
+      // Trim this overlap to end after the end of the range, and insert it
+      // after where the range will be inserted.
+      //       range:   |-----|
+      //   it->first:         |-----|
+      it = TrimEntryRange(it, AddressRange(range.end(), it->first.end()));
+
+      // `it` now points to the newly trimmed range, which is _after_ where
+      // we want to insert the new range. This is what we want as an insertion
+      // hint, so keep it as is.
+    }
+
+    ranges_.emplace_hint(it, std::piecewise_construct,
+                         std::forward_as_tuple(range),
+                         std::forward_as_tuple(std::forward<Args>(args)...));
+
+    return true;
+  }
+
   // Emplaces a new value into the map by first deleting all overlapping
   // intervals. It takes an optional (set to nullptr to ignore) callback `cb`
   // that will be called for each deleted map entry.
@@ -300,15 +398,6 @@ class AddressRangeMap {
     return true;
   }
 
-  // Same as above but without a callback.
-  template <typename... Args>
-  bool DeleteOverlapsAndEmplace(AddressRange range, Args&&... args) {
-    struct NoOp {
-      void operator()(std::pair<const AddressRange, Value>&) {}
-    };
-    return DeleteOverlapsAndEmplace(NoOp(), range, std::forward<Args>(args)...);
-  }
-
   // Calls `cb` for each entry in the map that overlaps the given `range`. That
   // is, there is a point so for which `AddressRange::Contains` returns true for
   // both the entry and the given `range'
@@ -324,6 +413,24 @@ class AddressRangeMap {
   }
 
  private:
+  // Trim an entry's address range to a new value. The new value must be fully
+  // contained inside the existing range's value, to guarantee that the ranges
+  // stay in the same order. Returns a new iterator to the trimmed entry, since
+  // the trimming process invalidates the iterator.
+  typename Impl::iterator TrimEntryRange(typename Impl::iterator it,
+                                         AddressRange new_range) {
+    PERFETTO_DCHECK(it->first.Contains(new_range));
+    PERFETTO_DCHECK(!new_range.empty());
+
+    // Advance the iterator so that it stays valid -- it now also conveniently
+    // points to the entry after the current entry, which is exactly the hint we
+    // want for re-inserting in the same place.
+    auto extracted = ranges_.extract(it++);
+    extracted.key() = new_range;
+    // Reinsert in the same place, using the advanced iterator as a hint.
+    return ranges_.insert(it, std::move(extracted));
+  }
+
   // Invariants:
   //   * There are no overlapping ranges.
   //   * There are no empty ranges.

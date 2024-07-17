@@ -69,8 +69,8 @@ KernelMemoryMapping& MappingTracker::CreateKernelMemoryMapping(
       new KernelMemoryMapping(context_, std::move(params)));
 
   if (is_module) {
-    kernel_modules_.DeleteOverlapsAndEmplace(mapping->memory_range(),
-                                             mapping.get());
+    kernel_modules_.TrimOverlapsAndEmplace(mapping->memory_range(),
+                                           mapping.get());
   } else {
     kernel_ = mapping.get();
   }
@@ -85,7 +85,7 @@ UserMemoryMapping& MappingTracker::CreateUserMemoryMapping(
   std::unique_ptr<UserMemoryMapping> mapping(
       new UserMemoryMapping(context_, upid, std::move(params)));
 
-  user_memory_[upid].DeleteOverlapsAndEmplace(mapping_range, mapping.get());
+  user_memory_[upid].TrimOverlapsAndEmplace(mapping_range, mapping.get());
 
   jit_caches_[upid].ForOverlaps(
       mapping_range, [&](std::pair<const AddressRange, JitCache*>& entry) {
@@ -153,7 +153,7 @@ void MappingTracker::AddJitRange(UniquePid upid,
                                  AddressRange jit_range,
                                  JitCache* jit_cache) {
   // TODO(carlscab): Deal with overlaps
-  jit_caches_[upid].DeleteOverlapsAndEmplace(jit_range, jit_cache);
+  jit_caches_[upid].TrimOverlapsAndEmplace(jit_range, jit_cache);
   user_memory_[upid].ForOverlaps(
       jit_range, [&](std::pair<const AddressRange, UserMemoryMapping*>& entry) {
         PERFETTO_CHECK(jit_range.Contains(entry.first));
