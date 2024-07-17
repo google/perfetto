@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,16 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-message WinscopeExtensions {
-  extensions 1 to 6;
+message StatusBarManagerProto {
+  enum WindowState {
+    WINDOW_STATE_SHOWING = 0;
+    WINDOW_STATE_HIDING = 1;
+    WINDOW_STATE_HIDDEN = 2;
+  }
+  enum TransientWindowState {
+    TRANSIENT_BAR_NONE = 0;
+    TRANSIENT_BAR_SHOW_REQUESTED = 1;
+    TRANSIENT_BAR_SHOWING = 2;
+    TRANSIENT_BAR_HIDING = 3;
+  }
 }
