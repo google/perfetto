@@ -159,6 +159,10 @@ inline int SetError(sqlite3_vtab* tab, const char* status) {
   return SQLITE_ERROR;
 }
 
+inline void SetError(sqlite3_context* ctx, const char* status) {
+  sqlite::result::Error(ctx, status);
+}
+
 inline int SetError(sqlite3_vtab* tab, base::Status s) {
   return SetError(tab, s.c_message());
 }

@@ -125,7 +125,7 @@ CREATE PERFETTO MACRO _viz_flamegraph_accumulate(
 RETURNS TableOrSubquery
 AS (
   SELECT id, cumulativeValue
-  FROM _graph_scan!(
+  FROM _graph_aggregating_scan!(
     (
       SELECT id AS source_node_id, parentId AS dest_node_id
       FROM $tab

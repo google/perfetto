@@ -70,7 +70,93 @@ class GraphScanTests(TestSuite):
         0,0
         """))
 
-  def test_scan_max_recursive(self):
+  def test_scan_root_depth(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.scan;
+
+          WITH
+            edges(source_node_id, dest_node_id) AS (
+              VALUES(0, 1), (0, 2), (1, 2), (2, 3)
+            ),
+            init(id, root_id, depth) AS (
+              VALUES(0, 0, 0), (1, 1, 0)
+            )
+          SELECT * FROM _graph_scan!(
+            edges,
+            init,
+            (root_id, depth),
+            (
+              SELECT id, root_id, depth + 1 as depth
+              FROM $table
+            )
+          )
+          ORDER BY id, root_id
+        """,
+        out=Csv("""
+        "id","root_id","depth"
+        0,0,0
+        1,0,1
+        1,1,0
+        2,0,1
+        2,0,2
+        2,1,1
+        3,0,2
+        3,0,3
+        3,1,2
+        """))
+
+  def test_aggregating_scan_empty(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.scan;
+
+          WITH foo AS (
+            SELECT 0 as source_node_id, 0 AS dest_node_id
+            WHERE FALSE
+          )
+          SELECT * FROM _graph_aggregating_scan!(
+            foo,
+            (SELECT 0 AS id, 0 as depth WHERE FALSE),
+            (depth),
+            (
+              select id, depth + 1 as depth
+              from $table
+            )
+          )
+        """,
+        out=Csv("""
+        "id","depth"
+        """))
+
+  def test_aggregating_scan_single_row(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.scan;
+
+          WITH foo AS (
+            SELECT 0 as source_node_id, 0 AS dest_node_id
+            WHERE FALSE
+          )
+          SELECT * FROM _graph_aggregating_scan!(
+            foo,
+            (SELECT 0 AS id, 0 as depth),
+            (depth),
+            (
+              select id, depth + 1 as depth
+              from $table
+            )
+          )
+        """,
+        out=Csv("""
+        "id","depth"
+        0,0
+        """))
+
+  def test_aggregating_scan_max_recursive(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
         query="""
@@ -83,7 +169,7 @@ class GraphScanTests(TestSuite):
             init(id, max_depth) AS (
               VALUES(0, 0), (4, 0)
             )
-          SELECT * FROM _graph_scan!(
+          SELECT * FROM _graph_aggregating_scan!(
             edges,
             init,
             (max_depth),
@@ -105,7 +191,7 @@ class GraphScanTests(TestSuite):
         5,1
         """))
 
-  def test_scan_min_recursive(self):
+  def test_aggregating_scan_min_recursive(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
         query="""
@@ -118,7 +204,7 @@ class GraphScanTests(TestSuite):
             init(id, min_depth) AS (
               VALUES(0, 0), (4, 0)
             )
-          SELECT * FROM _graph_scan!(
+          SELECT * FROM _graph_aggregating_scan!(
             edges,
             init,
             (min_depth),
