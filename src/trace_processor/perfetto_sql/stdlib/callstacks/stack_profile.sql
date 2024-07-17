@@ -83,6 +83,9 @@ LEFT JOIN _callstack_spc_raw_forest p ON
   AND p.symbol_id IS c.parent_symbol_id
 ORDER BY c._auto_id;
 
+CREATE PERFETTO INDEX _callstack_spc_index
+ON _callstack_spc_forest(callsite_id);
+
 CREATE PERFETTO MACRO _callstacks_for_stack_profile_samples(
   spc_samples TableOrSubquery
 )
@@ -97,7 +100,12 @@ AS
     f.is_leaf_function_in_callsite_frame
   FROM _tree_reachable_ancestors_or_self!(
     _callstack_spc_forest,
-    (SELECT callsite_id AS id FROM $spc_samples)
+    (
+      SELECT f.id
+      FROM $spc_samples s
+      JOIN _callstack_spc_forest f USING (callsite_id)
+      WHERE f.is_leaf_function_in_callsite_frame
+    )
   ) g
   JOIN _callstack_spc_forest f USING (id)
 );
