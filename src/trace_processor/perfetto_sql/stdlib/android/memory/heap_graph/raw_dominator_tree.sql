@@ -28,22 +28,6 @@ FROM heap_graph_object
 ORDER BY id DESC
 LIMIT 1;
 
-CREATE PERFETTO VIEW _dominator_compatible_heap_graph AS
-SELECT
-  ref.owner_id AS source_node_id,
-  ref.owned_id AS dest_node_id
-FROM heap_graph_reference ref
-JOIN heap_graph_object source_node ON ref.owner_id = source_node.id
-WHERE source_node.reachable
-  AND ref.id NOT IN _excluded_refs
-  AND ref.owned_id IS NOT NULL
-UNION ALL
-SELECT
-  (SELECT _heap_graph_super_root_fn()) as source_node_id,
-  id AS dest_node_id
-FROM heap_graph_object
-WHERE root_type IS NOT NULL;
-
 CREATE PERFETTO TABLE _raw_heap_graph_dominator_tree AS
 SELECT
   node_id AS id,
@@ -53,7 +37,22 @@ SELECT
     dominator_node_id
   ) as idom_id
 FROM graph_dominator_tree!(
-  _dominator_compatible_heap_graph,
+  (
+    SELECT
+      ref.owner_id AS source_node_id,
+      ref.owned_id AS dest_node_id
+    FROM heap_graph_reference ref
+    JOIN heap_graph_object source_node ON ref.owner_id = source_node.id
+    WHERE source_node.reachable
+      AND ref.id NOT IN _excluded_refs
+      AND ref.owned_id IS NOT NULL
+    UNION ALL
+    SELECT
+      (SELECT _heap_graph_super_root_fn()) as source_node_id,
+      id AS dest_node_id
+    FROM heap_graph_object
+    WHERE root_type IS NOT NULL
+  ),
   (SELECT _heap_graph_super_root_fn())
 )
 -- Excluding the imaginary root.
