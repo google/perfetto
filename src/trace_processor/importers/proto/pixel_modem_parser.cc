@@ -23,10 +23,9 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/proto/pigweed_detokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
-
-#include "pw_tokenizer/detokenize.h"
-#include "pw_tokenizer/token_database.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 
@@ -38,17 +37,6 @@ constexpr std::string_view kKeyDomain = "domain";
 constexpr std::string_view kKeyFormat = "format";
 constexpr std::string_view kModemNamePrefix = "Pixel Modem Events: ";
 constexpr std::string_view kModemName = "Pixel Modem Events";
-
-struct PigweedConstBytes {
-  const uint8_t* data_;
-  size_t size_;
-
-  const uint8_t* begin() const { return data_; }
-  const uint8_t* end() const { return data_ + size_; }
-  const uint8_t* data() const { return data_; }
-  size_t size() const { return size_; }
-  uint8_t operator[](size_t i) const { return data_[i]; }
-};
 
 // Modem inputs in particular have this key-value encoding. It's not a Pigweed
 // thing.
@@ -68,26 +56,27 @@ std::map<std::string, std::string> SplitUpModemString(std::string input) {
 
   return result;
 }
+
 }  // namespace
 
 PixelModemParser::PixelModemParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      template_id_(context->storage->InternString("raw_template")),
+      token_id_(context->storage->InternString("token_id")) {}
 
 PixelModemParser::~PixelModemParser() = default;
 
-void PixelModemParser::SetDatabase(protozero::ConstBytes blob) {
-  detokenizer_ = std::make_unique<pw::tokenizer::Detokenizer>(
-      pw::tokenizer::TokenDatabase::Create(
-          PigweedConstBytes{blob.data, blob.size}));
+base::Status PixelModemParser::SetDatabase(protozero::ConstBytes blob) {
+  ASSIGN_OR_RETURN(detokenizer_, pigweed::CreateDetokenizer(blob));
+  return base::OkStatus();
 }
 
-void PixelModemParser::ParseEvent(int64_t ts, protozero::ConstBytes blob) {
-  pw::tokenizer::DetokenizedString detokenized_str =
-      detokenizer_->Detokenize(PigweedConstBytes{blob.data, blob.size});
-  if (!detokenized_str.ok()) {
-    return;
-  }
-  std::string event = detokenized_str.BestString();
+base::Status PixelModemParser::ParseEvent(int64_t ts,
+                                          protozero::ConstBytes blob) {
+  ASSIGN_OR_RETURN(pigweed::DetokenizedString detokenized_str,
+                   detokenizer_->Detokenize(blob));
+
+  std::string event = detokenized_str.Format();
 
   auto map = SplitUpModemString(event);
   auto domain = map.find(std::string(kKeyDomain));
@@ -99,13 +88,36 @@ void PixelModemParser::ParseEvent(int64_t ts, protozero::ConstBytes blob) {
   std::string slice_name = format == map.end() ? event : format->second;
 
   StringId track_name_id = context_->storage->InternString(track_name.c_str());
+  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
   auto set_id =
       context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
-  TrackId id = context_->async_track_set_tracker->Begin(set_id, 0);
-  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
-  context_->slice_tracker->Begin(ts, id, kNullStringId, slice_name_id);
-  context_->slice_tracker->End(ts, id);
-  context_->async_track_set_tracker->End(set_id, 0);
+  TrackId id = context_->async_track_set_tracker->Scoped(set_id, ts, 0);
+
+  context_->slice_tracker->Scoped(
+      ts, id, kNullStringId, slice_name_id, 0,
+      [this, &detokenized_str](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(template_id_,
+                         Variadic::String(context_->storage->InternString(
+                             detokenized_str.template_str().c_str())));
+        inserter->AddArg(token_id_, Variadic::Integer(detokenized_str.token()));
+        auto pw_args = detokenized_str.args();
+        for (size_t i = 0; i < pw_args.size(); i++) {
+          StringId arg_name = context_->storage->InternString(
+              ("pw_token_" + std::to_string(detokenized_str.token()) + ".arg_" +
+               std::to_string(i))
+                  .c_str());
+          auto arg = pw_args[i];
+          if (int64_t* int_arg = std::get_if<int64_t>(&arg)) {
+            inserter->AddArg(arg_name, Variadic::Integer(*int_arg));
+          } else if (uint64_t* uint_arg = std::get_if<uint64_t>(&arg)) {
+            inserter->AddArg(arg_name, Variadic::UnsignedInteger(*uint_arg));
+          } else {
+            inserter->AddArg(arg_name, Variadic::Real(std::get<double>(arg)));
+          }
+        }
+      });
+
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor

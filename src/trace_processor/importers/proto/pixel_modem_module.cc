@@ -52,9 +52,13 @@ ModuleResult PixelModemModule::TokenizePacket(
   if (field_id == TracePacket::kPixelModemTokenDatabaseFieldNumber) {
     auto db = decoder.pixel_modem_token_database();
     protos::pbzero::PixelModemTokenDatabase::Decoder database(db);
-    parser_.SetDatabase(database.database());
 
-    return ModuleResult::Handled();
+    base::Status status = parser_.SetDatabase(database.database());
+    if (status.ok()) {
+      return ModuleResult::Handled();
+    } else {
+      return ModuleResult::Error(status.message());
+    }
   }
 
   if (field_id != TracePacket::kPixelModemEventsFieldNumber) {
