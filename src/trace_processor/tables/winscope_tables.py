@@ -168,6 +168,22 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
             'handler_name': 'The name of the handler',
         }))
 
+WINDOW_MANAGER_TABLE = Table(
+    python_module=__file__,
+    class_name='WindowManagerTable',
+    sql_name='__intrinsic_windowmanager',
+    columns=[
+        C('ts', CppInt64(), ColumnFlag.SORTED),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='WindowManager',
+        group='Winscope',
+        columns={
+            'ts': 'The timestamp the state snapshot was captured',
+            'arg_set_id': 'Extra args parsed from the proto message',
+        }))
+
 PROTOLOG_TABLE = Table(
     python_module=__file__,
     class_name='ProtoLogTable',
@@ -202,4 +218,5 @@ ALL_TABLES = [
     VIEWCAPTURE_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE,
+    WINDOW_MANAGER_TABLE,
 ]
