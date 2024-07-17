@@ -18,7 +18,7 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;
 
 CREATE PERFETTO TABLE _heap_graph_dominator_tree_bottom_up_scan AS
 SELECT *
-FROM _graph_scan!(
+FROM _graph_aggregating_scan!(
   (
     SELECT id AS source_node_id, idom_id AS dest_node_id
     FROM _raw_heap_graph_dominator_tree

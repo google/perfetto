@@ -32,11 +32,75 @@ CREATE PERFETTO MACRO _graph_scan(
   -- `source_node_id` and `dest_node_id`.
   graph_table TableOrSubquery,
   -- The table of nodes to start the scan from. Needs to have the column `id`
+  -- and all columns specified by `scan_columns`.
+  init_table TableOrSubquery,
+  -- A parenthesised and comma separated list of columns which will be returned
+  -- by the scan. Should match exactly both the names and order of the columns
+  -- in both `init_table` and `step_query`.
+  --
+  -- Example: (cumulative_sum, cumulative_count).
+  scan_columns ColumnNameList,
+  -- A subquery which is reads all the data (from a variable table called $table)
+  -- for a single step of the scan and performs some computation for each node in
+  -- the step.
+  --
+  -- Should return a column `id` and all columns specified by `scan_columns`.
+  step_query TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  select
+    c0 as id,
+    __intrinsic_token_zip_join!(
+      (c1, c2, c3, c4, c5, c6, c7),
+      $scan_columns,
+      _graph_scan_select,
+      __intrinsic_token_comma!()
+    )
+  from  __intrinsic_table_ptr(__intrinsic_graph_scan(
+    (
+      select __intrinsic_graph_agg(g.source_node_id, g.dest_node_id)
+      from $graph_table g
+    ),
+    (
+      select __intrinsic_row_dataframe_agg(
+        'id', init_table.id,
+        __intrinsic_token_zip_join!(
+          $scan_columns,
+          $scan_columns,
+          _graph_scan_df_agg,
+          __intrinsic_token_comma!()
+        )
+      )
+      from $init_table AS init_table
+    ),
+    __intrinsic_stringify!($step_query, table),
+    __intrinsic_stringify!($scan_columns)
+  )) result
+  where __intrinsic_table_ptr_bind(result.c0, 'id')
+    and __intrinsic_token_zip_join!(
+          (c1, c2, c3, c4, c5, c6, c7),
+          $scan_columns,
+          _graph_scan_bind,
+          AND
+        )
+);
+
+-- Performs a "scan" over the graph starting at `init_table` and using `graph_table`
+-- for edges to follow, aggregating on each node wherever possible using `agg_query`.
+--
+-- See https://en.wikipedia.org/wiki/Prefix_sum#Scan_higher_order_function for
+-- details of what a scan means.
+CREATE PERFETTO MACRO _graph_aggregating_scan(
+  -- The table containing the edges of the graph. Needs to have the columns
+  -- `source_node_id` and `dest_node_id`.
+  graph_table TableOrSubquery,
+  -- The table of nodes to start the scan from. Needs to have the column `id`
   -- and all columns specified by `agg_columns`.
   init_table TableOrSubquery,
-  -- A paranthesised and comma separated list of columns which will be returned
+  -- A parenthesised and comma separated list of columns which will be returned
   -- by the scan. Should match exactly both the names and order of the columns
-  -- in `init_table` and `agg_query`.
+  -- in both `init_table` and `agg_query`.
   --
   -- Example: (cumulative_sum, cumulative_count).
   agg_columns ColumnNameList,
@@ -55,7 +119,7 @@ RETURNS TableOrSubquery AS
       _graph_scan_select,
       __intrinsic_token_comma!()
     )
-  from  __intrinsic_table_ptr(__intrinsic_graph_scan(
+  from  __intrinsic_table_ptr(__intrinsic_graph_aggregating_scan(
     (
       select __intrinsic_graph_agg(g.source_node_id, g.dest_node_id)
       from $graph_table g
