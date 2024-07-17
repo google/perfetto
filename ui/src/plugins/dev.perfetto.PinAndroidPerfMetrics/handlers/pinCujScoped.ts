@@ -18,14 +18,20 @@ import {
   MetricHandler,
   JankType,
 } from './metricUtils';
+import {LONG, NUM} from '../../../trace_processor/query_result';
 import {PluginContextTrace} from '../../../public';
 import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
 import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
 import {
   addAndPinSliceTrack,
+  focusOnSlice,
+  SliceIdentifier,
   TrackType,
 } from '../../dev.perfetto.AndroidCujs/trackUtils';
 import {PLUGIN_ID} from '../pluginId';
+import {Time} from '../../../base/time';
+
+const ENABLE_FOCUS_ON_FIRST_JANK = true;
 
 class PinCujScopedJank implements MetricHandler {
   /**
@@ -59,18 +65,21 @@ class PinCujScopedJank implements MetricHandler {
    * @param {TrackType} type 'static' for onTraceload and 'debug' for command
    * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
    */
-  public addMetricTrack(
+  public async addMetricTrack(
     metricData: CujScopedMetricData,
     ctx: PluginContextTrace,
     type: TrackType,
-  ): void {
+  ) {
     // TODO: b/349502258 - Refactor to single API
     const {config: cujScopedJankSlice, trackName: trackName} =
-      this.cujScopedTrackConfig(metricData);
+      await this.cujScopedTrackConfig(metricData, ctx);
     this.pinSingleCuj(ctx, metricData, type);
     const uri = `${PLUGIN_ID}#CUJScopedJankSlice#${metricData}`;
 
     addAndPinSliceTrack(ctx, cujScopedJankSlice, trackName, type, uri);
+    if (ENABLE_FOCUS_ON_FIRST_JANK) {
+      await this.focusOnFirstJank(ctx);
+    }
   }
 
   private pinSingleCuj(
@@ -83,10 +92,13 @@ class PinCujScopedJank implements MetricHandler {
     addJankCUJDebugTrack(ctx, trackName, type, metricData.cujName, uri);
   }
 
-  private cujScopedTrackConfig(metricData: CujScopedMetricData): {
+  private async cujScopedTrackConfig(
+    metricData: CujScopedMetricData,
+    ctx: PluginContextTrace,
+  ): Promise<{
     config: SimpleSliceTrackConfig;
     trackName: string;
-  } {
+  }> {
     let jankTypeFilter;
     let jankTypeDisplayName = 'all';
     if (metricData.jankType?.includes('app')) {
@@ -99,13 +111,22 @@ class PinCujScopedJank implements MetricHandler {
     const cuj = metricData.cujName;
     const processName = metricData.process;
 
-    const jankyFramesDuringCujQuery = `
+    const createJankyCujFrameTable = `
+    CREATE PERFETTO TABLE _janky_frames_during_cuj_from_metric_key AS
     SELECT
       f.vsync as id,
       f.ts AS ts,
       f.dur as dur
     FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
-    WHERE cuj.process_name = "${processName}" AND cuj_name = "${cuj}" ${jankTypeFilter}
+    WHERE cuj.process_name = "${processName}" 
+    AND cuj_name = "${cuj}" ${jankTypeFilter}
+    `;
+
+    await ctx.engine.query(createJankyCujFrameTable);
+
+    const jankyFramesDuringCujQuery = `
+    SELECT id, ts, dur 
+    FROM _janky_frames_during_cuj_from_metric_key
     `;
 
     const cujScopedJankSlice: SimpleSliceTrackConfig = {
@@ -120,6 +141,38 @@ class PinCujScopedJank implements MetricHandler {
     const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
 
     return {config: cujScopedJankSlice, trackName: trackName};
+  }
+
+  private async findFirstJank(
+    ctx: PluginContextTrace,
+  ): Promise<SliceIdentifier> {
+    const queryForFirstJankyFrame = `
+      SELECT slice_id, track_id, ts, dur FROM slice
+        WHERE type = "actual_frame_timeline_slice"
+        AND name =
+        CAST(
+        (SELECT id FROM _janky_frames_during_cuj_from_metric_key LIMIT 1)
+        AS VARCHAR(20) );
+    `;
+    const queryResult = await ctx.engine.query(queryForFirstJankyFrame);
+    const row = queryResult.firstRow({
+      slice_id: NUM,
+      track_id: NUM,
+      ts: LONG,
+      dur: LONG,
+    });
+    const slice: SliceIdentifier = {
+      sliceId: row.slice_id,
+      trackId: row.track_id,
+      ts: Time.fromRaw(row.ts),
+      dur: row.dur,
+    };
+    return slice;
+  }
+
+  private async focusOnFirstJank(ctx: PluginContextTrace) {
+    const slice = await this.findFirstJank(ctx);
+    await focusOnSlice(slice);
   }
 }
 
