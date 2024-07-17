@@ -38,6 +38,25 @@
 #include <mach/vm_page_size.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <linux/prctl.h>
+#include <sys/prctl.h>
+
+#ifndef PR_GET_TAGGED_ADDR_CTRL
+#define PR_GET_TAGGED_ADDR_CTRL 56
+#endif
+
+#ifndef PR_TAGGED_ADDR_ENABLE
+#define PR_TAGGED_ADDR_ENABLE (1UL << 0)
+#endif
+
+#ifndef PR_MTE_TCF_SYNC
+#define PR_MTE_TCF_SYNC (1UL << 1)
+#endif
+
+#endif  // OS_LINUX | OS_ANDROID
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>
 #include <io.h>
@@ -315,6 +334,23 @@ void AlignedFree(void* ptr) {
   _aligned_free(ptr);  // MSDN says it is fine to pass nullptr.
 #else
   free(ptr);
+#endif
+}
+
+bool IsSyncMemoryTaggingEnabled() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Compute only once per lifetime of the process.
+  static bool cached_value = [] {
+    const int res = prctl(PR_GET_TAGGED_ADDR_CTRL, 0, 0, 0, 0);
+    if (res < 0)
+      return false;
+    const uint32_t actl = static_cast<uint32_t>(res);
+    return (actl & PR_TAGGED_ADDR_ENABLE) && (actl & PR_MTE_TCF_SYNC);
+  }();
+  return cached_value;
+#else
+  return false;
 #endif
 }
 
