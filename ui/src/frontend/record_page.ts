@@ -815,9 +815,9 @@ function recordMenu(routePage: string) {
   const recInProgress = globals.state.recordingInProgress;
 
   const probes = [];
-  if (isCrOSTarget(target) || isLinuxTarget(target)) {
+  if (isLinuxTarget(target)) {
     probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
-  } else if (isChromeTarget(target)) {
+  } else if (isChromeTarget(target) && !isCrOSTarget(target)) {
     probes.push(chromeProbe);
   } else if (isWindowsTarget(target)) {
     probes.push(chromeProbe, etwProbe);

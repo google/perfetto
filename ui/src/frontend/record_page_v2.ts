@@ -499,7 +499,7 @@ function recordMenu(routePage: string) {
   // possible for the target to be undefined here.
   const targetType = assertExists(controller.getTargetInfo()).targetType;
   const probes = [];
-  if (targetType === 'CHROME_OS' || targetType === 'LINUX') {
+  if (targetType === 'LINUX') {
     probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
   } else if (targetType === 'WINDOWS') {
     probes.push(chromeProbe, etwProbe);
