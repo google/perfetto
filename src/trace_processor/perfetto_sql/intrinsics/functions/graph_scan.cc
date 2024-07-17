@@ -53,6 +53,154 @@
 namespace perfetto::trace_processor {
 namespace {
 
+base::Status InitToOutputAndStepTable(const perfetto_sql::RowDataframe& inits,
+                                      const perfetto_sql::Graph& graph,
+                                      RuntimeTable::Builder& step,
+                                      uint32_t& step_row_count,
+                                      RuntimeTable::Builder& out,
+                                      uint32_t& out_row_count) {
+  std::vector<uint32_t> empty_edges;
+  auto get_edges = [&](uint32_t id) {
+    return id < graph.size() ? graph[id].outgoing_edges : empty_edges;
+  };
+
+  for (uint32_t i = 0; i < inits.size(); ++i) {
+    const auto* cell = inits.cells.data() + i * inits.column_names.size();
+    auto id = static_cast<uint32_t>(std::get<int64_t>(*cell));
+    RETURN_IF_ERROR(out.AddInteger(0, id));
+    out_row_count++;
+    for (uint32_t outgoing : get_edges(id)) {
+      step_row_count++;
+      RETURN_IF_ERROR(step.AddInteger(0, outgoing));
+    }
+    for (uint32_t j = 1; j < inits.column_names.size(); ++j) {
+      switch (cell[j].index()) {
+        case perfetto_sql::ValueIndex<std::monostate>():
+          RETURN_IF_ERROR(out.AddNull(j));
+          for ([[maybe_unused]] uint32_t _ : get_edges(id)) {
+            RETURN_IF_ERROR(step.AddNull(j));
+          }
+          break;
+        case perfetto_sql::ValueIndex<int64_t>(): {
+          int64_t r = std::get<int64_t>(cell[j]);
+          RETURN_IF_ERROR(out.AddInteger(j, r));
+          for ([[maybe_unused]] uint32_t _ : get_edges(id)) {
+            RETURN_IF_ERROR(step.AddInteger(j, r));
+          }
+          break;
+        }
+        case perfetto_sql::ValueIndex<double>(): {
+          double r = std::get<double>(cell[j]);
+          RETURN_IF_ERROR(out.AddFloat(j, r));
+          for ([[maybe_unused]] uint32_t _ : get_edges(id)) {
+            RETURN_IF_ERROR(step.AddFloat(j, r));
+          }
+          break;
+        }
+        case perfetto_sql::ValueIndex<std::string>(): {
+          const char* r = std::get<std::string>(cell[j]).c_str();
+          RETURN_IF_ERROR(out.AddText(j, r));
+          for ([[maybe_unused]] uint32_t _ : get_edges(id)) {
+            RETURN_IF_ERROR(step.AddText(j, r));
+          }
+          break;
+        }
+        default:
+          PERFETTO_FATAL("Invalid index");
+      }
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status SqliteToOutputAndStepTable(SqliteEngine::PreparedStatement& stmt,
+                                        const perfetto_sql::Graph& graph,
+                                        RuntimeTable::Builder& step,
+                                        uint32_t& step_row_count,
+                                        RuntimeTable::Builder& out,
+                                        uint32_t& out_row_count) {
+  std::vector<uint32_t> empty_edges;
+  auto get_edges = [&](uint32_t id) {
+    return id < graph.size() ? graph[id].outgoing_edges : empty_edges;
+  };
+
+  uint32_t col_count = sqlite::column::Count(stmt.sqlite_stmt());
+  while (stmt.Step()) {
+    auto id =
+        static_cast<uint32_t>(sqlite::column::Int64(stmt.sqlite_stmt(), 0));
+    out_row_count++;
+    RETURN_IF_ERROR(out.AddInteger(0, id));
+    for (uint32_t outgoing : get_edges(id)) {
+      step_row_count++;
+      RETURN_IF_ERROR(step.AddInteger(0, outgoing));
+    }
+    for (uint32_t i = 1; i < col_count; ++i) {
+      switch (sqlite::column::Type(stmt.sqlite_stmt(), i)) {
+        case sqlite::Type::kNull:
+          RETURN_IF_ERROR(out.AddNull(i));
+          for ([[maybe_unused]] uint32_t _ : get_edges(id)) {
+            RETURN_IF_ERROR(step.AddNull(i));
+          }
+          break;
+        case sqlite::Type::kInteger: {
+          int64_t a = sqlite::column::Int64(stmt.sqlite_stmt(), i);
+          RETURN_IF_ERROR(out.AddInteger(i, a));
+          for ([[maybe_unused]] uint32_t _ : get_edges(id)) {
+            RETURN_IF_ERROR(step.AddInteger(i, a));
+          }
+          break;
+        }
+        case sqlite::Type::kText: {
+          const char* a = sqlite::column::Text(stmt.sqlite_stmt(), i);
+          RETURN_IF_ERROR(out.AddText(i, a));
+          for ([[maybe_unused]] uint32_t _ : get_edges(id)) {
+            RETURN_IF_ERROR(step.AddText(i, a));
+          }
+          break;
+        }
+        case sqlite::Type::kFloat: {
+          double a = sqlite::column::Double(stmt.sqlite_stmt(), i);
+          RETURN_IF_ERROR(out.AddFloat(i, a));
+          for ([[maybe_unused]] uint32_t _ : get_edges(id)) {
+            RETURN_IF_ERROR(step.AddFloat(i, a));
+          }
+          break;
+        }
+        case sqlite::Type::kBlob:
+          return base::ErrStatus("Unsupported blob type");
+      }
+    }
+  }
+  return stmt.status();
+}
+
+base::StatusOr<SqliteEngine::PreparedStatement> PrepareStatement(
+    PerfettoSqlEngine& engine,
+    const std::vector<std::string>& cols,
+    const std::string& sql) {
+  std::vector<std::string> select_cols;
+  std::vector<std::string> bind_cols;
+  for (uint32_t i = 0; i < cols.size(); ++i) {
+    select_cols.emplace_back(
+        base::StackString<1024>("c%" PRIu32 " as %s", i, cols[i].c_str())
+            .ToStdString());
+    bind_cols.emplace_back(base::StackString<1024>(
+                               "__intrinsic_table_ptr_bind(c%" PRIu32 ", '%s')",
+                               i, cols[i].c_str())
+                               .ToStdString());
+  }
+
+  // TODO(lalitm): verify that the init aggregates line up correctly with the
+  // aggregation macro.
+  std::string raw_sql =
+      "(SELECT $cols FROM __intrinsic_table_ptr($var) WHERE $where)";
+  raw_sql = base::ReplaceAll(raw_sql, "$cols", base::Join(select_cols, ","));
+  raw_sql = base::ReplaceAll(raw_sql, "$where", base::Join(bind_cols, " AND "));
+  std::string res = base::ReplaceAll(sql, "$table", raw_sql);
+  return engine.PrepareSqliteStatement(
+      SqlSource::FromTraceProcessorImplementation("SELECT * FROM " + res));
+}
+
 struct NodeState {
   uint32_t depth = 0;
   enum : uint8_t {
@@ -67,13 +215,12 @@ struct DepthTable {
   uint32_t row_count = 0;
 };
 
-struct GraphScanner {
+struct GraphAggregatingScanner {
   base::StatusOr<std::unique_ptr<RuntimeTable>> Run();
   std::vector<uint32_t> InitializeStateFromMaxNode();
   uint32_t DfsAndComputeMaxDepth(std::vector<uint32_t> stack);
   base::Status PushDownStartingAggregates(RuntimeTable::Builder& res,
                                           uint32_t& res_row_count);
-  base::StatusOr<SqliteEngine::PreparedStatement> PrepareStatement() const;
   base::Status PushDownAggregates(SqliteEngine::PreparedStatement& agg_stmt,
                                   uint32_t agg_col_count,
                                   RuntimeTable::Builder& res,
@@ -94,7 +241,7 @@ struct GraphScanner {
   std::vector<DepthTable> tables_per_depth;
 };
 
-std::vector<uint32_t> GraphScanner::InitializeStateFromMaxNode() {
+std::vector<uint32_t> GraphAggregatingScanner::InitializeStateFromMaxNode() {
   std::vector<uint32_t> stack;
   auto nodes_size = static_cast<uint32_t>(graph.size());
   for (uint32_t i = 0; i < inits.size(); ++i) {
@@ -109,7 +256,8 @@ std::vector<uint32_t> GraphScanner::InitializeStateFromMaxNode() {
   return stack;
 }
 
-uint32_t GraphScanner::DfsAndComputeMaxDepth(std::vector<uint32_t> stack) {
+uint32_t GraphAggregatingScanner::DfsAndComputeMaxDepth(
+    std::vector<uint32_t> stack) {
   uint32_t max_depth = 0;
   while (!stack.empty()) {
     uint32_t source_id = stack.back();
@@ -138,7 +286,7 @@ uint32_t GraphScanner::DfsAndComputeMaxDepth(std::vector<uint32_t> stack) {
   return max_depth;
 }
 
-base::Status GraphScanner::PushDownAggregates(
+base::Status GraphAggregatingScanner::PushDownAggregates(
     SqliteEngine::PreparedStatement& agg_stmt,
     uint32_t agg_col_count,
     RuntimeTable::Builder& res,
@@ -197,33 +345,7 @@ base::Status GraphScanner::PushDownAggregates(
   return agg_stmt.status();
 }
 
-base::StatusOr<SqliteEngine::PreparedStatement> GraphScanner::PrepareStatement()
-    const {
-  std::vector<std::string> select_cols;
-  std::vector<std::string> bind_cols;
-  for (uint32_t i = 0; i < inits.column_names.size(); ++i) {
-    select_cols.emplace_back(
-        base::StackString<1024>("c%" PRIu32 " as %s", i,
-                                inits.column_names[i].c_str())
-            .ToStdString());
-    bind_cols.emplace_back(base::StackString<1024>(
-                               "__intrinsic_table_ptr_bind(c%" PRIu32 ", '%s')",
-                               i, inits.column_names[i].c_str())
-                               .ToStdString());
-  }
-
-  // TODO(lalitm): verify that the init aggregates line up correctly with the
-  // aggregation macro.
-  std::string raw_sql =
-      "(SELECT $cols FROM __intrinsic_table_ptr($var) WHERE $where)";
-  raw_sql = base::ReplaceAll(raw_sql, "$cols", base::Join(select_cols, ","));
-  raw_sql = base::ReplaceAll(raw_sql, "$where", base::Join(bind_cols, " AND "));
-  std::string res = base::ReplaceAll(std::string(reduce), "$table", raw_sql);
-  return engine->PrepareSqliteStatement(
-      SqlSource::FromTraceProcessorImplementation("SELECT * FROM " + res));
-}
-
-base::Status GraphScanner::PushDownStartingAggregates(
+base::Status GraphAggregatingScanner::PushDownStartingAggregates(
     RuntimeTable::Builder& res,
     uint32_t& res_row_count) {
   for (uint32_t i = 0; i < inits.size(); ++i) {
@@ -280,15 +402,16 @@ base::Status GraphScanner::PushDownStartingAggregates(
   return base::OkStatus();
 }
 
-base::StatusOr<std::unique_ptr<RuntimeTable>> GraphScanner::Run() {
+base::StatusOr<std::unique_ptr<RuntimeTable>> GraphAggregatingScanner::Run() {
   if (!inits.id_column_index) {
     return base::ErrStatus(
-        "GRAPH_SCAN: 'id' column is not present in initial nodes table");
+        "graph_aggregating_scan: 'id' column is not present in initial nodes "
+        "table");
   }
   if (inits.id_column_index != 0) {
     return base::ErrStatus(
-        "GRAPH_SCAN: 'id' column must be the first column in the initial "
-        "nodes table");
+        "graph_aggregating_scan: 'id' column must be the first column in the "
+        "initial nodes table");
   }
 
   // The basic idea of this algorithm is as follows:
@@ -326,7 +449,8 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> GraphScanner::Run() {
   }
 
   RETURN_IF_ERROR(PushDownStartingAggregates(res, res_row_count));
-  ASSIGN_OR_RETURN(auto agg_stmt, PrepareStatement());
+  ASSIGN_OR_RETURN(auto agg_stmt, PrepareStatement(*engine, inits.column_names,
+                                                   std::string(reduce)));
   RETURN_IF_ERROR(agg_stmt.status());
 
   uint32_t agg_col_count = sqlite::column::Count(agg_stmt.sqlite_stmt());
@@ -365,8 +489,8 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> GraphScanner::Run() {
   return std::move(res).Build(res_row_count);
 }
 
-struct GraphScan : public SqliteFunction<GraphScan> {
-  static constexpr char kName[] = "__intrinsic_graph_scan";
+struct GraphAggregatingScan : public SqliteFunction<GraphAggregatingScan> {
+  static constexpr char kName[] = "__intrinsic_graph_aggregating_scan";
   static constexpr int kArgCount = 4;
   struct UserDataContext {
     PerfettoSqlEngine* engine;
@@ -379,8 +503,74 @@ struct GraphScan : public SqliteFunction<GraphScan> {
     auto* user_data = GetUserData(ctx);
     const char* reduce = sqlite::value::Text(argv[2]);
     if (!reduce) {
-      return sqlite::result::Error(ctx,
-                                   "graph_scan: aggegate SQL cannot be null");
+      return sqlite::result::Error(
+          ctx, "graph_aggregating_scan: aggegate SQL cannot be null");
+    }
+    const char* column_list = sqlite::value::Text(argv[3]);
+    if (!column_list) {
+      return sqlite::result::Error(
+          ctx, "graph_aggregating_scan: column list cannot be null");
+    }
+
+    std::vector<std::string> col_names{"id"};
+    for (const auto& c :
+         base::SplitString(base::StripChars(column_list, "()", ' '), ",")) {
+      col_names.push_back(base::TrimWhitespace(c));
+    }
+
+    const auto* init = sqlite::value::Pointer<perfetto_sql::RowDataframe>(
+        argv[1], "ROW_DATAFRAME");
+    if (!init) {
+      SQLITE_ASSIGN_OR_RETURN(
+          ctx, auto table,
+          RuntimeTable::Builder(user_data->pool, col_names).Build(0));
+      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+    }
+    if (col_names != init->column_names) {
+      return sqlite::result::Error(
+          ctx, base::StackString<1024>(
+                   "graph_aggregating_scan: column list '%s' does not match "
+                   "initial table list '%s'",
+                   base::Join(col_names, ",").c_str(),
+                   base::Join(init->column_names, ",").c_str())
+                   .c_str());
+    }
+
+    const auto* nodes =
+        sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
+    GraphAggregatingScanner scanner{
+        user_data->engine,
+        user_data->pool,
+        nodes ? *nodes : perfetto_sql::Graph(),
+        *init,
+        reduce,
+        {},
+        {},
+        {},
+    };
+    auto result = scanner.Run();
+    if (!result.ok()) {
+      return sqlite::utils::SetError(ctx, result.status());
+    }
+    return sqlite::result::UniquePointer(ctx, std::move(*result), "TABLE");
+  }
+};
+
+struct GraphScan : public SqliteFunction<GraphScan> {
+  static constexpr char kName[] = "__intrinsic_graph_scan";
+  static constexpr int kArgCount = 4;
+  struct UserDataContext {
+    PerfettoSqlEngine* engine;
+    StringPool* pool;
+  };
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_DCHECK(argc == kArgCount);
+
+    auto* user_data = GetUserData(ctx);
+    const char* step_sql = sqlite::value::Text(argv[2]);
+    if (!step_sql) {
+      return sqlite::result::Error(ctx, "graph_scan: step SQL cannot be null");
     }
     const char* column_list = sqlite::value::Text(argv[3]);
     if (!column_list) {
@@ -399,36 +589,60 @@ struct GraphScan : public SqliteFunction<GraphScan> {
     if (!init) {
       SQLITE_ASSIGN_OR_RETURN(
           ctx, auto table,
-          RuntimeTable::Builder(user_data->pool, std::move(col_names))
-              .Build(0));
+          RuntimeTable::Builder(user_data->pool, col_names).Build(0));
       return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
     }
     if (col_names != init->column_names) {
-      return sqlite::result::Error(
-          ctx, base::ErrStatus("graph_scan: column list '%s' does not match "
-                               "initial table list '%s'",
-                               base::Join(col_names, ",").c_str(),
-                               base::Join(init->column_names, ",").c_str())
-                   .c_message());
+      base::StackString<1024> errmsg(
+          "graph_scan: column list '%s' does not match initial table list '%s'",
+          base::Join(col_names, ",").c_str(),
+          base::Join(init->column_names, ",").c_str());
+      return sqlite::result::Error(ctx, errmsg.c_str());
     }
 
-    const auto* nodes =
+    const auto* raw_graph =
         sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
-    GraphScanner scanner{
-        user_data->engine,
-        user_data->pool,
-        nodes ? *nodes : perfetto_sql::Graph(),
-        *init,
-        reduce,
-        {},
-        {},
-        {},
-    };
-    auto result = scanner.Run();
-    if (!result.ok()) {
-      return sqlite::utils::SetError(ctx, result.status());
+    const auto& graph = raw_graph ? *raw_graph : perfetto_sql::Graph();
+
+    RuntimeTable::Builder out(user_data->pool, init->column_names);
+    uint32_t out_count = 0;
+
+    std::unique_ptr<RuntimeTable> step_table;
+    {
+      RuntimeTable::Builder step(user_data->pool, init->column_names);
+      uint32_t step_count = 0;
+      SQLITE_RETURN_IF_ERROR(
+          ctx, InitToOutputAndStepTable(*init, graph, step, step_count, out,
+                                        out_count));
+      SQLITE_ASSIGN_OR_RETURN(ctx, step_table,
+                              std::move(step).Build(step_count));
     }
-    return sqlite::result::UniquePointer(ctx, std::move(*result), "TABLE");
+    SQLITE_ASSIGN_OR_RETURN(
+        ctx, auto agg_stmt,
+        PrepareStatement(*user_data->engine, init->column_names, step_sql));
+    while (step_table->row_count() > 0) {
+      int err = sqlite::stmt::Reset(agg_stmt.sqlite_stmt());
+      if (err != SQLITE_OK) {
+        return sqlite::utils::SetError(ctx, "Failed to reset statement");
+      }
+      err = sqlite::bind::UniquePointer(agg_stmt.sqlite_stmt(), 1,
+                                        std::move(step_table), "TABLE");
+      if (err != SQLITE_OK) {
+        return sqlite::utils::SetError(
+            ctx,
+            base::StackString<1024>("Failed to bind pointer %d", err).c_str());
+      }
+
+      RuntimeTable::Builder step(user_data->pool, init->column_names);
+      uint32_t step_count = 0;
+      SQLITE_RETURN_IF_ERROR(
+          ctx, SqliteToOutputAndStepTable(agg_stmt, graph, step, step_count,
+                                          out, out_count));
+      SQLITE_ASSIGN_OR_RETURN(ctx, step_table,
+                              std::move(step).Build(step_count));
+    }
+    SQLITE_ASSIGN_OR_RETURN(ctx, auto res, std::move(out).Build(out_count));
+    return sqlite::result::UniquePointer(ctx, std::move(res), "TABLE");
   }
 };
 
@@ -436,9 +650,12 @@ struct GraphScan : public SqliteFunction<GraphScan> {
 
 base::Status RegisterGraphScanFunctions(PerfettoSqlEngine& engine,
                                         StringPool* pool) {
-  return engine.RegisterSqliteFunction<GraphScan>(
+  RETURN_IF_ERROR(engine.RegisterSqliteFunction<GraphScan>(
       std::make_unique<GraphScan::UserDataContext>(
-          GraphScan::UserDataContext{&engine, pool}));
+          GraphScan::UserDataContext{&engine, pool})));
+  return engine.RegisterSqliteFunction<GraphAggregatingScan>(
+      std::make_unique<GraphAggregatingScan::UserDataContext>(
+          GraphAggregatingScan::UserDataContext{&engine, pool}));
 }
 
 }  // namespace perfetto::trace_processor
