@@ -1,5 +1,0 @@
-# For pigweed
-bazel_dep(name = "rules_cc", version = "0.0.9")
-
-# Pigweed + https://github.com/bazelbuild/bazel/issues/20315
-bazel_dep(name = "rules_python", version = "0.27.0")

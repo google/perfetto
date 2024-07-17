@@ -18,14 +18,9 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PIXEL_MODEM_PARSER_H_
 
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/proto/pigweed_detokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-
-// #include "protos/perfetto/trace/trace_packet.pbzero.h"
-//
-namespace pw::tokenizer {
-class Detokenizer;
-}
 
 namespace perfetto {
 namespace trace_processor {
@@ -37,12 +32,15 @@ class PixelModemParser {
   explicit PixelModemParser(TraceProcessorContext* context);
   ~PixelModemParser();
 
-  void SetDatabase(protozero::ConstBytes);
-  void ParseEvent(int64_t, protozero::ConstBytes);
+  base::Status SetDatabase(protozero::ConstBytes);
+  base::Status ParseEvent(int64_t, protozero::ConstBytes);
 
  private:
   TraceProcessorContext* context_ = nullptr;
-  std::unique_ptr<pw::tokenizer::Detokenizer> detokenizer_;
+  std::optional<pigweed::PigweedDetokenizer> detokenizer_;
+
+  const StringId template_id_;
+  const StringId token_id_;
 };
 
 }  // namespace trace_processor
