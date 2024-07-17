@@ -2606,6 +2606,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/inputmethod.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/viewcapture.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/winscope/windowmanager.sql",
     ],
 )
 

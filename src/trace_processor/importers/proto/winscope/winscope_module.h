@@ -54,6 +54,7 @@ class WinscopeModule : public ProtoImporterModule {
   void ParseViewCaptureData(int64_t timestamp,
                             protozero::ConstBytes blob,
                             PacketSequenceStateGeneration* sequence_state);
+  void ParseWindowManagerData(int64_t timestamp, protozero::ConstBytes blob);
 
   static constexpr auto* kInputMethodClientsProtoName =
       ".perfetto.protos.InputMethodClientsTraceProto";
@@ -62,6 +63,8 @@ class WinscopeModule : public ProtoImporterModule {
   static constexpr auto* kInputMethodServiceProtoName =
       ".perfetto.protos.InputMethodServiceTraceProto";
   static constexpr auto* kViewCaptureProtoName = ".perfetto.protos.ViewCapture";
+  static constexpr auto* kWindowManagerProtoName =
+      ".perfetto.protos.WindowManagerTraceEntry";
 
   TraceProcessorContext* const context_;
   DescriptorPool pool_;
