@@ -18,5 +18,6 @@ perfetto_sql_source_set("winscope") {
   sources = [
     "inputmethod.sql",
     "viewcapture.sql",
+    "windowmanager.sql",
   ]
 }

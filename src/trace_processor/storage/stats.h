@@ -362,6 +362,10 @@ namespace stats {
   F(winscope_viewcapture_missing_interned_string_parse_errors,                 \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Failed to find interned ViewCapture string."),                          \
+  F(winscope_windowmanager_parse_errors, kSingle,  kInfo,     kAnalysis,       \
+      "WindowManager state packet has unknown fields, which results "          \
+      "in some arguments missing. You may need a newer version of trace "      \
+      "processor to parse them."),                                             \
   F(jit_unknown_frame,                    kSingle,  kDataLoss, kTrace,         \
       "Indicates that we were unable to determine the function for a frame in "\
       "a jitted memory region"),                                               \

@@ -111,6 +111,10 @@ void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
              field.valid()) {
     android_input_event_parser_.ParseAndroidInputEvent(timestamp,
                                                        field.as_bytes());
+  } else if (field =
+                 decoder.Get(WinscopeExtensionsImpl::kWindowmanagerFieldNumber);
+             field.valid()) {
+    ParseWindowManagerData(timestamp, field.as_bytes());
   }
 }
 
@@ -189,6 +193,23 @@ void WinscopeModule::ParseViewCaptureData(
       blob, kViewCaptureProtoName, nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+  }
+}
+
+void WinscopeModule::ParseWindowManagerData(int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  tables::WindowManagerTable::Row row;
+  row.ts = timestamp;
+  auto rowId = context_->storage->mutable_windowmanager_table()->Insert(row).id;
+
+  ArgsTracker tracker(context_);
+  auto inserter = tracker.AddArgsTo(rowId);
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
+  base::Status status = args_parser_.ParseMessage(
+      blob, kWindowManagerProtoName, nullptr /* parse all fields */, writer);
+  if (!status.ok()) {
+    context_->storage->IncrementStats(
+        stats::winscope_windowmanager_parse_errors);
   }
 }
 
