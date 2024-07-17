@@ -139,6 +139,10 @@ std::string GetCurExecutableDir();
 void* AlignedAlloc(size_t alignment, size_t size);
 void AlignedFree(void*);
 
+// Detects Sync-mode MTE (currently being tested in some Android builds).
+// This is known to use extra memory for the stack history buffer.
+bool IsSyncMemoryTaggingEnabled();
+
 // A RAII version of the above, which takes care of pairing Aligned{Alloc,Free}.
 template <typename T>
 struct AlignedDeleter {
