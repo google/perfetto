@@ -37,7 +37,7 @@ class PixelModemParser {
 
  private:
   TraceProcessorContext* context_ = nullptr;
-  std::optional<pigweed::PigweedDetokenizer> detokenizer_;
+  pigweed::PigweedDetokenizer detokenizer_;
 
   const StringId template_id_;
   const StringId token_id_;

@@ -59,6 +59,8 @@ class FormatString {
 // along the way.
 class DetokenizedString {
  public:
+  explicit DetokenizedString(const uint32_t token, FormatString str_template);
+
   explicit DetokenizedString(
       const uint32_t token,
       FormatString str_template,
@@ -93,11 +95,13 @@ class PigweedDetokenizer {
  public:
   explicit PigweedDetokenizer(base::FlatHashMap<uint32_t, FormatString> tokens);
   base::StatusOr<DetokenizedString> Detokenize(
-      const protozero::ConstBytes& bytes);
+      const protozero::ConstBytes& bytes) const;
 
  private:
   base::FlatHashMap<uint32_t, FormatString> tokens_;
 };
+
+PigweedDetokenizer CreateNullDetokenizer();
 
 base::StatusOr<PigweedDetokenizer> CreateDetokenizer(
     const protozero::ConstBytes& blob);
