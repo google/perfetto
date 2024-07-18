@@ -73,14 +73,13 @@ CreateMappingParams BuildCreateMappingParams(
 
 bool IsInKernel(protos::pbzero::Profiling::CpuMode cpu_mode) {
   switch (cpu_mode) {
-    case protos::pbzero::Profiling::MODE_UNKNOWN:
-      PERFETTO_FATAL("Unknown CPU mode");
     case protos::pbzero::Profiling::MODE_GUEST_KERNEL:
     case protos::pbzero::Profiling::MODE_KERNEL:
       return true;
     case protos::pbzero::Profiling::MODE_USER:
     case protos::pbzero::Profiling::MODE_HYPERVISOR:
     case protos::pbzero::Profiling::MODE_GUEST_USER:
+    case protos::pbzero::Profiling::MODE_UNKNOWN:
       return false;
   }
   PERFETTO_FATAL("For GCC.");
@@ -159,6 +158,11 @@ base::Status RecordParser::InternSample(Sample sample) {
   if (!sample.pid_tid.has_value()) {
     return base::ErrStatus(
         "Can not parse samples with no PERF_SAMPLE_TID field");
+  }
+
+  if (sample.cpu_mode ==
+      protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN) {
+    context_->storage->IncrementStats(stats::perf_samples_cpu_mode_unknown);
   }
 
   UniqueTid utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
