@@ -310,6 +310,11 @@ base::StatusOr<SqlSource> PerfettoSqlPreprocessor::ExecuteMacroInvocation(
     return ErrorAtToken(tokenizer, name_token,
                         "Macro invoked with too few args");
   }
+  if (token_list.size() > macro->args.size()) {
+    // TODO(lalitm): add a link to macro documentation.
+    return ErrorAtToken(tokenizer, name_token,
+                        "Macro invoked with too many args");
+  }
   std::unordered_map<std::string, SqlSource> inner_bindings;
   for (auto& t : token_list) {
     inner_bindings.emplace(macro->args[inner_bindings.size()], std::move(t));

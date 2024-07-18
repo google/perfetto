@@ -14,15 +14,15 @@
 -- limitations under the License.
 
 CREATE PERFETTO MACRO _graph_scan_df_agg(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_stringify!($x), $y;
+RETURNS Expr AS __intrinsic_stringify!($x), init_table.$y;
 
 CREATE PERFETTO MACRO _graph_scan_bind(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
+RETURNS Expr AS __intrinsic_table_ptr_bind(result.$x, __intrinsic_stringify!($y));
 
 CREATE PERFETTO MACRO _graph_scan_select(x Expr, y Expr)
-RETURNS Expr AS $x as $y;
+RETURNS Expr AS result.$x as $y;
 
--- Performs a "scan" over the grapu starting at `init_table` and using `graph_table`
+-- Performs a "scan" over the graph starting at `init_table` and using `graph_table`
 -- for edges to follow.
 --
 -- See https://en.wikipedia.org/wiki/Prefix_sum#Scan_higher_order_function for
@@ -126,7 +126,7 @@ RETURNS TableOrSubquery AS
     ),
     (
       select __intrinsic_row_dataframe_agg(
-        'id', s.id,
+        'id', init_table.id,
         __intrinsic_token_zip_join!(
           $agg_columns,
           $agg_columns,
@@ -134,12 +134,12 @@ RETURNS TableOrSubquery AS
           __intrinsic_token_comma!()
         )
       )
-      from $init_table s
+      from $init_table AS init_table
     ),
     __intrinsic_stringify!($agg_query, table),
     __intrinsic_stringify!($agg_columns)
-  ))
-  where __intrinsic_table_ptr_bind(c0, 'id')
+  )) result
+  where __intrinsic_table_ptr_bind(result.c0, 'id')
     and __intrinsic_token_zip_join!(
           (c1, c2, c3, c4, c5, c6, c7),
           $agg_columns,
