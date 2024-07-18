@@ -1425,8 +1425,8 @@ class Parsing(TestSuite):
         cpu_info {
           cpus {
             processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 150000
             frequencies: 300000
-            frequencies: 576000
             capacity: 256
           }
           cpus {
@@ -1450,7 +1450,7 @@ class Parsing(TestSuite):
         out=Csv("""
       "cpu","cluster_id","capacity","processor"
       0,0,256,"AArch64 Processor rev 13 (aarch64)"
-      1,0,1024,"AArch64 Processor rev 13 (aarch64)"
+      1,1,1024,"AArch64 Processor rev 13 (aarch64)"
       """))
 
   def test_cpu_capacity_not_present(self):
@@ -1460,8 +1460,8 @@ class Parsing(TestSuite):
         cpu_info {
           cpus {
             processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 150000
             frequencies: 300000
-            frequencies: 576000
           }
           cpus {
             processor: "AArch64 Processor rev 13 (aarch64)"
@@ -1483,7 +1483,7 @@ class Parsing(TestSuite):
         out=Csv("""
       "cpu","cluster_id","capacity","processor"
       0,0,"[NULL]","AArch64 Processor rev 13 (aarch64)"
-      1,0,"[NULL]","AArch64 Processor rev 13 (aarch64)"
+      1,1,"[NULL]","AArch64 Processor rev 13 (aarch64)"
       """))
 
   # Test that the sched slices of a VM guest is ingested and not filtered
