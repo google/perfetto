@@ -89,6 +89,11 @@ class PerfettoSqlPreprocessor {
       std::vector<SqlSource> token_list,
       bool prefixed);
 
+  base::StatusOr<std::optional<SqlSource>> ExecuteTokenApply(
+      const SqliteTokenizer& tokenizer,
+      const SqliteTokenizer::Token& name_token,
+      std::vector<SqlSource> token_list);
+
   SqliteTokenizer global_tokenizer_;
   const base::FlatHashMap<std::string, Macro>* macros_ = nullptr;
   std::unordered_set<std::string> seen_macros_;
