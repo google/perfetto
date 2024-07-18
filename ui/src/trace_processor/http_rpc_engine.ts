@@ -46,10 +46,11 @@ export class HttpRpcEngine extends EngineBase {
       this.websocket = new WebSocket(wsUrl);
       this.websocket.onopen = () => this.onWebsocketConnected();
       this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
-      this.websocket.onclose = (e) =>
-        this.errorHandler(`Websocket closed (${e.code}: ${e.reason})`);
+      this.websocket.onclose = (e) => this.onWebsocketClosed(e);
       this.websocket.onerror = (e) =>
-        this.errorHandler(`WebSocket error: ${e}`);
+        this.errorHandler(
+          `WebSocket error (state=${(e.target as WebSocket)?.readyState})`,
+        );
     }
 
     if (this.connected) {
@@ -66,6 +67,19 @@ export class HttpRpcEngine extends EngineBase {
       assertExists(this.websocket).send(queuedMsg);
     }
     this.connected = true;
+  }
+
+  private onWebsocketClosed(e: CloseEvent) {
+    if (e.code === 1006 && this.connected) {
+      // On macbooks the act of closing the lid / suspending often causes socket
+      // disconnections. Try to gracefully re-connect.
+      console.log('Websocket closed, reconnecting');
+      this.websocket = undefined;
+      this.connected = false;
+      this.rpcSendRequestBytes(new Uint8Array()); // Triggers a reconnection.
+    } else {
+      this.errorHandler(`Websocket closed (${e.code}: ${e.reason})`);
+    }
   }
 
   private onWebsocketMessage(e: MessageEvent) {
