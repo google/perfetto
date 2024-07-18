@@ -34,49 +34,61 @@ AS (
   ORDER BY id
 );
 
-CREATE PERFETTO MACRO _viz_flamegraph_filter_and_hash(
-  tab TableOrSubquery,
+CREATE PERFETTO MACRO _viz_flamegraph_filter_frames(
+  source TableOrSubquery,
   show_from_frame_bits Expr
 )
 RETURNS TableOrSubquery
 AS (
-  SELECT id, hash, parentHash, depth, showFromFrameBits, stackBits
-  FROM _graph_scan!(
-    (
-      SELECT parentId AS source_node_id, id AS dest_node_id
-      FROM $tab
-      WHERE parentId IS NOT NULL
-    ),
-    (
-      select
+  WITH edges AS (
+    SELECT parentId AS source_node_id, id AS dest_node_id
+    FROM $source
+    WHERE parentId IS NOT NULL
+  ),
+  inits AS (
+    SELECT
+      id,
+      IIF(
+        showFrame AND showFromFrameBits = $show_from_frame_bits,
         id,
-        IIF(showFrame AND showFromFrameBits = $show_from_frame_bits, HASH(name), 0) AS hash,
-        IIF(showFrame AND showFromFrameBits = $show_from_frame_bits, 0, NULL) AS parentHash,
-        IIF(showFrame AND showFromFrameBits = $show_from_frame_bits, 0, -1) AS depth,
-        IIF(showFrame AND showFromFrameBits = $show_from_frame_bits, showFromFrameBits, 0) AS showFromFrameBits,
-        IIF(showFrame AND showFromFrameBits = $show_from_frame_bits, stackBits, 0) AS stackBits
-      FROM $tab
-      WHERE parentId IS NULL
-    ),
-    (hash, parentHash, depth, showFromFrameBits, stackBits),
+        NULL
+      ) AS filteredId,
+      NULL AS filteredParentId,
+      IIF(
+        showFrame,
+        showFromFrameBits,
+        0
+      ) AS showFromFrameBits,
+      IIF(
+        showFrame AND showFromFrameBits = $show_from_frame_bits,
+        stackBits,
+        0
+      ) AS stackBits
+    FROM $source
+    WHERE parentId IS NULL
+  )
+  SELECT
+    g.filteredId AS id,
+    g.filteredParentId AS parentId,
+    g.stackBits,
+    SUM(t.value) AS value
+  FROM _graph_scan!(
+    edges,
+    inits,
+    (filteredId, filteredParentId, showFromFrameBits, stackBits),
     (
-      select
-        t.id as id,
+      SELECT
+        t.id,
         IIF(
           x.showFrame AND (t.showFromFrameBits | x.showFromFrameBits) = $show_from_frame_bits,
-          HASH(t.hash, name),
-          t.hash
-        ) AS hash,
+          t.id,
+          t.filteredId
+        ) AS filteredId,
         IIF(
           x.showFrame AND (t.showFromFrameBits | x.showFromFrameBits) = $show_from_frame_bits,
-          t.hash,
-          t.parentHash
-        ) AS parentHash,
-        IIF(
-          x.showFrame AND (t.showFromFrameBits | x.showFromFrameBits) = $show_from_frame_bits,
-          t.depth + 1,
-          t.depth
-        ) AS depth,
+          t.filteredId,
+          t.filteredParentId
+        ) AS filteredParentId,
         IIF(
           x.showFrame,
           (t.showFromFrameBits | x.showFromFrameBits),
@@ -88,55 +100,35 @@ AS (
           t.stackBits
         ) AS stackBits
       FROM $table t
-      JOIN $tab x USING (id)
+      JOIN $source x USING (id)
     )
   ) g
-  WHERE parentHash IS NOT NULL
-  ORDER BY hash
-);
-
-CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
-  tab TableOrSubquery,
-  source TableOrSubquery
-)
-RETURNS TableOrSubquery
-AS (
-  SELECT
-    c._auto_id AS id,
-    (
-      SELECT p._auto_id
-      FROM $tab p
-      WHERE p.hash = c.parentHash
-      LIMIT 1
-    ) AS parentId,
-    c.depth,
-    c.stackBits,
-    s.name,
-    SUM(s.value) AS value
-  FROM $tab c
-  JOIN $source s USING (id)
-  GROUP BY hash
+  JOIN $source t USING (id)
+  WHERE filteredId IS NOT NULL
+  GROUP BY filteredId
+  ORDER BY filteredId
 );
 
 CREATE PERFETTO MACRO _viz_flamegraph_accumulate(
-  tab TableOrSubquery,
+  filtered TableOrSubquery,
   showStackBits Expr
 )
 RETURNS TableOrSubquery
 AS (
+  WITH edges AS (
+    SELECT id AS source_node_id, parentId AS dest_node_id
+    FROM $filtered
+    WHERE parentId IS NOT NULL
+  ), inits AS (
+    SELECT f.id, f.value AS cumulativeValue
+    FROM $filtered f
+    LEFT JOIN $filtered c ON c.parentId = f.id
+    WHERE c.id IS NULL AND f.stackBits = $showStackBits
+  )
   SELECT id, cumulativeValue
   FROM _graph_aggregating_scan!(
-    (
-      SELECT id AS source_node_id, parentId AS dest_node_id
-      FROM $tab
-      WHERE parentId IS NOT NULL
-    ),
-    (
-      SELECT t.id AS id, t.value AS cumulativeValue
-      FROM $tab t
-      LEFT JOIN $tab c ON t.id = c.parentId
-      WHERE c.id IS NULL AND t.stackBits = $showStackBits
-    ),
+    edges,
+    inits,
     (cumulativeValue),
     (
       SELECT
@@ -149,67 +141,132 @@ AS (
       FROM (
         SELECT id, SUM(cumulativeValue) AS childValue
         FROM $table
-        GROUP BY 1
+        GROUP BY id
       ) x
-      JOIN $tab t USING (id)
+      JOIN $filtered t USING (id)
     )
   )
   ORDER BY id
 );
 
-CREATE PERFETTO MACRO _viz_flamegraph_local_layout(
-  acc TableOrSubquery,
-  tab TableOrSubquery
-)
-RETURNS TableOrSubquery
-AS (
-  SELECT id, xEnd - cumulativeValue as xStart, xEnd
-  FROM (
-    SELECT
-      b.id,
-      b.cumulativeValue,
-      SUM(b.cumulativeValue) OVER win AS xEnd
-    FROM $acc b
-    JOIN $tab s USING (id)
-    WHERE b.cumulativeValue > 0
-    WINDOW win AS (
-      PARTITION BY s.parentId
-      ORDER BY b.cumulativeValue DESC
-      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    )
-  )
-  ORDER BY id
-);
-
-CREATE PERFETTO MACRO _viz_flamegraph_global_layout(
-  layout TableOrSubquery,
-  acc TableOrSubquery,
-  tab TableOrSubquery
+CREATE PERFETTO MACRO _viz_flamegraph_hash(
+  source TableOrSubquery,
+  filtered TableOrSubquery,
+  accumulated TableOrSubquery,
+  show_from_frame_bits Expr
 )
 RETURNS TableOrSubquery
 AS (
   SELECT
-    s.id,
-    IFNULL(t.parentId, -1) AS parentId,
-    t.depth,
-    IIF(t.name = '', 'unknown', t.name) AS name,
-    t.value AS selfValue,
-    b.cumulativeValue,
-    s.xStart,
-    s.xEnd
+    g.id,
+    g.hash,
+    g.parentHash,
+    g.depth,
+    s.name,
+    f.value,
+    a.cumulativeValue
   FROM _graph_scan!(
     (
       SELECT parentId AS source_node_id, id AS dest_node_id
-      FROM $tab
+      FROM $filtered
       WHERE parentId IS NOT NULL
     ),
     (
-      SELECT b.id AS id, w.xStart, w.xEnd
-      FROM $acc b
-      JOIN $tab t USING (id)
-      JOIN $layout w USING (id)
-      WHERE t.parentId IS NULL
+      SELECT f.id, HASH(s.name) AS hash, NULL AS parentHash, 0 AS depth
+      FROM $filtered f
+      JOIN $source s USING (id)
+      WHERE f.parentId IS NULL
     ),
+    (hash, parentHash, depth),
+    (
+      SELECT
+        t.id,
+        HASH(t.hash, x.name) AS hash,
+        t.hash AS parentHash,
+        t.depth + 1 AS depth
+      FROM $table t
+      JOIN $source x USING (id)
+    )
+  ) g
+  JOIN $source s USING (id)
+  JOIN $filtered f USING (id)
+  JOIN $accumulated a USING (id)
+  ORDER BY hash
+);
+
+CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
+  hashed TableOrSubquery
+)
+RETURNS TableOrSubquery
+AS (
+  SELECT
+    _auto_id AS id,
+    (
+      SELECT p._auto_id
+      FROM $hashed p
+      WHERE p.hash = c.parentHash
+      LIMIT 1
+    ) AS parentId,
+    depth,
+    name,
+    SUM(value) AS value,
+    SUM(cumulativeValue) AS cumulativeValue
+  FROM $hashed c
+  GROUP BY hash
+);
+
+CREATE PERFETTO MACRO _viz_flamegraph_local_layout(
+  merged TableOrSubquery
+)
+RETURNS TableOrSubquery
+AS (
+  WITH partial_layout AS (
+    SELECT
+      id,
+      cumulativeValue,
+      SUM(cumulativeValue) OVER win AS xEnd
+    FROM $merged
+    WHERE cumulativeValue > 0
+    WINDOW win AS (
+      PARTITION BY parentId
+      ORDER BY cumulativeValue DESC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    )
+  )
+  SELECT id, xEnd - cumulativeValue as xStart, xEnd
+  FROM partial_layout
+  ORDER BY id
+);
+
+CREATE PERFETTO MACRO _viz_flamegraph_global_layout(
+  merged TableOrSubquery,
+  layout TableOrSubquery
+)
+RETURNS TableOrSubquery
+AS (
+  WITH edges AS (
+    SELECT parentId AS source_node_id, id AS dest_node_id
+    FROM $merged
+    WHERE parentId IS NOT NULL
+  ),
+  inits AS (
+    SELECT h.id, l.xStart, l.xEnd
+    FROM $merged h
+    JOIN $layout l USING (id)
+    WHERE h.parentId IS NULL
+  )
+  SELECT
+    h.id,
+    IFNULL(h.parentId, -1) AS parentId,
+    IIF(h.name = '', 'unknown', h.name) AS name,
+    h.value AS selfValue,
+    h.cumulativeValue,
+    h.depth,
+    g.xStart,
+    g.xEnd
+  FROM _graph_scan!(
+    edges,
+    inits,
     (xStart, xEnd),
     (
       SELECT
@@ -219,8 +276,7 @@ AS (
       FROM $table t
       JOIN $layout w USING (id)
     )
-  ) s
-  JOIN $tab t USING (id)
-  JOIN $acc b USING (id)
+  ) g
+  JOIN $merged h USING (id)
   ORDER BY depth, xStart
 );

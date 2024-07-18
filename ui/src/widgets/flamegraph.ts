@@ -41,6 +41,7 @@ Available filters:${FILTER_COMMON_TEXT}
 `;
 const LABEL_PADDING_PX = 5;
 const LABEL_MIN_WIDTH_FOR_TEXT_PX = 5;
+const PADDING_NODE_COUNT = 4;
 
 interface BaseSource {
   readonly queryXStart: number;
@@ -205,7 +206,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
     }
     const {maxDepth} = attrs.data;
-    const canvasHeight = Math.max(maxDepth + 2, 8) * NODE_HEIGHT;
+    const canvasHeight =
+      Math.max(maxDepth + PADDING_NODE_COUNT, PADDING_NODE_COUNT) * NODE_HEIGHT;
     return m(
       '.pf-flamegraph',
       this.renderFilterBar(attrs),
