@@ -273,6 +273,7 @@ namespace stats {
   F(perf_samples_skipped,                 kSingle,  kError,    kAnalysis, ""), \
   F(perf_counter_skipped_because_no_cpu,  kSingle,  kError,    kAnalysis, ""), \
   F(perf_features_skipped,                kIndexed, kInfo,     kAnalysis, ""), \
+  F(perf_samples_cpu_mode_unknown,        kSingle,  kError,    kAnalysis, ""), \
   F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,    ""), \
   F(perf_dummy_mapping_used,              kSingle,  kInfo,     kAnalysis, ""), \
   F(perf_invalid_event_id,                kSingle,  kError,    kTrace,    ""), \
