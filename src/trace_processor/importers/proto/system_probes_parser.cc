@@ -104,6 +104,19 @@ std::optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
   std::string version = fingerprint.substr(colon + 1, slash - (colon + 1));
   return VersionStringToSdkVersion(version);
 }
+
+struct CpuInfo {
+  uint32_t cpu = 0;
+  std::optional<uint32_t> capacity;
+  std::vector<uint32_t> frequencies;
+  protozero::ConstChars processor;
+};
+
+struct CpuMaxFrequency {
+  uint32_t cpu = 0;
+  uint32_t max_frequency = 0;
+};
+
 }  // namespace
 
 SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
@@ -772,34 +785,85 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
 
 void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   protos::pbzero::CpuInfo::Decoder packet(blob.data, blob.size);
-  uint32_t cluster_id = 0;
+  std::vector<CpuInfo> cpu_infos;
+
+  // Decode CpuInfo packet
   uint32_t cpu_id = 0;
-  std::vector<uint32_t> last_cpu_freqs;
   for (auto it = packet.cpus(); it; it++, cpu_id++) {
     protos::pbzero::CpuInfo::Cpu::Decoder cpu(*it);
-    std::vector<uint32_t> freqs;
+    CpuInfo current_cpu_info;
+    current_cpu_info.cpu = cpu_id;
+    current_cpu_info.processor = cpu.processor();
     for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
-      freqs.push_back(*freq_it);
+      uint32_t current_cpu_frequency = *freq_it;
+      current_cpu_info.frequencies.push_back(current_cpu_frequency);
     }
-
-    // Here we assume that cluster of CPUs are 'next' to each other.
-    if (freqs != last_cpu_freqs && !last_cpu_freqs.empty()) {
-      cluster_id++;
+    if (cpu.has_capacity()) {
+      current_cpu_info.capacity = cpu.capacity();
     }
+    cpu_infos.push_back(current_cpu_info);
+  }
 
-    last_cpu_freqs = freqs;
+  // Calculate cluster ids
+  // We look to use capacities as it is an ARM provided metric which is designed
+  // to measure the heterogeneity of CPU clusters however we fallback on the
+  // maximum frequency as an estimate
 
-    std::optional<uint32_t> capacity =
-        cpu.has_capacity() ? std::make_optional(cpu.capacity()) : std::nullopt;
+  // Capacities are defined as existing on all CPUs if present and so we set
+  // them as invalid if any is missing
+  bool valid_capacities =
+      std::all_of(cpu_infos.begin(), cpu_infos.end(),
+                  [](CpuInfo info) { return info.capacity.has_value(); });
 
+  std::vector<uint32_t> cluster_ids(cpu_infos.size());
+  uint32_t cluster_id = 0;
+
+  if (valid_capacities) {
+    std::sort(cpu_infos.begin(), cpu_infos.end(),
+              [](auto a, auto b) { return a.capacity < b.capacity; });
+    uint32_t previous_capacity = *cpu_infos[0].capacity;
+    for (CpuInfo& cpu_info : cpu_infos) {
+      uint32_t capacity = *cpu_info.capacity;
+      // If cpus have the same capacity, they should have the same cluster id
+      if (previous_capacity < capacity) {
+        previous_capacity = capacity;
+        cluster_id++;
+      }
+      cluster_ids[cpu_info.cpu] = cluster_id;
+    }
+  } else {
+    // Use max frequency if capacities are invalid
+    std::vector<CpuMaxFrequency> cpu_max_freqs;
+    for (CpuInfo& info : cpu_infos) {
+      cpu_max_freqs.push_back(
+          {info.cpu, *std::max_element(info.frequencies.begin(),
+                                       info.frequencies.end())});
+    }
+    std::sort(cpu_max_freqs.begin(), cpu_max_freqs.end(),
+              [](auto a, auto b) { return a.max_frequency < b.max_frequency; });
+
+    uint32_t previous_max_freq = cpu_max_freqs[0].max_frequency;
+    for (CpuMaxFrequency& cpu_max_freq : cpu_max_freqs) {
+      uint32_t max_freq = cpu_max_freq.max_frequency;
+      // If cpus have the same max frequency, they should have the same
+      // cluster_id
+      if (previous_max_freq < max_freq) {
+        previous_max_freq = max_freq;
+        cluster_id++;
+      }
+      cluster_ids[cpu_max_freq.cpu] = cluster_id;
+    }
+  }
+
+  // Add values to tables
+  for (CpuInfo& cpu_info : cpu_infos) {
     tables::CpuTable::Id ucpu = context_->cpu_tracker->SetCpuInfo(
-        cpu_id, cpu.processor(), cluster_id, capacity);
-
-    for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
-      uint32_t freq = *freq_it;
+        cpu_info.cpu, cpu_info.processor, cluster_ids[cpu_info.cpu],
+        cpu_info.capacity);
+    for (uint32_t frequency : cpu_info.frequencies) {
       tables::CpuFreqTable::Row cpu_freq_row;
       cpu_freq_row.ucpu = ucpu;
-      cpu_freq_row.freq = freq;
+      cpu_freq_row.freq = frequency;
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
   }
