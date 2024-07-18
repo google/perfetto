@@ -53,6 +53,10 @@ static constexpr uint32_t ReadUint32(const uint8_t* bytes) {
 
 namespace perfetto::trace_processor::pigweed {
 
+PigweedDetokenizer CreateNullDetokenizer() {
+  return PigweedDetokenizer{base::FlatHashMap<uint32_t, FormatString>()};
+}
+
 base::StatusOr<PigweedDetokenizer> CreateDetokenizer(
     const protozero::ConstBytes& bytes) {
   base::FlatHashMap<uint32_t, FormatString> tokens;
@@ -119,20 +123,24 @@ PigweedDetokenizer::PigweedDetokenizer(
 #endif  // defined(__GNUC__) || defined(__clang__)
 
 base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
-    const protozero::ConstBytes& bytes) {
+    const protozero::ConstBytes& bytes) const {
   if (bytes.size < sizeof(uint32_t)) {
     return base::ErrStatus("Truncated Pigweed payload");
   }
 
   const uint32_t token = ReadUint32(bytes.data);
 
-  FormatString format = tokens_[token];
+  FormatString* format = tokens_.Find(token);
+  if (!format) {
+    return DetokenizedString(token,
+                             FormatString(std::string("Token not found")));
+  }
 
   const uint8_t* ptr = bytes.data + sizeof(uint32_t);
 
   std::vector<std::variant<int64_t, uint64_t, double>> args;
   std::vector<std::string> args_formatted;
-  for (Arg arg : format.args()) {
+  for (Arg arg : format->args()) {
     char buffer[kFormatBufferSize];
     const char* fmt = arg.format.c_str();
     size_t formatted_size;
@@ -181,12 +189,16 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
     }
   }
 
-  return DetokenizedString(token, format, args, args_formatted);
+  return DetokenizedString(token, *format, args, args_formatted);
 }
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif  // defined(__GNUC__) || defined(__clang__)
+
+DetokenizedString::DetokenizedString(const uint32_t token,
+                                     FormatString format_string)
+    : token_(token), format_string_(std::move(format_string)) {}
 
 DetokenizedString::DetokenizedString(
     const uint32_t token,
