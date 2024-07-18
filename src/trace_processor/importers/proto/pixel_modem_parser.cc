@@ -61,6 +61,7 @@ std::map<std::string, std::string> SplitUpModemString(std::string input) {
 
 PixelModemParser::PixelModemParser(TraceProcessorContext* context)
     : context_(context),
+      detokenizer_(pigweed::CreateNullDetokenizer()),
       template_id_(context->storage->InternString("raw_template")),
       token_id_(context->storage->InternString("token_id")) {}
 
@@ -74,7 +75,7 @@ base::Status PixelModemParser::SetDatabase(protozero::ConstBytes blob) {
 base::Status PixelModemParser::ParseEvent(int64_t ts,
                                           protozero::ConstBytes blob) {
   ASSIGN_OR_RETURN(pigweed::DetokenizedString detokenized_str,
-                   detokenizer_->Detokenize(blob));
+                   detokenizer_.Detokenize(blob));
 
   std::string event = detokenized_str.Format();
 
