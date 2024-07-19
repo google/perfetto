@@ -15,13 +15,11 @@ Usage:
 """
 
 import argparse
-import hashlib
 import logging
 import os
-import random
-import shutil
-import subprocess
 import sys
+import hashlib
+import subprocess
 
 from multiprocessing.pool import ThreadPool
 from collections import namedtuple, defaultdict
@@ -29,8 +27,6 @@ from collections import namedtuple, defaultdict
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUCKET = 'gs://perfetto/test_data'
 SUFFIX = '.sha256'
-CACHE_DIR = os.getenv('PERFETTO_TEST_DATA_CACHE')
-CACHE_LIMIT = 1_000_000_000  # 1GB
 
 FS_MATCH = 'matches'
 FS_NEW_FILE = 'needs upload'
@@ -190,42 +186,20 @@ def cmd_download(dir, overwrite_locally_modified=False):
 
   def download_one_file(fs):
     assert (fs.expected_digest is not None)
-    tmp_path = fs.path + '.swp'
     uri = '%s/%s-%s' % (args.bucket, os.path.basename(
         fs.path), fs.expected_digest)
     uri = uri.replace('gs://', 'https://storage.googleapis.com/')
-    cache_path = None
-    cache_hit = False
-    if CACHE_DIR:
-      cache_path = os.path.join(CACHE_DIR, fs.expected_digest)
-    if cache_path and os.path.exists(cache_path):
-      shutil.copy(cache_path, tmp_path)
-      cache_hit = True
-    else:
-      logging.debug(uri)
-      download(uri, tmp_path)
+    logging.debug(uri)
+    tmp_path = fs.path + '.swp'
+    download(uri, tmp_path)
     digest = hash_file(tmp_path)
     if digest != fs.expected_digest:
-      if cache_path and os.path.exists(cache_path):
-        os.remove(cache_path)
       raise Exception('Mismatching digest for %s. expected=%s, actual=%s' %
                       (uri, fs.expected_digest, digest))
-    if cache_path and not cache_hit:
-      shutil.copy(tmp_path, cache_path)
     os.replace(tmp_path, fs.path)
     return fs
 
   map_concurrently(download_one_file, files_to_download)
-
-  # Keep the cache bound.
-  if CACHE_DIR:
-    files = [os.path.join(CACHE_DIR, x) for x in os.listdir(CACHE_DIR)]
-    fsizes = dict(map(lambda fpath: (fpath, os.path.getsize(fpath)), files))
-    while sum(fsizes.values()) > CACHE_LIMIT:
-      fpath = random.choice(list(fsizes.keys()))
-      os.remove(fpath)
-      del fsizes[fpath]
-
   return 0
 
 
