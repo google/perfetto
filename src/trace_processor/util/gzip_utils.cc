@@ -102,7 +102,6 @@ void GzipDecompressor::Deleter::operator()(z_stream_s* stream) const {
 #else  // Dummy Implementation
 
 GzipDecompressor::GzipDecompressor(InputMode) {}
-GzipDecompressor::~GzipDecompressor() = default;
 void GzipDecompressor::Reset() {}
 void GzipDecompressor::Feed(const uint8_t*, size_t) {}
 GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t*, size_t) {
