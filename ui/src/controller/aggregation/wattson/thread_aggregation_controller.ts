@@ -41,24 +41,21 @@ export class WattsonThreadAggregationController extends AggregationController {
     if (selectedCpus.length === 0) return false;
 
     const duration = area.end - area.start;
-    const queryPrefix = `
+    engine.query(`
       INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
-      DROP TABLE IF EXISTS _ui_selection_window;
-      CREATE PERFETTO TABLE _ui_selection_window AS
+      CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
 
       -- Processes filtered by CPU within the UI defined time window
-      DROP TABLE IF EXISTS _thread_windowed_summary;
-      CREATE VIRTUAL TABLE _thread_windowed_summary
+      DROP TABLE IF EXISTS _windowed_summary;
+      CREATE VIRTUAL TABLE _windowed_summary
       USING
         SPAN_JOIN(_ui_selection_window, _sched_w_thread_process_package_summary);
-    `;
-    engine.query(
-      this.getEstimateThreadsQuery(queryPrefix, selectedCpus, duration),
-    );
+    `);
+    this.runEstimateThreadsQuery(engine, selectedCpus, duration);
 
     return true;
   }
@@ -70,37 +67,32 @@ export class WattsonThreadAggregationController extends AggregationController {
   // 1. Window and associate thread with proper Wattson estimate slice
   // 2. Group all threads over time on a per CPU basis
   // 3. Group all threads over all CPUs
-  getEstimateThreadsQuery(
-    queryPrefix: string,
+  runEstimateThreadsQuery(
+    engine: Engine,
     selectedCpu: number[],
     duration: bigint,
-  ): string {
-    let query = queryPrefix;
-
+  ) {
     // Estimate and total per UTID per CPU
     selectedCpu.forEach((cpu) => {
-      query += `
+      engine.query(`
         -- Packages filtered by CPU
-        DROP TABLE IF EXISTS _thread_windowed_summary_per_cpu;
-        CREATE PERFETTO TABLE _thread_windowed_summary_per_cpu AS
+        CREATE OR REPLACE PERFETTO VIEW _windowed_summary_per_cpu${cpu} AS
         SELECT ts, dur, utid, pid, tid, thread_name
-        FROM _thread_windowed_summary WHERE cpu = ${cpu};
+        FROM _windowed_summary WHERE cpu = ${cpu};
 
         -- CPU specific track with slices for curves
-        DROP TABLE IF EXISTS _per_cpu_curve;
-        CREATE PERFETTO TABLE _per_cpu_curve AS
+        CREATE OR REPLACE PERFETTO VIEW _per_cpu${cpu}_curve AS
         SELECT ts, dur, cpu${cpu}_curve
         FROM _system_state_curves;
 
         -- Filter out track when threads are available
-        DROP TABLE IF EXISTS _windowed_thread_curve;
-        CREATE VIRTUAL TABLE _windowed_thread_curve
+        DROP TABLE IF EXISTS _windowed_thread_curve${cpu};
+        CREATE VIRTUAL TABLE _windowed_thread_curve${cpu}
         USING
-          SPAN_JOIN(_per_cpu_curve, _thread_windowed_summary_per_cpu);
+          SPAN_JOIN(_per_cpu${cpu}_curve, _windowed_summary_per_cpu${cpu});
 
         -- Total estimate per UTID per CPU
-        DROP TABLE IF EXISTS _total_per_thread_cpu${cpu};
-        CREATE PERFETTO TABLE _total_per_thread_cpu${cpu} AS
+        CREATE OR REPLACE PERFETTO TABLE _total_per_thread_cpu${cpu} AS
         SELECT
           SUM(cpu${cpu}_curve * dur) as total_pws,
           SUM(dur) as dur,
@@ -108,13 +100,13 @@ export class WattsonThreadAggregationController extends AggregationController {
           tid,
           pid,
           thread_name
-        FROM _windowed_thread_curve
+        FROM _windowed_thread_curve${cpu}
         GROUP BY utid;
-      `;
+      `);
     });
 
     // Estimate and total per UTID, removing CPU dimension
-    query += `
+    let query = `
       -- Grouped again by UTID, but this time to make it CPU agnostic
       CREATE VIEW ${this.kind} AS
       WITH _unioned_per_thread_per_cpu AS (
@@ -135,7 +127,9 @@ export class WattsonThreadAggregationController extends AggregationController {
       GROUP BY utid;
     `;
 
-    return query;
+    engine.query(query);
+
+    return;
   }
 
   getColumnDefinitions(): ColumnDef[] {
