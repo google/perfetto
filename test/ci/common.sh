@@ -20,11 +20,6 @@ OUT_PATH="out/dist"
 
 export PYTHONUNBUFFERED=1
 
-# Avoids re-downloading test data files over and over from network.
-# tools/test_data looks at the PERFETTO_TEST_DATA_CACHE env var.
-export PERFETTO_TEST_DATA_CACHE=/ci/cache/test_data
-mkdir -p $PERFETTO_TEST_DATA_CACHE
-
 tools/install-build-deps $PERFETTO_INSTALL_BUILD_DEPS_ARGS
 
 # Assumes Linux. Windows should use /win/clang instead.
