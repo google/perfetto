@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.process_metadata;
+
 -- Establish relationships between thread and process
 CREATE PERFETTO TABLE _thread_process_summary AS
 SELECT
@@ -41,3 +43,21 @@ SELECT
 FROM _thread_process_summary as m
 JOIN thread_state USING (utid);
 
+-- Add scheduling slices info to thread/process/package
+CREATE PERFETTO TABLE _sched_w_thread_process_package_summary AS
+SELECT
+  sched.ts,
+  sched.dur,
+  sched.cpu,
+  m.utid,
+  m.upid,
+  m.tid,
+  m.pid,
+  package.uid,
+  m.thread_name,
+  m.process_name,
+  package.package_name
+FROM _thread_process_summary as m
+JOIN sched USING (utid)
+LEFT JOIN android_process_metadata as package USING(upid)
+WHERE dur > 0;

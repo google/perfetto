@@ -42,11 +42,19 @@ export class WattsonThreadAggregationController extends AggregationController {
 
     const duration = area.end - area.start;
     const queryPrefix = `
+      INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+
       DROP TABLE IF EXISTS _ui_selection_window;
       CREATE PERFETTO TABLE _ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
+
+      -- Processes filtered by CPU within the UI defined time window
+      DROP TABLE IF EXISTS _thread_windowed_summary;
+      CREATE VIRTUAL TABLE _thread_windowed_summary
+      USING
+        SPAN_JOIN(_ui_selection_window, _sched_w_thread_process_package_summary);
     `;
     engine.query(
       this.getEstimateThreadsQuery(queryPrefix, selectedCpus, duration),
@@ -72,17 +80,11 @@ export class WattsonThreadAggregationController extends AggregationController {
     // Estimate and total per UTID per CPU
     selectedCpu.forEach((cpu) => {
       query += `
-        -- Threads filtered by CPU
-        DROP TABLE IF EXISTS _per_cpu_threads;
-        CREATE PERFETTO TABLE _per_cpu_threads AS
-        SELECT ts, dur, cpu, utid
-        FROM sched WHERE cpu = ${cpu};
-
-        -- Threads filtered by CPU within the UI defined time window
-        DROP TABLE IF EXISTS _windowed_per_cpu_threads;
-        CREATE VIRTUAL TABLE _windowed_per_cpu_threads
-        USING
-          SPAN_JOIN(_ui_selection_window, _per_cpu_threads);
+        -- Packages filtered by CPU
+        DROP TABLE IF EXISTS _thread_windowed_summary_per_cpu;
+        CREATE PERFETTO TABLE _thread_windowed_summary_per_cpu AS
+        SELECT ts, dur, utid, pid, tid, thread_name
+        FROM _thread_windowed_summary WHERE cpu = ${cpu};
 
         -- CPU specific track with slices for curves
         DROP TABLE IF EXISTS _per_cpu_curve;
@@ -93,7 +95,8 @@ export class WattsonThreadAggregationController extends AggregationController {
         -- Filter out track when threads are available
         DROP TABLE IF EXISTS _windowed_thread_curve;
         CREATE VIRTUAL TABLE _windowed_thread_curve
-        USING SPAN_JOIN(_per_cpu_curve, _windowed_per_cpu_threads);
+        USING
+          SPAN_JOIN(_per_cpu_curve, _thread_windowed_summary_per_cpu);
 
         -- Total estimate per UTID per CPU
         DROP TABLE IF EXISTS _total_per_thread_cpu${cpu};
@@ -101,9 +104,10 @@ export class WattsonThreadAggregationController extends AggregationController {
         SELECT
           SUM(cpu${cpu}_curve * dur) as total_pws,
           SUM(dur) as dur,
-          COUNT(dur) as occurences,
           utid,
-          cpu
+          tid,
+          pid,
+          thread_name
         FROM _windowed_thread_curve
         GROUP BY utid;
       `;
@@ -112,8 +116,7 @@ export class WattsonThreadAggregationController extends AggregationController {
     // Estimate and total per UTID, removing CPU dimension
     query += `
       -- Grouped again by UTID, but this time to make it CPU agnostic
-      DROP TABLE IF EXISTS _total_per_thread;
-      CREATE PERFETTO TABLE _total_per_thread AS
+      CREATE VIEW ${this.kind} AS
       WITH _unioned_per_thread_per_cpu AS (
     `;
     selectedCpu.forEach((cpu, i) => {
@@ -125,18 +128,11 @@ export class WattsonThreadAggregationController extends AggregationController {
       SELECT
         ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
-        utid
+        thread_name,
+        tid,
+        pid
       FROM _unioned_per_thread_per_cpu
       GROUP BY utid;
-    `;
-
-    // Final table outputted in UI
-    query += `
-      CREATE VIEW ${this.kind} AS
-      SELECT tpt.*, thread.name as t_name, thread.tid, process.pid
-      FROM _total_per_thread as tpt
-      JOIN thread on tpt.utid = thread.utid
-      LEFT JOIN process on thread.upid = process.upid;
     `;
 
     return query;
@@ -148,7 +144,7 @@ export class WattsonThreadAggregationController extends AggregationController {
         title: 'Thread Name',
         kind: 'STRING',
         columnConstructor: Uint16Array,
-        columnId: 't_name',
+        columnId: 'thread_name',
       },
       {
         title: 'TID',
