@@ -372,11 +372,14 @@ provide a deobfuscation map to turn them back into human readable.
 To do so, use the `PERFETTO_PROGUARD_MAP` environment variable, using the
 format `packagename=map_filename[:packagename=map_filename...]`, e.g.
 `PERFETTO_PROGUARD_MAP=com.example.pkg1=foo.txt:com.example.pkg2=bar.txt`.
-All tools
-(traceconv, trace_processor_shell, the heap_profile script) support specifying
-the `PERFETTO_PROGUARD_MAP` as an environment variable.
+All tools (traceconv, trace_processor_shell, the heap_profile script) support
+specifying the `PERFETTO_PROGUARD_MAP` as an environment variable.
 
-You can get a deobfuscation map for your trace using
+```
+PERFETTO_PROGUARD_MAP=com.example.pkg1=proguard_map1.txt:com.example.pkg2=proguard_map2.txt ./tools/heap_profile -n com.example.app
+```
+
+You can get a deobfuscation map for the trace you already collected using
 `tools/traceconv deobfuscate`. Then concatenate the resulting file to your
 trace to get a deobfuscated version of it (the input trace should be in the
 perfetto format, otherwise concatenation will not produce a reasonable output).
