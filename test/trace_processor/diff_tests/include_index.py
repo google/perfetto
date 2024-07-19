@@ -78,8 +78,8 @@ from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
 from diff_tests.parser.parsing.tests_debug_annotation import ParsingDebugAnnotation
 from diff_tests.parser.parsing.tests_memory_counters import ParsingMemoryCounters
-from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
+from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
 from diff_tests.parser.power.tests_linux_sysfs_power import LinuxSysfsPower
@@ -101,10 +101,11 @@ from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.parser.zip.tests import Zip
 from diff_tests.stdlib.android.frames_tests import Frames
+from diff_tests.stdlib.android.gpu import AndroidGpu
+from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
+from diff_tests.stdlib.android.memory import AndroidMemory
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.tests import AndroidStdlib
-from diff_tests.stdlib.android.gpu import AndroidGpu
-from diff_tests.stdlib.android.memory import AndroidMemory
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
@@ -120,7 +121,7 @@ from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
-from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
+from diff_tests.stdlib.metasql.column_list import ColumnListTests
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
@@ -291,6 +292,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                               'StdlibCounterIntervals').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
+      *ColumnListTests(index_path, 'stdlib/column_list',
+                       'ColumnListTests').fetch(),
       *Memory(index_path, 'stdlib/linux', 'Memory').fetch(),
       *PreludeMathFunctions(index_path, 'stdlib/prelude',
                             'PreludeMathFunctions').fetch(),
