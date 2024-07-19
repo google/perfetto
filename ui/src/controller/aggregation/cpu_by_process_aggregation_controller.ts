@@ -37,18 +37,24 @@ export class CpuByProcessAggregationController extends AggregationController {
     }
     if (selectedCpus.length === 0) return false;
 
-    const query = `create view ${this.kind} as
-        SELECT process.name as process_name, pid,
-        sum(dur) AS total_dur,
-        sum(dur)/count(1) as avg_dur,
-        count(1) as occurrences
-        FROM process
-        JOIN thread USING(upid)
-        JOIN thread_state USING(utid)
-        WHERE cpu IN (${selectedCpus}) AND
-        state = "Running" AND
-        thread_state.ts + thread_state.dur > ${area.start} AND
-        thread_state.ts < ${area.end} group by upid`;
+    const query = `
+        INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+
+        create view ${this.kind} as
+        SELECT
+          process_name,
+          pid,
+          sum(dur) AS total_dur,
+          sum(dur)/count(1) as avg_dur,
+          count(1) as occurrences
+        FROM _state_w_thread_process_summary
+        WHERE
+          cpu IN (${selectedCpus})
+          AND upid is NOT NULL
+          AND state = "Running"
+          AND ts + dur > ${area.start}
+          AND ts < ${area.end}
+        GROUP by upid`;
 
     await engine.query(query);
     return true;
