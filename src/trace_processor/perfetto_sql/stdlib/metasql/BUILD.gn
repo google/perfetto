@@ -15,5 +15,8 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("metasql") {
-  sources = [ "column_list.sql" ]
+  sources = [
+    "column_list.sql",
+    "table_list.sql",
+  ]
 }

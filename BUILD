@@ -2776,6 +2776,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_metasql_metasql",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/metasql/column_list.sql",
+        "src/trace_processor/perfetto_sql/stdlib/metasql/table_list.sql",
     ],
 )
 
