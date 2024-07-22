@@ -1543,9 +1543,11 @@ message AndroidJankCujMetric {
 // Begin of protos/perfetto/metrics/android/java_heap_class_stats.proto
 
 message JavaHeapClassStats {
-  // Next id: 11
+  // Next id: 12
   message TypeCount {
     optional string type_name = 1;
+    optional bool is_libcore_or_primitive_heap_root = 11;
+
     optional int64 obj_count = 2;
     optional int64 size_bytes = 3;
     optional int64 native_size_bytes = 4;
