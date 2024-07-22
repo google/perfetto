@@ -24,7 +24,7 @@ RETURNS Expr AS $x AS $y;
 
 CREATE PERFETTO MACRO _interval_agg(
   tab TableOrSubquery,
-  agg_columns ColumnNameList
+  agg_columns _ColumnNameList
 )
 RETURNS TableOrSubquery AS
 (
@@ -47,7 +47,7 @@ RETURNS TableOrSubquery AS
 CREATE PERFETTO MACRO _interval_intersect(
   t1 TableOrSubquery,
   t2 TableOrSubquery,
-  agg_columns ColumnNameList
+  agg_columns _ColumnNameList
 )
 RETURNS TableOrSubquery AS
 (

@@ -39,7 +39,7 @@ CREATE PERFETTO MACRO _graph_scan(
   -- in both `init_table` and `step_query`.
   --
   -- Example: (cumulative_sum, cumulative_count).
-  scan_columns ColumnNameList,
+  scan_columns _ColumnNameList,
   -- A subquery which is reads all the data (from a variable table called $table)
   -- for a single step of the scan and performs some computation for each node in
   -- the step.
@@ -103,7 +103,7 @@ CREATE PERFETTO MACRO _graph_aggregating_scan(
   -- in both `init_table` and `agg_query`.
   --
   -- Example: (cumulative_sum, cumulative_count).
-  agg_columns ColumnNameList,
+  agg_columns _ColumnNameList,
   -- A subquery which aggregates the data for one step of the scan. Should contain
   -- the column `id` and all columns specified by `agg_columns`. Should read from
   -- a variable table labelled `$table`.
