@@ -66,3 +66,22 @@ class HeapGraph(TestSuite):
           21,14,1,512,4,"W"
           23,"[NULL]",1,1024,1,"sun.misc.Cleaner"
         """))
+
+  def test_heap_graph_aggregation(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_aggregation.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
+
+          SELECT graph_sample_ts, upid, type_name, is_libcore_or_primitive_heap_root,
+            obj_count, size_bytes,
+            dominated_obj_count, dominated_size_bytes
+          FROM android_heap_graph_class_aggregation;
+        """,
+        out=Csv("""
+          "graph_sample_ts","upid","type_name","is_libcore_or_primitive_heap_root","obj_count","size_bytes","dominated_obj_count","dominated_size_bytes"
+          10,2,"A",0,2,200,4,11200
+          10,2,"B",0,1,1000,1,1000
+          10,2,"java.lang.String",0,1,10000,1,10000
+          10,2,"java.lang.String",1,1,666,1,666
+        """))

@@ -737,12 +737,13 @@ type_count (2,.perfetto.protos.JavaHeapHistogram.TypeCountR	typeCount«
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessC
 samples (2).perfetto.protos.JavaHeapHistogram.SampleRsamples
-ã
-;protos/perfetto/metrics/android/java_heap_class_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ú
+¬
+;protos/perfetto/metrics/android/java_heap_class_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"£
 JavaHeapClassStatsX
-instance_stats (21.perfetto.protos.JavaHeapClassStats.InstanceStatsRinstanceStatsÒ
+instance_stats (21.perfetto.protos.JavaHeapClassStats.InstanceStatsRinstanceStats›
 	TypeCount
-	type_name (	RtypeName
+	type_name (	RtypeNameG
+!is_libcore_or_primitive_heap_root (RisLibcoreOrPrimitiveHeapRoot
 	obj_count (RobjCount
 
 size_bytes (R	sizeBytes*
