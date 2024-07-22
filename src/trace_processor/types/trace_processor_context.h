@@ -63,6 +63,7 @@ class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
 class StackProfileTracker;
+class TraceFileTracker;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
@@ -93,7 +94,10 @@ class TraceProcessorContext {
 
   std::unique_ptr<TraceReaderRegistry> reader_registry;
 
-  std::unique_ptr<ChunkedTraceReader> chunk_reader;
+  // We might create multiple `ChunkedTraceReader` instances (e.g. one for each
+  // file in a ZIP ). The instances are kept around here as some tokenizers
+  // might keep state that is later needed after sorting.
+  std::vector<std::unique_ptr<ChunkedTraceReader>> chunk_readers;
 
   // The sorter is used to sort trace data by timestamp and is shared among
   // multiple machines.
@@ -123,6 +127,7 @@ class TraceProcessorContext {
   std::unique_ptr<StackProfileTracker> stack_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
   std::unique_ptr<CpuTracker> cpu_tracker;
+  std::unique_ptr<TraceFileTracker> trace_file_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -180,8 +185,6 @@ class TraceProcessorContext {
   // If the uuid was NOT read, the uuid will be made from the hash of the first
   // 4KB of the trace.
   bool uuid_found_in_trace = false;
-
-  TraceType trace_type = kUnknownTraceType;
 
   std::optional<MachineId> machine_id() const;
 
