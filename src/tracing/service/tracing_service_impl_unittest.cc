@@ -3230,10 +3230,6 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   // (data_source2.2).
   EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
 
-  // Calling StartTracing() should be a noop (% a DLOG statement) because the
-  // trace config didn't have the |deferred_start| flag set.
-  consumer->StartTracing();
-
   consumer->DisableTracing();
   producer1->WaitForDataSourceStop("data_source1");
   producer2->WaitForDataSourceStop("data_source2.1");
@@ -3272,10 +3268,6 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
-
-  // Calling StartTracing() should be a noop (% a DLOG statement) because the
-  // trace config didn't have the |deferred_start| flag set.
-  consumer->StartTracing();
 
   // Try to write to the correct buffer.
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
@@ -3341,10 +3333,6 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregisterTraceWriter) {
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
 
-  // Calling StartTracing() should be a noop (% a DLOG statement) because the
-  // trace config didn't have the |deferred_start| flag set.
-  consumer->StartTracing();
-
   // Creating the trace writer should register it with the service.
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
@@ -3401,10 +3389,6 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
-
-  // Calling StartTracing() should be a noop (% a DLOG statement) because the
-  // trace config didn't have the |deferred_start| flag set.
-  consumer->StartTracing();
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
@@ -3492,7 +3476,6 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersFromAnotherThread) {
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
-  consumer->StartTracing();
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
@@ -3546,10 +3529,6 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
-
-  // Calling StartTracing() should be a noop (% a DLOG statement) because the
-  // trace config didn't have the |deferred_start| flag set.
-  consumer->StartTracing();
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
@@ -3609,10 +3588,6 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnDisable) {
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
-
-  // Calling StartTracing() should be a noop (% a DLOG statement) because the
-  // trace config didn't have the |deferred_start| flag set.
-  consumer->StartTracing();
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
