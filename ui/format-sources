@@ -103,8 +103,9 @@ def main():
   if not args.no_eslint:
     ts_js_only = lambda f: f.endswith('.ts') or f.endswith('.js')
     files_to_check = list(filter(ts_js_only, files_to_check))
-    print('Running eslint on %d files' % len(files_to_check))
-    call_or_die([ESLINT_PATH] + eslint_args + files_to_check)
+    if len(files_to_check) > 0:
+      print('Running eslint on %d files' % len(files_to_check))
+      call_or_die([ESLINT_PATH] + eslint_args + files_to_check)
 
 
 # Like subprocess.check_call, but in case of errors dies without printing a
