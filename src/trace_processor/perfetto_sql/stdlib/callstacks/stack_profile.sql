@@ -95,9 +95,11 @@ AS
   SELECT
     f.id,
     f.parent_id,
-    f.name,
     f.callsite_id,
-    f.is_leaf_function_in_callsite_frame
+    f.name,
+    m.name AS mapping_name,
+    f.source_file,
+    f.line_number
   FROM _tree_reachable_ancestors_or_self!(
     _callstack_spc_forest,
     (
@@ -108,4 +110,5 @@ AS
     )
   ) g
   JOIN _callstack_spc_forest f USING (id)
+  JOIN stack_profile_mapping m ON f.mapping_id = m.id
 );
