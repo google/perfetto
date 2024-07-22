@@ -16,6 +16,9 @@
 INCLUDE PERFETTO MODULE graphs.scan;
 INCLUDE PERFETTO MODULE metasql.column_list;
 
+CREATE PERFETTO MACRO _viz_flamegraph_hash_coalesce(col ColumnName)
+RETURNS _SqlFragment AS IFNULL($col, 0);
+
 -- For each frame in |tab|, returns a row containing the result of running
 -- all the filtering operations over that frame's name.
 CREATE PERFETTO MACRO _viz_flamegraph_prepare_filter(
@@ -36,7 +39,10 @@ AS (
     $show_from_frame As showFromFrameBits,
     $hide_frame = 0 AS showFrame,
     $pivot AS isPivot,
-    HASH(name, _metasql_unparenthesize_column_list!($grouping)) AS groupingHash
+    HASH(
+      name,
+      _metasql_map_join_column_list!($grouping, _viz_flamegraph_hash_coalesce)
+    ) AS groupingHash
   FROM $tab
   ORDER BY id
 );
