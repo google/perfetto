@@ -19,6 +19,7 @@
 #include <optional>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -108,7 +109,7 @@ TrackId TrackTracker::InternCpuTrack(StringId name, uint32_t cpu) {
   }
 
   tables::CpuTrackTable::Row row(name);
-  row.cpu = cpu;
+  row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
   row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_cpu_track_table()->Insert(row).id;
   cpu_tracks_[std::make_pair(name, cpu)] = id;
@@ -302,7 +303,7 @@ TrackId TrackTracker::InternCpuCounterTrack(StringId name, uint32_t cpu) {
   }
 
   tables::CpuCounterTrackTable::Row row(name);
-  row.cpu = cpu;
+  row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
   row.machine_id = context_->machine_id();
 
   TrackId track =
