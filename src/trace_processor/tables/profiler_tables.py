@@ -311,8 +311,8 @@ SYMBOL_TABLE = Table(
           CppUint32(),
           flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
         C('name', CppString()),
-        C('source_file', CppString()),
-        C('line_number', CppUint32()),
+        C('source_file', CppOptional(CppString())),
+        C('line_number', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
