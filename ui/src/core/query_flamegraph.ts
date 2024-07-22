@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {Engine} from '../trace_processor/engine';
-import {NUM, STR} from '../trace_processor/query_result';
+import {NUM, STR, STR_NULL} from '../trace_processor/query_result';
 import {createPerfettoTable} from '../trace_processor/sql_utils';
 import {
   Flamegraph,
@@ -68,6 +68,8 @@ export interface QueryFlamegraphMetric {
   // the user if there is no merging. If there is merging, currently the value
   // will not be shown.
   //
+  // Examples include the source file and line number.
+  //
   // TODO(lalitm): reconsider the decision to show nothing, instead maybe show
   // the top 5 options etc.
   readonly aggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
@@ -78,11 +80,14 @@ export interface QueryFlamegraphMetric {
 // in QueryFlamegraph's attrs.
 //
 // `tableOrSubquery` should have the columns `id`, `parentId`, `name` and all
-// columns specified by `tableMetrics[].name`.
+// columns specified by `tableMetrics[].name`, `unaggregatableProperties` and
+// `aggregatableProperties`.
 export function metricsFromTableOrSubquery(
   tableOrSubquery: string,
   tableMetrics: ReadonlyArray<{name: string; unit: string; columnName: string}>,
   dependencySql?: string,
+  unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>,
+  aggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>,
 ): QueryFlamegraphMetric[] {
   const metrics = [];
   for (const {name, unit, columnName} of tableMetrics) {
@@ -91,9 +96,11 @@ export function metricsFromTableOrSubquery(
       unit,
       dependencySql,
       statement: `
-        select id, parentId, name, ${columnName} as value
+        select *, ${columnName} as value
         from ${tableOrSubquery}
       `,
+      unaggregatableProperties,
+      aggregatableProperties,
     });
   }
   return metrics;
@@ -170,7 +177,7 @@ async function computeFlamegraphTree(
     aggregatableProperties,
   }: QueryFlamegraphMetric,
   {showStack, hideStack, showFromFrame, hideFrame, pivot}: FlamegraphFilters,
-) {
+): Promise<FlamegraphQueryData> {
   // Pivot also essentially acts as a "show stack" filter so treat it like one.
   const showStackAndPivot = [...showStack];
   if (pivot !== undefined) {
@@ -206,10 +213,13 @@ async function computeFlamegraphTree(
   const pivotFilter = pivot === undefined ? '0' : `name like '%${pivot}%'`;
 
   const unagg = unaggregatableProperties ?? [];
-  const agg = aggregatableProperties ?? [];
+  const unaggCols = unagg.map((x) => x.name);
 
-  const groupingColumns = `(${(unagg.length === 0 ? ['groupingColumn'] : unagg).join()})`;
-  const groupedColumns = `(${(agg.length === 0 ? ['groupedColumn'] : agg).join()})`;
+  const agg = aggregatableProperties ?? [];
+  const aggCols = agg.map((x) => x.name);
+
+  const groupingColumns = `(${(unaggCols.length === 0 ? ['groupingColumn'] : unaggCols).join()})`;
+  const groupedColumns = `(${(aggCols.length === 0 ? ['groupedColumn'] : aggCols).join()})`;
 
   if (dependencySql !== undefined) {
     await engine.query(dependencySql);
@@ -233,8 +243,8 @@ async function computeFlamegraphTree(
               parentId,
               name,
               value,
-              ${(unagg.length === 0 ? ['0 as groupingColumn'] : unagg).join()},
-              ${(agg.length === 0 ? ['0 as groupedColumn'] : agg).join()}
+              ${(unaggCols.length === 0 ? [`'' as groupingColumn`] : unaggCols).join()},
+              ${(aggCols.length === 0 ? [`'' as groupedColumn`] : aggCols).join()}
             FROM (${statement})
           ),
           (${showStackFilter}),
@@ -337,6 +347,7 @@ async function computeFlamegraphTree(
       ${groupedColumns}
     )
   `);
+
   const it = res.iter({
     id: NUM,
     parentId: NUM,
@@ -346,12 +357,21 @@ async function computeFlamegraphTree(
     cumulativeValue: NUM,
     xStart: NUM,
     xEnd: NUM,
+    ...Object.fromEntries(unaggCols.map((m) => [m, STR_NULL])),
+    ...Object.fromEntries(aggCols.map((m) => [m, STR_NULL])),
   });
   let allRootsCumulativeValue = 0;
   let minDepth = 0;
   let maxDepth = 0;
   const nodes = [];
   for (; it.valid(); it.next()) {
+    const properties = new Map<string, string>();
+    for (const a of [...agg, ...unagg]) {
+      const r = it.get(a.name);
+      if (r !== null) {
+        properties.set(a.displayName, r as string);
+      }
+    }
     nodes.push({
       id: it.id,
       parentId: it.parentId,
@@ -361,6 +381,7 @@ async function computeFlamegraphTree(
       cumulativeValue: it.cumulativeValue,
       xStart: it.xStart,
       xEnd: it.xEnd,
+      properties,
     });
     if (it.depth === 1) {
       allRootsCumulativeValue += it.cumulativeValue;
