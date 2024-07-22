@@ -28,14 +28,14 @@ module.exports = {
     }],
 
     // Formatting handled by prettier
-    "indent": "off",
-    'max-len': "off",
-    "operator-linebreak": "off",
-    "quotes": "off",
-    "brace-style": "off",
-    "space-before-function-paren": "off",
-    "generator-star-spacing": "off",
-    "semi-spacing": "off",
+    'indent': 'off',
+    'max-len': 'off',
+    'operator-linebreak': 'off',
+    'quotes': 'off',
+    'brace-style': 'off',
+    'space-before-function-paren': 'off',
+    'generator-star-spacing': 'off',
+    'semi-spacing': 'off',
 
     // clang-format --js used to format EOL comments after (e.g.) an if like:
     // if (foo) {  // insightful comment
