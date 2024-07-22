@@ -81,12 +81,8 @@ AS (
       o.upid,
       path_hash,
       parent_path_hash,
-      COALESCE(
-        c.deobfuscated_name || ' [' || o.root_type || ']',
-        c.name || ' [' || o.root_type || ']',
-        c.deobfuscated_name,
-        c.name
-      ) AS name,
+      COALESCE(c.deobfuscated_name, c.name) AS name,
+      o.root_type,
       COUNT() AS self_count,
       SUM(o.self_size) AS self_size,
       SUM(o.native_size > 0) AS self_native_count,
@@ -102,6 +98,7 @@ AS (
     HASH(path_hash, 'native', '') AS path_hash,
     path_hash AS parent_path_hash,
     '[native] ' || x.name AS name,
+    root_type,
     SUM(x.self_native_count) AS self_count,
     SUM(x.self_native_size) AS self_size
   FROM x
@@ -114,6 +111,7 @@ AS (
     path_hash,
     parent_path_hash,
     name,
+    root_type,
     self_count,
     self_size
   FROM x
@@ -139,6 +137,7 @@ AS (
       WHERE c.parent_path_hash = p.path_hash
     ) AS parent_id,
     name,
+    root_type,
     self_count,
     self_size
   FROM $tab c

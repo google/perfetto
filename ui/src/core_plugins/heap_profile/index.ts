@@ -324,7 +324,13 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
     ? metricsFromTableOrSubquery(
         `
           (
-            select id, parent_id as parentId, name, self_size, self_count
+            select
+              id,
+              parent_id as parentId,
+              name,
+              root_type,
+              self_size,
+              self_count
             from _heap_graph_dominator_class_tree
             where graph_sample_ts = ${ts} and upid = ${upid}
           )
@@ -342,6 +348,7 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
           },
         ],
         'include perfetto module android.memory.heap_graph.dominator_class_tree;',
+        [{name: 'root_type', displayName: 'Root Type'}],
       )
     : [];
   return {
@@ -350,7 +357,13 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
       ...metricsFromTableOrSubquery(
         `
           (
-            select id, parent_id as parentId, name, self_size, self_count
+            select
+              id,
+              parent_id as parentId,
+              name,
+              root_type,
+              self_size,
+              self_count
             from _heap_graph_class_tree
             where graph_sample_ts = ${ts} and upid = ${upid}
           )
@@ -368,6 +381,7 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
           },
         ],
         'include perfetto module android.memory.heap_graph.class_tree;',
+        [{name: 'root_type', displayName: 'Root Type'}],
       ),
       ...dominator,
     ],
