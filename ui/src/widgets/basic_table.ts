@@ -15,28 +15,24 @@
 import m from 'mithril';
 
 export interface ColumnDescriptor<T> {
-  title: m.Children;
+  readonly title: m.Children;
   render: (row: T) => m.Children;
 }
 
 export interface TableAttrs<T> {
-  data: T[];
-  columns: ColumnDescriptor<T>[];
+  readonly data: ReadonlyArray<T>;
+  readonly columns: ReadonlyArray<ColumnDescriptor<T>>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export class BasicTable implements m.ClassComponent<TableAttrs<any>> {
-  renderColumnHeader(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    _vnode: m.Vnode<TableAttrs<any>>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    column: ColumnDescriptor<any>,
+export class BasicTable<T> implements m.ClassComponent<TableAttrs<T>> {
+  private renderColumnHeader(
+    _vnode: m.Vnode<TableAttrs<T>>,
+    column: ColumnDescriptor<T>,
   ): m.Children {
     return m('td', column.title);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  view(vnode: m.Vnode<TableAttrs<any>>): m.Child {
+  view(vnode: m.Vnode<TableAttrs<T>>): m.Children {
     const attrs = vnode.attrs;
 
     return m(
