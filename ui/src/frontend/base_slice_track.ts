@@ -674,7 +674,7 @@ export abstract class BaseSliceTrack<
     const queryRes = await this.engine.query(`
       SELECT
         (z.ts / ${resolution}) * ${resolution} as tsQ,
-        ((z.dur / ${resolution}) + 1) * ${resolution} as durQ,
+        ((z.dur + ${resolution - 1n}) / ${resolution}) * ${resolution} as durQ,
         s.ts as ts,
         s.dur as dur,
         s.id,
