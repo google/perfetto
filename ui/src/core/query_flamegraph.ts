@@ -29,7 +29,15 @@ import {Monitor} from '../base/monitor';
 import {featureFlags} from './feature_flags';
 import {uuidv4Sql} from '../base/uuid';
 
-interface QueryFlamegraphMetric {
+export interface QueryFlamegraphColumn {
+  // The name of the column in SQL.
+  readonly name: string;
+
+  // The human readable name describing the contents of the column.
+  readonly displayName: string;
+}
+
+export interface QueryFlamegraphMetric {
   // The human readable name of the metric: will be shown to the user to change
   // between metrics.
   readonly name: string;
@@ -43,8 +51,26 @@ interface QueryFlamegraphMetric {
   readonly dependencySql?: string;
 
   // A single SQL statement which returns the columns `id`, `parentId`, `name`
-  // and `selfValue`
+  // `selfValue`, all columns specified by `unaggregatableProperties` and
+  // `aggregatableProperties`.
   readonly statement: string;
+
+  // Additional contextual columns containing data which should not be merged
+  // between sibling nodes, even if they have the same name.
+  //
+  // Examples include the mapping that a name comes from, the heap graph root
+  // type etc.
+  //
+  // Note: the name is always unaggregatable and should not be specified here.
+  readonly unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
+
+  // Additional contextual columns containing data which will be displayed to
+  // the user if there is no merging. If there is merging, currently the value
+  // will not be shown.
+  //
+  // TODO(lalitm): reconsider the decision to show nothing, instead maybe show
+  // the top 5 options etc.
+  readonly aggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
 }
 
 // Given a table and columns on those table (corresponding to metrics),
@@ -124,26 +150,25 @@ export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
   }
 
   private async fetchData(attrs: QueryFlamegraphAttrs) {
-    const {statement, dependencySql} = assertExists(
+    const metric = assertExists(
       attrs.metrics.find((metric) => metric.name === this.selectedMetricName),
     );
     const engine = attrs.engine;
     const filters = this.filters;
     this.queryLimiter.schedule(async () => {
-      this.data = await computeFlamegraphTree(
-        engine,
-        dependencySql,
-        statement,
-        filters,
-      );
+      this.data = await computeFlamegraphTree(engine, metric, filters);
     });
   }
 }
 
 async function computeFlamegraphTree(
   engine: Engine,
-  dependencySql: string | undefined,
-  sql: string,
+  {
+    dependencySql,
+    statement,
+    unaggregatableProperties,
+    aggregatableProperties,
+  }: QueryFlamegraphMetric,
   {showStack, hideStack, showFromFrame, hideFrame, pivot}: FlamegraphFilters,
 ) {
   // Pivot also essentially acts as a "show stack" filter so treat it like one.
@@ -180,6 +205,12 @@ async function computeFlamegraphTree(
 
   const pivotFilter = pivot === undefined ? '0' : `name like '%${pivot}%'`;
 
+  const unagg = unaggregatableProperties ?? [];
+  const agg = aggregatableProperties ?? [];
+
+  const groupingColumns = `(${(unagg.length === 0 ? ['groupingColumn'] : unagg).join()})`;
+  const groupedColumns = `(${(agg.length === 0 ? ['groupedColumn'] : agg).join()})`;
+
   if (dependencySql !== undefined) {
     await engine.query(dependencySql);
   }
@@ -196,13 +227,23 @@ async function computeFlamegraphTree(
       `
         select *
         from _viz_flamegraph_prepare_filter!(
-          (${sql}),
+          (
+            select
+              id,
+              parentId,
+              name,
+              value,
+              ${(unagg.length === 0 ? ['0 as groupingColumn'] : unagg).join()},
+              ${(agg.length === 0 ? ['0 as groupedColumn'] : agg).join()}
+            FROM (${statement})
+          ),
           (${showStackFilter}),
           (${hideStackFilter}),
           (${showFromFrameFilter}),
           (${hideFrameFilter}),
           (${pivotFilter}),
-          ${1 << showStackAndPivot.length}
+          ${1 << showStackAndPivot.length},
+          ${groupingColumns}
         )
       `,
     ),
@@ -244,14 +285,18 @@ async function computeFlamegraphTree(
         from _viz_flamegraph_downwards_hash!(
           _flamegraph_source_${uuid},
           _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid}
+          _flamegraph_accumulated_${uuid},
+          ${groupingColumns},
+          ${groupedColumns}
         )
         union all
         select *
         from _viz_flamegraph_upwards_hash!(
           _flamegraph_source_${uuid},
           _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid}
+          _flamegraph_accumulated_${uuid},
+          ${groupingColumns},
+          ${groupedColumns}
         )
         order by hash
       `,
@@ -264,7 +309,9 @@ async function computeFlamegraphTree(
       `
         select *
         from _viz_flamegraph_merge_hashes!(
-          _flamegraph_hash_${uuid}
+          _flamegraph_hash_${uuid},
+          ${groupingColumns},
+          ${groupedColumns}
         )
       `,
     ),
@@ -285,7 +332,9 @@ async function computeFlamegraphTree(
     select *
     from _viz_flamegraph_global_layout!(
       _flamegraph_merged_${uuid},
-      _flamegraph_layout_${uuid}
+      _flamegraph_layout_${uuid},
+      ${groupingColumns},
+      ${groupedColumns}
     )
   `);
   const it = res.iter({
