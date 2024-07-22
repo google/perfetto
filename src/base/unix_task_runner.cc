@@ -52,7 +52,7 @@ void UnixTaskRunner::WakeUp() {
 
 void UnixTaskRunner::Run() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  created_thread_id_ = GetThreadId();
+  created_thread_id_.store(GetThreadId(), std::memory_order_relaxed);
   quit_ = false;
   for (;;) {
     int poll_timeout_ms;
@@ -299,7 +299,7 @@ void UnixTaskRunner::RemoveFileDescriptorWatch(PlatformHandle fd) {
 }
 
 bool UnixTaskRunner::RunsTasksOnCurrentThread() const {
-  return GetThreadId() == created_thread_id_;
+  return GetThreadId() == created_thread_id_.load(std::memory_order_relaxed);
 }
 
 }  // namespace base
