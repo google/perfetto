@@ -88,6 +88,7 @@ export interface FlamegraphQueryData {
     readonly name: string;
     readonly selfValue: number;
     readonly cumulativeValue: number;
+    readonly properties: ReadonlyMap<string, string>;
     readonly xStart: number;
     readonly xEnd: number;
   }>;
@@ -542,7 +543,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
     }
     const {queryIdx} = node.source;
-    const {name, cumulativeValue, selfValue} = nodes[queryIdx];
+    const {name, cumulativeValue, selfValue, properties} = nodes[queryIdx];
     const filterButtonClick = (filter: string) => {
       this.rawFilters = addFilter(this.rawFilters, filter);
       this.attrs.onFiltersChanged(computeFilters(this.rawFilters));
@@ -562,6 +563,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m('.tooltip-bold-text', 'Self:'),
         m('.tooltip-text', displaySize(selfValue, unit)),
       ),
+      Array.from(properties, ([key, value]) => {
+        return m(
+          '.tooltip-text-line',
+          m('.tooltip-bold-text', key),
+          m('.tooltip-text', value),
+        );
+      }),
       m(
         ButtonBar,
         {},

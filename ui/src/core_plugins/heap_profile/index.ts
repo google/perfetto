@@ -288,6 +288,9 @@ function flamegraphAttrsForHeapProfile(
               id,
               parent_id as parentId,
               name,
+              mapping_name,
+              source_file,
+              cast(line_number AS text) as line_number,
               self_size,
               self_count,
               self_alloc_size,
@@ -306,6 +309,11 @@ function flamegraphAttrsForHeapProfile(
         `,
         metrics,
         'include perfetto module android.memory.heap_profile.callstacks',
+        [{name: 'mapping_name', displayName: 'Mapping'}],
+        [
+          {name: 'source_file', displayName: 'Source File'},
+          {name: 'line_number', displayName: 'Line Number'},
+        ],
       ),
     ],
   };
