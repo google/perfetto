@@ -55,7 +55,7 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
   async onInit() {
     await this.engine.query(`
       INCLUDE PERFETTO MODULE sched.thread_level_parallelism;
-      INCLUDE PERFETTO MODULE viz.core_type;
+      INCLUDE PERFETTO MODULE android.cpu.cluster_type;
     `);
   }
 
@@ -63,7 +63,7 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
     const sourceTable =
       this.cpuType === undefined
         ? 'sched_active_cpu_count'
-        : `_active_cpu_count_for_core_type(${sqliteString(this.cpuType)})`;
+        : `_active_cpu_count_for_cluster_type(${sqliteString(this.cpuType)})`;
     return `
       select
         ts,
