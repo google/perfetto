@@ -250,8 +250,8 @@ SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
   std::string new_rewritten = rewritten_sql.substr(offset, len);
   PERFETTO_DCHECK(ApplyRewrites(new_original, new_rewrites) == new_rewritten);
 
-  auto line_and_col = GetLineAndColumnForOffset(rewritten_sql, line, col,
-                                                original_offset_start);
+  auto line_and_col =
+      GetLineAndColumnForOffset(original_sql, line, col, original_offset_start);
   return Node{
       name,
       include_traceback_header,
