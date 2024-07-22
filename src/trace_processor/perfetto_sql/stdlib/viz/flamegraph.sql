@@ -13,7 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-include perfetto module graphs.scan;
+INCLUDE PERFETTO MODULE graphs.scan;
+INCLUDE PERFETTO MODULE metasql.column_list;
 
 -- For each frame in |tab|, returns a row containing the result of running
 -- all the filtering operations over that frame's name.
@@ -24,7 +25,8 @@ CREATE PERFETTO MACRO _viz_flamegraph_prepare_filter(
   show_from_frame Expr,
   hide_frame Expr,
   pivot Expr,
-  impossible_stack_bits Expr
+  impossible_stack_bits Expr,
+  grouping _ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -33,7 +35,8 @@ AS (
     IIF($hide_stack, $impossible_stack_bits, $show_stack) AS stackBits,
     $show_from_frame As showFromFrameBits,
     $hide_frame = 0 AS showFrame,
-    $pivot AS isPivot
+    $pivot AS isPivot,
+    HASH(name, _metasql_unparenthesize_column_list!($grouping)) AS groupingHash
   FROM $tab
   ORDER BY id
 );
@@ -168,12 +171,17 @@ AS (
   ORDER BY id
 );
 
+CREATE PERFETTO MACRO _viz_flamegraph_s_prefix(col ColumnName)
+RETURNS _SqlFragment AS s.$col;
+
 -- Propogates the cumulative value of the pivot nodes to the roots
 -- and computes the "fingerprint" of the path.
 CREATE PERFETTO MACRO _viz_flamegraph_upwards_hash(
   source TableOrSubquery,
   filtered TableOrSubquery,
-  accumulated TableOrSubquery
+  accumulated TableOrSubquery,
+  grouping _ColumnNameList,
+  grouped _ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -185,7 +193,7 @@ AS (
   inits AS (
     SELECT
       f.id,
-      HASH(-1, s.name) AS hash,
+      HASH(-1, s.groupingHash) AS hash,
       NULL AS parentHash,
       -1 AS depth,
       a.cumulativeValue
@@ -202,6 +210,8 @@ AS (
     g.parentHash,
     g.depth,
     s.name,
+    _metasql_map_join_column_list!($grouping, _viz_flamegraph_s_prefix),
+    _metasql_map_join_column_list!($grouped, _viz_flamegraph_s_prefix),
     f.value,
     g.cumulativeValue
   FROM _graph_scan!(
@@ -211,7 +221,7 @@ AS (
     (
       SELECT
         t.id,
-        HASH(t.hash, x.name) AS hash,
+        HASH(t.hash, x.groupingHash) AS hash,
         t.hash AS parentHash,
         t.depth - 1 AS depth,
         t.cumulativeValue
@@ -228,31 +238,36 @@ AS (
 CREATE PERFETTO MACRO _viz_flamegraph_downwards_hash(
   source TableOrSubquery,
   filtered TableOrSubquery,
-  accumulated TableOrSubquery
+  accumulated TableOrSubquery,
+  grouping _ColumnNameList,
+  grouped _ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
-  WITH edges AS (
-    SELECT parentId AS source_node_id, id AS dest_node_id
-    FROM $filtered
-    WHERE parentId IS NOT NULL
-  ),
-  inits AS (
-    SELECT
-      f.id,
-      HASH(1, s.name) AS hash,
-      NULL AS parentHash,
-      1 AS depth
-    FROM $filtered f
-    JOIN $source s USING (id)
-    WHERE f.parentId IS NULL
-  )
+  WITH
+    edges AS (
+      SELECT parentId AS source_node_id, id AS dest_node_id
+      FROM $filtered
+      WHERE parentId IS NOT NULL
+    ),
+    inits AS (
+      SELECT
+        f.id,
+        HASH(1, s.groupingHash) AS hash,
+        NULL AS parentHash,
+        1 AS depth
+      FROM $filtered f
+      JOIN $source s USING (id)
+      WHERE f.parentId IS NULL
+    )
   SELECT
     g.id,
     g.hash,
     g.parentHash,
     g.depth,
     s.name,
+    _metasql_map_join_column_list!($grouping, _viz_flamegraph_s_prefix),
+    _metasql_map_join_column_list!($grouped, _viz_flamegraph_s_prefix),
     f.value,
     a.cumulativeValue
   FROM _graph_scan!(
@@ -262,7 +277,7 @@ AS (
     (
       SELECT
         t.id,
-        HASH(t.hash, x.name) AS hash,
+        HASH(t.hash, x.groupingHash) AS hash,
         t.hash AS parentHash,
         t.depth + 1 AS depth
       FROM $table t
@@ -275,10 +290,18 @@ AS (
   ORDER BY hash
 );
 
+CREATE PERFETTO MACRO _viz_flamegraph_merge_grouped(
+  col ColumnName
+)
+RETURNS _SqlFragment
+AS IIF(COUNT() = 1, $col, NULL) AS $col;
+
 -- Converts a table of hashes and paretn hashes into ids and parent
 -- ids, grouping all hashes together.
 CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
-  hashed TableOrSubquery
+  hashed TableOrSubquery,
+  grouping _ColumnNameList,
+  grouped _ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -292,6 +315,11 @@ AS (
     ) AS parentId,
     depth,
     name,
+    -- The grouping columns should be passed through as-is because the
+    -- hash took them into account: we would not merged any nodes where
+    -- the grouping columns were different.
+    _metasql_unparenthesize_column_list!($grouping),
+    _metasql_map_join_column_list!($grouped, _viz_flamegraph_merge_grouped),
     SUM(value) AS value,
     SUM(cumulativeValue) AS cumulativeValue
   FROM $hashed c
@@ -327,7 +355,9 @@ AS (
 -- parents to their children.
 CREATE PERFETTO MACRO _viz_flamegraph_global_layout(
   merged TableOrSubquery,
-  layout TableOrSubquery
+  layout TableOrSubquery,
+  grouping _ColumnNameList,
+  grouped _ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -343,12 +373,14 @@ AS (
     WHERE h.parentId IS NULL
   )
   SELECT
-    h.id,
-    IFNULL(h.parentId, -1) AS parentId,
-    IIF(h.name = '', 'unknown', h.name) AS name,
-    h.value AS selfValue,
-    h.cumulativeValue,
-    h.depth,
+    s.id,
+    IFNULL(s.parentId, -1) AS parentId,
+    IIF(s.name = '', 'unknown', s.name) AS name,
+    _metasql_map_join_column_list!($grouping, _viz_flamegraph_s_prefix),
+    _metasql_map_join_column_list!($grouped, _viz_flamegraph_s_prefix),
+    s.value AS selfValue,
+    s.cumulativeValue,
+    s.depth,
     g.xStart,
     g.xEnd
   FROM _graph_scan!(
@@ -364,6 +396,6 @@ AS (
       JOIN $layout w USING (id)
     )
   ) g
-  JOIN $merged h USING (id)
+  JOIN $merged s USING (id)
   ORDER BY depth, xStart
 );
