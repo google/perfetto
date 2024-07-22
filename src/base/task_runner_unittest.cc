@@ -343,6 +343,8 @@ TEST_F(TaskRunnerTest, RunsTasksOnCurrentThread) {
     });
     second_tr.Run();
   });
+  main_tr.PostTask([&]() { main_tr.Quit(); });
+  main_tr.Run();
   thread.join();
 }
 
