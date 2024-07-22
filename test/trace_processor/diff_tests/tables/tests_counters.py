@@ -190,8 +190,9 @@ class TablesCounters(TestSuite):
           lead(ts, 1, ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
           value
         FROM counter c
-        JOIN cpu_counter_track t on c.track_id = t.id
-        WHERE cpu = 1;
+        JOIN cpu_counter_track t ON c.track_id = t.id
+        JOIN cpu ON t.ucpu = cpu.id
+        WHERE cpu.cpu = 1;
         """,
         out=Csv("""
         "ts","dur","value"

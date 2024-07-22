@@ -12,6 +12,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
@@ -298,3 +299,81 @@ SELECT
   upid
 FROM
   __intrinsic_sched_upid;
+
+-- Tracks which are associated to a single CPU.
+CREATE PERFETTO VIEW cpu_track (
+  -- Unique identifier for this cpu track.
+  id UINT,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id UINT,
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id UINT,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id UINT,
+  -- The CPU that the track is associated with (meaningful only in single
+  -- machine traces). For multi-machine, join with the `cpu` table on `ucpu` to
+  -- get the CPU identifier of each machine.
+  cpu UINT,
+  -- The unique CPU identifier that this track is associated with.
+  ucpu UINT
+) AS
+SELECT
+  id,
+  type,
+  name,
+  parent_id,
+  source_arg_set_id,
+  machine_id,
+  ucpu AS cpu,
+  ucpu
+FROM
+  __intrinsic_cpu_track;
+
+-- Tracks containing counter-like events associated to a CPU.
+CREATE PERFETTO VIEW cpu_counter_track (
+  -- Unique identifier for this cpu counter track.
+  id UINT,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id UINT,
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id UINT,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id UINT,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The CPU that the track is associated with (meaningful only in single
+  -- machine traces). For multi-machine, join with the `cpu` table on `ucpu` to
+  -- get the CPU identifier of each machine.
+  cpu UINT,
+  -- The unique CPU identifier that this track is associated with.
+  ucpu UINT
+) AS
+SELECT
+  id,
+  type,
+  name,
+  parent_id,
+  source_arg_set_id,
+  machine_id,
+  unit,
+  description,
+  ucpu AS cpu,
+  ucpu
+FROM
+  __intrinsic_cpu_counter_track;
