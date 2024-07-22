@@ -566,7 +566,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       Array.from(properties, ([key, value]) => {
         return m(
           '.tooltip-text-line',
-          m('.tooltip-bold-text', key),
+          m('.tooltip-bold-text', key + ':'),
           m('.tooltip-text', value),
         );
       }),
