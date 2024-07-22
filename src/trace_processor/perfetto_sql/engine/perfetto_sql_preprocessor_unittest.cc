@@ -364,5 +364,63 @@ TEST_F(PerfettoSqlPreprocessorUnittest, TokenApply) {
   }
 }
 
+TEST_F(PerfettoSqlPreprocessorUnittest, TokenMapJoin) {
+  auto foo = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO G(a Expr) Returns Expr AS baza.$a");
+  macros_.Insert("G", Macro{
+                          false,
+                          "G",
+                          {"a"},
+                          FindSubstr(foo, "baza.$a"),
+                      });
+
+  auto tp = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO TokMapJoin(a Expr, b Expr, c Expr) Returns Expr "
+      "AS __intrinsic_token_map_join!($a, $b, $c)");
+  macros_.Insert("TokMapJoin",
+                 Macro{
+                     false,
+                     "TokMapJoin",
+                     {"a", "b", "c"},
+                     FindSubstr(tp, "__intrinsic_token_map_join!($a, $b, $c)"),
+                 });
+  {
+    auto source =
+        SqlSource::FromExecuteQuery("__intrinsic_token_map_join!((), G, AND)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(), "");
+    ASSERT_FALSE(preprocessor.NextStatement());
+  }
+  {
+    auto source = SqlSource::FromExecuteQuery(
+        "__intrinsic_token_map_join!((foo), G, AND)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(), "baza.foo");
+    ASSERT_FALSE(preprocessor.NextStatement());
+  }
+  {
+    auto source = SqlSource::FromExecuteQuery(
+        "__intrinsic_token_map_join!((foo, baz), G, AND)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(), "baza.foo AND baza.baz");
+    ASSERT_FALSE(preprocessor.NextStatement());
+  }
+  {
+    auto source =
+        SqlSource::FromExecuteQuery("TokMapJoin!((foo, bar), G, AND)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(), "baza.foo AND baza.bar");
+    ASSERT_FALSE(preprocessor.NextStatement());
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor
