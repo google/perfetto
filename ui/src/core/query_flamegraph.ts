@@ -88,6 +88,7 @@ export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
     hideStack: [],
     showFromFrame: [],
     hideFrame: [],
+    pivot: undefined,
   };
   private attrs: QueryFlamegraphAttrs;
   private selMonitor = new Monitor([() => this.attrs.metrics]);
@@ -143,13 +144,21 @@ async function computeFlamegraphTree(
   engine: Engine,
   dependencySql: string | undefined,
   sql: string,
-  {showStack, hideStack, showFromFrame, hideFrame}: FlamegraphFilters,
+  {showStack, hideStack, showFromFrame, hideFrame, pivot}: FlamegraphFilters,
 ) {
+  // Pivot also essentially acts as a "show stack" filter so treat it like one.
+  const showStackAndPivot = [...showStack];
+  if (pivot !== undefined) {
+    showStackAndPivot.push(pivot);
+  }
+
   const showStackFilter =
-    showStack.length === 0
+    showStackAndPivot.length === 0
       ? '0'
-      : showStack.map((x, i) => `((name like '%${x}%') << ${i})`).join(' | ');
-  const showStackBits = (1 << showStack.length) - 1;
+      : showStackAndPivot
+          .map((x, i) => `((name like '%${x}%') << ${i})`)
+          .join(' | ');
+  const showStackBits = (1 << showStackAndPivot.length) - 1;
 
   const hideStackFilter =
     hideStack.length === 0
@@ -168,6 +177,8 @@ async function computeFlamegraphTree(
     hideFrame.length === 0
       ? 'false'
       : hideFrame.map((x) => `name like '%${x}%'`).join(' OR ');
+
+  const pivotFilter = pivot === undefined ? '0' : `name like '%${pivot}%'`;
 
   if (dependencySql !== undefined) {
     await engine.query(dependencySql);
@@ -190,7 +201,8 @@ async function computeFlamegraphTree(
           (${hideStackFilter}),
           (${showFromFrameFilter}),
           (${hideFrameFilter}),
-          ${1 << showStack.length}
+          (${pivotFilter}),
+          ${1 << showStackAndPivot.length}
         )
       `,
     ),
@@ -229,12 +241,19 @@ async function computeFlamegraphTree(
       `_flamegraph_hash_${uuid}`,
       `
         select *
-        from _viz_flamegraph_hash!(
+        from _viz_flamegraph_downwards_hash!(
           _flamegraph_source_${uuid},
           _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid},
-          ${showStackBits}
+          _flamegraph_accumulated_${uuid}
         )
+        union all
+        select *
+        from _viz_flamegraph_upwards_hash!(
+          _flamegraph_source_${uuid},
+          _flamegraph_filtered_${uuid},
+          _flamegraph_accumulated_${uuid}
+        )
+        order by hash
       `,
     ),
   );
@@ -243,7 +262,8 @@ async function computeFlamegraphTree(
       engine,
       `_flamegraph_merged_${uuid}`,
       `
-        select * from _viz_flamegraph_merge_hashes!(
+        select *
+        from _viz_flamegraph_merge_hashes!(
           _flamegraph_hash_${uuid}
         )
       `,
@@ -279,6 +299,7 @@ async function computeFlamegraphTree(
     xEnd: NUM,
   });
   let allRootsCumulativeValue = 0;
+  let minDepth = 0;
   let maxDepth = 0;
   const nodes = [];
   for (; it.valid(); it.next()) {
@@ -292,12 +313,13 @@ async function computeFlamegraphTree(
       xStart: it.xStart,
       xEnd: it.xEnd,
     });
-    if (it.parentId === -1) {
+    if (it.depth === 1) {
       allRootsCumulativeValue += it.cumulativeValue;
     }
+    minDepth = Math.min(minDepth, it.depth);
     maxDepth = Math.max(maxDepth, it.depth);
   }
-  return {nodes, allRootsCumulativeValue, maxDepth};
+  return {nodes, allRootsCumulativeValue, minDepth, maxDepth};
 }
 
 export const USE_NEW_FLAMEGRAPH_IMPL = featureFlags.register({
