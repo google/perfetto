@@ -56,13 +56,14 @@ class NetworkTraceModuleTest : public testing::Test {
   }
 
   util::Status TokenizeAndParse() {
-    context_.chunk_reader.reset(new ProtoTraceReader(&context_));
+    context_.chunk_readers.push_back(
+        std::make_unique<ProtoTraceReader>(&context_));
 
     trace_->Finalize();
     std::vector<uint8_t> v = trace_.SerializeAsArray();
     trace_.Reset();
 
-    auto status = context_.chunk_reader->Parse(
+    auto status = context_.chunk_readers.back()->Parse(
         TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
     context_.sorter->ExtractEventsForced();
     context_.slice_tracker->FlushPendingSlices();

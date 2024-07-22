@@ -23,22 +23,25 @@
 namespace perfetto::trace_processor {
 
 enum TraceType {
-  kUnknownTraceType,
-  kProtoTraceType,
-  kJsonTraceType,
-  kFuchsiaTraceType,
-  kSystraceTraceType,
-  kGzipTraceType,
-  kCtraceTraceType,
-  kNinjaLogTraceType,
-  kZipFile,
-  kPerfDataTraceType,
+  kAndroidBugreportTraceType,
+  kAndroidDumpstateTraceType,
   kAndroidLogcatTraceType,
+  kCtraceTraceType,
+  kFuchsiaTraceType,
+  kGzipTraceType,
+  kJsonTraceType,
+  kNinjaLogTraceType,
+  kPerfDataTraceType,
+  kProtoTraceType,
+  kSymbolsTraceType,
+  kSystraceTraceType,
+  kUnknownTraceType,
+  kZipFile,
 };
 
 constexpr size_t kGuessTraceMaxLookahead = 64;
 TraceType GuessTraceType(const uint8_t* data, size_t size);
-const char* ToString(TraceType type);
+const char* TraceTypeToString(TraceType type);
 
 }  // namespace perfetto::trace_processor
 
