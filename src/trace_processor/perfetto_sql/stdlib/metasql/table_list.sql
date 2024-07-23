@@ -21,3 +21,13 @@ CREATE PERFETTO MACRO _metasql_map_join_table_list(
 )
 RETURNS _SqlFragment
 AS __intrinsic_token_map_join!($tables, $map_macro, __intrinsic_token_comma!());
+
+-- Given a list of table names, applies an arbitrary macro to each table
+-- and joins the result with a comma.
+CREATE PERFETTO MACRO _metasql_map_join_table_list_with_capture(
+  tables _TableNameList,
+  map_macro _Macro,
+  args _ArgumentList
+)
+RETURNS _SqlFragment
+AS __intrinsic_token_map_join_with_capture!($tables, $map_macro, $args, __intrinsic_token_comma!());
