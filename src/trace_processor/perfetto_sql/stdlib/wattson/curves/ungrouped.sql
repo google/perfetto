@@ -210,3 +210,27 @@ LEFT JOIN _filtered_curves_l3 l3_miss_lut ON
   l3_miss_lut.other_freq_khz = base.max_freq_vote AND
   l3_miss_lut.action = 'miss';
 
+-- The most basic components of Wattson, all normalized to be in mW on a per
+-- system state basis
+CREATE PERFETTO TABLE _system_state_mw
+AS
+SELECT
+  ts,
+  dur,
+  cpu0_curve as cpu0_mw,
+  cpu1_curve as cpu1_mw,
+  cpu2_curve as cpu2_mw,
+  cpu3_curve as cpu3_mw,
+  cpu4_curve as cpu4_mw,
+  cpu5_curve as cpu5_mw,
+  cpu6_curve as cpu6_mw,
+  cpu7_curve as cpu7_mw,
+  -- LUT for l3 is scaled by 10^6 to save resolution and in units of kWs. Scale
+  -- this by 10^3 so when divided by ns, result is in units of mW
+  (
+    (
+      IFNULL(l3_hit_value, 0) + IFNULL(l3_miss_value, 0)
+    ) * 1000 / dur
+  ) + static_curve as dsu_scu_mw
+FROM _system_state_curves;
+
