@@ -3478,33 +3478,38 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersFromAnotherThread) {
   producer->WaitForDataSourceStart("data_source");
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[0]);
+      tracing_session()->buffers_index[0], BufferExhaustedPolicy::kDrop);
   WaitForTraceWritersChanged(producer_id);
 
-  constexpr int kPacketCount = 10;
-  std::atomic<int> packets_written{};
+  std::atomic<bool> packets_written = false;
+  std::atomic<bool> quit = false;
   std::thread writer_thread([&] {
-    for (int i = 0; i < kPacketCount; i++) {
+    while (!quit.load(std::memory_order_acquire)) {
       writer->NewTracePacket()->set_for_testing()->set_str("payload");
-      packets_written.store(i, std::memory_order_relaxed);
+      packets_written.store(true, std::memory_order_release);
+      std::this_thread::yield();
     }
   });
 
   // Wait until the thread has had some time to write some packets.
-  while (packets_written.load(std::memory_order_relaxed) < kPacketCount / 2)
-    base::SleepMicroseconds(5000);
+  while (packets_written.load(std::memory_order_acquire) == false)
+    std::this_thread::yield();
 
   // Disabling tracing will trigger scraping.
   consumer->DisableTracing();
+
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+  quit.store(true, std::memory_order_release);
   writer_thread.join();
 
   // Because we don't synchronize with the producer thread, we can't make any
   // guarantees about the number of packets we will successfully read. We just
   // verify that no TSAN races are reported.
-  consumer->ReadBuffers();
-
-  producer->WaitForDataSourceStop("data_source");
-  consumer->WaitForTracingDisabled();
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload")))));
 }
 
 // Test scraping on producer disconnect.
