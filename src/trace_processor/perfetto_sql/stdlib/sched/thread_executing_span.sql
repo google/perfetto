@@ -504,7 +504,7 @@ RETURNS TableOrSubQuery AS (
       ii.dur,
       _intervals.ts AS interval_ts,
       _intervals.dur AS interval_dur
-    FROM _interval_intersect!(_span, _intervals, (root_utid)) ii
+    FROM _interval_intersect!((_span, _intervals), (root_utid)) ii
     JOIN _span ON _span.id = ii.id_0
     JOIN _intervals ON _intervals.id = ii.id_1
 );
