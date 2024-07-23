@@ -17,6 +17,8 @@
 -- to determine the cluster type for cpus with 2, 3 or 4 clusters
 -- indicating whether they are "little", "medium" or "big".
 
+INCLUDE PERFETTO MODULE intervals.overlap;
+
 CREATE PERFETTO TABLE _cores AS
 WITH data(cluster_id, cluster_type, cluster_count) AS (
   VALUES
@@ -46,4 +48,36 @@ SELECT
 FROM
   cpu
 LEFT JOIN _cores ON _cores.cluster_id = cpu.cluster_id
-AND _cores.cluster_count = (SELECT COUNT(DISTINCT cluster_id)FROM cpu)
+AND _cores.cluster_count = (SELECT COUNT(DISTINCT cluster_id) FROM cpu);
+
+-- The count of active CPUs with a given cluster type over time.
+CREATE PERFETTO FUNCTION _active_cpu_count_for_cluster_type(
+  -- Type of the CPU cluster as reported by android_cpu_cluster_mapping. Usually 'little', 'medium' or 'big'.
+  cluster_type STRING
+) RETURNS TABLE(
+  -- Timestamp when the number of active CPU changed.
+  ts LONG,
+  -- Number of active CPUs, covering the range from this timestamp to the next
+  -- row's timestamp.
+  active_cpu_count LONG
+) AS
+WITH
+-- Materialise the relevant clusters to avoid calling a function for each row of the sched table.
+cluster AS (
+  SELECT ucpu
+  FROM android_cpu_cluster_mapping
+  WHERE cluster_type = $cluster_type
+),
+-- Filter sched events corresponding to running tasks.
+-- utid=0 is the swapper thread / idle task.
+tasks AS (
+  SELECT ts, dur
+  FROM sched
+  WHERE
+    ucpu IN (SELECT ucpu FROM cluster)
+    AND utid != 0
+)
+SELECT
+  ts, value as active_cpu_count
+FROM intervals_overlap_count!(tasks, ts, dur)
+ORDER BY ts;
