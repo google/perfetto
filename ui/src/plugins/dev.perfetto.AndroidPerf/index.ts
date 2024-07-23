@@ -112,7 +112,7 @@ class AndroidPerf implements Plugin {
         }
         ctx.tabs.openQuery(
           `
-          INCLUDE PERFETTO MODULE viz.core_types;
+          INCLUDE PERFETTO MODULE android.cpu.cluster_type;
           WITH
             total_runtime AS (
               SELECT sum(dur) AS total_runtime
@@ -122,14 +122,14 @@ class AndroidPerf implements Plugin {
               WHERE t.tid = ${tid}
             )
             SELECT
-              c.size AS cluster,
+              c.cluster_type AS cluster,
               sum(dur)/1e6 AS total_dur_ms,
               sum(dur) * 1.0 / (SELECT * FROM total_runtime) AS percentage
             FROM sched s
             LEFT JOIN thread t
               USING (utid)
-            LEFT JOIN _guessed_core_types c
-              ON s.cpu = c.cpu_index
+            LEFT JOIN android_cpu_cluster_mapping c
+              USING (cpu)
             WHERE t.tid = ${tid}
             GROUP BY 1`,
           `runtime cluster distrubtion for tid ${tid}`,
