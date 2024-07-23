@@ -97,38 +97,37 @@ class TrackDecider {
     this.engine = engine;
   }
 
-  async guessCpuSizes(): Promise<Map<number, string>> {
-    const cpuToSize = new Map<number, string>();
+  async getAndroidCpuClusterTypes(): Promise<Map<number, string>> {
+    const cpuToClusterType = new Map<number, string>();
     await this.engine.query(`
-      include perfetto module viz.core_type;
+      include perfetto module android.cpu.cluster_type;
     `);
     const result = await this.engine.query(`
-      select cpu, _guess_core_type(cpu) as size
-      from cpu_counter_track
-      join _counter_track_summary using (id);
+      select cpu, cluster_type as clusterType
+      from android_cpu_cluster_mapping
     `);
 
     const it = result.iter({
       cpu: NUM,
-      size: STR_NULL,
+      clusterType: STR_NULL,
     });
 
     for (; it.valid(); it.next()) {
-      const size = it.size;
-      if (size !== null) {
-        cpuToSize.set(it.cpu, size);
+      const clusterType = it.clusterType;
+      if (clusterType !== null) {
+        cpuToClusterType.set(it.cpu, clusterType);
       }
     }
 
-    return cpuToSize;
+    return cpuToClusterType;
   }
 
   async addCpuSchedulingTracks(): Promise<void> {
     const cpus = globals.traceContext.cpus;
-    const cpuToSize = await this.guessCpuSizes();
+    const cpuToClusterType = await this.getAndroidCpuClusterTypes();
 
     for (const cpu of cpus) {
-      const size = cpuToSize.get(cpu);
+      const size = cpuToClusterType.get(cpu);
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       this.tracksToAdd.push({
         uri: `/sched_cpu${cpu}`,

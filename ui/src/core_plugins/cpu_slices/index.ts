@@ -28,11 +28,12 @@ import {CpuSliceTrack} from './cpu_slice_track';
 class CpuSlices implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const cpus = ctx.trace.cpus;
-    const cpuToSize = await this.guessCpuSizes(ctx.engine);
+    const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
     for (const cpu of cpus) {
-      const size = cpuToSize.get(cpu);
+      const size = cpuToClusterType.get(cpu);
       const uri = `/sched_cpu${cpu}`;
+
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       ctx.registerTrack({
         uri,
@@ -57,30 +58,31 @@ class CpuSlices implements Plugin {
     });
   }
 
-  async guessCpuSizes(engine: Engine): Promise<Map<number, string>> {
-    const cpuToSize = new Map<number, string>();
+  async getAndroidCpuClusterTypes(
+    engine: Engine,
+  ): Promise<Map<number, string>> {
+    const cpuToClusterType = new Map<number, string>();
     await engine.query(`
-      include perfetto module viz.core_type;
+      include perfetto module android.cpu.cluster_type;
     `);
     const result = await engine.query(`
-      select cpu, _guess_core_type(cpu) as size
-      from cpu_counter_track
-      join _counter_track_summary using (id);
+      select cpu, cluster_type as clusterType
+      from android_cpu_cluster_mapping
     `);
 
     const it = result.iter({
       cpu: NUM,
-      size: STR_NULL,
+      clusterType: STR_NULL,
     });
 
     for (; it.valid(); it.next()) {
-      const size = it.size;
-      if (size !== null) {
-        cpuToSize.set(it.cpu, size);
+      const clusterType = it.clusterType;
+      if (clusterType !== null) {
+        cpuToClusterType.set(it.cpu, clusterType);
       }
     }
 
-    return cpuToSize;
+    return cpuToClusterType;
   }
 }
 
