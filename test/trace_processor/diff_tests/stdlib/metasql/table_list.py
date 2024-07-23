@@ -46,3 +46,35 @@ class TableListTests(TestSuite):
         "a + b + c"
         3
         """))
+
+  def test_table_list_with_capture(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        INCLUDE PERFETTO MODULE metasql.table_list;
+
+        CREATE PERFETTO MACRO mac(t TableOrSubquery, x Expr)
+        RETURNS TableOrSubquery AS
+        (SELECT *, $x AS bla FROM $t);
+
+        WITH foo AS (
+          SELECT 0 AS a
+        ),
+        bar AS (
+          SELECT 1 AS b
+        ),
+        baz AS (
+          SELECT 2 AS c
+        )
+        SELECT
+          a + b + c
+        FROM _metasql_map_join_table_list_with_capture!(
+          (foo, bar, baz),
+          mac,
+          (3)
+        );
+        """,
+        out=Csv("""
+        "a + b + c"
+        3
+        """))

@@ -273,6 +273,14 @@ base::StatusOr<SqlSource> PerfettoSqlPreprocessor::RewriteInternal(
                             prev, tok);
       continue;
     }
+    if (macro_name == "__intrinsic_token_map_join_with_capture") {
+      ASSIGN_OR_RETURN(
+          std::optional<SqlSource> res,
+          ExecuteTokenMapJoinWithCapture(tokenizer, name_token, token_list));
+      RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
+                            prev, tok);
+      continue;
+    }
     if (macro_name == "__intrinsic_token_comma") {
       if (!token_list.empty()) {
         return ErrorAtToken(tokenizer, name_token,
@@ -499,6 +507,65 @@ PerfettoSqlPreprocessor::ExecuteTokenMapJoin(
   }
 
   std::string zipped = base::Join(res, " " + token_list[2].sql() + " ");
+  return {SqlSource::FromTraceProcessorImplementation(zipped)};
+}
+
+base::StatusOr<std::optional<SqlSource>>
+PerfettoSqlPreprocessor::ExecuteTokenMapJoinWithCapture(
+    const SqliteTokenizer& tokenizer,
+    const SqliteTokenizer::Token& name_token,
+    std::vector<SqlSource> token_list) {
+  if (token_list.size() != 4) {
+    return ErrorAtToken(
+        tokenizer, name_token,
+        "token_map_join_with_capture: must have exactly four args");
+  }
+
+  SqliteTokenizer arg_list_tokenizer(token_list[0]);
+  SqliteTokenizer::Token inner_tok = arg_list_tokenizer.NextNonWhitespace();
+  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
+    return {std::nullopt};
+  }
+  ASSIGN_OR_RETURN(std::vector<SqlSource> arg_list_sources,
+                   ParseTokenList(arg_list_tokenizer, inner_tok, {}));
+
+  SqliteTokenizer name_tokenizer(token_list[1]);
+  inner_tok = name_tokenizer.NextNonWhitespace();
+  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
+    return {std::nullopt};
+  }
+
+  SqliteTokenizer capture_tokenizer(token_list[2]);
+  inner_tok = capture_tokenizer.NextNonWhitespace();
+  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
+    return {std::nullopt};
+  }
+  ASSIGN_OR_RETURN(std::vector<SqlSource> captured_args,
+                   ParseTokenList(capture_tokenizer, inner_tok, {}));
+
+  std::vector<std::string> res;
+  for (const auto& arg_list_source : arg_list_sources) {
+    SqliteTokenizer args_tokenizer(arg_list_source);
+    inner_tok = args_tokenizer.NextNonWhitespace();
+    if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
+      return {std::nullopt};
+    }
+
+    std::vector<SqlSource> macro_args{arg_list_source};
+    macro_args.insert(macro_args.end(), captured_args.begin(),
+                      captured_args.end());
+    ASSIGN_OR_RETURN(
+        SqlSource invocation_res,
+        ExecuteMacroInvocation(tokenizer, name_token, token_list[1].sql(),
+                               std::move(macro_args)));
+    res.push_back(invocation_res.sql());
+  }
+
+  if (res.empty()) {
+    return {SqlSource::FromTraceProcessorImplementation("")};
+  }
+
+  std::string zipped = base::Join(res, " " + token_list[3].sql() + " ");
   return {SqlSource::FromTraceProcessorImplementation(zipped)};
 }
 
