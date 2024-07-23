@@ -55,6 +55,9 @@ namespace perfetto::trace_processor::perfetto_sql {
 namespace {
 
 static const uint32_t kArgCols = 2;
+static const uint32_t kIdCols = 5;
+static const uint32_t kPartitionColsOffset = kArgCols + kIdCols;
+
 using Intervals = std::vector<IntervalTree::Interval>;
 using BuilderColType = RuntimeTable::BuilderColumnType;
 
@@ -185,28 +188,23 @@ static base::StatusOr<uint32_t> PushPartition(
     builder.AddNonNullIntegersUnchecked(i + kArgCols, ids[i]);
   }
 
-  uint32_t res_size = static_cast<uint32_t>(res.size());
   for (uint32_t i = 0; i < partition_values.size(); i++) {
     const SqlValue& part_val = partition_values[i];
     switch (part_val.type) {
       case SqlValue::kLong:
-        RETURN_IF_ERROR(builder.AddIntegers(
-            i + kArgCols + static_cast<uint32_t>(tables_count),
-            part_val.AsLong(), res_size));
+        RETURN_IF_ERROR(builder.AddIntegers(i + kPartitionColsOffset,
+                                            part_val.AsLong(), rows_count));
         continue;
       case SqlValue::kDouble:
-        RETURN_IF_ERROR(builder.AddFloats(
-            i + kArgCols + static_cast<uint32_t>(tables_count),
-            part_val.AsDouble(), res_size));
+        RETURN_IF_ERROR(builder.AddFloats(i + kPartitionColsOffset,
+                                          part_val.AsDouble(), rows_count));
         continue;
       case SqlValue::kString:
-        RETURN_IF_ERROR(
-            builder.AddTexts(i + kArgCols + static_cast<uint32_t>(tables_count),
-                             part_val.AsString(), res_size));
+        RETURN_IF_ERROR(builder.AddTexts(i + kPartitionColsOffset,
+                                         part_val.AsString(), rows_count));
         continue;
       case SqlValue::kNull:
-        RETURN_IF_ERROR(builder.AddNulls(
-            i + kArgCols + static_cast<uint32_t>(tables_count), res_size));
+        RETURN_IF_ERROR(builder.AddNulls(i + kPartitionColsOffset, rows_count));
         continue;
       case SqlValue::kBytes:
         PERFETTO_FATAL("Invalid partition type");
@@ -220,7 +218,7 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
   static constexpr char kName[] = "__intrinsic_interval_intersect";
   // Two tables that are being intersected.
   // TODO(mayzner): Support more tables.
-  static constexpr int kArgCount = 3;
+  static constexpr int kArgCount = -1;
 
   struct UserDataContext {
     PerfettoSqlEngine* engine;
@@ -230,6 +228,10 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc >= 2);
     size_t tabc = static_cast<size_t>(argc - 1);
+    if (tabc > kIdCols) {
+      return sqlite::result::Error(
+          ctx, "interval intersect: Can intersect at most 5 tables");
+    }
     const char* partition_list = sqlite::value::Text(argv[argc - 1]);
     if (!partition_list) {
       return sqlite::result::Error(
@@ -238,15 +240,19 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
 
     // Get column names of return columns.
     std::vector<std::string> ret_col_names{"ts", "dur"};
-    for (uint32_t i = 0; i < tabc; i++) {
+    for (uint32_t i = 0; i < kIdCols; i++) {
       ret_col_names.push_back(base::StackString<32>("id_%u", i).ToStdString());
     }
-
-    for (const auto& c :
-         base::SplitString(base::StripChars(partition_list, "()", ' '), ",")) {
+    std::vector<std::string> partition_columns =
+        base::SplitString(base::StripChars(partition_list, "()", ' '), ",");
+    if (partition_columns.size() > 4) {
+      return sqlite::result::Error(
+          ctx, "interval intersect: Can take at most 4 partitions.");
+    }
+    for (const auto& c : partition_columns) {
       std::string p_col_name = base::TrimWhitespace(c).c_str();
       if (!p_col_name.empty()) {
-        ret_col_names.push_back(base::TrimWhitespace(c));
+        ret_col_names.push_back(p_col_name);
       }
     }
 
@@ -273,6 +279,9 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
 
     std::vector<BuilderColType> col_types(kArgCols + tabc,
                                           BuilderColType::kInt);
+    // Add dummy id cols.
+    col_types.resize(kArgCols + kIdCols, BuilderColType::kNullInt);
+
     PartitionToValuesMap* p_values = &tables[0]->partition_values;
     SQLITE_ASSIGN_OR_RETURN(ctx, std::vector<BuilderColType> p_types,
                             GetPartitionsSqlType(*p_values));
@@ -320,6 +329,11 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
                                               (*p_values)[p_it.key()]));
         rows += pushed_rows;
       }
+    }
+
+    // Fill the dummy id columns with nulls.
+    for (uint32_t i = static_cast<uint32_t>(tabc); i < kIdCols; i++) {
+      SQLITE_RETURN_IF_ERROR(ctx, builder.AddNulls(i + kArgCols, rows));
     }
 
     SQLITE_ASSIGN_OR_RETURN(ctx, std::unique_ptr<RuntimeTable> ret_tab,
