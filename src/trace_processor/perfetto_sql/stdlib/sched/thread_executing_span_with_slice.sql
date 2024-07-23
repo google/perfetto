@@ -147,7 +147,7 @@ SELECT
   id_1 AS th_id,
   ts,
   dur
-FROM _interval_intersect!(_critical_path_all, _span_thread_state_slice, (utid));
+FROM _interval_intersect!((_critical_path_all, _span_thread_state_slice), (utid));
 
 CREATE PERFETTO TABLE _critical_path_thread_state_slice
 AS
