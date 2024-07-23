@@ -16,8 +16,9 @@
 
 #include "src/trace_processor/importers/proto/pigweed_detokenizer.h"
 
+#include <array>
+#include <cctype>
 #include <cstring>
-#include <string_view>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
