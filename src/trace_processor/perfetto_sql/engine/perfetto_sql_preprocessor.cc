@@ -38,6 +38,36 @@
 namespace perfetto::trace_processor {
 namespace {
 
+enum IntrinsicMacro {
+  kStringify,
+  kTokenZipJoin,
+  kPrefixedTokenZipJoin,
+  kTokenApply,
+  kTokenMapJoin,
+  kTokenMapJoinWithCapture,
+  kComma,
+  kOther
+};
+
+IntrinsicMacro MacroNameToEnum(const std::string& macro_name) {
+  if (macro_name == "__intrinsic_stringify")
+    return kStringify;
+  if (macro_name == "__intrinsic_token_zip_join")
+    return kTokenZipJoin;
+  if (macro_name == "__intrinsic_prefixed_token_zip_join")
+    return kPrefixedTokenZipJoin;
+  if (macro_name == "__intrinsic_token_apply")
+    return kTokenApply;
+  if (macro_name == "__intrinsic_token_map_join")
+    return kTokenMapJoin;
+  if (macro_name == "__intrinsic_token_map_join_with_capture")
+    return kTokenMapJoinWithCapture;
+  if (macro_name == "__intrinsic_token_comma")
+    return kComma;
+
+  return kOther;
+}
+
 base::Status ErrorAtToken(const SqliteTokenizer& tokenizer,
                           const SqliteTokenizer::Token& token,
                           const char* error) {
@@ -234,54 +264,22 @@ base::StatusOr<SqlSource> PerfettoSqlPreprocessor::RewriteInternal(
     tok = tokenizer.NextNonWhitespace();
 
     std::string macro_name(name_token.str);
+    IntrinsicMacro macro_enum = MacroNameToEnum(macro_name);
     ASSIGN_OR_RETURN(std::vector<SqlSource> token_list,
                      ParseTokenList(tokenizer, tok, arg_bindings));
-    if (macro_name == "__intrinsic_stringify") {
-      ASSIGN_OR_RETURN(std::optional<SqlSource> res,
-                       ExecuteStringify(tokenizer, name_token, token_list));
-      RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
-                            prev, tok);
+
+    // Non intrinsic macro.
+    if (macro_enum == kOther) {
+      ASSIGN_OR_RETURN(SqlSource invocation,
+                       ExecuteMacroInvocation(tokenizer, prev, macro_name,
+                                              std::move(token_list)));
+      tokenizer.Rewrite(rewriter, prev, tok, std::move(invocation),
+                        SqliteTokenizer::EndToken::kInclusive);
       continue;
     }
-    if (macro_name == "__intrinsic_token_zip_join") {
-      ASSIGN_OR_RETURN(
-          std::optional<SqlSource> res,
-          ExecuteTokenZipJoin(tokenizer, name_token, token_list, false));
-      RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
-                            prev, tok);
-      continue;
-    }
-    if (macro_name == "__intrinsic_prefixed_token_zip_join") {
-      ASSIGN_OR_RETURN(
-          std::optional<SqlSource> res,
-          ExecuteTokenZipJoin(tokenizer, name_token, token_list, true));
-      RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
-                            prev, tok);
-      continue;
-    }
-    if (macro_name == "__intrinsic_token_apply") {
-      ASSIGN_OR_RETURN(std::optional<SqlSource> res,
-                       ExecuteTokenApply(tokenizer, name_token, token_list));
-      RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
-                            prev, tok);
-      continue;
-    }
-    if (macro_name == "__intrinsic_token_map_join") {
-      ASSIGN_OR_RETURN(std::optional<SqlSource> res,
-                       ExecuteTokenMapJoin(tokenizer, name_token, token_list));
-      RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
-                            prev, tok);
-      continue;
-    }
-    if (macro_name == "__intrinsic_token_map_join_with_capture") {
-      ASSIGN_OR_RETURN(
-          std::optional<SqlSource> res,
-          ExecuteTokenMapJoinWithCapture(tokenizer, name_token, token_list));
-      RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
-                            prev, tok);
-      continue;
-    }
-    if (macro_name == "__intrinsic_token_comma") {
+
+    // Token comma instrinsic macro requires special handling.
+    if (macro_enum == kComma) {
       if (!token_list.empty()) {
         return ErrorAtToken(tokenizer, name_token,
                             "token_comma: no arguments allowd");
@@ -291,11 +289,48 @@ base::StatusOr<SqlSource> PerfettoSqlPreprocessor::RewriteInternal(
                         SqliteTokenizer::EndToken::kInclusive);
       continue;
     }
-    ASSIGN_OR_RETURN(SqlSource invocation,
-                     ExecuteMacroInvocation(tokenizer, prev, macro_name,
-                                            std::move(token_list)));
-    tokenizer.Rewrite(rewriter, prev, tok, std::move(invocation),
-                      SqliteTokenizer::EndToken::kInclusive);
+
+    // Intrinsic macros.
+    std::optional<SqlSource> res;
+    switch (macro_enum) {
+      case kStringify: {
+        ASSIGN_OR_RETURN(res,
+                         ExecuteStringify(tokenizer, name_token, token_list));
+        break;
+      }
+      case kTokenZipJoin: {
+        ASSIGN_OR_RETURN(
+            res, ExecuteTokenZipJoin(tokenizer, name_token, token_list, false));
+        break;
+      }
+      case kPrefixedTokenZipJoin: {
+        ASSIGN_OR_RETURN(
+            res, ExecuteTokenZipJoin(tokenizer, name_token, token_list, true));
+        break;
+      }
+      case kTokenMapJoin: {
+        ASSIGN_OR_RETURN(
+            res, ExecuteTokenMapJoin(tokenizer, name_token, token_list));
+        break;
+      }
+      case kTokenMapJoinWithCapture: {
+        ASSIGN_OR_RETURN(res, ExecuteTokenMapJoinWithCapture(
+                                  tokenizer, name_token, token_list));
+
+        break;
+      }
+
+      case kTokenApply: {
+        ASSIGN_OR_RETURN(res,
+                         ExecuteTokenApply(tokenizer, name_token, token_list));
+        break;
+      }
+      case kComma:
+      case kOther:
+        PERFETTO_FATAL("Shouldn't be reached");
+    }
+    RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
+                          prev, tok);
   }
   return std::move(rewriter).Build();
 }
