@@ -28,7 +28,7 @@ heap_class_stats_count_protos AS (
     graph_sample_ts,
     RepeatedField(JavaHeapClassStats_TypeCount(
       'type_name', type_name,
-      'is_libcore_or_primitive_heap_root', is_libcore_or_primitive_heap_root,
+      'is_libcore_or_array', is_libcore_or_array,
       'obj_count', obj_count,
       'size_bytes', size_bytes,
       'native_size_bytes', native_size_bytes,
