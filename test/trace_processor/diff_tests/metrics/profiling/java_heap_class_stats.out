@@ -10,7 +10,7 @@ java_heap_class_stats {
       ts: 10
       type_count {
         type_name: "FactoryProducerDelegateImplActor"
-        is_libcore_or_primitive_heap_root: false
+        is_libcore_or_array: false
         obj_count: 1
         size_bytes: 64
         native_size_bytes: 0
@@ -23,7 +23,7 @@ java_heap_class_stats {
       }
       type_count {
         type_name: "Foo"
-        is_libcore_or_primitive_heap_root: false
+        is_libcore_or_array: false
         obj_count: 2
         size_bytes: 160
         native_size_bytes: 0
@@ -36,7 +36,7 @@ java_heap_class_stats {
       }
       type_count {
         type_name: "DeobfuscatedA"
-        is_libcore_or_primitive_heap_root: false
+        is_libcore_or_array: false
         obj_count: 1
         size_bytes: 1024
         native_size_bytes: 0
@@ -49,7 +49,7 @@ java_heap_class_stats {
       }
       type_count {
         type_name: "DeobfuscatedA[]"
-        is_libcore_or_primitive_heap_root: false
+        is_libcore_or_array: false
         obj_count: 1
         size_bytes: 256
         native_size_bytes: 0
@@ -62,7 +62,7 @@ java_heap_class_stats {
       }
       type_count {
         type_name: "java.lang.Class<DeobfuscatedA[]>"
-        is_libcore_or_primitive_heap_root: false
+        is_libcore_or_array: false
         obj_count: 1
         size_bytes: 256
         native_size_bytes: 0

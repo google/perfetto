@@ -73,15 +73,14 @@ class HeapGraph(TestSuite):
         query="""
           INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
 
-          SELECT graph_sample_ts, upid, type_name, is_libcore_or_primitive_heap_root,
+          SELECT graph_sample_ts, upid, type_name, is_libcore_or_array,
             obj_count, size_bytes,
             dominated_obj_count, dominated_size_bytes
           FROM android_heap_graph_class_aggregation;
         """,
         out=Csv("""
-          "graph_sample_ts","upid","type_name","is_libcore_or_primitive_heap_root","obj_count","size_bytes","dominated_obj_count","dominated_size_bytes"
+          "graph_sample_ts","upid","type_name","is_libcore_or_array","obj_count","size_bytes","dominated_obj_count","dominated_size_bytes"
           10,2,"A",0,2,200,4,11200
           10,2,"B",0,1,1000,1,1000
-          10,2,"java.lang.String",0,1,10000,1,10000
-          10,2,"java.lang.String",1,1,666,1,666
+          10,2,"java.lang.String",1,2,10666,2,10666
         """))
