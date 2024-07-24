@@ -43,6 +43,7 @@ export class WattsonThreadAggregationController extends AggregationController {
     const duration = area.end - area.start;
     engine.query(`
       INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+      INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
 
       CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT
