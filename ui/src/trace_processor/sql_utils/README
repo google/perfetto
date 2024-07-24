@@ -1,0 +1,5 @@
+# sql_utils
+
+This directory contains the definitions of the core concepts present in
+trace processor (slice / thread / process) and helper functions to fetch
+related data.

@@ -17,7 +17,7 @@ import {AreaSelection, getLegacySelection} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
-import {asSliceSqlId} from '../frontend/sql_types';
+import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
 

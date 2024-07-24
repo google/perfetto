@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Utid} from '../../frontend/sql_types';
+import {Utid} from '../../trace_processor/sql_utils/core_types';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,

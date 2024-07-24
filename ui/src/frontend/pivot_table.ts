@@ -44,8 +44,8 @@ import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from './widgets/duration';
-import {SqlTables} from './well_known_sql_tables';
 import {addSqlTableTab} from './sql_table_tab';
+import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 
 interface PathItem {
   tree: PivotTree;
