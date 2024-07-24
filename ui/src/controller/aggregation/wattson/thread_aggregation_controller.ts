@@ -77,7 +77,7 @@ export class WattsonThreadAggregationController extends AggregationController {
       engine.query(`
         -- Packages filtered by CPU
         CREATE OR REPLACE PERFETTO VIEW _windowed_summary_per_cpu${cpu} AS
-        SELECT ts, dur, utid, pid, tid, thread_name
+        SELECT *
         FROM _windowed_summary WHERE cpu = ${cpu};
 
         -- CPU specific track with slices for curves
@@ -92,38 +92,41 @@ export class WattsonThreadAggregationController extends AggregationController {
           SPAN_JOIN(_per_cpu${cpu}_curve, _windowed_summary_per_cpu${cpu});
 
         -- Total estimate per UTID per CPU
-        CREATE OR REPLACE PERFETTO TABLE _total_per_thread_cpu${cpu} AS
+        CREATE OR REPLACE PERFETTO VIEW _total_per_cpu${cpu} AS
         SELECT
           SUM(cpu${cpu}_curve * dur) as total_pws,
           SUM(dur) as dur,
-          utid,
           tid,
           pid,
-          thread_name
+          uid,
+          utid,
+          upid,
+          thread_name,
+          process_name,
+          package_name
         FROM _windowed_thread_curve${cpu}
         GROUP BY utid;
       `);
     });
 
     // Estimate and total per UTID, removing CPU dimension
-    let query = `
-      -- Grouped again by UTID, but this time to make it CPU agnostic
-      CREATE VIEW ${this.kind} AS
-      WITH _unioned_per_thread_per_cpu AS (
-    `;
+    let query = `CREATE OR REPLACE PERFETTO TABLE _unioned_per_cpu_total AS `;
     selectedCpu.forEach((cpu, i) => {
       query += i != 0 ? `UNION ALL\n` : ``;
-      query += `SELECT * from _total_per_thread_cpu${cpu}\n`;
+      query += `SELECT * from _total_per_cpu${cpu}\n`;
     });
     query += `
-      )
+      ;
+
+      -- Grouped again by UTID, but this time to make it CPU agnostic
+      CREATE VIEW ${this.kind} AS
       SELECT
         ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
         thread_name,
         tid,
         pid
-      FROM _unioned_per_thread_per_cpu
+      FROM _unioned_per_cpu_total
       GROUP BY utid;
     `;
 
