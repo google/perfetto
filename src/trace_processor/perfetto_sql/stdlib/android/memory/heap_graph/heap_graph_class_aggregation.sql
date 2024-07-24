@@ -24,9 +24,10 @@ FROM heap_graph_object
 ORDER BY id DESC
 LIMIT 1;
 
-CREATE PERFETTO FUNCTION _is_libcore_or_primitive(obj_name STRING)
+CREATE PERFETTO FUNCTION _is_libcore_or_array(obj_name STRING)
 RETURNS BOOL AS
-SELECT $obj_name GLOB 'java.*'
+SELECT ($obj_name GLOB 'java.*' AND NOT $obj_name GLOB 'java.lang.Class<*>')
+  OR $obj_name GLOB 'j$.*'
   OR $obj_name GLOB 'int[*'
   OR $obj_name GLOB 'long[*'
   OR $obj_name GLOB 'byte[*'
@@ -35,8 +36,7 @@ SELECT $obj_name GLOB 'java.*'
   OR $obj_name GLOB 'float[*'
   OR $obj_name GLOB 'double[*'
   OR $obj_name GLOB 'boolean[*'
-  OR $obj_name GLOB 'android.util.*Array*'
-  OR $obj_name GLOB 'android.util.Pair*';
+  OR $obj_name GLOB 'android.util.*Array*';
 
 CREATE PERFETTO TABLE _heap_graph_dominator_tree_for_partition AS
 SELECT
@@ -71,9 +71,8 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation (
   type_id INT,
   -- Class name (deobfuscated if available)
   type_name STRING,
-  -- Type breakdown: is an instance of a libcore object (java.*) or primitive)
-  -- that is a heap root
-  is_libcore_or_primitive_heap_root BOOL,
+  -- Is type an instance of a libcore object (java.*) or array
+  is_libcore_or_array BOOL,
   -- Count of class instances
   obj_count INT,
   -- Size of class instances
@@ -102,7 +101,6 @@ WITH base AS (
     obj.upid,
     obj.graph_sample_ts,
     obj.type_id,
-    obj.root_type IS NOT NULL AS is_heap_root,
     COUNT(1) AS obj_count,
     SUM(self_size) AS size_bytes,
     SUM(native_size) AS native_size_bytes,
@@ -116,18 +114,16 @@ WITH base AS (
   -- Left joins to preserve unreachable objects.
   LEFT JOIN _heap_object_marked_for_dominated_stats USING(id)
   LEFT JOIN heap_graph_dominator_tree USING(id)
-  GROUP BY 1, 2, 3, 4
-  ORDER BY 1, 2, 3, 4
+  GROUP BY 1, 2, 3
+  ORDER BY 1, 2, 3
 )
 SELECT
   upid,
   graph_sample_ts,
   type_id,
   IFNULL(cls.deobfuscated_name, cls.name) AS type_name,
-  (
-    is_heap_root AND
-    _is_libcore_or_primitive(IFNULL(cls.deobfuscated_name, cls.name))
-  ) AS is_libcore_or_primitive_heap_root,
+  _is_libcore_or_array(IFNULL(cls.deobfuscated_name, cls.name))
+    AS is_libcore_or_array,
   SUM(obj_count) AS obj_count,
   SUM(size_bytes) AS size_bytes,
   SUM(native_size_bytes) AS native_size_bytes,
