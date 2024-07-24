@@ -100,10 +100,6 @@ base::Status ZipTraceReader::NotifyEndOfFileImpl() {
         context_->trace_file_tracker->StartNewFile(e.name, e.trace_type,
                                                    e.uncompressed_data.size());
 
-    if (e.uncompressed_data.size() == 0) {
-      continue;
-    }
-
     auto chunk_reader = std::make_unique<ForwardingTraceParser>(context_);
     auto& parser = *chunk_reader;
     context_->chunk_readers.push_back(std::move(chunk_reader));
