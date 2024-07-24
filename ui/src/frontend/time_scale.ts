@@ -12,84 +12,65 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../base/logging';
-import {duration, Span, time} from '../base/time';
-import {
-  HighPrecisionTime,
-  HighPrecisionTimeSpan,
-} from '../common/high_precision_time';
+import {duration, time} from '../base/time';
+import {HighPrecisionTime} from '../common/high_precision_time';
+import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 
 export class TimeScale {
-  private _start: HighPrecisionTime;
-  private _durationNanos: number;
+  readonly timeSpan: HighPrecisionTimeSpan;
   readonly pxSpan: PxSpan;
-  private _nanosPerPx = 0;
+  private readonly timePerPx: number;
 
-  static fromHPTimeSpan(span: Span<HighPrecisionTime>, pxSpan: PxSpan) {
-    return new TimeScale(span.start, span.duration.nanos, pxSpan);
-  }
-
-  constructor(start: HighPrecisionTime, durationNanos: number, pxSpan: PxSpan) {
+  constructor(timespan: HighPrecisionTimeSpan, pxSpan: PxSpan) {
     this.pxSpan = pxSpan;
-    this._start = start;
-    this._durationNanos = durationNanos;
-    if (durationNanos <= 0 || pxSpan.delta <= 0) {
-      this._nanosPerPx = 1;
+    this.timeSpan = timespan;
+    if (timespan.duration <= 0 || pxSpan.delta <= 0) {
+      this.timePerPx = 1;
     } else {
-      this._nanosPerPx = durationNanos / pxSpan.delta;
+      this.timePerPx = timespan.duration / pxSpan.delta;
     }
   }
 
-  get timeSpan(): Span<HighPrecisionTime> {
-    const end = this._start.addNanos(this._durationNanos);
-    return new HighPrecisionTimeSpan(this._start, end);
-  }
-
   timeToPx(ts: time): number {
-    // WARNING: Number(bigint) can be surprisingly slow. Avoid in hotpath.
-    const timeOffsetNanos = Number(ts - this._start.base) - this._start.offset;
-    return this.pxSpan.start + timeOffsetNanos / this._nanosPerPx;
+    const timeOffset =
+      Number(ts - this.timeSpan.start.integral) -
+      this.timeSpan.start.fractional;
+    return this.pxSpan.start + timeOffset / this.timePerPx;
   }
 
   hpTimeToPx(time: HighPrecisionTime): number {
-    const timeOffsetNanos = time.sub(this._start).nanos;
-    return this.pxSpan.start + timeOffsetNanos / this._nanosPerPx;
+    const timeOffset = time.sub(this.timeSpan.start).toNumber();
+    return this.pxSpan.start + timeOffset / this.timePerPx;
   }
 
-  // Convert pixels to a high precision time object, which can be futher
+  // Convert pixels to a high precision time object, which can be further
   // converted to other time formats.
   pxToHpTime(px: number): HighPrecisionTime {
-    const offsetNanos = (px - this.pxSpan.start) * this._nanosPerPx;
-    return this._start.addNanos(offsetNanos);
+    const timeOffset = (px - this.pxSpan.start) * this.timePerPx;
+    return this.timeSpan.start.addNumber(timeOffset);
   }
 
   durationToPx(dur: duration): number {
-    // WARNING: Number(bigint) can be surprisingly slow. Avoid in hotpath.
-    return Number(dur) / this._nanosPerPx;
+    return Number(dur) / this.timePerPx;
   }
 
-  pxDeltaToDuration(pxDelta: number): HighPrecisionTime {
-    const time = pxDelta * this._nanosPerPx;
-    return HighPrecisionTime.fromNanos(time);
+  pxToDuration(pxDelta: number): number {
+    return pxDelta * this.timePerPx;
   }
 }
 
 export class PxSpan {
   static readonly ZERO = new PxSpan(0, 0);
 
-  constructor(private _start: number, private _end: number) {
-    assertTrue(_start <= _end, 'PxSpan start > end');
-  }
+  readonly start: number;
+  readonly end: number;
 
-  get start(): number {
-    return this._start;
-  }
-
-  get end(): number {
-    return this._end;
+  constructor(start: number, end: number) {
+    this.start = start;
+    this.end = end;
   }
 
   get delta(): number {
-    return this._end - this._start;
+    return this.end - this.start;
   }
 }

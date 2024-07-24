@@ -19,6 +19,7 @@
 #include "perfetto/protozero/field.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
@@ -37,17 +38,29 @@ base::Status CollectSystemInfo::Collect(
     Context* context) const {
   auto* system_info = &context->system_info.value();
 
-  if (!packet.has_ftrace_events()) {
-    return base::OkStatus();
+  PERFETTO_DCHECK(system_info);  // See Begin()
+
+  if (packet.has_ftrace_events()) {
+    return OnFtraceEvents(packet.ftrace_events(), context);
   }
 
-  protozero::ProtoDecoder decoder(packet.ftrace_events());
+  return base::OkStatus();
+}
 
-  auto field =
+base::Status CollectSystemInfo::OnFtraceEvents(protozero::ConstBytes bytes,
+                                               Context* context) const {
+  protozero::ProtoDecoder decoder(bytes);
+
+  auto cpu =
       decoder.FindField(protos::pbzero::FtraceEventBundle::kCpuFieldNumber);
 
-  if (field.valid()) {
-    system_info->ReserveCpu(field.as_uint32());
+  if (!cpu.valid()) {
+    return base::ErrStatus(
+        "BuildSyntheticThreads: missing FtraceEventBundle::kCpu.");
+  }
+
+  if (cpu.valid()) {
+    context->system_info->ReserveCpu(cpu.as_uint32());
   }
 
   return base::OkStatus();
@@ -55,25 +68,24 @@ base::Status CollectSystemInfo::Collect(
 
 base::Status BuildSyntheticThreads::Build(Context* context) const {
   if (!context->system_info.has_value()) {
-    return base::ErrStatus("BuildThreadMap: missing system info.");
+    return base::ErrStatus("BuildSyntheticThreads: missing system info.");
   }
 
-  if (context->synthetic_threads.has_value()) {
+  if (context->synthetic_process) {
     return base::ErrStatus(
-        "BuildThreadMap: synthetic threads were already initialized.");
+        "BuildSyntheticThreads: synthetic threads were already initialized.");
   }
 
   auto& system_info = context->system_info.value();
-  auto& synthetic_threads = context->synthetic_threads.emplace();
 
-  auto cpu_count = system_info.last_cpu() + 1;
+  // Add an extra tid for the main thread.
+  std::vector<int32_t> tids(system_info.cpu_count() + 1);
 
-  synthetic_threads.tgid = system_info.AllocateSynthThread();
-  synthetic_threads.tids.resize(cpu_count);
-
-  for (uint32_t cpu = 0; cpu < cpu_count; ++cpu) {
-    synthetic_threads.tids[cpu] = system_info.AllocateSynthThread();
+  for (uint32_t i = 0; i < tids.size(); ++i) {
+    tids[i] = system_info.AllocateSynthThread();
   }
+
+  context->synthetic_process = std::make_unique<SyntheticProcess>(tids);
 
   return base::OkStatus();
 }

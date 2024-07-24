@@ -58,8 +58,8 @@ class StringStorage final : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    void StableSort(SortToken* start,
-                    SortToken* end,
+    void StableSort(Token* start,
+                    Token* end,
                     SortDirection direction) const override;
 
     void Distinct(Indices&) const override;
@@ -67,6 +67,8 @@ class StringStorage final : public DataLayer {
     std::optional<Token> MaxElement(Indices&) const override;
 
     std::optional<Token> MinElement(Indices&) const override;
+
+    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override;
 
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 

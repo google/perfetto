@@ -283,7 +283,7 @@ void Watchdog::ThreadMain() {
 
     bool threshold_exceeded = false;
     guard.lock();
-    if (CheckMemory_Locked(rss_bytes)) {
+    if (CheckMemory_Locked(rss_bytes) && !IsSyncMemoryTaggingEnabled()) {
       threshold_exceeded = true;
       crash_reason = WatchdogCrashReason::kMemGuardrail;
     } else if (CheckCpu_Locked(cpu_time)) {

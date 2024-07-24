@@ -71,17 +71,18 @@ clean:
 	gcloud compute --quiet --project=${PROJECT} \
 		instance-templates create ${GCE_TEMPLATE} \
 		--machine-type=${GCE_VM_TYPE} \
-		--network=projects/perfetto-ci/global/networks/default \
+		--network=projects/${PROJECT}/global/networks/default \
 		--network-tier=PREMIUM \
-		--metadata='startup-script-url=${GCE_STARTUP_SCRIPT},num-workers=${NUM_WORKERS_PER_VM},google-logging-enabled=true' \
+		--metadata='startup-script-url=${GCE_STARTUP_SCRIPT},num-workers=${NUM_WORKERS_PER_VM},sandbox-img=${SANDBOX_IMG},worker-img=${WORKER_IMG},google-logging-enabled=true,enable-oslogin=TRUE' \
 		--maintenance-policy=MIGRATE \
-		--service-account=gce-ci-worker@perfetto-ci.iam.gserviceaccount.com \
+		--service-account=gce-ci-worker@${PROJECT}.iam.gserviceaccount.com \
 		--scopes=${GCE_SCOPES} \
 		--image=cos-85-13310-1209-10 \
 		--image-project=cos-cloud \
 		--boot-disk-size=100GB \
 		--boot-disk-type=pd-ssd \
 		--boot-disk-device-name=ci-worker-template \
+		--local-ssd=interface=NVME \
 		--local-ssd=interface=NVME
 	touch $@
 
@@ -96,29 +97,37 @@ deploy-frontend:
 .PHONY: restart-workers
 restart-workers: stop-workers start-workers
 
-define start-workers-for-zone
+define start-workers-for-region
 gcloud compute --project=${PROJECT} \
 	instance-groups managed create ${GCE_GROUP_NAME}-$1 \
-	--zone=$1 \
+	--region=$1 \
 	--base-instance-name=ci-$1 \
 	--template=ci-worker-template \
-	--size=${NUM_VMS}
-
+	--size=1
+gcloud compute --quiet --project=$(PROJECT) \
+	instance-groups managed set-autoscaling ${GCE_GROUP_NAME}-$1 \
+	--region=$1 \
+	--min-num-replicas=0 \
+	--max-num-replicas=${MAX_VMS_PER_REGION} \
+	--cool-down-period=1800 \
+	--stackdriver-metric-filter="resource.type = \"global\"" \
+	--update-stackdriver-metric="custom.googleapis.com/$(PROJECT)/ci_job_queue_len" \
+	--stackdriver-metric-single-instance-assignment=${NUM_WORKERS_PER_VM}
 endef
 
 .PHONY: start-workers
 start-workers: .deps/gce-template
-	$(foreach zone,$(GCE_ZONES),$(call start-workers-for-zone,$(zone)))
+	$(foreach region,$(GCE_REGIONS),$(call start-workers-for-region,$(region)))
 
-define stop-workers-for-zone
+define stop-workers-for-region
 gcloud compute --quiet --project=${PROJECT} \
-	instance-groups managed delete ${GCE_GROUP_NAME}-$1 --zone=$1 || true
+	instance-groups managed delete ${GCE_GROUP_NAME}-$1 --region=$1 || true
 
 endef
 
 .PHONY: stop-workers
 stop-workers:
-	$(foreach zone,$(GCE_ZONES),$(call stop-workers-for-zone,$(zone)))
+	$(foreach region,$(GCE_REGIONS),$(call stop-workers-for-region,$(region)))
 
 # These are for testing only, start an individual VM. Use start-group for
 # production.

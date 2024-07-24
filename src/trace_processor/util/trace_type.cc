@@ -23,13 +23,30 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_event.h"
+
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
 // Fuchsia traces have a magic number as documented here:
 // https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md#magic-number-record-trace-info-type-0
-constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
-constexpr char kPerfMagic[] = "PERFILE2";
+constexpr char kFuchsiaMagic[] = {'\x10', '\x00', '\x04', '\x46',
+                                  '\x78', '\x54', '\x16', '\x00'};
+constexpr char kPerfMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
+
+constexpr char kZipMagic[] = {'P', 'K', '\x03', '\x04'};
+
+constexpr char kGzipMagic[] = {'\x1f', '\x8b'};
+
+constexpr uint8_t kTracePacketTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::Trace::kPacketFieldNumber);
+constexpr uint16_t kModuleSymbolsTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::TracePacket::kModuleSymbolsFieldNumber);
 
 inline bool isspace(unsigned char c) {
   return ::isspace(c);
@@ -40,48 +57,113 @@ std::string RemoveWhitespace(std::string str) {
   return str;
 }
 
+template <size_t N>
+bool MatchesMagic(const uint8_t* data, size_t size, const char (&magic)[N]) {
+  if (size < N) {
+    return false;
+  }
+  return memcmp(data, magic, N) == 0;
+}
+
+base::StringView FindLine(const uint8_t* data, size_t size) {
+  for (size_t i = 0; i < size; ++i) {
+    if (data[i] == '\n') {
+      return base::StringView(reinterpret_cast<const char*>(data), i);
+    }
+  }
+  return base::StringView();
+}
+
+bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
+  const uint8_t* const end = ptr + size;
+
+  uint64_t tag;
+  const uint8_t* next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+
+  if (next == ptr || tag != kTracePacketTag) {
+    return false;
+  }
+
+  ptr = next;
+  uint64_t field_length;
+  next = protozero::proto_utils::ParseVarInt(ptr, end, &field_length);
+  if (next == ptr) {
+    return false;
+  }
+  ptr = next;
+
+  if (field_length == 0) {
+    return false;
+  }
+
+  next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr) {
+    return false;
+  }
+
+  return tag == kModuleSymbolsTag;
+}
+
 }  // namespace
 
-const char* ToString(TraceType trace_type) {
+const char* TraceTypeToString(TraceType trace_type) {
   switch (trace_type) {
     case kJsonTraceType:
-      return "JSON trace";
+      return "json";
     case kProtoTraceType:
-      return "proto trace";
+      return "proto";
+    case kSymbolsTraceType:
+      return "symbols";
     case kNinjaLogTraceType:
-      return "ninja log";
+      return "ninja_log";
     case kFuchsiaTraceType:
-      return "fuchsia trace";
+      return "fuchsia";
     case kSystraceTraceType:
-      return "systrace trace";
+      return "systrace";
     case kGzipTraceType:
-      return "gzip trace";
+      return "gzip";
     case kCtraceTraceType:
-      return "ctrace trace";
+      return "ctrace";
     case kZipFile:
-      return "ZIP file";
+      return "zip";
     case kPerfDataTraceType:
-      return "perf data";
+      return "perf";
+    case kAndroidLogcatTraceType:
+      return "android_logcat";
+    case kAndroidDumpstateTraceType:
+      return "android_dumpstate";
+    case kAndroidBugreportTraceType:
+      return "android_bugreport";
     case kUnknownTraceType:
-      return "unknown trace";
+      return "unknown";
   }
   PERFETTO_FATAL("For GCC");
 }
 
 TraceType GuessTraceType(const uint8_t* data, size_t size) {
-  if (size == 0)
+  if (size == 0) {
     return kUnknownTraceType;
-  std::string start(reinterpret_cast<const char*>(data),
-                    std::min<size_t>(size, kGuessTraceMaxLookahead));
-  if (size >= 8) {
-    uint64_t first_word;
-    memcpy(&first_word, data, sizeof(first_word));
-    if (first_word == kFuchsiaMagicNumber)
-      return kFuchsiaTraceType;
   }
-  if (base::StartsWith(start, kPerfMagic)) {
+
+  if (MatchesMagic(data, size, kFuchsiaMagic)) {
+    return kFuchsiaTraceType;
+  }
+
+  if (MatchesMagic(data, size, kPerfMagic)) {
     return kPerfDataTraceType;
   }
+
+  if (MatchesMagic(data, size, kZipMagic)) {
+    return kZipFile;
+  }
+
+  if (MatchesMagic(data, size, kGzipMagic)) {
+    return kGzipTraceType;
+  }
+
+  std::string start(reinterpret_cast<const char*>(data),
+                    std::min<size_t>(size, kGuessTraceMaxLookahead));
+
   std::string start_minus_white_space = RemoveWhitespace(start);
   if (base::StartsWith(start_minus_white_space, "{\""))
     return kJsonTraceType;
@@ -113,19 +195,19 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::StartsWith(start, "# ninja log"))
     return kNinjaLogTraceType;
 
+  if (AndroidLogEvent::IsAndroidLogEvent(FindLine(data, size))) {
+    return kAndroidLogcatTraceType;
+  }
+
   // Systrace with no header or leading HTML.
   if (base::StartsWith(start, " "))
     return kSystraceTraceType;
 
-  // gzip'ed trace containing one of the other formats.
-  if (base::StartsWith(start, "\x1f\x8b"))
-    return kGzipTraceType;
+  if (IsProtoTraceWithSymbols(data, size))
+    return kSymbolsTraceType;
 
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;
-
-  if (base::StartsWith(start, "PK\x03\x04"))
-    return kZipFile;
 
   return kUnknownTraceType;
 }

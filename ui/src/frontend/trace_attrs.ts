@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {assertExists} from '../base/logging';
 import {TraceArrayBufferSource} from '../common/state';
 import {createPermalink} from './permalink';
@@ -41,7 +43,7 @@ export function isDownloadable() {
 
 export function shareTrace() {
   const engine = assertExists(globals.getCurrentEngine());
-  const traceUrl = (engine.source as TraceArrayBufferSource).url || '';
+  const traceUrl = (engine.source as TraceArrayBufferSource).url ?? '';
 
   // If the trace is not shareable (has been pushed via postMessage()) but has
   // a url, create a pseudo-permalink by echoing back the URL.
@@ -74,7 +76,7 @@ export function shareTrace() {
   );
   if (result) {
     globals.logging.logEvent('Trace Actions', 'Create permalink');
-    createPermalink();
+    createPermalink({mode: 'APP_STATE'});
   }
 }
 

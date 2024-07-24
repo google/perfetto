@@ -25,64 +25,44 @@
 namespace perfetto::trace_redaction {
 
 base::Status PopulateAllowlists::Build(Context* context) const {
-  // These fields are top-level fields that outside the "oneof data" field.
-  std::initializer_list<uint32_t> required_trace_fields = {
+  auto& packet_mask = context->packet_mask;
 
-      protos::pbzero::TracePacket::kTimestampFieldNumber,
-      protos::pbzero::TracePacket::kTimestampClockIdFieldNumber,
-      protos::pbzero::TracePacket::kTrustedUidFieldNumber,
-      protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber,
-      protos::pbzero::TracePacket::kTrustedPidFieldNumber,
-      protos::pbzero::TracePacket::kInternedDataFieldNumber,
-      protos::pbzero::TracePacket::kSequenceFlagsFieldNumber,
+  // Top-level fields - fields outside of the "oneof data" field.
+  packet_mask.set(
+      protos::pbzero::TracePacket::kFirstPacketOnSequenceFieldNumber);
+  packet_mask.set(
+      protos::pbzero::TracePacket::kIncrementalStateClearedFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kInternedDataFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kMachineIdFieldNumber);
+  packet_mask.set(
+      protos::pbzero::TracePacket::kPreviousPacketDroppedFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kSequenceFlagsFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kTimestampClockIdFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kTimestampFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kTracePacketDefaultsFieldNumber);
+  packet_mask.set(
+      protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kTrustedPidFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kTrustedUidFieldNumber);
 
-      // DEPRECATED. Moved to SequenceFlags::SEQ_INCREMENTAL_STATE_CLEARED. So
-      // there is no reason to include it.
-      //
-      // protos::pbzero::TracePacket::incremental_state_cleared
-
-      protos::pbzero::TracePacket::kTracePacketDefaultsFieldNumber,
-      protos::pbzero::TracePacket::kPreviousPacketDroppedFieldNumber,
-      protos::pbzero::TracePacket::kFirstPacketOnSequenceFieldNumber,
-      protos::pbzero::TracePacket::kMachineIdFieldNumber,
-  };
-
-  for (auto item : required_trace_fields) {
-    context->trace_packet_allow_list.insert(item);
-  }
-
-  // TRACE PACKET NOTES
-  //
-  //    protos::pbzero::TracePacket::kAndroidSystemPropertyFieldNumber
-  //
-  //      AndroidSystemProperty exposes a key-value pair structure with no
-  //      constraints around keys or values, making fine-grain redaction
-  //      difficult. Because this packet's value has no measurable, the safest
-  //      option to drop the whole packet.
-  std::initializer_list<uint32_t> trace_packets = {
-      protos::pbzero::TracePacket::kProcessTreeFieldNumber,
-      protos::pbzero::TracePacket::kProcessStatsFieldNumber,
-      protos::pbzero::TracePacket::kClockSnapshotFieldNumber,
-      protos::pbzero::TracePacket::kSysStatsFieldNumber,
-      protos::pbzero::TracePacket::kTraceConfigFieldNumber,
-      protos::pbzero::TracePacket::kTraceStatsFieldNumber,
-      protos::pbzero::TracePacket::kSystemInfoFieldNumber,
-      protos::pbzero::TracePacket::kTriggerFieldNumber,
-      protos::pbzero::TracePacket::kCpuInfoFieldNumber,
-      protos::pbzero::TracePacket::kServiceEventFieldNumber,
-      protos::pbzero::TracePacket::kInitialDisplayStateFieldNumber,
-      protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber,
-      protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber,
-      protos::pbzero::TracePacket::kFtraceEventsFieldNumber,
-
-      // Keep the package list. There are some metrics and stdlib queries that
-      // depend on the package list.
-      protos::pbzero::TracePacket::kPackagesListFieldNumber,
-  };
-
-  for (auto item : trace_packets) {
-    context->trace_packet_allow_list.insert(item);
-  }
+  // Trace packet data (one-of field) - Every field here should also be modified
+  // by message-focused transform.
+  packet_mask.set(protos::pbzero::TracePacket::kClockSnapshotFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kCpuInfoFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kFtraceEventsFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kInitialDisplayStateFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kPackagesListFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kProcessStatsFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kProcessTreeFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kServiceEventFieldNumber);
+  packet_mask.set(
+      protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kSysStatsFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kSystemInfoFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kTraceConfigFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kTraceStatsFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kTriggerFieldNumber);
 
   // FTRACE EVENT NOTES
   //
@@ -96,31 +76,25 @@ base::Status PopulateAllowlists::Build(Context* context) const {
   //    are centrally allocated by the HAL process). We drop them for now as we
   //    don't have the required attribution info in the trace.
   //
-  //    TODO(vaage): The allowed rss stat events (i.e. kRssStatFieldNumber,
-  //    kRssStatThrottledFieldNumber) are process-scoped. It is non-trivial to
-  //    merge events, so all events outside of the target package should be
-  //    dropped.
-  //
   //    TODO(vaage): kSchedBlockedReasonFieldNumber contains two pids, an outer
   //    and inner pid. A primitive is needed to further redact these events.
 
-  std::initializer_list<uint32_t> ftrace_events = {
-      protos::pbzero::FtraceEvent::kCpuFrequencyFieldNumber,
-      protos::pbzero::FtraceEvent::kCpuIdleFieldNumber,
-      protos::pbzero::FtraceEvent::kPrintFieldNumber,
-      protos::pbzero::FtraceEvent::kRssStatFieldNumber,
-      protos::pbzero::FtraceEvent::kRssStatThrottledFieldNumber,
-      protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
-      protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber,
-      protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber,
-      protos::pbzero::FtraceEvent::kSchedWakingFieldNumber,
-      protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber,
-      protos::pbzero::FtraceEvent::kTaskRenameFieldNumber,
-  };
+  auto& ftrace_masks = context->ftrace_mask;
 
-  for (auto item : ftrace_events) {
-    context->ftrace_packet_allow_list.insert(item);
-  }
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kCommonFlagsFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kCpuFrequencyFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kCpuIdleFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kPidFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kPrintFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kRssStatFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kRssStatThrottledFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kSchedWakingFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kTaskRenameFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kTimestampFieldNumber);
 
   return base::OkStatus();
 }

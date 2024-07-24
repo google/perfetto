@@ -40,8 +40,8 @@ class AndroidStartup implements Plugin {
       argColumns: [],
     };
     ctx.registerStaticTrack({
-      uri: `dev.perfetto.AndroidStartup#startups`,
-      displayName: 'Android App Startups',
+      uri: `/android_startups`,
+      title: 'Android App Startups',
       trackFactory: (trackCtx) => {
         return new SimpleSliceTrack(ctx.engine, trackCtx, config);
       },

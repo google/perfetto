@@ -27,6 +27,8 @@ import {AdbBaseConsumerPort, AdbConnectionState} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
 import {isReadBuffersResponse} from './consumer_port_types';
 import {Consumer} from './record_controller_interfaces';
+import {exists} from '../base/utils';
+import {assertTrue} from '../base/logging';
 
 enum SocketState {
   DISCONNECTED,
@@ -349,13 +351,11 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
       case 'msgBindServiceReply': {
         const msgBindServiceReply = frame.msgBindServiceReply;
         if (
-          msgBindServiceReply &&
-          msgBindServiceReply.methods &&
-          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-          msgBindServiceReply.serviceId
+          exists(msgBindServiceReply) &&
+          exists(msgBindServiceReply.methods) &&
+          exists(msgBindServiceReply.serviceId)
         ) {
-          /* eslint-enable */
-          console.assert(msgBindServiceReply.success);
+          assertTrue(msgBindServiceReply.success === true);
           this.availableMethods = msgBindServiceReply.methods;
           this.serviceId = msgBindServiceReply.serviceId;
           this.resolveBindingPromise();

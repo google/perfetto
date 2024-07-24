@@ -1,6 +1,6 @@
 android_startup {
   startup {
-    startup_id: 1
+    startup_id: 0
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar:debug"
     zygote_new_process: false
@@ -46,11 +46,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
       pid: 3
     }
     event_timestamps {
@@ -69,6 +64,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_RUNNABLE
       reason: "Main Thread - Time spent in Runnable state"
+      severity: WARNING
       expected_value {
         value: 15
         unit: PERCENTAGE
@@ -79,10 +75,16 @@ android_startup {
         dur: 4
       }
       launch_dur: 7
+      trace_thread_sections {
+        start_timestamp: 103
+        end_timestamp: 107
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
   }
   startup {
-    startup_id: 2
+    startup_id: 1
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     zygote_new_process: false
@@ -129,11 +131,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
       pid: 4
     }
     event_timestamps {
@@ -152,6 +149,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_RUNNABLE
       reason: "Main Thread - Time spent in Runnable state"
+      severity: WARNING
       expected_value {
         value: 15
         unit: PERCENTAGE
@@ -162,6 +160,12 @@ android_startup {
         dur: 4
       }
       launch_dur: 7
+      trace_thread_sections {
+        start_timestamp: 203
+        end_timestamp: 207
+        thread_utid: 4
+        thread_name: "com.google.android.calendar"
+      }
     }
   }
 }

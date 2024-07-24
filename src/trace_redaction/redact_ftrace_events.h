@@ -20,36 +20,21 @@
 #include <string>
 
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
 
-class FtraceEventFilter {
- public:
-  virtual ~FtraceEventFilter();
-  virtual bool Includes(const Context& context,
-                        protozero::Field event) const = 0;
-};
-
-class FtraceEventWriter {
- public:
-  virtual ~FtraceEventWriter();
-  virtual base::Status WriteTo(
-      const Context& context,
-      protozero::Field event,
-      protos::pbzero::FtraceEventBundle* message) const = 0;
-};
-
-class FilterFtracesUsingAllowlist : public FtraceEventFilter {
+class FilterFtraceUsingSuspendResume : public FtraceEventFilter {
  public:
   bool Includes(const Context& context, protozero::Field event) const override;
 };
 
-class WriteFtracesPassthrough : public FtraceEventWriter {
-  base::Status WriteTo(
-      const Context& context,
-      protozero::Field event,
-      protos::pbzero::FtraceEventBundle* message) const override;
+// Discard all rss events not belonging to the target package.
+class FilterRss : public FtraceEventFilter {
+ public:
+  bool Includes(const Context& context, protozero::Field event) const override;
 };
 
 // Filters ftrace events and modifies remaining events before writing them to
@@ -60,26 +45,33 @@ class RedactFtraceEvents : public TransformPrimitive {
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
 
+  // Selects which ftrace events should be redacted. All non-ftrace events are
+  // appended to the new packet.
   template <typename Filter>
-  void emplace_filter() {
+  void emplace_ftrace_filter() {
     filter_ = std::make_unique<Filter>();
   }
 
-  template <typename Writer>
-  void emplace_writer() {
-    writer_ = std::make_unique<Writer>();
+  // For ftrace events that pass the filter, they go through this modifier which
+  // will optionally modify the event before adding it to the event bundle (or
+  // even drop it).
+  template <typename Modifier>
+  void emplace_post_filter_modifier() {
+    modifier_ = std::make_unique<Modifier>();
   }
 
  private:
-  // Checks if there is at least one ftrace event.
-  bool HasFtraceEvent(const std::string& bytes) const;
-
   base::Status OnFtraceEvents(const Context& context,
-                              protozero::ConstBytes bytes,
+                              protozero::Field ftrace_events,
                               protos::pbzero::FtraceEventBundle* message) const;
 
+  void OnFtraceEvent(const Context& context,
+                     const protos::pbzero::FtraceEventBundle::Decoder& bundle,
+                     protozero::Field event,
+                     protos::pbzero::FtraceEventBundle* parent_message) const;
+
   std::unique_ptr<FtraceEventFilter> filter_;
-  std::unique_ptr<FtraceEventWriter> writer_;
+  std::unique_ptr<PidCommModifier> modifier_;
 };
 
 }  // namespace perfetto::trace_redaction

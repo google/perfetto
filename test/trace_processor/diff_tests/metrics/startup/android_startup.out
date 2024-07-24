@@ -1,6 +1,6 @@
 android_startup {
   startup {
-    startup_id: 2
+    startup_id: 0
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     zygote_new_process: false
@@ -42,11 +42,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      },
       pid: 3
     }
     report_fully_drawn {
@@ -70,6 +65,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_RUNNABLE
       reason: "Main Thread - Time spent in Runnable state"
+      severity: WARNING
       expected_value {
         value: 15
         unit: PERCENTAGE
@@ -80,6 +76,12 @@ android_startup {
         dur: 80
       }
       launch_dur: 108
+      trace_thread_sections {
+        start_timestamp: 130
+        end_timestamp: 210
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     startup_type: "warm"
   }

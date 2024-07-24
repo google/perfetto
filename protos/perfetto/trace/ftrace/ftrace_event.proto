@@ -21,6 +21,7 @@
 syntax = "proto2";
 
 import "protos/perfetto/trace/ftrace/android_fs.proto";
+import "protos/perfetto/trace/ftrace/bcl_exynos.proto";
 import "protos/perfetto/trace/ftrace/binder.proto";
 import "protos/perfetto/trace/ftrace/block.proto";
 import "protos/perfetto/trace/ftrace/cgroup.proto";
@@ -632,5 +633,42 @@ message FtraceEvent {
         507;
     DcvshFreqFtraceEvent dcvsh_freq = 508;
     KgslGpuFrequencyFtraceEvent kgsl_gpu_frequency = 509;
+    MaliMaliPMMCUHCTLCORESDOWNSCALENOTIFYPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORES_DOWN_SCALE_NOTIFY_PEND = 510;
+    MaliMaliPMMCUHCTLCORESNOTIFYPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORES_NOTIFY_PEND = 511;
+    MaliMaliPMMCUHCTLCOREINACTIVEPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORE_INACTIVE_PEND = 512;
+    MaliMaliPMMCUHCTLMCUONRECHECKFtraceEvent
+        mali_mali_PM_MCU_HCTL_MCU_ON_RECHECK = 513;
+    MaliMaliPMMCUHCTLSHADERSCOREOFFPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_CORE_OFF_PEND = 514;
+    MaliMaliPMMCUHCTLSHADERSPENDOFFFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_PEND_OFF = 515;
+    MaliMaliPMMCUHCTLSHADERSPENDONFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_PEND_ON = 516;
+    MaliMaliPMMCUHCTLSHADERSREADYOFFFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_READY_OFF = 517;
+    MaliMaliPMMCUINSLEEPFtraceEvent mali_mali_PM_MCU_IN_SLEEP = 518;
+    MaliMaliPMMCUOFFFtraceEvent mali_mali_PM_MCU_OFF = 519;
+    MaliMaliPMMCUONFtraceEvent mali_mali_PM_MCU_ON = 520;
+    MaliMaliPMMCUONCOREATTRUPDATEPENDFtraceEvent
+        mali_mali_PM_MCU_ON_CORE_ATTR_UPDATE_PEND = 521;
+    MaliMaliPMMCUONGLBREINITPENDFtraceEvent
+        mali_mali_PM_MCU_ON_GLB_REINIT_PEND = 522;
+    MaliMaliPMMCUONHALTFtraceEvent mali_mali_PM_MCU_ON_HALT = 523;
+    MaliMaliPMMCUONHWCNTDISABLEFtraceEvent mali_mali_PM_MCU_ON_HWCNT_DISABLE =
+        524;
+    MaliMaliPMMCUONHWCNTENABLEFtraceEvent mali_mali_PM_MCU_ON_HWCNT_ENABLE =
+        525;
+    MaliMaliPMMCUONPENDHALTFtraceEvent mali_mali_PM_MCU_ON_PEND_HALT = 526;
+    MaliMaliPMMCUONPENDSLEEPFtraceEvent mali_mali_PM_MCU_ON_PEND_SLEEP = 527;
+    MaliMaliPMMCUONSLEEPINITIATEFtraceEvent mali_mali_PM_MCU_ON_SLEEP_INITIATE =
+        528;
+    MaliMaliPMMCUPENDOFFFtraceEvent mali_mali_PM_MCU_PEND_OFF = 529;
+    MaliMaliPMMCUPENDONRELOADFtraceEvent mali_mali_PM_MCU_PEND_ON_RELOAD = 530;
+    MaliMaliPMMCUPOWERDOWNFtraceEvent mali_mali_PM_MCU_POWER_DOWN = 531;
+    MaliMaliPMMCURESETWAITFtraceEvent mali_mali_PM_MCU_RESET_WAIT = 532;
+    BclIrqTriggerFtraceEvent bcl_irq_trigger = 533;
   }
 }

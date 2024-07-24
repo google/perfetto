@@ -16,10 +16,7 @@ import {Actions} from '../../common/actions';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {GenericSliceDetailsTab} from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
-import {
-  NAMED_ROW,
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
+import {NAMED_ROW} from '../../frontend/named_slice_track';
 import {NUM, Slice, STR} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
@@ -47,12 +44,6 @@ export interface CriticalUserInteractionSlice extends Slice {
   type: string;
 }
 
-export interface CriticalUserInteractionSliceTrackTypes
-  extends NamedSliceTrackTypes {
-  slice: CriticalUserInteractionSlice;
-  row: CriticalUserInteractionRow;
-}
-
 enum CriticalUserInteractionType {
   UNKNOWN = 'Unknown',
   PAGE_LOAD = 'chrome_page_loads',
@@ -75,8 +66,8 @@ function convertToCriticalUserInteractionType(
   }
 }
 
-export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack<CriticalUserInteractionSliceTrackTypes> {
-  static readonly kind = CRITICAL_USER_INTERACTIONS_KIND;
+export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack {
+  static readonly kind = `/critical_user_interactions`;
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
@@ -96,7 +87,7 @@ export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack<Criti
   }
 
   getDetailsPanel(
-    args: OnSliceClickArgs<CriticalUserInteractionSliceTrackTypes['slice']>,
+    args: OnSliceClickArgs<CriticalUserInteractionSlice>,
   ): CustomSqlDetailsPanelConfig {
     let detailsPanel = {
       kind: GenericSliceDetailsTab.kind,
@@ -140,9 +131,7 @@ export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack<Criti
     return detailsPanel;
   }
 
-  onSliceClick(
-    args: OnSliceClickArgs<CriticalUserInteractionSliceTrackTypes['slice']>,
-  ) {
+  onSliceClick(args: OnSliceClickArgs<CriticalUserInteractionSlice>) {
     const detailsPanelConfig = this.getDetailsPanel(args);
     globals.makeSelection(
       Actions.selectGenericSlice({
@@ -165,13 +154,11 @@ export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack<Criti
     };
   }
 
-  getRowSpec(): CriticalUserInteractionSliceTrackTypes['row'] {
+  getRowSpec(): CriticalUserInteractionRow {
     return CRITICAL_USER_INTERACTIONS_ROW;
   }
 
-  rowToSlice(
-    row: CriticalUserInteractionSliceTrackTypes['row'],
-  ): CriticalUserInteractionSliceTrackTypes['slice'] {
+  rowToSlice(row: CriticalUserInteractionRow): CriticalUserInteractionSlice {
     const baseSlice = super.rowToSlice(row);
     const scopedId = row.scopedId;
     const type = row.type;

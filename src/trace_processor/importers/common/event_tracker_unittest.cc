@@ -18,6 +18,8 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "test/gtest_and_gmock.h"
@@ -40,6 +42,8 @@ class EventTrackerTest : public ::testing::Test {
     context.process_tracker.reset(new ProcessTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));
     context.track_tracker.reset(new TrackTracker(&context));
+    context.machine_tracker.reset(new MachineTracker(&context, 0));
+    context.cpu_tracker.reset(new CpuTracker(&context));
   }
 
  protected:

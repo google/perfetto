@@ -47,6 +47,7 @@ class CpuTracker {
     if (PERFETTO_LIKELY(cpu_ids_[cpu]))
       return tables::CpuTable::Id(ucpu);
 
+    cpu_ids_.set(cpu);
     // Populate the optional |cpu| column.
     context_->storage->mutable_cpu_table()->mutable_cpu()->Set(ucpu, cpu);
     return tables::CpuTable::Id(ucpu);
@@ -55,7 +56,8 @@ class CpuTracker {
   // Sets or updates the information for the specified CPU in the CpuTable.
   tables::CpuTable::Id SetCpuInfo(uint32_t cpu,
                                   base::StringView processor,
-                                  uint32_t cluster_id);
+                                  uint32_t cluster_id,
+                                  std::optional<uint32_t> capacity);
 
  private:
   TraceProcessorContext* const context_;

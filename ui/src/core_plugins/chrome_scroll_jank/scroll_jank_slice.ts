@@ -20,12 +20,12 @@ import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
 import {SliceSqlId} from '../../frontend/sql_types';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM} from '../../trace_processor/query_result';
 import {
   constraintsToQuerySuffix,
   SQLConstraints,
-} from '../../frontend/sql_utils';
-import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM} from '../../trace_processor/query_result';
+} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
 
 import {

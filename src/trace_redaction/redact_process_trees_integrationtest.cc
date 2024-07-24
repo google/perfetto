@@ -45,21 +45,21 @@ class RedactProcessTreesIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    trace_redactor()->emplace_collect<CollectSystemInfo>();
-    trace_redactor()->emplace_build<BuildSyntheticThreads>();
+    trace_redactor_.emplace_collect<CollectSystemInfo>();
+    trace_redactor_.emplace_build<BuildSyntheticThreads>();
 
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+    trace_redactor_.emplace_collect<FindPackageUid>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
 
     // Filter the process tree based on whether or not a process is part of the
     // target package.
     auto* process_tree =
-        trace_redactor()->emplace_transform<RedactProcessTrees>();
+        trace_redactor_.emplace_transform<RedactProcessTrees>();
     process_tree->emplace_modifier<ProcessTreeDoNothing>();
     process_tree->emplace_filter<ConnectedToPackage>();
 
     // In this case, the process and package have the same name.
-    context()->package_name = kProcessName;
+    context_.package_name = kProcessName;
   }
 
   std::unordered_set<int32_t> GetPids(const std::string& bytes) const {
@@ -94,6 +94,9 @@ class RedactProcessTreesIntegrationTest
     return tids;
   }
 
+  Context context_;
+  TraceRedactor trace_redactor_;
+
  private:
   void GetPids(protozero::ConstBytes bytes,
                std::unordered_set<int32_t>* pids) const {
@@ -101,6 +104,7 @@ class RedactProcessTreesIntegrationTest
 
     for (auto it = process_tree.processes(); it; ++it) {
       protos::pbzero::ProcessTree::Process::Decoder process(*it);
+      pids->insert(process.ppid());
       pids->insert(process.pid());
     }
   }
@@ -111,13 +115,14 @@ class RedactProcessTreesIntegrationTest
 
     for (auto it = process_tree.threads(); it; ++it) {
       protos::pbzero::ProcessTree::Thread::Decoder thread(*it);
+      tids->insert(thread.tgid());
       tids->insert(thread.tid());
     }
   }
 };
 
 TEST_F(RedactProcessTreesIntegrationTest, FilterProcesses) {
-  ASSERT_OK(Redact());
+  ASSERT_OK(Redact(trace_redactor_, &context_));
 
   auto original_trace_str = LoadOriginal();
   ASSERT_OK(original_trace_str);
@@ -142,14 +147,14 @@ TEST_F(RedactProcessTreesIntegrationTest, FilterProcesses) {
   // The original process count aligns with trace processor. However, the
   // redacted count does not. The final tree has one process but trace processor
   // reports 4 processes.
-  ASSERT_EQ(original_pids.size(), 902u);
-  ASSERT_EQ(redacted_pids.size(), 1u);
+  ASSERT_EQ(original_pids.size(), 903u);
+  ASSERT_EQ(redacted_pids.size(), 2u);
 
   ASSERT_TRUE(redacted_pids.count(7105));
 }
 
 TEST_F(RedactProcessTreesIntegrationTest, FilterThreads) {
-  ASSERT_OK(Redact());
+  ASSERT_OK(Redact(trace_redactor_, &context_));
 
   auto original_trace_str = LoadOriginal();
   ASSERT_OK(original_trace_str);
@@ -176,46 +181,45 @@ TEST_F(RedactProcessTreesIntegrationTest, FilterThreads) {
   // returns. Trace processor reports 199 tids where are there are only 63 tids
   // found in process tree. This suggests that trace processor is pulling tid
   // data from other locations.
-  ASSERT_EQ(original_tids.size(), 2761u);
-  ASSERT_EQ(redacted_tids.size(), 63u);
+  ASSERT_EQ(original_tids.size(), 2896u);
+  ASSERT_EQ(redacted_tids.size(), 64u);
 }
 
 TEST_F(RedactProcessTreesIntegrationTest, AddSynthProcess) {
   // Append another primitive that won't filter, but will add new threads. This
   // will be compatible with the other instanced in SetUp().
-  auto* process_tree =
-      trace_redactor()->emplace_transform<RedactProcessTrees>();
+  auto* process_tree = trace_redactor_.emplace_transform<RedactProcessTrees>();
   process_tree->emplace_modifier<ProcessTreeCreateSynthThreads>();
   process_tree->emplace_filter<AllowAll>();
 
-  ASSERT_OK(Redact());
+  ASSERT_OK(Redact(trace_redactor_, &context_));
 
   auto redacted_trace_str = LoadRedacted();
   ASSERT_OK(redacted_trace_str);
 
   auto redacted_pids = GetPids(*redacted_trace_str);
 
-  const auto& synth_threads = context()->synthetic_threads;
-  ASSERT_TRUE(synth_threads.has_value());
+  const auto* synth_process = context_.synthetic_process.get();
+  ASSERT_TRUE(synth_process);
 
   ASSERT_NE(std::find(redacted_pids.begin(), redacted_pids.end(),
-                      synth_threads->tgid),
+                      synth_process->tgid()),
             redacted_pids.end());
 }
 
 TEST_F(RedactProcessTreesIntegrationTest, AddSynthThreads) {
   // Append another primitive that won't filter, but will add new threads. This
   // will be compatible with the other instanced in SetUp().
-  auto* process_tree =
-      trace_redactor()->emplace_transform<RedactProcessTrees>();
+  auto* process_tree = trace_redactor_.emplace_transform<RedactProcessTrees>();
   process_tree->emplace_modifier<ProcessTreeCreateSynthThreads>();
   process_tree->emplace_filter<AllowAll>();
 
-  ASSERT_OK(Redact());
+  ASSERT_OK(Redact(trace_redactor_, &context_));
 
-  const auto& synth_threads = context()->synthetic_threads;
-  ASSERT_TRUE(synth_threads.has_value());
-  ASSERT_FALSE(synth_threads->tids.empty());
+  const auto* synth_process = context_.synthetic_process.get();
+  ASSERT_TRUE(synth_process);
+
+  ASSERT_FALSE(synth_process->tids().empty());
 
   auto original_trace_str = LoadOriginal();
   ASSERT_OK(original_trace_str);
@@ -223,7 +227,7 @@ TEST_F(RedactProcessTreesIntegrationTest, AddSynthThreads) {
   auto original_tids = GetTids(*original_trace_str);
 
   // The synth threads should not be found in the original trace.
-  for (auto tid : synth_threads->tids) {
+  for (auto tid : synth_process->tids()) {
     ASSERT_FALSE(original_tids.count(tid));
   }
 
@@ -233,7 +237,7 @@ TEST_F(RedactProcessTreesIntegrationTest, AddSynthThreads) {
   auto redacted_tids = GetTids(*redacted_trace_str);
 
   // The synth threads should be found in the redacted trace.
-  for (auto tid : synth_threads->tids) {
+  for (auto tid : synth_process->tids()) {
     ASSERT_TRUE(redacted_tids.count(tid));
   }
 }

@@ -14,7 +14,7 @@
 
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
-import {Area, getLegacySelection} from '../common/state';
+import {getLegacySelection} from '../common/state';
 
 import {Flow, globals} from './globals';
 import {focusHorizontalRange, verticalScrollToTrack} from './scroll_helper';
@@ -117,21 +117,11 @@ export function moveByFocusedFlow(direction: Direction): void {
   }
 }
 
-export function lockSliceSpan(persistent = false) {
-  const range = globals.findTimeRangeOfSelection();
-  const currentSelection = getLegacySelection(globals.state);
-  if (exists(range) && currentSelection !== null) {
-    const tracks = currentSelection.trackKey ? [currentSelection.trackKey] : [];
-    const area: Area = {start: range.start, end: range.end, tracks};
-    globals.dispatch(Actions.markArea({area, persistent}));
-  }
-}
-
-export function findCurrentSelection() {
+export async function findCurrentSelection() {
   const selection = getLegacySelection(globals.state);
   if (selection === null) return;
 
-  const range = globals.findTimeRangeOfSelection();
+  const range = await globals.findTimeRangeOfSelection();
   if (exists(range)) {
     focusHorizontalRange(range.start, range.end);
   }

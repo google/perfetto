@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
@@ -56,15 +57,17 @@ class IdStorage final : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    void StableSort(SortToken* start,
-                    SortToken* end,
-                    SortDirection) const override;
+    void StableSort(Token* start, Token* end, SortDirection) const override;
 
     void Distinct(Indices&) const override;
 
     std::optional<Token> MaxElement(Indices&) const override;
 
     std::optional<Token> MinElement(Indices&) const override;
+
+    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override {
+      return std::unique_ptr<DataLayer>(new IdStorage());
+    }
 
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 

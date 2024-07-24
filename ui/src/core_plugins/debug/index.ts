@@ -14,9 +14,9 @@
 
 import {uuidv4} from '../../base/uuid';
 import {
-  DEBUG_COUNTER_TRACK_URI,
-  DEBUG_SLICE_TRACK_URI,
-} from '../../frontend/debug_tracks';
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+} from '../../frontend/debug_tracks/debug_tracks';
 import {
   BottomTabToSCSAdapter,
   Plugin,
@@ -24,18 +24,55 @@ import {
   PluginDescriptor,
 } from '../../public';
 
-import {DebugCounterTrack} from './counter_track';
-import {DebugSliceDetailsTab} from './details_tab';
-import {DebugTrackV2} from './slice_track';
+import {DebugSliceDetailsTab} from '../../frontend/debug_tracks/details_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
+import {Optional, exists} from '../../base/utils';
 
-class DebugTrackPlugin implements Plugin {
+class DebugTracksPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerTrack({
-      uri: DEBUG_SLICE_TRACK_URI,
-      trackFactory: (trackCtx) => new DebugTrackV2(ctx.engine, trackCtx),
+    ctx.registerCommand({
+      id: 'perfetto.DebugTracks#addDebugSliceTrack',
+      name: 'Add debug slice track',
+      callback: async (arg: unknown) => {
+        // This command takes a query and creates a debug track out of it The
+        // query can be passed in using the first arg, or if this is not defined
+        // or is the wrong type, we prompt the user for it.
+        const query = await getStringFromArgOrPrompt(ctx, arg);
+        if (exists(query)) {
+          await addDebugSliceTrack(
+            ctx,
+            {
+              sqlSource: query,
+            },
+            'Debug slice track',
+            {ts: 'ts', dur: 'dur', name: 'name'},
+            [],
+          );
+        }
+      },
     });
 
+    ctx.registerCommand({
+      id: 'perfetto.DebugTracks#addDebugCounterTrack',
+      name: 'Add debug counter track',
+      callback: async (arg: unknown) => {
+        const query = await getStringFromArgOrPrompt(ctx, arg);
+        if (exists(query)) {
+          await addDebugCounterTrack(
+            ctx,
+            {
+              sqlSource: query,
+            },
+            'Debug slice track',
+            {ts: 'ts', value: 'value'},
+          );
+        }
+      },
+    });
+
+    // TODO(stevegolton): While debug tracks are in their current state, we rely
+    // on this plugin to provide the details panel for them. In the future, this
+    // details panel will become part of the debug track's definition.
     ctx.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
@@ -54,15 +91,29 @@ class DebugTrackPlugin implements Plugin {
         },
       }),
     );
+  }
+}
 
-    ctx.registerTrack({
-      uri: DEBUG_COUNTER_TRACK_URI,
-      trackFactory: (trackCtx) => new DebugCounterTrack(ctx.engine, trackCtx),
-    });
+// If arg is a string, return it, otherwise prompt the user for a string. An
+// exception is thrown if the prompt is cancelled, so this function handles this
+// and returns undefined in this case.
+async function getStringFromArgOrPrompt(
+  ctx: PluginContextTrace,
+  arg: unknown,
+): Promise<Optional<string>> {
+  if (typeof arg === 'string') {
+    return arg;
+  } else {
+    try {
+      return await ctx.prompt('Enter a query...');
+    } catch {
+      // Prompt was ignored
+      return undefined;
+    }
   }
 }
 
 export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.DebugSlices',
-  plugin: DebugTrackPlugin,
+  pluginId: 'perfetto.DebugTracks',
+  plugin: DebugTracksPlugin,
 };

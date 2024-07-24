@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../base/bigint_math';
-import {assertExists} from '../base/logging';
+import {assertExists, assertUnreachable} from '../base/logging';
 import {createStore, Store} from '../base/store';
-import {duration, Span, Time, time, TimeSpan} from '../base/time';
+import {duration, Time, time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args} from '../common/arg_types';
@@ -25,43 +24,38 @@ import {
   ConversionJobStatus,
 } from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
-import {
-  HighPrecisionTime,
-  HighPrecisionTimeSpan,
-} from '../common/high_precision_time';
 import {MetricResult} from '../common/metric_data';
-import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {
-  EngineConfig,
-  RESOLUTION_DEFAULT,
-  State,
-  getLegacySelection,
-} from '../common/state';
+import {CurrentSearchResults} from '../common/search_data';
+import {EngineConfig, State, getLegacySelection} from '../common/state';
 import {TabManager} from '../common/tab_registry';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 import {TrackManager} from '../common/track_cache';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
-import {EngineBase} from '../trace_processor/engine';
-import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-
-import {Analytics, initAnalytics} from './analytics';
-import {Timeline} from './frontend_local_state';
-import {Router} from './router';
-import {horizontalScrollToTs} from './scroll_helper';
 import {ServiceWorkerController} from './service_worker_controller';
+import {Engine, EngineBase} from '../trace_processor/engine';
+import {HttpRpcState} from '../trace_processor/http_rpc_engine';
+import {Analytics, initAnalytics} from './analytics';
+import {Timeline} from './timeline';
 import {SliceSqlId} from './sql_types';
-import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
-import {exists} from '../base/utils';
+import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
-import {CallsiteInfo} from '../common/flamegraph_util';
-import {FlamegraphCache} from './flamegraph_panel';
+import {CallsiteInfo} from '../common/legacy_flamegraph_util';
+import {LegacyFlamegraphCache} from '../core/legacy_flamegraph_cache';
+import {SerializedAppState} from '../common/state_serialization_schema';
+import {getServingRoot} from '../base/http_utils';
+import {
+  createSearchOverviewTrack,
+  SearchOverviewTrack,
+} from './search_overview_track';
+import {AppContext} from './app_context';
+import {TraceContext} from './trace_context';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
 
-type Dispatch = (action: DeferredAction) => void;
+type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {} | undefined>;
 type AggregateDataStore = Map<string, AggregateData>;
@@ -132,14 +126,6 @@ export interface Flow {
   name?: string;
 }
 
-export interface CounterDetails {
-  startTime?: time;
-  value?: number;
-  delta?: number;
-  duration?: duration;
-  name?: string;
-}
-
 export interface ThreadStateDetails {
   ts?: time;
   dur?: duration;
@@ -169,21 +155,6 @@ export interface ThreadDesc {
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
-function getRoot() {
-  // Works out the root directory where the content should be served from
-  // e.g. `http://origin/v1.2.3/`.
-  const script = document.currentScript as HTMLScriptElement;
-
-  // Needed for DOM tests, that do not have script element.
-  if (script === null) {
-    return '';
-  }
-
-  let root = script.src;
-  root = root.substr(0, root.lastIndexOf('/') + 1);
-  return root;
-}
-
 // Options for globals.makeSelection().
 export interface MakeSelectionOpts {
   // Whether to switch to the current selection tab or not. Default = true.
@@ -201,31 +172,9 @@ export interface LegacySelectionArgs {
   pendingScrollId: number | undefined;
 }
 
-export interface TraceContext {
-  readonly start: time;
-  readonly end: time;
-
-  // This is the ts value at the time of the Unix epoch.
-  // Normally some large negative value, because the unix epoch is normally in
-  // the past compared to ts=0.
-  readonly realtimeOffset: time;
-
-  // This is the timestamp that we should use for our offset when in UTC mode.
-  // Usually the most recent UTC midnight compared to the trace start time.
-  readonly utcOffset: time;
-
-  // Trace TZ is like UTC but keeps into account also the timezone_off_mins
-  // recorded into the trace, to show timestamps in the device local time.
-  readonly traceTzOffset: time;
-
-  // The list of CPUs in the trace
-  readonly cpus: number[];
-
-  // The number of gpus in the trace
-  readonly gpuCount: number;
-}
-
 export const defaultTraceContext: TraceContext = {
+  traceTitle: '',
+  traceUrl: '',
   start: Time.ZERO,
   end: Time.fromSeconds(10),
   realtimeOffset: Time.ZERO,
@@ -238,11 +187,11 @@ export const defaultTraceContext: TraceContext = {
 /**
  * Global accessors for state/dispatch in the frontend.
  */
-class Globals {
-  readonly root = getRoot();
+class Globals implements AppContext {
+  readonly root = getServingRoot();
 
   private _testing = false;
-  private _dispatch?: Dispatch = undefined;
+  private _dispatchMultiple?: DispatchMultiple = undefined;
   private _store = createStore<State>(createEmptyState());
   private _timeline?: Timeline = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
@@ -260,7 +209,6 @@ class Globals {
   private _connectedFlows?: Flow[] = undefined;
   private _selectedFlows?: Flow[] = undefined;
   private _visibleFlowCategories?: Map<string, boolean> = undefined;
-  private _counterDetails?: CounterDetails = undefined;
   private _cpuProfileDetails?: CpuProfileDetails = undefined;
   private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
@@ -269,7 +217,6 @@ class Globals {
   private _metricError?: string = undefined;
   private _metricResult?: MetricResult = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
-  private _router?: Router = undefined;
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
   private _cmdManager = new CommandManager();
@@ -277,17 +224,53 @@ class Globals {
   private _trackManager = new TrackManager(this._store);
   private _selectionManager = new SelectionManager(this._store);
   private _hasFtrace: boolean = false;
+  private _searchOverviewTrack?: SearchOverviewTrack;
 
   omnibox = new OmniboxManager();
-  areaFlamegraphCache = new FlamegraphCache('area');
+  areaFlamegraphCache = new LegacyFlamegraphCache('area');
 
   scrollToTrackKey?: string | number;
   httpRpcState: HttpRpcState = {connected: false};
-  newVersionAvailable = false;
   showPanningHint = false;
   permalinkHash?: string;
+  showTraceErrorPopup = true;
 
   traceContext = defaultTraceContext;
+
+  // This is the app's equivalent of a plugin's onTraceLoad() function.
+  // TODO(stevegolton): Eventually initialization that should be done on trace
+  // load should be moved into here, and then we can remove TraceController
+  // entirely
+  async onTraceLoad(engine: Engine, traceCtx: TraceContext): Promise<void> {
+    this.traceContext = traceCtx;
+
+    const {start, end} = traceCtx;
+    const traceSpan = new TimeSpan(start, end);
+    this._timeline = new Timeline(this._store, traceSpan);
+
+    // TODO(stevegolton): Even though createSearchOverviewTrack() returns a
+    // disposable, we completely ignore it as we assume the dispose action
+    // includes just dropping some tables, and seeing as this object will live
+    // for the duration of the trace/engine, there's no need to drop anything as
+    // the tables will be dropped along with the trace anyway.
+    //
+    // Note that this is no worse than a lot of the rest of the app where tables
+    // are created with no way to drop them.
+    //
+    // Once we fix the story around loading new traces, we should tidy this up.
+    // We could for example have a matching globals.onTraceUnload() that
+    // performs any tear-down before the old engine is dropped. This might seem
+    // pointless, but it could at least block until any currently running update
+    // cycles complete, to avoid leaving promises open on old engines that will
+    // never resolve.
+    //
+    // Alternatively we could decide that we don't want to support switching
+    // traces at all, in which case we can ignore tear down entirely.
+    this._searchOverviewTrack = await createSearchOverviewTrack(engine, this);
+  }
+
+  // Used for permalink load by trace_controller.ts.
+  restoreAppStateAfterTraceLoad?: SerializedAppState;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -300,25 +283,25 @@ class Globals {
     sources: [],
     totalResults: 0,
   };
-  searchSummary: SearchSummary = {
-    tsStarts: new BigInt64Array(0),
-    tsEnds: new BigInt64Array(0),
-    count: new Uint8Array(0),
-  };
 
   engines = new Map<string, EngineBase>();
 
-  initialize(dispatch: Dispatch, router: Router) {
-    this._dispatch = dispatch;
-    this._router = router;
-    this._timeline = new Timeline();
+  constructor() {
+    const {start, end} = defaultTraceContext;
+    this._timeline = new Timeline(this._store, new TimeSpan(start, end));
+  }
+
+  initialize(dispatchMultiple: DispatchMultiple) {
+    this._dispatchMultiple = dispatchMultiple;
 
     setPerfHooks(
       () => this.state.perfDebug,
       () => this.dispatch(Actions.togglePerfDebug({})),
     );
 
-    this._serviceWorkerController = new ServiceWorkerController();
+    this._serviceWorkerController = new ServiceWorkerController(
+      getServingRoot(),
+    );
     this._testing =
       /* eslint-disable @typescript-eslint/strict-boolean-expressions */
       self.location && self.location.search.indexOf('testing=1') >= 0;
@@ -335,7 +318,6 @@ class Globals {
     this._connectedFlows = [];
     this._selectedFlows = [];
     this._visibleFlowCategories = new Map<string, boolean>();
-    this._counterDetails = {};
     this._threadStateDetails = {};
     this._cpuProfileDetails = {};
     this.engines.clear();
@@ -345,10 +327,6 @@ class Globals {
   // Only initialises the store - useful for testing.
   initStore(initialState: State) {
     this._store = createStore(initialState);
-  }
-
-  get router(): Router {
-    return assertExists(this._router);
   }
 
   get publishRedraw(): () => void {
@@ -367,15 +345,12 @@ class Globals {
     return assertExists(this._store);
   }
 
-  get dispatch(): Dispatch {
-    return assertExists(this._dispatch);
+  dispatch(action: DeferredAction) {
+    this.dispatchMultiple([action]);
   }
 
-  dispatchMultiple(actions: DeferredAction[]): void {
-    const dispatch = this.dispatch;
-    for (const action of actions) {
-      dispatch(action);
-    }
+  dispatchMultiple(actions: DeferredAction[]) {
+    assertExists(this._dispatchMultiple)(actions);
   }
 
   get timeline() {
@@ -447,14 +422,6 @@ class Globals {
     this._visibleFlowCategories = assertExists(visibleFlowCategories);
   }
 
-  get counterDetails() {
-    return assertExists(this._counterDetails);
-  }
-
-  set counterDetails(click: CounterDetails) {
-    this._counterDetails = assertExists(click);
-  }
-
   get aggregateDataStore(): AggregateDataStore {
     return assertExists(this._aggregateDataStore);
   }
@@ -523,8 +490,12 @@ class Globals {
     return this._hasFtrace;
   }
 
+  get searchOverviewTrack() {
+    return this._searchOverviewTrack;
+  }
+
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
-    return this.getJobStatusMap().get(name) || ConversionJobStatus.NotRunning;
+    return this.getJobStatusMap().get(name) ?? ConversionJobStatus.NotRunning;
   }
 
   setConversionJobStatus(name: ConversionJobName, status: ConversionJobStatus) {
@@ -575,29 +546,6 @@ class Globals {
     this.aggregateDataStore.set(kind, data);
   }
 
-  getCurResolution(): duration {
-    // Truncate the resolution to the closest power of 2 (in nanosecond space).
-    // We choose to work in ns space because resolution is consumed be track
-    // controllers for quantization and they rely on resolution to be a power
-    // of 2 in nanosecond form. This is property does not hold if we work in
-    // second space.
-    //
-    // This effectively means the resolution changes approximately every 6 zoom
-    // levels. Logic: each zoom level represents a delta of 0.1 * (visible
-    // window span). Therefore, zooming out by six levels is 1.1^6 ~= 2.
-    // Similarily, zooming in six levels is 0.9^6 ~= 0.5.
-    const timeScale = this.timeline.visibleTimeScale;
-    // TODO(b/186265930): Remove once fixed:
-    if (timeScale.pxSpan.delta === 0) {
-      console.error(`b/186265930: Bad pxToSec suppressed`);
-      return RESOLUTION_DEFAULT;
-    }
-
-    const timePerPx = timeScale.pxDeltaToDuration(this.quantPx);
-
-    return BigintMath.bitFloor(timePerPx.toTime('floor'));
-  }
-
   getCurrentEngine(): EngineConfig | undefined {
     return this.state.engine;
   }
@@ -617,20 +565,38 @@ class Globals {
 
   setLegacySelection(
     legacySelection: LegacySelection,
-    args: LegacySelectionArgs,
+    args: Partial<LegacySelectionArgs> = {},
   ): void {
     this._selectionManager.setLegacy(legacySelection);
-    if (args.clearSearch) {
+    this.handleSelectionArgs(args);
+  }
+
+  selectSingleEvent(
+    trackKey: string,
+    eventId: number,
+    args: Partial<LegacySelectionArgs> = {},
+  ): void {
+    this._selectionManager.setEvent(trackKey, eventId);
+    this.handleSelectionArgs(args);
+  }
+
+  private handleSelectionArgs(args: Partial<LegacySelectionArgs> = {}): void {
+    const {
+      clearSearch = true,
+      switchToCurrentSelectionTab = true,
+      pendingScrollId = undefined,
+    } = args;
+    if (clearSearch) {
       globals.dispatch(Actions.setSearchIndex({index: -1}));
     }
-    if (args.pendingScrollId !== undefined) {
+    if (pendingScrollId !== undefined) {
       globals.dispatch(
         Actions.setPendingScrollId({
-          pendingScrollId: args.pendingScrollId,
+          pendingScrollId,
         }),
       );
     }
-    if (args.switchToCurrentSelectionTab) {
+    if (switchToCurrentSelectionTab) {
       globals.dispatch(Actions.showTab({uri: 'current_selection'}));
     }
   }
@@ -641,7 +607,7 @@ class Globals {
   }
 
   resetForTesting() {
-    this._dispatch = undefined;
+    this._dispatchMultiple = undefined;
     this._timeline = undefined;
     this._serviceWorkerController = undefined;
 
@@ -696,36 +662,6 @@ class Globals {
     raf.shutdown();
   }
 
-  // Get a timescale that covers the entire trace
-  getTraceTimeScale(pxSpan: PxSpan): TimeScale {
-    const {start, end} = this.traceContext;
-    const traceTime = HighPrecisionTimeSpan.fromTime(start, end);
-    return TimeScale.fromHPTimeSpan(traceTime, pxSpan);
-  }
-
-  // Get the trace time bounds
-  stateTraceTime(): Span<HighPrecisionTime> {
-    const {start, end} = this.traceContext;
-    return HighPrecisionTimeSpan.fromTime(start, end);
-  }
-
-  stateTraceTimeTP(): Span<time, duration> {
-    const {start, end} = this.traceContext;
-    return new TimeSpan(start, end);
-  }
-
-  // Get the state version of the visible time bounds
-  stateVisibleTime(): Span<time, duration> {
-    const {start, end} = this.state.frontendLocalState.visibleState;
-    return new TimeSpan(start, end);
-  }
-
-  // How many pixels to use for one quanta of horizontal resolution
-  get quantPx(): number {
-    const quantPx = (self as {} as {quantPx: number | undefined}).quantPx;
-    return quantPx ?? 1;
-  }
-
   get commandManager(): CommandManager {
     return assertExists(this._cmdManager);
   }
@@ -763,7 +699,48 @@ class Globals {
     return Time.sub(ts, this.timestampOffset());
   }
 
-  findTimeRangeOfSelection(): {start: time; end: time} | undefined {
+  async findTimeRangeOfSelection(): Promise<
+    Optional<{start: time; end: time}>
+  > {
+    const sel = globals.state.selection;
+    if (sel.kind === 'area') {
+      return sel;
+    } else if (sel.kind === 'note') {
+      const selectedNote = this.state.notes[sel.id];
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      if (selectedNote) {
+        const kind = selectedNote.noteType;
+        switch (kind) {
+          case 'SPAN':
+            return {
+              start: selectedNote.start,
+              end: selectedNote.end,
+            };
+          case 'DEFAULT':
+            return {
+              start: selectedNote.timestamp,
+              end: Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION),
+            };
+          default:
+            assertUnreachable(kind);
+        }
+      }
+    } else if (sel.kind === 'single') {
+      const uri = globals.state.tracks[sel.trackKey]?.uri;
+      if (uri) {
+        const bounds = await globals.trackManager
+          .resolveTrackInfo(uri)
+          ?.getEventBounds?.(sel.eventId);
+        if (bounds) {
+          return {
+            start: bounds.ts,
+            end: Time.add(bounds.ts, bounds.dur),
+          };
+        }
+      }
+      return undefined;
+    }
+
     const selection = getLegacySelection(this.state);
     if (selection === null) {
       return undefined;
@@ -775,25 +752,6 @@ class Globals {
     } else if (selection.kind === 'THREAD_STATE') {
       const threadState = this.threadStateDetails;
       return findTimeRangeOfSlice(threadState);
-    } else if (selection.kind === 'COUNTER') {
-      return {start: selection.leftTs, end: selection.rightTs};
-    } else if (selection.kind === 'AREA') {
-      const selectedArea = this.state.areas[selection.areaId];
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (selectedArea) {
-        return {start: selectedArea.start, end: selectedArea.end};
-      }
-    } else if (selection.kind === 'NOTE') {
-      const selectedNote = this.state.notes[selection.id];
-      // Notes can either be default or area notes. Area notes are handled
-      // above in the AREA case.
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (selectedNote && selectedNote.noteType === 'DEFAULT') {
-        return {
-          start: selectedNote.timestamp,
-          end: Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION),
-        };
-      }
     } else if (selection.kind === 'LOG') {
       // TODO(hjd): Make focus selection work for logs.
     } else if (selection.kind === 'GENERIC_SLICE') {
@@ -804,10 +762,6 @@ class Globals {
     }
 
     return undefined;
-  }
-
-  panToTimestamp(ts: time): void {
-    horizontalScrollToTs(ts);
   }
 }
 
@@ -843,12 +797,12 @@ function findTimeRangeOfSlice(slice: Partial<SliceLike>): {
 
 // Returns the time span of the current selection, or the visible window if
 // there is no current selection.
-export function getTimeSpanOfSelectionOrVisibleWindow(): Span<time, duration> {
-  const range = globals.findTimeRangeOfSelection();
+export async function getTimeSpanOfSelectionOrVisibleWindow(): Promise<TimeSpan> {
+  const range = await globals.findTimeRangeOfSelection();
   if (exists(range)) {
     return new TimeSpan(range.start, range.end);
   } else {
-    return globals.stateVisibleTime();
+    return globals.timeline.visibleWindow.toTimeSpan();
   }
 }
 

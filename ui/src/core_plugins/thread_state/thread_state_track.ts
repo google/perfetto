@@ -19,7 +19,6 @@ import {translateState} from '../../common/thread_state';
 import {
   BASE_ROW,
   BaseSliceTrack,
-  BaseSliceTrackTypes,
   OnSliceClickArgs,
 } from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
@@ -29,6 +28,7 @@ import {
 } from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
+import {Slice} from '../../public';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,
@@ -38,19 +38,18 @@ export const THREAD_STATE_ROW = {
 
 export type ThreadStateRow = typeof THREAD_STATE_ROW;
 
-export interface ThreadStateTrackTypes extends BaseSliceTrackTypes {
-  row: ThreadStateRow;
-}
-
-export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
+export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
   protected sliceLayout: SliceLayout = {...SLICE_LAYOUT_FLAT_DEFAULTS};
 
-  constructor(args: NewTrackArgs, private utid: number) {
+  constructor(
+    args: NewTrackArgs,
+    private utid: number,
+  ) {
     super(args);
   }
 
   // This is used by the base class to call iter().
-  getRowSpec(): ThreadStateTrackTypes['row'] {
+  getRowSpec(): ThreadStateRow {
     return THREAD_STATE_ROW;
   }
 
@@ -72,23 +71,21 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
     `;
   }
 
-  rowToSlice(
-    row: ThreadStateTrackTypes['row'],
-  ): ThreadStateTrackTypes['slice'] {
-    const baseSlice = super.rowToSlice(row);
+  rowToSlice(row: ThreadStateRow): Slice {
+    const baseSlice = this.rowToSliceBase(row);
     const ioWait = row.ioWait === null ? undefined : !!row.ioWait;
     const title = translateState(row.state, ioWait);
     const color = colorForState(title);
     return {...baseSlice, title, colorScheme: color};
   }
 
-  onUpdatedSlices(slices: ThreadStateTrackTypes['slice'][]) {
+  onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
   }
 
-  onSliceClick(args: OnSliceClickArgs<ThreadStateTrackTypes['slice']>) {
+  onSliceClick(args: OnSliceClickArgs<Slice>) {
     globals.makeSelection(
       Actions.selectThreadState({
         id: args.slice.id,

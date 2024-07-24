@@ -15,21 +15,22 @@
 import m from 'mithril';
 
 import {searchSegment} from '../base/binary_search';
-import {Disposable, NullDisposable} from '../base/disposable';
+
 import {assertTrue, assertUnreachable} from '../base/logging';
 import {Time, time} from '../base/time';
 import {uuidv4Sql} from '../base/uuid';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {raf} from '../core/raf_scheduler';
 import {CacheKey} from '../core/timeline_cache';
-import {Engine, LONG, NUM, Track} from '../public';
+import {Track, TrackMouseEvent, TrackRenderContext} from '../public/tracks';
 import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
+import {Engine} from '../trace_processor/engine';
+import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
-import {globals} from './globals';
-import {PanelSize} from './panel';
 import {NewTrackArgs} from './track';
+import {AsyncDisposableStack} from '../base/disposable_stack';
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -54,8 +55,9 @@ function toLabel(n: number): string {
   let largestMultiplier;
   let largestUnit;
   [largestMultiplier, largestUnit] = units[0];
+  const absN = Math.abs(n);
   for (const [multiplier, unit] of units) {
-    if (multiplier >= n) {
+    if (multiplier > absN) {
       break;
     }
     [largestMultiplier, largestUnit] = [multiplier, unit];
@@ -201,15 +203,14 @@ export abstract class BaseCounterTrack implements Track {
     displayValueRange: [0, 0],
   };
 
-  // Cleanup hook for onInit.
-  private initState?: Disposable;
-
   private limits?: CounterLimits;
 
   private mousePos = {x: 0, y: 0};
   private hover?: CounterTooltipState;
   private defaultOptions: Partial<CounterOptions>;
   private options?: CounterOptions;
+
+  private readonly trash: AsyncDisposableStack;
 
   private getCounterOptions(): CounterOptions {
     if (this.options === undefined) {
@@ -232,9 +233,7 @@ export abstract class BaseCounterTrack implements Track {
   // queries using the result of getSqlSource(). All persistent
   // state in trace_processor should be cleaned up when dispose is
   // called on the returned hook.
-  async onInit(): Promise<Disposable> {
-    return new NullDisposable();
-  }
+  async onInit(): Promise<AsyncDisposable | void> {}
 
   // This should be an SQL expression returning the columns `ts` and `value`.
   abstract getSqlSource(): string;
@@ -252,6 +251,7 @@ export abstract class BaseCounterTrack implements Track {
     this.engine = args.engine;
     this.trackKey = args.trackKey;
     this.defaultOptions = args.options ?? {};
+    this.trash = new AsyncDisposableStack();
   }
 
   getHeight() {
@@ -440,27 +440,26 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   async onCreate(): Promise<void> {
-    this.initState = await this.onInit();
+    const result = await this.onInit();
+    result && this.trash.use(result);
     this.limits = await this.createTableAndFetchLimits(false);
   }
 
-  async onUpdate(): Promise<void> {
-    const {visibleTimeScale: timeScale, visibleWindowTime: vizTime} =
-      globals.timeline;
-
-    const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
-    const rawStartNs = vizTime.start.toTime();
-    const rawEndNs = vizTime.end.toTime();
-    const rawCountersKey = CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
+  async onUpdate({visibleWindow, size}: TrackRenderContext): Promise<void> {
+    const windowSizePx = Math.max(1, size.width);
+    const timespan = visibleWindow.toTimeSpan();
+    const rawCountersKey = CacheKey.create(
+      timespan.start,
+      timespan.end,
+      windowSizePx,
+    );
 
     // If the visible time range is outside the cached area, requests
     // asynchronously new data from the SQL engine.
     await this.maybeRequestData(rawCountersKey);
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const {visibleTimeScale: timeScale} = globals.timeline;
-
+  render({ctx, size, timescale}: TrackRenderContext): void {
     // In any case, draw whatever we have (which might be stale/incomplete).
     const limits = this.limits;
     const data = this.counters;
@@ -471,8 +470,8 @@ export abstract class BaseCounterTrack implements Track {
         this.getHeight(),
         0,
         size.width,
-        timeScale.timeToPx(this.countersKey.start),
-        timeScale.timeToPx(this.countersKey.end),
+        timescale.timeToPx(this.countersKey.start),
+        timescale.timeToPx(this.countersKey.end),
       );
       return;
     }
@@ -496,11 +495,6 @@ export abstract class BaseCounterTrack implements Track {
 
     const effectiveHeight = this.getHeight() - MARGIN_TOP;
     const endPx = size.width;
-    const hasZero = yMin < 0 && yMax > 0;
-    let zeroY = effectiveHeight + MARGIN_TOP;
-    if (hasZero) {
-      zeroY = effectiveHeight * (yMax / (yMax - yMin)) + MARGIN_TOP;
-    }
 
     // Use hue to differentiate the scale of the counter value
     const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
@@ -511,7 +505,7 @@ export abstract class BaseCounterTrack implements Track {
     ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
     const calculateX = (ts: time) => {
-      return Math.floor(timeScale.timeToPx(ts));
+      return Math.floor(timescale.timeToPx(ts));
     };
     const calculateY = (value: number) => {
       return (
@@ -520,6 +514,14 @@ export abstract class BaseCounterTrack implements Track {
         Math.round(((value - yMin) / yRange) * effectiveHeight)
       );
     };
+    let zeroY;
+    if (yMin >= 0) {
+      zeroY = effectiveHeight + MARGIN_TOP;
+    } else if (yMax < 0) {
+      zeroY = MARGIN_TOP;
+    } else {
+      zeroY = effectiveHeight * (yMax / (yMax - yMin)) + MARGIN_TOP;
+    }
 
     ctx.beginPath();
     const timestamp = Time.fromRaw(timestamps[0]);
@@ -549,7 +551,7 @@ export abstract class BaseCounterTrack implements Track {
     ctx.fill();
     ctx.stroke();
 
-    if (hasZero) {
+    if (yMin < 0 && yMax > 0) {
       // Draw the Y=0 dashed line.
       ctx.strokeStyle = `hsl(${hue}, 10%, 71%)`;
       ctx.beginPath();
@@ -590,7 +592,7 @@ export abstract class BaseCounterTrack implements Track {
       const xEnd =
         hover.tsEnd === undefined
           ? endPx
-          : Math.floor(timeScale.timeToPx(hover.tsEnd));
+          : Math.floor(timescale.timeToPx(hover.tsEnd));
       const y =
         MARGIN_TOP +
         effectiveHeight -
@@ -621,7 +623,7 @@ export abstract class BaseCounterTrack implements Track {
       }
 
       // Draw the tooltip.
-      drawTrackHoverTooltip(ctx, this.mousePos, this.getHeight(), text);
+      drawTrackHoverTooltip(ctx, this.mousePos, size, text);
     }
 
     // Write the Y scale on the top left corner.
@@ -649,17 +651,16 @@ export abstract class BaseCounterTrack implements Track {
       this.getHeight(),
       0,
       size.width,
-      timeScale.timeToPx(this.countersKey.start),
-      timeScale.timeToPx(this.countersKey.end),
+      timescale.timeToPx(this.countersKey.start),
+      timescale.timeToPx(this.countersKey.end),
     );
   }
 
-  onMouseMove(pos: {x: number; y: number}) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.counters;
     if (data === undefined) return;
-    this.mousePos = pos;
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(pos.x);
+    this.mousePos = {x, y};
+    const time = timescale.pxToHpTime(x);
 
     const [left, right] = searchSegment(data.timestamps, time.toTime());
 
@@ -684,11 +685,7 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   async onDestroy(): Promise<void> {
-    if (this.initState) {
-      this.initState.dispose();
-      this.initState = undefined;
-    }
-    await this.engine.tryQuery(`drop table if exists ${this.getTableName()}`);
+    await this.trash.asyncDispose();
   }
 
   // Compute the range of values to display and range label.
@@ -712,6 +709,7 @@ export abstract class BaseCounterTrack implements Track {
 
     if (options.yDisplay === 'zero') {
       yMin = Math.min(0, yMin);
+      yMax = Math.max(0, yMax);
     }
 
     if (options.yOverrideMaximum !== undefined) {
@@ -746,8 +744,11 @@ export abstract class BaseCounterTrack implements Track {
         max = Math.exp(max);
         min = Math.exp(min);
       }
-      const n = Math.abs(max - min);
-      yLabel = toLabel(n);
+      if (max < 0) {
+        yLabel = toLabel(min - max);
+      } else {
+        yLabel = toLabel(max - min);
+      }
     }
 
     const unit = this.unit;
@@ -892,6 +893,10 @@ export abstract class BaseCounterTrack implements Track {
         trace_start(), trace_end(), trace_dur()
       );
     `);
+
+    this.trash.defer(async () => {
+      this.engine.tryQuery(`drop table if exists ${this.getTableName()}`);
+    });
 
     const {minDisplayValue, maxDisplayValue} = displayValueQuery.firstRow({
       minDisplayValue: NUM,

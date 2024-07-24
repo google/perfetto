@@ -4,7 +4,6 @@
 
 # Perfetto tracing internals and API/ABI boundaries.
 primiano@google.com
-skyostil@google.com
 
 # UI, Ftrace interop, traced_probes, protozero, Android internals.
 

@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {
-  ThreadSliceTrack,
-  THREAD_SLICE_TRACK_KIND,
-} from '../thread_slice/thread_slice_track';
+  COUNTER_TRACK_KIND,
+  Plugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
+import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-import {COUNTER_TRACK_KIND} from '../counter';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
+import {THREAD_SLICE_TRACK_KIND} from '../../public';
 
 class AnnotationPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -46,12 +48,12 @@ class AnnotationPlugin implements Plugin {
       const name = it.name;
 
       ctx.registerTrack({
-        uri: `perfetto.Annotation#${id}`,
-        displayName: name,
-        kind: THREAD_SLICE_TRACK_KIND,
+        uri: `/annotation_${id}`,
+        title: name,
         tags: {
-          metric: true,
+          kind: THREAD_SLICE_TRACK_KIND,
         },
+        chips: ['metric'],
         trackFactory: ({trackKey}) => {
           return new ThreadSliceTrack(
             {
@@ -89,12 +91,12 @@ class AnnotationPlugin implements Plugin {
       const name = counterIt.name;
 
       ctx.registerTrack({
-        uri: `perfetto.Annotation#counter${trackId}`,
-        displayName: name,
-        kind: COUNTER_TRACK_KIND,
+        uri: `/annotation_counter_${trackId}`,
+        title: name,
         tags: {
-          metric: true,
+          kind: COUNTER_TRACK_KIND,
         },
+        chips: ['metric'],
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,

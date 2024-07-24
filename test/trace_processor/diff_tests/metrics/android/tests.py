@@ -356,3 +356,75 @@ class AndroidMetrics(TestSuite):
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=Metric("android_oom_adjuster"),
         out=Path('android_oom_adjuster.out'))
+
+  def test_android_broadcasts(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_broadcasts"),
+        out=Path('android_broadcasts.out'))
+
+  def test_wattson_app_startup_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_calculator_startup.pb'),
+        query=Metric("wattson_app_startup"),
+        out=Csv("""
+        wattson_app_startup {
+          metric_version: 1
+          period_info {
+            period_id: 1
+            period_dur: 385136434
+            rail {
+              name: "cpu_subsystem"
+              estimate_mw: 4568.159180
+              rail {
+                name: "DSU_SCU"
+                estimate_mw: 1142.600708
+              }
+              rail {
+                name: "policy0"
+                estimate_mw: 578.353088
+                rail {
+                  name: "cpu0"
+                  estimate_mw: 149.026062
+                }
+                rail {
+                  name: "cpu1"
+                  estimate_mw: 130.140015
+                }
+                rail {
+                  name: "cpu2"
+                  estimate_mw: 127.601807
+                }
+                rail {
+                  name: "cpu3"
+                  estimate_mw: 171.585205
+                }
+              }
+              rail {
+                name: "policy4"
+                estimate_mw: 684.187256
+                rail {
+                  name: "cpu4"
+                  estimate_mw: 344.394531
+                }
+                rail {
+                  name: "cpu5"
+                  estimate_mw: 339.792725
+                }
+              }
+              rail {
+                name: "policy6"
+                estimate_mw: 2163.018066
+                rail {
+                  name: "cpu6"
+                  estimate_mw: 1080.465820
+                }
+                rail {
+                  name: "cpu7"
+                  estimate_mw: 1082.552246
+                }
+              }
+            }
+          }
+        }
+        """))

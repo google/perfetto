@@ -20,7 +20,7 @@
 // This headers deals with sys types commonly used in the codebase that are
 // missing on Windows.
 
-#include <sys/types.h>
+#include <sys/types.h>  // IWYU pragma: export
 #include <cstdint>
 
 #include "perfetto/base/build_config.h"

@@ -14,8 +14,8 @@
 
 import {Draft} from 'immer';
 
-import {using} from './disposable';
 import {createStore} from './store';
+import {exists} from './utils';
 
 interface Bar {
   value: number;
@@ -33,7 +33,7 @@ function migrateFoo(init: unknown): Foo {
       value: 456,
     },
   };
-  if (init && typeof init === 'object') {
+  if (exists(init) && typeof init === 'object') {
     if ('counter' in init && typeof init.counter === 'number') {
       migrated.counter = init.counter;
     }
@@ -145,7 +145,7 @@ describe('root store', () => {
     const callback = jest.fn();
 
     // Subscribe then immediately unsubscribe
-    using(store.subscribe(callback));
+    store.subscribe(callback)[Symbol.dispose]();
 
     // Make an arbitrary edit
     store.edit((draft) => {
@@ -236,7 +236,7 @@ describe('sub-store', () => {
     const callback = jest.fn();
 
     // Subscribe then immediately unsubscribe
-    using(subStore.subscribe(callback));
+    subStore.subscribe(callback)[Symbol.dispose]();
 
     // Make an arbitrary edit
     subStore.edit((draft) => {

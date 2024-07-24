@@ -61,6 +61,7 @@ Table& Table::operator=(Table&& other) noexcept {
 
   overlays_ = std::move(other.overlays_);
   columns_ = std::move(other.columns_);
+  indexes_ = std::move(other.indexes_);
 
   storage_layers_ = std::move(other.storage_layers_);
   null_layers_ = std::move(other.null_layers_);

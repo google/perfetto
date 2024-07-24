@@ -25,7 +25,8 @@
   display: flex;
   position: relative;
   flex-direction: column;
-  transition: margin-left var(--anim-easing) var(--sidebar-timing),
+  transition:
+    margin-left var(--anim-easing) var(--sidebar-timing),
     visibility linear var(--sidebar-timing);
   > * {
     border-bottom: 1px solid #404854;

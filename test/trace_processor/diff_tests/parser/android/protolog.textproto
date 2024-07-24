@@ -102,6 +102,55 @@ packet {
   }
 }
 packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  interned_data {
+    protolog_string_args {
+      iid: 12
+      str: "MyTestString"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  protolog_viewer_config {
+    groups {
+      id: 12
+      name: "MY_NON_PROCESSED_GROUP"
+      tag: "MyNonProcessedGroup"
+    }
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  protolog_viewer_config {
+    messages {
+      message_id: 9084537961316395367
+      message: "My non-processed proto message with a string (%s), an int (%d), a double %g, and a boolean %b."
+      level: PROTOLOG_LEVEL_VERBOSE
+      group_id: 12
+    }
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384140
+  protolog_message {
+    message_id: 9084537961316395367
+    str_param_iids: 12
+    sint64_params: 888
+    double_params: 8.88
+    boolean_params: 1
+    stacktrace_iid: 1
+  }
+}
+packet {
   trusted_uid: 10224
   trusted_packet_sequence_id: 10
   previous_packet_dropped: true

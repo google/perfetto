@@ -27,7 +27,6 @@
 #include <map>
 #include <set>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -37,13 +36,9 @@
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
-#include "src/profiling/symbolizer/symbolizer.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/traceconv/utils.h"
 
-#include "protos/perfetto/trace/trace.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/pprof/profile.pbzero.h"
 
 // Quick hint on navigating the file:
@@ -461,7 +456,8 @@ class GProfileBuilder {
     return true;
   }
 
-  std::string CompleteProfile(trace_processor::TraceProcessor* tp) {
+  std::string CompleteProfile(trace_processor::TraceProcessor* tp,
+                              bool write_mappings = true) {
     std::set<int64_t> seen_mappings;
     std::set<int64_t> seen_functions;
 
@@ -469,7 +465,7 @@ class GProfileBuilder {
       return {};
     if (!WriteFunctions(seen_functions))
       return {};
-    if (!WriteMappings(tp, seen_mappings))
+    if (write_mappings && !WriteMappings(tp, seen_mappings))
       return {};
 
     WriteStringTable();
@@ -831,6 +827,228 @@ static bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
 }
 }  // namespace heap_profile
 
+namespace java_heap_profile {
+struct View {
+  const char* type;
+  const char* unit;
+  const char* query;
+};
+
+constexpr View kJavaAllocationViews[] = {
+    {"Total allocation count", "count", "count"},
+    {"Total allocation size", "bytes", "size"}};
+
+std::string CreateHeapDumpFlameGraphQuery(const std::string& columns,
+                                          const uint64_t upid,
+                                          const uint64_t ts) {
+  std::string query = "SELECT " + columns + " ";
+  query += "FROM experimental_flamegraph(";
+
+  const std::vector<std::string> query_params = {
+      // The type of the profile from which the flamegraph is being generated
+      // Always 'graph' for Java heap graphs.
+      "'graph'",
+      // Heapdump timestamp
+      std::to_string(ts),
+      // Timestamp constraints: not relevant and always null for Java heap
+      // graphs.
+      "NULL",
+      // The upid of the heap graph sample
+      std::to_string(upid),
+      // The upid group: not relevant and always null for Java heap graphs
+      "NULL",
+      // A regex for focusing on a particular node in the heapgraph
+      "NULL"};
+
+  query += base::Join(query_params, ", ");
+  query += ")";
+
+  return query;
+}
+
+bool WriteAllocations(
+    GProfileBuilder* builder,
+    const std::unordered_map<int64_t, std::vector<int64_t>>& view_values) {
+  for (const auto& [id, values] : view_values) {
+    protozero::PackedVarInt sample_values;
+    for (const int64_t value : values) {
+      sample_values.Append(value);
+    }
+    if (!builder->AddSample(sample_values, id)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Extracts and interns the unique locations from the heap dump SQL tables.
+//
+// It uses experimental_flamegraph table to get normalized representation of
+// the heap graph as a tree, which always takes the shortest path to the root.
+//
+// Approach:
+//   * First we iterate over all heap dump flamegraph rows and create a map
+//     of flamegraph item id -> flamegraph item parent_id, each flamechart
+//     item is converted to a Location where we populate Function name using
+//     the name of the class (as opposed to using actual call function as
+//     allocation call stack is not available for java heap dumps).
+//     Also populate view_values straightaway here to not iterate over the data
+//     again in the future.
+//   * For each location we iterate over all its parents until we find
+//     the root and use this list of locations as a 'callstack' (which is
+//     actually list of class names)
+LocationTracker PreprocessLocationsForJavaHeap(
+    trace_processor::TraceProcessor* tp,
+    trace_processor::StringPool* interner,
+    const std::vector<View>& views,
+    std::unordered_map<int64_t, std::vector<int64_t>>& view_values_out,
+    uint64_t upid,
+    uint64_t ts) {
+  LocationTracker tracker;
+
+  std::string columns;
+  for (const auto& view : views) {
+    columns += std::string(view.query) + ", ";
+  }
+
+  const auto data_columns_count = static_cast<uint32_t>(views.size());
+  columns += "id, parent_id, name";
+
+  const std::string query = CreateHeapDumpFlameGraphQuery(columns, upid, ts);
+  Iterator it = tp->ExecuteQuery(query);
+
+  // flamegraph id -> flamegraph parent_id
+  std::unordered_map<int64_t, int64_t> parents;
+  // flamegraph id -> interned location id
+  std::unordered_map<int64_t, int64_t> interned_ids;
+
+  // Create locations
+  while (it.Next()) {
+    const int64_t id = it.Get(data_columns_count).AsLong();
+
+    const int64_t parent_id = it.Get(data_columns_count + 1).is_null()
+                                  ? -1
+                                  : it.Get(data_columns_count + 1).AsLong();
+
+    auto name = it.Get(data_columns_count + 2).is_null()
+                    ? ""
+                    : it.Get(data_columns_count + 2).AsString();
+
+    parents.emplace(id, parent_id);
+
+    StringId func_name_id = interner->InternString(name);
+    Function func(func_name_id, StringId::Null(), StringId::Null());
+    auto interned_function_id = tracker.InternFunction(func);
+
+    Location loc(/*map=*/0, /*func=*/interned_function_id, /*inlines=*/{});
+    auto interned_location_id = tracker.InternLocation(std::move(loc));
+
+    interned_ids.emplace(id, interned_location_id);
+
+    std::vector<int64_t> view_values_vector;
+    for (uint32_t i = 0; i < views.size(); ++i) {
+      view_values_vector.push_back(it.Get(i).AsLong());
+    }
+
+    view_values_out.emplace(id, view_values_vector);
+  }
+
+  if (!it.Status().ok()) {
+    PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",
+                            it.Status().message().c_str());
+    return {};
+  }
+
+  // Iterate over all known locations again and build root-first paths
+  // for every location
+  for (auto& parent : parents) {
+    std::vector<int64_t> path;
+
+    int64_t current_parent_id = parent.first;
+    while (current_parent_id != -1) {
+      auto id_it = interned_ids.find(current_parent_id);
+      PERFETTO_CHECK(id_it != interned_ids.end());
+
+      auto parent_location_id = id_it->second;
+      path.push_back(parent_location_id);
+
+      // Find parent of the parent
+      auto parent_id_it = parents.find(current_parent_id);
+      PERFETTO_CHECK(parent_id_it != parents.end());
+
+      current_parent_id = parent_id_it->second;
+    }
+
+    // Reverse to make it root-first list
+    std::reverse(path.begin(), path.end());
+
+    tracker.MaybeSetCallsiteLocations(parent.first, path);
+  }
+
+  return tracker;
+}
+
+bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
+                      std::vector<SerializedProfile>* output,
+                      uint64_t target_pid,
+                      const std::vector<uint64_t>& target_timestamps) {
+  trace_processor::StringPool interner;
+
+  // Find all heap graphs available in the trace and iterate over them
+  Iterator it = tp->ExecuteQuery(
+      "select distinct hgo.graph_sample_ts, hgo.upid, p.pid from "
+      "heap_graph_object hgo join process p using (upid)");
+
+  while (it.Next()) {
+    uint64_t ts = static_cast<uint64_t>(it.Get(0).AsLong());
+    uint64_t upid = static_cast<uint64_t>(it.Get(1).AsLong());
+    uint64_t profile_pid = static_cast<uint64_t>(it.Get(2).AsLong());
+
+    if ((target_pid > 0 && profile_pid != target_pid) ||
+        (!target_timestamps.empty() &&
+         std::find(target_timestamps.begin(), target_timestamps.end(), ts) ==
+             target_timestamps.end())) {
+      continue;
+    }
+
+    // flamegraph id -> view values
+    std::unordered_map<int64_t, std::vector<int64_t>> view_values;
+
+    std::vector<View> views;
+    views.assign(std::begin(kJavaAllocationViews),
+                 std::end(kJavaAllocationViews));
+
+    LocationTracker locations = PreprocessLocationsForJavaHeap(
+        tp, &interner, views, view_values, upid, ts);
+
+    GProfileBuilder builder(locations, &interner);
+
+    std::vector<std::pair<std::string, std::string>> sample_types;
+    for (const auto& view : views) {
+      sample_types.emplace_back(view.type, view.unit);
+    }
+    builder.WriteSampleTypes(sample_types);
+
+    std::string profile_proto;
+    if (WriteAllocations(&builder, view_values)) {
+      profile_proto = builder.CompleteProfile(tp, /*write_mappings=*/false);
+    }
+
+    output->emplace_back(SerializedProfile{ProfileType::kJavaHeapProfile,
+                                           profile_pid,
+                                           std::move(profile_proto), ""});
+  }
+
+  if (!it.Status().ok()) {
+    PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",
+                            it.Status().message().c_str());
+    return false;
+  }
+
+  return true;
+}
+}  // namespace java_heap_profile
+
 namespace perf_profile {
 struct ProcessInfo {
   uint64_t pid;
@@ -971,6 +1189,8 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
                                             timestamps);
     case (ConversionMode::kPerfProfile):
       return perf_profile::TraceToPerfPprof(tp, output, annotate_frames, pid);
+    case (ConversionMode::kJavaHeapProfile):
+      return java_heap_profile::TraceToHeapPprof(tp, output, pid, timestamps);
   }
   PERFETTO_FATAL("unknown conversion option");  // for gcc
 }

@@ -12,28 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable, DisposableCallback} from '../base/disposable';
-import {exists} from '../base/utils';
+import {Optional, exists} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Store} from '../base/store';
-import {PanelSize} from '../frontend/panel';
-import {
-  Migrate,
-  Track,
-  TrackContext,
-  TrackDescriptor,
-  TrackRef,
-} from '../public';
+import {Track, TrackContext, TrackDescriptor, TrackRef} from '../public';
 
 import {ObjectByKey, State, TrackState} from './state';
+import {AsyncLimiter} from '../base/async_limiter';
+import {assertFalse} from '../base/logging';
+import {TrackRenderContext} from '../public/tracks';
 
-export interface TrackCacheEntry {
-  track: Track;
+export interface TrackCacheEntry extends Disposable {
+  readonly trackKey: string;
+  readonly track: Track;
   desc: TrackDescriptor;
-  update(): void;
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
-  destroy(): void;
-  getError(): Error | undefined;
+  render(ctx: TrackRenderContext): void;
+  getError(): Optional<Error>;
 }
 
 // This class is responsible for managing the lifecycle of tracks over render
@@ -82,9 +76,9 @@ export class TrackManager {
 
   addPotentialTrack(track: TrackRef): Disposable {
     this.defaultTracks.add(track);
-    return new DisposableCallback(() => {
-      this.defaultTracks.delete(track);
-    });
+    return {
+      [Symbol.dispose]: () => this.defaultTracks.delete(track),
+    };
   }
 
   findPotentialTracks(): TrackRef[] {
@@ -103,11 +97,7 @@ export class TrackManager {
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
   // |key| exists in the cache.
-  resolveTrack(
-    key: string,
-    trackDesc: TrackDescriptor,
-    params?: unknown,
-  ): TrackCacheEntry {
+  resolveTrack(key: string, trackDesc: TrackDescriptor): TrackCacheEntry {
     // Search for a cached version of this track,
     const cached = this.currentTracks.get(key);
 
@@ -126,14 +116,9 @@ export class TrackManager {
       // Cached track doesn't exist or is out of date, create a new one.
       const trackContext: TrackContext = {
         trackKey: key,
-        mountStore: <T>(migrate: Migrate<T>) => {
-          const path = ['tracks', key, 'state'];
-          return this.store.createSubStore(path, migrate);
-        },
-        params,
       };
       const track = trackDesc.trackFactory(trackContext);
-      const entry = new TrackFSM(track, trackDesc, trackContext);
+      const entry = new TrackFSM(key, track, trackDesc, trackContext);
 
       // Push track into the safe cache.
       this.newTracks.set(key, entry);
@@ -145,7 +130,7 @@ export class TrackManager {
   flushOldTracks() {
     for (const [key, entry] of this.currentTracks.entries()) {
       if (!this.newTracks.has(key)) {
-        entry.destroy();
+        entry[Symbol.dispose]();
       }
     }
 
@@ -163,7 +148,7 @@ export class TrackManager {
     const trackList = Object.entries(this.store.state.tracks);
     trackList.forEach(([key, {uri}]) => {
       const desc = this.trackRegistry.get(uri);
-      for (const trackId of desc?.trackIds ?? []) {
+      for (const trackId of desc?.tags?.trackIds ?? []) {
         const existingKey = trackKeyByTrackId.get(trackId);
         if (exists(existingKey)) {
           throw new Error(
@@ -179,15 +164,36 @@ export class TrackManager {
   }
 }
 
-enum TrackFSMState {
-  NotCreated = 'not_created',
-  Creating = 'creating',
-  Ready = 'ready',
-  UpdatePending = 'update_pending',
-  Updating = 'updating',
-  DestroyPending = 'destroy_pending',
-  Destroyed = 'destroyed', // <- Final state, cannot escape.
-  Error = 'error',
+/**
+ * This function describes the asynchronous lifecycle of a track using an async
+ * generator. This saves us having to build out the state machine explicitly,
+ * using conventional serial programming techniques to describe the lifecycle
+ * instead, which is more natural and easier to understand.
+ *
+ * We expect the params to onUpdate to be passed into the generator via the
+ * yield function.
+ *
+ * @param track The track to run the lifecycle for.
+ * @param ctx The trace context, passed to various lifecycle methods.
+ */
+async function* trackLifecycle(
+  track: Track,
+  ctx: TrackContext,
+): AsyncGenerator<void, void, TrackRenderContext> {
+  try {
+    // Wait for parameters to be passed in before initializing the track
+    const trackRenderCtx = yield;
+    await Promise.resolve(track.onCreate?.(ctx));
+    await Promise.resolve(track.onUpdate?.(trackRenderCtx));
+
+    // Wait for parameters to be passed in before subsequent calls to onUpdate()
+    while (true) {
+      await Promise.resolve(track.onUpdate?.(yield));
+    }
+  } finally {
+    // Ensure we always clean up, even on throw or early return
+    await Promise.resolve(track.onDestroy?.());
+  }
 }
 
 /**
@@ -195,143 +201,70 @@ enum TrackFSMState {
  * hooks are called synchronously and in the correct order.
  */
 class TrackFSM implements TrackCacheEntry {
-  private state: TrackFSMState;
+  public readonly trackKey: string;
+  public readonly track: Track;
+  public readonly desc: TrackDescriptor;
+
+  private readonly limiter = new AsyncLimiter();
+  private readonly ctx: TrackContext;
+  private readonly generator: ReturnType<typeof trackLifecycle>;
+
   private error?: Error;
+  private isDisposed = false;
 
   constructor(
-    public track: Track,
-    public desc: TrackDescriptor,
-    private readonly ctx: TrackContext,
+    trackKey: string,
+    track: Track,
+    desc: TrackDescriptor,
+    ctx: TrackContext,
   ) {
-    this.state = TrackFSMState.NotCreated;
+    this.trackKey = trackKey;
+    this.track = track;
+    this.desc = desc;
+    this.ctx = ctx;
+
+    this.generator = trackLifecycle(this.track, this.ctx);
+
+    // This just starts the generator, which will pause at the first yield
+    // without doing anything - note that the parameter to the first next() call
+    // is ignored in generators
+    this.generator.next();
   }
 
-  update(): void {
-    switch (this.state) {
-      case TrackFSMState.NotCreated:
-        Promise.resolve(this.track.onCreate?.(this.ctx))
-          .then(() => this.onTrackCreated())
-          .catch((e) => {
-            this.error = e;
-            this.state = TrackFSMState.Error;
-          });
-        this.state = TrackFSMState.Creating;
-        break;
-      case TrackFSMState.Creating:
-      case TrackFSMState.Updating:
-        this.state = TrackFSMState.UpdatePending;
-        break;
-      case TrackFSMState.Ready:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result)
-          .then(() => this.onTrackUpdated())
-          .catch((e) => {
-            this.error = e;
-            this.state = TrackFSMState.Error;
-          });
-        this.state = TrackFSMState.Updating;
-        break;
-      case TrackFSMState.UpdatePending:
-        // Update already pending... do nothing!
-        break;
-      case TrackFSMState.Error:
-        break;
-      default:
-        throw new Error('Invalid state transition');
-    }
+  render(ctx: TrackRenderContext): void {
+    assertFalse(this.isDisposed);
+
+    // The generator will ensure that track lifecycle calls don't overlap, but
+    // it'll also enqueue every single call to next() which can create a large
+    // backlog of updates assuming render is called faster than updates can
+    // complete (this is usually the case), so we use an AsyncLimiter here to
+    // avoid enqueueing more than one next().
+    this.limiter
+      .schedule(async () => {
+        // Pass in the parameters to onUpdate() here (i.e. the track size)
+        await this.generator.next(ctx);
+      })
+      .catch((e) => {
+        // Errors thrown inside lifecycle hooks will bubble up through the
+        // generator and AsyncLimiter to here, where we can swallow and capture
+        // the error
+        this.error = e;
+      });
+
+    // Always call render synchronously
+    this.track.render(ctx);
   }
 
-  destroy(): void {
-    switch (this.state) {
-      case TrackFSMState.NotCreated:
-        // Nothing to do
-        this.state = TrackFSMState.Destroyed;
-        break;
-      case TrackFSMState.Ready:
-        // Don't bother awaiting this as the track can no longer be used.
-        Promise.resolve(this.track.onDestroy?.()).catch(() => {
-          // Track crashed while being destroyed
-          // There's not a lot we can do here - just swallow the error
-        });
-        this.state = TrackFSMState.Destroyed;
-        break;
-      case TrackFSMState.Creating:
-      case TrackFSMState.Updating:
-      case TrackFSMState.UpdatePending:
-        this.state = TrackFSMState.DestroyPending;
-        break;
-      case TrackFSMState.Error:
-        break;
-      default:
-        throw new Error('Invalid state transition');
-    }
+  [Symbol.dispose](): void {
+    assertFalse(this.isDisposed);
+    this.isDisposed = true;
+
+    // Ask the generator to stop, it'll handle any cleanup and return at the
+    // next yield
+    this.generator.return();
   }
 
-  private onTrackCreated() {
-    switch (this.state) {
-      case TrackFSMState.DestroyPending:
-        // Don't bother awaiting this as the track can no longer be used.
-        this.track.onDestroy?.();
-        this.state = TrackFSMState.Destroyed;
-        break;
-      case TrackFSMState.Creating:
-      case TrackFSMState.UpdatePending:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result)
-          .then(() => this.onTrackUpdated())
-          .catch((e) => {
-            this.error = e;
-            this.state = TrackFSMState.Error;
-          });
-        this.state = TrackFSMState.Updating;
-        break;
-      case TrackFSMState.Error:
-        break;
-      default:
-        throw new Error('Invalid state transition');
-    }
-  }
-
-  private onTrackUpdated() {
-    switch (this.state) {
-      case TrackFSMState.DestroyPending:
-        // Don't bother awaiting this as the track can no longer be used.
-        this.track.onDestroy?.();
-        this.state = TrackFSMState.Destroyed;
-        break;
-      case TrackFSMState.UpdatePending:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result)
-          .then(() => this.onTrackUpdated())
-          .catch((e) => {
-            this.error = e;
-            this.state = TrackFSMState.Error;
-          });
-        this.state = TrackFSMState.Updating;
-        break;
-      case TrackFSMState.Updating:
-        this.state = TrackFSMState.Ready;
-        break;
-      case TrackFSMState.Error:
-        break;
-      default:
-        throw new Error('Invalid state transition');
-    }
-  }
-
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
-    try {
-      this.track.render(ctx, size);
-    } catch {
-      this.state = TrackFSMState.Error;
-    }
-  }
-
-  getError(): Error | undefined {
-    if (this.state === TrackFSMState.Error) {
-      return this.error;
-    } else {
-      return undefined;
-    }
+  getError(): Optional<Error> {
+    return this.error;
   }
 }

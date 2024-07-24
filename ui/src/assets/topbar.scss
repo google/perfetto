@@ -213,13 +213,27 @@
   }
 }
 
-.error {
+.error-box {
   position: absolute;
   right: 10px;
-  color: #ef6c00;
-  &:hover {
-    cursor: pointer;
+  display: flex;
+  align-items: center;
+  .error {
+    color: #ef6c00;
+    &:hover {
+      cursor: pointer;
+    }
   }
+  .popup-trigger {
+    width: 0px;
+    height: 0px;
+  }
+}
+
+.error-popup {
+  width: 100px;
+  font-size: 14px;
+  font-family: "Roboto Condensed", sans-serif;
 }
 
 .helpful-hint {

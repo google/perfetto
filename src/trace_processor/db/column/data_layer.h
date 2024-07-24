@@ -92,22 +92,6 @@ class DataLayer : public RefCounted {
 // functionality for querying the transformed data of the entire chain.
 class DataLayerChain {
  public:
-  // Indicates the direction of the sort on a single chain.
-  enum class SortDirection {
-    kAscending,
-    kDescending,
-  };
-  // Struct wrapping indices to elements of this chain. Passed to sorting
-  // functions.
-  struct SortToken {
-    // An index pointing to an element in this chain. Indicates the element
-    // at this index should be compared.
-    uint32_t index;
-
-    // An opaque value which can be set to some value meaningful to the
-    // caller. Implementations *should not* read at this value.
-    uint32_t payload;
-  };
   using StorageProto = protos::pbzero::SerializedColumn_Storage;
 
   // Index vector related data required to Filter using IndexSearch.
@@ -249,20 +233,20 @@ class DataLayerChain {
     PERFETTO_FATAL("For GCC");
   }
 
-  // Stable sorts an array of SortToken elements between |start| and |end|
+  // Stable sorts an array of Token elements between |start| and |end|
   // using a comparator defined by looking up the elements in this chain using
-  // the index given by SortToken::index. |direction| indicates the direction of
+  // the index given by Token::index. |direction| indicates the direction of
   // the sort (ascending or descending).
   //
   // In simple terms the expectation is for implementations do something like:
   // ```
-  // std::stable_sort(start, index, [](const SortToken& a, const SortToken& b) {
+  // std::stable_sort(start, index, [](const Token& a, const Token& b) {
   //  return Get(a.index) < Get(b.index);
   // });
   // ```
   // with |Get| being a function to lookup the element in this chain.
-  virtual void StableSort(SortToken* start,
-                          SortToken* end,
+  virtual void StableSort(Token* start,
+                          Token* end,
                           SortDirection direction) const = 0;
 
   // Removes all indices pointing to values that are duplicates, as a result the
@@ -324,6 +308,13 @@ class DataLayerChain {
   Range OrderedIndexSearchValidated(FilterOp op,
                                     SqlValue value,
                                     const OrderedIndices& indices) const;
+
+  // Returns the pointer to storage DataLayer and modifies indices so that it
+  // maps the data in the column.
+  // If |indices[i] == std::numeric_limits<uint32_t>::max()| the index points to
+  // null value.
+  virtual std::unique_ptr<DataLayer> Flatten(
+      std::vector<uint32_t>& indices) const = 0;
 
   // Returns the SqlValue representing the value at a given index.
   //

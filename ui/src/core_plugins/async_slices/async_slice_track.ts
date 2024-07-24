@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedSliceTrack} from '../../frontend/named_slice_track';
+import {
+  NAMED_ROW,
+  NamedRow,
+  NamedSliceTrack,
+} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {Slice} from '../../public';
@@ -30,17 +34,25 @@ export class AsyncSliceTrack extends NamedSliceTrack {
     };
   }
 
+  getRowSpec(): NamedRow {
+    return NAMED_ROW;
+  }
+
+  rowToSlice(row: NamedRow): Slice {
+    return this.rowToSliceBase(row);
+  }
+
   getSqlSource(): string {
     return `
-    select
-      ts,
-      dur,
-      layout_depth as depth,
-      ifnull(name, '[null]') as name,
-      id,
-      thread_dur as threadDur
-    from experimental_slice_layout
-    where filter_track_ids = '${this.trackIds.join(',')}'
+      select
+        ts,
+        dur,
+        layout_depth as depth,
+        ifnull(name, '[null]') as name,
+        id,
+        thread_dur as threadDur
+      from experimental_slice_layout
+      where filter_track_ids = '${this.trackIds.join(',')}'
     `;
   }
 

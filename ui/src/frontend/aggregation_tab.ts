@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Disposable, Trash} from '../base/disposable';
+
 import {AggregationPanel} from './aggregation_panel';
 import {globals} from './globals';
 import {isEmptyData} from '../common/aggregation_data';
@@ -24,13 +24,20 @@ import {EmptyState} from '../widgets/empty_state';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 import {PivotTable} from './pivot_table';
 import {
-  FlamegraphDetailsPanel,
+  LegacyFlamegraphDetailsPanel,
   FlamegraphSelectionParams,
-} from './flamegraph_panel';
-import {ProfileType, TrackState, getLegacySelection} from '../common/state';
-import {AreaSelectionHandler} from '../controller/area_selection_handler';
-import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core_plugins/perf_samples_profile';
+} from './legacy_flamegraph_panel';
+import {AreaSelection, ProfileType, TrackState} from '../common/state';
 import {assertExists} from '../base/logging';
+import {Monitor} from '../base/monitor';
+import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core/track_kinds';
+import {
+  QueryFlamegraph,
+  QueryFlamegraphAttrs,
+  USE_NEW_FLAMEGRAPH_IMPL,
+  metricsFromTableOrSubquery,
+} from '../core/query_flamegraph';
+import {DisposableStack} from '../base/disposable_stack';
 
 interface View {
   key: string;
@@ -39,9 +46,10 @@ interface View {
 }
 
 class AreaDetailsPanel implements m.ClassComponent {
+  private readonly monitor = new Monitor([() => globals.state.selection]);
   private currentTab: string | undefined = undefined;
-  private areaSelectionHandler = new AreaSelectionHandler();
-  private flamegraphSelection?: FlamegraphSelectionParams;
+  private flamegraphAttrs?: QueryFlamegraphAttrs;
+  private legacyFlamegraphSelection?: FlamegraphSelectionParams;
 
   private getCurrentView(): string | undefined {
     const types = this.getViews().map(({key}) => key);
@@ -62,18 +70,12 @@ class AreaDetailsPanel implements m.ClassComponent {
   }
 
   private getViews(): View[] {
-    const views = [];
+    const views: View[] = [];
 
-    this.flamegraphSelection = this.computeFlamegraphSelection();
-    if (this.flamegraphSelection !== undefined) {
-      views.push({
-        key: 'flamegraph_selection',
-        name: 'Flamegraph Selection',
-        content: m(FlamegraphDetailsPanel, {
-          cache: globals.areaFlamegraphCache,
-          selection: this.flamegraphSelection,
-        }),
-      });
+    if (USE_NEW_FLAMEGRAPH_IMPL.get()) {
+      this.addFlamegraphView(views);
+    } else {
+      this.addLegacyFlamegraphView(views);
     }
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {
@@ -155,48 +157,143 @@ class AreaDetailsPanel implements m.ClassComponent {
     );
   }
 
-  private computeFlamegraphSelection() {
-    const currentSelection = getLegacySelection(globals.state);
-    if (currentSelection?.kind !== 'AREA') {
+  private addFlamegraphView(views: View[]) {
+    this.flamegraphAttrs = this.computeFlamegraphAttrs();
+    if (this.flamegraphAttrs === undefined) {
+      return;
+    }
+    views.push({
+      key: 'flamegraph_selection',
+      name: 'Flamegraph Selection',
+      content: m(QueryFlamegraph, this.flamegraphAttrs),
+    });
+  }
+
+  private computeFlamegraphAttrs() {
+    const currentSelection = globals.state.selection;
+    if (currentSelection.kind !== 'area') {
       return undefined;
     }
-    const [hasAreaChanged, area] = this.areaSelectionHandler.getAreaChange();
-    if (area === undefined) {
-      return undefined;
+    if (!this.monitor.ifStateChanged()) {
+      // If the selection has not changed, just return a copy of the last seen
+      // attrs.
+      return this.flamegraphAttrs;
     }
-    if (!hasAreaChanged) {
-      // If the AreaSelectionHandler says things have not changed, just return
-      // a copy of the last seen selection.
-      return this.flamegraphSelection;
-    }
-    const upids = [];
-    for (const trackId of area.tracks) {
-      const track: TrackState | undefined = globals.state.tracks[trackId];
-      const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
-      if (trackInfo?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
-        continue;
+    const upids = getUpidsFromAreaSelection(currentSelection);
+    if (upids.length === 0) {
+      const utids = getUtidsFromAreaSelection(currentSelection);
+      if (utids.length === 0) {
+        return undefined;
       }
-      upids.push(assertExists(trackInfo.upid));
+      return {
+        engine: assertExists(this.getCurrentEngine()),
+        metrics: [
+          ...metricsFromTableOrSubquery(
+            `
+              (
+                select id, parent_id as parentId, name, self_count
+                from _linux_perf_callstacks_for_samples!((
+                  select p.callsite_id
+                  from perf_sample p
+                  where p.ts >= ${currentSelection.start}
+                    and p.ts <= ${currentSelection.end}
+                    and p.utid in (${utids.join(',')})
+                ))
+              )
+            `,
+            [
+              {
+                name: 'Perf Samples',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module linux.perf.samples',
+          ),
+        ],
+      };
     }
+    return {
+      engine: assertExists(this.getCurrentEngine()),
+      metrics: [
+        ...metricsFromTableOrSubquery(
+          `
+            (
+              select id, parent_id as parentId, name, self_count
+              from _linux_perf_callstacks_for_samples!((
+                select p.callsite_id
+                from perf_sample p
+                join thread t using (utid)
+                where p.ts >= ${currentSelection.start}
+                  and p.ts <= ${currentSelection.end}
+                  and t.upid in (${upids.join(',')})
+              ))
+            )
+          `,
+          [
+            {
+              name: 'Perf Samples',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'include perfetto module linux.perf.samples',
+        ),
+      ],
+    };
+  }
+
+  private addLegacyFlamegraphView(views: View[]) {
+    this.legacyFlamegraphSelection = this.computeLegacyFlamegraphSelection();
+    if (this.legacyFlamegraphSelection === undefined) {
+      return;
+    }
+    views.push({
+      key: 'flamegraph_selection',
+      name: 'Flamegraph Selection',
+      content: m(LegacyFlamegraphDetailsPanel, {
+        cache: globals.areaFlamegraphCache,
+        selection: this.legacyFlamegraphSelection,
+      }),
+    });
+  }
+
+  private computeLegacyFlamegraphSelection() {
+    const currentSelection = globals.state.selection;
+    if (currentSelection.kind !== 'area') {
+      return undefined;
+    }
+    if (!this.monitor.ifStateChanged()) {
+      // If the selection has not changed, just return a copy of the last seen
+      // selection.
+      return this.legacyFlamegraphSelection;
+    }
+    const upids = getUpidsFromAreaSelection(currentSelection);
     if (upids.length === 0) {
       return undefined;
     }
     return {
       profileType: ProfileType.PERF_SAMPLE,
-      start: area.start,
-      end: area.end,
+      start: currentSelection.start,
+      end: currentSelection.end,
       upids,
     };
+  }
+
+  private getCurrentEngine() {
+    const engineId = globals.getCurrentEngine()?.id;
+    if (engineId === undefined) return undefined;
+    return globals.engines.get(engineId);
   }
 }
 
 export class AggregationsTabs implements Disposable {
-  private trash = new Trash();
+  private trash = new DisposableStack();
 
   constructor() {
     const unregister = globals.tabManager.registerDetailsPanel({
       render(selection) {
-        if (selection.kind === 'AREA') {
+        if (selection.kind === 'area') {
           return m(AreaDetailsPanel);
         } else {
           return undefined;
@@ -204,10 +301,42 @@ export class AggregationsTabs implements Disposable {
       },
     });
 
-    this.trash.add(unregister);
+    this.trash.use(unregister);
   }
 
-  dispose(): void {
+  [Symbol.dispose]() {
     this.trash.dispose();
   }
+}
+
+function getUpidsFromAreaSelection(currentSelection: AreaSelection) {
+  const upids = [];
+  for (const trackId of currentSelection.tracks) {
+    const track: TrackState | undefined = globals.state.tracks[trackId];
+    const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
+    if (trackInfo?.tags?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
+      continue;
+    }
+    if (trackInfo.tags?.upid === undefined) {
+      continue;
+    }
+    upids.push(trackInfo.tags?.upid);
+  }
+  return upids;
+}
+
+function getUtidsFromAreaSelection(currentSelection: AreaSelection) {
+  const utids = [];
+  for (const trackId of currentSelection.tracks) {
+    const track: TrackState | undefined = globals.state.tracks[trackId];
+    const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
+    if (trackInfo?.tags?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
+      continue;
+    }
+    if (trackInfo.tags?.utid === undefined) {
+      continue;
+    }
+    utids.push(trackInfo.tags?.utid);
+  }
+  return utids;
 }

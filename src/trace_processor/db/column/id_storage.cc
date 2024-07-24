@@ -60,12 +60,6 @@ SearchValidationResult IdStorage::ChainImpl::ValidateSearchConstraints(
     if (op == FilterOp::kIsNotNull) {
       return SearchValidationResult::kAllData;
     }
-    if (op == FilterOp::kIsNull) {
-      return SearchValidationResult::kNoData;
-    }
-    PERFETTO_DFATAL(
-        "Invalid filter operation. NULL should only be compared with 'IS NULL' "
-        "and 'IS NOT NULL'");
     return SearchValidationResult::kNoData;
   }
 
@@ -270,19 +264,19 @@ Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
   PERFETTO_FATAL("FilterOp not matched");
 }
 
-void IdStorage::ChainImpl::StableSort(SortToken* start,
-                                      SortToken* end,
+void IdStorage::ChainImpl::StableSort(Token* start,
+                                      Token* end,
                                       SortDirection direction) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "IdStorage::ChainImpl::StableSort");
   switch (direction) {
     case SortDirection::kAscending:
-      std::stable_sort(start, end, [](const SortToken& a, const SortToken& b) {
+      std::stable_sort(start, end, [](const Token& a, const Token& b) {
         return a.index < b.index;
       });
       return;
     case SortDirection::kDescending:
-      std::stable_sort(start, end, [](const SortToken& a, const SortToken& b) {
+      std::stable_sort(start, end, [](const Token& a, const Token& b) {
         return a.index > b.index;
       });
       return;

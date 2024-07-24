@@ -183,30 +183,6 @@ std::optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
   PERFETTO_FATAL("For GCC");
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-// Reports trace with `uuid` being finalized to the trace marker.
-//
-// This reimplements parts of android libcutils, because:
-// * libcutils is not exposed to the NDK and cannot be used from standalone
-//   perfetto
-// * libcutils atrace uses properties to enable tags, which are not required in
-//   this case.
-void ReportFinalizeTraceUuidToAtrace(const base::Uuid& uuid) {
-  base::ScopedFile file =
-      base::OpenFile("/sys/kernel/tracing/trace_marker", O_WRONLY);
-  if (!file) {
-    file = base::OpenFile("/sys/kernel/debug/tracing/trace_marker", O_WRONLY);
-    if (!file) {
-      return;
-    }
-  }
-  base::StackString<100> uuid_slice("N|%d|OtherTraces|finalize-uuid-%s",
-                                    base::GetProcessId(),
-                                    uuid.ToPrettyString().c_str());
-  PERFETTO_EINTR(write(file.get(), uuid_slice.c_str(), uuid_slice.len()));
-}
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-
 void ArgsAppend(std::string* str, const std::string& arg) {
   str->append(arg);
   str->append("\0", 1);
@@ -1287,12 +1263,6 @@ void PerfettoCmd::FinalizeTraceAndExit() {
                    trace_out_path_ == "-" ? "stdout" : trace_out_path_.c_str());
     }
   }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // When multiple traces are being recorded at the same time, this is used to
-  // correlate one trace with another.
-  ReportFinalizeTraceUuidToAtrace(base::Uuid(uuid_));
-#endif
 
   tracing_succeeded_ = true;
   task_runner_.Quit();

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from './disposable';
-
 export class SimpleResizeObserver implements Disposable {
   private observer?: ResizeObserver;
 
@@ -25,7 +23,7 @@ export class SimpleResizeObserver implements Disposable {
     this.observer = observer;
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     if (this.observer) {
       this.observer.disconnect();
       this.observer = undefined;

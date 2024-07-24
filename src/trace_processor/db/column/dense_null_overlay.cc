@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -94,6 +95,9 @@ SearchValidationResult DenseNullOverlay::ChainImpl::ValidateSearchConstraints(
     SqlValue sql_val) const {
   if (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull) {
     return SearchValidationResult::kOk;
+  }
+  if (sql_val.is_null()) {
+    return SearchValidationResult::kNoData;
   }
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
@@ -219,12 +223,12 @@ void DenseNullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-void DenseNullOverlay::ChainImpl::StableSort(SortToken* start,
-                                             SortToken* end,
+void DenseNullOverlay::ChainImpl::StableSort(Token* start,
+                                             Token* end,
                                              SortDirection direction) const {
-  SortToken* it = std::stable_partition(
-      start, end,
-      [this](const SortToken& idx) { return !non_null_->IsSet(idx.index); });
+  Token* it = std::stable_partition(start, end, [this](const Token& idx) {
+    return !non_null_->IsSet(idx.index);
+  });
   inner_->StableSort(it, end, direction);
   if (direction == SortDirection::kDescending) {
     std::rotate(start, it, end);
@@ -268,6 +272,16 @@ std::optional<Token> DenseNullOverlay::ChainImpl::MinElement(
 
   return (first_null_it == indices.tokens.end()) ? inner_->MinElement(indices)
                                                  : *first_null_it;
+}
+
+std::unique_ptr<DataLayer> DenseNullOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    if (!non_null_->IsSet(i)) {
+      i = std::numeric_limits<uint32_t>::max();
+    }
+  }
+  return inner_->Flatten(indices);
 }
 
 SqlValue DenseNullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(

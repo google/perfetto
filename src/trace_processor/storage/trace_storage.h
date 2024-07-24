@@ -626,6 +626,13 @@ class TraceStorage {
     return &profiler_smaps_table_;
   }
 
+  const tables::TraceFileTable& trace_file_table() const {
+    return trace_file_table_;
+  }
+  tables::TraceFileTable* mutable_trace_file_table() {
+    return &trace_file_table_;
+  }
+
   const tables::StackSampleTable& stack_sample_table() const {
     return stack_sample_table_;
   }
@@ -770,6 +777,14 @@ class TraceStorage {
     return &actual_frame_timeline_slice_table_;
   }
 
+  const tables::AndroidNetworkPacketsTable& android_network_packets_table()
+      const {
+    return android_network_packets_table_;
+  }
+  tables::AndroidNetworkPacketsTable* mutable_android_network_packets_table() {
+    return &android_network_packets_table_;
+  }
+
   const tables::V8IsolateTable& v8_isolate_table() const {
     return v8_isolate_table_;
   }
@@ -880,6 +895,13 @@ class TraceStorage {
   }
   tables::ViewCaptureTable* mutable_viewcapture_table() {
     return &viewcapture_table_;
+  }
+
+  const tables::WindowManagerTable& windowmanager_table() const {
+    return windowmanager_table_;
+  }
+  tables::WindowManagerTable* mutable_windowmanager_table() {
+    return &windowmanager_table_;
   }
 
   const tables::WindowManagerShellTransitionsTable&
@@ -1141,6 +1163,8 @@ class TraceStorage {
       android_game_intervention_list_table_{&string_pool_};
   tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_};
 
+  tables::TraceFileTable trace_file_table_{&string_pool_};
+
   // Symbol tables (mappings from frames to symbol names)
   tables::SymbolTable symbol_table_{&string_pool_};
   tables::HeapGraphObjectTable heap_graph_object_table_{&string_pool_};
@@ -1164,6 +1188,10 @@ class TraceStorage {
   tables::ExpectedFrameTimelineSliceTable expected_frame_timeline_slice_table_{
       &string_pool_, &slice_table_};
   tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
+      &string_pool_, &slice_table_};
+
+  // AndroidNetworkPackets tables
+  tables::AndroidNetworkPacketsTable android_network_packets_table_{
       &string_pool_, &slice_table_};
 
   // V8 tables
@@ -1191,6 +1219,7 @@ class TraceStorage {
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
   tables::ViewCaptureTable viewcapture_table_{&string_pool_};
+  tables::WindowManagerTable windowmanager_table_{&string_pool_};
   tables::WindowManagerShellTransitionsTable
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable

@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {_TextDecoder} from 'custom_utils';
-
-import {base64Encode} from '../base/string_utils';
+import {base64Encode, utf8Decode} from '../base/string_utils';
 import {extractTraceConfig} from '../core/trace_config_utils';
-
 import {AdbBaseConsumerPort, AdbConnectionState} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
 import {ReadBuffersResponse} from './consumer_port_types';
@@ -28,7 +25,6 @@ enum AdbShellState {
   FETCHING,
 }
 const DEFAULT_DESTINATION_FILE = '/data/misc/perfetto-traces/trace-by-ui';
-const textDecoder = new _TextDecoder();
 
 export class AdbConsumerPort extends AdbBaseConsumerPort {
   traceDestFile = DEFAULT_DESTINATION_FILE;
@@ -85,7 +81,7 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
     const recordCommand = this.generateStartTracingCommand(configProto);
     this.recordShell = await this.adb.shell(recordCommand);
     const output: string[] = [];
-    this.recordShell.onData = (raw) => output.push(textDecoder.decode(raw));
+    this.recordShell.onData = (raw) => output.push(utf8Decode(raw));
     this.recordShell.onClose = () => {
       const response = output.join();
       if (!this.tracingEndedSuccessfully(response)) {

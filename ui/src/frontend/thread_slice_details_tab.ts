@@ -28,7 +28,9 @@ import {Section} from '../widgets/section';
 import {Tree, TreeNode} from '../widgets/tree';
 
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
+import {addDebugSliceTrack} from './debug_tracks/debug_tracks';
 import {FlowPoint, globals} from './globals';
+import {addQueryResultsTab} from './query_result_tab';
 import {hasArgs, renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails, SliceRef} from './sql/slice';
@@ -38,8 +40,8 @@ import {
 } from './sql/thread_state';
 import {asSliceSqlId} from './sql_types';
 import {DurationWidget} from './widgets/duration';
-import {addDebugSliceTrack} from './debug_tracks';
-import {addQueryResultsTab} from './query_result_tab';
+import {addSqlTableTab} from './sql_table_tab';
+import {SqlTables} from './well_known_sql_tables';
 
 interface ContextMenuItem {
   name: string;
@@ -85,6 +87,30 @@ function hasThreadName(slice: SliceDetails): boolean {
 
 const ITEMS: ContextMenuItem[] = [
   {
+    name: 'Ancestor slices',
+    shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
+    run: (slice: SliceDetails) =>
+      addSqlTableTab({
+        table: SqlTables.slice,
+        filters: [
+          `id IN (SELECT id FROM _slice_ancestor_and_self(${slice.id}))`,
+        ],
+        imports: ['slices.hierarchy'],
+      }),
+  },
+  {
+    name: 'Descendant slices',
+    shouldDisplay: () => true,
+    run: (slice: SliceDetails) =>
+      addSqlTableTab({
+        table: SqlTables.slice,
+        filters: [
+          `id IN (SELECT id FROM _slice_descendant_and_self(${slice.id}))`,
+        ],
+        imports: ['slices.hierarchy'],
+      }),
+  },
+  {
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
     run: (slice: SliceDetails) =>
@@ -102,7 +128,9 @@ const ITEMS: ContextMenuItem[] = [
       hasPid(slice),
     run: (slice: SliceDetails) => {
       const engine = getEngine();
-      if (engine === undefined) return;
+      if (engine === undefined) {
+        return;
+      }
       engine
         .query(
           `
@@ -112,7 +140,13 @@ const ITEMS: ContextMenuItem[] = [
         )
         .then(() =>
           addDebugSliceTrack(
-            engine,
+            // NOTE(stevegolton): This is a temporary patch, this menu should
+            // become part of another plugin, at which point we can just use the
+            // plugin's context object.
+            {
+              engine,
+              registerTrack: (x) => globals.trackManager.registerTrack(x),
+            },
             {
               sqlSource: `
                                 WITH merged AS (

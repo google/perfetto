@@ -70,6 +70,10 @@ if (!defined(is_nacl)) {
   is_nacl = false
 }
 
+if (!defined(is_gcc)) {
+  is_gcc = !is_clang && !is_win
+}
+
 declare_args() {
   # The Android blueprint file generator set this to true (as well as
   # is_perfetto_build_generator). This is just about being built in the

@@ -18,6 +18,7 @@
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/trace_stats.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -25,11 +26,11 @@
 namespace perfetto::trace_redaction {
 
 namespace {
-// The trace packet uid must be 1000 (system) or 9999 (nobody). If it is
+// The trace packet uid must be less than or equal to 9999 (nobody). If it is
 // anything else, the packet is invalid.
-int32_t kNobodyUid = 9999;
-int32_t kSystemUid = 1000;
-int32_t kInvalidUid = 9;
+int32_t kValid = 1000;
+int32_t kLastValid = Context::kMaxTrustedUid;
+int32_t kInvalidUid = 12000;
 
 uint64_t kSomeTime = 1234;
 uint32_t kSomePid = 7;
@@ -65,25 +66,55 @@ TEST_F(VerifyIntegrityUnitTest, InvalidPacketInvalidUid) {
 TEST_F(VerifyIntegrityUnitTest, ValidPacketSystemUid) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   ASSERT_OK(Verify(packet));
 }
 
-TEST_F(VerifyIntegrityUnitTest, ValidPacketNobodyUid) {
+TEST_F(VerifyIntegrityUnitTest, InclusiveEnd) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kNobodyUid);
+  packet.set_trusted_uid(kLastValid);
 
   ASSERT_OK(Verify(packet));
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceBundleHasLostEvents) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_ftrace_events()->set_lost_events(true);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, ValidPacketFtraceBundleHasNoLostEvents) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_ftrace_events()->set_lost_events(false);
+
+  ASSERT_FALSE(Verify(packet).ok());
 }
 
 TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceBundleMissingCpu) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   packet.mutable_ftrace_events();
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceBundleHasErrors) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_ftrace_events()->add_error();
 
   ASSERT_FALSE(Verify(packet).ok());
 }
@@ -91,7 +122,7 @@ TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceBundleMissingCpu) {
 TEST_F(VerifyIntegrityUnitTest, ValidPacketFtraceBundle) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   // A bundle doesn't need to have anything in it (other than cpu).
   auto* ftrace_events = packet.mutable_ftrace_events();
@@ -103,7 +134,7 @@ TEST_F(VerifyIntegrityUnitTest, ValidPacketFtraceBundle) {
 TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceEventMissingPid) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   auto* ftrace_events = packet.mutable_ftrace_events();
   ftrace_events->set_cpu(kSomeCpu);
@@ -119,7 +150,7 @@ TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceEventMissingPid) {
 TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceEventMissingTime) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   auto* ftrace_events = packet.mutable_ftrace_events();
   ftrace_events->set_cpu(kSomeCpu);
@@ -135,7 +166,7 @@ TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceEventMissingTime) {
 TEST_F(VerifyIntegrityUnitTest, ValidPacketFtraceEvent) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   auto* ftrace_events = packet.mutable_ftrace_events();
   ftrace_events->set_cpu(kSomeCpu);
@@ -150,7 +181,7 @@ TEST_F(VerifyIntegrityUnitTest, ValidPacketFtraceEvent) {
 TEST_F(VerifyIntegrityUnitTest, InvalidPacketProcessTreeMissingTime) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   // When the packet has a process tree, the packet must have a timestamp.
   packet.mutable_process_tree();
@@ -161,7 +192,7 @@ TEST_F(VerifyIntegrityUnitTest, InvalidPacketProcessTreeMissingTime) {
 TEST_F(VerifyIntegrityUnitTest, ValidPacketProcessTree) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   // When the packet has a process tree, the packet must have a timestamp.
   packet.mutable_process_tree();
@@ -173,7 +204,7 @@ TEST_F(VerifyIntegrityUnitTest, ValidPacketProcessTree) {
 TEST_F(VerifyIntegrityUnitTest, InvalidPacketProcessStatsMissingTime) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   // When the packet has process stats, the packet must have a timestamp.
   packet.mutable_process_stats();
@@ -181,10 +212,130 @@ TEST_F(VerifyIntegrityUnitTest, InvalidPacketProcessStatsMissingTime) {
   ASSERT_FALSE(Verify(packet).ok());
 }
 
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketTraceStatsFlushFailed) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->set_flushes_failed(true);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketTraceStatsNoFlushFailed) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->set_flushes_failed(false);
+
+  ASSERT_OK(Verify(packet));
+}
+
+TEST_F(VerifyIntegrityUnitTest, ValidPacketFinalFlushSucceeded) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->set_final_flush_outcome(
+      protos::gen::TraceStats::FINAL_FLUSH_SUCCEEDED);
+
+  ASSERT_OK(Verify(packet));
+}
+
+TEST_F(VerifyIntegrityUnitTest, ValidPacketFinalFlushUnspecified) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->set_final_flush_outcome(
+      protos::gen::TraceStats::FINAL_FLUSH_UNSPECIFIED);
+
+  ASSERT_OK(Verify(packet));
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketFinalFlushFailed) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->set_final_flush_outcome(
+      protos::gen::TraceStats::FINAL_FLUSH_FAILED);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketBufferStatsPatchesFailed) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->add_buffer_stats()->set_patches_failed(3);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, ValidPacketBufferStatsNoPatchesFailed) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->add_buffer_stats()->set_patches_failed(0);
+
+  ASSERT_OK(Verify(packet));
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketBufferStatsAbiViolation) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->add_buffer_stats()->set_abi_violations(3);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketBufferStatsNoAbiViolation) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->add_buffer_stats()->set_abi_violations(0);
+
+  ASSERT_OK(Verify(packet));
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketBufferStatsTraceWriterPacketLoss) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()
+      ->add_buffer_stats()
+      ->set_trace_writer_packet_loss(3);
+
+  ASSERT_EQ(packet.trace_stats().buffer_stats_size(), 1);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest,
+       InvalidPacketBufferStatsNoTraceWriterPacketLoss) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()
+      ->add_buffer_stats()
+      ->set_trace_writer_packet_loss(0);
+
+  ASSERT_OK(Verify(packet));
+}
+
 TEST_F(VerifyIntegrityUnitTest, ValidPacketProcessStats) {
   protos::gen::TracePacket packet;
 
-  packet.set_trusted_uid(kSystemUid);
+  packet.set_trusted_uid(kValid);
 
   // When the packet has a process tree, the packet must have a timestamp.
   packet.mutable_process_stats();

@@ -16,8 +16,8 @@ import {Duration} from '../../base/time';
 import {ColumnDef} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
+import {COUNTER_TRACK_KIND} from '../../public';
 import {Engine} from '../../trace_processor/engine';
-import {COUNTER_TRACK_KIND} from '../../core_plugins/counter';
 
 import {AggregationController} from './aggregation_controller';
 
@@ -30,8 +30,8 @@ export class CounterAggregationController extends AggregationController {
       const track = globals.state.tracks[trackKey];
       if (track?.uri) {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.kind === COUNTER_TRACK_KIND) {
-          trackInfo.trackIds && trackIds.push(...trackInfo.trackIds);
+        if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
+          trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
         }
       }
     }

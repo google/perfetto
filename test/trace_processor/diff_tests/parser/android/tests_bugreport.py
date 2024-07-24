@@ -59,3 +59,19 @@ class AndroidBugreport(TestSuite):
         WHERE service = 'color_display';
         """,
         out=Path('android_bugreport_dumpsys_test.out'))
+
+  def test_android_bugreport_trace_types(self):
+    return DiffTestBlueprint(
+        trace=DataPath('bugreport-crosshatch-SPB5.zip'),
+        query="""
+        SELECT *
+        FROM __intrinsic_trace_file
+        ORDER BY id
+        """,
+        out=Csv("""
+        "id","type","parent_id","name","size","trace_type"
+        0,"__intrinsic_trace_file","[NULL]","[NULL]",6220586,"zip"
+        1,"__intrinsic_trace_file",0,"FS/data/misc/logd/logcat.01",2169697,"android_logcat"
+        2,"__intrinsic_trace_file",0,"FS/data/misc/logd/logcat",2152073,"android_logcat"
+        3,"__intrinsic_trace_file",0,"bugreport-crosshatch-SPB5.210812.002-2021-08-24-23-35-40.txt",43132864,"android_dumpstate"
+        """))

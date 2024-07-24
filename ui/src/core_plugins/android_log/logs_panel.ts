@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {duration, Span, time, Time, TimeSpan} from '../../base/time';
+import {time, Time, TimeSpan} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {raf} from '../../core/raf_scheduler';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -28,9 +28,9 @@ import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
-import {Intent} from '../../widgets/common';
 import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
 import {classNames} from '../../base/classnames';
+import {TagInput} from '../../widgets/tag_input';
 
 const ROW_H = 20;
 
@@ -76,8 +76,8 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   constructor({attrs}: m.CVnode<LogPanelAttrs>) {
     this.rowsMonitor = new Monitor([
       () => attrs.filterStore.state,
-      () => globals.state.frontendLocalState.visibleState.start,
-      () => globals.state.frontendLocalState.visibleState.end,
+      () => globals.timeline.visibleWindow.toTimeSpan().start,
+      () => globals.timeline.visibleWindow.toTimeSpan().end,
     ]);
 
     this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
@@ -135,8 +135,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   private reloadData(attrs: LogPanelAttrs) {
     this.queryLimiter.schedule(async () => {
-      const visibleState = globals.state.frontendLocalState.visibleState;
-      const visibleSpan = new TimeSpan(visibleState.start, visibleState.end);
+      const visibleSpan = globals.timeline.visibleWindow.toTimeSpan();
 
       if (this.filterMonitor.ifStateChanged()) {
         await updateLogView(attrs.engine, attrs.filterStore.state);
@@ -167,7 +166,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     for (let i = 0; i < this.entries.timestamps.length; i++) {
       const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
       const ts = timestamps[i];
-      const prioClass = priorityLetter || '';
+      const prioClass = priorityLetter ?? '';
 
       rows.push({
         id: i,
@@ -230,70 +229,6 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
   }
 }
 
-interface LogTagChipAttrs {
-  name: string;
-  removeTag: (name: string) => void;
-}
-
-class LogTagChip implements m.ClassComponent<LogTagChipAttrs> {
-  view({attrs}: m.CVnode<LogTagChipAttrs>) {
-    return m(Button, {
-      label: attrs.name,
-      rightIcon: 'close',
-      onclick: () => attrs.removeTag(attrs.name),
-      intent: Intent.Primary,
-    });
-  }
-}
-
-interface LogTagsWidgetAttrs {
-  tags: string[];
-  onRemoveTag: (tag: string) => void;
-  onAddTag: (tag: string) => void;
-}
-
-class LogTagsWidget implements m.ClassComponent<LogTagsWidgetAttrs> {
-  view(vnode: m.Vnode<LogTagsWidgetAttrs>) {
-    const tags = vnode.attrs.tags;
-    return [
-      tags.map((tag) =>
-        m(LogTagChip, {
-          name: tag,
-          removeTag: (tag) => vnode.attrs.onRemoveTag(tag),
-        }),
-      ),
-      m(TextInput, {
-        placeholder: 'Filter by tag...',
-        onkeydown: (e: KeyboardEvent) => {
-          // This is to avoid zooming on 'w'(and other unexpected effects
-          // of key presses in this input field).
-          e.stopPropagation();
-          const htmlElement = e.target as HTMLInputElement;
-
-          // When the user clicks 'Backspace' we delete the previous tag.
-          if (
-            e.key === 'Backspace' &&
-            tags.length > 0 &&
-            htmlElement.value === ''
-          ) {
-            vnode.attrs.onRemoveTag(tags[tags.length - 1]);
-            return;
-          }
-
-          if (e.key !== 'Enter') {
-            return;
-          }
-          if (htmlElement.value === '') {
-            return;
-          }
-          vnode.attrs.onAddTag(htmlElement.value.trim());
-          htmlElement.value = '';
-        },
-      }),
-    ];
-  }
-}
-
 interface LogTextWidgetAttrs {
   onChange: (value: string) => void;
 }
@@ -350,16 +285,17 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
           });
         },
       }),
-      m(LogTagsWidget, {
+      m(TagInput, {
+        placeholder: 'Filter by tag...',
         tags: attrs.store.state.tags,
-        onAddTag: (tag) => {
+        onTagAdd: (tag) => {
           attrs.store.edit((draft) => {
             draft.tags.push(tag);
           });
         },
-        onRemoveTag: (tag) => {
+        onTagRemove: (index) => {
           attrs.store.edit((draft) => {
-            draft.tags = draft.tags.filter((t) => t !== tag);
+            draft.tags.splice(index, 1);
           });
         },
       }),
@@ -385,7 +321,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
 
 async function updateLogEntries(
   engine: Engine,
-  span: Span<time, duration>,
+  span: TimeSpan,
   pagination: Pagination,
 ): Promise<LogEntries> {
   const rowsResult = await engine.query(`

@@ -21,32 +21,6 @@ from python.generators.diff_tests.testing import TestSuite
 
 class StdlibCommon(TestSuite):
 
-  def test_thread_state_summary(self):
-    return DiffTestBlueprint(
-        trace=Path('../../common/synth_1.py'),
-        query="""
-        INCLUDE PERFETTO MODULE deprecated.v42.common.thread_states;
-
-        SELECT
-          state,
-          cpu,
-          dur
-        FROM thread_state_summary_for_interval(
-          25,
-          75,
-          (
-            SELECT utid
-            FROM thread
-            WHERE name = 'init'
-          )
-        )
-        """,
-        out=Csv("""
-        "state","cpu","dur"
-        "Running",1,50
-        "Runnable","[NULL]",25
-        """))
-
   def test_spans_overlapping_dur_intersect_edge(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

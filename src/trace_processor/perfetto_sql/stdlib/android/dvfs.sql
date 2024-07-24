@@ -68,9 +68,9 @@ CREATE PERFETTO TABLE android_dvfs_counter_stats(
   -- Counter name on which all the other values are aggregated on.
   name STRING,
   -- Max of all counter values for the counter name.
-  max INT,
+  max DOUBLE,
   -- Min of all counter values for the counter name.
-  min INT,
+  min DOUBLE,
   -- Duration between the first and last counter value for the counter name.
   dur INT,
   -- Weighted avergate of all the counter values for the counter name.

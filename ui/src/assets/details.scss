@@ -527,16 +527,4 @@
     text-overflow: ellipsis;
     width: 200px;
   }
-  .flamegraph-content {
-    overflow: auto;
-    height: 100%;
-
-    .loading-container {
-      font-size: larger;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-    }
-  }
 }

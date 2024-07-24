@@ -23,7 +23,7 @@ class Zip(TestSuite):
   def test_perf_proto_sym(self):
     return DiffTestBlueprint(
         trace=DataPath('zip/perf_track_sym.zip'),
-        query=Path('stacks_test.sql'),
+        query=Path('../simpleperf/stacks_test.sql'),
         out=Csv('''
         "name"
         "main,A"
@@ -57,4 +57,20 @@ class Zip(TestSuite):
         "main,D"
         "main,D,E"
         "main,E"
+        '''))
+
+  def test_tokenization_order(self):
+    return DiffTestBlueprint(
+        trace=DataPath('zip/perf_track_sym.zip'),
+        query='''
+        SELECT *
+        FROM __intrinsic_trace_file
+        ORDER BY id
+        ''',
+        out=Csv('''
+        "id","type","parent_id","name","size","trace_type"
+        0,"__intrinsic_trace_file","[NULL]","[NULL]",94651,"zip"
+        1,"__intrinsic_trace_file",0,"c.trace.pb",379760,"proto"
+        2,"__intrinsic_trace_file",0,"b.simpleperf.data",554911,"perf"
+        3,"__intrinsic_trace_file",0,"a.symbols.pb",186149,"symbols"
         '''))

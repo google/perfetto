@@ -32,7 +32,7 @@ class FilterSchedWakingEventsTest : public testing::Test {
  protected:
   void SetUp() override {
     redact_.emplace_modifier<ClearComms>();
-    redact_.emplace_filter<ConnectedToPackage>();
+    redact_.emplace_waking_filter<ConnectedToPackage>();
   }
 
   void BeginBundle() { ftrace_bundle_ = trace_packet_.mutable_ftrace_events(); }

@@ -19,8 +19,14 @@ assert(enable_perfetto_trace_processor_sqlite)
 source_set("bindings") {
   sources = [
     "sqlite_aggregate_function.h",
+    "sqlite_bind.h",
+    "sqlite_column.h",
+    "sqlite_function.h",
     "sqlite_module.h",
     "sqlite_result.h",
+    "sqlite_stmt.h",
+    "sqlite_type.h",
+    "sqlite_value.h",
     "sqlite_window_function.h",
   ]
   deps = [

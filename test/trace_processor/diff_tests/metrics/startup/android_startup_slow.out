@@ -1,6 +1,6 @@
 android_startup {
   startup {
-    startup_id: 2
+    startup_id: 0
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     zygote_new_process: false
@@ -42,11 +42,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
       pid: 3
     }
     report_fully_drawn {
@@ -73,6 +68,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_RUNNABLE
       reason: "Main Thread - Time spent in Runnable state"
+      severity: WARNING
       expected_value {
         value: 15
         unit: PERCENTAGE
@@ -83,10 +79,17 @@ android_startup {
         dur: 80000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 130000000000
+        end_timestamp: 210000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP
       reason: "Main Thread - Time spent in interruptible sleep state"
+      severity: WARNING
       expected_value {
         value: 2900000000
         unit: NS
@@ -96,10 +99,17 @@ android_startup {
         value: 5000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 120000000000
+        end_timestamp: 125000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO
       reason: "Main Thread - Time spent in Blocking I/O"
+      severity: WARNING
       expected_value {
         value: 450000000
         unit: NS
@@ -109,10 +119,17 @@ android_startup {
         value: 5000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 125000000000
+        end_timestamp: 130000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     slow_start_reason_with_details {
       reason_id: POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS
       reason: "Potential CPU contention with another process"
+      severity: WARNING
       expected_value {
         value: 100000000
         unit: NS
@@ -122,6 +139,12 @@ android_startup {
         value: 80000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 130000000000
+        end_timestamp: 210000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
   }
 }

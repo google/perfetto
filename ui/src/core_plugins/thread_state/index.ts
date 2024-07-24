@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {uuidv4} from '../../base/uuid';
+import {THREAD_STATE_TRACK_KIND} from '../../public';
 import {asThreadStateSqlId} from '../../frontend/sql_types';
 import {ThreadStateTab} from '../../frontend/thread_state_tab';
 import {
@@ -21,12 +22,10 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {getTrackName} from '../../public/utils';
+import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 
 import {ThreadStateTrack} from './thread_state_track';
-
-export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
 
 class ThreadState implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -36,7 +35,8 @@ class ThreadState implements Plugin {
         utid,
         upid,
         tid,
-        thread.name as threadName
+        thread.name as threadName,
+        is_main_thread as isMainThread
       from thread
       join _sched_summary using (utid)
     `);
@@ -46,9 +46,11 @@ class ThreadState implements Plugin {
       upid: NUM_NULL,
       tid: NUM_NULL,
       threadName: STR_NULL,
+      isMainThread: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
+      const upid = it.upid;
       const tid = it.tid;
       const threadName = it.threadName;
       const displayName = getTrackName({
@@ -58,11 +60,16 @@ class ThreadState implements Plugin {
         kind: THREAD_STATE_TRACK_KIND,
       });
 
+      const chips = it.isMainThread === 1 ? ['main thread'] : [];
+
       ctx.registerTrack({
-        uri: `perfetto.ThreadState#${utid}`,
-        displayName,
-        kind: THREAD_STATE_TRACK_KIND,
-        utid,
+        uri: `${getThreadUriPrefix(upid, utid)}_state`,
+        title: displayName,
+        tags: {
+          kind: THREAD_STATE_TRACK_KIND,
+          utid,
+        },
+        chips,
         trackFactory: ({trackKey}) => {
           return new ThreadStateTrack(
             {

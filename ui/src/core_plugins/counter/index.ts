@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
-import {CounterDetailsPanel} from '../../frontend/counter_panel';
 import {
   NUM_NULL,
   STR_NULL,
@@ -25,12 +22,16 @@ import {
   PluginDescriptor,
   PrimaryTrackSortKey,
   STR,
+  LONG,
+  Engine,
+  COUNTER_TRACK_KIND,
 } from '../../public';
-import {getTrackName} from '../../public/utils';
+import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {CounterOptions} from '../../frontend/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
-
-export const COUNTER_TRACK_KIND = 'CounterTrack';
+import {CounterDetailsPanel} from './counter_details_panel';
+import {Time, duration, time} from '../../base/time';
+import {Optional} from '../../base/utils';
 
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
@@ -76,9 +77,13 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
     options.yRangeSharingKey = 'power';
   }
 
-  if (name.startsWith('mem.')) {
-    options.yRangeSharingKey = 'mem';
-  }
+  // TODO(stevegolton): We need to rethink how this works for virtual memory.
+  // The problem is we can easily have > 10GB virtual memory which dwarfs
+  // physical memory making other memory tracks difficult to read.
+
+  // if (name.startsWith('mem.')) {
+  //   options.yRangeSharingKey = 'mem';
+  // }
 
   if (name.startsWith('battery_stats.')) {
     options.yRangeSharingKey = 'battery_stats';
@@ -105,6 +110,34 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
   return options;
 }
 
+async function getCounterEventBounds(
+  engine: Engine,
+  trackId: number,
+  id: number,
+): Promise<Optional<{ts: time; dur: duration}>> {
+  const query = `
+    WITH CTE AS (
+      SELECT
+        id,
+        ts as leftTs,
+        LEAD(ts) OVER (ORDER BY ts) AS rightTs
+      FROM counter
+      WHERE track_id = ${trackId}
+    )
+    SELECT * FROM CTE WHERE id = ${id}
+  `;
+
+  const counter = await engine.query(query);
+  const row = counter.iter({
+    leftTs: LONG,
+    rightTs: LONG_NULL,
+  });
+  const leftTs = Time.fromRaw(row.leftTs);
+  const rightTs = row.rightTs !== null ? Time.fromRaw(row.rightTs) : leftTs;
+  const duration = rightTs - leftTs;
+  return {ts: leftTs, dur: duration};
+}
+
 class CounterPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addCounterTracks(ctx);
@@ -113,16 +146,6 @@ class CounterPlugin implements Plugin {
     await this.addCpuPerfCounterTracks(ctx);
     await this.addThreadCounterTracks(ctx);
     await this.addProcessCounterTracks(ctx);
-
-    ctx.registerDetailsPanel({
-      render: (sel) => {
-        if (sel.kind === 'COUNTER') {
-          return m(CounterDetailsPanel);
-        } else {
-          return undefined;
-        }
-      },
-    });
   }
 
   private async addCounterTracks(ctx: PluginContextTrace) {
@@ -154,10 +177,12 @@ class CounterPlugin implements Plugin {
       const displayName = it.name;
       const unit = it.unit ?? undefined;
       ctx.registerStaticTrack({
-        uri: `perfetto.Counter#${trackId}`,
-        displayName,
-        kind: COUNTER_TRACK_KIND,
-        trackIds: [trackId],
+        uri: `/counter_${trackId}`,
+        title: displayName,
+        tags: {
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [trackId],
+        },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
@@ -170,6 +195,10 @@ class CounterPlugin implements Plugin {
           });
         },
         sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, displayName),
+        getEventBounds: async (id) => {
+          return await getCounterEventBounds(ctx.engine, trackId, id);
+        },
       });
     }
   }
@@ -217,10 +246,12 @@ class CounterPlugin implements Plugin {
       const name = it.name;
       const trackId = it.id;
       ctx.registerTrack({
-        uri: `perfetto.Counter#cpu${trackId}`,
-        displayName: name,
-        kind: COUNTER_TRACK_KIND,
-        trackIds: [trackId],
+        uri: `/cpu_counter_${trackId}`,
+        title: name,
+        tags: {
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [trackId],
+        },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
@@ -228,6 +259,10 @@ class CounterPlugin implements Plugin {
             trackId: trackId,
             options: getDefaultCounterOptions(name),
           });
+        },
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
+        getEventBounds: async (id) => {
+          return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
     }
@@ -262,6 +297,7 @@ class CounterPlugin implements Plugin {
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
+      const upid = it.upid;
       const tid = it.tid;
       const trackId = it.trackId;
       const trackName = it.trackName;
@@ -276,10 +312,12 @@ class CounterPlugin implements Plugin {
         threadTrack: true,
       });
       ctx.registerTrack({
-        uri: `perfetto.Counter#thread${trackId}`,
-        displayName: name,
-        kind,
-        trackIds: [trackId],
+        uri: `${getThreadUriPrefix(upid, utid)}_counter_${trackId}`,
+        title: name,
+        tags: {
+          kind,
+          trackIds: [trackId],
+        },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
@@ -287,6 +325,10 @@ class CounterPlugin implements Plugin {
             trackId: trackId,
             options: getDefaultCounterOptions(name),
           });
+        },
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
+        getEventBounds: async (id) => {
+          return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
     }
@@ -326,10 +368,12 @@ class CounterPlugin implements Plugin {
         processName,
       });
       ctx.registerTrack({
-        uri: `perfetto.Counter#process${trackId}`,
-        displayName: name,
-        kind: COUNTER_TRACK_KIND,
-        trackIds: [trackId],
+        uri: `/process_${upid}/counter_${trackId}`,
+        title: name,
+        tags: {
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [trackId],
+        },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
@@ -337,6 +381,10 @@ class CounterPlugin implements Plugin {
             trackId: trackId,
             options: getDefaultCounterOptions(name),
           });
+        },
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
+        getEventBounds: async (id) => {
+          return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
     }
@@ -358,13 +406,15 @@ class CounterPlugin implements Plugin {
       `);
       if (freqExistsResult.numRows() > 0) {
         const trackId = freqExistsResult.firstRow({id: NUM}).id;
-        const uri = `perfetto.Counter#gpu_freq${gpu}`;
+        const uri = `/gpu_frequency_${gpu}`;
         const name = `Gpu ${gpu} Frequency`;
         ctx.registerTrack({
           uri,
-          displayName: name,
-          kind: COUNTER_TRACK_KIND,
-          trackIds: [trackId],
+          title: name,
+          tags: {
+            kind: COUNTER_TRACK_KIND,
+            trackIds: [trackId],
+          },
           trackFactory: (trackCtx) => {
             return new TraceProcessorCounterTrack({
               engine: ctx.engine,
@@ -372,6 +422,10 @@ class CounterPlugin implements Plugin {
               trackId: trackId,
               options: getDefaultCounterOptions(name),
             });
+          },
+          detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
+          getEventBounds: async (id) => {
+            return await getCounterEventBounds(ctx.engine, trackId, id);
           },
         });
       }

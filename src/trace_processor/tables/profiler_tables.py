@@ -269,7 +269,7 @@ PERF_SAMPLE_TABLE = Table(
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('utid', CppUint32()),
-        C('cpu', CppUint32()),
+        C('cpu', CppOptional(CppUint32())),
         C('cpu_mode', CppString()),
         C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
         C('unwind_error', CppOptional(CppString())),
@@ -311,8 +311,8 @@ SYMBOL_TABLE = Table(
           CppUint32(),
           flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
         C('name', CppString()),
-        C('source_file', CppString()),
-        C('line_number', CppUint32()),
+        C('source_file', CppOptional(CppString())),
+        C('line_number', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''

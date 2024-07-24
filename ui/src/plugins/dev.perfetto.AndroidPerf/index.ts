@@ -18,11 +18,10 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {Engine} from '../../trace_processor/engine';
 
 class AndroidPerf implements Plugin {
   async addAppProcessStartsDebugTrack(
-    engine: Engine,
+    ctx: PluginContextTrace,
     reason: string,
     sliceName: string,
   ): Promise<void> {
@@ -36,7 +35,7 @@ class AndroidPerf implements Plugin {
       'table_name',
     ];
     await addDebugSliceTrack(
-      engine,
+      ctx,
       {
         sqlSource: `
                     SELECT
@@ -113,7 +112,7 @@ class AndroidPerf implements Plugin {
         }
         ctx.tabs.openQuery(
           `
-          INCLUDE PERFETTO MODULE cpu.cpus;
+          INCLUDE PERFETTO MODULE android.cpu.cluster_type;
           WITH
             total_runtime AS (
               SELECT sum(dur) AS total_runtime
@@ -123,14 +122,14 @@ class AndroidPerf implements Plugin {
               WHERE t.tid = ${tid}
             )
             SELECT
-              c.size AS cluster,
+              c.cluster_type AS cluster,
               sum(dur)/1e6 AS total_dur_ms,
               sum(dur) * 1.0 / (SELECT * FROM total_runtime) AS percentage
             FROM sched s
             LEFT JOIN thread t
               USING (utid)
-            LEFT JOIN cpu_core_types c
-              ON s.cpu = c.cpu_index
+            LEFT JOIN android_cpu_cluster_mapping c
+              USING (cpu)
             WHERE t.tid = ${tid}
             GROUP BY 1`,
           `runtime cluster distrubtion for tid ${tid}`,
@@ -172,11 +171,7 @@ class AndroidPerf implements Plugin {
 
         const startReason = ['activity', 'service', 'broadcast', 'provider'];
         for (const reason of startReason) {
-          await this.addAppProcessStartsDebugTrack(
-            ctx.engine,
-            reason,
-            'process_name',
-          );
+          await this.addAppProcessStartsDebugTrack(ctx, reason, 'process_name');
         }
       },
     });
@@ -191,11 +186,7 @@ class AndroidPerf implements Plugin {
 
         const startReason = ['activity', 'service', 'broadcast'];
         for (const reason of startReason) {
-          await this.addAppProcessStartsDebugTrack(
-            ctx.engine,
-            reason,
-            'intent',
-          );
+          await this.addAppProcessStartsDebugTrack(ctx, reason, 'intent');
         }
       },
     });

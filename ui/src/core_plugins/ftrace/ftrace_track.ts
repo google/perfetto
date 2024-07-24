@@ -17,14 +17,13 @@ import {colorForFtrace} from '../../core/colorizer';
 import {LIMIT} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {globals} from '../../frontend/globals';
 import {TrackData} from '../../common/track_data';
-import {PanelSize} from '../../frontend/panel';
 import {Engine, Track} from '../../public';
 import {LONG, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
 import {Store} from '../../public';
 import {Monitor} from '../../base/monitor';
+import {TrackRenderContext} from '../../public/tracks';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
@@ -54,15 +53,18 @@ export class FtraceRawTrack implements Track {
     this.monitor = new Monitor([() => store.state]);
   }
 
-  async onUpdate(): Promise<void> {
+  async onUpdate({
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): Promise<void> {
     this.monitor.ifStateChanged(() => {
       this.fetcher.invalidate();
     });
-    await this.fetcher.requestDataForCurrentTime();
+    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 
   async onDestroy?(): Promise<void> {
-    this.fetcher.dispose();
+    this.fetcher[Symbol.dispose]();
   }
 
   getHeight(): number {
@@ -107,15 +109,13 @@ export class FtraceRawTrack implements Track {
     return result;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
-    const {visibleTimeScale} = globals.timeline;
-
+  render({ctx, size, timescale}: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
 
-    const dataStartPx = visibleTimeScale.timeToPx(data.start);
-    const dataEndPx = visibleTimeScale.timeToPx(data.end);
+    const dataStartPx = timescale.timeToPx(data.start);
+    const dataEndPx = timescale.timeToPx(data.end);
 
     checkerboardExcept(
       ctx,
@@ -132,7 +132,7 @@ export class FtraceRawTrack implements Track {
       const name = data.names[i];
       ctx.fillStyle = colorForFtrace(name).base.cssString;
       const timestamp = Time.fromRaw(data.timestamps[i]);
-      const xPos = Math.floor(visibleTimeScale.timeToPx(timestamp));
+      const xPos = Math.floor(timescale.timeToPx(timestamp));
 
       // Draw a diamond over the event
       ctx.save();

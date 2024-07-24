@@ -15,18 +15,10 @@
 import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
-
-import {
-  arrayOf,
-  bool,
-  record,
-  runValidator,
-  str,
-  ValidatedType,
-} from '../base/validators';
 import {assertTrue} from '../base/logging';
 import {Icon} from '../widgets/icon';
 import {raf} from '../core/raf_scheduler';
+import {z} from 'zod';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
@@ -178,8 +170,8 @@ class HistoryStorage {
     if (value === null) {
       return [];
     }
-
-    return runValidator(queryHistoryValidator, JSON.parse(value)).result;
+    const res = QUERY_HISTORY_SCHEMA.safeParse(JSON.parse(value));
+    return res.success ? res.data : [];
   }
 
   private save() {
@@ -187,12 +179,15 @@ class HistoryStorage {
   }
 }
 
-const queryHistoryEntryValidator = record({query: str(), starred: bool()});
+const QUERY_HISTORY_ENTRY_SCHEMA = z.object({
+  query: z.string(),
+  starred: z.boolean().default(false),
+});
 
-type QueryHistoryEntry = ValidatedType<typeof queryHistoryEntryValidator>;
+type QueryHistoryEntry = z.infer<typeof QUERY_HISTORY_ENTRY_SCHEMA>;
 
-const queryHistoryValidator = arrayOf(queryHistoryEntryValidator);
+const QUERY_HISTORY_SCHEMA = z.array(QUERY_HISTORY_ENTRY_SCHEMA);
 
-type QueryHistory = ValidatedType<typeof queryHistoryValidator>;
+type QueryHistory = z.infer<typeof QUERY_HISTORY_SCHEMA>;
 
 export const queryHistoryStorage = new HistoryStorage();

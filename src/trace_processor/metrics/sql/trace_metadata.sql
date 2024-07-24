@@ -14,18 +14,6 @@
 -- limitations under the License.
 --
 
--- Expose all clock snapshots as instant events.
-DROP VIEW IF EXISTS trace_metadata_event;
-CREATE PERFETTO VIEW trace_metadata_event AS
-SELECT
-  'slice' AS track_type,
-  'Clock Snapshots' AS track_name,
-  ts,
-  0 AS dur,
-  'Snapshot' AS slice_name
-FROM clock_snapshot
-GROUP BY ts;
-
 DROP VIEW IF EXISTS trace_metadata_output;
 CREATE PERFETTO VIEW trace_metadata_output AS
 SELECT TraceMetadata(

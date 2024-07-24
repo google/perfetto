@@ -16,11 +16,14 @@
 
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
 
+#include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -29,6 +32,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
@@ -38,6 +42,7 @@
 #include "src/trace_processor/importers/perf/dso_tracker.h"
 #include "src/trace_processor/importers/perf/features.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
 #include "src/trace_processor/importers/perf/reader.h"
@@ -48,9 +53,7 @@
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace perf_importer {
+namespace perfetto::trace_processor::perf_importer {
 namespace {
 
 void AddIds(uint8_t id_offset,
@@ -168,13 +171,14 @@ PerfDataTokenizer::ParseHeader() {
   // TODO: Check for endianess (big endian will have letters reversed);
   if (memcmp(header_.magic, PerfFile::kPerfMagic,
              sizeof(PerfFile::kPerfMagic)) != 0) {
-    return util::ErrStatus("Invalid magic string");
+    return base::ErrStatus("Invalid magic string");
   }
 
   if (header_.size != sizeof(PerfFile::Header)) {
-    return util::ErrStatus("Failed to perf file header size. Expected %" PRIu64
-                           ", found %zu",
-                           sizeof(PerfFile::Header));
+    return base::ErrStatus(
+        "Failed to perf file header size. Expected %zu"
+        ", found %" PRIu64,
+        sizeof(PerfFile::Header), header_.size);
   }
 
   feature_ids_ = ExtractFeatureIds(header_.flags, header_.flags1);
@@ -214,10 +218,8 @@ PerfDataTokenizer::ParseAttrs() {
       return ParsingResult::kMoreDataNeeded;
     }
 
-    std::vector<uint64_t> ids;
-    ids.resize(entry.ids.size / sizeof(uint64_t));
+    std::vector<uint64_t> ids(entry.ids.size / sizeof(uint64_t));
     PERFETTO_CHECK(Reader(std::move(*tbv)).ReadVector(ids));
-
     builder.AddAttrAndIds(entry.attr, std::move(ids));
   }
 
@@ -237,7 +239,7 @@ PerfDataTokenizer::SeekRecords() {
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseRecords() {
-  while (buffer_.file_offset() < header_.data.end()) {
+  while (buffer_.start_offset() < header_.data.end()) {
     Record record;
 
     if (auto res = ParseRecord(record);
@@ -258,7 +260,7 @@ base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
     Record& record) {
   record.session = perf_session_;
   std::optional<TraceBlobView> tbv =
-      buffer_.SliceOff(buffer_.file_offset(), sizeof(record.header));
+      buffer_.SliceOff(buffer_.start_offset(), sizeof(record.header));
   if (!tbv) {
     return ParsingResult::kMoreDataNeeded;
   }
@@ -268,7 +270,7 @@ base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
     return base::ErrStatus("Invalid record size: %" PRIu16, record.header.size);
   }
 
-  tbv = buffer_.SliceOff(buffer_.file_offset() + sizeof(record.header),
+  tbv = buffer_.SliceOff(buffer_.start_offset() + sizeof(record.header),
                          record.header.size - sizeof(record.header));
   if (!tbv) {
     return ParsingResult::kMoreDataNeeded;
@@ -276,7 +278,7 @@ base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
 
   record.payload = std::move(*tbv);
 
-  base::StatusOr<RefPtr<const PerfEventAttr>> attr =
+  base::StatusOr<RefPtr<PerfEventAttr>> attr =
       perf_session_->FindAttrForRecord(record.header, record.payload);
   if (!attr.ok()) {
     return base::ErrStatus("Unable to determine perf_event_attr for record. %s",
@@ -330,7 +332,7 @@ bool PerfDataTokenizer::PushRecord(Record record) {
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseFeatureSections() {
-  PERFETTO_CHECK(buffer_.file_offset() == header_.data.end());
+  PERFETTO_CHECK(buffer_.start_offset() == header_.data.end());
   auto tbv = buffer_.SliceOff(feature_headers_section_.offset,
                               feature_headers_section_.size);
   if (!tbv) {
@@ -413,15 +415,16 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
     }
 
     case feature::ID_SIMPLEPERF_META_INFO: {
+      perf_session_->SetIsSimpleperf();
       feature::SimpleperfMetaInfo meta_info;
-      RETURN_IF_ERROR(
-          feature::SimpleperfMetaInfo::Parse(std::move(data), meta_info));
+      RETURN_IF_ERROR(feature::SimpleperfMetaInfo::Parse(data, meta_info));
       for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
         perf_session_->SetEventName(it.key().type, it.key().config, it.value());
       }
       break;
     }
     case feature::ID_SIMPLEPERF_FILE2: {
+      perf_session_->SetIsSimpleperf();
       RETURN_IF_ERROR(feature::ParseSimpleperfFile2(
           std::move(data), [&](TraceBlobView blob) {
             third_party::simpleperf::proto::pbzero::FileFeature::Decoder file(
@@ -441,6 +444,4 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
 
 void PerfDataTokenizer::NotifyEndOfFile() {}
 
-}  // namespace perf_importer
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::perf_importer

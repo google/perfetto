@@ -42,10 +42,16 @@ class Skeleton implements Plugin {
     this.store.edit((state) => {
       state.foo = 'baz';
     });
+
+    // This is an example of how to access the pluginArgs pushed by the
+    // postMessage when deep-linking to the UI.
+    if (ctx.openerPluginArgs !== undefined) {
+      console.log(`Postmessage args for ${ctx.pluginId}`, ctx.openerPluginArgs);
+    }
   }
 
   async onTraceUnload(_: PluginContextTrace): Promise<void> {
-    this.store.dispose();
+    this.store[Symbol.dispose]();
   }
 
   onDeactivate(_: PluginContext): void {

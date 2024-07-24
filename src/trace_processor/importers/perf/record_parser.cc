@@ -16,9 +16,11 @@
 
 #include "src/trace_processor/importers/perf/record_parser.h"
 
+#include <cinttypes>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -26,9 +28,13 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/importers/perf/mmap_record.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
@@ -39,13 +45,14 @@
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace perf_importer {
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+
+namespace perfetto::trace_processor::perf_importer {
 namespace {
 
 CreateMappingParams BuildCreateMappingParams(
@@ -66,14 +73,13 @@ CreateMappingParams BuildCreateMappingParams(
 
 bool IsInKernel(protos::pbzero::Profiling::CpuMode cpu_mode) {
   switch (cpu_mode) {
-    case protos::pbzero::Profiling::MODE_UNKNOWN:
-      PERFETTO_FATAL("Unknown CPU mode");
     case protos::pbzero::Profiling::MODE_GUEST_KERNEL:
     case protos::pbzero::Profiling::MODE_KERNEL:
       return true;
     case protos::pbzero::Profiling::MODE_USER:
     case protos::pbzero::Profiling::MODE_HYPERVISOR:
     case protos::pbzero::Profiling::MODE_GUEST_USER:
+    case protos::pbzero::Profiling::MODE_UNKNOWN:
       return false;
   }
   PERFETTO_FATAL("For GCC.");
@@ -85,7 +91,7 @@ using FramesTable = tables::StackProfileFrameTable;
 using CallsitesTable = tables::StackProfileCallsiteTable;
 
 RecordParser::RecordParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context), mapping_tracker_(context->mapping_tracker.get()) {}
 
 RecordParser::~RecordParser() = default;
 
@@ -145,15 +151,18 @@ base::Status RecordParser::InternSample(Sample sample) {
     // tokenization. (Actually at tokenization time we do estimate a trace_ts if
     // no perf ts is present, but for samples we want this to be as accurate as
     // possible)
-    base::ErrStatus("Can not parse samples with no PERF_SAMPLE_TIME field");
+    return base::ErrStatus(
+        "Can not parse samples with no PERF_SAMPLE_TIME field");
   }
 
   if (!sample.pid_tid.has_value()) {
-    base::ErrStatus("Can not parse samples with no PERF_SAMPLE_TID field");
+    return base::ErrStatus(
+        "Can not parse samples with no PERF_SAMPLE_TID field");
   }
 
-  if (!sample.cpu.has_value()) {
-    base::ErrStatus("Can not parse samples with no PERF_SAMPLE_CPU field");
+  if (sample.cpu_mode ==
+      protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN) {
+    context_->storage->IncrementStats(stats::perf_samples_cpu_mode_unknown);
   }
 
   UniqueTid utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
@@ -165,11 +174,11 @@ base::Status RecordParser::InternSample(Sample sample) {
   if (sample.callchain.empty() && sample.ip.has_value()) {
     sample.callchain.push_back(Sample::Frame{sample.cpu_mode, *sample.ip});
   }
-  std::optional<CallsiteId> callsite_id =
-      InternCallchain(upid, sample.callchain);
+  std::optional<CallsiteId> callsite_id = InternCallchain(
+      upid, sample.callchain, sample.perf_session->needs_pc_adjustment());
 
   context_->storage->mutable_perf_sample_table()->Insert(
-      {sample.trace_ts, utid, *sample.cpu,
+      {sample.trace_ts, utid, sample.cpu,
        context_->storage->InternString(
            ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode)),
        callsite_id, std::nullopt, sample.perf_session->perf_session_id()});
@@ -179,33 +188,48 @@ base::Status RecordParser::InternSample(Sample sample) {
 
 std::optional<CallsiteId> RecordParser::InternCallchain(
     UniquePid upid,
-    const std::vector<Sample::Frame>& callchain) {
+    const std::vector<Sample::Frame>& callchain,
+    bool adjust_pc) {
   if (callchain.empty()) {
     return std::nullopt;
   }
 
   auto& stack_profile_tracker = *context_->stack_profile_tracker;
-  auto& mapping_tracker = *context_->mapping_tracker;
 
   std::optional<CallsiteId> parent;
   uint32_t depth = 0;
+  // Note callchain is not empty so this is always valid.
+  const auto leaf = --callchain.rend();
   for (auto it = callchain.rbegin(); it != callchain.rend(); ++it) {
+    uint64_t ip = it->ip;
+
+    // For non leaf frames the ip stored in the chain is the return address, but
+    // what we really need is the address of the call instruction. For that we
+    // just need to move the ip one instruction back. Instructions can be of
+    // different sizes depending on the CPU arch (ARM, AARCH64, etc..). For
+    // symbolization to work we don't really need to point at the first byte of
+    // the instruction, any byte of the instruction seems to be enough, so use
+    // -1.
+    if (ip != 0 && it != leaf && adjust_pc) {
+      --ip;
+    }
+
     VirtualMemoryMapping* mapping;
     if (IsInKernel(it->cpu_mode)) {
-      mapping = mapping_tracker.FindKernelMappingForAddress(it->ip);
+      mapping = mapping_tracker_->FindKernelMappingForAddress(ip);
     } else {
-      mapping = mapping_tracker.FindUserMappingForAddress(upid, it->ip);
+      mapping = mapping_tracker_->FindUserMappingForAddress(upid, ip);
     }
 
     if (!mapping) {
       context_->storage->IncrementStats(stats::perf_dummy_mapping_used);
       // Simpleperf will not create mappings for anonymous executable mappings
       // which are used by JITted code (e.g. V8 JavaScript).
-      mapping = mapping_tracker.GetDummyMapping();
+      mapping = mapping_tracker_->GetDummyMapping();
     }
 
     const FrameId frame_id =
-        mapping->InternFrame(mapping->ToRelativePc(it->ip), "");
+        mapping->InternFrame(mapping->ToRelativePc(ip), "");
 
     parent = stack_profile_tracker.InternCallsite(parent, frame_id, depth);
     depth++;
@@ -249,7 +273,7 @@ base::Status RecordParser::ParseMmap(Record record) {
   return base::OkStatus();
 }
 
-util::Status RecordParser::ParseMmap2(Record record) {
+base::Status RecordParser::ParseMmap2(Record record) {
   Mmap2Record mmap2;
   RETURN_IF_ERROR(mmap2.Parse(record));
   std::optional<BuildId> build_id = mmap2.GetBuildId();
@@ -285,6 +309,12 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
     return UpdateCountersInReadGroups(sample);
   }
 
+  if (!sample.cpu.has_value()) {
+    context_->storage->IncrementStats(
+        stats::perf_counter_skipped_because_no_cpu);
+    return base::OkStatus();
+  }
+
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
     return base::ErrStatus("No period for sample");
   }
@@ -298,11 +328,13 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
 
 base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
   if (!sample.cpu.has_value()) {
-    return base::ErrStatus("No cpu for sample");
+    context_->storage->IncrementStats(
+        stats::perf_counter_skipped_because_no_cpu);
+    return base::OkStatus();
   }
 
   for (const auto& entry : sample.read_groups) {
-    RefPtr<const PerfEventAttr> attr =
+    RefPtr<PerfEventAttr> attr =
         sample.perf_session->FindAttrForEventId(*entry.event_id);
     if (PERFETTO_UNLIKELY(!attr)) {
       return base::ErrStatus("No perf_event_attr for id %" PRIu64,
@@ -314,6 +346,4 @@ base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
   return base::OkStatus();
 }
 
-}  // namespace perf_importer
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::perf_importer

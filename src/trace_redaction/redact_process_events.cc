@@ -19,12 +19,12 @@
 #include <string>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "src/trace_processor/util/status_macros.h"
 #include "src/trace_redaction/proto_util.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 
@@ -127,6 +127,10 @@ base::Status RedactProcessEvents::OnFtraceEvent(
       case protos::pbzero::FtraceEvent::kSuspendResumeFieldNumber:
         RETURN_IF_ERROR(
             OnSuspendResume(context, ts.as_uint64(), bytes, message));
+        break;
+      case protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber:
+        RETURN_IF_ERROR(
+            OnSchedBlockedReason(context, ts.as_uint64(), bytes, message));
         break;
       default:
         proto_util::AppendField(it, message);
@@ -393,6 +397,53 @@ base::Status RedactProcessEvents::OnSuspendResume(
     if (filter_->Includes(context, ts, pid.as_int32())) {
       proto_util::AppendField(suspend_resume_field, parent_message);
     }
+  }
+
+  return base::OkStatus();
+}
+
+base::Status RedactProcessEvents::OnSchedBlockedReason(
+    const Context& context,
+    uint64_t ts,
+    protozero::ConstBytes event_bytes,
+    protos::pbzero::FtraceEvent* parent_message) const {
+  PERFETTO_DCHECK(parent_message);
+
+  protos::pbzero::FtraceEvent::Decoder decoder(event_bytes);
+
+  auto pid = decoder.FindField(protos::pbzero::FtraceEvent::kPidFieldNumber);
+  if (!pid.valid()) {
+    return base::ErrStatus("RedactProcessEvents: missing FtraceEvent::kPid");
+  }
+
+  auto blocked_reason_field = decoder.FindField(
+      protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber);
+  if (!blocked_reason_field.valid()) {
+    return base::ErrStatus(
+        "RedactProcessEvents: missing FtraceEvent::kSchedBlockedReason");
+  }
+
+  protos::pbzero::SchedBlockedReasonFtraceEvent::Decoder blocking_reason(
+      blocked_reason_field.as_bytes());
+
+  auto has_fields = {
+      blocking_reason.has_caller(),
+      blocking_reason.has_io_wait(),
+      blocking_reason.has_pid(),
+  };
+
+  if (std::find(has_fields.begin(), has_fields.end(), false) !=
+      has_fields.end()) {
+    return base::ErrStatus(
+        "RedactProcessEvents: missing SchedBlockedReasonFtraceEvent::*");
+  }
+
+  // The semantics here is similar to waking events (i.e. event.pid is the
+  // blocker, and sched_blocked_reason.pid is the blockee).
+  // sched_blocked_reason.pid only has meaning when the pid is not merged. If
+  // pid was merged, it could have conflicting blocking events.
+  if (filter_->Includes(context, ts, blocking_reason.pid())) {
+    proto_util::AppendField(blocked_reason_field, parent_message);
   }
 
   return base::OkStatus();

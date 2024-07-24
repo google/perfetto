@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/profile_module.h"
+#include <optional>
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -454,13 +455,17 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
     ArgsTranslationTable::SourceLocation last_location;
     for (auto line_it = address_symbols.lines(); line_it; ++line_it) {
       protos::pbzero::Line::Decoder line(*line_it);
+      auto file_name = line.source_file_name();
       context_->storage->mutable_symbol_table()->Insert(
           {symbol_set_id, context_->storage->InternString(line.function_name()),
-           context_->storage->InternString(line.source_file_name()),
-           line.line_number()});
+           file_name.size == 0 ? kNullStringId
+                               : context_->storage->InternString(file_name),
+           line.has_line_number() && file_name.size != 0
+               ? std::make_optional(line.line_number())
+               : std::nullopt});
       last_location = ArgsTranslationTable::SourceLocation{
-          line.source_file_name().ToStdString(),
-          line.function_name().ToStdString(), line.line_number()};
+          file_name.ToStdString(), line.function_name().ToStdString(),
+          line.line_number()};
       has_lines = true;
     }
     if (!has_lines) {

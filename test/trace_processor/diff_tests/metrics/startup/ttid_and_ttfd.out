@@ -1,6 +1,6 @@
 android_startup {
     startup {
-        startup_id: 1
+        startup_id: 0
         package_name: "androidx.benchmark.integration.macrobenchmark.target"
         process_name: "androidx.benchmark.integration.macrobenchmark.target"
         zygote_new_process: false

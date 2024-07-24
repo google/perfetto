@@ -57,8 +57,8 @@ class RedactSchedEvents : public TransformPrimitive {
   }
 
   template <class Filter>
-  void emplace_filter() {
-    filter_ = std::make_unique<Filter>();
+  void emplace_waking_filter() {
+    waking_filter_ = std::make_unique<Filter>();
   }
 
  private:
@@ -113,7 +113,7 @@ class RedactSchedEvents : public TransformPrimitive {
       const;
 
   std::unique_ptr<PidCommModifier> modifier_;
-  std::unique_ptr<PidFilter> filter_;
+  std::unique_ptr<PidFilter> waking_filter_;
 };
 
 }  // namespace perfetto::trace_redaction

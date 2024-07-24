@@ -33,6 +33,16 @@
 
 namespace perfetto::trace_processor::column {
 
+namespace {
+
+void AddOffsetToTokenIndex(DataLayerChain::Indices& indices, uint32_t offset) {
+  for (auto& token : indices.tokens) {
+    token.index += offset;
+  }
+}
+
+}  // namespace
+
 using Range = Range;
 
 RangeOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
@@ -51,6 +61,10 @@ SingleSearchResult RangeOverlay::ChainImpl::SingleSearch(FilterOp op,
 SearchValidationResult RangeOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
+  if (sql_val.is_null() &&
+      !(op == FilterOp::kIsNotNull || op == FilterOp::kIsNull)) {
+    return SearchValidationResult::kNoData;
+  }
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
 
@@ -113,16 +127,14 @@ void RangeOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
                                                    SqlValue sql_val,
                                                    Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::IndexSearch");
-  for (auto& token : indices.tokens) {
-    token.index += range_->start;
-  }
+  AddOffsetToTokenIndex(indices, range_->start);
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-void RangeOverlay::ChainImpl::StableSort(SortToken* start,
-                                         SortToken* end,
+void RangeOverlay::ChainImpl::StableSort(Token* start,
+                                         Token* end,
                                          SortDirection direction) const {
-  for (SortToken* it = start; it != end; ++it) {
+  for (Token* it = start; it != end; ++it) {
     it->index += range_->start;
   }
   inner_->StableSort(start, end, direction);
@@ -130,33 +142,35 @@ void RangeOverlay::ChainImpl::StableSort(SortToken* start,
 
 void RangeOverlay::ChainImpl::Distinct(Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::Distinct");
-  for (auto& token : indices.tokens) {
-    token.index += range_->start;
-  }
+  AddOffsetToTokenIndex(indices, range_->start);
   inner_->Distinct(indices);
 }
 
 std::optional<Token> RangeOverlay::ChainImpl::MaxElement(
     Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::MaxElement");
-  for (auto& token : indices.tokens) {
-    token.index += range_->start;
-  }
+  AddOffsetToTokenIndex(indices, range_->start);
   return inner_->MaxElement(indices);
-}
-
-SqlValue RangeOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
-    uint32_t index) const {
-  return inner_->Get_AvoidUsingBecauseSlow(index + range_->start);
 }
 
 std::optional<Token> RangeOverlay::ChainImpl::MinElement(
     Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::MinElement");
-  for (auto& token : indices.tokens) {
-    token.index += range_->start;
-  }
+  AddOffsetToTokenIndex(indices, range_->start);
   return inner_->MinElement(indices);
+}
+
+std::unique_ptr<DataLayer> RangeOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    i += range_->start;
+  }
+  return inner_->Flatten(indices);
+}
+
+SqlValue RangeOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
+    uint32_t index) const {
+  return inner_->Get_AvoidUsingBecauseSlow(index + range_->start);
 }
 
 void RangeOverlay::ChainImpl::Serialize(StorageProto*) const {

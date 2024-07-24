@@ -33,7 +33,8 @@ WinscopeModule::WinscopeModule(TraceProcessorContext* context)
       surfaceflinger_layers_parser_(context),
       surfaceflinger_transactions_parser_(context),
       shell_transitions_parser_(context),
-      protolog_parser_(context) {
+      protolog_parser_(context),
+      android_input_event_parser_(context) {
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber,
                    context);
   RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber,
@@ -105,6 +106,15 @@ void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
              field.valid()) {
     ParseViewCaptureData(timestamp, field.as_bytes(),
                          data.sequence_state.get());
+  } else if (field = decoder.Get(
+                 WinscopeExtensionsImpl::kAndroidInputEventFieldNumber);
+             field.valid()) {
+    android_input_event_parser_.ParseAndroidInputEvent(timestamp,
+                                                       field.as_bytes());
+  } else if (field =
+                 decoder.Get(WinscopeExtensionsImpl::kWindowmanagerFieldNumber);
+             field.valid()) {
+    ParseWindowManagerData(timestamp, field.as_bytes());
   }
 }
 
@@ -183,6 +193,23 @@ void WinscopeModule::ParseViewCaptureData(
       blob, kViewCaptureProtoName, nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+  }
+}
+
+void WinscopeModule::ParseWindowManagerData(int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  tables::WindowManagerTable::Row row;
+  row.ts = timestamp;
+  auto rowId = context_->storage->mutable_windowmanager_table()->Insert(row).id;
+
+  ArgsTracker tracker(context_);
+  auto inserter = tracker.AddArgsTo(rowId);
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
+  base::Status status = args_parser_.ParseMessage(
+      blob, kWindowManagerProtoName, nullptr /* parse all fields */, writer);
+  if (!status.ok()) {
+    context_->storage->IncrementStats(
+        stats::winscope_windowmanager_parse_errors);
   }
 }
 

@@ -14,7 +14,6 @@
 
 import {
   NUM,
-  NUM_NULL,
   Plugin,
   PluginContextTrace,
   PluginDescriptor,
@@ -75,38 +74,56 @@ class AndroidClientServer implements Plugin {
             select * from nested_binder_txns_in_slice_interval
           )
           select
-            slice.id,
-            slice.ts,
-            slice.dur,
-            coalesce(req.aidl_name, rep.aidl_name, slice.name) name,
-            tt.utid,
-            thread.upid resolved_upid,
+            dfs.node_id as id,
+            coalesce(client.client_ts, server.client_ts, slice.ts) as ts,
+            coalesce(client.client_dur, server.client_dur, slice.dur) as dur,
+            coalesce(
+              client.aidl_name,
+              server.aidl_name,
+              iif(
+                server.binder_reply_id is not null,
+                coalesce(
+                  server.server_process,
+                  server.server_thread,
+                  'Unknown server'
+                ),
+                slice.name
+              )
+            ) name,
+            coalesce(
+              client.client_utid,
+              server.server_utid,
+              thread_track.utid
+            ) as utid,
             case
-              when req.binder_txn_id is not null then 'request'
-              when rep.binder_reply_id is not null then 'response'
+              when client.binder_txn_id is not null then 'client'
+              when server.binder_reply_id is not null then 'server'
               else 'slice'
             end as slice_type,
-            coalesce(req.is_sync, rep.is_sync, true) as is_sync
+            coalesce(client.is_sync, server.is_sync, true) as is_sync
           from graph_reachable_dfs!(
             all_binder_txns_considered,
-            (select id from s)
+            (select id as node_id from s)
           ) dfs
           join slice on dfs.node_id = slice.id
-          join thread_track tt on slice.track_id = tt.id
-          join thread using (utid)
-          -- TODO(lalitm): investigate whether it is worth improve this.
-          left join android_binder_txns req on slice.id = req.binder_txn_id
-          left join android_binder_txns rep on slice.id = rep.binder_reply_id
-          where resolved_upid is not null;
+          join thread_track on slice.track_id = thread_track.id
+          left join android_binder_txns client on dfs.node_id = client.binder_txn_id
+          left join android_binder_txns server on dfs.node_id = server.binder_reply_id
+          order by ts;
         `);
         await ctx.engine.query(`
-          create or replace perfetto table __thread_state_for_${sliceId} as
+          include perfetto module intervals.intersect;
+
+          create or replace perfetto table __enhanced_binder_for_slice_${sliceId} as
           with foo as (
             select
+              bfs.id as binder_id,
+              bfs.name as binder_name,
               ii.ts,
               ii.dur,
               tstate.utid,
               thread.upid,
+              tstate.cpu,
               tstate.state,
               tstate.io_wait,
               (
@@ -116,86 +133,74 @@ class AndroidClientServer implements Plugin {
                 order by ts desc
                 limit 1
               ) as enclosing_slice_name
-            from interval_intersect!(
+            from _interval_intersect!(
               (
                 select id, ts, dur
                 from __binder_for_slice_${sliceId}
-                where slice_type IN ('slice', 'response') and is_sync
+                where slice_type IN ('slice', 'server')
+                  and is_sync
+                  and dur > 0
               ),
               (
                 select id, ts, dur
                 from thread_state tstate
-                where tstate.utid in (
-                  select distinct utid
-                  from __binder_for_slice_${sliceId}
-                  where slice_type IN ('slice', 'response') and is_sync
-                )
-              )
+                where
+                  tstate.utid in (
+                    select distinct utid
+                    from __binder_for_slice_${sliceId}
+                    where
+                      slice_type IN ('slice', 'server')
+                      and is_sync
+                      and dur > 0
+                  )
+                  and dur > 0
+              ),
+              ()
             ) ii
-            join __binder_for_slice_${sliceId} bfs on ii.left_id = bfs.id
-            join thread_state tstate on ii.right_id = tstate.id
+            join __binder_for_slice_${sliceId} bfs on ii.id_0 = bfs.id
+            join thread_state tstate on ii.id_1 = tstate.id
             join thread using (utid)
             where bfs.utid = tstate.utid
           )
-          select *, 
+          select
+            *,
             case
-              when state = 'S' and enclosing_slice_name = 'binder transaction' then 'Binder'
-              when state = 'S' and enclosing_slice_name GLOB 'Lock*' then 'Lock contention'
-              when state = 'S' and enclosing_slice_name GLOB 'Monitor*' then 'Lock contention'
+              when state = 'S' and enclosing_slice_name = 'binder transaction' then 'Waiting for server'
+              when state = 'S' and enclosing_slice_name GLOB 'Lock*' then 'Waiting for lock'
+              when state = 'S' and enclosing_slice_name GLOB 'Monitor*' then 'Waiting for contention'
               when state = 'S' then 'Sleeping'
-              when state = 'R' then 'Runnable'
-              when state = 'Running' then 'Running'
+              when state = 'R' then 'Waiting for CPU'
+              when state = 'Running' then 'Running on CPU ' || foo.cpu
               when state GLOB 'R*' then 'Runnable'
               when state GLOB 'D*' and io_wait then 'IO'
               when state GLOB 'D*' and not io_wait then 'Unint-sleep'
             end as name
-          from foo;
+          from foo
+          order by binder_id;
         `);
 
         const res = await ctx.engine.query(`
-          select
-            process.upid,
-            ifnull(process.name, 'Unknown Process') as process_name,
-            tstate.upid as tstate_upid
-          from (
-            select distinct resolved_upid from __binder_for_slice_${sliceId}
-          ) binder_for_slice
-          join process on binder_for_slice.resolved_upid = process.upid
-          left join (
-            select distinct upid from __thread_state_for_${sliceId}
-          ) tstate using (upid);
+          select id, name
+          from __binder_for_slice_${sliceId} bfs
+          where slice_type IN ('slice', 'server')
+            and dur > 0
+          order by ts
         `);
         const it = res.iter({
-          upid: NUM,
-          process_name: STR,
-          tstate_upid: NUM_NULL,
+          id: NUM,
+          name: STR,
         });
         for (; it.valid(); it.next()) {
-          if (it.tstate_upid !== null) {
-            await addDebugSliceTrack(
-              ctx.engine,
-              {
-                sqlSource: `
-                  SELECT ts, dur, name
-                  FROM __thread_state_for_${sliceId}
-                  WHERE upid = ${it.upid}
-                `,
-              },
-              it.process_name,
-              {ts: 'ts', dur: 'dur', name: 'name'},
-              [],
-            );
-          }
           await addDebugSliceTrack(
-            ctx.engine,
+            ctx,
             {
               sqlSource: `
                 SELECT ts, dur, name
-                FROM __binder_for_slice_${sliceId}
-                WHERE resolved_upid = ${it.upid}
+                FROM __enhanced_binder_for_slice_${sliceId}
+                WHERE binder_id = ${it.id}
               `,
             },
-            it.process_name,
+            it.name,
             {ts: 'ts', dur: 'dur', name: 'name'},
             [],
           );

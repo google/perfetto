@@ -56,7 +56,8 @@ PERFETTO_ALWAYS_INLINE base::StatusOr<int64_t> ResolveTraceTime(
     ClockTracker::ClockId clock_id,
     int64_t ts) {
   // On most traces (i.e. P+), the clock should be BOOTTIME.
-  if (PERFETTO_LIKELY(clock_id == BuiltinClock::BUILTIN_CLOCK_BOOTTIME))
+  if (PERFETTO_LIKELY(clock_id == BuiltinClock::BUILTIN_CLOCK_BOOTTIME &&
+                      !context->machine_id()))
     return ts;
   return context->clock_tracker->ToTraceTime(clock_id, ts);
 }

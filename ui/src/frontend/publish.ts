@@ -16,13 +16,12 @@ import {Actions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {MetricResult} from '../common/metric_data';
-import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {CurrentSearchResults} from '../common/search_data';
 import {raf} from '../core/raf_scheduler';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {getLegacySelection} from '../common/state';
 
 import {
-  CounterDetails,
   CpuProfileDetails,
   Flow,
   globals,
@@ -30,7 +29,6 @@ import {
   SliceDetails,
   ThreadDesc,
   ThreadStateDetails,
-  TraceContext,
 } from './globals';
 import {findCurrentSelection} from './keyboard_event_handler';
 
@@ -75,11 +73,6 @@ export function publishHttpRpcState(httpRpcState: HttpRpcState) {
   raf.scheduleFullRedraw();
 }
 
-export function publishCounterDetails(click: CounterDetails) {
-  globals.counterDetails = click;
-  globals.publishRedraw();
-}
-
 export function publishCpuProfileDetails(details: CpuProfileDetails) {
   globals.cpuProfileDetails = details;
   globals.publishRedraw();
@@ -87,11 +80,6 @@ export function publishCpuProfileDetails(details: CpuProfileDetails) {
 
 export function publishHasFtrace(value: boolean): void {
   globals.hasFtrace = value;
-  globals.publishRedraw();
-}
-
-export function publishTraceContext(details: TraceContext): void {
-  globals.traceContext = details;
   globals.publishRedraw();
 }
 
@@ -111,11 +99,6 @@ export function publishLoading(numQueuedQueries: number) {
 
 export function publishBufferUsage(args: {percentage: number}) {
   globals.setBufferUsage(args.percentage);
-  globals.publishRedraw();
-}
-
-export function publishSearch(args: SearchSummary) {
-  globals.searchSummary = args;
   globals.publishRedraw();
 }
 

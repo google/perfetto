@@ -41,16 +41,16 @@ class RenameEventsTraceRedactorIntegrationTest
   void SetUp() override {
     // In order for ScrubTaskRename to work, it needs the timeline. All
     // registered primitives are there to generate the timeline.
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+    trace_redactor_.emplace_collect<FindPackageUid>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
 
     // Configure the system to drop every rename event not connected to the
     // package.
-    auto* redact = trace_redactor()->emplace_transform<RedactProcessEvents>();
+    auto* redact = trace_redactor_.emplace_transform<RedactProcessEvents>();
     redact->emplace_filter<ConnectedToPackage>();
     redact->emplace_modifier<DoNothing>();
 
-    context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
+    context_.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
   }
 
   void GetRenamedPids(
@@ -82,10 +82,13 @@ class RenameEventsTraceRedactorIntegrationTest
 
     return renamed_pids;
   }
+
+  Context context_;
+  TraceRedactor trace_redactor_;
 };
 
 TEST_F(RenameEventsTraceRedactorIntegrationTest, RemovesUnwantedRenameTasks) {
-  ASSERT_OK(Redact());
+  ASSERT_OK(Redact(trace_redactor_, &context_));
 
   auto original = LoadOriginal();
   ASSERT_OK(original);

@@ -14,23 +14,59 @@
 -- limitations under the License.
 --
 
--- Android power rails counters.
+INCLUDE PERFETTO MODULE counters.intervals;
+INCLUDE PERFETTO MODULE time.conversion;
+
+-- Android power rails counters data.
+-- For details see: https://perfetto.dev/docs/data-sources/battery-counters#odpm
+-- NOTE: Requires dedicated hardware - table is only populated on Pixels.
 CREATE PERFETTO TABLE android_power_rails_counters (
     -- `counter.id`
     id INT,
-    -- Counter timestamp.
+    -- Timestamp of the energy measurement.
     ts INT,
-    -- Power rail name. From `counter_track.name`.
-    power_rail_name INT,
-    -- Power rails counter value in micro watts.
+    -- Time until the next energy measurement.
+    dur INT,
+    -- Power rail name. Alias of `counter_track.name`.
+    power_rail_name STRING,
+    -- Raw power rail name.
+    raw_power_rail_name STRING,
+    -- Energy accumulated by this rail since boot in microwatt-seconds
+    -- (uWs) (AKA micro-joules). Alias of `counter.value`.
+    energy_since_boot DOUBLE,
+    -- Energy accumulated by this rail at next energy measurement in
+    -- microwatt-seconds (uWs) (AKA micro-joules). Alias of `counter.value` of
+    -- the next meaningful (with value change) counter value.
+    energy_since_boot_at_end DOUBLE,
+    -- Average power in mW (milliwatts) over between ts and the next energy
+    -- measurement.
+    average_power DOUBLE,
+    -- The change of energy accumulated by this rails since the last
+    -- measurement in microwatt-seconds (uWs) (AKA micro-joules).
+    energy_delta DOUBLE,
+    -- Power rail track id. Alias of `counter_track.id`.
+    track_id INT,
+    -- DEPRECATED. Use `energy_since_boot` instead.
     value DOUBLE
+) AS
+WITH counter_table AS (
+SELECT
+    c.*
+FROM counter c
+JOIN counter_track t ON c.track_id = t.id
+WHERE name GLOB 'power.*'
 )
-AS
 SELECT
     c.id,
     c.ts,
+    c.dur,
     t.name AS power_rail_name,
+    EXTRACT_ARG(source_arg_set_id, 'raw_name') AS raw_power_rail_name,
+    c.value AS energy_since_boot,
+    c.next_value AS energy_since_boot_at_end,
+    1e3*(c.delta_value/(time_to_s(c.dur))) AS average_power,
+    c.delta_value AS energy_delta,
+    c.track_id,
     c.value
-FROM counter c
-JOIN counter_track t ON c.track_id = t.id
-WHERE name GLOB 'power.*';
+FROM counter_leading_intervals!(counter_table) c
+JOIN counter_track t ON c.track_id = t.id;

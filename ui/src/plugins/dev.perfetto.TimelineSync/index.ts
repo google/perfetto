@@ -20,7 +20,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {duration, Span, Time, time, TimeSpan} from '../../base/time';
+import {Time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
 
@@ -79,6 +79,12 @@ class TimelineSync implements Plugin {
       name: 'Disable timeline sync',
       callback: () => this.disableTimelineSync(this._sessionId),
     });
+    ctx.registerCommand({
+      id: `dev.perfetto.SplitScreen#toggleTimelineSync`,
+      name: 'Toggle timeline sync with other PerfettoUI tabs',
+      callback: () => this.toggleTimelineSync(),
+      defaultHotkey: 'Mod+Alt+S',
+    });
 
     // Start advertising this tab. This allows the command run in other
     // instances to discover us.
@@ -126,6 +132,14 @@ class TimelineSync implements Plugin {
       },
       clientId: this._clientId,
     } as SyncMessage);
+  }
+
+  private toggleTimelineSync() {
+    if (this._sessionId === 0) {
+      this.showTimelineSyncDialog();
+    } else {
+      this.disableTimelineSync(this._sessionId);
+    }
   }
 
   private showTimelineSyncDialog() {
@@ -404,7 +418,7 @@ class TimelineSync implements Plugin {
   }
 }
 
-type ViewportBounds = Span<time, duration>;
+type ViewportBounds = TimeSpan;
 
 interface ViewportBoundsSnapshot {
   thisWindow: ViewportBounds;

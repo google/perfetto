@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -148,6 +149,9 @@ SearchValidationResult NullOverlay::ChainImpl::ValidateSearchConstraints(
   if (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull) {
     return SearchValidationResult::kOk;
   }
+  if (sql_val.is_null()) {
+    return SearchValidationResult::kNoData;
+  }
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
 
@@ -256,15 +260,15 @@ void NullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-void NullOverlay::ChainImpl::StableSort(SortToken* start,
-                                        SortToken* end,
+void NullOverlay::ChainImpl::StableSort(Token* start,
+                                        Token* end,
                                         SortDirection direction) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "NullOverlay::ChainImpl::StableSort");
-  SortToken* middle = std::stable_partition(
-      start, end,
-      [this](const SortToken& idx) { return !non_null_->IsSet(idx.index); });
-  for (SortToken* it = middle; it != end; ++it) {
+  Token* middle = std::stable_partition(start, end, [this](const Token& idx) {
+    return !non_null_->IsSet(idx.index);
+  });
+  for (Token* it = middle; it != end; ++it) {
     it->index = non_null_->CountSetBits(it->index);
   }
   inner_->StableSort(middle, end, direction);
@@ -317,6 +321,18 @@ std::optional<Token> NullOverlay::ChainImpl::MinElement(
   }
 
   return inner_->MinElement(indices);
+}
+
+std::unique_ptr<DataLayer> NullOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    if (non_null_->IsSet(i)) {
+      i = non_null_->CountSetBits(i);
+    } else {
+      i = std::numeric_limits<uint32_t>::max();
+    }
+  }
+  return inner_->Flatten(indices);
 }
 
 SqlValue NullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(

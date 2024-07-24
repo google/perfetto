@@ -14,7 +14,7 @@
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 
-import {addDebugCounterTrack} from '../../frontend/debug_tracks';
+import {addDebugCounterTrack} from '../../frontend/debug_tracks/debug_tracks';
 
 class PixelMemory implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -27,18 +27,21 @@ class PixelMemory implements Plugin {
           if (pid === null) return;
         }
         const RSS_ALL = `
-          INCLUDE PERFETTO MODULE memory.linux.process;
-          INCLUDE PERFETTO MODULE memory.android.gpu;
+          INCLUDE PERFETTO MODULE android.gpu.memory;
+          INCLUDE PERFETTO MODULE linux.memory.process;
 
           DROP TABLE IF EXISTS process_mem_rss_anon_file_shmem_swap_gpu;
 
           CREATE VIRTUAL TABLE process_mem_rss_anon_file_shmem_swap_gpu
           USING
             SPAN_OUTER_JOIN(
-              memory_gpu_per_process PARTITIONED upid, memory_rss_and_swap_per_process PARTITIONED upid);
+              android_gpu_memory_per_process PARTITIONED upid,
+              memory_rss_and_swap_per_process PARTITIONED upid
+            );
         `;
         await ctx.engine.query(RSS_ALL);
         await addDebugCounterTrack(
+          ctx,
           {
             sqlSource: `
                 SELECT

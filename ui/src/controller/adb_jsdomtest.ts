@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TextEncoder} from 'util';
-
 import {
   AdbMsgImpl,
   AdbOverWebUsb,
@@ -21,6 +19,7 @@ import {
   DEFAULT_MAX_PAYLOAD_BYTES,
   VERSION_WITH_CHECKSUM,
 } from './adb';
+import {utf8Encode} from '../base/string_utils';
 
 test('startAuthentication', async () => {
   const adb = new AdbOverWebUsb();
@@ -57,7 +56,7 @@ test('connectedMessage', async () => {
     cmd: 'CNXN',
     arg0: VERSION_WITH_CHECKSUM,
     arg1: expectedMaxPayload,
-    data: new TextEncoder().encode('device'),
+    data: utf8Encode('device'),
     useChecksum: true,
   });
   await adb.onMessage(connectedMsg);

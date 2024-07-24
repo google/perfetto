@@ -39,11 +39,11 @@ using TaskNewtaskFtraceEvent = protos::pbzero::TaskNewtaskFtraceEvent;
 void MarkOpen(uint64_t ts,
               const ProcessTree::Process::Decoder& process,
               ProcessThreadTimeline* timeline) {
-  // The uid in the process tree is a int32_t, but in the package list, the uid
-  // is a uint64_t.
   auto uid = static_cast<uint64_t>(process.uid());
+
+  // See "trace_redaction_framework.h" for why uid must be normalized.
   auto e = ProcessThreadTimeline::Event::Open(ts, process.pid(), process.ppid(),
-                                              uid);
+                                              NormalizeUid(uid));
   timeline->Append(e);
 }
 

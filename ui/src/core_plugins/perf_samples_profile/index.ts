@@ -12,17 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {TrackData} from '../../common/track_data';
 import {
-  FlamegraphCache,
-  FlamegraphDetailsPanel,
+  Engine,
+  LegacyDetailsPanel,
+  PERF_SAMPLES_PROFILE_TRACK_KIND,
+} from '../../public';
+import {LegacyFlamegraphCache} from '../../core/legacy_flamegraph_cache';
+import {
+  LegacyFlamegraphDetailsPanel,
   profileType,
-} from '../../frontend/flamegraph_panel';
+} from '../../frontend/legacy_flamegraph_panel';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {NUM} from '../../trace_processor/query_result';
-import {PerfSamplesProfileTrack} from './perf_samples_profile_track';
-
-export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LegacySelection,
+  PerfSamplesSelection,
+} from '../../core/selection_manager';
+import {
+  QueryFlamegraph,
+  QueryFlamegraphAttrs,
+  USE_NEW_FLAMEGRAPH_IMPL,
+  metricsFromTableOrSubquery,
+} from '../../core/query_flamegraph';
+import {Monitor} from '../../base/monitor';
+import {DetailsShell} from '../../widgets/details_shell';
+import {assertExists} from '../../base/logging';
+import {Timestamp} from '../../frontend/widgets/timestamp';
+import {
+  ProcessPerfSamplesProfileTrack,
+  ThreadPerfSamplesProfileTrack,
+} from './perf_samples_profile_track';
+import {getThreadUriPrefix} from '../../public/utils';
 
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;
@@ -30,41 +53,200 @@ export interface Data extends TrackData {
 
 class PerfSamplesProfilePlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    const result = await ctx.engine.query(`
-      select distinct upid, pid
-      from perf_sample join thread using (utid) join process using (upid)
+    const pResult = await ctx.engine.query(`
+      select distinct upid
+      from perf_sample
+      join thread using (utid)
+      where callsite_id is not null and upid is not null
+    `);
+    for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
+      const upid = it.upid;
+      ctx.registerTrack({
+        uri: `/process_${upid}/perf_samples_profile`,
+        title: `Process Callstacks`,
+        tags: {
+          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          upid,
+        },
+        trackFactory: ({trackKey}) =>
+          new ProcessPerfSamplesProfileTrack(
+            {
+              engine: ctx.engine,
+              trackKey,
+            },
+            upid,
+          ),
+      });
+    }
+    const tResult = await ctx.engine.query(`
+      select distinct
+        utid,
+        tid,
+        thread.name as threadName,
+        upid
+      from perf_sample
+      join thread using (utid)
       where callsite_id is not null
     `);
-    for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
-      const upid = it.upid;
-      const pid = it.pid;
+    for (
+      const it = tResult.iter({
+        utid: NUM,
+        tid: NUM,
+        threadName: STR_NULL,
+        upid: NUM_NULL,
+      });
+      it.valid();
+      it.next()
+    ) {
+      const {threadName, utid, tid, upid} = it;
+      const displayName =
+        threadName === null
+          ? `Thread Callstacks ${tid}`
+          : `${threadName} Callstacks ${tid}`;
       ctx.registerTrack({
-        uri: `perfetto.PerfSamplesProfile#${upid}`,
-        displayName: `Callstacks ${pid}`,
-        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
-        upid,
-        trackFactory: () => new PerfSamplesProfileTrack(ctx.engine, upid),
+        uri: `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`,
+        title: displayName,
+        tags: {
+          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          utid,
+        },
+        trackFactory: ({trackKey}) =>
+          new ThreadPerfSamplesProfileTrack(
+            {
+              engine: ctx.engine,
+              trackKey,
+            },
+            utid,
+          ),
+      });
+    }
+    ctx.registerDetailsPanel(new PerfSamplesFlamegraphDetailsPanel(ctx.engine));
+  }
+}
+
+class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
+  private sel?: PerfSamplesSelection;
+  private selMonitor = new Monitor([
+    () => this.sel?.leftTs,
+    () => this.sel?.rightTs,
+    () => this.sel?.upid,
+    () => this.sel?.type,
+  ]);
+  private flamegraphAttrs?: QueryFlamegraphAttrs;
+  private cache = new LegacyFlamegraphCache('perf_samples');
+
+  constructor(private engine: Engine) {}
+
+  render(sel: LegacySelection) {
+    if (sel.kind !== 'PERF_SAMPLES') {
+      this.sel = undefined;
+      return undefined;
+    }
+    if (!USE_NEW_FLAMEGRAPH_IMPL.get() && sel.upid !== undefined) {
+      this.sel = undefined;
+      return m(LegacyFlamegraphDetailsPanel, {
+        cache: this.cache,
+        selection: {
+          profileType: profileType(sel.type),
+          start: sel.leftTs,
+          end: sel.rightTs,
+          upids: [sel.upid],
+        },
       });
     }
 
-    const cache = new FlamegraphCache('perf_samples');
-    ctx.registerDetailsPanel({
-      render: (sel) => {
-        if (sel.kind === 'PERF_SAMPLES') {
-          return m(FlamegraphDetailsPanel, {
-            cache,
-            selection: {
-              profileType: profileType(sel.type),
-              start: sel.leftTs,
-              end: sel.rightTs,
-              upids: [sel.upid],
-            },
-          });
-        } else {
-          return undefined;
-        }
-      },
-    });
+    const {leftTs, rightTs, upid, utid} = sel;
+    this.sel = sel;
+    if (this.selMonitor.ifStateChanged()) {
+      this.flamegraphAttrs = {
+        engine: this.engine,
+        metrics: [
+          ...metricsFromTableOrSubquery(
+            upid === undefined
+              ? `
+                (
+                  select
+                    id,
+                    parent_id as parentId,
+                    name,
+                    mapping_name,
+                    source_file,
+                    cast(line_number AS text) as line_number,
+                    self_count
+                  from _linux_perf_callstacks_for_samples!((
+                    select p.callsite_id
+                    from perf_sample p
+                    where p.ts >= ${leftTs}
+                      and p.ts <= ${rightTs}
+                      and p.utid = ${utid}
+                  ))
+                )
+              `
+              : `
+                  (
+                    select
+                      id,
+                      parent_id as parentId,
+                      name,
+                      mapping_name,
+                      source_file,
+                      cast(line_number AS text) as line_number,
+                      self_count
+                    from _linux_perf_callstacks_for_samples!((
+                      select p.callsite_id
+                      from perf_sample p
+                      join thread t using (utid)
+                      where p.ts >= ${leftTs}
+                        and p.ts <= ${rightTs}
+                        and t.upid = ${upid}
+                    ))
+                  )
+                `,
+            [
+              {
+                name: 'Perf Samples',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module linux.perf.samples',
+            [{name: 'mapping_name', displayName: 'Mapping'}],
+            [
+              {name: 'source_file', displayName: 'Source File'},
+              {name: 'line_number', displayName: 'Line Number'},
+            ],
+          ),
+        ],
+      };
+    }
+    return m(
+      '.flamegraph-profile',
+      m(
+        DetailsShell,
+        {
+          fillParent: true,
+          title: m('.title', 'Perf Samples'),
+          description: [],
+          buttons: [
+            m(
+              'div.time',
+              `First timestamp: `,
+              m(Timestamp, {
+                ts: this.sel.leftTs,
+              }),
+            ),
+            m(
+              'div.time',
+              `Last timestamp: `,
+              m(Timestamp, {
+                ts: this.sel.rightTs,
+              }),
+            ),
+          ],
+        },
+        m(QueryFlamegraph, assertExists(this.flamegraphAttrs)),
+      ),
+    );
   }
 }
 

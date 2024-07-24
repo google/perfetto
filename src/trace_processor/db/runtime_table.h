@@ -51,14 +51,36 @@ class RuntimeTable : public Table {
                                       StringStorage,
                                       DoubleStorage,
                                       NullDoubleStorage>;
+  enum BuilderColumnType {
+    kNull,
+    kInt,
+    kNullInt,
+    kString,
+    kDouble,
+    kNullDouble
+  };
+
   class Builder {
    public:
-    Builder(StringPool* pool, std::vector<std::string> col_names);
+    Builder(StringPool* pool, const std::vector<std::string>& col_names);
+    Builder(StringPool* pool,
+            const std::vector<std::string>& col_names,
+            const std::vector<BuilderColumnType>& col_types);
 
     base::Status AddNull(uint32_t idx);
     base::Status AddInteger(uint32_t idx, int64_t res);
     base::Status AddFloat(uint32_t idx, double res);
     base::Status AddText(uint32_t idx, const char* ptr);
+    base::Status AddIntegers(uint32_t idx, int64_t res, uint32_t count);
+    base::Status AddFloats(uint32_t idx, double res, uint32_t count);
+    base::Status AddTexts(uint32_t idx, const char* ptr, uint32_t count);
+    base::Status AddNulls(uint32_t idx, uint32_t count);
+
+    void AddNonNullIntegerUnchecked(uint32_t idx, int64_t res) {
+      std::get<IntStorage>(*storage_[idx]).Append(res);
+    }
+    void AddNonNullIntegersUnchecked(uint32_t idx,
+                                     const std::vector<int64_t>& res);
 
     base::StatusOr<std::unique_ptr<RuntimeTable>> Build(uint32_t rows) &&;
 

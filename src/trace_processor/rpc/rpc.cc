@@ -225,9 +225,33 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         auto it = QueryInternal(args.data, args.size);
         QueryResultSerializer serializer(std::move(it));
         for (bool has_more = true; has_more;) {
-          Response resp(tx_seq_id_++, req_type);
+          const auto seq_id = tx_seq_id_++;
+          Response resp(seq_id, req_type);
           has_more = serializer.Serialize(resp->set_query_result());
-          resp.Send(rpc_response_fn_);
+          const uint32_t resp_size = resp->Finalize();
+          if (resp_size < protozero::proto_utils::kMaxMessageLength) {
+            // This is the nominal case.
+            resp.Send(rpc_response_fn_);
+            continue;
+          }
+          // In rare cases a query can end up with a batch which is too big.
+          // Normally batches are automatically split before hitting the limit,
+          // but one can come up with a query where a single cell is > 256MB.
+          // If this happens, just bail out gracefully rather than creating an
+          // unparsable proto which will cause a RPC framing error.
+          // If we hit this, we have to discard `resp` because it's
+          // unavoidably broken (due to have overflown the 4-bytes size) and
+          // can't be parsed. Instead create a new response with the error.
+          Response err_resp(seq_id, req_type);
+          auto* qres = err_resp->set_query_result();
+          qres->add_batch()->set_is_last_batch(true);
+          qres->set_error(
+              "The query ended up with a response that is too big (" +
+              std::to_string(resp_size) +
+              " bytes). This usually happens when a single row is >= 256 MiB. "
+              "See also WRITE_FILE for dealing with large rows.");
+          err_resp.Send(rpc_response_fn_);
+          break;
         }
       }
       break;
@@ -393,7 +417,6 @@ void Rpc::Query(const uint8_t* args,
 Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
   protos::pbzero::QueryArgs::Decoder query(args, len);
   std::string sql = query.sql_query().ToStdString();
-  PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
                     [&](metatrace::Record* r) {
                       r->AddArg("SQL", sql);

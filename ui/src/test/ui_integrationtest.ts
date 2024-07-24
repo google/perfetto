@@ -37,10 +37,11 @@ async function getPage(): Promise<Page> {
   return pages[pages.length - 1];
 }
 
+jest.setTimeout(60000);
+
 // Executed once at the beginning of the test. Navigates to the UI.
 beforeAll(async () => {
   await failIfTraceProcessorHttpdIsActive();
-  jest.setTimeout(60000);
   const page = await getPage();
   await page.setViewport({width: 1920, height: 1080});
 
@@ -52,7 +53,7 @@ beforeAll(async () => {
 // test('') name and compare the screenshot with the expected one in
 // /test/data/ui-screenshots.
 afterEach(async () => {
-  let testName = expect.getState().currentTestName;
+  let testName = assertExists(expect.getState().currentTestName);
   testName = testName.replace(/[^a-z0-9-]/gim, '_').toLowerCase();
   const page = await getPage();
 

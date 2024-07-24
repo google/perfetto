@@ -36,7 +36,7 @@ import {
 } from './query_result';
 
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
-import {Disposable} from '../base/disposable';
+
 import {Result} from '../base/utils';
 
 export interface LoadingTracker {
@@ -247,9 +247,9 @@ export abstract class EngineBase implements Engine {
           pendingComputeMetric.reject(error);
         } else {
           const result =
-            metricRes.metricsAsPrototext ||
-            metricRes.metricsAsJson ||
-            metricRes.metrics ||
+            metricRes.metricsAsPrototext ??
+            metricRes.metricsAsJson ??
+            metricRes.metrics ??
             '';
           pendingComputeMetric.resolve(result);
         }
@@ -437,7 +437,7 @@ export abstract class EngineBase implements Engine {
   enableMetatrace(categories?: MetatraceCategories) {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_ENABLE_METATRACE;
-    if (categories) {
+    if (categories !== undefined && categories !== MetatraceCategories.NONE) {
       rpc.enableMetatraceArgs = new EnableMetatraceArgs();
       rpc.enableMetatraceArgs.categories = categories;
     }
@@ -525,7 +525,7 @@ export class EngineProxy implements Engine, Disposable {
     return this.engine.id;
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this._isAlive = false;
   }
 }

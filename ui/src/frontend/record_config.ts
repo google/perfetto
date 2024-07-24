@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {runValidator, ValidationResult} from '../base/validators';
+import {exists} from '../base/utils';
 import {getDefaultRecordingTargets, RecordingTarget} from '../common/state';
 import {
   createEmptyRecordConfig,
   NamedRecordConfig,
-  namedRecordConfigValidator,
+  NAMED_RECORD_CONFIG_SCHEMA,
   RecordConfig,
-  recordConfigValidator,
+  RECORD_CONFIG_SCHEMA,
 } from '../controller/record_config_types';
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
@@ -27,7 +27,7 @@ const LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY = 'autosaveConfig';
 const LOCAL_STORAGE_RECORD_TARGET_OS_KEY = 'recordTargetOS';
 
 export class RecordConfigStore {
-  recordConfigs: Array<ValidationResult<NamedRecordConfig>>;
+  recordConfigs: Array<NamedRecordConfig>;
   recordConfigNames: Set<string>;
 
   constructor() {
@@ -39,7 +39,7 @@ export class RecordConfigStore {
   private _save() {
     window.localStorage.setItem(
       LOCAL_STORAGE_RECORD_CONFIGS_KEY,
-      JSON.stringify(this.recordConfigs.map((x) => x.result)),
+      JSON.stringify(this.recordConfigs),
     );
   }
 
@@ -48,14 +48,14 @@ export class RecordConfigStore {
     // modifications of local storage from a different tab.
     this.reloadFromLocalStorage();
 
-    const savedTitle = title ? title : new Date().toJSON();
+    const savedTitle = title ?? new Date().toJSON();
     const config: NamedRecordConfig = {
       title: savedTitle,
       config: recordConfig,
       key: new Date().toJSON(),
     };
 
-    this.recordConfigs.push({result: config, invalidKeys: [], extraKeys: []});
+    this.recordConfigs.push(config);
     this.recordConfigNames.add(savedTitle);
 
     this._save();
@@ -66,12 +66,12 @@ export class RecordConfigStore {
     // modifications of local storage from a different tab.
     this.reloadFromLocalStorage();
 
-    const found = this.recordConfigs.find((e) => e.result.key === key);
+    const found = this.recordConfigs.find((e) => e.key === key);
     if (found === undefined) {
       throw new Error('trying to overwrite non-existing config');
     }
 
-    found.result.config = recordConfig;
+    found.config = recordConfig;
 
     this._save();
   }
@@ -83,14 +83,14 @@ export class RecordConfigStore {
 
     let idx = -1;
     for (let i = 0; i < this.recordConfigs.length; ++i) {
-      if (this.recordConfigs[i].result.key === key) {
+      if (this.recordConfigs[i].key === key) {
         idx = i;
         break;
       }
     }
 
     if (idx !== -1) {
-      this.recordConfigNames.delete(this.recordConfigs[idx].result.title);
+      this.recordConfigNames.delete(this.recordConfigs[idx].title);
       this.recordConfigs.splice(idx, 1);
       this._save();
     } else {
@@ -110,13 +110,11 @@ export class RecordConfigStore {
       LOCAL_STORAGE_RECORD_CONFIGS_KEY,
     );
 
-    if (configsLocalStorage) {
+    if (exists(configsLocalStorage)) {
       this.recordConfigNames.clear();
 
       try {
-        const validConfigLocalStorage: Array<
-          ValidationResult<NamedRecordConfig>
-        > = [];
+        const validConfigLocalStorage: Array<NamedRecordConfig> = [];
         const parsedConfigsLocalStorage = JSON.parse(configsLocalStorage);
 
         // Check if it's an array.
@@ -126,19 +124,14 @@ export class RecordConfigStore {
         }
 
         for (let i = 0; i < parsedConfigsLocalStorage.length; ++i) {
-          try {
-            validConfigLocalStorage.push(
-              runValidator(
-                namedRecordConfigValidator,
-                parsedConfigsLocalStorage[i],
-              ),
-            );
-          } catch {
-            // Parsing failed with unrecoverable error (e.g. title or key are
-            // missing), ignore the result.
+          const serConfig = parsedConfigsLocalStorage[i];
+          const res = NAMED_RECORD_CONFIG_SCHEMA.safeParse(serConfig);
+          if (res.success) {
+            validConfigLocalStorage.push(res.data);
+          } else {
             console.log(
-              'Validation of saved record config has failed: ' +
-                JSON.stringify(parsedConfigsLocalStorage[i]),
+              'Validation of saved record config has failed: ',
+              res.error.toString(),
             );
           }
         }
@@ -181,8 +174,11 @@ export class AutosaveConfigStore {
     }
     const parsed = JSON.parse(savedItem);
     if (parsed !== null && typeof parsed === 'object') {
-      this.config = runValidator(recordConfigValidator, parsed).result;
-      this.hasSavedConfig = true;
+      const res = RECORD_CONFIG_SCHEMA.safeParse(parsed);
+      if (res.success) {
+        this.config = res.data;
+        this.hasSavedConfig = true;
+      }
     }
   }
 

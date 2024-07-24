@@ -16,17 +16,17 @@ import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
-import {getContainingGroupKey, getLegacySelection} from '../common/state';
+import {getContainingGroupKey} from '../common/state';
 import {TrackCacheEntry} from '../common/track_cache';
 import {TrackTags} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
-import {drawGridLines} from './gridline_helper';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {
   CrashButton,
+  drawGridLines,
   renderChips,
   renderHoveredCursorVertical,
   renderHoveredNoteVertical,
@@ -36,14 +36,19 @@ import {
 } from './track_panel';
 import {canvasClip} from '../common/canvas_utils';
 import {Button} from '../widgets/button';
+import {TrackRenderContext} from '../public/tracks';
+import {calculateResolution} from '../common/resolution';
+import {PxSpan, TimeScale} from './time_scale';
+import {exists} from '../base/utils';
 
 interface Attrs {
-  groupKey: string;
-  title: string;
-  collapsed: boolean;
-  trackFSM?: TrackCacheEntry;
-  tags?: TrackTags;
-  labels?: string[];
+  readonly groupKey: string;
+  readonly title: string;
+  readonly collapsed: boolean;
+  readonly trackFSM?: TrackCacheEntry;
+  readonly tags?: TrackTags;
+  readonly subtitle?: string;
+  readonly chips?: ReadonlyArray<string>;
 }
 
 export class TrackGroupPanel implements Panel {
@@ -56,12 +61,7 @@ export class TrackGroupPanel implements Panel {
   }
 
   render(): m.Children {
-    const {groupKey, title, labels, tags, collapsed, trackFSM} = this.attrs;
-
-    let name = title;
-    if (name[0] === '/') {
-      name = StripPathFromExecutable(name);
-    }
+    const {groupKey, title, subtitle, chips, collapsed, trackFSM} = this.attrs;
 
     // The shell should be highlighted if the current search result is inside
     // this track group.
@@ -75,28 +75,22 @@ export class TrackGroupPanel implements Panel {
       }
     }
 
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.state.selection;
 
     const trackGroup = globals.state.trackGroups[groupKey];
     let checkBox = Icons.BlankCheckbox;
-    if (selection !== null && selection.kind === 'AREA') {
-      const selectedArea = globals.state.areas[selection.areaId];
+    if (selection.kind === 'area') {
       if (
-        selectedArea.tracks.includes(groupKey) &&
-        trackGroup.tracks.every((id) => selectedArea.tracks.includes(id))
+        selection.tracks.includes(groupKey) &&
+        trackGroup.tracks.every((id) => selection.tracks.includes(id))
       ) {
         checkBox = Icons.Checkbox;
       } else if (
-        selectedArea.tracks.includes(groupKey) ||
-        trackGroup.tracks.some((id) => selectedArea.tracks.includes(id))
+        selection.tracks.includes(groupKey) ||
+        trackGroup.tracks.some((id) => selection.tracks.includes(id))
       ) {
         checkBox = Icons.IndeterminateCheckbox;
       }
-    }
-
-    let child = null;
-    if (labels && labels.length > 0) {
-      child = labels.join(', ');
     }
 
     const error = trackFSM?.getError();
@@ -128,14 +122,13 @@ export class TrackGroupPanel implements Panel {
         ),
         m(
           '.title-wrapper',
-          m('h1.track-title', {title: name}, name, renderChips(tags)),
-          collapsed && child !== null ? m('h2.track-subtitle', child) : null,
+          m('h1.track-title', {title}, title, chips && renderChips(chips)),
+          collapsed && exists(subtitle) && m('h2.track-subtitle', subtitle),
         ),
         m(
           '.track-buttons',
           error && m(CrashButton, {error}),
-          selection &&
-            selection.kind === 'AREA' &&
+          selection.kind === 'area' &&
             m(Button, {
               onclick: (e: MouseEvent) => {
                 globals.dispatch(
@@ -159,7 +152,7 @@ export class TrackGroupPanel implements Panel {
               hasError: Boolean(trackFSM.getError()),
               height: this.attrs.trackFSM?.track.getHeight(),
             },
-            !collapsed && child !== null ? m('span', child) : null,
+            !collapsed && subtitle !== null ? m('span', subtitle) : null,
           )
         : null,
     );
@@ -171,62 +164,70 @@ export class TrackGroupPanel implements Panel {
     }
   }
 
-  highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const {visibleTimeScale} = globals.timeline;
-    const selection = getLegacySelection(globals.state);
-    if (!selection || selection.kind !== 'AREA') return;
-    const selectedArea = globals.state.areas[selection.areaId];
-    const selectedAreaDuration = selectedArea.end - selectedArea.start;
-    if (selectedArea.tracks.includes(this.groupKey)) {
+  highlightIfTrackSelected(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size,
+  ) {
+    const selection = globals.state.selection;
+    if (selection.kind !== 'area') return;
+    const selectedAreaDuration = selection.end - selection.start;
+    if (selection.tracks.includes(this.groupKey)) {
       ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';
       ctx.fillRect(
-        visibleTimeScale.timeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
+        timescale.timeToPx(selection.start),
         0,
-        visibleTimeScale.durationToPx(selectedAreaDuration),
+        timescale.durationToPx(selectedAreaDuration),
         size.height,
       );
     }
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     const {collapsed, trackFSM: track} = this.attrs;
 
     if (!collapsed) return;
 
+    const trackSize = {
+      width: size.width - TRACK_SHELL_WIDTH,
+      height: size.height,
+    };
+
     ctx.save();
-    canvasClip(
-      ctx,
-      TRACK_SHELL_WIDTH,
-      0,
-      size.width - TRACK_SHELL_WIDTH,
-      size.height,
+    ctx.translate(TRACK_SHELL_WIDTH, 0);
+    canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
+
+    const visibleWindow = globals.timeline.visibleWindow;
+    const timespan = visibleWindow.toTimeSpan();
+    const timescale = new TimeScale(
+      visibleWindow,
+      new PxSpan(0, trackSize.width),
     );
-    drawGridLines(ctx, size.width, size.height);
+
+    drawGridLines(ctx, timespan, timescale, trackSize);
 
     if (track) {
-      ctx.save();
-      ctx.translate(TRACK_SHELL_WIDTH, 0);
-      const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
       if (!track.getError()) {
-        track.update();
-        track.track.render(ctx, trackSize);
+        const trackRenderCtx: TrackRenderContext = {
+          visibleWindow,
+          size: trackSize,
+          ctx,
+          trackKey: track.trackKey,
+          resolution: calculateResolution(visibleWindow, trackSize.width),
+          timescale,
+        };
+        track.render(trackRenderCtx);
       }
-      ctx.restore();
     }
 
-    this.highlightIfTrackSelected(ctx, size);
+    this.highlightIfTrackSelected(ctx, timescale, size);
 
-    const {visibleTimeScale} = globals.timeline;
     // Draw vertical line when hovering on the notes panel.
-    renderHoveredNoteVertical(ctx, visibleTimeScale, size);
-    renderHoveredCursorVertical(ctx, visibleTimeScale, size);
-    renderWakeupVertical(ctx, visibleTimeScale, size);
-    renderNoteVerticals(ctx, visibleTimeScale, size);
+    renderHoveredNoteVertical(ctx, timescale, size);
+    renderHoveredCursorVertical(ctx, timescale, size);
+    renderWakeupVertical(ctx, timescale, size);
+    renderNoteVerticals(ctx, timescale, size);
 
     ctx.restore();
   }
-}
-
-function StripPathFromExecutable(path: string) {
-  return path.split('/').slice(-1)[0];
 }

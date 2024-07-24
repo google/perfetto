@@ -1,0 +1,14 @@
+This directory contains "widgets" -- standalone reusable components. 
+
+`sql` subdirectory contains "SQL widgets", which are responsible for fetching
+the necessary data from the trace processor in addition to displaying it.
+
+The current split between `ui/src/widgets` and `ui/src/frontend/widgets` (this
+directory) is semi-arbitrary:
+- `ui/src/widgets` contains low-level primitives (button, menu, etc) which
+  depend only on //base.
+- `ui/src/frontend/widgets` doesn't have dependency restrictions and contains
+  higher-level primitives (e.g. SQL table viewer)
+
+Both of these directories will be merged into one once the layering is sorted
+out.

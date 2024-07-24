@@ -77,6 +77,20 @@ class PerfettoSqlParser {
     SqlSource create_view_sql;
     std::vector<sql_argument::ArgumentDefinition> schema;
   };
+  // Indicates that the specified SQL was a CREATE PERFETTO INDEX statement
+  // with the following parameters.
+  struct CreateIndex {
+    bool replace = false;
+    std::string name;
+    std::string table_name;
+    std::vector<std::string> col_names;
+  };
+  // Indicates that the specified SQL was a DROP PERFETTO INDEX statement
+  // with the following parameters.
+  struct DropIndex {
+    std::string name;
+    std::string table_name;
+  };
   // Indicates that the specified SQL was a INCLUDE PERFETTO MODULE statement
   // with the following parameter.
   struct Include {
@@ -91,12 +105,14 @@ class PerfettoSqlParser {
     SqlSource returns;
     SqlSource sql;
   };
-  using Statement = std::variant<SqliteSql,
-                                 CreateFunction,
+  using Statement = std::variant<CreateFunction,
+                                 CreateIndex,
+                                 CreateMacro,
                                  CreateTable,
                                  CreateView,
+                                 DropIndex,
                                  Include,
-                                 CreateMacro>;
+                                 SqliteSql>;
 
   // Creates a new SQL parser with the a block of PerfettoSQL statements.
   // Concretely, the passed string can contain >1 statement.
@@ -161,6 +177,11 @@ class PerfettoSqlParser {
   bool ParseIncludePerfettoModule(SqliteTokenizer::Token first_non_space_token);
 
   bool ParseCreatePerfettoMacro(bool replace);
+
+  bool ParseCreatePerfettoIndex(bool replace,
+                                SqliteTokenizer::Token first_non_space_token);
+
+  bool ParseDropPerfettoIndex(SqliteTokenizer::Token first_non_space_token);
 
   // Convert a "raw" argument (i.e. one that points to specific tokens) to the
   // argument definition consumed by the rest of the SQL code.

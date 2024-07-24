@@ -72,6 +72,15 @@ class TraceRedactor {
     return ptr;
   }
 
+  struct Config {
+    // Controls whether or not the verify primitive is added to the pipeline.
+    // This should always be enabled unless you know that your test content
+    // fails verification.
+    bool verify = true;
+  };
+
+  static std::unique_ptr<TraceRedactor> CreateInstance(const Config& config);
+
  private:
   // Run all collectors on a packet because moving to the next package.
   //

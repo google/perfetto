@@ -91,15 +91,15 @@ class RedactSchedSwitchIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+    trace_redactor_.emplace_collect<FindPackageUid>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
 
     auto* redact_sched_events =
-        trace_redactor()->emplace_transform<RedactSchedEvents>();
+        trace_redactor_.emplace_transform<RedactSchedEvents>();
     redact_sched_events->emplace_modifier<ClearComms>();
-    redact_sched_events->emplace_filter<AllowAll>();
+    redact_sched_events->emplace_waking_filter<AllowAll>();
 
-    context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
+    context_.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
   }
 
   std::unordered_map<int32_t, std::string> expected_names_ = {
@@ -115,10 +115,13 @@ class RedactSchedSwitchIntegrationTest
       {7947, "Thread-7"},        {7948, "FMOD mixer thre"},
       {7950, "UnityGfxDeviceW"}, {7969, "UnityGfxDeviceW"},
   };
+
+  Context context_;
+  TraceRedactor trace_redactor_;
 };
 
 TEST_F(RedactSchedSwitchIntegrationTest, ClearsNonTargetSwitchComms) {
-  auto result = Redact();
+  auto result = Redact(trace_redactor_, &context_);
   ASSERT_OK(result) << result.c_message();
 
   auto original = LoadOriginal();

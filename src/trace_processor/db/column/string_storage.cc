@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_set>
@@ -254,6 +255,10 @@ SearchValidationResult StringStorage::ChainImpl::ValidateSearchConstraints(
   // Type checks.
   switch (val.type) {
     case SqlValue::kNull:
+      if (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull) {
+        return SearchValidationResult::kNoData;
+      }
+      break;
     case SqlValue::kString:
       break;
     case SqlValue::kLong:
@@ -530,55 +535,53 @@ Range StringStorage::ChainImpl::BinarySearchIntrinsic(
   PERFETTO_FATAL("For GCC");
 }
 
-void StringStorage::ChainImpl::StableSort(SortToken* start,
-                                          SortToken* end,
+void StringStorage::ChainImpl::StableSort(Token* start,
+                                          Token* end,
                                           SortDirection direction) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "StringStorage::ChainImpl::StableSort");
   switch (direction) {
     case SortDirection::kAscending: {
-      std::stable_sort(start, end,
-                       [this](const SortToken& lhs, const SortToken& rhs) {
-                         // If RHS is NULL, we know that LHS is not less than
-                         // NULL, as nothing is less then null. This check is
-                         // only required to keep the stability of the sort.
-                         if ((*data_)[rhs.index] == StringPool::Id::Null()) {
-                           return false;
-                         }
+      std::stable_sort(start, end, [this](const Token& lhs, const Token& rhs) {
+        // If RHS is NULL, we know that LHS is not less than
+        // NULL, as nothing is less then null. This check is
+        // only required to keep the stability of the sort.
+        if ((*data_)[rhs.index] == StringPool::Id::Null()) {
+          return false;
+        }
 
-                         // If LHS is NULL, it will always be smaller than any
-                         // RHS value.
-                         if ((*data_)[lhs.index] == StringPool::Id::Null()) {
-                           return true;
-                         }
+        // If LHS is NULL, it will always be smaller than any
+        // RHS value.
+        if ((*data_)[lhs.index] == StringPool::Id::Null()) {
+          return true;
+        }
 
-                         // If neither LHS or RHS are NULL, we have to simply
-                         // check which string is smaller.
-                         return string_pool_->Get((*data_)[lhs.index]) <
-                                string_pool_->Get((*data_)[rhs.index]);
-                       });
+        // If neither LHS or RHS are NULL, we have to simply
+        // check which string is smaller.
+        return string_pool_->Get((*data_)[lhs.index]) <
+               string_pool_->Get((*data_)[rhs.index]);
+      });
       return;
     }
     case SortDirection::kDescending: {
-      std::stable_sort(start, end,
-                       [this](const SortToken& lhs, const SortToken& rhs) {
-                         // If LHS is NULL, we know that it's not greater than
-                         // any RHS. This check is only required to keep the
-                         // stability of the sort.
-                         if ((*data_)[lhs.index] == StringPool::Id::Null()) {
-                           return false;
-                         }
+      std::stable_sort(start, end, [this](const Token& lhs, const Token& rhs) {
+        // If LHS is NULL, we know that it's not greater than
+        // any RHS. This check is only required to keep the
+        // stability of the sort.
+        if ((*data_)[lhs.index] == StringPool::Id::Null()) {
+          return false;
+        }
 
-                         // If RHS is NULL, everything will be greater from it.
-                         if ((*data_)[rhs.index] == StringPool::Id::Null()) {
-                           return true;
-                         }
+        // If RHS is NULL, everything will be greater from it.
+        if ((*data_)[rhs.index] == StringPool::Id::Null()) {
+          return true;
+        }
 
-                         // If neither LHS or RHS are NULL, we have to simply
-                         // check which string is smaller.
-                         return string_pool_->Get((*data_)[lhs.index]) >
-                                string_pool_->Get((*data_)[rhs.index]);
-                       });
+        // If neither LHS or RHS are NULL, we have to simply
+        // check which string is smaller.
+        return string_pool_->Get((*data_)[lhs.index]) >
+               string_pool_->Get((*data_)[rhs.index]);
+      });
       return;
     }
   }
@@ -625,6 +628,12 @@ std::optional<Token> StringStorage::ChainImpl::MinElement(
   }
 
   return *tok;
+}
+
+std::unique_ptr<DataLayer> StringStorage::ChainImpl::Flatten(
+    std::vector<uint32_t>&) const {
+  return std::unique_ptr<DataLayer>(
+      new StringStorage(string_pool_, data_, is_sorted_));
 }
 
 SqlValue StringStorage::ChainImpl::Get_AvoidUsingBecauseSlow(

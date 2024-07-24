@@ -26,11 +26,11 @@
 // and the rollup bundler in --watch mode. Any other attempt, leads to O(10s)
 // incremental-build times.
 // This script allows mixing build tools that support --watch mode (tsc and
-// rollup) and auto-triggering-on-file-change rules via node-watch.
+// rollup) and auto-triggering-on-file-change rules via fs.watch.
 // When invoked without any argument (e.g., for production builds), this script
 // just runs all the build tasks serially. It doesn't to do any mtime-based
 // check, it always re-runs all the tasks.
-// When invoked with --watch, it mounts a pipeline of tasks based on node-watch
+// When invoked with --watch, it mounts a pipeline of tasks based on fs.watch
 // and runs them together with tsc --watch and rollup --watch.
 // The output directory structure is carefully crafted so that any change to UI
 // sources causes cascading triggers of the next steps.
@@ -71,7 +71,6 @@ const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const fswatch = require('node-watch');  // Like fs.watch(), but works on Linux.
 const pjoin = path.join;
 
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
@@ -79,6 +78,7 @@ const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
 const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
 
 const cfg = {
+  minifyJs: '',
   watch: false,
   verbose: false,
   debug: false,
@@ -140,6 +140,10 @@ const subprocesses = [];
 async function main() {
   const parser = new argparse.ArgumentParser();
   parser.add_argument('--out', {help: 'Output directory'});
+  parser.add_argument('--minify-js', {
+    help: 'Minify js files',
+    choices: ['preserve_comments', 'all'],
+  });
   parser.add_argument('--watch', '-w', {action: 'store_true'});
   parser.add_argument('--serve', '-s', {action: 'store_true'});
   parser.add_argument('--serve-host', {help: '--serve bind host'});
@@ -181,6 +185,9 @@ async function main() {
   cfg.openPerfettoTrace = !!args.open_perfetto_trace;
   cfg.startHttpServer = args.serve;
   cfg.noOverrideGnArgs = !!args.no_override_gn_args;
+  if (args.minify_js) {
+    cfg.minifyJs = args.minify_js;
+  }
   if (args.bigtrace) {
     cfg.outBigtraceDistDir = ensureDir(pjoin(cfg.outDistDir, 'bigtrace'));
   }
@@ -402,14 +409,7 @@ function compileScss() {
 function compileProtos() {
   const dstJs = pjoin(cfg.outGenDir, 'protos.js');
   const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
-  // We've ended up pulling in all the protos (via trace.proto,
-  // trace_packet.proto) below which means |dstJs| ends up being
-  // 23k lines/12mb. We should probably not do that.
-  // TODO(hjd): Figure out how to use lazy with pbjs/pbts.
   const inputs = [
-    'protos/perfetto/common/trace_stats.proto',
-    'protos/perfetto/common/tracing_service_capabilities.proto',
-    'protos/perfetto/config/perfetto_config.proto',
     'protos/perfetto/ipc/consumer_port.proto',
     'protos/perfetto/ipc/wire_protocol.proto',
     'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
@@ -540,6 +540,9 @@ function bundleJs(cfgName) {
   }
   if (cfg.openPerfettoTrace) {
     args.push('--environment', 'ENABLE_OPEN_PERFETTO_TRACE:true');
+  }
+  if (cfg.minifyJs) {
+    args.push('--environment', `MINIFY_JS:${cfg.minifyJs}`);
   }
   args.push(...(cfg.verbose ? [] : ['--silent']));
   if (cfg.watch) {
@@ -737,7 +740,8 @@ function scanDir(dir, regex) {
   const absDir = path.isAbsolute(dir) ? dir : pjoin(ROOT_DIR, dir);
   // Add a fs watch if in watch mode.
   if (cfg.watch) {
-    fswatch(absDir, {recursive: true}, (_eventType, filePath) => {
+    fs.watch(absDir, {recursive: true}, (_eventType, relFilePath) => {
+      const filePath = pjoin(absDir, relFilePath);
       if (!filterFn(filePath)) return;
       if (cfg.verbose) {
         console.log('File change detected', _eventType, filePath);

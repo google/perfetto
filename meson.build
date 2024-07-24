@@ -19,7 +19,6 @@
 project(
     'perfetto',
     ['cpp'],
-    default_options: ['cpp_std=c++17']
 )
 
 fs = import('fs')
@@ -41,6 +40,7 @@ lib_perfetto = static_library(
     sources: 'sdk/perfetto.cc',
     dependencies: deps_perfetto,
     install: true,
+    cpp_args: '-std=c++17',
 )
 
 inc_perfetto = include_directories('sdk')

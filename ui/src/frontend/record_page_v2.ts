@@ -75,7 +75,7 @@ export interface TargetSelectionOptions {
 function isChromeTargetInfo(
   targetInfo: TargetInfo,
 ): targetInfo is ChromeTargetInfo {
-  return ['CHROME', 'CHROME_OS'].includes(targetInfo.targetType);
+  return ['CHROME', 'CHROME_OS', 'WINDOWS'].includes(targetInfo.targetType);
 }
 
 function RecordHeader() {
@@ -185,9 +185,7 @@ function Instructions(cssClass: string) {
       ? m(
           'button.permalinkconfig',
           {
-            onclick: () => {
-              createPermalink({isRecordingConfig: true});
-            },
+            onclick: () => createPermalink({mode: 'RECORDING_OPTS'}),
           },
           'Share recording settings',
         )
@@ -501,7 +499,7 @@ function recordMenu(routePage: string) {
   // possible for the target to be undefined here.
   const targetType = assertExists(controller.getTargetInfo()).targetType;
   const probes = [];
-  if (targetType === 'CHROME_OS' || targetType === 'LINUX') {
+  if (targetType === 'LINUX') {
     probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
   } else if (targetType === 'WINDOWS') {
     probes.push(chromeProbe, etwProbe);

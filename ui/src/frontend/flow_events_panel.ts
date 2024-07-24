@@ -139,8 +139,8 @@ export class FlowEventsPanel implements m.ClassComponent {
       ];
 
       if (haveCategories) {
-        data.push(m('td.flow-info', flow.category || '-'));
-        data.push(m('td.flow-info', flow.name || '-'));
+        data.push(m('td.flow-info', flow.category ?? '-'));
+        data.push(m('td.flow-info', flow.name ?? '-'));
       }
 
       rows.push(m('tr', data));
@@ -155,8 +155,8 @@ export class FlowEventsPanel implements m.ClassComponent {
 
 export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
   view() {
-    const selection = getLegacySelection(globals.state);
-    if (!selection || selection.kind !== 'AREA') {
+    const selection = globals.state.selection;
+    if (selection.kind !== 'area') {
       return;
     }
 

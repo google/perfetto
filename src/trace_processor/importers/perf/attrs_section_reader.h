@@ -17,6 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_ATTRS_SECTION_READER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_ATTRS_SECTION_READER_H_
 
+#include <cstddef>
+#include <utility>
+
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/perf_file.h"

@@ -94,7 +94,8 @@ class GlobalArgsTracker {
 
   explicit GlobalArgsTracker(TraceStorage* storage);
 
-  // Assumes that the interval [begin, end) of |args| is sorted by keys.
+  // Assumes that the interval [begin, end) of |args| has args with the same key
+  // grouped together.
   ArgSetId AddArgSet(const Arg* args, uint32_t begin, uint32_t end) {
     base::SmallVector<uint32_t, 64> valid_indexes;
 

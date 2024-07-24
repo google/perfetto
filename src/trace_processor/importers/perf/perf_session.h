@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -48,7 +49,7 @@ class PerfSession : public RefCounted {
     explicit Builder(TraceProcessorContext* context) : context_(context) {}
     base::StatusOr<RefPtr<PerfSession>> Build();
     Builder& AddAttrAndIds(perf_event_attr attr, std::vector<uint64_t> ids) {
-      attr_with_ids_.push_back({std::move(attr), std::move(ids)});
+      attr_with_ids_.push_back({attr, std::move(ids)});
       return *this;
     }
 
@@ -57,7 +58,6 @@ class PerfSession : public RefCounted {
       perf_event_attr attr;
       std::vector<uint64_t> ids;
     };
-
     TraceProcessorContext* const context_;
     std::vector<PerfEventAttrWithIds> attr_with_ids_;
   };
@@ -66,9 +66,9 @@ class PerfSession : public RefCounted {
     return perf_session_id_;
   }
 
-  RefPtr<const PerfEventAttr> FindAttrForEventId(uint64_t id) const;
+  RefPtr<PerfEventAttr> FindAttrForEventId(uint64_t id) const;
 
-  base::StatusOr<RefPtr<const PerfEventAttr>> FindAttrForRecord(
+  base::StatusOr<RefPtr<PerfEventAttr>> FindAttrForRecord(
       const perf_event_header& header,
       const TraceBlobView& payload) const;
 
@@ -79,6 +79,15 @@ class PerfSession : public RefCounted {
   void AddBuildId(int32_t pid, std::string filename, BuildId build_id);
   std::optional<BuildId> LookupBuildId(uint32_t pid,
                                        const std::string& filename) const;
+
+  // The kernel stores the return address for non leaf frames in call chains.
+  // Simpleperf accounts for this when writing perf data files, linux perf does
+  // not. This method returns true if we need to convert return addresses to
+  // call sites when parsing call chains (i.e. if the trace comes from linux
+  // perf).
+  bool needs_pc_adjustment() const { return is_simpleperf_ == false; }
+
+  void SetIsSimpleperf() { is_simpleperf_ = true; }
 
  private:
   struct BuildIdMapKey {
@@ -117,6 +126,8 @@ class PerfSession : public RefCounted {
   // associated). This makes the attr lookup given a record trivial and not
   // dependant no having any id field in the records.
   bool has_single_perf_event_attr_;
+
+  bool is_simpleperf_ = false;
 
   base::FlatHashMap<BuildIdMapKey, BuildId, BuildIdMapKey::Hasher> build_ids_;
 };

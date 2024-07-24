@@ -14,20 +14,19 @@
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {addDebugSliceTrack} from '../../public';
-import {Engine} from '../../trace_processor/engine';
 
 class AndroidNetwork implements Plugin {
   // Adds a debug track using the provided query and given columns. The columns
   // must be start with ts, dur, and a name column. The name column and all
   // following columns are shown as arguments in slice details.
   async addSimpleTrack(
-    engine: Engine,
+    ctx: PluginContextTrace,
     trackName: string,
     tableOrQuery: string,
     columns: string[],
   ): Promise<void> {
     await addDebugSliceTrack(
-      engine,
+      ctx,
       {
         sqlSource: `SELECT ${columns.join(',')} FROM ${tableOrQuery}`,
         columns: columns,
@@ -50,7 +49,7 @@ class AndroidNetwork implements Plugin {
 
         await ctx.engine.query(`SELECT IMPORT('android.battery_stats');`);
         await this.addSimpleTrack(
-          ctx.engine,
+          ctx,
           track,
           `(SELECT *
             FROM android_battery_stats_event_slices
@@ -89,8 +88,8 @@ class AndroidNetwork implements Plugin {
         // The first group column is used for the slice name.
         const groupCols = groupby.replaceAll(' ', '').split(',');
         await this.addSimpleTrack(
-          ctx.engine,
-          trackName || 'Network Activity',
+          ctx,
+          trackName ?? 'Network Activity',
           `android_network_activity_${suffix}`,
           ['ts', 'dur', ...groupCols, 'packet_length', 'packet_count'],
         );

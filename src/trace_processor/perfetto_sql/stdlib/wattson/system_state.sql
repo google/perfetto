@@ -13,46 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE time.conversion;
-INCLUDE PERFETTO MODULE wattson.arm_dsu;
-INCLUDE PERFETTO MODULE wattson.cpu_freq;
-INCLUDE PERFETTO MODULE wattson.cpu_idle;
-
--- Combines idle and freq tables of all CPUs to create system state.
-CREATE VIRTUAL TABLE _idle_freq_slice
-USING
-  SPAN_OUTER_JOIN(_cpu_freq_all, _cpu_idle_all);
-
--- get suspend resume state as logged by ftrace.
-CREATE PERFETTO TABLE _suspend_slice
-AS
-SELECT
-  ts, dur, TRUE AS suspended
-FROM slice
-WHERE name GLOB "timekeeping_freeze(0)";
-
--- Combine suspend information with CPU idle and frequency system states.
-CREATE VIRTUAL TABLE _idle_freq_suspend_slice
-USING
-  SPAN_OUTER_JOIN(_idle_freq_slice, _suspend_slice);
-
--- Add extra column indicating that idle and frequency info are present before
--- SPAN_OUTER_JOIN with the DSU PMU counters.
-CREATE PERFETTO TABLE _idle_freq_filtered
-AS
-SELECT *, TRUE AS has_idle_freq
-FROM _idle_freq_suspend_slice
-WHERE freq_0 GLOB '*[0-9]*';
-
--- Combine system state so that it has idle, freq, and L3 hit info.
-CREATE VIRTUAL TABLE _idle_freq_l3_hit_slice
-USING
-  SPAN_OUTER_JOIN(_idle_freq_filtered, _arm_l3_hit_rate);
-
--- Combine system state so that it has idle, freq, L3 hit, and L3 miss info.
-CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice
-USING
-  SPAN_OUTER_JOIN(_idle_freq_l3_hit_slice, _arm_l3_miss_rate);
+INCLUDE PERFETTO MODULE wattson.cpu_split;
 
 -- The final system state for the CPU subsystem, which has all the information
 -- needed by Wattson to estimate energy for the CPU subsystem.
@@ -125,5 +86,5 @@ SELECT
   IFNULL(suspended, FALSE) as suspended
 FROM _idle_freq_l3_hit_l3_miss_slice
 -- Needs to be at least 1us to reduce inconsequential rows.
-WHERE dur > time_from_us(1) and has_idle_freq IS NOT NULL;
+WHERE dur > time_from_us(1);
 

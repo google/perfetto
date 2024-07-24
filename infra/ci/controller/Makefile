@@ -15,12 +15,15 @@
 
 include $(shell python3 ../config.py makefile)
 
-test: lib/.stamp config.py common_utils.py
-	GOOGLE_APPLICATION_CREDENTIALS=../test-credentials.json \
-		python3 `which dev_appserver.py` app.yaml --dev_appserver_log_level ${LOGLEVEL}
+.EXPORT_ALL_VARIABLES:
+GOOGLE_CLOUD_PROJECT=${PROJECT}
 
-deploy: lib/.stamp config.py common_utils.py
-	gcloud app deploy -q app.yaml queue.yaml cron.yaml \
+test: config.py common_utils.py
+	gcloud auth application-default login --impersonate-service-account perfetto-ci@appspot.gserviceaccount.com
+	python3 `which dev_appserver.py` app.yaml --support_datastore_emulator=False --log_level ${LOGLEVEL}
+
+deploy: config.py common_utils.py
+	gcloud app deploy -q app.yaml cron.yaml \
 		--project ${PROJECT} \
 		-v ${GAE_VERSION} \
 		--stop-previous-version
@@ -29,11 +32,6 @@ stop:
 		gcloud app instances delete \
 		$(shell gcloud app instances list --project ${PROJECT} -v ${GAE_VERSION} -s default | tail -n1 | awk '{print $$3}') \
 		--project ${PROJECT} -v ${GAE_VERSION} -s default -q
-
-lib/.stamp:
-	echo "If this fails run sudo apt install python-pip"
-	python2.7 -m pip install -t lib/ rsa==4.0 oauth2client==4.1.3 httplib2==0.20.4
-	touch $@
 
 config.py: ../config.py
 	cp ../$@ $@

@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {Disposable} from '../base/disposable';
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {QueryResponse, runQuery} from '../common/queries';
@@ -92,7 +91,7 @@ class QueryInput implements m.ClassComponent {
 
   onremove(): void {
     if (this.resize) {
-      this.resize.dispose();
+      this.resize[Symbol.dispose]();
       this.resize = undefined;
     }
   }

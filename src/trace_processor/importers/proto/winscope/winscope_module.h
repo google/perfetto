@@ -21,6 +21,7 @@
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/winscope/android_input_event_parser.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_parser.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
@@ -53,6 +54,7 @@ class WinscopeModule : public ProtoImporterModule {
   void ParseViewCaptureData(int64_t timestamp,
                             protozero::ConstBytes blob,
                             PacketSequenceStateGeneration* sequence_state);
+  void ParseWindowManagerData(int64_t timestamp, protozero::ConstBytes blob);
 
   static constexpr auto* kInputMethodClientsProtoName =
       ".perfetto.protos.InputMethodClientsTraceProto";
@@ -61,6 +63,8 @@ class WinscopeModule : public ProtoImporterModule {
   static constexpr auto* kInputMethodServiceProtoName =
       ".perfetto.protos.InputMethodServiceTraceProto";
   static constexpr auto* kViewCaptureProtoName = ".perfetto.protos.ViewCapture";
+  static constexpr auto* kWindowManagerProtoName =
+      ".perfetto.protos.WindowManagerTraceEntry";
 
   TraceProcessorContext* const context_;
   DescriptorPool pool_;
@@ -70,6 +74,7 @@ class WinscopeModule : public ProtoImporterModule {
   SurfaceFlingerTransactionsParser surfaceflinger_transactions_parser_;
   ShellTransitionsParser shell_transitions_parser_;
   ProtoLogParser protolog_parser_;
+  AndroidInputEventParser android_input_event_parser_;
 };
 
 }  // namespace trace_processor

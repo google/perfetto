@@ -152,8 +152,10 @@ void BM_Shlib_TeDisabled(benchmark::State& state) {
 
 void BM_Shlib_TeBasic(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"));
@@ -163,8 +165,10 @@ void BM_Shlib_TeBasic(benchmark::State& state) {
 
 void BM_Shlib_TeBasicNoIntern(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
@@ -175,8 +179,10 @@ void BM_Shlib_TeBasicNoIntern(benchmark::State& state) {
 
 void BM_Shlib_TeDebugAnnotations(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
@@ -185,10 +191,32 @@ void BM_Shlib_TeDebugAnnotations(benchmark::State& state) {
   }
 }
 
+void BM_Shlib_TeCustomProto(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(
+        benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
+        PERFETTO_TE_PROTO_FIELDS(PERFETTO_TE_PROTO_FIELD_NESTED(
+            perfetto_protos_TrackEvent_debug_annotations_field_number,
+            PERFETTO_TE_PROTO_FIELD_CSTR(
+                perfetto_protos_DebugAnnotation_name_field_number, "value"),
+            PERFETTO_TE_PROTO_FIELD_VARINT(
+                perfetto_protos_DebugAnnotation_uint_value_field_number, 42))));
+    benchmark::ClobberMemory();
+  }
+}
+
 void BM_Shlib_TeLlBasic(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -239,8 +267,10 @@ void BM_Shlib_TeLlBasic(benchmark::State& state) {
 
 void BM_Shlib_TeLlBasicNoIntern(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -288,8 +318,10 @@ void BM_Shlib_TeLlBasicNoIntern(benchmark::State& state) {
 
 void BM_Shlib_TeLlDebugAnnotations(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -349,6 +381,68 @@ void BM_Shlib_TeLlDebugAnnotations(benchmark::State& state) {
   }
 }
 
+void BM_Shlib_TeLlCustomProto(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  while (state.KeepRunning()) {
+    if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
+            benchmark_cat.enabled, PERFETTO_MEMORY_ORDER_RELAXED))) {
+      struct PerfettoTeTimestamp timestamp = PerfettoTeGetTimestamp();
+      int32_t type = PERFETTO_TE_TYPE_SLICE_BEGIN;
+      const char* name = "Event";
+      for (struct PerfettoTeLlIterator ctx =
+               PerfettoTeLlBeginSlowPath(&benchmark_cat, timestamp);
+           ctx.impl.ds.tracer != nullptr;
+           PerfettoTeLlNext(&benchmark_cat, timestamp, &ctx)) {
+        uint64_t name_iid;
+        {
+          struct PerfettoDsRootTracePacket trace_packet;
+          PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+          PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
+          perfetto_protos_TracePacket_set_sequence_flags(
+              &trace_packet.msg,
+              perfetto_protos_TracePacket_SEQ_NEEDS_INCREMENTAL_STATE);
+          {
+            struct PerfettoTeLlInternContext intern_ctx;
+            PerfettoTeLlInternContextInit(&intern_ctx, ctx.impl.incr,
+                                          &trace_packet.msg);
+            PerfettoTeLlInternRegisteredCat(&intern_ctx, &benchmark_cat);
+            name_iid = PerfettoTeLlInternEventName(&intern_ctx, name);
+            PerfettoTeLlInternContextDestroy(&intern_ctx);
+          }
+          {
+            struct perfetto_protos_TrackEvent te_msg;
+            perfetto_protos_TracePacket_begin_track_event(&trace_packet.msg,
+                                                          &te_msg);
+            perfetto_protos_TrackEvent_set_type(
+                &te_msg,
+                static_cast<enum perfetto_protos_TrackEvent_Type>(type));
+            PerfettoTeLlWriteRegisteredCat(&te_msg, &benchmark_cat);
+            PerfettoTeLlWriteInternedEventName(&te_msg, name_iid);
+            {
+              struct perfetto_protos_DebugAnnotation dbg_arg;
+              perfetto_protos_TrackEvent_begin_debug_annotations(&te_msg,
+                                                                 &dbg_arg);
+              perfetto_protos_DebugAnnotation_set_cstr_name(&dbg_arg, "value");
+              perfetto_protos_DebugAnnotation_set_uint_value(&dbg_arg, 42);
+              perfetto_protos_TrackEvent_end_debug_annotations(&te_msg,
+                                                               &dbg_arg);
+            }
+            perfetto_protos_TracePacket_end_track_event(&trace_packet.msg,
+                                                        &te_msg);
+          }
+          PerfettoTeLlPacketEnd(&ctx, &trace_packet);
+        }
+      }
+    }
+    benchmark::ClobberMemory();
+  }
+}
+
 }  // namespace
 
 BENCHMARK(BM_Shlib_DataSource_Disabled);
@@ -357,6 +451,8 @@ BENCHMARK(BM_Shlib_TeDisabled);
 BENCHMARK(BM_Shlib_TeBasic);
 BENCHMARK(BM_Shlib_TeBasicNoIntern);
 BENCHMARK(BM_Shlib_TeDebugAnnotations);
+BENCHMARK(BM_Shlib_TeCustomProto);
 BENCHMARK(BM_Shlib_TeLlBasic);
 BENCHMARK(BM_Shlib_TeLlBasicNoIntern);
 BENCHMARK(BM_Shlib_TeLlDebugAnnotations);
+BENCHMARK(BM_Shlib_TeLlCustomProto);

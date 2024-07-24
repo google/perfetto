@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {LONG, LONG_NULL, NUM} from '../../public';
 import {
   BaseCounterTrack,
   BaseCounterTrackArgs,
 } from '../../frontend/base_counter_track';
+import {TrackMouseEvent} from '../../public/tracks';
 
 interface TraceProcessorCounterTrackArgs extends BaseCounterTrackArgs {
   trackId: number;
@@ -37,12 +36,17 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
   }
 
   getSqlSource() {
-    return `select ts, value from ${this.rootTable} where track_id = ${this.trackId}`;
+    return `
+      select
+        ts,
+        value
+      from ${this.rootTable}
+      where track_id = ${this.trackId}
+    `;
   }
 
-  onMouseClick({x}: {x: number}): boolean {
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(x).toTime('floor');
+  onMouseClick({x, timescale}: TrackMouseEvent): boolean {
+    const time = timescale.pxToHpTime(x).toTime('floor');
 
     const query = `
       select
@@ -74,23 +78,8 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
       if (!it.valid()) {
         return;
       }
-      const trackKey = this.trackKey;
       const id = it.id;
-      const leftTs = Time.fromRaw(it.leftTs);
-
-      // TODO(stevegolton): Don't try to guess times and durations here, make it
-      // obvious to the user that this counter sample has no duration as it's
-      // the last one in the series
-      const rightTs = Time.fromRaw(it.rightTs ?? leftTs);
-
-      globals.makeSelection(
-        Actions.selectCounter({
-          leftTs,
-          rightTs,
-          id,
-          trackKey,
-        }),
-      );
+      globals.selectSingleEvent(this.trackKey, id);
     });
 
     return true;

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trash} from '../base/disposable';
+import {DisposableStack} from '../base/disposable_stack';
 import * as Geometry from '../base/geom';
 
 export interface VirtualScrollHelperOpts {
@@ -30,7 +30,7 @@ export interface Data {
 }
 
 export class VirtualScrollHelper {
-  private readonly _trash = new Trash();
+  private readonly _trash = new DisposableStack();
   private readonly _data: Data[] = [];
 
   constructor(
@@ -51,7 +51,7 @@ export class VirtualScrollHelper {
     containerElement.addEventListener('scroll', recalculateRects, {
       passive: true,
     });
-    this._trash.addCallback(() =>
+    this._trash.defer(() =>
       containerElement.removeEventListener('scroll', recalculateRects),
     );
 
@@ -62,12 +62,12 @@ export class VirtualScrollHelper {
 
     resizeObserver.observe(containerElement);
     resizeObserver.observe(sliderElement);
-    this._trash.addCallback(() => {
+    this._trash.defer(() => {
       resizeObserver.disconnect();
     });
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this._trash.dispose();
   }
 }

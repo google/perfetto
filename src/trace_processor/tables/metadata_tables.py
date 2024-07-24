@@ -200,6 +200,7 @@ CPU_TABLE = Table(
         C('cluster_id', CppUint32()),
         C('processor', CppString()),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('capacity', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -217,6 +218,13 @@ the same cluster''',
             'machine_id':
                 '''
                   Machine identifier, non-null for CPUs on a remote machine.
+                ''',
+            'capacity':
+                '''
+                  Capacity of a CPU of a device, a metric which indicates the
+                  relative performance of a CPU on a device
+                  For details see: 
+                  https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
                 ''',
         }))
 
@@ -435,6 +443,37 @@ otherwise.''',
                 ''',
         }))
 
+TRACE_FILE_TABLE = Table(
+    python_module=__file__,
+    class_name='TraceFileTable',
+    sql_name='__intrinsic_trace_file',
+    columns=[
+        C('parent_id', CppOptional(CppSelfTableId())),
+        C('name', CppOptional(CppString())),
+        C('size', CppInt64()),
+        C('trace_type', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Metadata related to the trace file parsed. Note the order in which
+            the files appear in this table corresponds to the order in which
+            they are read and sent to the tokenization stage.
+        ''',
+        group='Misc',
+        columns={
+            'parent_id':
+                '''
+                  Parent file. E.g. files contained in a zip file will point to
+                  the zip file.
+                ''',
+            'name':
+                '''File name, if known, NULL otherwise''',
+            'size':
+                '''Size in bytes''',
+            'trace_type':
+                '''Trace type''',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
@@ -443,10 +482,11 @@ ALL_TABLES = [
     CPU_TABLE,
     EXP_MISSING_CHROME_PROC_TABLE,
     FILEDESCRIPTOR_TABLE,
+    FTRACE_EVENT_TABLE,
+    MACHINE_TABLE,
     METADATA_TABLE,
     PROCESS_TABLE,
     RAW_TABLE,
     THREAD_TABLE,
-    FTRACE_EVENT_TABLE,
-    MACHINE_TABLE,
+    TRACE_FILE_TABLE,
 ]

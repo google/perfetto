@@ -307,25 +307,9 @@ export function currentDateHourAndMinute(): string {
     .substr(0, 10)}-${date.getHours()}-${date.getMinutes()}`;
 }
 
-// Create a Time value from an arbitrary SQL value.
-
-// Represents a half-open interval of time in the form [start, end).
-// E.g. interval contains all time values which are >= start and < end.
-export interface Span<TimeT, DurationT = TimeT> {
-  get start(): TimeT;
-  get end(): TimeT;
-  get duration(): DurationT;
-  get midpoint(): TimeT;
-  contains(span: TimeT | Span<TimeT, DurationT>): boolean;
-  intersectsInterval(span: Span<TimeT, DurationT>): boolean;
-  intersects(a: TimeT, b: TimeT): boolean;
-  equals(span: Span<TimeT, DurationT>): boolean;
-  add(offset: DurationT): Span<TimeT, DurationT>;
-  pad(padding: DurationT): Span<TimeT, DurationT>;
-}
-
-export class TimeSpan implements Span<time, duration> {
+export class TimeSpan {
   static readonly ZERO = new TimeSpan(Time.ZERO, Time.ZERO);
+
   readonly start: time;
   readonly end: time;
 
@@ -350,31 +334,27 @@ export class TimeSpan implements Span<time, duration> {
     return Time.fromRaw((this.start + this.end) / 2n);
   }
 
-  contains(x: time | Span<time, duration>): boolean {
-    if (typeof x === 'bigint') {
-      return this.start <= x && x < this.end;
-    } else {
-      return this.start <= x.start && x.end <= this.end;
-    }
+  contains(t: time): boolean {
+    return this.start <= t && t < this.end;
   }
 
-  intersectsInterval(span: Span<time, duration>): boolean {
-    return !(span.end <= this.start || span.start >= this.end);
+  containsSpan(start: time, end: time): boolean {
+    return this.start <= start && end <= this.end;
   }
 
-  intersects(start: time, end: time): boolean {
+  overlaps(start: time, end: time): boolean {
     return !(end <= this.start || start >= this.end);
   }
 
-  equals(span: Span<time, duration>): boolean {
+  equals(span: TimeSpan): boolean {
     return this.start === span.start && this.end === span.end;
   }
 
-  add(x: duration): Span<time, duration> {
+  translate(x: duration): TimeSpan {
     return new TimeSpan(Time.add(this.start, x), Time.add(this.end, x));
   }
 
-  pad(padding: duration): Span<time, duration> {
+  pad(padding: duration): TimeSpan {
     return new TimeSpan(
       Time.sub(this.start, padding),
       Time.add(this.end, padding),

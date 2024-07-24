@@ -17,13 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_
 
+#include <memory>
+
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/util/trace_type.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -33,17 +34,19 @@ class ForwardingTraceParser : public ChunkedTraceReader {
   ~ForwardingTraceParser() override;
 
   // ChunkedTraceReader implementation
-  util::Status Parse(TraceBlobView) override;
+  base::Status Parse(TraceBlobView) override;
   void NotifyEndOfFile() override;
+
+  TraceType trace_type() const { return trace_type_; }
 
  private:
   base::Status Init(const TraceBlobView&);
   void UpdateSorterForTraceType(TraceType trace_type);
   TraceProcessorContext* const context_;
   std::unique_ptr<ChunkedTraceReader> reader_;
+  TraceType trace_type_ = kUnknownTraceType;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_

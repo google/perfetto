@@ -16,6 +16,10 @@ import("../../../../../gn/perfetto_cc_proto_descriptor.gni")
 
 source_set("full") {
   sources = [
+    "android_input_event_parser.cc",
+    "android_input_event_parser.h",
+    "protolog_message_decoder.cc",
+    "protolog_message_decoder.h",
     "protolog_messages_tracker.cc",
     "protolog_messages_tracker.h",
     "protolog_parser.cc",

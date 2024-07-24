@@ -11,10 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {
-  HighPrecisionTime,
-  HighPrecisionTimeSpan,
-} from '../../common/high_precision_time';
+import {HighPrecisionTime} from '../../common/high_precision_time';
+import {HighPrecisionTimeSpan} from '../../common/high_precision_time_span';
 import {raf} from '../../core/raf_scheduler';
 import {globals} from '../globals';
 import {TimeScale} from '../time_scale';
@@ -27,8 +25,11 @@ export abstract class DragStrategy {
   abstract onDragStart(x: number): void;
 
   protected updateGlobals(tStart: HighPrecisionTime, tEnd: HighPrecisionTime) {
-    const vizTime = new HighPrecisionTimeSpan(tStart, tEnd);
-    globals.timeline.updateVisibleTime(vizTime);
+    const vizTime = new HighPrecisionTimeSpan(
+      tStart,
+      tEnd.sub(tStart).toNumber(),
+    );
+    globals.timeline.updateVisibleTimeHP(vizTime);
     raf.scheduleRedraw();
   }
 }

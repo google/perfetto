@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
@@ -28,6 +29,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class AndroidLogEventParser;
 class ArgsTracker;
 class ArgsTranslationTable;
 class AsyncTrackSetTracker;
@@ -61,6 +63,7 @@ class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
 class StackProfileTracker;
+class TraceFileTracker;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
@@ -91,7 +94,10 @@ class TraceProcessorContext {
 
   std::unique_ptr<TraceReaderRegistry> reader_registry;
 
-  std::unique_ptr<ChunkedTraceReader> chunk_reader;
+  // We might create multiple `ChunkedTraceReader` instances (e.g. one for each
+  // file in a ZIP ). The instances are kept around here as some tokenizers
+  // might keep state that is later needed after sorting.
+  std::vector<std::unique_ptr<ChunkedTraceReader>> chunk_readers;
 
   // The sorter is used to sort trace data by timestamp and is shared among
   // multiple machines.
@@ -121,6 +127,7 @@ class TraceProcessorContext {
   std::unique_ptr<StackProfileTracker> stack_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
   std::unique_ptr<CpuTracker> cpu_tracker;
+  std::unique_ptr<TraceFileTracker> trace_file_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -146,6 +153,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> v8_tracker;                // V8Tracker
   std::unique_ptr<Destructible> jit_tracker;               // JitTracker
   std::unique_ptr<Destructible> perf_dso_tracker;          // DsoTracker
+  std::unique_ptr<Destructible> protolog_message_decoder;  // ProtoLogMessageDecoder
   // clang-format on
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;
@@ -156,6 +164,7 @@ class TraceProcessorContext {
   std::unique_ptr<JsonTraceParser> json_trace_parser;
   std::unique_ptr<FuchsiaRecordParser> fuchsia_record_parser;
   std::unique_ptr<PerfRecordParser> perf_record_parser;
+  std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.
@@ -176,8 +185,6 @@ class TraceProcessorContext {
   // If the uuid was NOT read, the uuid will be made from the hash of the first
   // 4KB of the trace.
   bool uuid_found_in_trace = false;
-
-  TraceType trace_type = kUnknownTraceType;
 
   std::optional<MachineId> machine_id() const;
 

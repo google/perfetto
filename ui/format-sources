@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+# Copyright (C) 2024 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import argparse
+import os
+import sys
+import subprocess
+
+UI_DIR = os.path.abspath(os.path.dirname(__file__))
+ROOT_DIR = os.path.dirname(UI_DIR)
+PRETTIER_PATH = os.path.join(ROOT_DIR, 'ui/node_modules/.bin/prettier')
+ESLINT_PATH = os.path.join(ROOT_DIR, 'ui/node_modules/.bin/eslint')
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--check-only', action='store_true')
+  parser.add_argument('--no-prettier', action='store_true')
+  parser.add_argument('--no-eslint', action='store_true')
+  parser.add_argument(
+      '--all',
+      action='store_true',
+      help='Prettify all .ts sources, not just the changed ones')
+  parser.add_argument('filelist', nargs='*')
+  args = parser.parse_args()
+
+  # We want to execute all the commands relative to UI_DIR, because eslint looks
+  # for eslintrc in cwd. However, the user might pass paths that are relative to
+  # the current cwd, which might be != UI_DIR.
+  # So before running chdir relativize all the passed paths to UI_DIR
+  filelist = [
+      os.path.relpath(os.path.abspath(x), UI_DIR) for x in args.filelist
+  ]
+  os.chdir(UI_DIR)
+
+  # Need to add 'node' to the search path.
+  os.environ['PATH'] += os.pathsep + os.path.join(ROOT_DIR, 'tools')
+
+  if not os.path.exists(PRETTIER_PATH):
+    print('Cannot find %s' % PRETTIER_PATH)
+    print('Run tools/install-build-deps --ui')
+    return 1
+
+  with open('.prettierignore', 'r') as f:
+    ignorelist = set(f.read().strip().split('\n'))
+
+  all_files = set()
+  for root, _dirs, files in os.walk('src'):
+    if root in ignorelist:
+      continue
+    for file in files:
+      file_path = os.path.join(root, file)
+      if os.path.splitext(file)[1].lower() in ['.ts', '.js', '.scss']:
+        all_files.add(file_path)
+
+  files_to_check = []
+  git_cmd = []
+  if args.all:
+    files_to_check = list(all_files)
+  elif filelist:
+    files_to_check = filelist
+  else:
+    upstream_branch = get_upstream_branch()
+    git_cmd = ['git', 'diff', '--name-only', upstream_branch]
+    git_output = subprocess.check_output(git_cmd, text=True).strip()
+    changed_files = set(git_output.split('\n') if git_output else [])
+    changed_files = [os.path.relpath(x, 'ui') for x in changed_files]
+    files_to_check = all_files.intersection(changed_files)
+
+  prettier_args = ['--log-level=warn']
+  eslint_args = []
+  if args.check_only:
+    prettier_args += ['--check']
+  else:
+    eslint_args += ['--fix']
+    prettier_args += ['--write']
+
+  if len(files_to_check) == 0:
+    if not args.check_only:
+      # Be quiet when invoked by git cl presubmit.
+      print('No changed files detected by `%s`' % ' '.join(git_cmd))
+      print('Pass --all to prettify all ts/js/scss files in the repo')
+    return 0
+
+  # Run prettier first
+  if not args.no_prettier:
+    print('Running prettier on %d files' % len(files_to_check))
+    call_or_die([PRETTIER_PATH] + prettier_args + list(files_to_check))
+
+  # Then run eslint (but not on .scss)
+  if not args.no_eslint:
+    ts_js_only = lambda f: f.endswith('.ts') or f.endswith('.js')
+    files_to_check = list(filter(ts_js_only, files_to_check))
+    if len(files_to_check) > 0:
+      print('Running eslint on %d files' % len(files_to_check))
+      call_or_die([ESLINT_PATH] + eslint_args + files_to_check)
+
+
+# Like subprocess.check_call, but in case of errors dies without printing a
+# useless stacktrace that just muddies the stdout.
+def call_or_die(cmd):
+  try:
+    subprocess.check_call(cmd)
+  except subprocess.CalledProcessError as ex:
+    print('`%s` returned %d' % (' '.join(cmd)[:128], ex.returncode))
+    sys.exit(ex.returncode)
+
+
+def get_upstream_branch():
+  try:
+    cmd = ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']
+    res = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+    return res.strip()
+  except subprocess.CalledProcessError:
+    return 'origin/main'
+
+
+if __name__ == '__main__':
+  sys.exit(main())

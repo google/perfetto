@@ -37,6 +37,7 @@ using CreateTable = PerfettoSqlParser::CreateTable;
 using CreateView = PerfettoSqlParser::CreateView;
 using Include = PerfettoSqlParser::Include;
 using CreateMacro = PerfettoSqlParser::CreateMacro;
+using CreateIndex = PerfettoSqlParser::CreateIndex;
 
 namespace {
 

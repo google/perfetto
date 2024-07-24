@@ -148,10 +148,10 @@ void ArrangementOverlay::ChainImpl::IndexSearchValidated(
   return inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-void ArrangementOverlay::ChainImpl::StableSort(SortToken* start,
-                                               SortToken* end,
+void ArrangementOverlay::ChainImpl::StableSort(Token* start,
+                                               Token* end,
                                                SortDirection direction) const {
-  for (SortToken* it = start; it != end; ++it) {
+  for (Token* it = start; it != end; ++it) {
     it->index = (*arrangement_)[it->index];
   }
   inner_->StableSort(start, end, direction);
@@ -203,6 +203,14 @@ std::optional<Token> ArrangementOverlay::ChainImpl::MinElement(
                       ? arrangement_state_
                       : Indices::State::kNonmonotonic;
   return inner_->MinElement(indices);
+}
+
+std::unique_ptr<DataLayer> ArrangementOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    i = (*arrangement_)[i];
+  }
+  return inner_->Flatten(indices);
 }
 
 SqlValue ArrangementOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(

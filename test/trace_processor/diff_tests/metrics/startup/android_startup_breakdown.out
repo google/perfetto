@@ -1,6 +1,6 @@
 android_startup {
   startup {
-    startup_id: 1
+    startup_id: 0
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     zygote_new_process: true
@@ -69,11 +69,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
       pid: 3
     }
     activities {
@@ -122,6 +117,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: NO_BASELINE_OR_CLOUD_PROFILES
       reason: "No baseline or cloud profiles"
+      severity: ERROR
       expected_value {
         value: 0
         unit: TRUE_OR_FALSE
@@ -130,10 +126,17 @@ android_startup {
         value: 1
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 204000000000
+        end_timestamp: 205000000000
+        slice_id: 13
+        slice_name: "location=/system/framework/oat/arm/com.google.android.calendar.odex status=up-to-date filter=speed reason=install-dm"
+      }
     }
     slow_start_reason_with_details {
       reason_id: RUN_FROM_APK
       reason: "Optimized artifacts missing, run from apk"
+      severity: ERROR
       expected_value {
         value: 0
         unit: TRUE_OR_FALSE
@@ -142,10 +145,17 @@ android_startup {
         value: 1
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 200000000000
+        end_timestamp: 202000000000
+        slice_id: 12
+        slice_name: "location=error status=io-error-no-oat filter=run-from-apk reason=unknown"
+      }
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_BIND_APPLICATION
       reason: "Time spent in bindApplication"
+      severity: WARNING
       expected_value {
         value: 1250000000
         unit: NS
@@ -155,10 +165,17 @@ android_startup {
         value: 2000000000
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 185000000000
+        end_timestamp: 187000000000
+        slice_id: 4
+        slice_name: "bindApplication"
+      }
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_VIEW_INFLATION
       reason: "Time spent in view inflation"
+      severity: WARNING
       expected_value {
         value: 450000000
         unit: NS
@@ -168,10 +185,23 @@ android_startup {
         value: 2000000000
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 188000000000
+        end_timestamp: 189000000000
+        slice_id: 6
+        slice_name: "inflate"
+      }
+      trace_slice_sections {
+        start_timestamp: 191000000000
+        end_timestamp: 192000000000
+        slice_id: 8
+        slice_name: "inflate"
+      }
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES
       reason: "Time spent in ResourcesManager#getResources"
+      severity: WARNING
       expected_value {
         value: 130000000
         unit: NS
@@ -181,10 +211,17 @@ android_startup {
         value: 1000000000
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 188000000000
+        end_timestamp: 189000000000
+        slice_id: 7
+        slice_name: "ResourcesManager#getResources"
+      }
     }
     slow_start_reason_with_details {
       reason_id: POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS
       reason: "Potential CPU contention with another process"
+      severity: WARNING
       expected_value {
         value: 100000000
         unit: NS
@@ -194,6 +231,12 @@ android_startup {
         value: 5000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 205000000000
+        end_timestamp: 210000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     startup_type: "cold"
   }

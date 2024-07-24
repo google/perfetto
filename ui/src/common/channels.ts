@@ -24,7 +24,7 @@ let nextChannel: string | undefined = undefined;
 // UI has been loaded.
 export function getCurrentChannel(): string {
   if (currentChannel === undefined) {
-    currentChannel = localStorage.getItem(CHANNEL_KEY) || DEFAULT_CHANNEL;
+    currentChannel = localStorage.getItem(CHANNEL_KEY) ?? DEFAULT_CHANNEL;
   }
   return currentChannel;
 }

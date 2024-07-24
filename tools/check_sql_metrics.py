@@ -27,12 +27,36 @@ from typing import Dict, Tuple, List
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.utils import check_banned_create_table_as
 from python.generators.sql_processing.utils import check_banned_create_view_as
 from python.generators.sql_processing.utils import check_banned_words
 from python.generators.sql_processing.utils import match_pattern
 from python.generators.sql_processing.utils import DROP_TABLE_VIEW_PATTERN
 from python.generators.sql_processing.utils import CREATE_TABLE_VIEW_PATTERN
+from python.generators.sql_processing.utils import CREATE_TABLE_AS_PATTERN
+
+
+def check_if_create_table_allowlisted(
+    sql: str, filename: str, stdlib_path: str,
+    allowlist: Dict[str, List[str]]) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
+    name = matches[0]
+    # Normalize paths before checking presence in the allowlist so it will
+    # work on Windows for the Chrome stdlib presubmit.
+    allowlist_normpath = dict(
+        (os.path.normpath(path), tables) for path, tables in allowlist.items())
+    allowlist_key = os.path.normpath(filename[len(stdlib_path):])
+    if allowlist_key not in allowlist_normpath:
+      errors.append(f"CREATE TABLE '{name}' is deprecated. "
+                    "Use CREATE PERFETTO TABLE instead.\n"
+                    f"Offending file: {filename}\n")
+      continue
+    if name not in allowlist_normpath[allowlist_key]:
+      errors.append(
+          f"Table '{name}' uses CREATE TABLE which is deprecated "
+          "and this table is not allowlisted. Use CREATE PERFETTO TABLE.\n"
+          f"Offending file: {filename}\n")
+  return errors
 
 # Allowlist path are relative to the metrics root.
 CREATE_TABLE_ALLOWLIST = {
@@ -74,6 +98,7 @@ def match_drop_view_pattern_to_dict(sql: str,
 
 
 def check(path: str, metrics_sources: str) -> List[str]:
+  errors = []
   with open(path) as f:
     sql = f.read()
 
@@ -98,10 +123,10 @@ def check(path: str, metrics_sources: str) -> List[str]:
       sql, CREATE_TABLE_VIEW_PATTERN)
   drop_table_view_dir = match_drop_view_pattern_to_dict(
       sql, DROP_TABLE_VIEW_PATTERN)
-  errors = check_banned_create_table_as(sql,
-                                        path.split(ROOT_DIR)[1],
-                                        metrics_sources.split(ROOT_DIR)[1],
-                                        CREATE_TABLE_ALLOWLIST)
+  errors += check_if_create_table_allowlisted(
+      sql,
+      path.split(ROOT_DIR)[1],
+      metrics_sources.split(ROOT_DIR)[1], CREATE_TABLE_ALLOWLIST)
   errors += check_banned_create_view_as(sql, path.split(ROOT_DIR)[1])
   for name, [line, type] in create_table_view_dir.items():
     if name not in drop_table_view_dir:

@@ -175,7 +175,7 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
                     by Android Framework, used to track the event through the input pipeline.
                 ''',
             'ts':
-                '''The timestamp associated with the input event.''',
+                '''The timestamp of when the input event was processed by the system.''',
             'arg_set_id':
                 ColumnDoc(
                     doc='Details of the motion event parsed from the proto message.',
@@ -201,7 +201,7 @@ ANDROID_KEY_EVENTS_TABLE = Table(
                     by Android Framework, used to track the event through the input pipeline.
                 ''',
             'ts':
-                '''The timestamp associated with the input event.''',
+                '''The timestamp of when the input event was processed by the system.''',
             'arg_set_id':
                 ColumnDoc(
                     doc='Details of the key event parsed from the proto message.',
@@ -229,7 +229,7 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
             'event_id':
                 ColumnDoc(
                     doc='The id of the input event that was dispatched.',
-                    joinable='android_input_event.event_id'),
+                    joinable='__intrinsic_android_motion_events.event_id'),
             'arg_set_id':
                 ColumnDoc(
                     doc='Details of the dispatched event parsed from the proto message.',

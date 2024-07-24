@@ -27,6 +27,10 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
+import {
+  constraintsToQuerySuffix,
+  SQLConstraints,
+} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
@@ -39,7 +43,6 @@ import {
   Upid,
   Utid,
 } from '../sql_types';
-import {constraintsToQuerySuffix, SQLConstraints} from '../sql_utils';
 import {
   getProcessInfo,
   getThreadInfo,
@@ -162,8 +165,8 @@ export async function getSliceFromConstraints(
       thread !== undefined
         ? thread.process
         : upid === undefined
-        ? undefined
-        : await getProcessInfo(engine, upid);
+          ? undefined
+          : await getProcessInfo(engine, upid);
 
     result.push({
       id: asSliceSqlId(it.id),

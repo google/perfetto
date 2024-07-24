@@ -32,4 +32,8 @@ bool AllowAll::Includes(const Context&, uint64_t, int32_t) const {
   return true;
 }
 
+bool AllowAll::Includes(const Context&, protozero::Field) const {
+  return true;
+}
+
 }  // namespace perfetto::trace_redaction

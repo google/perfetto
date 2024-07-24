@@ -79,7 +79,7 @@ export class HostOsTargetFactory implements TargetFactory {
   }
 }
 
-// We instantiate the host target factory only on Mac and Linux.
+// We instantiate the host target factory only on Mac, Linux, and Windows.
 if (isMacOs(navigator.userAgent) || isLinux(navigator.userAgent)) {
   targetFactoryRegistry.register(new HostOsTargetFactory());
 }

@@ -147,7 +147,7 @@ perfetto_cc_proto_descriptor("gen_cc_winscope_descriptor") {
   descriptor_target = "../../protos/perfetto/trace/android:winscope_descriptor"
 }
 
-perfetto_unittest_source_set("unittests") {
+source_set("integrationtests") {
   testonly = true
   deps = [
     ":lib",
@@ -155,6 +155,14 @@ perfetto_unittest_source_set("unittests") {
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base:base",
+    "../../protos/third_party/pprof:cpp",
+    "../../protos/third_party/pprof:zero",
+    "../../src/base:test_support",
   ]
-  sources = [ "trace_to_text_unittest.cc" ]
+  sources = [
+    "pprof_reader.cc",
+    "pprof_reader.h",
+    "trace_to_pprof_integrationtest.cc",
+    "trace_to_text_integrationtest.cc",
+  ]
 }

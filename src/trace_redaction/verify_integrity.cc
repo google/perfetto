@@ -17,6 +17,9 @@
 
 #include "src/trace_redaction/verify_integrity.h"
 
+#include "src/trace_processor/util/status_macros.h"
+
+#include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -25,59 +28,19 @@ namespace perfetto::trace_redaction {
 
 base::Status VerifyIntegrity::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
-    Context* context) const {
+    Context*) const {
   if (!packet.has_trusted_uid()) {
     return base::ErrStatus(
         "VerifyIntegrity: missing field (TracePacket::kTrustedUid).");
   }
 
-  // Use an empty list as "trust everyone".
-  const auto& trusted_uids = context->trusted_uids;
-
-  if (!trusted_uids.empty()) {
-    auto trusted_uid = packet.trusted_uid();
-
-    if (std::find(trusted_uids.begin(), trusted_uids.end(), trusted_uid) ==
-        trusted_uids.end()) {
-      return base::ErrStatus("VerifyIntegrity: untrusted uid.");
-    }
+  if (packet.trusted_uid() > Context::kMaxTrustedUid) {
+    return base::ErrStatus("VerifyIntegrity: untrusted uid found (uid = %d).",
+                           packet.trusted_uid());
   }
 
   if (packet.has_ftrace_events()) {
-    protos::pbzero::FtraceEventBundle::Decoder ftrace_events(
-        packet.ftrace_events());
-
-    // The other clocks in ftrace are only used on very old kernel versions. No
-    // device with V should have such an old version. As a failsafe though,
-    // check that the ftrace_clock field is unset to ensure no invalid
-    // timestamps get by.
-    if (ftrace_events.has_ftrace_clock()) {
-      return base::ErrStatus(
-          "VerifyIntegrity: unexpected field "
-          "(FtraceEventBundle::kFtraceClock).");
-    }
-
-    // Every ftrace event bundle should have a CPU field. This is necessary for
-    // switch/waking redaction to work.
-    if (!ftrace_events.has_cpu()) {
-      return base::ErrStatus(
-          "VerifyIntegrity: missing field (FtraceEventBundle::kCpu).");
-    }
-
-    for (auto event_buffer = ftrace_events.event(); event_buffer;
-         ++event_buffer) {
-      protos::pbzero::FtraceEvent::Decoder event(*event_buffer);
-
-      if (!event.has_timestamp()) {
-        return base::ErrStatus(
-            "VerifyIntegrity: missing field (FtraceEvent::kTimestamp).");
-      }
-
-      if (!event.has_pid()) {
-        return base::ErrStatus(
-            "VerifyIntegrity: missing field (FtraceEvent::kPid).");
-      }
-    }
+    RETURN_IF_ERROR(OnFtraceEvents(packet.ftrace_events()));
   }
 
   // If there is a process tree, there should be a timestamp on the packet. This
@@ -96,6 +59,116 @@ base::Status VerifyIntegrity::Collect(
         "TracePacket::kTimestamp).");
   }
 
+  if (packet.has_trace_stats()) {
+    RETURN_IF_ERROR(OnTraceStats(packet.trace_stats()));
+  }
+
   return base::OkStatus();
 }
+
+base::Status VerifyIntegrity::OnFtraceEvents(
+    const protozero::ConstBytes bytes) const {
+  protos::pbzero::FtraceEventBundle::Decoder events(bytes);
+
+  // Any ftrace lost events should cause the trace to be dropped:
+  // protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
+  if (events.has_lost_events() && events.has_lost_events()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: detected FtraceEventBundle error.");
+  }
+
+  // The other clocks in ftrace are only used on very old kernel versions. No
+  // device with V should have such an old version. As a failsafe though,
+  // check that the ftrace_clock field is unset to ensure no invalid
+  // timestamps get by.
+  if (events.has_ftrace_clock()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: unexpected field (FtraceEventBundle::kFtraceClock).");
+  }
+
+  // Every ftrace event bundle should have a CPU field. This is necessary for
+  // switch/waking redaction to work.
+  if (!events.has_cpu()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: missing field (FtraceEventBundle::kCpu).");
+  }
+
+  // Any ftrace errors should cause the trace to be dropped:
+  // protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
+  if (events.has_error()) {
+    return base::ErrStatus("VerifyIntegrity: detected FtraceEvent errors.");
+  }
+
+  for (auto it = events.event(); it; ++it) {
+    RETURN_IF_ERROR(OnFtraceEvent(*it));
+  }
+
+  return base::OkStatus();
+}
+
+base::Status VerifyIntegrity::OnFtraceEvent(
+    const protozero::ConstBytes bytes) const {
+  protos::pbzero::FtraceEvent::Decoder event(bytes);
+
+  if (!event.has_timestamp()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: missing field (FtraceEvent::kTimestamp).");
+  }
+
+  if (!event.has_pid()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: missing field (FtraceEvent::kPid).");
+  }
+
+  return base::OkStatus();
+}
+
+base::Status VerifyIntegrity::OnTraceStats(
+    const protozero::ConstBytes bytes) const {
+  protos::pbzero::TraceStats::Decoder trace_stats(bytes);
+
+  if (trace_stats.has_flushes_failed() && trace_stats.flushes_failed()) {
+    return base::ErrStatus("VerifyIntegrity: detected TraceStats flush fails.");
+  }
+
+  if (trace_stats.has_final_flush_outcome() &&
+      trace_stats.final_flush_outcome() ==
+          protos::pbzero::TraceStats::FINAL_FLUSH_FAILED) {
+    return base::ErrStatus(
+        "VerifyIntegrity: TraceStats final_flush_outcome is "
+        "FINAL_FLUSH_FAILED.");
+  }
+
+  for (auto it = trace_stats.buffer_stats(); it; ++it) {
+    RETURN_IF_ERROR(OnBufferStats(*it));
+  }
+
+  return base::OkStatus();
+}
+
+base::Status VerifyIntegrity::OnBufferStats(
+    const protozero::ConstBytes bytes) const {
+  protos::pbzero::TraceStats::BufferStats::Decoder stats(bytes);
+
+  if (stats.has_patches_failed() && stats.patches_failed()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: detected BufferStats patch fails.");
+  }
+
+  if (stats.has_abi_violations() && stats.abi_violations()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: detected BufferStats abi violations.");
+  }
+
+  auto has_loss = stats.has_trace_writer_packet_loss();
+  auto value = stats.trace_writer_packet_loss();
+
+  if (has_loss && value) {
+    return base::ErrStatus(
+        "VerifyIntegrity: detected BufferStats writer packet loss.");
+  }
+
+  return base::OkStatus();
+}
+
 }  // namespace perfetto::trace_redaction

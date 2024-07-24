@@ -16,10 +16,10 @@ import {exists} from '../../base/utils';
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
 import {translateState} from '../../common/thread_state';
+import {THREAD_STATE_TRACK_KIND} from '../../core/track_kinds';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {THREAD_STATE_TRACK_KIND} from '../../core_plugins/thread_state';
 
 import {AggregationController} from './aggregation_controller';
 
@@ -33,8 +33,8 @@ export class ThreadAggregationController extends AggregationController {
       // Track will be undefined for track groups.
       if (track?.uri) {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.kind === THREAD_STATE_TRACK_KIND) {
-          exists(trackInfo.utid) && this.utids.push(trackInfo.utid);
+        if (trackInfo?.tags?.kind === THREAD_STATE_TRACK_KIND) {
+          exists(trackInfo.tags.utid) && this.utids.push(trackInfo.tags.utid);
         }
       }
     }

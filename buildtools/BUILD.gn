@@ -144,7 +144,7 @@ config("protobuf_config") {
   if (is_mac) {
     cflags += [ "-Wno-deprecated-declarations" ]
   }
-  if (!is_clang && !is_win) {  # implies gcc
+  if (is_gcc) {
     cflags += [ "-Wno-stringop-overread" ]
   }
   if (is_win) {
@@ -1492,12 +1492,18 @@ if (enable_perfetto_grpc) {
   config("grpc_absl_config") {
     visibility = _buildtools_visibility
     include_dirs = [ "grpc/src/third_party/abseil-cpp" ]
-    cflags = [ "-Wno-deprecated-builtins" ]
+    cflags = [
+      "-Wno-deprecated-builtins",
+      "-Wno-deprecated-pragma",
+    ]
   }
 
   config("grpc_boringssl_config") {
     visibility = _buildtools_visibility
     include_dirs = [ "grpc/src/third_party/boringssl-with-bazel/src/include" ]
+    if (is_gcc) {
+      cflags = [ "-Wno-stringop-overflow" ]
+    }
   }
 
   config("grpc_upb_config") {
@@ -1517,15 +1523,25 @@ if (enable_perfetto_grpc) {
   config("grpc_internal_config") {
     visibility = _buildtools_visibility
     include_dirs = [
-      "grpc/src/include",
+      "grpc/protobuf_include",
       "grpc/src",
+      "grpc/src/include",
+      "grpc/src/src/core/ext/upb-gen",
+      "grpc/src/src/core/ext/upbdefs-gen",
+      "grpc/src/third_party/abseil-cpp",
       "grpc/src/third_party/address_sorting/include",
       "grpc/src/third_party/re2",
-      "grpc/src/src/core/ext/upb-generated",
-      "grpc/src/src/core/ext/upbdefs-generated",
+      "grpc/src/third_party/upb",
+      "grpc/src/third_party/utf8_range",
       "grpc/src/third_party/xxhash",
     ]
     cflags = [ "-DGRPC_ARES=0" ]
+    if (is_gcc) {
+      cflags += [
+        "-Wno-attributes",
+        "-Wno-return-type",
+      ]
+    }
   }
 
   config("grpc_gen_config") {
@@ -1547,5 +1563,13 @@ if (enable_perfetto_grpc) {
         "-Wno-suggest-destructor-override",
       ]
     }
+  }
+
+  config("grpc_public_config") {
+    visibility = _buildtools_visibility
+    cflags = [
+      perfetto_isystem_cflag,
+      rebase_path("grpc/src/include", root_build_dir),
+    ]
   }
 }

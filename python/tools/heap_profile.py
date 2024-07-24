@@ -156,7 +156,10 @@ def print_options(parser):
 
 
 def main(argv):
-  parser = argparse.ArgumentParser()
+  parser = argparse.ArgumentParser(description="""Collect a heap profile
+
+  The PERFETTO_PROGUARD_MAP=packagename=map_filename.txt[:packagename=map_filename.txt...] environment variable can be used to pass proguard deobfuscation maps for different packages""", formatter_class=argparse.RawDescriptionHelpFormatter)
+
   parser.add_argument(
       "-i",
       "--interval",

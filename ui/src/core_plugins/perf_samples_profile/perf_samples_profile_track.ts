@@ -12,226 +12,108 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {searchSegment} from '../../base/binary_search';
-import {duration, Time, time} from '../../base/time';
-import {Actions} from '../../common/actions';
-import {ProfileType, getLegacySelection} from '../../common/state';
-import {TrackData} from '../../common/track_data';
-import {TimelineFetcher} from '../../common/track_helper';
-import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
+import {Slice} from '../../public';
+import {
+  BaseSliceTrack,
+  OnSliceClickArgs,
+} from '../../frontend/base_slice_track';
+import {NewTrackArgs} from '../../frontend/track';
+import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
+import {getColorForSlice} from '../../core/colorizer';
+import {Time} from '../../base/time';
 import {globals} from '../../frontend/globals';
-import {PanelSize} from '../../frontend/panel';
-import {TimeScale} from '../../frontend/time_scale';
-import {Engine, Track} from '../../public';
-import {LONG} from '../../trace_processor/query_result';
+import {Actions} from '../../common/actions';
+import {LegacySelection, ProfileType} from '../../core/selection_manager';
 
-export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
+abstract class BasePerfSamplesProfileTrack extends BaseSliceTrack<
+  Slice,
+  NamedRow
+> {
+  constructor(args: NewTrackArgs) {
+    super(args);
+  }
 
-export interface Data extends TrackData {
-  tsStarts: BigInt64Array;
+  protected getRowSpec(): NamedRow {
+    return NAMED_ROW;
+  }
+
+  protected rowToSlice(row: NamedRow): Slice {
+    const baseSlice = super.rowToSliceBase(row);
+    const name = row.name ?? '';
+    const colorScheme = getColorForSlice(name);
+    return {...baseSlice, title: name, colorScheme};
+  }
+
+  isSelectionHandled(selection: LegacySelection): boolean {
+    return selection.kind === 'PERF_SAMPLES';
+  }
+
+  onUpdatedSlices(slices: Slice[]) {
+    for (const slice of slices) {
+      slice.isHighlighted = slice === this.hoveredSlice;
+    }
+  }
 }
 
-const PERP_SAMPLE_COLOR = 'hsl(224, 45%, 70%)';
-
-// 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 4.5;
-const RECT_HEIGHT = 30.5;
-
-export class PerfSamplesProfileTrack implements Track {
-  private centerY = this.getHeight() / 2;
-  private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
-  private hoveredTs: time | undefined = undefined;
-  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private upid: number;
-  private engine: Engine;
-
-  constructor(engine: Engine, upid: number) {
-    this.upid = upid;
-    this.engine = engine;
+export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
+  constructor(
+    args: NewTrackArgs,
+    private upid: number,
+  ) {
+    super(args);
   }
 
-  async onUpdate(): Promise<void> {
-    await this.fetcher.requestDataForCurrentTime();
-  }
-
-  async onDestroy(): Promise<void> {
-    this.fetcher.dispose();
-  }
-
-  async onBoundsChange(
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<Data> {
-    if (this.upid === undefined) {
-      return {
-        start,
-        end,
-        resolution,
-        length: 0,
-        tsStarts: new BigInt64Array(),
-      };
-    }
-    const queryRes = await this.engine.query(`
-      select ts, upid from perf_sample
+  getSqlSource(): string {
+    return `
+      select p.id, ts, 0 as dur, 0 as depth, 'Perf Sample' as name
+      from perf_sample p
       join thread using (utid)
       where upid = ${this.upid}
-      and callsite_id is not null
-      order by ts`);
-    const numRows = queryRes.numRows();
-    const data: Data = {
-      start,
-      end,
-      resolution,
-      length: numRows,
-      tsStarts: new BigInt64Array(numRows),
-    };
-
-    const it = queryRes.iter({ts: LONG});
-    for (let row = 0; it.valid(); it.next(), row++) {
-      data.tsStarts[row] = it.ts;
-    }
-    return data;
+        and callsite_id is not null
+      order by ts
+    `;
   }
 
-  getHeight() {
-    return MARGIN_TOP + RECT_HEIGHT - 1;
-  }
-
-  render(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
-    const {visibleTimeScale} = globals.timeline;
-    const data = this.fetcher.data;
-
-    if (data === undefined) return;
-
-    for (let i = 0; i < data.tsStarts.length; i++) {
-      const centerX = Time.fromRaw(data.tsStarts[i]);
-      const selection = getLegacySelection(globals.state);
-      const isHovered = this.hoveredTs === centerX;
-      const isSelected =
-        selection !== null &&
-        selection.kind === 'PERF_SAMPLES' &&
-        selection.leftTs <= centerX &&
-        selection.rightTs >= centerX;
-      const strokeWidth = isSelected ? 3 : 0;
-      this.drawMarker(
-        ctx,
-        visibleTimeScale.timeToPx(centerX),
-        this.centerY,
-        isHovered,
-        strokeWidth,
-      );
-    }
-  }
-
-  drawMarker(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    isHovered: boolean,
-    strokeWidth: number,
-  ): void {
-    ctx.beginPath();
-    ctx.moveTo(x, y - this.markerWidth);
-    ctx.lineTo(x - this.markerWidth, y);
-    ctx.lineTo(x, y + this.markerWidth);
-    ctx.lineTo(x + this.markerWidth, y);
-    ctx.lineTo(x, y - this.markerWidth);
-    ctx.closePath();
-    ctx.fillStyle = isHovered ? FLAMEGRAPH_HOVERED_COLOR : PERP_SAMPLE_COLOR;
-    ctx.fill();
-    if (strokeWidth > 0) {
-      ctx.strokeStyle = FLAMEGRAPH_HOVERED_COLOR;
-      ctx.lineWidth = strokeWidth;
-      ctx.stroke();
-    }
-  }
-
-  onMouseMove({x, y}: {x: number; y: number}) {
-    const data = this.fetcher.data;
-    if (data === undefined) return;
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTime());
-    const index = this.findTimestampIndex(
-      left,
-      visibleTimeScale,
-      data,
-      x,
-      y,
-      right,
+  onSliceClick({slice}: OnSliceClickArgs<Slice>) {
+    globals.makeSelection(
+      Actions.selectPerfSamples({
+        id: slice.id,
+        upid: this.upid,
+        leftTs: Time.fromRaw(slice.ts),
+        rightTs: Time.fromRaw(slice.ts),
+        type: ProfileType.PERF_SAMPLE,
+      }),
     );
-    this.hoveredTs =
-      index === -1 ? undefined : Time.fromRaw(data.tsStarts[index]);
+  }
+}
+
+export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
+  constructor(
+    args: NewTrackArgs,
+    private utid: number,
+  ) {
+    super(args);
   }
 
-  onMouseOut() {
-    this.hoveredTs = undefined;
+  getSqlSource(): string {
+    return `
+      select p.id, ts, 0 as dur, 0 as depth, 'Perf Sample' as name
+      from perf_sample p
+      where utid = ${this.utid}
+        and callsite_id is not null
+      order by ts
+    `;
   }
 
-  onMouseClick({x, y}: {x: number; y: number}) {
-    const data = this.fetcher.data;
-    if (data === undefined) return false;
-    const {visibleTimeScale} = globals.timeline;
-
-    const time = visibleTimeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTime());
-
-    const index = this.findTimestampIndex(
-      left,
-      visibleTimeScale,
-      data,
-      x,
-      y,
-      right,
-    );
-
-    if (index !== -1) {
-      const ts = Time.fromRaw(data.tsStarts[index]);
-      globals.makeSelection(
-        Actions.selectPerfSamples({
-          id: index,
-          upid: this.upid,
-          leftTs: ts,
-          rightTs: ts,
-          type: ProfileType.PERF_SAMPLE,
-        }),
-      );
-      return true;
-    }
-    return false;
-  }
-
-  // If the markers overlap the rightmost one will be selected.
-  findTimestampIndex(
-    left: number,
-    timeScale: TimeScale,
-    data: Data,
-    x: number,
-    y: number,
-    right: number,
-  ): number {
-    let index = -1;
-    if (left !== -1) {
-      const start = Time.fromRaw(data.tsStarts[left]);
-      const centerX = timeScale.timeToPx(start);
-      if (this.isInMarker(x, y, centerX)) {
-        index = left;
-      }
-    }
-    if (right !== -1) {
-      const start = Time.fromRaw(data.tsStarts[right]);
-      const centerX = timeScale.timeToPx(start);
-      if (this.isInMarker(x, y, centerX)) {
-        index = right;
-      }
-    }
-    return index;
-  }
-
-  isInMarker(x: number, y: number, centerX: number) {
-    return (
-      Math.abs(x - centerX) + Math.abs(y - this.centerY) <= this.markerWidth
+  onSliceClick({slice}: OnSliceClickArgs<Slice>) {
+    globals.makeSelection(
+      Actions.selectPerfSamples({
+        id: slice.id,
+        utid: this.utid,
+        leftTs: Time.fromRaw(slice.ts),
+        rightTs: Time.fromRaw(slice.ts),
+        type: ProfileType.PERF_SAMPLE,
+      }),
     );
   }
 }

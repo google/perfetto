@@ -18,7 +18,7 @@
 
 // If you add or remove job types, do not forget to fix the colspans below.
 const JOB_TYPES = [
-  { id: 'linux-gcc7-x86_64-release', label: 'rel' },
+  { id: 'linux-gcc8-x86_64-release', label: 'rel' },
   { id: 'linux-clang-x86_64-debug', label: 'dbg' },
   { id: 'linux-clang-x86_64-tsan', label: 'tsan' },
   { id: 'linux-clang-x86_64-msan', label: 'msan' },
@@ -199,7 +199,7 @@ var CLsPageRenderer = {
                 m('td[colspan=2]', 'android'),
               ),
               m('tr',
-                m('td', 'gcc7'),
+                m('td', 'gcc8'),
                 m('td[colspan=7]', 'clang'),
                 m('td[colspan=1]', 'ui'),
                 m('td[colspan=1]', 'clang-arm'),

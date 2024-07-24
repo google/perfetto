@@ -43,7 +43,8 @@ CpuTracker::~CpuTracker() = default;
 
 tables::CpuTable::Id CpuTracker::SetCpuInfo(uint32_t cpu,
                                             base::StringView processor,
-                                            uint32_t cluster_id) {
+                                            uint32_t cluster_id,
+                                            std::optional<uint32_t> capacity) {
   auto cpu_id = GetOrCreateCpu(cpu);
 
   auto cpu_row = context_->storage->mutable_cpu_table()->FindById(cpu_id);
@@ -54,7 +55,9 @@ tables::CpuTable::Id CpuTracker::SetCpuInfo(uint32_t cpu,
     cpu_row->set_processor(string_id);
   }
   cpu_row->set_cluster_id(cluster_id);
-
+  if (capacity) {
+    cpu_row->set_capacity(*capacity);
+  }
   return cpu_id;
 }
 

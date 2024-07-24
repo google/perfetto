@@ -18,6 +18,7 @@ import {LogFilteringCriteria, LogPanel} from './logs_panel';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {NUM} from '../../trace_processor/query_result';
 import {AndroidLogTrack} from './logs_track';
+import {exists} from '../../base/utils';
 
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
 
@@ -42,7 +43,7 @@ interface AndroidLogPluginState {
 class AndroidLog implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const store = ctx.mountStore<AndroidLogPluginState>((init) => {
-      return init && (init as {version: unknown}).version === VERSION
+      return exists(init) && (init as {version: unknown}).version === VERSION
         ? (init as AndroidLogPluginState)
         : DEFAULT_STATE;
     });
@@ -54,8 +55,8 @@ class AndroidLog implements Plugin {
     if (logCount > 0) {
       ctx.registerStaticTrack({
         uri: 'perfetto.AndroidLog',
-        displayName: 'Android logs',
-        kind: ANDROID_LOGS_TRACK_KIND,
+        title: 'Android logs',
+        tags: {kind: ANDROID_LOGS_TRACK_KIND},
         trackFactory: () => new AndroidLogTrack(ctx.engine),
       });
     }
