@@ -146,25 +146,43 @@ scalable.
 
 ## Opening the trace at a specific event or time
 
-Using the browser query string allows for more control over the UI after
+Using the fragment query string allows for more control over the UI after
 the trace opens. For example this URL:
 
 ```
-https://ui.perfetto.dev?visStart=261191575272856&visEnd=261191675272856
+https://ui.perfetto.dev/#!/?visStart=261191575272856&visEnd=261191675272856
 ```
 
 Will open the pushed trace at 261191575272856ns (~261192s) and the
 viewing window will be 261191675272856ns -261191575272856ns = 100ms wide.
 
-Supported parameters:
-- `ts`, `dur`, `pid`, `tid` Select and focus the slice matching these parameters. You don't have to provide all the parameters.
-- `visStart`/`visEnd` these values (in `ns` with the boottime clock) override the initial visible area of the trace.
-- `query` run the provided query on open.
+**Selecting a slice on load**:
+
+You can pass the following parameters: `ts`, `dur`, `pid`, `tid`.
+The UI will query the slice table and find a slice that matches the parameters
+passed. If a slice is found it's highlighted.
+You don't have to provide all the parameters.
+Usually `ts` and `dur` suffice to uniquely identifying a slice.
+
+We deliberately do NOT support linking by slice id. This is because slice IDs
+are not stable across perfetto versions. Instead you can link a slice by passing
+the exact start and duration (`ts` and `dur`), as you see them by issuing a
+query `SELECT ts, dur FROM slices WHERE id=...`.
+
+**Zooming into a region of the trace on load**:
+
+Pass `visStart`, `visEnd`. These values are the raw values in `ns` as seen in
+the sql tables.
+
+**Issuing a query on load**:
+
+Pass the query in the `query` parameter.
+
 
 Try the following examples:
-- [visStart & visEnd](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&visStart=261191575272856&visEnd=261191675272856)
-- [ts & dur](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&ts=261192482777530&dur=1667500)
-- [query](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&query=select%20'Hello%2C%20world!'%20as%20msg)
+- [visStart & visEnd](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&visStart=261191575272856&visEnd=261191675272856)
+- [ts & dur](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&ts=261192482777530&dur=1667500)
+- [query](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&query=select%20'Hello%2C%20world!'%20as%20msg)
 
 You must take care to correctly escape strings where needed.
 
