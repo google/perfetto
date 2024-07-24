@@ -540,11 +540,9 @@ ProtoTranslationTable::ProtoTranslationTable(
   }
 }
 
-const Event* ProtoTranslationTable::GetOrCreateEvent(
-    const GroupAndName& group_and_name) {
-  const Event* event = GetEvent(group_and_name);
-  if (event)
-    return event;
+const Event* ProtoTranslationTable::CreateEventWithProtoId(
+    const GroupAndName& group_and_name,
+    uint32_t proto_field_id) {
   // The ftrace event does not already exist so a new one will be created
   // by parsing the format file.
   std::string contents = ftrace_procfs_->ReadEventFormat(group_and_name.group(),
@@ -563,7 +561,7 @@ const Event* ProtoTranslationTable::GetOrCreateEvent(
   // Set known event variables
   Event* e = &events_.at(ftrace_event.id);
   e->ftrace_event_id = ftrace_event.id;
-  e->proto_field_id = protos::pbzero::FtraceEvent::kGenericFieldNumber;
+  e->proto_field_id = proto_field_id;
   e->name = InternString(group_and_name.name());
   e->group = InternString(group_and_name.group());
 
@@ -582,6 +580,57 @@ const Event* ProtoTranslationTable::GetOrCreateEvent(
   group_to_events_[e->group].push_back(&events_.at(e->ftrace_event_id));
 
   return e;
+}
+
+const Event* ProtoTranslationTable::GetOrCreateEvent(
+    const GroupAndName& group_and_name) {
+  const Event* event = GetEvent(group_and_name);
+  if (event)
+    return event;
+  return CreateEventWithProtoId(
+      group_and_name, protos::pbzero::FtraceEvent::kGenericFieldNumber);
+}
+
+const Event* ProtoTranslationTable::GetOrCreateKprobeEvent(
+    const GroupAndName& group_and_name) {
+  const Event* event = GetEvent(group_and_name);
+  const uint32_t proto_field_id =
+      protos::pbzero::FtraceEvent::kKprobeEventFieldNumber;
+  if (event) {
+    if (event->proto_field_id != proto_field_id) {
+      return nullptr;
+    }
+    return event;
+  }
+  return CreateEventWithProtoId(group_and_name, proto_field_id);
+}
+
+void ProtoTranslationTable::RemoveEvent(const GroupAndName& group_and_name) {
+  const std::string& group = group_and_name.group();
+  const std::string& name = group_and_name.name();
+  auto it = group_and_name_to_event_.find(group_and_name);
+  if (it == group_and_name_to_event_.end()) {
+    return;
+  }
+  Event* event = &events_[it->second->ftrace_event_id];
+  event->ftrace_event_id = 0;
+  if (auto it2 = name_to_events_.find(name); it2 != name_to_events_.end()) {
+    std::vector<const Event*>& events = it2->second;
+    events.erase(std::remove(events.begin(), events.end(), event),
+                 events.end());
+    if (events.empty()) {
+      name_to_events_.erase(it2);
+    }
+  }
+  if (auto it2 = group_to_events_.find(group); it2 != group_to_events_.end()) {
+    std::vector<const Event*>& events = it2->second;
+    events.erase(std::remove(events.begin(), events.end(), event),
+                 events.end());
+    if (events.empty()) {
+      group_to_events_.erase(it2);
+    }
+  }
+  group_and_name_to_event_.erase(it);
 }
 
 const char* ProtoTranslationTable::InternString(const std::string& str) {

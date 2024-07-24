@@ -33,3 +33,14 @@ message GenericFtraceEvent {
   optional string event_name = 1;
   repeated Field field = 2;
 }
+
+message KprobeEvent {
+  enum KprobeType {
+    KPROBE_TYPE_UNKNOWN = 0;
+    KPROBE_TYPE_BEGIN = 1;
+    KPROBE_TYPE_END = 2;
+    KPROBE_TYPE_INSTANT = 3;
+  }
+  optional string name = 1;
+  optional KprobeType type = 2;
+}

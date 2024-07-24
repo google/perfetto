@@ -21,6 +21,8 @@
 #include <optional>
 #include <set>
 
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/kernel_utils/syscall_table.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
@@ -30,6 +32,9 @@
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {
+
+constexpr std::string_view kKprobeGroup = "perfetto_kprobes";
+constexpr std::string_view kKretprobeGroup = "perfetto_kretprobes";
 
 namespace protos {
 namespace pbzero {
@@ -92,6 +97,9 @@ struct FtraceDataSourceConfig {
 
   // List of syscalls monitored to return a new filedescriptor upon success
   base::FlatSet<int64_t> syscalls_returning_fd;
+
+  // Keep track of the kprobe type for the given tracefs event id
+  base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType> kprobes;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.
@@ -220,6 +228,11 @@ class FtraceConfigMuxer {
   // atrace category -> Will add events in that category.
   std::set<GroupAndName> GetFtraceEvents(const FtraceConfig& request,
                                          const ProtoTranslationTable*);
+
+  void EnableFtraceEvent(const Event*,
+                         const GroupAndName& group_and_name,
+                         EventFilter* filter,
+                         FtraceSetupErrors* errors);
 
   // Returns true if the event filter has at least one event from group.
   bool FilterHasGroup(const EventFilter& filter, const std::string& group);

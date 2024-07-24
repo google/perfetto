@@ -104,6 +104,7 @@ namespace perfetto::trace_processor {
 
 namespace {
 
+using protos::pbzero::perfetto_pbzero_enum_KprobeEvent::KprobeType;
 using protozero::ConstBytes;
 using protozero::ProtoDecoder;
 
@@ -1322,6 +1323,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                                               fld_bytes);
         break;
       }
+      case FtraceEvent::kKprobeEventFieldNumber: {
+        ParseKprobe(ts, pid, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -1599,6 +1604,33 @@ void FtraceParser::ParseSchedSwitch(uint32_t cpu,
   FtraceSchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
       cpu, timestamp, prev_pid, ss.prev_comm(), ss.prev_prio(), ss.prev_state(),
       next_pid, ss.next_comm(), ss.next_prio());
+}
+
+void FtraceParser::ParseKprobe(int64_t timestamp,
+                               uint32_t pid,
+                               ConstBytes blob) {
+  protos::pbzero::KprobeEvent::Decoder kp(blob.data, blob.size);
+
+  auto kprobe_type = static_cast<KprobeType>(kp.type());
+  StringId name_id = context_->storage->InternString(kp.name());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  switch (kprobe_type) {
+    case KprobeType::KPROBE_TYPE_BEGIN:
+      context_->slice_tracker->Begin(timestamp, track_id,
+                                     kNullStringId /* cat */, name_id);
+      break;
+    case KprobeType::KPROBE_TYPE_END:
+      context_->slice_tracker->End(timestamp, track_id, kNullStringId /* cat */,
+                                   name_id);
+      break;
+    case KprobeType::KPROBE_TYPE_INSTANT:
+      context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
+                                      name_id, 0);
+      break;
+    case KprobeType::KPROBE_TYPE_UNKNOWN:
+      break;
+  }
 }
 
 void FtraceParser::ParseSchedWaking(int64_t timestamp,

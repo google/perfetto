@@ -48,7 +48,7 @@ class FtraceEventBundle;
 // ftrace event.
 class GroupAndName {
  public:
-  GroupAndName(const std::string& group, const std::string& name)
+  GroupAndName(std::string_view group, std::string_view name)
       : group_(group), name_(name) {}
 
   bool operator==(const GroupAndName& other) const {
@@ -162,6 +162,14 @@ class ProtoTranslationTable {
   // new event with the proto id set to generic. Virtual for testing.
   virtual const Event* GetOrCreateEvent(const GroupAndName&);
 
+  // Retrieves the ftrace event, that's going to be translated to a kprobe, from
+  // the proto translation table. If the event is already known and used for
+  // something other than a kprobe, returns nullptr.
+  virtual const Event* GetOrCreateKprobeEvent(const GroupAndName&);
+
+  // Removes the ftrace event from the proto translation table.
+  virtual void RemoveEvent(const GroupAndName&);
+
   // This is for backwards compatibility. If a group is not specified in the
   // config then the first event with that name will be returned.
   const Event* GetEventByName(const std::string& name) const {
@@ -184,6 +192,10 @@ class ProtoTranslationTable {
 
   // Store strings so they can be read when writing the trace output.
   const char* InternString(const std::string& str);
+
+  // The event must not already exist.
+  const Event* CreateEventWithProtoId(const GroupAndName& group_and_name,
+                                      uint32_t proto_field_id);
 
   uint16_t CreateGenericEventField(const FtraceEvent::Field& ftrace_field,
                                    Event& event);
