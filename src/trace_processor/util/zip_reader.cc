@@ -239,7 +239,7 @@ base::Status ZipReader::TryParseCompressedData() {
       if (!compressed) {
         return base::OkStatus();
       }
-      compressed = std::move(cur_.compressed);
+      cur_.compressed = std::move(compressed);
     }
 
     std::optional<TraceBlobView> data_descriptor =
