@@ -57,8 +57,7 @@ export class WattsonEstimateAggregationController extends AggregationController 
     let query = `
       INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
 
-      DROP TABLE IF EXISTS _ui_selection_window;
-      CREATE PERFETTO TABLE _ui_selection_window AS
+      CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
