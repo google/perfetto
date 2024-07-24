@@ -687,6 +687,7 @@ struct CommandLineOptions {
           metatrace::MetatraceCategories::QUERY_TIMELINE |
           metatrace::MetatraceCategories::API_TIMELINE);
   bool dev = false;
+  bool extra_checks = false;
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
@@ -748,6 +749,9 @@ Feature flags:
  --dev-flag KEY=VALUE                 Set a development flag to the given value.
                                       Does not have any affect unless --dev is
                                       specified.
+ --extra-checks                       Enables additional checks which can catch
+                                      more SQL errors, but which incur
+                                      additional runtime overhead.
 
 Standard library:
  --add-sql-module MODULE_PATH         Files from the directory will be treated
@@ -802,6 +806,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_ADD_SQL_MODULE,
     OPT_METRIC_EXTENSION,
     OPT_DEV,
+    OPT_EXTRA_CHECKS,
     OPT_OVERRIDE_STDLIB,
     OPT_OVERRIDE_SQL_MODULE,
     OPT_NO_FTRACE_RAW,
@@ -836,6 +841,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
        OPT_ANALYZE_TRACE_PROTO_CONTENT},
       {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
       {"dev", no_argument, nullptr, OPT_DEV},
+      {"extra-checks", no_argument, nullptr, OPT_EXTRA_CHECKS},
       {"add-sql-module", required_argument, nullptr, OPT_ADD_SQL_MODULE},
       {"override-sql-module", required_argument, nullptr,
        OPT_OVERRIDE_SQL_MODULE},
@@ -950,6 +956,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_DEV) {
       command_line_options.dev = true;
+      continue;
+    }
+
+    if (option == OPT_EXTRA_CHECKS) {
+      command_line_options.extra_checks = true;
       continue;
     }
 
@@ -1595,6 +1606,10 @@ base::Status TraceProcessorMain(int argc, char** argv) {
       }
       config.dev_flags.emplace(kv[0], kv[1]);
     }
+  }
+
+  if (options.extra_checks) {
+    config.enable_extra_checks = true;
   }
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
