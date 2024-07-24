@@ -34,6 +34,7 @@ DROP VIEW IF EXISTS wattson_estimate_output;
 CREATE PERFETTO VIEW wattson_estimate_output AS
 SELECT AndroidWattsonTimePeriodMetric(
   'metric_version', 1,
+  'period_type', 'full_trace',
   'period_info', (
     SELECT RepeatedField(
       AndroidWattsonEstimateInfo(

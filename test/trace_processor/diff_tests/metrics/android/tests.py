@@ -370,6 +370,7 @@ class AndroidMetrics(TestSuite):
         out=Csv("""
         wattson_app_startup {
           metric_version: 1
+          period_type: "app_startup"
           period_info {
             period_id: 1
             period_dur: 385136434
@@ -436,6 +437,7 @@ class AndroidMetrics(TestSuite):
         out=Csv("""
         wattson_estimate {
           metric_version: 1
+          period_type: "full_trace"
           period_info {
             period_dur: 61793018724
             rail {
