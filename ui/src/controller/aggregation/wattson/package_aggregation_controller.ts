@@ -48,11 +48,10 @@ export class WattsonPackageAggregationController extends AggregationController {
     if (selectedCpus.length === 0) return false;
 
     const duration = area.end - area.start;
-    const queryPrefix = `
+    engine.query(`
       INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
-      DROP TABLE IF EXISTS _ui_selection_window;
-      CREATE PERFETTO TABLE _ui_selection_window AS
+      CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
@@ -62,10 +61,8 @@ export class WattsonPackageAggregationController extends AggregationController {
       CREATE VIRTUAL TABLE _windowed_summary
       USING
         SPAN_JOIN(_ui_selection_window, _sched_w_thread_process_package_summary);
-    `;
-    engine.query(
-      this.getEstimatePackageQuery(queryPrefix, selectedCpus, duration),
-    );
+    `);
+    this.runEstimatePackageQuery(engine, selectedCpus, duration);
 
     return true;
   }
@@ -77,49 +74,44 @@ export class WattsonPackageAggregationController extends AggregationController {
   // 1. Window and associate package with proper Wattson estimate slice
   // 2. Group all packages over time on a per CPU basis
   // 3. Group all packages over all CPUs
-  getEstimatePackageQuery(
-    queryPrefix: string,
+  runEstimatePackageQuery(
+    engine: Engine,
     selectedCpus: number[],
     duration: bigint,
-  ): string {
-    let query = queryPrefix;
-
+  ) {
     // Estimate and total per UID per CPU
     selectedCpus.forEach((cpu) => {
-      query += `
+      engine.query(`
         -- Packages filtered by CPU
-        DROP TABLE IF EXISTS _windowed_summary_per_cpu;
-        CREATE PERFETTO TABLE _windowed_summary_per_cpu AS
+        CREATE OR REPLACE PERFETTO VIEW _windowed_summary_per_cpu${cpu} AS
         SELECT ts, dur, cpu, uid, package_name
         FROM _windowed_summary WHERE cpu = ${cpu};
 
         -- CPU specific track with slices for curves
-        DROP TABLE IF EXISTS _per_cpu_curve;
-        CREATE PERFETTO TABLE _per_cpu_curve AS
+        CREATE OR REPLACE PERFETTO VIEW _per_cpu${cpu}_curve AS
         SELECT ts, dur, cpu${cpu}_curve
         FROM _system_state_curves;
 
         -- Filter out track when threads are available
-        DROP TABLE IF EXISTS _windowed_package_curve;
-        CREATE VIRTUAL TABLE _windowed_package_curve
+        DROP TABLE IF EXISTS _windowed_package_curve${cpu};
+        CREATE VIRTUAL TABLE _windowed_package_curve${cpu}
         USING
-          SPAN_JOIN(_per_cpu_curve, _windowed_summary_per_cpu);
+          SPAN_JOIN(_per_cpu${cpu}_curve, _windowed_summary_per_cpu${cpu});
 
         -- Total estimate per UPID per CPU
-        DROP TABLE IF EXISTS _total_per_package_cpu${cpu};
-        CREATE PERFETTO TABLE _total_per_package_cpu${cpu} AS
+        CREATE OR REPLACE PERFETTO TABLE _total_per_package_cpu${cpu} AS
         SELECT
           SUM(cpu${cpu}_curve * dur) as total_pws,
           SUM(dur) as dur,
           uid,
           package_name
-        FROM _windowed_package_curve
+        FROM _windowed_package_curve${cpu}
         GROUP BY uid;
-      `;
+      `);
     });
 
     // Estimate and total per UID, removing CPU dimension
-    query += `
+    let query = `
       -- Grouped again by UID, but this time to make it CPU agnostic
       CREATE VIEW ${this.kind} AS
       WITH _unioned_per_package_per_cpu AS (
@@ -140,7 +132,9 @@ export class WattsonPackageAggregationController extends AggregationController {
       GROUP BY uid;
     `;
 
-    return query;
+    engine.query(query);
+
+    return;
   }
 
   getColumnDefinitions(): ColumnDef[] {
