@@ -29,7 +29,6 @@ const char kNoZlibErr[] =
 bool RequiresZlibSupport(TraceType type) {
   switch (type) {
     case kGzipTraceType:
-    case kAndroidBugreportTraceType:
     case kCtraceTraceType:
     case kZipFile:
       return true;
@@ -41,9 +40,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kJsonTraceType:
     case kFuchsiaTraceType:
     case kProtoTraceType:
-    case kSymbolsTraceType:
     case kAndroidLogcatTraceType:
-    case kAndroidDumpstateTraceType:
       return false;
   }
   PERFETTO_FATAL("For GCC");
@@ -62,11 +59,11 @@ TraceReaderRegistry::CreateTraceReader(TraceType type) {
   }
 
   if (RequiresZlibSupport(type) && !util::IsGzipSupported()) {
-    return base::ErrStatus("%s support is disabled. %s",
-                           TraceTypeToString(type), kNoZlibErr);
+    return base::ErrStatus("%s support is disabled. %s", ToString(type),
+                           kNoZlibErr);
   }
 
-  return base::ErrStatus("%s support is disabled", TraceTypeToString(type));
+  return base::ErrStatus("%s support is disabled", ToString(type));
 }
 
 }  // namespace perfetto::trace_processor

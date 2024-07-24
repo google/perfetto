@@ -58,6 +58,8 @@ class ZipTraceReader : public ChunkedTraceReader {
     // data needed to correctly parse other traces.
     TraceType trace_type;
     TraceBlobView uncompressed_data;
+    // True for proto trace_types whose fist message is a ModuleSymbols packet
+    bool has_symbols = false;
     // Comparator used to determine the order in which files in the ZIP will be
     // read.
     bool operator<(const Entry& rhs) const;
@@ -70,6 +72,11 @@ class ZipTraceReader : public ChunkedTraceReader {
 
   TraceProcessorContext* const context_;
   util::ZipReader zip_reader_;
+  // For every file in the ZIP we will create a `ForwardingTraceParser`instance
+  // and send that file to it for tokenization. The instances are kept around
+  // here as some tokenizers might keep state that is later needed after
+  // sorting.
+  std::vector<std::unique_ptr<ForwardingTraceParser>> parsers_;
 };
 
 }  // namespace perfetto::trace_processor

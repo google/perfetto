@@ -443,37 +443,6 @@ otherwise.''',
                 ''',
         }))
 
-TRACE_FILE_TABLE = Table(
-    python_module=__file__,
-    class_name='TraceFileTable',
-    sql_name='__intrinsic_trace_file',
-    columns=[
-        C('parent_id', CppOptional(CppSelfTableId())),
-        C('name', CppOptional(CppString())),
-        C('size', CppInt64()),
-        C('trace_type', CppString()),
-    ],
-    tabledoc=TableDoc(
-        doc='''
-            Metadata related to the trace file parsed. Note the order in which
-            the files appear in this table corresponds to the order in which
-            they are read and sent to the tokenization stage.
-        ''',
-        group='Misc',
-        columns={
-            'parent_id':
-                '''
-                  Parent file. E.g. files contained in a zip file will point to
-                  the zip file.
-                ''',
-            'name':
-                '''File name, if known, NULL otherwise''',
-            'size':
-                '''Size in bytes''',
-            'trace_type':
-                '''Trace type''',
-        }))
-
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
@@ -488,5 +457,4 @@ ALL_TABLES = [
     PROCESS_TABLE,
     RAW_TABLE,
     THREAD_TABLE,
-    TRACE_FILE_TABLE,
 ]
