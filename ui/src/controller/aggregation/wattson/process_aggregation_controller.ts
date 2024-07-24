@@ -48,11 +48,19 @@ export class WattsonProcessAggregationController extends AggregationController {
 
     const duration = area.end - area.start;
     const queryPrefix = `
+      INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+
       DROP TABLE IF EXISTS _ui_selection_window;
       CREATE PERFETTO TABLE _ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
+
+      -- Processes filtered by CPU within the UI defined time window
+      DROP TABLE IF EXISTS _windowed_summary;
+      CREATE VIRTUAL TABLE _windowed_summary
+      USING
+        SPAN_JOIN(_ui_selection_window, _sched_w_thread_process_package_summary);
     `;
     engine.query(
       this.getEstimateProcessQuery(queryPrefix, selectedCpus, duration),
@@ -78,17 +86,11 @@ export class WattsonProcessAggregationController extends AggregationController {
     // Estimate and total per UPID per CPU
     selectedCpus.forEach((cpu) => {
       query += `
-        -- Processes filtered by CPU
-        DROP TABLE IF EXISTS _per_cpu_threads;
-        CREATE PERFETTO TABLE _per_cpu_threads AS
-        SELECT ts, dur, cpu, utid
-        FROM sched WHERE cpu = ${cpu};
-
-        -- Processes filtered by CPU within the UI defined time window
-        DROP TABLE IF EXISTS _windowed_per_cpu_threads;
-        CREATE VIRTUAL TABLE _windowed_per_cpu_threads
-        USING
-          SPAN_JOIN(_ui_selection_window, _per_cpu_threads);
+        -- Packages filtered by CPU
+        DROP TABLE IF EXISTS _windowed_summary_per_cpu;
+        CREATE PERFETTO TABLE _windowed_summary_per_cpu AS
+        SELECT ts, dur, cpu, utid, upid, pid, thread_name, process_name
+        FROM _windowed_summary WHERE cpu = ${cpu};
 
         -- CPU specific track with slices for curves
         DROP TABLE IF EXISTS _per_cpu_curve;
@@ -97,9 +99,10 @@ export class WattsonProcessAggregationController extends AggregationController {
         FROM _system_state_curves;
 
         -- Filter out track when threads are available
-        DROP TABLE IF EXISTS _windowed_thread_curve;
-        CREATE VIRTUAL TABLE _windowed_thread_curve
-        USING SPAN_JOIN(_per_cpu_curve, _windowed_per_cpu_threads);
+        DROP TABLE IF EXISTS _windowed_process_curve;
+        CREATE VIRTUAL TABLE _windowed_process_curve
+        USING
+          SPAN_JOIN(_per_cpu_curve, _windowed_summary_per_cpu);
 
         -- Total estimate per UPID per CPU
         DROP TABLE IF EXISTS _total_per_process_cpu${cpu};
@@ -107,16 +110,11 @@ export class WattsonProcessAggregationController extends AggregationController {
         SELECT
           SUM(cpu${cpu}_curve * dur) as total_pws,
           SUM(dur) as dur,
-          COUNT(dur) as occurences,
-          process.upid,
-          process.pid,
-          process.name as p_name,
-          thread.name as t_name,
-          cpu
-        FROM _windowed_thread_curve as _thread_lvl
-        JOIN thread on _thread_lvl.utid = thread.utid
-        LEFT JOIN process on thread.upid = process.upid
-        GROUP BY thread.upid;
+          upid,
+          pid,
+          process_name
+        FROM _windowed_process_curve
+        GROUP BY upid;
       `;
     });
 
@@ -136,8 +134,7 @@ export class WattsonProcessAggregationController extends AggregationController {
         ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
         pid,
-        p_name,
-        t_name
+        process_name
       FROM _unioned_per_process_per_cpu
       GROUP BY upid;
     `;
@@ -151,7 +148,7 @@ export class WattsonProcessAggregationController extends AggregationController {
         title: 'Process Name',
         kind: 'STRING',
         columnConstructor: Uint16Array,
-        columnId: 'p_name',
+        columnId: 'process_name',
       },
       {
         title: 'PID',
