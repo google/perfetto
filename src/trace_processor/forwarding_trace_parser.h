@@ -37,14 +37,11 @@ class ForwardingTraceParser : public ChunkedTraceReader {
   base::Status Parse(TraceBlobView) override;
   void NotifyEndOfFile() override;
 
-  TraceType trace_type() const { return trace_type_; }
-
  private:
   base::Status Init(const TraceBlobView&);
   void UpdateSorterForTraceType(TraceType trace_type);
   TraceProcessorContext* const context_;
   std::unique_ptr<ChunkedTraceReader> reader_;
-  TraceType trace_type_ = kUnknownTraceType;
 };
 
 }  // namespace perfetto::trace_processor

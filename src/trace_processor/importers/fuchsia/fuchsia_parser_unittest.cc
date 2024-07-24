@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 
-#include <memory>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -25,7 +23,6 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -289,9 +286,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     const size_t num_bytes = trace_bytes_.size() * sizeof(uint64_t);
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[num_bytes]);
     memcpy(raw_trace.get(), trace_bytes_.data(), num_bytes);
-    context_.chunk_readers.push_back(
-        std::make_unique<FuchsiaTraceTokenizer>(&context_));
-    auto status = context_.chunk_readers.back()->Parse(TraceBlobView(
+    context_.chunk_reader.reset(new FuchsiaTraceTokenizer(&context_));
+    auto status = context_.chunk_reader->Parse(TraceBlobView(
         TraceBlob::TakeOwnership(std::move(raw_trace), num_bytes)));
 
     ResetTraceBuffers();

@@ -67,13 +67,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
       return TraceSorter::SortingMode::kFullSort;
 
     case kProtoTraceType:
-    case kSymbolsTraceType:
       return ConvertSortingMode(context.config.sorting_mode);
-
-    case kAndroidDumpstateTraceType:
-    case kAndroidBugreportTraceType:
-      PERFETTO_FATAL(
-          "This trace type should be handled at the ZipParser level");
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -88,31 +82,34 @@ ForwardingTraceParser::~ForwardingTraceParser() {}
 base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   PERFETTO_CHECK(!reader_);
 
+  TraceType trace_type;
   {
     auto scoped_trace = context_->storage->TraceExecutionTimeIntoStats(
         stats::guess_trace_type_duration_ns);
-    trace_type_ = GuessTraceType(blob.data(), blob.size());
+    trace_type = GuessTraceType(blob.data(), blob.size());
+    context_->trace_type = trace_type;
   }
-  if (trace_type_ == kUnknownTraceType) {
+
+  if (trace_type == kUnknownTraceType) {
     // If renaming this error message don't remove the "(ERR:fmt)" part.
     // The UI's error_dialog.ts uses it to make the dialog more graceful.
     return base::ErrStatus("Unknown trace type provided (ERR:fmt)");
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> reader_or =
-      context_->reader_registry->CreateTraceReader(trace_type_);
+      context_->reader_registry->CreateTraceReader(trace_type);
   if (!reader_or.ok()) {
     return reader_or.status();
   }
   reader_ = std::move(*reader_or);
 
-  PERFETTO_DLOG("%s trace detected", TraceTypeToString(trace_type_));
-  UpdateSorterForTraceType(trace_type_);
+  PERFETTO_DLOG("%s detected", ToString(trace_type));
+  UpdateSorterForTraceType(trace_type);
 
   // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
   // parsed first so that we do not get issues with
   // SetPidZeroIsUpidZeroIdleProcess()
-  if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
+  if (trace_type == kProtoTraceType || trace_type == kSystraceTraceType) {
     context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
   }
 
@@ -146,6 +143,7 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
   if (!reader_) {
     RETURN_IF_ERROR(Init(blob));
   }
+
   return reader_->Parse(std::move(blob));
 }
 
