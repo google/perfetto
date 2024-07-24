@@ -15,6 +15,9 @@
 @import "theme";
 
 .pf-tag-input {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
   font-family: $pf-font;
   font-size: inherit;
   outline: none; // Disable the default outline
@@ -35,6 +38,7 @@
     background: none;
     font-family: inherit;
     font-size: inherit;
+    flex-grow: 1;
   }
 
   i {
