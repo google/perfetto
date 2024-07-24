@@ -30,13 +30,8 @@
     display: flex;
 
     .pf-tag-input {
-      display: flex;
       flex-grow: 1;
       margin-left: 8px;
-
-      input {
-        flex-grow: 1;
-      }
     }
   }
 
