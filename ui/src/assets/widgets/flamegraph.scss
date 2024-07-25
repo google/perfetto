@@ -25,13 +25,17 @@
   }
 
   .filter-bar {
-    font-size: 1rem;
     margin: 6px 8px;
     display: flex;
+    column-gap: 8px;
+    align-items: start;
 
     .pf-tag-input {
       flex-grow: 1;
-      margin-left: 8px;
+    }
+
+    .pf-select {
+      flex-shrink: 0;
     }
   }
 
