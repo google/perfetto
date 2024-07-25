@@ -21,7 +21,7 @@ INCLUDE PERFETTO MODULE wattson.curves.utils;
 CREATE VIRTUAL TABLE _idle_freq
 USING
   SPAN_OUTER_JOIN(
-    _cpu_freq partitioned cpu, _adjusted_deep_idle partitioned cpu
+    _adjusted_cpu_freq partitioned cpu, _adjusted_deep_idle partitioned cpu
   );
 
 -- Add extra column indicating that frequency info are present

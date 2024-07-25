@@ -16,14 +16,39 @@
 INCLUDE PERFETTO MODULE linux.cpu.frequency;
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
-CREATE PERFETTO TABLE _cpu_freq AS
+CREATE PERFETTO TABLE _adjusted_cpu_freq AS
+  WITH _cpu_freq AS (
+    SELECT
+      ts,
+      dur,
+      freq,
+      cf.ucpu as cpu,
+      d_map.policy
+    FROM cpu_frequency_counters as cf
+    JOIN _dev_cpu_policy_map as d_map
+    ON cf.ucpu = d_map.cpu
+  ),
+  -- Get first freq transition per CPU
+  first_cpu_freq_slices AS (
+    SELECT ts, cpu FROM _cpu_freq
+    GROUP BY cpu
+    ORDER by ts ASC
+  )
+-- Prepend NULL slices up to first freq events on a per CPU basis
+SELECT
+  -- Construct slices from first cpu ts up to first freq event for each cpu
+  trace_start() as ts,
+  first_slices.ts - trace_start() as dur,
+  NULL as freq,
+  first_slices.cpu,
+  d_map.policy
+FROM first_cpu_freq_slices as first_slices
+JOIN _dev_cpu_policy_map as d_map ON first_slices.cpu = d_map.cpu
+UNION ALL
 SELECT
   ts,
   dur,
   freq,
-  cf.ucpu as cpu,
-  d_map.policy
-FROM cpu_frequency_counters as cf
-JOIN _dev_cpu_policy_map as d_map
-ON cf.ucpu = d_map.cpu;
-
+  cpu,
+  policy
+FROM _cpu_freq;
