@@ -90,7 +90,7 @@ export class TabPanel implements m.ClassComponent {
           key: uri,
           title: content.getTitle(),
           onClick: () => globals.dispatch(clickAction),
-          checked: isOpen !== undefined,
+          checked: isOpen,
         };
       });
 
