@@ -370,15 +370,16 @@ class AndroidMetrics(TestSuite):
         out=Csv("""
         wattson_app_startup {
           metric_version: 1
+          period_type: "app_startup"
           period_info {
             period_id: 1
             period_dur: 385136434
             rail {
               name: "cpu_subsystem"
-              estimate_mw: 4568.159180
+              estimate_mw: 4567.958180
               rail {
                 name: "DSU_SCU"
-                estimate_mw: 1142.600708
+                estimate_mw: 1142.399708
               }
               rail {
                 name: "policy0"
@@ -422,6 +423,48 @@ class AndroidMetrics(TestSuite):
                 rail {
                   name: "cpu7"
                   estimate_mw: 1082.552246
+                }
+              }
+            }
+          }
+        }
+        """))
+
+  def test_wattson_estimate_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_eos_suspend.pb'),
+        query=Metric("wattson_estimate"),
+        out=Csv("""
+        wattson_estimate {
+          metric_version: 1
+          period_type: "full_trace"
+          period_info {
+            period_dur: 61793018724
+            rail {
+              name: "cpu_subsystem"
+              estimate_mw: 42.126297
+              rail {
+                name: "DSU_SCU"
+                estimate_mw: 7.404674
+              }
+              rail {
+                name: "policy0"
+                estimate_mw: 34.721622
+                rail {
+                  name: "cpu0"
+                  estimate_mw: 10.706565
+                }
+                rail {
+                  name: "cpu1"
+                  estimate_mw: 8.314949
+                }
+                rail {
+                  name: "cpu2"
+                  estimate_mw: 7.7762628
+                }
+                rail {
+                  name: "cpu3"
+                  estimate_mw: 7.9238434
                 }
               }
             }
