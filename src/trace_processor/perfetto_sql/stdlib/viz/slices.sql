@@ -15,28 +15,28 @@
 
 INCLUDE PERFETTO MODULE graphs.scan;
 
-CREATE PERFETTO MACRO _viz_slice_self_dur(
+CREATE PERFETTO MACRO _viz_slice_ancestor_agg(
   inits TableOrSubquery
 )
 RETURNS TableOrSubquery
 AS
 (
-  SELECT id, parent_id AS parentId, name, self_dur
+  SELECT id, parent_id AS parentId, name, self_dur, self_count
   FROM _graph_aggregating_scan!(
     (
       SELECT id AS source_node_id, parent_id AS dest_node_id
       FROM slice
       WHERE parent_id IS NOT NULL
     ),
-    (SELECT id, dur, dur AS self_dur FROM $inits),
-    (dur, self_dur),
+    (SELECT id, dur, dur AS self_dur, 1 AS self_count FROM $inits),
+    (dur, self_dur, self_count),
     (
       WITH agg AS (
         SELECT t.id, sum(t.dur) AS child_dur
         FROM $table t
         GROUP BY id
       )
-      SELECT a.id, s.dur, s.dur - a.child_dur AS self_dur
+      SELECT a.id, s.dur, s.dur - a.child_dur AS self_dur, 0 AS self_count
       FROM agg a
       JOIN slice s USING (id)
     )
