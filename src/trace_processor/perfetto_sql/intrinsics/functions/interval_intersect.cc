@@ -154,9 +154,9 @@ static base::StatusOr<uint32_t> PushPartition(
     uint32_t table_idx = tables_order[i];
 
     IntervalIntersector::Mode intersection_mode =
-        partitions[table_idx]->is_nonoverlapping
-            ? IntervalIntersector::Mode::kBinarySearch
-            : IntervalIntersector::Mode::kIntervalTree;
+        IntervalIntersector::DecideMode(
+            partitions[table_idx]->is_nonoverlapping,
+            static_cast<uint32_t>(last_results.size()));
     IntervalIntersector cur_int_operator(partitions[table_idx]->intervals,
                                          intersection_mode);
     for (const auto& prev_result : last_results) {

@@ -110,6 +110,18 @@ class IntervalIntersector {
     }
   }
 
+  // Helper function to decide which intersector mode would be in given
+  // situations. Only use if the number of queries is known.
+  static Mode DecideMode(bool is_nonoverlapping, uint32_t queries_count) {
+    if (is_nonoverlapping) {
+      return kBinarySearch;
+    }
+    if (queries_count < 5) {
+      return kLinearScan;
+    }
+    return kIntervalTree;
+  }
+
  private:
   void UpdateResultVector(uint64_t s,
                           uint64_t e,
