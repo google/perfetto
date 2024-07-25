@@ -33,7 +33,7 @@
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/interval_tree.h"
+#include "src/trace_processor/containers/interval_intersector.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
@@ -314,7 +314,7 @@ struct IntervalTreeIntervalsAgg
     auto& parts = AggCtx::GetOrCreateContextForStep(ctx).partitions;
 
     // Fetch and validate the interval.
-    IntervalTree::Interval interval;
+    Interval interval;
     interval.id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
     interval.start = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
     if (interval.start < agg_ctx.max_ts) {
@@ -333,7 +333,15 @@ struct IntervalTreeIntervalsAgg
 
     // Fast path for no partitions.
     if (argc == kMinArgCount) {
-      parts.intervals[0].push_back(std::move(interval));
+      auto& part = parts.partitions_map[0];
+      part.intervals.push_back(interval);
+      if (part.is_nonoverlapping) {
+        if (interval.start < part.last_interval) {
+          part.is_nonoverlapping = false;
+        } else {
+          part.last_interval = interval.end;
+        }
+      }
       return;
     }
 
@@ -347,7 +355,7 @@ struct IntervalTreeIntervalsAgg
       agg_ctx.tmp_vals.resize(parts.partition_column_names.size());
     }
 
-    // Create a partition key.
+    // Create a partition key and save SqlValues of the partition.
     base::Hasher h;
     uint32_t j = 0;
     for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
@@ -358,12 +366,19 @@ struct IntervalTreeIntervalsAgg
     }
 
     uint64_t key = h.digest();
-    auto* part = parts.intervals.Find(key);
+    auto* part = parts.partitions_map.Find(key);
 
     // If we encountered this partition before we only have to push the interval
     // into it.
     if (part) {
-      part->push_back(interval);
+      part->intervals.push_back(interval);
+      if (part->is_nonoverlapping) {
+        if (interval.start < part->last_interval) {
+          part->is_nonoverlapping = false;
+        } else {
+          part->last_interval = interval.end;
+        }
+      }
       return;
     }
 
@@ -371,8 +386,12 @@ struct IntervalTreeIntervalsAgg
     for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
       part_values.push_back(sqlite::utils::SqliteValueToSqlValue(argv[i]));
     }
-    parts.partition_values[key] = agg_ctx.tmp_vals;
-    parts.intervals[key].push_back(interval);
+    perfetto_sql::Partition new_partition;
+    new_partition.sql_values = agg_ctx.tmp_vals;
+    new_partition.last_interval = interval.end;
+    new_partition.intervals = {interval};
+
+    parts.partitions_map[key] = std::move(new_partition);
   }
 
   static void Final(sqlite3_context* ctx) {
