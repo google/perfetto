@@ -778,21 +778,31 @@ function isIntersecting(
 function displaySize(totalSize: number, unit: string): string {
   if (unit === '') return totalSize.toLocaleString();
   if (totalSize === 0) return `0 ${unit}`;
-  const step = unit === 'B' ? 1024 : 1000;
-  const units = [
-    ['', 1],
-    [unit === 'B' ? 'Ki' : 'K', step],
-    [unit === 'B' ? 'Mi' : 'M', Math.pow(step, 2)],
-    [unit === 'B' ? 'Gi' : 'G', Math.pow(step, 3)],
-  ];
-  let unitsIndex = Math.trunc(Math.log(totalSize) / Math.log(step));
-  unitsIndex = unitsIndex > units.length - 1 ? units.length - 1 : unitsIndex;
-  const result = totalSize / +units[unitsIndex][1];
+  let step: number;
+  let units: string[];
+  switch (unit) {
+    case 'B':
+      step = 1024;
+      units = ['B', 'KiB', 'MiB', 'GiB'];
+      break;
+    case 'ns':
+      step = 1000;
+      units = ['ns', 'us', 'ms', 's'];
+      break;
+    default:
+      step = 1000;
+      units = [unit, `K${unit}`, `M${unit}`, `G${unit}`];
+      break;
+  }
+  const unitsIndex = Math.min(
+    Math.trunc(Math.log(totalSize) / Math.log(step)),
+    units.length - 1,
+  );
+  const pow = Math.pow(step, unitsIndex);
+  const result = totalSize / pow;
   const resultString =
-    totalSize % +units[unitsIndex][1] === 0
-      ? result.toString()
-      : result.toFixed(2);
-  return `${resultString} ${units[unitsIndex][0]}${unit}`;
+    totalSize % pow === 0 ? result.toString() : result.toFixed(2);
+  return `${resultString} ${units[unitsIndex]}`;
 }
 
 function normalizeFilter(filter: string): string {

@@ -28,7 +28,7 @@ AS
       FROM slice
       WHERE parent_id IS NOT NULL
     ),
-    (SELECT s.id, s.dur, s.dur AS self_dur FROM $inits),
+    (SELECT id, dur, dur AS self_dur FROM $inits),
     (dur, self_dur),
     (
       WITH agg AS (
