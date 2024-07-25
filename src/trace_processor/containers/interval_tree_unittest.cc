@@ -29,14 +29,13 @@
 
 namespace perfetto::trace_processor {
 
-inline bool operator==(const IntervalTree::Interval& a,
-                       const IntervalTree::Interval& b) {
+inline bool operator==(const Interval& a, const Interval& b) {
   return std::tie(a.start, a.end, a.id) == std::tie(b.start, b.end, b.id);
 }
 
 namespace {
 
-using Interval = IntervalTree::Interval;
+using Interval = Interval;
 using testing::IsEmpty;
 using testing::UnorderedElementsAre;
 

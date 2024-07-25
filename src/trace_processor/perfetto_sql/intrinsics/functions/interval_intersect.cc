@@ -35,7 +35,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/interval_tree.h"
+#include "src/trace_processor/containers/interval_intersector.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
@@ -58,7 +58,7 @@ static const uint32_t kArgCols = 2;
 static const uint32_t kIdCols = 5;
 static const uint32_t kPartitionColsOffset = kArgCols + kIdCols;
 
-using Intervals = std::vector<IntervalTree::Interval>;
+using Intervals = std::vector<Interval>;
 using BuilderColType = RuntimeTable::BuilderColumnType;
 
 struct MultiIndexInterval {
@@ -82,27 +82,33 @@ BuilderColType FromSqlValueTypeToBuilderType(SqlValue::Type type) {
   PERFETTO_FATAL("For gcc");
 }
 
+// Translates partitions to RuntimeTable::Builder types.
 base::StatusOr<std::vector<BuilderColType>> GetPartitionsSqlType(
-    const PartitionToValuesMap& map) {
-  auto it = map.GetIterator();
-  if (!it) {
+    const Partitions& partitions) {
+  auto partition_it = partitions.GetIterator();
+  if (!partition_it) {
     return std::vector<BuilderColType>();
   }
-  uint32_t part_count = static_cast<uint32_t>(it.value().size());
-  std::vector<BuilderColType> types(part_count, BuilderColType::kNull);
+  uint32_t p_count =
+      static_cast<uint32_t>(partition_it.value().sql_values.size());
+
+  std::vector<BuilderColType> types(p_count, BuilderColType::kNull);
   bool any_part_not_found = true;
-  for (; it; ++it) {
+  // We expect this loop to be broken very early, but it has to be implemented
+  // as loop as we can't deduce the type partition with NULL value.
+  for (; partition_it; ++partition_it) {
     any_part_not_found = false;
-    for (uint32_t i = 0; i < part_count && any_part_not_found; i++) {
+    for (uint32_t i = 0; i < p_count && any_part_not_found; i++) {
       auto type = types[i];
       if (type != BuilderColType::kNull) {
         continue;
       }
-      if (it.value()[i].is_null()) {
+      if (partition_it.value().sql_values[i].is_null()) {
         any_part_not_found = true;
         continue;
       }
-      types[i] = FromSqlValueTypeToBuilderType(it.value()[i].type);
+      types[i] = FromSqlValueTypeToBuilderType(
+          partition_it.value().sql_values[i].type);
     }
   }
   if (any_part_not_found) {
@@ -114,46 +120,52 @@ base::StatusOr<std::vector<BuilderColType>> GetPartitionsSqlType(
 
 static base::StatusOr<uint32_t> PushPartition(
     RuntimeTable::Builder& builder,
-    const std::vector<Intervals*>& table_intervals,
-    const std::vector<SqlValue>& partition_values) {
-  size_t tables_count = table_intervals.size();
+    const std::vector<Partition*>& partitions) {
+  size_t tables_count = partitions.size();
+
+  // Sort `tables_order` from the smallest to the biggest.
   std::vector<uint32_t> tables_order(tables_count);
   std::iota(tables_order.begin(), tables_order.end(), 0);
-
-  // Sort `tables_order` from the smallest to the biggest
   std::sort(tables_order.begin(), tables_order.end(),
-            [table_intervals](const uint32_t idx_a, const uint32_t idx_b) {
-              return table_intervals[idx_a]->size() <
-                     table_intervals[idx_b]->size();
+            [partitions](const uint32_t idx_a, const uint32_t idx_b) {
+              return partitions[idx_a]->intervals.size() <
+                     partitions[idx_b]->intervals.size();
             });
-  uint32_t smallest_table_idx = tables_order.front();
-  PERFETTO_DCHECK(!table_intervals[smallest_table_idx]->empty());
+  uint32_t idx_of_smallest_part = tables_order.front();
+  PERFETTO_DCHECK(!partitions[idx_of_smallest_part]->intervals.empty());
 
   // Trivially translate intervals from smallest table to `MultiIndexIntervals`.
-  std::vector<MultiIndexInterval> res;
-  res.reserve(table_intervals.back()->size());
-  for (const auto& interval : *table_intervals[smallest_table_idx]) {
+  std::vector<MultiIndexInterval> last_results;
+  last_results.reserve(partitions.back()->intervals.size());
+  for (const auto& interval : partitions[idx_of_smallest_part]->intervals) {
     MultiIndexInterval m_int;
     m_int.start = interval.start;
     m_int.end = interval.end;
     m_int.idx_in_table.resize(tables_count);
-    m_int.idx_in_table[smallest_table_idx] = interval.id;
-    res.push_back(m_int);
+    m_int.idx_in_table[idx_of_smallest_part] = interval.id;
+    last_results.push_back(m_int);
   }
 
   // Create an interval tree on all tables except the smallest - the first one.
   std::vector<MultiIndexInterval> overlaps_with_this_table;
-  overlaps_with_this_table.reserve(table_intervals.back()->size());
-  for (uint32_t i = 1; i < tables_count && !res.empty(); i++) {
+  overlaps_with_this_table.reserve(partitions.back()->intervals.size());
+  for (uint32_t i = 1; i < tables_count && !last_results.empty(); i++) {
     overlaps_with_this_table.clear();
     uint32_t table_idx = tables_order[i];
-    IntervalTree cur_tree(*table_intervals[table_idx]);
-    for (const auto& r : res) {
-      Intervals new_intervals;
-      cur_tree.FindOverlaps(r.start, r.end, new_intervals);
-      for (const auto& overlap : new_intervals) {
+
+    IntervalIntersector::Mode intersection_mode =
+        IntervalIntersector::DecideMode(
+            partitions[table_idx]->is_nonoverlapping,
+            static_cast<uint32_t>(last_results.size()));
+    IntervalIntersector cur_int_operator(partitions[table_idx]->intervals,
+                                         intersection_mode);
+    for (const auto& prev_result : last_results) {
+      Intervals new_overlaps;
+      cur_int_operator.FindOverlaps(prev_result.start, prev_result.end,
+                                    new_overlaps);
+      for (const auto& overlap : new_overlaps) {
         MultiIndexInterval m_int;
-        m_int.idx_in_table = std::move(r.idx_in_table);
+        m_int.idx_in_table = std::move(prev_result.idx_in_table);
         m_int.idx_in_table[table_idx] = overlap.id;
         m_int.start = overlap.start;
         m_int.end = overlap.end;
@@ -161,10 +173,10 @@ static base::StatusOr<uint32_t> PushPartition(
       }
     }
 
-    res = std::move(overlaps_with_this_table);
+    last_results = std::move(overlaps_with_this_table);
   }
 
-  uint32_t rows_count = static_cast<uint32_t>(res.size());
+  uint32_t rows_count = static_cast<uint32_t>(last_results.size());
   std::vector<int64_t> timestamps(rows_count);
   std::vector<int64_t> durations(rows_count);
   std::vector<std::vector<int64_t>> ids(tables_count);
@@ -173,7 +185,7 @@ static base::StatusOr<uint32_t> PushPartition(
   }
 
   for (uint32_t i = 0; i < rows_count; i++) {
-    const MultiIndexInterval& interval = res[i];
+    const MultiIndexInterval& interval = last_results[i];
     timestamps[i] = static_cast<int64_t>(interval.start);
     durations[i] = static_cast<int64_t>(interval.end) -
                    static_cast<int64_t>(interval.start);
@@ -188,8 +200,8 @@ static base::StatusOr<uint32_t> PushPartition(
     builder.AddNonNullIntegersUnchecked(i + kArgCols, ids[i]);
   }
 
-  for (uint32_t i = 0; i < partition_values.size(); i++) {
-    const SqlValue& part_val = partition_values[i];
+  for (uint32_t i = 0; i < partitions[0]->sql_values.size(); i++) {
+    const SqlValue& part_val = partitions[0]->sql_values[i];
     switch (part_val.type) {
       case SqlValue::kLong:
         RETURN_IF_ERROR(builder.AddIntegers(i + kPartitionColsOffset,
@@ -211,7 +223,7 @@ static base::StatusOr<uint32_t> PushPartition(
     }
   }
 
-  return static_cast<uint32_t>(res.size());
+  return static_cast<uint32_t>(last_results.size());
 }
 
 struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
@@ -258,7 +270,7 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
 
     // Get data from of each table.
     std::vector<PartitionedTable*> tables(tabc);
-    std::vector<PartitionToIntervalsMap*> t_intervals(tabc);
+    std::vector<Partitions*> t_partitions(tabc);
 
     for (uint32_t i = 0; i < tabc; i++) {
       tables[i] = sqlite::value::Pointer<PartitionedTable>(
@@ -266,7 +278,7 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
 
       // If any of the tables is empty the intersection with it also has to be
       // empty.
-      if (!tables[i] || tables[i]->intervals.size() == 0) {
+      if (!tables[i] || tables[i]->partitions_map.size() == 0) {
         SQLITE_ASSIGN_OR_RETURN(
             ctx, std::unique_ptr<RuntimeTable> ret_table,
             RuntimeTable::Builder(GetUserData(ctx)->pool, ret_col_names)
@@ -274,7 +286,7 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
         return sqlite::result::UniquePointer(ctx, std::move(ret_table),
                                              "TABLE");
       }
-      t_intervals[i] = &tables[i]->intervals;
+      t_partitions[i] = &tables[i]->partitions_map;
     }
 
     std::vector<BuilderColType> col_types(kArgCols + tabc,
@@ -282,7 +294,7 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
     // Add dummy id cols.
     col_types.resize(kArgCols + kIdCols, BuilderColType::kNullInt);
 
-    PartitionToValuesMap* p_values = &tables[0]->partition_values;
+    Partitions* p_values = &tables[0]->partitions_map;
     SQLITE_ASSIGN_OR_RETURN(ctx, std::vector<BuilderColType> p_types,
                             GetPartitionsSqlType(*p_values));
     col_types.insert(col_types.end(), p_types.begin(), p_types.end());
@@ -292,30 +304,29 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
 
     // Partitions will be taken from the table which has the least number of
     // them.
-    auto min_el = std::min_element(t_intervals.begin(), t_intervals.end(),
+    auto min_el = std::min_element(t_partitions.begin(), t_partitions.end(),
                                    [](const auto& t_a, const auto& t_b) {
                                      return t_a->size() < t_b->size();
                                    });
 
     auto t_least_partitions =
-        static_cast<uint32_t>(std::distance(t_intervals.begin(), min_el));
+        static_cast<uint32_t>(std::distance(t_partitions.begin(), min_el));
 
     // The only partitions we should look at are partitions from the table
     // with the least partitions.
-    const PartitionToIntervalsMap* p_intervals =
-        t_intervals[t_least_partitions];
+    const Partitions* p_intervals = t_partitions[t_least_partitions];
 
     // For each partition insert into table.
     uint32_t rows = 0;
     for (auto p_it = p_intervals->GetIterator(); p_it; ++p_it) {
-      std::vector<Intervals*> unpartitioned_intervals;
+      std::vector<Partition*> cur_partition_in_table;
       bool all_have_p = true;
 
       // From each table get all vectors of intervals.
       for (uint32_t i = 0; i < tabc; i++) {
-        PartitionToIntervalsMap* t = t_intervals[i];
+        Partitions* t = t_partitions[i];
         if (auto found = t->Find(p_it.key())) {
-          unpartitioned_intervals.push_back(found);
+          cur_partition_in_table.push_back(found);
         } else {
           all_have_p = false;
           break;
@@ -325,8 +336,7 @@ struct IntervalIntersect : public SqliteFunction<IntervalIntersect> {
       // Only push into the table if all tables have this partition present.
       if (all_have_p) {
         SQLITE_ASSIGN_OR_RETURN(ctx, uint32_t pushed_rows,
-                                PushPartition(builder, unpartitioned_intervals,
-                                              (*p_values)[p_it.key()]));
+                                PushPartition(builder, cur_partition_in_table));
         rows += pushed_rows;
       }
     }

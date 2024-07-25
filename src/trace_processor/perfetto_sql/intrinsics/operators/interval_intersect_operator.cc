@@ -132,10 +132,9 @@ base::StatusOr<Cursor::TreesMap> CreateIntervalTrees(
     }
   }
 
-  base::FlatHashMap<Cursor::TreesKey, std::vector<IntervalTree::Interval>>
-      sorted_intervals;
+  base::FlatHashMap<Cursor::TreesKey, std::vector<Interval>> sorted_intervals;
   for (Table::Iterator it = t->IterateRows(); it; ++it) {
-    IntervalTree::Interval i;
+    Interval i;
     i.start = static_cast<uint64_t>(it.Get(ts_col_idx).AsLong());
     i.end = static_cast<uint64_t>(it.Get(ts_end_col_idx).AsLong());
     i.id = static_cast<uint32_t>(it.Get(id_col_idx).AsLong());
