@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -32,21 +33,22 @@ namespace perfetto::trace_processor {
 using Ts = uint64_t;
 using Id = uint32_t;
 
+struct Interval {
+  Ts start;
+  Ts end;
+  Id id;
+};
+
 // An implementation of a centered interval tree data structure, designed to
 // efficiently find all overlap queries on a set of intervals. Centered interval
 // tree has a build complexity of O(N*logN) and a query time of O(logN + k),
 // where k is the number of overlaps in the dataset.
 class IntervalTree {
  public:
-  // Maps to one trace processor slice.
-  struct Interval {
-    Ts start;
-    Ts end;
-    Id id;
-  };
-
-  // Creates an interval tree from the vector of intervals.
+  // Creates an interval tree from the vector of intervals if needed. Otherwise
+  // copies the vector of intervals.
   explicit IntervalTree(const std::vector<Interval>& sorted_intervals) {
+    PERFETTO_CHECK(!sorted_intervals.empty());
     nodes_.reserve(sorted_intervals.size());
     Node root_node(sorted_intervals.data(), sorted_intervals.size(), nodes_);
     nodes_.emplace_back(std::move(root_node));
@@ -177,7 +179,6 @@ class IntervalTree {
   size_t root_;
   std::vector<Node> nodes_;
 };
-
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_CONTAINERS_INTERVAL_TREE_H_
