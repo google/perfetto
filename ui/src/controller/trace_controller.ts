@@ -315,46 +315,48 @@ export class TraceController extends Controller<States> {
             kind: 'counter_aggregation',
           }),
         );
-        childControllers.push(
-          Child(
-            'wattson_estimate_aggregation',
-            WattsonEstimateAggregationController,
-            {
-              engine,
-              kind: 'wattson_estimate_aggregation',
-            },
-          ),
-        );
-        childControllers.push(
-          Child(
-            'wattson_thread_aggregation',
-            WattsonThreadAggregationController,
-            {
-              engine,
-              kind: 'wattson_thread_aggregation',
-            },
-          ),
-        );
-        childControllers.push(
-          Child(
-            'wattson_process_aggregation',
-            WattsonProcessAggregationController,
-            {
-              engine,
-              kind: 'wattson_process_aggregation',
-            },
-          ),
-        );
-        childControllers.push(
-          Child(
-            'wattson_package_aggregation',
-            WattsonPackageAggregationController,
-            {
-              engine,
-              kind: 'wattson_package_aggregation',
-            },
-          ),
-        );
+        if (pluginManager.isActive('org.kernel.Wattson')) {
+          childControllers.push(
+            Child(
+              'wattson_estimate_aggregation',
+              WattsonEstimateAggregationController,
+              {
+                engine,
+                kind: 'wattson_estimate_aggregation',
+              },
+            ),
+          );
+          childControllers.push(
+            Child(
+              'wattson_thread_aggregation',
+              WattsonThreadAggregationController,
+              {
+                engine,
+                kind: 'wattson_thread_aggregation',
+              },
+            ),
+          );
+          childControllers.push(
+            Child(
+              'wattson_process_aggregation',
+              WattsonProcessAggregationController,
+              {
+                engine,
+                kind: 'wattson_process_aggregation',
+              },
+            ),
+          );
+          childControllers.push(
+            Child(
+              'wattson_package_aggregation',
+              WattsonPackageAggregationController,
+              {
+                engine,
+                kind: 'wattson_package_aggregation',
+              },
+            ),
+          );
+        }
         childControllers.push(
           Child('frame_aggregation', FrameAggregationController, {
             engine,
