@@ -13,35 +13,36 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.startup.startups;
+INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
 
-DROP VIEW IF EXISTS _app_startup_window;
-CREATE PERFETTO VIEW _app_startup_window AS
+-- The power calculations need to use the same time period in which energy
+-- calculations were made for consistency
+DROP VIEW IF EXISTS _wattson_period_windows;
+CREATE PERFETTO VIEW _wattson_period_windows AS
 SELECT
-  ts,
-  dur,
-  startup_id as period_id
-FROM android_startups;
+  MIN(ts) as ts,
+  MAX(ts) - MIN(ts) as dur,
+  0 as period_id
+FROM _system_state_mw;
 
 SELECT RUN_METRIC(
   'android/wattson_rail_relations.sql',
-  'window_table', '_app_startup_window'
+  'window_table', '_wattson_period_windows'
 );
 
-DROP VIEW IF EXISTS wattson_app_startup_output;
-CREATE PERFETTO VIEW wattson_app_startup_output AS
+DROP VIEW IF EXISTS wattson_estimate_output;
+CREATE PERFETTO VIEW wattson_estimate_output AS
 SELECT AndroidWattsonTimePeriodMetric(
   'metric_version', 1,
-  'period_type', 'app_startup',
+  'period_type', 'full_trace',
   'period_info', (
     SELECT RepeatedField(
       AndroidWattsonEstimateInfo(
-        'period_id', period_id,
         'period_dur', dur,
         'rail', _cpu_rail_estimate_per_startup_proto.proto
       )
     )
-    FROM _app_startup_window
+    FROM _wattson_period_windows
     JOIN _cpu_rail_estimate_per_startup_proto USING (period_id)
   )
 );
