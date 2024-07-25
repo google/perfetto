@@ -287,7 +287,7 @@ class AreaDetailsPanel implements m.ClassComponent {
         ...metricsFromTableOrSubquery(
           `(
             select *
-            from _viz_slice_self_dur!((
+            from _viz_slice_ancestor_agg!((
               select s.id, s.dur
               from slice s
               left join slice t on t.parent_id = s.id
@@ -302,6 +302,11 @@ class AreaDetailsPanel implements m.ClassComponent {
               name: 'Duration',
               unit: 'ns',
               columnName: 'self_dur',
+            },
+            {
+              name: 'Samples',
+              unit: '',
+              columnName: 'self_count',
             },
           ],
           'include perfetto module viz.slices;',
