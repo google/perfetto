@@ -41,9 +41,9 @@ class Bigtrace:
     tables = []
     args = BigtraceQueryArgs(traces=traces, sql_query=sql_query)
 
-    responses = self.stub.Query(
-        args, wait_for_ready=self.wait_for_ready_for_testing)
     try:
+      responses = self.stub.Query(
+          args, wait_for_ready=self.wait_for_ready_for_testing)
       for response in responses:
         repeated_batches = []
         results = response.result

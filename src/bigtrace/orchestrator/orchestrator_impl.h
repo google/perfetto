@@ -46,7 +46,7 @@ class OrchestratorImpl final : public protos::BigtraceOrchestrator::Service {
   };
   std::unique_ptr<protos::BigtraceWorker::Stub> stub_;
   std::unique_ptr<base::ThreadPool> pool_;
-  std::mutex write_lock_;
+  std::mutex buffer_lock_;
   // Used to interleave requests to the Orchestrator to distribute jobs more
   // fairly
   Semaphore semaphore_;
