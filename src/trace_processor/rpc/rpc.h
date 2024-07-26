@@ -103,7 +103,7 @@ class Rpc {
   // the corresponding names in trace_processor.h . See that header for docs.
 
   base::Status Parse(const uint8_t*, size_t);
-  void NotifyEndOfFile();
+  base::Status NotifyEndOfFile();
   void ResetTraceProcessor(const uint8_t*, size_t);
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t*, size_t);

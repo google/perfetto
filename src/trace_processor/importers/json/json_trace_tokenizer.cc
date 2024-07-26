@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -666,8 +667,10 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
   return SetOutAndReturn(next, out);
 }
 
-void JsonTraceTokenizer::NotifyEndOfFile() {
-  PERFETTO_DCHECK(position_ == TracePosition::kEof);
+base::Status JsonTraceTokenizer::NotifyEndOfFile() {
+  return position_ == TracePosition::kEof
+             ? base::OkStatus()
+             : base::ErrStatus("JSON trace file is incomplete");
 }
 
 }  // namespace trace_processor

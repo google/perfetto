@@ -285,7 +285,9 @@ int TraceToSystrace(std::istream* input,
 
   if (!ReadTraceUnfinalized(tp.get(), input))
     return 1;
-  tp->NotifyEndOfFile();
+  if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
+    return 1;
+  }
 
   if (ctrace)
     *output << "TRACE:\n";

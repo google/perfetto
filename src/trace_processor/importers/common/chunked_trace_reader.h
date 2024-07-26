@@ -38,7 +38,7 @@ class ChunkedTraceReader {
   virtual base::Status Parse(TraceBlobView) = 0;
 
   // Called after the last Parse() call.
-  virtual void NotifyEndOfFile() = 0;
+  [[nodiscard]] virtual base::Status NotifyEndOfFile() = 0;
 };
 
 }  // namespace perfetto::trace_processor

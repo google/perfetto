@@ -1084,8 +1084,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
           }
         });
   }
-  g_tp->NotifyEndOfFile();
-  return base::OkStatus();
+  return g_tp->NotifyEndOfFile();
 }
 
 base::Status RunQueries(const std::string& queries, bool expect_output) {

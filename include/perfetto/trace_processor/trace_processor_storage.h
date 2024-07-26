@@ -17,18 +17,17 @@
 #ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_H_
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_H_
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <memory>
 
 #include "perfetto/base/export.h"
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Coordinates the loading of traces from an arbitrary source.
 class PERFETTO_EXPORT_COMPONENT TraceProcessorStorage {
@@ -58,13 +57,10 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessorStorage {
   virtual void Flush() = 0;
 
   // Calls Flush and finishes all of the actions required for parsing the trace.
-  // Should only be called once: in v28, calling this function multiple times
-  // will simply log an error but in subsequent versions, this will become
-  // undefined behaviour.
-  virtual void NotifyEndOfFile() = 0;
+  // Calling this function multiple times is undefined behaviour.
+  virtual base::Status NotifyEndOfFile() = 0;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_H_

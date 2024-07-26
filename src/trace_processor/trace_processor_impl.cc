@@ -458,12 +458,13 @@ void TraceProcessorImpl::Flush() {
                    context_.storage->GetTraceTimestampBoundsNs());
 }
 
-void TraceProcessorImpl::NotifyEndOfFile() {
+base::Status TraceProcessorImpl::NotifyEndOfFile() {
   if (notify_eof_called_) {
-    PERFETTO_ELOG(
+    const char kMessage[] =
         "NotifyEndOfFile should only be called once. Try calling Flush instead "
-        "if trying to commit the contents of the trace to tables.");
-    return;
+        "if trying to commit the contents of the trace to tables.";
+    PERFETTO_ELOG(kMessage);
+    return base::ErrStatus(kMessage);
   }
   notify_eof_called_ = true;
 
@@ -473,7 +474,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   // Last opportunity to flush all pending data.
   Flush();
 
-  TraceProcessorStorageImpl::NotifyEndOfFile();
+  RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
   context_.storage->ShrinkToFitTables();
 
   // Rebuild the bounds table once everything has been completed: we do this
@@ -485,6 +486,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
                    context_.storage->GetTraceTimestampBoundsNs());
 
   TraceProcessorStorageImpl::DestroyContext();
+  return base::OkStatus();
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {

@@ -55,7 +55,9 @@ std::unique_ptr<trace_processor::TraceProcessor> LoadTrace(
   if (!ReadTraceUnfinalized(tp.get(), input)) {
     return nullptr;
   }
-  tp->NotifyEndOfFile();
+  if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
+    return nullptr;
+  }
   return tp;
 }
 
