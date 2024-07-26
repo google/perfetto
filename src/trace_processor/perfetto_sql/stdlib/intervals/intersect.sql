@@ -33,6 +33,9 @@ CREATE PERFETTO MACRO _interval_agg(
 )
 RETURNS TableOrSubquery AS
 (
+  WITH sorted_tab AS (
+    SELECT * FROM $tab ORDER BY ts
+  )
   SELECT
     __intrinsic_interval_tree_intervals_agg(
       id,
@@ -45,8 +48,7 @@ RETURNS TableOrSubquery AS
         __intrinsic_token_comma!()
       )
     )
-  FROM $tab
-  ORDER BY ts
+  FROM sorted_tab
 );
 
 CREATE PERFETTO MACRO _interval_intersect(
