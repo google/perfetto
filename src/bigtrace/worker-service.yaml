@@ -17,7 +17,7 @@ kind: Service
 metadata:
   name: worker
 spec:
-  type: NodePort
+  clusterIP: None
   ports:
   - protocol: TCP
     port: 5052
