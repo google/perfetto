@@ -16,36 +16,60 @@
 INCLUDE PERFETTO MODULE wattson.cpu_freq;
 INCLUDE PERFETTO MODULE wattson.cpu_idle;
 INCLUDE PERFETTO MODULE wattson.curves.utils;
+INCLUDE PERFETTO MODULE wattson.device_infos;
 
--- Combines idle and freq tables of all CPUs to create system state.
-CREATE VIRTUAL TABLE _idle_freq
-USING
-  SPAN_OUTER_JOIN(
-    _adjusted_cpu_freq partitioned cpu, _adjusted_deep_idle partitioned cpu
-  );
+-- Helper macro for using Perfetto table with interval intersect
+CREATE PERFETTO MACRO _ii_subquery(tab TableOrSubquery)
+RETURNS TableOrSubquery AS (SELECT _auto_id AS id, * FROM $tab);
 
--- Add extra column indicating that frequency info are present
+-- Wattson estimation is valid from when first CPU0 frequency appears
 CREATE PERFETTO TABLE _valid_window
 AS
 WITH window_start AS (
   SELECT ts as start_ts
-  FROM _idle_freq
-  WHERE cpu = 0 and freq GLOB '*[0-9]*'
+  FROM _adjusted_cpu_freq
+  WHERE cpu = 0 AND freq IS NOT NULL
   ORDER BY ts ASC
   LIMIT 1
 ),
-window_end AS (
-  SELECT ts + dur as end_ts
-  FROM cpu_frequency_counters
-  ORDER by ts DESC
-  LIMIT 1
+window AS (
+  SELECT start_ts as ts, trace_end() - start_ts as dur
+  FROM window_start
 )
-SELECT
-  start_ts as ts,
-  end_ts - start_ts as dur
-FROM window_start, window_end;
+SELECT *, 0 as cpu FROM window
+UNION ALL
+SELECT *, 1 as cpu FROM window
+UNION ALL
+SELECT *, 2 as cpu FROM window
+UNION ALL
+SELECT *, 3 as cpu FROM window
+UNION ALL
+SELECT *, 4 as cpu FROM window
+UNION ALL
+SELECT *, 5 as cpu FROM window
+UNION ALL
+SELECT *, 6 as cpu FROM window
+UNION ALL
+SELECT *, 7 as cpu FROM window;
 
-CREATE VIRTUAL TABLE _idle_freq_filtered
-USING
-  SPAN_JOIN(_valid_window, _idle_freq);
+-- Start matching CPUs with 1D curves based on combination of freq and idle
+CREATE PERFETTO TABLE _idle_freq_materialized
+AS
+SELECT
+  ii.ts, ii.dur, ii.cpu, freq.policy, freq.freq, idle.idle, lut.curve_value
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_valid_window),
+    _ii_subquery!(_adjusted_cpu_freq),
+    _ii_subquery!(_adjusted_deep_idle)
+  ),
+  (cpu)
+) ii
+JOIN _adjusted_cpu_freq AS freq ON freq._auto_id = id_1
+JOIN _adjusted_deep_idle AS idle ON idle._auto_id = id_2
+-- Left join since some CPUs may only match the 2D LUT
+LEFT JOIN _filtered_curves_1d lut ON
+  freq.policy = lut.policy AND
+  freq.freq = lut.freq_khz AND
+  idle.idle = lut.idle;
 

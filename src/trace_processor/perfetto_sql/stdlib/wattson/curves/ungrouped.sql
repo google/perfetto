@@ -23,10 +23,10 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 CREATE PERFETTO TABLE _w_independent_cpus_calc
 AS
 SELECT
-  ts,
-  dur,
-  cast_int!(l3_hit_rate * dur) as l3_hit_count,
-  cast_int!(l3_miss_rate * dur) as l3_miss_count,
+  base.ts,
+  base.dur,
+  cast_int!(l3_hit_rate * base.dur) as l3_hit_count,
+  cast_int!(l3_miss_rate * base.dur) as l3_miss_count,
   freq_0,
   idle_0,
   freq_1,
@@ -71,28 +71,39 @@ SELECT
   IIF(idle_6 = -1, lut6.curve_value, -1) as static_6,
   IIF(idle_7 = -1, lut7.curve_value, -1) as static_7
 FROM _idle_freq_l3_hit_l3_miss_slice as base
+-- Get CPU power curves for CPUs guaranteed on device
+JOIN _stats_cpu0 ON _stats_cpu0._auto_id = base.cpu0_id
+JOIN _stats_cpu1 ON _stats_cpu1._auto_id = base.cpu1_id
+JOIN _stats_cpu2 ON _stats_cpu2._auto_id = base.cpu2_id
+JOIN _stats_cpu3 ON _stats_cpu3._auto_id = base.cpu3_id
+-- Get CPU power curves for CPUs that aren't always present
+LEFT JOIN _stats_cpu4 ON _stats_cpu4._auto_id = base.cpu4_id
+LEFT JOIN _stats_cpu5 ON _stats_cpu5._auto_id = base.cpu5_id
+LEFT JOIN _stats_cpu6 ON _stats_cpu6._auto_id = base.cpu6_id
+LEFT JOIN _stats_cpu7 ON _stats_cpu7._auto_id = base.cpu7_id
+-- Match power curves if possible on CPUs that decide 2D dependence
 LEFT JOIN _filtered_curves_2d lut4 ON
-  base.freq_0 = lut4.freq_khz AND
-  base.policy_4 = lut4.other_policy AND
-  base.freq_4 = lut4.other_freq_khz AND
+  _stats_cpu0.freq_0 = lut4.freq_khz AND
+  _stats_cpu4.policy_4 = lut4.other_policy AND
+  _stats_cpu4.freq_4 = lut4.other_freq_khz AND
   lut4.idle = 255
 LEFT JOIN _filtered_curves_2d lut5 ON
-  base.freq_0 = lut5.freq_khz AND
-  base.policy_5 = lut5.other_policy AND
-  base.freq_5 = lut5.other_freq_khz AND
+  _stats_cpu0.freq_0 = lut5.freq_khz AND
+  _stats_cpu5.policy_5 = lut5.other_policy AND
+  _stats_cpu5.freq_5 = lut5.other_freq_khz AND
   lut5.idle = 255
 LEFT JOIN _filtered_curves_2d lut6 ON
-  base.freq_0 = lut6.freq_khz AND
-  base.policy_6 = lut6.other_policy AND
-  base.freq_6 = lut6.other_freq_khz AND
+  _stats_cpu0.freq_0 = lut6.freq_khz AND
+  _stats_cpu6.policy_6 = lut6.other_policy AND
+  _stats_cpu6.freq_6 = lut6.other_freq_khz AND
   lut6.idle = 255
 LEFT JOIN _filtered_curves_2d lut7 ON
-  base.freq_0 = lut7.freq_khz AND
-  base.policy_7 = lut7.other_policy AND
-  base.freq_7 = lut7.other_freq_khz AND
+  _stats_cpu0.freq_0 = lut7.freq_khz AND
+  _stats_cpu7.policy_7 = lut7.other_policy AND
+  _stats_cpu7.freq_7 = lut7.other_freq_khz AND
   lut7.idle = 255
 -- Needs to be at least 1us to reduce inconsequential rows.
-WHERE dur > time_from_us(1);
+WHERE base.dur > time_from_us(1);
 
 -- Find the CPU states creating the max vote
 CREATE PERFETTO TABLE _get_max_vote
