@@ -23,8 +23,6 @@ import {AggregationController} from './aggregation_controller';
 
 export class CpuByProcessAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
-
     const selectedCpus: number[] = [];
     for (const trackKey of area.tracks) {
       const track = globals.state.tracks[trackKey];
@@ -37,26 +35,24 @@ export class CpuByProcessAggregationController extends AggregationController {
     }
     if (selectedCpus.length === 0) return false;
 
-    const query = `
-        INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
-
-        create view ${this.kind} as
-        SELECT
-          process_name,
-          pid,
-          sum(dur) AS total_dur,
-          sum(dur)/count(1) as avg_dur,
-          count(1) as occurrences
-        FROM _state_w_thread_process_summary
-        WHERE
-          cpu IN (${selectedCpus})
-          AND upid is NOT NULL
-          AND state = "Running"
-          AND ts + dur > ${area.start}
-          AND ts < ${area.end}
-        GROUP by upid`;
-
-    await engine.query(query);
+    await engine.query(`
+      create or replace perfetto table ${this.kind} as
+      select
+        process.name as process_name,
+        process.pid,
+        sum(dur) AS total_dur,
+        sum(dur) / count() as avg_dur,
+        count() as occurrences
+      from sched
+      join thread USING (utid)
+      join process USING (upid)
+      where
+        cpu in (${selectedCpus})
+        and ts + dur > ${area.start}
+        and ts < ${area.end}
+        and utid != 0
+      group by upid
+    `);
     return true;
   }
 
