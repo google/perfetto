@@ -17,11 +17,9 @@
 #include "src/trace_processor/importers/android_bugreport/chunked_line_reader.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <cstring>
 #include <utility>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
@@ -101,9 +99,10 @@ base::Status ChunkedLineReader::Parse(TraceBlobView data) {
   return base::OkStatus();
 }
 
-void ChunkedLineReader::NotifyEndOfFile() {
+base::Status ChunkedLineReader::NotifyEndOfFile() {
   EndOfStream(base::StringView(reinterpret_cast<const char*>(buffer_.data()),
                                buffer_.size()));
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor

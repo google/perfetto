@@ -442,6 +442,8 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
   return base::OkStatus();
 }
 
-void PerfDataTokenizer::NotifyEndOfFile() {}
+base::Status PerfDataTokenizer::NotifyEndOfFile() {
+  return base::OkStatus();
+}
 
 }  // namespace perfetto::trace_processor::perf_importer

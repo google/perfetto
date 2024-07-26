@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
@@ -200,7 +201,9 @@ util::Status SystraceTraceParser::Parse(TraceBlobView blob) {
   return util::OkStatus();
 }
 
-void SystraceTraceParser::NotifyEndOfFile() {}
+base::Status SystraceTraceParser::NotifyEndOfFile() {
+  return base::OkStatus();
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto

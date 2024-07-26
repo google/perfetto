@@ -330,7 +330,9 @@ int TraceToHprof(std::istream* input,
       trace_processor::TraceProcessor::CreateInstance(config);
   if (!ReadTraceUnfinalized(tp.get(), input))
     return false;
-  tp->NotifyEndOfFile();
+  if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
+    return false;
+  }
   return TraceToHprof(tp.get(), output, pid, timestamps[0]);
 }
 

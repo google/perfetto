@@ -94,7 +94,9 @@ int TraceToJson(std::istream* input,
 
   if (!ReadTraceUnfinalized(tp.get(), input))
     return 1;
-  tp->NotifyEndOfFile();
+  if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
+    return 1;
+  }
 
   // TODO(eseckler): Support truncation of userspace event data.
   if (ExportUserspaceEvents(tp.get(), trace_writer.get())) {

@@ -36,7 +36,7 @@ class SystraceTraceParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   util::Status Parse(TraceBlobView) override;
-  void NotifyEndOfFile() override;
+  base::Status NotifyEndOfFile() override;
 
  private:
   enum ParseState {

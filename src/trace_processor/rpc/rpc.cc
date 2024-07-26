@@ -37,6 +37,7 @@
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -348,13 +349,14 @@ base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   return trace_processor_->Parse(std::move(data_copy), len);
 }
 
-void Rpc::NotifyEndOfFile() {
+base::Status Rpc::NotifyEndOfFile() {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE,
                     "RPC_NOTIFY_END_OF_FILE");
 
-  trace_processor_->NotifyEndOfFile();
   eof_ = true;
+  RETURN_IF_ERROR(trace_processor_->NotifyEndOfFile());
   MaybePrintProgress();
+  return base::OkStatus();
 }
 
 void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
