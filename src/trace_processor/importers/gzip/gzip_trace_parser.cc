@@ -16,18 +16,24 @@
 
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 
+#include <cstdint>
+#include <cstring>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -43,11 +49,11 @@ GzipTraceParser::GzipTraceParser(std::unique_ptr<ChunkedTraceReader> reader)
 
 GzipTraceParser::~GzipTraceParser() = default;
 
-util::Status GzipTraceParser::Parse(TraceBlobView blob) {
+base::Status GzipTraceParser::Parse(TraceBlobView blob) {
   return ParseUnowned(blob.data(), blob.size());
 }
 
-util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
+base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
   const uint8_t* start = data;
   size_t len = size;
 
@@ -72,7 +78,7 @@ util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
 
   // Our default uncompressed buffer size is 32MB as it allows for good
   // throughput.
-  constexpr size_t kUncompressedBufferSize = 32 * 1024 * 1024;
+  constexpr size_t kUncompressedBufferSize = 32ul * 1024 * 1024;
 
   needs_more_input_ = false;
   decompressor_.Feed(start, len);
@@ -88,12 +94,12 @@ util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
                                     kUncompressedBufferSize - bytes_written_);
     ret = result.ret;
     if (ret == ResultCode::kError)
-      return util::ErrStatus("Failed to decompress trace chunk");
+      return base::ErrStatus("Failed to decompress trace chunk");
 
     if (ret == ResultCode::kNeedsMoreInput) {
       PERFETTO_DCHECK(result.bytes_written == 0);
       needs_more_input_ = true;
-      return util::OkStatus();
+      return base::OkStatus();
     }
     bytes_written_ += result.bytes_written;
 
@@ -103,19 +109,22 @@ util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
       RETURN_IF_ERROR(inner_->Parse(TraceBlobView(std::move(blob))));
     }
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-void GzipTraceParser::NotifyEndOfFile() {
+base::Status GzipTraceParser::NotifyEndOfFile() {
   // TODO(lalitm): this should really be an error returned to the caller but
   // due to historical implementation, NotifyEndOfFile does not return a
-  // util::Status.
-  PERFETTO_DCHECK(!needs_more_input_);
+  // base::Status.
+  if (needs_more_input_) {
+    return base::ErrStatus("GZIP stream incomplete, trace is likely corrupt");
+  }
   PERFETTO_DCHECK(!buffer_);
 
-  if (inner_)
-    inner_->NotifyEndOfFile();
+  if (!inner_) {
+    base::OkStatus();
+  }
+  return inner_->NotifyEndOfFile();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

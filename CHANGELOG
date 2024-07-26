@@ -28,6 +28,9 @@ Unreleased:
       `android.memory.heap_graph.dominator_tree`. This is to allow for the
       addition of more modules related to heap graphs.
   Trace Processor:
+    * Change `NotifyEndOfFile` method to return a Status object. For backwards
+      compatibility, this value can be ignored but in the future a [[nodiscard]]
+      annotation will be added.
     * Added `CREATE PERFETTO INDEX` to add sqlite-like indexes to Perfetto
       tables. Has the same API as `CREATE INDEX`.
   UI:

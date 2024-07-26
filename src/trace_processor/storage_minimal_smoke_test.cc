@@ -23,6 +23,7 @@
 #include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
+#include "src/base/test/status_matchers.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -55,7 +56,7 @@ TEST_F(StorageMinimalSmokeTest, GraphicEventsIgnored) {
   auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
   util::Status status = storage_->Parse(std::move(buf), rsize);
   ASSERT_TRUE(status.ok());
-  storage_->NotifyEndOfFile();
+  ASSERT_OK(storage_->NotifyEndOfFile());
 
   JsonStringOutputWriter output_writer;
   json::ExportJson(storage_.get(), &output_writer);
@@ -89,7 +90,7 @@ TEST_F(StorageMinimalSmokeTest, TrackEventsImported) {
   auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
   util::Status status = storage_->Parse(std::move(buf), rsize);
   ASSERT_TRUE(status.ok());
-  storage_->NotifyEndOfFile();
+  ASSERT_OK(storage_->NotifyEndOfFile());
 
   JsonStringOutputWriter output_writer;
   json::ExportJson(storage_.get(), &output_writer);

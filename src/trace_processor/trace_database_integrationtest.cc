@@ -35,6 +35,7 @@
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
+#include "src/base/test/status_matchers.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -49,7 +50,7 @@ TEST(TraceProcessorCustomConfigTest, SkipInternalMetricsMatchingMountPath) {
   auto config = Config();
   config.skip_builtin_metric_paths = {"android/"};
   auto processor = TraceProcessor::CreateInstance(config);
-  processor->NotifyEndOfFile();
+  ASSERT_OK(processor->NotifyEndOfFile());
 
   // Check that andorid metrics have not been loaded.
   auto it = processor->ExecuteQuery(
@@ -72,7 +73,7 @@ TEST(TraceProcessorCustomConfigTest, EmptyStringSkipsAllMetrics) {
   auto config = Config();
   config.skip_builtin_metric_paths = {""};
   auto processor = TraceProcessor::CreateInstance(config);
-  processor->NotifyEndOfFile();
+  ASSERT_OK(processor->NotifyEndOfFile());
 
   // Check that other metrics have been loaded.
   auto it = processor->ExecuteQuery(
@@ -87,7 +88,7 @@ TEST(TraceProcessorCustomConfigTest, HandlesMalformedMountPath) {
   auto config = Config();
   config.skip_builtin_metric_paths = {"androi"};
   auto processor = TraceProcessor::CreateInstance(config);
-  processor->NotifyEndOfFile();
+  ASSERT_OK(processor->NotifyEndOfFile());
 
   // Check that andorid metrics have been loaded.
   auto it = processor->ExecuteQuery(
@@ -121,8 +122,7 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
       if (!status.ok())
         return status;
     }
-    processor_->NotifyEndOfFile();
-    return util::OkStatus();
+    return processor_->NotifyEndOfFile();
   }
 
   Iterator Query(const std::string& query) {
@@ -408,13 +408,13 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz28766) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesInvariant) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   uint64_t first_restore = RestoreInitialTables();
   ASSERT_EQ(RestoreInitialTables(), first_restore);
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -463,7 +463,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -489,7 +489,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -509,7 +509,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -548,7 +548,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesWithClause) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -565,7 +565,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesWithClause) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesIndex) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -603,7 +603,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesTraceBounds) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesDependents) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   {
     auto it = Query("create perfetto table foo as select 1 as x");
     ASSERT_FALSE(it.Next());
@@ -623,7 +623,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesDependents) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreDependentFunction) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   {
     auto it =
         Query("create perfetto function foo0() returns INT as select 1 as x");
@@ -643,7 +643,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreDependentFunction) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreDependentTableFunction) {
-  Processor()->NotifyEndOfFile();
+  ASSERT_OK(Processor()->NotifyEndOfFile());
   {
     auto it = Query(
         "create perfetto function foo0() returns TABLE(x INT) "

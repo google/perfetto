@@ -23,6 +23,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -736,7 +737,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   }
 }
 
-void ProtoTraceReader::NotifyEndOfFile() {}
+base::Status ProtoTraceReader::NotifyEndOfFile() {
+  return base::OkStatus();
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto

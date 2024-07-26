@@ -88,14 +88,7 @@ base::Status ZipTraceReader::Parse(TraceBlobView blob) {
   return zip_reader_.Parse(std::move(blob));
 }
 
-void ZipTraceReader::NotifyEndOfFile() {
-  base::Status status = NotifyEndOfFileImpl();
-  if (!status.ok()) {
-    PERFETTO_ELOG("ZipTraceReader failed: %s", status.c_message());
-  }
-}
-
-base::Status ZipTraceReader::NotifyEndOfFileImpl() {
+base::Status ZipTraceReader::NotifyEndOfFile() {
   std::vector<util::ZipFile> files = zip_reader_.TakeFiles();
 
   // Android bug reports are ZIP files and its files do not get handled
@@ -104,17 +97,15 @@ base::Status ZipTraceReader::NotifyEndOfFileImpl() {
     return AndroidBugreportReader::Parse(context_, std::move(files));
   }
 
-  base::StatusOr<std::vector<Entry>> entries = ExtractEntries(std::move(files));
-  if (!entries.ok()) {
-    return entries.status();
-  }
-  std::sort(entries->begin(), entries->end());
+  ASSIGN_OR_RETURN(std::vector<Entry> entries,
+                   ExtractEntries(std::move(files)));
+  std::sort(entries.begin(), entries.end());
 
-  for (Entry& e : *entries) {
+  for (Entry& e : entries) {
     parsers_.push_back(std::make_unique<ForwardingTraceParser>(context_));
     auto& parser = *parsers_.back();
     RETURN_IF_ERROR(parser.Parse(std::move(e.uncompressed_data)));
-    parser.NotifyEndOfFile();
+    RETURN_IF_ERROR(parser.NotifyEndOfFile());
   }
   return base::OkStatus();
 }
