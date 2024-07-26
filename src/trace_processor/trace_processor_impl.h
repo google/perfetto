@@ -59,7 +59,7 @@ class TraceProcessorImpl : public TraceProcessor,
   // TraceProcessorStorage implementation:
   base::Status Parse(TraceBlobView) override;
   void Flush() override;
-  void NotifyEndOfFile() override;
+  base::Status NotifyEndOfFile() override;
 
   // TraceProcessor implementation:
   Iterator ExecuteQuery(const std::string& sql) override;

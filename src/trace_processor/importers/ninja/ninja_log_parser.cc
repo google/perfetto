@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -112,7 +113,7 @@ util::Status NinjaLogParser::Parse(TraceBlobView blob) {
 
 // This is called after the last Parse() call. At this point all |jobs_| have
 // been populated.
-void NinjaLogParser::NotifyEndOfFile() {
+base::Status NinjaLogParser::NotifyEndOfFile() {
   std::sort(jobs_.begin(), jobs_.end(),
             [](const Job& x, const Job& y) { return x.start_ms < y.start_ms; });
 
@@ -175,6 +176,7 @@ void NinjaLogParser::NotifyEndOfFile() {
     ctx_->slice_tracker->Scoped(start_ns, worker->track_id, StringId::Null(),
                                 name_id, dur_ns);
   }
+  return base::OkStatus();
 }
 
 }  // namespace trace_processor

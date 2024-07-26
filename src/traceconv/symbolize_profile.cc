@@ -55,7 +55,9 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
     PERFETTO_FATAL("Failed to read trace.");
 
   tp->Flush();
-  tp->NotifyEndOfFile();
+  if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
+    PERFETTO_FATAL("%s", status.c_message());
+  }
 
   SymbolizeDatabase(
       tp.get(), symbolizer.get(),

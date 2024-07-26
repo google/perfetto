@@ -15,16 +15,18 @@
  */
 
 #include "perfetto/trace_processor/read_trace.h"
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/utils.h"
+#include "perfetto/base/status.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/trace_processor/trace_processor.h"
-
-#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/read_trace_internal.h"
@@ -35,8 +37,7 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 class SerializingProtoTraceReader : public ChunkedTraceReader {
@@ -44,7 +45,7 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
   explicit SerializingProtoTraceReader(std::vector<uint8_t>* output)
       : output_(output) {}
 
-  util::Status Parse(TraceBlobView blob) override {
+  base::Status Parse(TraceBlobView blob) override {
     return tokenizer_.Tokenize(std::move(blob), [this](TraceBlobView packet) {
       uint8_t buffer[protozero::proto_utils::kMaxSimpleFieldEncodedSize];
 
@@ -55,11 +56,11 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
 
       output_->insert(output_->end(), packet.data(),
                       packet.data() + packet.length());
-      return util::OkStatus();
+      return base::OkStatus();
     });
   }
 
-  void NotifyEndOfFile() override {}
+  base::Status NotifyEndOfFile() override { return base::OkStatus(); }
 
  private:
   static constexpr uint8_t kTracePacketTag =
@@ -72,21 +73,20 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
 
 }  // namespace
 
-util::Status ReadTrace(
+base::Status ReadTrace(
     TraceProcessor* tp,
     const char* filename,
     const std::function<void(uint64_t parsed_size)>& progress_callback) {
   ReadTraceUnfinalized(tp, filename, progress_callback);
-  tp->NotifyEndOfFile();
-  return util::OkStatus();
+  return tp->NotifyEndOfFile();
 }
 
-util::Status DecompressTrace(const uint8_t* data,
+base::Status DecompressTrace(const uint8_t* data,
                              size_t size,
                              std::vector<uint8_t>* output) {
   TraceType type = GuessTraceType(data, size);
   if (type != TraceType::kGzipTraceType && type != TraceType::kProtoTraceType) {
-    return util::ErrStatus(
+    return base::ErrStatus(
         "Only GZIP and proto trace types are supported by DecompressTrace");
   }
 
@@ -97,10 +97,8 @@ util::Status DecompressTrace(const uint8_t* data,
 
     RETURN_IF_ERROR(parser.ParseUnowned(data, size));
     if (parser.needs_more_input())
-      return util::ErrStatus("Cannot decompress partial trace file");
-
-    parser.NotifyEndOfFile();
-    return util::OkStatus();
+      return base::ErrStatus("Cannot decompress partial trace file");
+    return parser.NotifyEndOfFile();
   }
 
   PERFETTO_CHECK(type == TraceType::kProtoTraceType);
@@ -108,7 +106,7 @@ util::Status DecompressTrace(const uint8_t* data,
   protos::pbzero::Trace::Decoder decoder(data, size);
   util::GzipDecompressor decompressor;
   if (size > 0 && !decoder.packet()) {
-    return util::ErrStatus("Trace does not contain valid packets");
+    return base::ErrStatus("Trace does not contain valid packets");
   }
   for (auto it = decoder.packet(); it; ++it) {
     protos::pbzero::TracePacket::Decoder packet(*it);
@@ -126,11 +124,10 @@ util::Status DecompressTrace(const uint8_t* data,
           output->insert(output->end(), buf, buf + buf_len);
         });
     if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
-      return util::ErrStatus("Failed while decompressing stream");
+      return base::ErrStatus("Failed while decompressing stream");
     }
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
