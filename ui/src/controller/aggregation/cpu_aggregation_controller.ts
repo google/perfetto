@@ -23,8 +23,6 @@ import {AggregationController} from './aggregation_controller';
 
 export class CpuAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
-
     const selectedCpus: number[] = [];
     for (const trackKey of area.tracks) {
       const track = globals.state.tracks[trackKey];
@@ -37,20 +35,25 @@ export class CpuAggregationController extends AggregationController {
     }
     if (selectedCpus.length === 0) return false;
 
-    const query = `create view ${this.kind} as
-        SELECT process.name as process_name, pid, thread.name as thread_name,
-        tid, sum(dur) AS total_dur,
-        sum(dur)/count(1) as avg_dur,
-        count(1) as occurrences
-        FROM process
-        JOIN thread USING(upid)
-        JOIN thread_state USING(utid)
-        WHERE cpu IN (${selectedCpus}) AND
-        state = "Running" AND
-        thread_state.ts + thread_state.dur > ${area.start} AND
-        thread_state.ts < ${area.end} group by utid`;
-
-    await engine.query(query);
+    await engine.query(`
+      create or replace perfetto table ${this.kind} as
+      select
+        process.name as process_name,
+        pid,
+        thread.name as thread_name,
+        tid,
+        sum(dur) AS total_dur,
+        sum(dur) / count() as avg_dur,
+        count() as occurrences
+      from process
+      join thread using (upid)
+      join sched using (utid)
+      where cpu in (${selectedCpus})
+        and sched.ts + sched.dur > ${area.start}
+        and sched.ts < ${area.end}
+        and utid != 0
+      group by utid
+    `);
     return true;
   }
 

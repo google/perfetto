@@ -22,8 +22,6 @@ import {AggregationController} from './aggregation_controller';
 
 export class FrameAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
-
     const selectedSqlTrackIds: number[] = [];
     for (const trackKey of area.tracks) {
       const track = globals.state.tracks[trackKey];
@@ -38,19 +36,20 @@ export class FrameAggregationController extends AggregationController {
     }
     if (selectedSqlTrackIds.length === 0) return false;
 
-    const query = `create view ${this.kind} as
-        SELECT
+    await engine.query(`
+      create or replace perfetto table ${this.kind} as
+      select
         jank_type,
         count(1) as occurrences,
-        MIN(dur) as minDur,
-        AVG(dur) as meanDur,
-        MAX(dur) as maxDur
-        FROM actual_frame_timeline_slice
-        WHERE track_id IN (${selectedSqlTrackIds}) AND
-        ts + dur > ${area.start} AND
-        ts < ${area.end} group by jank_type`;
-
-    await engine.query(query);
+        min(dur) as minDur,
+        avg(dur) as meanDur,
+        max(dur) as maxDur
+      from actual_frame_timeline_slice
+      where track_id in (${selectedSqlTrackIds})
+        AND ts + dur > ${area.start}
+        AND ts < ${area.end}
+      group by jank_type
+    `);
     return true;
   }
 

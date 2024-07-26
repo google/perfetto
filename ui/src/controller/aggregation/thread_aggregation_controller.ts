@@ -41,32 +41,29 @@ export class ThreadAggregationController extends AggregationController {
   }
 
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
     this.setThreadStateUtids(area.tracks);
     if (this.utids === undefined || this.utids.length === 0) return false;
 
-    const query = `
-      INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
-
-      create view ${this.kind} as
-      SELECT
-        process_name,
-        pid,
-        thread_name,
-        tid,
-        state || ',' || IFNULL(io_wait, 'NULL') as concat_state,
-        sum(dur) AS total_dur,
-        sum(dur)/count(1) as avg_dur,
-        count(1) as occurrences
-      FROM _state_w_thread_process_summary
-      WHERE
-        utid IN (${this.utids})
-        AND ts + dur > ${area.start}
-        AND ts < ${area.end}
-      GROUP BY utid, concat_state
-    `;
-
-    await engine.query(query);
+    await engine.query(`
+      create or replace perfetto table ${this.kind} as
+      select
+        process.name as process_name,
+        process.pid,
+        thread.name as thread_name,
+        thread.tid,
+        tstate.state || ',' || ifnull(tstate.io_wait, 'NULL') as concat_state,
+        sum(tstate.dur) AS total_dur,
+        sum(tstate.dur) / count() as avg_dur,
+        count() as occurrences
+      from thread_state tstate
+      join thread using (utid)
+      left join process using (upid)
+      where
+        utid in (${this.utids})
+        and ts + dur > ${area.start}
+        and ts < ${area.end}
+      group by utid, concat_state
+    `);
     return true;
   }
 
@@ -74,11 +71,18 @@ export class ThreadAggregationController extends AggregationController {
     this.setThreadStateUtids(area.tracks);
     if (this.utids === undefined || this.utids.length === 0) return;
 
-    const query = `select state, io_wait as ioWait, sum(dur) as totalDur
-      FROM thread JOIN thread_state USING(utid)
-      WHERE utid IN (${this.utids}) AND thread_state.ts + thread_state.dur > ${area.start} AND
-      thread_state.ts < ${area.end}
-      GROUP BY state, io_wait`;
+    const query = `
+      select
+        state,
+        io_wait as ioWait,
+        sum(dur) as totalDur
+      from thread
+      join thread_state using (utid)
+      where utid in (${this.utids})
+        and thread_state.ts + thread_state.dur > ${area.start}
+        and thread_state.ts < ${area.end}
+      group by state, io_wait
+    `;
     const result = await engine.query(query);
 
     const it = result.iter({
