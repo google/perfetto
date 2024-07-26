@@ -122,6 +122,15 @@ describe('HighPrecisionTimeSpan', () => {
     expect(result.duration).toBeCloseTo(1);
   });
 
+  test('clampDuration', () => {
+    const span = new HPTimeSpan(hptime('5'), 1);
+    const clamped = span.clampDuration(10);
+
+    expect(clamped.start.integral).toBe(5n);
+    expect(clamped.start.fractional).toBeCloseTo(0);
+    expect(clamped.duration).toBeCloseTo(10);
+  });
+
   test('equality', () => {
     const span = new HPTimeSpan(hptime('10'), 10);
     expect(span.equals(span)).toBe(true);
