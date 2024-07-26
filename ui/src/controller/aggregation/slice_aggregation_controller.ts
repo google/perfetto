@@ -45,24 +45,23 @@ export function getSelectedTrackKeys(area: Area): number[] {
 
 export class SliceAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
-
     const selectedTrackKeys = getSelectedTrackKeys(area);
 
     if (selectedTrackKeys.length === 0) return false;
 
-    const query = `create view ${this.kind} as
-        SELECT
+    await engine.query(`
+      create or replace perfetto table ${this.kind} as
+      select
         name,
         sum(dur) AS total_dur,
-        sum(dur)/count(1) as avg_dur,
-        count(1) as occurrences
-        FROM slices
-        WHERE track_id IN (${selectedTrackKeys}) AND
-        ts + dur > ${area.start} AND
-        ts < ${area.end} group by name`;
-
-    await engine.query(query);
+        sum(dur)/count() as avg_dur,
+        count() as occurrences
+        from slices
+      where track_id in (${selectedTrackKeys})
+        and ts + dur > ${area.start}
+        and ts < ${area.end}
+      group by name
+    `);
     return true;
   }
 
