@@ -13,56 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE linux.cpu.frequency;
 INCLUDE PERFETTO MODULE time.conversion;
 INCLUDE PERFETTO MODULE wattson.arm_dsu;
-INCLUDE PERFETTO MODULE wattson.cpu_idle;
+INCLUDE PERFETTO MODULE wattson.cpu_freq_idle;
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 INCLUDE PERFETTO MODULE wattson.device_infos;
-
-CREATE PERFETTO TABLE _cpu_freq
-AS
-SELECT
-  ts,
-  dur,
-  freq,
-  cf.cpu,
-  d_map.policy
-FROM cpu_frequency_counters as cf
-JOIN _dev_cpu_policy_map as d_map
-ON cf.cpu = d_map.cpu;
-
--- Combines idle and freq tables of all CPUs to create system state.
-CREATE VIRTUAL TABLE _idle_freq
-USING
-  SPAN_OUTER_JOIN(
-    _cpu_freq partitioned cpu, _adjusted_deep_idle partitioned cpu
-  );
-
--- Add extra column indicating that frequency info are present
-CREATE PERFETTO TABLE _valid_window
-AS
-WITH window_start AS (
-  SELECT ts as start_ts
-  FROM _idle_freq
-  WHERE cpu = 0 and freq GLOB '*[0-9]*'
-  ORDER BY ts ASC
-  LIMIT 1
-),
-window_end AS (
-  SELECT ts + dur as end_ts
-  FROM cpu_frequency_counters
-  ORDER by ts DESC
-  LIMIT 1
-)
-SELECT
-  start_ts as ts,
-  end_ts - start_ts as dur
-FROM window_start, window_end;
-
-CREATE VIRTUAL TABLE _idle_freq_filtered
-USING
-  SPAN_JOIN(_valid_window, _idle_freq);
 
 -- Start matching split CPUs with curves
 CREATE PERFETTO TABLE _idle_freq_materialized
