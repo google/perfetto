@@ -56,6 +56,7 @@ import {
   VirtualTableRow,
 } from '../widgets/virtual_table';
 import {TagInput} from '../widgets/tag_input';
+import {SegmentedButtons} from '../widgets/segmented_buttons';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -628,6 +629,23 @@ function TagInputDemo() {
   };
 }
 
+function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
+  let selectedIdx = 0;
+  return {
+    view: () => {
+      return m(SegmentedButtons, {
+        ...attrs,
+        options: [{label: 'Yes'}, {label: 'Maybe'}, {label: 'No'}],
+        selectedOption: selectedIdx,
+        onOptionSelected: (num) => {
+          selectedIdx = num;
+          raf.scheduleFullRedraw();
+        },
+      });
+    },
+  };
+}
+
 export const WidgetsPage = createPage({
   view() {
     return m(
@@ -651,6 +669,17 @@ export const WidgetsPage = createPage({
           active: false,
           compact: false,
           loading: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Segmented Buttons',
+        description: `
+          Segmented buttons are a group of buttons where one of them is
+          'selected'; they act similar to a set of radio buttons.
+        `,
+        renderWidget: (opts) => m(SegmentedButtonsDemo, opts),
+        initialOpts: {
+          disabled: false,
         },
       }),
       m(WidgetShowcase, {
