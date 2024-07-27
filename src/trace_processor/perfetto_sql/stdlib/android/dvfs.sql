@@ -20,7 +20,7 @@ CREATE PERFETTO VIEW android_dvfs_counters(
   -- Timestamp when counter value changed.
   ts INT,
   -- Counter value.
-  value INT,
+  value DOUBLE,
   -- Counter duration.
   dur INT
 ) AS
@@ -92,11 +92,11 @@ CREATE PERFETTO VIEW android_dvfs_counter_residency(
   -- Counter name.
   name STRING,
   -- Counter value.
-  value INT,
+  value DOUBLE,
   -- Counter duration.
   dur INT,
   -- Counter duration as a percentage of total duration.
-  pct FLOAT
+  pct DOUBLE
 ) AS
 WITH
 total AS (

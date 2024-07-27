@@ -180,6 +180,10 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // Sets developer-only flags to the provided values. Does not have any affect
   // unless |enable_dev_features| = true.
   std::unordered_map<std::string, std::string> dev_flags;
+
+  // When set to true, trace processor will perform additional runtime checks
+  // to catch additional classes of SQL errors.
+  bool enable_extra_checks = false;
 };
 
 // Represents a dynamically typed value returned by SQL.
