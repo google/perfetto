@@ -19,13 +19,14 @@ import {assertExists, assertTrue} from '../base/logging';
 import {Monitor} from '../base/monitor';
 import {cropText} from '../base/string_utils';
 
+import {Button, ButtonBar} from './button';
 import {EmptyState} from './empty_state';
 import {Popup, PopupPosition} from './popup';
+import {scheduleFullRedraw} from './raf';
 import {Select} from './select';
 import {Spinner} from './spinner';
 import {TagInput} from './tag_input';
-import {scheduleFullRedraw} from './raf';
-import {Button, ButtonBar} from './button';
+import {SegmentedButtons} from './segmented_buttons';
 
 const LABEL_FONT_STYLE = '12px Roboto Mono';
 const NODE_HEIGHT = 20;
@@ -97,12 +98,30 @@ export interface FlamegraphQueryData {
   readonly maxDepth: number;
 }
 
+export interface FlamegraphTopDown {
+  readonly kind: 'TOP_DOWN';
+}
+
+export interface FlamegraphBottomUp {
+  readonly kind: 'BOTTOM_UP';
+}
+
+export interface FlamegraphPivot {
+  readonly kind: 'PIVOT';
+  readonly pivot: string;
+}
+
+export type FlamegraphView =
+  | FlamegraphTopDown
+  | FlamegraphBottomUp
+  | FlamegraphPivot;
+
 export interface FlamegraphFilters {
   readonly showStack: ReadonlyArray<string>;
   readonly hideStack: ReadonlyArray<string>;
   readonly showFromFrame: ReadonlyArray<string>;
   readonly hideFrame: ReadonlyArray<string>;
-  readonly pivot: string | undefined;
+  readonly view: FlamegraphView;
 }
 
 export interface FlamegraphAttrs {
@@ -159,6 +178,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private rawFilterText: string = '';
   private rawFilters: ReadonlyArray<string> = [];
   private filterFocus: boolean = false;
+  private switchState: 'TOP_DOWN' | 'BOTTOM_UP' = 'TOP_DOWN';
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
@@ -491,14 +511,18 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                 normalizeFilter(tag),
               );
               self.rawFilterText = '';
-              self.attrs.onFiltersChanged(computeFilters(self.rawFilters));
+              self.attrs.onFiltersChanged(
+                computeFilters(self.switchState, self.rawFilters),
+              );
               scheduleFullRedraw();
             },
             onTagRemove(index: number) {
               const filters = Array.from(self.rawFilters);
               filters.splice(index, 1);
               self.rawFilters = filters;
-              self.attrs.onFiltersChanged(computeFilters(self.rawFilters));
+              self.attrs.onFiltersChanged(
+                computeFilters(self.switchState, self.rawFilters),
+              );
               scheduleFullRedraw();
             },
             onfocus() {
@@ -514,6 +538,18 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         },
         m('.pf-flamegraph-filter-bar-popup-content', FILTER_EMPTY_TEXT.trim()),
       ),
+      m(SegmentedButtons, {
+        options: [{label: 'Top Down'}, {label: 'Bottom Up'}],
+        selectedOption: this.switchState === 'TOP_DOWN' ? 0 : 1,
+        onOptionSelected: (num) => {
+          this.switchState = num === 0 ? 'TOP_DOWN' : 'BOTTOM_UP';
+          self.attrs.onFiltersChanged(
+            computeFilters(self.switchState, self.rawFilters),
+          );
+          scheduleFullRedraw();
+        },
+        disabled: hasPivot(this.rawFilters),
+      }),
     );
   }
 
@@ -546,7 +582,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const {name, cumulativeValue, selfValue, properties} = nodes[queryIdx];
     const filterButtonClick = (filter: string) => {
       this.rawFilters = addFilter(this.rawFilters, filter);
-      this.attrs.onFiltersChanged(computeFilters(this.rawFilters));
+      this.attrs.onFiltersChanged(
+        computeFilters(this.switchState, this.rawFilters),
+      );
       this.tooltipPos = undefined;
       scheduleFullRedraw();
     };
@@ -628,8 +666,8 @@ function computeRenderNodes(
 ): ReadonlyArray<RenderNode> {
   const renderNodes: RenderNode[] = [];
 
-  const idToIdx = new Map<number, number>();
-  const idxToChildMergedIdx = new Map<number, number>();
+  const mergedKeyToX = new Map<string, number>();
+  const keyToChildMergedIdx = new Map<string, number>();
   renderNodes.push({
     x: 0,
     y: -minDepth * NODE_HEIGHT,
@@ -646,11 +684,12 @@ function computeRenderNodes(
         ? 'NORMAL'
         : 'PARTIAL',
   });
-  idToIdx.set(-1, renderNodes.length - 1);
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
   for (let i = 0; i < nodes.length; i++) {
     const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i];
+    assertTrue(depth !== 0);
+
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
     if (
       depthMatchingZoom &&
@@ -676,9 +715,10 @@ function computeRenderNodes(
       : relativeWidth / queryXPerPx;
     const state = computeState(qXStart, qXEnd, zoomRegion, depthMatchingZoom);
 
-    if (width < MIN_PIXEL_DISPLAYED && depth > 0) {
-      const parentIdx = assertExists(idToIdx.get(parentId));
-      const childMergedIdx = idxToChildMergedIdx.get(parentIdx);
+    if (width < MIN_PIXEL_DISPLAYED) {
+      const parentChildMergeKey = `${parentId}_${depth}`;
+      const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
+      const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
         const r = renderNodes[childMergedIdx];
         const mergedWidth = isDepthMatchingZoom(depth, zoomRegion)
@@ -692,12 +732,12 @@ function computeRenderNodes(
             queryXEnd: qXEnd,
           },
         };
-        idToIdx.set(id, childMergedIdx);
+        mergedKeyToX.set(mergedXKey, r.x);
         continue;
       }
-      const parentNode = renderNodes[parentIdx];
+      const mergedX = mergedKeyToX.get(`${parentId}_${depth}`) ?? x;
       renderNodes.push({
-        x: parentNode.source.kind === 'MERGED' ? parentNode.x : x,
+        x: mergedX,
         y,
         width: Math.max(width, MIN_PIXEL_DISPLAYED),
         source: {
@@ -708,8 +748,8 @@ function computeRenderNodes(
         },
         state,
       });
-      idToIdx.set(id, renderNodes.length - 1);
-      idxToChildMergedIdx.set(parentIdx, renderNodes.length - 1);
+      keyToChildMergedIdx.set(parentChildMergeKey, renderNodes.length - 1);
+      mergedKeyToX.set(mergedXKey, mergedX);
       continue;
     }
     renderNodes.push({
@@ -725,7 +765,6 @@ function computeRenderNodes(
       },
       state,
     });
-    idToIdx.set(id, renderNodes.length - 1);
   }
   return renderNodes;
 }
@@ -828,7 +867,10 @@ function addFilter(filters: ReadonlyArray<string>, filter: string): string[] {
   return [...filters, filter];
 }
 
-function computeFilters(rawFilters: readonly string[]): FlamegraphFilters {
+function computeFilters(
+  switchState: 'TOP_DOWN' | 'BOTTOM_UP',
+  rawFilters: readonly string[],
+): FlamegraphFilters {
   const showStack = rawFilters
     .filter((x) => x.startsWith('Show Stack: '))
     .map((x) => x.split(': ', 2)[1]);
@@ -848,6 +890,10 @@ function computeFilters(rawFilters: readonly string[]): FlamegraphFilters {
   const pivot = rawFilters.filter((x) => x.startsWith('Pivot: '));
   assertTrue(pivot.length <= 1, 'Only one pivot can be active');
 
+  const view: FlamegraphView =
+    pivot.length === 0
+      ? {kind: switchState}
+      : {kind: 'PIVOT', pivot: pivot[0].split(': ', 2)[1]};
   return {
     showStack,
     hideStack: rawFilters
@@ -857,8 +903,14 @@ function computeFilters(rawFilters: readonly string[]): FlamegraphFilters {
     hideFrame: rawFilters
       .filter((x) => x.startsWith('Hide Frame: '))
       .map((x) => x.split(': ', 2)[1]),
-    pivot: pivot.length === 0 ? undefined : pivot[0].split(': ', 2)[1],
+    view,
   };
+}
+
+function hasPivot(rawFilters: readonly string[]) {
+  const pivot = rawFilters.filter((x) => x.startsWith('Pivot: '));
+  assertTrue(pivot.length <= 1, 'Only one pivot can be active');
+  return pivot.length === 1;
 }
 
 function generateColor(name: string, greyed: boolean, hovered: boolean) {
