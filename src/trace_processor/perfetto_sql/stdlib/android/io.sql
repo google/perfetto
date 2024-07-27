@@ -20,11 +20,11 @@ CREATE PERFETTO VIEW _android_io_f2fs_counter_stats(
   -- Counter name on which all the other values are aggregated on.
   name STRING,
   -- Sum of all counter values for the counter name.
-  sum INT,
+  sum DOUBLE,
   -- Max of all counter values for the counter name.
-  max INT,
+  max DOUBLE,
   -- Min of all counter values for the counter name.
-  min INT,
+  min DOUBLE,
   -- Duration between the first and last counter value for the counter name.
   dur INT,
   -- Count of all the counter values for the counter name.
@@ -65,7 +65,7 @@ CREATE PERFETTO VIEW _android_io_f2fs_write_stats(
   -- Device node number of the file being written.
   dev INT,
   -- Total number of bytes written on this file by the |utid|.
-  bytes BYTES,
+  bytes INT,
   -- Total count of write requests for this file.
   write_count INT
 ) AS
