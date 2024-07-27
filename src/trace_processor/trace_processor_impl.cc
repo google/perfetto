@@ -681,7 +681,8 @@ void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
 }
 
 void TraceProcessorImpl::InitPerfettoSqlEngine() {
-  engine_.reset(new PerfettoSqlEngine(context_.storage->mutable_string_pool()));
+  engine_.reset(new PerfettoSqlEngine(context_.storage->mutable_string_pool(),
+                                      config_.enable_extra_checks));
   sqlite3* db = engine_->sqlite_engine()->db();
   sqlite3_str_split_init(db);
 

@@ -27,7 +27,7 @@ namespace {
 class PerfettoSqlEngineTest : public ::testing::Test {
  protected:
   StringPool pool_;
-  PerfettoSqlEngine engine_{&pool_};
+  PerfettoSqlEngine engine_{&pool_, true};
 };
 
 sql_modules::RegisteredModule CreateTestModule(
@@ -169,9 +169,10 @@ TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_IncorrectType) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(x INT) AS SELECT '1' as x"));
   ASSERT_FALSE(res.ok());
-  EXPECT_THAT(res.status().c_message(),
-              testing::EndsWith("CREATE PERFETTO TABLE: column 'x' declared as "
-                                "INT (LONG) in the schema, but STRING found"));
+  EXPECT_THAT(
+      res.status().c_message(),
+      testing::EndsWith("CREATE PERFETTO TABLE(foo): column 'x' declared as "
+                        "INT (LONG) in the schema, but STRING found"));
 }
 
 TEST_F(PerfettoSqlEngineTest, Table_Drop) {

@@ -21,7 +21,7 @@ INCLUDE PERFETTO MODULE slices.flow;
 -- Count Binder transactions per process.
 CREATE PERFETTO VIEW android_binder_metrics_by_process(
   -- Name of the process that started the binder transaction.
-  process_name INT,
+  process_name STRING,
   -- PID of the process that started the binder transaction.
   pid INT,
   -- Name of the slice with binder transaction.
