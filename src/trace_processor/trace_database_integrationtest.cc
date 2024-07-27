@@ -31,6 +31,8 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/status.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -809,6 +811,23 @@ TEST_F(TraceProcessorIntegrationTest, CreateTableDuplicateNames) {
   ASSERT_FALSE(it.Status().ok());
   ASSERT_THAT(it.Status().message(), HasSubstr("duplicate_a"));
   ASSERT_THAT(it.Status().message(), HasSubstr("duplicate_b"));
+}
+
+TEST_F(TraceProcessorIntegrationTest, InvalidTrace) {
+  constexpr char kBadData[] = "\0\0\0\0";
+  EXPECT_FALSE(Processor()
+                   ->Parse(TraceBlobView(
+                       TraceBlob::CopyFrom(kBadData, sizeof(kBadData))))
+                   .ok());
+  Processor()->NotifyEndOfFile();
+}
+
+TEST_F(TraceProcessorIntegrationTest, NoNotifyEndOfFileCalled) {
+  constexpr char kProtoData[] = "\x0a";
+  EXPECT_TRUE(Processor()
+                  ->Parse(TraceBlobView(
+                      TraceBlob::CopyFrom(kProtoData, sizeof(kProtoData))))
+                  .ok());
 }
 
 }  // namespace
