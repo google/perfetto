@@ -93,6 +93,7 @@ export interface FlamegraphQueryData {
     readonly xStart: number;
     readonly xEnd: number;
   }>;
+  readonly unfilteredCumulativeValue: number;
   readonly allRootsCumulativeValue: number;
   readonly minDepth: number;
   readonly maxDepth: number;
@@ -403,7 +404,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const yStart = containerRect.top - canvasRect.top;
     const yEnd = containerRect.bottom - canvasRect.top;
 
-    const {allRootsCumulativeValue, nodes} = this.attrs.data;
+    const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
+      this.attrs.data;
     const unit = assertExists(this.selectedMetric).unit;
 
     ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
@@ -434,7 +436,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
       let name: string;
       if (source.kind === 'ROOT') {
-        name = `root: ${displaySize(allRootsCumulativeValue, unit)}`;
+        const val = displaySize(allRootsCumulativeValue, unit);
+        const percent = displayPercentage(
+          allRootsCumulativeValue,
+          unfilteredCumulativeValue,
+        );
+        name = `root: ${val} (${percent})`;
         ctx.fillStyle = generateColor('root', state === 'PARTIAL', hover);
       } else if (source.kind === 'MERGED') {
         name = '(merged)';
@@ -565,16 +572,22 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m('.tooltip-text', 'Nodes too small to show, please use filters'),
       );
     }
-    const {nodes, allRootsCumulativeValue} = assertExists(this.attrs.data);
+    const {nodes, allRootsCumulativeValue, unfilteredCumulativeValue} =
+      assertExists(this.attrs.data);
     const {unit} = assertExists(this.selectedMetric);
     if (node.source.kind === 'ROOT') {
+      const val = displaySize(allRootsCumulativeValue, unit);
+      const percent = displayPercentage(
+        allRootsCumulativeValue,
+        unfilteredCumulativeValue,
+      );
       return m(
         'div',
         m('.tooltip-bold-text', 'root'),
         m(
           '.tooltip-text-line',
           m('.tooltip-bold-text', 'Cumulative:'),
-          m('.tooltip-text', displaySize(allRootsCumulativeValue, unit)),
+          m('.tooltip-text', `${val}, ${percent}`),
         ),
       );
     }
@@ -588,18 +601,23 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       this.tooltipPos = undefined;
       scheduleFullRedraw();
     };
+    const percent = displayPercentage(
+      cumulativeValue,
+      unfilteredCumulativeValue,
+    );
+    const selfPercent = displayPercentage(selfValue, unfilteredCumulativeValue);
     return m(
       'div',
       m('.tooltip-bold-text', name),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Cumulative:'),
-        m('.tooltip-text', displaySize(cumulativeValue, unit)),
+        m('.tooltip-text', `${displaySize(cumulativeValue, unit)}, ${percent}`),
       ),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Self:'),
-        m('.tooltip-text', displaySize(selfValue, unit)),
+        m('.tooltip-text', `${displaySize(selfValue, unit)}, ${selfPercent}`),
       ),
       Array.from(properties, ([key, value]) => {
         return m(
@@ -842,6 +860,13 @@ function displaySize(totalSize: number, unit: string): string {
   const resultString =
     totalSize % pow === 0 ? result.toString() : result.toFixed(2);
   return `${resultString} ${units[unitsIndex]}`;
+}
+
+function displayPercentage(size: number, totalSize: number): string {
+  if (totalSize === 0) {
+    return `[NULL]%`;
+  }
+  return `${((size / totalSize) * 100.0).toFixed(2)}%`;
 }
 
 function normalizeFilter(filter: string): string {
