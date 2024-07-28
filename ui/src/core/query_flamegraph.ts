@@ -14,20 +14,25 @@
 
 import m from 'mithril';
 
+import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
+import {assertExists} from '../base/logging';
+import {Monitor} from '../base/monitor';
+import {uuidv4Sql} from '../base/uuid';
 import {Engine} from '../trace_processor/engine';
 import {NUM, STR, STR_NULL} from '../trace_processor/query_result';
-import {createPerfettoTable} from '../trace_processor/sql_utils';
+import {
+  createPerfettoIndex,
+  createPerfettoTable,
+} from '../trace_processor/sql_utils';
 import {
   Flamegraph,
   FlamegraphFilters,
   FlamegraphQueryData,
+  FlamegraphView,
 } from '../widgets/flamegraph';
-import {AsyncLimiter} from '../base/async_limiter';
-import {assertExists} from '../base/logging';
-import {Monitor} from '../base/monitor';
+
 import {featureFlags} from './feature_flags';
-import {uuidv4Sql} from '../base/uuid';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -121,7 +126,7 @@ export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
     hideStack: [],
     showFromFrame: [],
     hideFrame: [],
-    pivot: undefined,
+    view: {kind: 'TOP_DOWN'},
   };
   private attrs: QueryFlamegraphAttrs;
   private selMonitor = new Monitor([() => this.attrs.metrics]);
@@ -176,12 +181,12 @@ async function computeFlamegraphTree(
     unaggregatableProperties,
     aggregatableProperties,
   }: QueryFlamegraphMetric,
-  {showStack, hideStack, showFromFrame, hideFrame, pivot}: FlamegraphFilters,
+  {showStack, hideStack, showFromFrame, hideFrame, view}: FlamegraphFilters,
 ): Promise<FlamegraphQueryData> {
   // Pivot also essentially acts as a "show stack" filter so treat it like one.
   const showStackAndPivot = [...showStack];
-  if (pivot !== undefined) {
-    showStackAndPivot.push(pivot);
+  if (view.kind === 'PIVOT') {
+    showStackAndPivot.push(view.pivot);
   }
 
   const showStackFilter =
@@ -210,7 +215,7 @@ async function computeFlamegraphTree(
       ? 'false'
       : hideFrame.map((x) => `name like '%${x}%'`).join(' OR ');
 
-  const pivotFilter = pivot === undefined ? '0' : `name like '%${pivot}%'`;
+  const pivotFilter = getPivotFilter(view);
 
   const unagg = unaggregatableProperties ?? [];
   const unaggCols = unagg.map((x) => x.name);
@@ -228,6 +233,22 @@ async function computeFlamegraphTree(
 
   const uuid = uuidv4Sql();
   await using disposable = new AsyncDisposableStack();
+
+  disposable.use(
+    await createPerfettoTable(
+      engine,
+      `_flamegraph_materialized_statement_${uuid}`,
+      statement,
+    ),
+  );
+  disposable.use(
+    await createPerfettoIndex(
+      engine,
+      `_flamegraph_materialized_statement_${uuid}_index`,
+      `_flamegraph_materialized_statement_${uuid}(parentId)`,
+    ),
+  );
+
   // TODO(lalitm): this doesn't need to be called unless we have
   // a non-empty set of filters.
   disposable.use(
@@ -239,13 +260,19 @@ async function computeFlamegraphTree(
         from _viz_flamegraph_prepare_filter!(
           (
             select
-              id,
-              parentId,
-              name,
-              value,
-              ${(unaggCols.length === 0 ? [`'' as groupingColumn`] : unaggCols).join()},
-              ${(aggCols.length === 0 ? [`'' as groupedColumn`] : aggCols).join()}
-            FROM (${statement})
+              s.id,
+              s.parentId,
+              s.name,
+              s.value,
+              ${(unaggCols.length === 0
+                ? [`'' as groupingColumn`]
+                : unaggCols.map((x) => `s.${x}`)
+              ).join()},
+              ${(aggCols.length === 0
+                ? [`'' as groupedColumn`]
+                : aggCols.map((x) => `s.${x}`)
+              ).join()}
+            from _flamegraph_materialized_statement_${uuid} s
           ),
           (${showStackFilter}),
           (${hideStackFilter}),
@@ -297,7 +324,8 @@ async function computeFlamegraphTree(
           _flamegraph_filtered_${uuid},
           _flamegraph_accumulated_${uuid},
           ${groupingColumns},
-          ${groupedColumns}
+          ${groupedColumns},
+          ${view.kind === 'BOTTOM_UP' ? 'FALSE' : 'TRUE'}
         )
         union all
         select *
@@ -360,7 +388,8 @@ async function computeFlamegraphTree(
     ...Object.fromEntries(unaggCols.map((m) => [m, STR_NULL])),
     ...Object.fromEntries(aggCols.map((m) => [m, STR_NULL])),
   });
-  let allRootsCumulativeValue = 0;
+  let postiveRootsValue = 0;
+  let negativeRootsValue = 0;
   let minDepth = 0;
   let maxDepth = 0;
   const nodes = [];
@@ -384,12 +413,30 @@ async function computeFlamegraphTree(
       properties,
     });
     if (it.depth === 1) {
-      allRootsCumulativeValue += it.cumulativeValue;
+      postiveRootsValue += it.cumulativeValue;
+    } else if (it.depth === -1) {
+      negativeRootsValue += it.cumulativeValue;
     }
     minDepth = Math.min(minDepth, it.depth);
     maxDepth = Math.max(maxDepth, it.depth);
   }
-  return {nodes, allRootsCumulativeValue, minDepth, maxDepth};
+  return {
+    nodes,
+    allRootsCumulativeValue:
+      view.kind === 'BOTTOM_UP' ? negativeRootsValue : postiveRootsValue,
+    minDepth,
+    maxDepth,
+  };
+}
+
+function getPivotFilter(view: FlamegraphView) {
+  if (view.kind === 'PIVOT') {
+    return `name like '%${view.pivot}%'`;
+  }
+  if (view.kind === 'BOTTOM_UP') {
+    return 'value > 0';
+  }
+  return '0';
 }
 
 export const USE_NEW_FLAMEGRAPH_IMPL = featureFlags.register({
