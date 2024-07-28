@@ -20,11 +20,11 @@ import {assertExists} from '../base/logging';
 import {Monitor} from '../base/monitor';
 import {uuidv4Sql} from '../base/uuid';
 import {Engine} from '../trace_processor/engine';
-import {NUM, STR, STR_NULL} from '../trace_processor/query_result';
 import {
   createPerfettoIndex,
   createPerfettoTable,
 } from '../trace_processor/sql_utils';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../trace_processor/query_result';
 import {
   Flamegraph,
   FlamegraphFilters,
@@ -420,10 +420,15 @@ async function computeFlamegraphTree(
     minDepth = Math.min(minDepth, it.depth);
     maxDepth = Math.max(maxDepth, it.depth);
   }
+  const sumQuery = await engine.query(
+    `select sum(value) v from _flamegraph_source_${uuid}`,
+  );
+  const unfilteredCumulativeValue = sumQuery.firstRow({v: NUM_NULL}).v ?? 0;
   return {
     nodes,
     allRootsCumulativeValue:
       view.kind === 'BOTTOM_UP' ? negativeRootsValue : postiveRootsValue,
+    unfilteredCumulativeValue,
     minDepth,
     maxDepth,
   };
