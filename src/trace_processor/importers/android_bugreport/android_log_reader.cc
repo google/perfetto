@@ -17,15 +17,19 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
+#include <ctime>
 #include <optional>
 #include <string>
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
+#include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
@@ -89,20 +93,38 @@ std::optional<int> ReadNumAndAdvance(base::StringView* it,
   return num;
 }
 
-int32_t GuessYear(TraceProcessorContext* context) {
-  constexpr int64_t one_second_in_ns = 1LL * 1000LL * 1000LL * 1000LL;
-  int64_t s = context->sorter->max_timestamp() / one_second_in_ns;
-  time_t time_s = static_cast<time_t>(s);
-  struct tm* time_tm = gmtime(&time_s);
+int32_t ToYear(std::chrono::seconds epoch) {
+  time_t time = static_cast<time_t>(epoch.count());
+  auto* time_tm = gmtime(&time);
   return time_tm->tm_year + 1900;
+}
+
+int32_t GetCurrentYear() {
+  return ToYear(base::GetWallTimeS());
+}
+
+int32_t GuessYear(TraceProcessorContext* context) {
+  if (context->sorter->max_timestamp() == 0) {
+    return GetCurrentYear();
+  }
+  auto time =
+      context->clock_converter->ToRealtime(context->sorter->max_timestamp());
+  if (!time.ok()) {
+    return GetCurrentYear();
+  }
+  std::chrono::nanoseconds ns(*time);
+  return ToYear(std::chrono::duration_cast<std::chrono::seconds>(ns));
 }
 
 }  // namespace
 AndroidLogReader::AndroidLogReader(TraceProcessorContext* context)
-    : context_(context), year_(GuessYear(context_)) {}
+    : AndroidLogReader(context, GuessYear(context)) {}
 
 AndroidLogReader::AndroidLogReader(TraceProcessorContext* context, int32_t year)
-    : context_(context), year_(year) {}
+    : context_(context),
+      year_(year),
+      timezone_offset_(context_->clock_tracker->timezone_offset().value_or(0)) {
+}
 
 AndroidLogReader::~AndroidLogReader() = default;
 
@@ -187,7 +209,7 @@ util::Status AndroidLogReader::ParseLine(base::StringView line) {
   base::StringView msg = it;  // The rest is the log message.
 
   int64_t secs = base::MkTime(year_, *month, *day, *hour, *minute, *sec);
-  int64_t event_ts = secs * 1000000000ll + *ns;
+  std::chrono::nanoseconds event_ts(secs * 1000000000ll + *ns);
 
   AndroidLogEvent event;
   event.pid = static_cast<uint32_t>(*pid);
@@ -199,17 +221,18 @@ util::Status AndroidLogReader::ParseLine(base::StringView line) {
   return ProcessEvent(event_ts, std::move(event));
 }
 
-util::Status AndroidLogReader::ProcessEvent(int64_t event_ts_ns,
+util::Status AndroidLogReader::ProcessEvent(std::chrono::nanoseconds event_ts,
                                             AndroidLogEvent event) {
-  return SendToSorter(event_ts_ns, std::move(event));
+  return SendToSorter(event_ts, std::move(event));
 }
 
-util::Status AndroidLogReader::SendToSorter(int64_t event_ts_ns,
+util::Status AndroidLogReader::SendToSorter(std::chrono::nanoseconds event_ts,
                                             AndroidLogEvent event) {
+  event_ts -= timezone_offset_;
   ASSIGN_OR_RETURN(
       int64_t trace_ts,
       context_->clock_tracker->ToTraceTime(
-          protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts_ns));
+          protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts.count()));
   context_->sorter->PushAndroidLogEvent(trace_ts, std::move(event));
   return base::OkStatus();
 }
@@ -218,11 +241,13 @@ void AndroidLogReader::EndOfStream(base::StringView) {}
 
 BufferingAndroidLogReader::~BufferingAndroidLogReader() = default;
 
-base::Status BufferingAndroidLogReader::ProcessEvent(int64_t event_ts,
-                                                     AndroidLogEvent event) {
+base::Status BufferingAndroidLogReader::ProcessEvent(
+    std::chrono::nanoseconds event_ts,
+    AndroidLogEvent event) {
   RETURN_IF_ERROR(SendToSorter(event_ts, event));
-  events_.push_back(
-      TimestampedAndroidLogEvent{event_ts / 1000000, std::move(event), false});
+  events_.push_back(TimestampedAndroidLogEvent{
+      std::chrono::duration_cast<std::chrono::milliseconds>(event_ts),
+      std::move(event), false});
   return base::OkStatus();
 }
 
@@ -236,17 +261,20 @@ DedupingAndroidLogReader::DedupingAndroidLogReader(
 
 DedupingAndroidLogReader::~DedupingAndroidLogReader() {}
 
-base::Status DedupingAndroidLogReader::ProcessEvent(int64_t event_ts,
-                                                    AndroidLogEvent event) {
+base::Status DedupingAndroidLogReader::ProcessEvent(
+    std::chrono::nanoseconds event_ts,
+    AndroidLogEvent event) {
   const auto comp = [](const TimestampedAndroidLogEvent& lhs,
-                       int64_t rhs_time_ms) {
-    return lhs.time_ms < rhs_time_ms;
+                       std::chrono::milliseconds rhs_time) {
+    return lhs.ts < rhs_time;
   };
-  const auto event_ms = event_ts / 1000000;
+
+  const auto event_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(event_ts);
 
   for (auto it =
            std::lower_bound(events_.begin(), events_.end(), event_ms, comp);
-       it != events_.end() && it->time_ms == event_ms; ++it) {
+       it != events_.end() && it->ts == event_ms; ++it) {
     // Duplicate found
     if (!it->matched && it->event == event) {
       // "Remove" the entry from the list
