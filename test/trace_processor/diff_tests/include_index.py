@@ -122,6 +122,7 @@ from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
+from diff_tests.stdlib.linux.tests import LinuxTests
 from diff_tests.stdlib.metasql.column_list import ColumnListTests
 from diff_tests.stdlib.metasql.table_list import TableListTests
 from diff_tests.stdlib.pkvm.tests import Pkvm
@@ -282,6 +283,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
       *CpuClusters(index_path, 'stdlib/android', 'CpuClusters').fetch(),
       *LinuxCpu(index_path, 'stdlib/linux/cpu', 'LinuxCpu').fetch(),
+      *LinuxTests(index_path, 'stdlib/linux', 'LinuxTests').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
       *CriticalPathTests(index_path, 'stdlib/graphs', 'CriticalPath').fetch(),
       *GraphScanTests(index_path, 'stdlib/graphs', 'GraphScan').fetch(),
