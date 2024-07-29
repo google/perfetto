@@ -12,28 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
-import {BigintMath} from '../../base/bigint_math';
-import {Icons} from '../../base/semantic_icons';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {Engine} from '../../trace_processor/engine';
-import {
-  LONG,
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
-import {
-  constraintsToQuerySuffix,
-  SQLConstraints,
-} from '../../trace_processor/sql_utils';
-import {Anchor} from '../../widgets/anchor';
-import {globals} from '../globals';
-import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
+import {Engine} from '../engine';
+import {LONG, LONG_NULL, NUM, NUM_NULL, STR, STR_NULL} from '../query_result';
+import {constraintsToQuerySuffix, SQLConstraints} from '../sql_utils';
 import {
   asArgSetId,
   asSliceSqlId,
@@ -42,15 +25,11 @@ import {
   SliceSqlId,
   Upid,
   Utid,
-} from '../sql_types';
-import {
-  getProcessInfo,
-  getThreadInfo,
-  ProcessInfo,
-  ThreadInfo,
-} from '../thread_and_process_info';
+} from './core_types';
 
 import {Arg, getArgs} from './args';
+import {getThreadInfo, ThreadInfo} from './thread';
+import {getProcessInfo, ProcessInfo} from './process';
 
 // Basic information about a slice.
 export interface SliceDetails {
@@ -202,68 +181,6 @@ export async function getSlice(
     return undefined;
   }
   return result[0];
-}
-
-interface SliceRefAttrs {
-  readonly id: SliceSqlId;
-  readonly name: string;
-  readonly ts: time;
-  readonly dur: duration;
-  readonly sqlTrackId: number;
-
-  // Whether clicking on the reference should change the current tab
-  // to "current selection" tab in addition to updating the selection
-  // and changing the viewport. True by default.
-  readonly switchToCurrentSelectionTab?: boolean;
-}
-
-export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
-  view(vnode: m.Vnode<SliceRefAttrs>) {
-    const switchTab = vnode.attrs.switchToCurrentSelectionTab ?? true;
-    return m(
-      Anchor,
-      {
-        icon: Icons.UpdateSelection,
-        onclick: () => {
-          const trackKeyByTrackId = globals.trackManager.trackKeyByTrackId;
-          const trackKey = trackKeyByTrackId.get(vnode.attrs.sqlTrackId);
-          if (trackKey === undefined) return;
-          verticalScrollToTrack(trackKey, true);
-          // Clamp duration to 1 - i.e. for instant events
-          const dur = BigintMath.max(1n, vnode.attrs.dur);
-          focusHorizontalRange(
-            vnode.attrs.ts,
-            Time.fromRaw(vnode.attrs.ts + dur),
-          );
-
-          globals.setLegacySelection(
-            {
-              kind: 'SLICE',
-              id: vnode.attrs.id,
-              trackKey,
-              table: 'slice',
-            },
-            {
-              clearSearch: true,
-              pendingScrollId: undefined,
-              switchToCurrentSelectionTab: switchTab,
-            },
-          );
-        },
-      },
-      vnode.attrs.name,
-    );
-  }
-}
-
-export function sliceRef(slice: SliceDetails, name?: string): m.Child {
-  return m(SliceRef, {
-    id: slice.id,
-    name: name ?? slice.name,
-    ts: slice.ts,
-    dur: slice.dur,
-    sqlTrackId: slice.trackId,
-  });
 }
 
 // A slice tree node, combining the information about the given slice with

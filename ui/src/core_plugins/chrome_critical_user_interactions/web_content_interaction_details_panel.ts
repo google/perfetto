@@ -31,7 +31,7 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {asUpid, Upid} from '../../frontend/sql_types';
+import {asUpid, Upid} from '../../trace_processor/sql_utils/core_types';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';

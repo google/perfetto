@@ -33,15 +33,16 @@ import {FlowPoint, globals} from './globals';
 import {addQueryResultsTab} from './query_result_tab';
 import {hasArgs, renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
-import {getSlice, SliceDetails, SliceRef} from './sql/slice';
+import {getSlice, SliceDetails} from '../trace_processor/sql_utils/slice';
 import {
   BreakdownByThreadState,
   breakDownIntervalByThreadState,
 } from './sql/thread_state';
-import {asSliceSqlId} from './sql_types';
+import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {DurationWidget} from './widgets/duration';
 import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './well_known_sql_tables';
+import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {SliceRef} from './widgets/slice';
 
 interface ContextMenuItem {
   name: string;

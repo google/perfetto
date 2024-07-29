@@ -23,16 +23,17 @@ import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {Tree, TreeNode} from '../widgets/tree';
 
-import {SliceDetails} from './sql/slice';
+import {SliceDetails} from '../trace_processor/sql_utils/slice';
 import {
   BreakdownByThreadState,
   BreakdownByThreadStateTreeNode,
 } from './sql/thread_state';
-import {getProcessName, getThreadName} from './thread_and_process_info';
 import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './well_known_sql_tables';
+import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {getThreadName} from '../trace_processor/sql_utils/thread';
+import {getProcessName} from '../trace_processor/sql_utils/process';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.

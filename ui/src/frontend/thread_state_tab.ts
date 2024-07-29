@@ -26,24 +26,27 @@ import {Tree, TreeNode} from '../widgets/tree';
 import {Intent} from '../widgets/common';
 
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
-import {SchedSqlId, ThreadStateSqlId} from './sql_types';
 import {
-  getFullThreadName,
-  getProcessName,
-  getThreadName,
-  ThreadInfo,
-} from './thread_and_process_info';
+  SchedSqlId,
+  ThreadStateSqlId,
+} from '../trace_processor/sql_utils/core_types';
 import {
   getThreadState,
   getThreadStateFromConstraints,
   goToSchedSlice,
   ThreadState,
-  ThreadStateRef,
-} from './thread_state';
+} from '../trace_processor/sql_utils/thread_state';
 import {DurationWidget, renderDuration} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 import {addDebugSliceTrack} from './debug_tracks/debug_tracks';
 import {globals} from './globals';
+import {getProcessName} from '../trace_processor/sql_utils/process';
+import {
+  ThreadInfo,
+  getFullThreadName,
+  getThreadName,
+} from '../trace_processor/sql_utils/thread';
+import {ThreadStateRef} from './widgets/thread_state';
 
 interface ThreadStateTabConfig {
   // Id into |thread_state| sql table.

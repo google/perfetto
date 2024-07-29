@@ -12,15 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../trace_processor/engine';
-import {
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
-import {ArgSetId, ArgsId, asArgId} from '../sql_types';
+import {Engine} from '../engine';
+import {LONG_NULL, NUM, NUM_NULL, STR, STR_NULL} from '../query_result';
+import {ArgSetId, ArgsId, asArgId} from './core_types';
 
 export type ArgValue = bigint | string | number | boolean | null;
 type ArgValueType =
