@@ -21,6 +21,7 @@ import {DebugSliceTrack} from './slice_track';
 import {
   createPerfettoTable,
   matchesSqlValue,
+  sqlValueToReadableString,
 } from '../../trace_processor/sql_utils';
 import {Engine} from '../../trace_processor/engine';
 import {DebugCounterTrack} from './counter_track';
@@ -47,7 +48,6 @@ export interface SliceColumns {
   ts: string;
   dur: string;
   name: string;
-  pivot?: string;
 }
 
 let debugTrackCount = 0;
@@ -89,38 +89,35 @@ function createAddDebugTrackActions(
   return actions;
 }
 
-export async function addPivotDebugSliceTracks(
+export async function addPivotedTracks(
   ctx: Context,
   data: SqlDataSource,
   trackName: string,
-  sliceColumns: SliceColumns,
-  argColumns: string[],
+  pivotColumn: string,
+  createTrack: (
+    ctx: Context,
+    data: SqlDataSource,
+    trackName: string,
+  ) => Promise<void>,
 ) {
-  if (sliceColumns.pivot) {
-    // Get distinct values to group by
-    const pivotValues = await ctx.engine.query(`
-      with all_vals as (${data.sqlSource})
-      select DISTINCT ${sliceColumns.pivot} from all_vals;`);
+  const iter = (
+    await ctx.engine.query(`
+    with all_vals as (${data.sqlSource})
+    select DISTINCT ${pivotColumn} from all_vals
+    order by ${pivotColumn}
+  `)
+  ).iter({});
 
-    const iter = pivotValues.iter({});
-
-    for (; iter.valid(); iter.next()) {
-      const pivotDataSource: SqlDataSource = {
+  for (; iter.valid(); iter.next()) {
+    await createTrack(
+      ctx,
+      {
         sqlSource: `select * from
         (${data.sqlSource})
-        where ${sliceColumns.pivot} ${matchesSqlValue(
-          iter.get(sliceColumns.pivot),
-        )}`,
-      };
-
-      await addDebugSliceTrack(
-        ctx,
-        pivotDataSource,
-        `${trackName.trim() || 'Pivot Track'}: ${iter.get(sliceColumns.pivot)}`,
-        sliceColumns,
-        argColumns,
-      );
-    }
+        where ${pivotColumn} ${matchesSqlValue(iter.get(pivotColumn))}`,
+      },
+      `${trackName.trim() || 'Pivot Track'}: ${sqlValueToReadableString(iter.get(pivotColumn))}`,
+    );
   }
 }
 
