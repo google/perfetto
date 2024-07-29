@@ -289,6 +289,8 @@ class Table {
   void ApplyDistinct(const Query&, RowMap*) const;
   void ApplySort(const Query&, RowMap*) const;
 
+  RowMap TryApplyIndex(std::vector<Constraint>&) const;
+
   StringPool* string_pool_ = nullptr;
   uint32_t row_count_ = 0;
   std::vector<ColumnStorageOverlay> overlays_;
