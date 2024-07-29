@@ -65,15 +65,6 @@ bool MatchesMagic(const uint8_t* data, size_t size, const char (&magic)[N]) {
   return memcmp(data, magic, N) == 0;
 }
 
-base::StringView FindLine(const uint8_t* data, size_t size) {
-  for (size_t i = 0; i < size; ++i) {
-    if (data[i] == '\n') {
-      return base::StringView(reinterpret_cast<const char*>(data), i);
-    }
-  }
-  return base::StringView();
-}
-
 bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   const uint8_t* const end = ptr + size;
 
@@ -195,7 +186,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::StartsWith(start, "# ninja log"))
     return kNinjaLogTraceType;
 
-  if (AndroidLogEvent::IsAndroidLogEvent(FindLine(data, size))) {
+  if (AndroidLogEvent::IsAndroidLogcat(data, size)) {
     return kAndroidLogcatTraceType;
   }
 
