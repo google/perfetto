@@ -12,30 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
-import {Icons} from '../base/semantic_icons';
-import {duration, Time, time} from '../base/time';
-import {exists} from '../base/utils';
-import {Actions} from '../common/actions';
-import {translateState} from '../common/thread_state';
-import {Engine} from '../trace_processor/engine';
-import {LONG, NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
+import {duration, Time, time} from '../../base/time';
+import {exists} from '../../base/utils';
+import {translateState} from '../../common/thread_state';
+import {Engine} from '../engine';
+import {LONG, NUM, NUM_NULL, STR_NULL} from '../query_result';
 import {
   constraintsToQuerySuffix,
   fromNumNull,
   SQLConstraints,
-} from '../trace_processor/sql_utils';
-import {Anchor} from '../widgets/anchor';
+} from '../sql_utils';
 
-import {globals} from './globals';
-import {scrollToTrackAndTs} from './scroll_helper';
-import {asUtid, SchedSqlId, ThreadStateSqlId, Utid} from './sql_types';
-import {getThreadInfo, ThreadInfo} from './thread_and_process_info';
-import {
-  CPU_SLICE_TRACK_KIND,
-  THREAD_STATE_TRACK_KIND,
-} from '../core/track_kinds';
+import {globals} from '../../frontend/globals';
+import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
+import {asUtid, SchedSqlId, ThreadStateSqlId} from './core_types';
+import {CPU_SLICE_TRACK_KIND} from '../../core/track_kinds';
+import {getThreadInfo, ThreadInfo} from './thread';
 
 // Representation of a single thread state object, corresponding to
 // a row for the |thread_slice| table.
@@ -166,62 +158,4 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   );
 
   scrollToTrackAndTs(trackId, ts);
-}
-
-interface ThreadStateRefAttrs {
-  id: ThreadStateSqlId;
-  ts: time;
-  dur: duration;
-  utid: Utid;
-  // If not present, a placeholder name will be used.
-  name?: string;
-}
-
-export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
-  view(vnode: m.Vnode<ThreadStateRefAttrs>) {
-    return m(
-      Anchor,
-      {
-        icon: Icons.UpdateSelection,
-        onclick: () => {
-          let trackKey: string | number | undefined;
-          for (const track of Object.values(globals.state.tracks)) {
-            const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-            if (
-              trackDesc &&
-              trackDesc.tags?.kind === THREAD_STATE_TRACK_KIND &&
-              trackDesc.tags?.utid === vnode.attrs.utid
-            ) {
-              trackKey = track.key;
-            }
-          }
-
-          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-          if (trackKey) {
-            /* eslint-enable */
-            globals.makeSelection(
-              Actions.selectThreadState({
-                id: vnode.attrs.id,
-                trackKey: trackKey.toString(),
-              }),
-            );
-
-            scrollToTrackAndTs(trackKey, vnode.attrs.ts, true);
-          }
-        },
-      },
-      vnode.attrs.name ?? `Thread State ${vnode.attrs.id}`,
-    );
-  }
-}
-
-export function threadStateRef(state: ThreadState): m.Child {
-  if (state.thread === undefined) return null;
-
-  return m(ThreadStateRef, {
-    id: state.threadStateSqlId,
-    ts: state.ts,
-    dur: state.dur,
-    utid: state.thread?.utid,
-  });
 }

@@ -12,16 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SliceDetails, getSlice, sliceRef} from '../../../sql/slice';
-import {asSliceSqlId, asUpid, asUtid} from '../../../sql_types';
 import {
-  getProcessInfo,
-  getThreadInfo,
   ProcessInfo,
-  renderProcessRef,
-  renderThreadRef,
+  getProcessInfo,
+} from '../../../../trace_processor/sql_utils/process';
+import {
+  SliceDetails,
+  getSlice,
+} from '../../../../trace_processor/sql_utils/slice';
+import {
+  asSliceSqlId,
+  asUpid,
+  asUtid,
+} from '../../../../trace_processor/sql_utils/core_types';
+import {
   ThreadInfo,
-} from '../../../thread_and_process_info';
+  getThreadInfo,
+} from '../../../../trace_processor/sql_utils/thread';
+import {renderProcessRef} from '../../process';
+import {sliceRef} from '../../slice';
+import {renderThreadRef} from '../../thread';
 import {createSqlIdRefRenderer, SqlIdRefRenderer} from './details';
 
 export const wellKnownTypes: {[key: string]: SqlIdRefRenderer} = {

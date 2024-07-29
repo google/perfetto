@@ -14,7 +14,7 @@
 
 import {uuidv4} from '../../base/uuid';
 import {THREAD_STATE_TRACK_KIND} from '../../public';
-import {asThreadStateSqlId} from '../../frontend/sql_types';
+import {asThreadStateSqlId} from '../../trace_processor/sql_utils/core_types';
 import {ThreadStateTab} from '../../frontend/thread_state_tab';
 import {
   BottomTabToSCSAdapter,
