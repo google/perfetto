@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/types/trace_processor_context.h"
+#include <memory>
 #include <optional>
 
 #include "src/trace_processor/forwarding_trace_parser.h"
@@ -38,6 +39,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/android_track_event.descriptor.h"
@@ -105,6 +107,8 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
       [this](TrackId track_id, SliceId slice_id) {
         flow_tracker->ClosePendingEventsOnTrack(track_id, slice_id);
       });
+
+  trace_file_tracker = std::make_unique<TraceFileTracker>(this);
 }
 
 TraceProcessorContext::TraceProcessorContext() = default;
