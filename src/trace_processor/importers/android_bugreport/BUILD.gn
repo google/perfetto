@@ -52,6 +52,7 @@ source_set("android_bugreport") {
     "../../storage",
     "../../tables:tables_python",
     "../../types",
+    "../../util:trace_type",
     "../../util:zip_reader",
     "../common",
   ]
