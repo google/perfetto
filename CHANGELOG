@@ -27,6 +27,7 @@ Unreleased:
     * Moved `memory.heap_graph_dominator_tree` to
       `android.memory.heap_graph.dominator_tree`. This is to allow for the
       addition of more modules related to heap graphs.
+    * Added `linux_kernel_threads` table to `linux.threads` module.
   Trace Processor:
     * Change `NotifyEndOfFile` method to return a Status object. For backwards
       compatibility, this value can be ignored but in the future a [[nodiscard]]
