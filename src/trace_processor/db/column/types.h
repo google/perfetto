@@ -124,6 +124,22 @@ struct Query {
 
   // OFFSET value. Can be "!= 0" only if `limit` has value.
   uint32_t offset = 0;
+
+  // Returns true if query should be used for fetching minimum or maximum value
+  // of singular column.
+  inline bool IsMinMaxQuery() const {
+    // Order needs to specify the sorting.
+    return order_type == Query::OrderType::kSort
+           // There can be only one column for sorting.
+           && orders.size() == 1
+           // Limit has value 1
+           && limit.has_value() && *limit == 1;
+  }
+
+  // Returns true if query should be used for sorting.
+  inline bool RequireSort() const {
+    return order_type != Query::OrderType::kDistinct && !orders.empty();
+  }
 };
 
 // The enum type of the column.
