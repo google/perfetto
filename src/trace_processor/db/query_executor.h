@@ -42,13 +42,10 @@ class QueryExecutor {
   RowMap Filter(const std::vector<Constraint>& cs) {
     RowMap rm(0, row_count_);
     for (const auto& c : cs) {
-      FilterColumn(c, *columns_[c.col_idx], &rm);
+      ApplyConstraint(c, *columns_[c.col_idx], &rm);
     }
     return rm;
   }
-
-  // Enables QueryExecutor::Filter on Table columns.
-  static RowMap FilterLegacy(const Table*, const std::vector<Constraint>&);
 
   // Enables QueryExecutor::Sort on Table columns.
   static void SortLegacy(const Table*,
@@ -65,12 +62,12 @@ class QueryExecutor {
                                             const column::DataLayerChain&,
                                             RowMap*);
 
- private:
   // Updates RowMap with result of filtering single column using the Constraint.
-  static void FilterColumn(const Constraint&,
-                           const column::DataLayerChain&,
-                           RowMap*);
+  static void ApplyConstraint(const Constraint&,
+                              const column::DataLayerChain&,
+                              RowMap*);
 
+ private:
   // Filters the column using Range algorithm - tries to find the smallest Range
   // to filter the storage with.
   static void LinearSearch(const Constraint&,
