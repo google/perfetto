@@ -47,6 +47,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
@@ -297,34 +298,6 @@ void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
   }
 }
 
-const char* TraceTypeToString(TraceType trace_type) {
-  switch (trace_type) {
-    case kUnknownTraceType:
-      return "unknown";
-    case kProtoTraceType:
-      return "proto";
-    case kJsonTraceType:
-      return "json";
-    case kFuchsiaTraceType:
-      return "fuchsia";
-    case kSystraceTraceType:
-      return "systrace";
-    case kGzipTraceType:
-      return "gzip";
-    case kCtraceTraceType:
-      return "ctrace";
-    case kNinjaLogTraceType:
-      return "ninja_log";
-    case kZipFile:
-      return "zip";
-    case kPerfDataTraceType:
-      return "perf_data";
-    case kAndroidLogcatTraceType:
-      return "android_logcat";
-  }
-  PERFETTO_FATAL("For GCC");
-}
-
 sql_modules::NameToModule GetStdlibModules() {
   sql_modules::NameToModule modules;
   for (const auto& file_to_sql : stdlib::kFileToSql) {
@@ -446,14 +419,6 @@ void TraceProcessorImpl::SetCurrentTraceName(const std::string& name) {
 
 void TraceProcessorImpl::Flush() {
   TraceProcessorStorageImpl::Flush();
-
-  context_.metadata_tracker->SetMetadata(
-      metadata::trace_size_bytes,
-      Variadic::Integer(static_cast<int64_t>(bytes_parsed_)));
-  const StringId trace_type_id =
-      context_.storage->InternString(TraceTypeToString(context_.trace_type));
-  context_.metadata_tracker->SetMetadata(metadata::trace_type,
-                                         Variadic::String(trace_type_id));
   BuildBoundsTable(engine_->sqlite_engine()->db(),
                    context_.storage->GetTraceTimestampBoundsNs());
 }
@@ -855,6 +820,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_thread_table());
   RegisterStaticTable(storage->mutable_process_table());
   RegisterStaticTable(storage->mutable_filedescriptor_table());
+  RegisterStaticTable(storage->mutable_trace_file_table());
 
   RegisterStaticTable(storage->mutable_slice_table());
   RegisterStaticTable(storage->mutable_flow_table());

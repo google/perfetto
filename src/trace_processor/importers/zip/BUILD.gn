@@ -20,7 +20,6 @@ source_set("full") {
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
-    "../../../../protos/perfetto/trace:zero",
     "../../../trace_processor:storage_minimal",
     "../../types",
     "../../util:trace_type",

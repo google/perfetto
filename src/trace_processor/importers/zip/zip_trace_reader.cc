@@ -32,28 +32,13 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_reader.h"
-#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
 #include "src/trace_processor/util/zip_reader.h"
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-
 namespace perfetto::trace_processor {
-namespace {
-
-bool HasSymbols(const TraceBlobView& blob) {
-  bool has_symbols = false;
-  ProtoTraceTokenizer().Tokenize(blob.copy(), [&](TraceBlobView raw) {
-    protos::pbzero::TracePacket::Decoder packet(raw.data(), raw.size());
-    has_symbols = packet.has_module_symbols();
-    return base::ErrStatus("break");
-  });
-  return has_symbols;
-}
-
-}  // namespace
 
 ZipTraceReader::ZipTraceReader(TraceProcessorContext* context)
     : context_(context) {}
@@ -65,10 +50,10 @@ bool ZipTraceReader::Entry::operator<(const Entry& rhs) const {
   // exception. We actually need those are the very end (once whe have all the
   // Frames). Alternatively we could build a map address -> symbol during
   // tokenization and use this during parsing to resolve symbols.
-  if (has_symbols) {
+  if (trace_type == kSymbolsTraceType) {
     return false;
   }
-  if (rhs.has_symbols) {
+  if (rhs.trace_type == kSymbolsTraceType) {
     return true;
   }
 
@@ -102,10 +87,20 @@ base::Status ZipTraceReader::NotifyEndOfFile() {
   std::sort(entries.begin(), entries.end());
 
   for (Entry& e : entries) {
-    parsers_.push_back(std::make_unique<ForwardingTraceParser>(context_));
-    auto& parser = *parsers_.back();
+    ScopedActiveTraceFile trace_file =
+        context_->trace_file_tracker->StartNewFile(e.name, e.trace_type,
+                                                   e.uncompressed_data.size());
+
+    auto chunk_reader = std::make_unique<ForwardingTraceParser>(context_);
+    auto& parser = *chunk_reader;
+    context_->chunk_readers.push_back(std::move(chunk_reader));
+
     RETURN_IF_ERROR(parser.Parse(std::move(e.uncompressed_data)));
     RETURN_IF_ERROR(parser.NotifyEndOfFile());
+
+    // Make sure the ForwardingTraceParser determined the same trace type as we
+    // did.
+    PERFETTO_CHECK(parser.trace_type() == e.trace_type);
   }
   return base::OkStatus();
 }
@@ -128,8 +123,6 @@ ZipTraceReader::ExtractEntries(std::vector<util::ZipFile> files) {
         TraceBlobView(TraceBlob::CopyFrom(buffer.data(), buffer.size()));
     entry.trace_type = GuessTraceType(entry.uncompressed_data.data(),
                                       entry.uncompressed_data.size());
-    entry.has_symbols = entry.trace_type == TraceType::kProtoTraceType &&
-                        HasSymbols(entry.uncompressed_data);
     entries.push_back(std::move(entry));
   }
   return std::move(entries);
