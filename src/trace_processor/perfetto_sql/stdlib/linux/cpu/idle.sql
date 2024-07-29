@@ -14,7 +14,6 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE counters.intervals;
-INCLUDE PERFETTO MODULE linux.cpu.frequency;
 
 -- Counter information for each idle state change for each CPU. Finds each time
 -- region where a CPU idle state is constant.
@@ -33,8 +32,7 @@ CREATE PERFETTO TABLE cpu_idle_counters(
   idle INT,
   -- CPU that corresponds to this counter.
   cpu INT
-)
-AS
+) AS
 SELECT
   count_w_dur.id,
   count_w_dur.track_id,
@@ -42,62 +40,9 @@ SELECT
   count_w_dur.dur,
   cast_int!(IIF(count_w_dur.value = 4294967295, -1, count_w_dur.value)) AS idle,
   cct.cpu
-FROM
-counter_leading_intervals!((
+FROM counter_leading_intervals!((
   SELECT c.*
   FROM counter c
-  JOIN cpu_counter_track cct
-  ON cct.id = c.track_id and cct.name = 'cpuidle'
-)) count_w_dur
-JOIN cpu_counter_track cct
-ON track_id = cct.id;
-
-CREATE PERFETTO VIEW _freq_counters_for_sp_jn AS
-SELECT ts, dur, cpu
-FROM cpu_frequency_counters;
-
-CREATE PERFETTO VIEW _idle_counters_for_sp_jn AS
-SELECT ts, dur, cpu, idle
-FROM cpu_idle_counters;
-
--- Combined cpu freq & idle counter
-CREATE VIRTUAL TABLE _freq_idle_counters
-USING span_join(
-  _freq_counters_for_sp_jn PARTITIONED cpu,
-  _idle_counters_for_sp_jn PARTITIONED cpu
-);
-
--- Aggregates cpu idle statistics per core.
-CREATE PERFETTO TABLE cpu_idle_stats(
-  -- CPU core number.
-  cpu INT,
-  -- CPU idle state (C-states).
-  state INT,
-  -- The count of entering idle state.
-  count INT,
-  -- Total CPU core idle state duration in nanoseconds.
-  dur INT,
-  -- Average CPU core idle state duration in nanoseconds.
-  avg_dur INT,
-  -- Idle state percentage of non suspend time (C-states + P-states).
-  idle_percent FLOAT
-)
-AS
-WITH
-total AS (
-  SELECT
-    cpu,
-    sum(dur) AS dur
-  FROM _freq_idle_counters
-  GROUP BY cpu
-)
-SELECT
-  cpu,
-  (idle + 1) AS state,
-  COUNT(idle) AS count,
-  SUM(dur) AS dur,
-  SUM(dur) / COUNT(idle) AS avg_dur,
-  SUM(dur) * 100.0 / (SELECT dur FROM total t WHERE t.cpu = ific.cpu) AS idle_percent
-FROM _freq_idle_counters ific
-WHERE idle >=0
-GROUP BY cpu, idle;
+  JOIN cpu_counter_track cct ON cct.id = c.track_id AND cct.name = 'cpuidle'
+)) AS count_w_dur
+JOIN cpu_counter_track AS cct ON track_id = cct.id;

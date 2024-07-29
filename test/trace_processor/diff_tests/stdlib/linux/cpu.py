@@ -249,8 +249,8 @@ class LinuxCpu(TestSuite):
             """))
 
   def test_linux_cpu_idle_stats(self):
-      return DiffTestBlueprint(
-          trace=TextProto(r"""
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
           packet {
             ftrace_events {
               cpu: 0
@@ -315,12 +315,11 @@ class LinuxCpu(TestSuite):
             trusted_packet_sequence_id: 2
           }
          """),
-         query="""
-         INCLUDE PERFETTO MODULE linux.cpu.idle;
+        query="""
+         INCLUDE PERFETTO MODULE linux.cpu.idle_stats;
          SELECT * FROM cpu_idle_stats;
          """,
-         out=Csv("""
+        out=Csv("""
          "cpu","state","count","dur","avg_dur","idle_percent"
          0,2,2,2000000,1000000,40.000000
          """))
-
