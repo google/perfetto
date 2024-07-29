@@ -27,6 +27,7 @@ Unreleased:
     * Moved `memory.heap_graph_dominator_tree` to
       `android.memory.heap_graph.dominator_tree`. This is to allow for the
       addition of more modules related to heap graphs.
+    * Added `linux_kernel_threads` table to `linux.threads` module.
   Trace Processor:
     * Added `CREATE PERFETTO INDEX` to add sqlite-like indexes to Perfetto
       tables. Has the same API as `CREATE INDEX`.
