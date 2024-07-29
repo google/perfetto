@@ -37,7 +37,7 @@ import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {Analytics, initAnalytics} from './analytics';
 import {Timeline} from './timeline';
-import {SliceSqlId} from './sql_types';
+import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';

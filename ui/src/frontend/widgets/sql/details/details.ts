@@ -29,10 +29,10 @@ import {renderError} from '../../../../widgets/error';
 import {SqlRef} from '../../../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../../../widgets/tree';
 import {hasArgs, renderArguments} from '../../../slice_args';
-import {asArgSetId} from '../../../sql_types';
+import {asArgSetId} from '../../../../trace_processor/sql_utils/core_types';
 import {DurationWidget} from '../../../widgets/duration';
 import {Timestamp as TimestampWidget} from '../../../widgets/timestamp';
-import {Arg, getArgs} from '../../../sql/args';
+import {Arg, getArgs} from '../../../../trace_processor/sql_utils/args';
 
 // This file contains the helper to render the details tree (based on Tree
 // widget) for an object represented by a SQL row in some table. The user passes

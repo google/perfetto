@@ -33,8 +33,8 @@ import {SqlTableState} from './state';
 import {SliceIdDisplayConfig} from './table_description';
 import {Timestamp} from '../../timestamp';
 import {DurationWidget} from '../../duration';
-import {SliceRef} from '../../../sql/slice';
-import {asSliceSqlId} from '../../../sql_types';
+import {asSliceSqlId} from '../../../../trace_processor/sql_utils/core_types';
+import {SliceRef} from '../../slice';
 
 // This file is responsible for rendering a value in a given sell based on the
 // column type.

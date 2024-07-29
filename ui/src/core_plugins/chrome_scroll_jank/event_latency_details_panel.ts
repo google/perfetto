@@ -25,10 +25,12 @@ import {
   getSlice,
   getSliceFromConstraints,
   SliceDetails,
-  sliceRef,
   SliceTreeNode,
-} from '../../frontend/sql/slice';
-import {asSliceSqlId, SliceSqlId} from '../../frontend/sql_types';
+} from '../../trace_processor/sql_utils/slice';
+import {
+  asSliceSqlId,
+  SliceSqlId,
+} from '../../trace_processor/sql_utils/core_types';
 import {
   ColumnDescriptor,
   Table,
@@ -57,6 +59,7 @@ import {
   ScrollJankSlice,
 } from './scroll_jank_slice';
 import {ScrollJankV3TrackKind} from './common';
+import {sliceRef} from '../../frontend/widgets/slice';
 
 // Given a node in the slice tree, return a path from root to it.
 function getPath(slice: SliceTreeNode): string[] {

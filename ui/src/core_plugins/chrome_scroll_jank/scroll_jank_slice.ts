@@ -19,7 +19,7 @@ import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
-import {SliceSqlId} from '../../frontend/sql_types';
+import {SliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {

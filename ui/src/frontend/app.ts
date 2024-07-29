@@ -52,12 +52,12 @@ import {
 } from './keyboard_event_handler';
 import {publishPermalinkHash} from './publish';
 import {OmniboxMode, PromptOption} from './omnibox_manager';
-import {Utid} from './sql_types';
-import {getThreadInfo} from './thread_and_process_info';
+import {Utid} from '../trace_processor/sql_utils/core_types';
 import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 import {DisposableStack} from '../base/disposable_stack';
 import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './well_known_sql_tables';
+import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {getThreadInfo} from '../trace_processor/sql_utils/thread';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;
