@@ -14,10 +14,10 @@ Unreleased:
       reason as above.
     * Moved `gpu.frequency` to `android.gpu.frequency` for the same reason as
       above.
-    * Moved `cpu.idle` module to `linux.cpu.idle` for the same
-      reason as above.
-    * Moved content of `linux.cpu_idle` into `linux.cpu.idle` to make it
-      consistent with above changes.
+    * Moved `cpu.idle` module to `linux.cpu.idle` or `linux.cpu.idle_stats` for
+      the same reason as above.
+    * Moved content of `linux.cpu_idle` into `linux.cpu.idle` and
+      `linux.cpu.idle_stats` to make it consistent with above changes.
     * Moved `memory.android.gpu` to `android.memory.gpu`  to make it consistent
       with above changes.`
     * Moved contents of `memory.linux.process` to `linux.memory.process` and
