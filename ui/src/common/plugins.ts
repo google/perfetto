@@ -480,6 +480,7 @@ export class PluginManager {
     // call onTraceLoad().
     if (this.engine) {
       await doPluginTraceLoad(pluginDetails, this.engine);
+      await doPluginTraceReady(pluginDetails);
     }
 
     this._plugins.set(id, pluginDetails);
@@ -563,6 +564,16 @@ export class PluginManager {
     }
   }
 
+  async onTraceReady(): Promise<void> {
+    const pluginsShuffled = Array.from(this._plugins.values())
+      .map((plugin) => ({plugin, sort: Math.random()}))
+      .sort((a, b) => a.sort - b.sort);
+
+    for (const {plugin} of pluginsShuffled) {
+      await doPluginTraceReady(plugin);
+    }
+  }
+
   onTraceClose() {
     for (const pluginDetails of this._plugins.values()) {
       doPluginTraceUnload(pluginDetails);
@@ -582,6 +593,12 @@ export class PluginManager {
   }
 }
 
+async function doPluginTraceReady(pluginDetails: PluginDetails): Promise<void> {
+  const {plugin, traceContext} = pluginDetails;
+  await Promise.resolve(plugin.onTraceReady?.(assertExists(traceContext)));
+  raf.scheduleFullRedraw();
+}
+
 async function doPluginTraceLoad(
   pluginDetails: PluginDetails,
   engine: EngineBase,
@@ -592,13 +609,11 @@ async function doPluginTraceLoad(
   pluginDetails.traceContext = traceCtx;
 
   const startTime = performance.now();
-  const result = await Promise.resolve(plugin.onTraceLoad?.(traceCtx));
+  await Promise.resolve(plugin.onTraceLoad?.(traceCtx));
   const loadTime = performance.now() - startTime;
   pluginDetails.previousOnTraceLoadTimeMillis = loadTime;
 
   raf.scheduleFullRedraw();
-
-  return result;
 }
 
 async function doPluginTraceUnload(

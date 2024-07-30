@@ -122,12 +122,12 @@ export interface SliceIdentifier {
  * @param {SliceIdentifier} slice slice to focus on with trackId and sliceId
  */
 
-export async function focusOnSlice(slice: SliceIdentifier) {
+export function focusOnSlice(slice: SliceIdentifier) {
   if (slice.sliceId == undefined || slice.trackId == undefined) {
     return;
   }
   const trackId = slice.trackId;
-  const trackKey = await getTrackKey(trackId);
+  const trackKey = getTrackKey(trackId);
   globals.setLegacySelection(
     {
       kind: 'SLICE',
@@ -150,14 +150,8 @@ export async function focusOnSlice(slice: SliceIdentifier) {
  * @param {number} trackId track_id of the track
  * @returns {string} trackKey given to the track with queried trackId
  */
-async function getTrackKey(trackId: number): Promise<string | undefined> {
-  // TODO: b/353466921 - update when waiForTraceLoad function added
-  // waitForValue used to return trackKey when available
-  // as we need to wait for the trace to load first.
-  const trackKey = await waitForValue(() =>
-    globals.trackManager.trackKeyByTrackId.get(trackId),
-  );
-  return trackKey;
+function getTrackKey(trackId: number): string | undefined {
+  return globals.trackManager.trackKeyByTrackId.get(trackId);
 }
 
 /**
@@ -181,7 +175,7 @@ export async function focusOnTimeAndTrack(slice: SliceIdentifier) {
   const sliceStart = slice.ts;
   // row.dur can be negative. Clamp to 1ns.
   const sliceDur = BigintMath.max(slice.dur, 1n);
-  const trackKey = await getTrackKey(trackId);
+  const trackKey = getTrackKey(trackId);
   // true for whether to expand the process group the track belongs to
   if (trackKey == undefined) {
     return;

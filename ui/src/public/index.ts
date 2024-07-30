@@ -314,6 +314,7 @@ export interface Plugin {
   // Lifecycle methods.
   onActivate?(ctx: PluginContext): void;
   onTraceLoad?(ctx: PluginContextTrace): Promise<void>;
+  onTraceReady?(ctx: PluginContextTrace): Promise<void>;
   onTraceUnload?(ctx: PluginContextTrace): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
 
