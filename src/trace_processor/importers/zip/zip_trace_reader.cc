@@ -66,6 +66,13 @@ bool ZipTraceReader::Entry::operator<(const Entry& rhs) const {
     return true;
   }
 
+  if (rhs.trace_type == TraceType::kGzipTraceType) {
+    return false;
+  }
+  if (trace_type == TraceType::kGzipTraceType) {
+    return true;
+  }
+
   return std::tie(name, index) < std::tie(rhs.name, rhs.index);
 }
 
