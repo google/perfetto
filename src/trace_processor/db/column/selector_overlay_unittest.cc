@@ -151,15 +151,5 @@ TEST(SelectorOverlay, StableSort) {
   }
 }
 
-TEST(SelectorOverlay, Flatten) {
-  BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
-  SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(FakeStorageChain::SearchAll(8));
-
-  std::vector<uint32_t> indices{1, 2, 3};
-  chain->Flatten(indices);
-  ASSERT_THAT(indices, ElementsAre(2, 5, 6));
-}
-
 }  // namespace
 }  // namespace perfetto::trace_processor::column

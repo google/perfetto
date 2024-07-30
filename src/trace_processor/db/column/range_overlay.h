@@ -21,17 +21,21 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
-class RangeOverlay final : public DataLayer {
+class RangeOverlay final : public OverlayLayer {
  public:
   explicit RangeOverlay(const Range*);
   ~RangeOverlay() override;
+
+  void Flatten(std::vector<Token>&) override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,
@@ -60,8 +64,6 @@ class RangeOverlay final : public DataLayer {
     std::optional<Token> MaxElement(Indices&) const override;
 
     std::optional<Token> MinElement(Indices&) const override;
-
-    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override;
 
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 

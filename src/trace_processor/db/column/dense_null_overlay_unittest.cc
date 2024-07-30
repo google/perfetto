@@ -252,15 +252,5 @@ TEST(DenseNullOverlay, Distinct) {
               UnorderedElementsAre(0, 1, 2));
 }
 
-TEST(DenseNullOverlay, Flatten) {
-  BitVector bv{0, 1, 0, 1, 1, 1};
-  DenseNullOverlay storage(&bv);
-  auto chain = storage.MakeChain(FakeStorageChain::SearchAll(6));
-  std::vector<uint32_t> indices{0, 1, 2, 3, 1};
-  chain->Flatten(indices);
-  ASSERT_THAT(indices, ElementsAre(std::numeric_limits<uint32_t>::max(), 1,
-                                   std::numeric_limits<uint32_t>::max(), 3, 1));
-}
-
 }  // namespace
 }  // namespace perfetto::trace_processor::column

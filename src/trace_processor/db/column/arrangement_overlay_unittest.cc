@@ -157,16 +157,5 @@ TEST(ArrangementOverlay, Distinct) {
   ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 2));
 }
 
-TEST(ArrangementOverlay, Flatten) {
-  std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  auto fake = FakeStorageChain::SearchAll(10);
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto chain = storage.MakeChain(std::move(fake));
-
-  std::vector<uint32_t> indices{0, 2, 4, 6, 8, 1, 3};
-  chain->Flatten(indices);
-  ASSERT_THAT(indices, ElementsAre(1, 2, 3, 4, 1, 1, 2));
-}
-
 }  // namespace
 }  // namespace perfetto::trace_processor::column

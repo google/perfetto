@@ -65,6 +65,10 @@ uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, Range range) {
 
 }  // namespace
 
+SetIdStorage::StoragePtr SetIdStorage::GetStoragePtr() {
+  return values_->data();
+}
+
 SetIdStorage::ChainImpl::ChainImpl(const std::vector<uint32_t>* values)
     : values_(values) {}
 
@@ -337,11 +341,6 @@ std::optional<Token> SetIdStorage::ChainImpl::MinElement(
   }
 
   return *tok;
-}
-
-std::unique_ptr<DataLayer> SetIdStorage::ChainImpl::Flatten(
-    std::vector<uint32_t>&) const {
-  return std::unique_ptr<DataLayer>(new SetIdStorage(values_));
 }
 
 SqlValue SetIdStorage::ChainImpl::Get_AvoidUsingBecauseSlow(
