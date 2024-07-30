@@ -21,6 +21,7 @@
 
 #include <array>
 #include <cinttypes>
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <random>
@@ -156,6 +157,10 @@ class ClockTracker {
     PERFETTO_DCHECK(IsSequenceClock(clock_id));
     return (static_cast<int64_t>(seq_id) << 32) | clock_id;
   }
+
+  void set_timezone_offset(int64_t offset) { timezone_offset_ = offset; }
+
+  std::optional<int64_t> timezone_offset() const { return timezone_offset_; }
 
   // Appends a new snapshot for the given clock domains.
   // This is typically called by the code that reads the ClockSnapshot packet.
@@ -372,6 +377,7 @@ class ClockTracker {
   uint32_t cur_snapshot_id_ = 0;
   bool trace_time_clock_id_used_for_conversion_ = false;
   base::FlatHashMap<ClockId, int64_t> clock_offsets_;
+  std::optional<int64_t> timezone_offset_;
 };
 
 }  // namespace trace_processor
