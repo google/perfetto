@@ -36,17 +36,13 @@ import {Animation} from './animation';
 import {downloadData, downloadUrl} from './download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {
-  isLegacyTrace,
-  openFileWithLegacyTraceViewer,
-} from './legacy_trace_viewer';
 import {Router} from './router';
 import {createTraceLink, isDownloadable, shareTrace} from './trace_attrs';
 import {
-  convertToJson,
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
+import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';
@@ -132,10 +128,24 @@ function getSections(): Section[] {
       summary: 'Open or record a new trace',
       expanded: true,
       items: [
-        {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
+        {
+          t: 'Open trace file',
+          a: (e) => {
+            e.preventDefault();
+            globals.commandManager.runCommand(
+              'perfetto.CoreCommands#openTrace',
+            );
+          },
+          i: 'folder_open',
+        },
         {
           t: 'Open with legacy UI',
-          a: popupFileSelectionDialogOldUI,
+          a: (e) => {
+            e.preventDefault();
+            globals.commandManager.runCommand(
+              'perfetto.CoreCommands#openTraceInLegacyUi',
+            );
+          },
           i: 'filter_none',
         },
         {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
@@ -285,24 +295,6 @@ function openHelp(e: Event) {
   toggleHelp();
 }
 
-function getFileElement(): HTMLInputElement {
-  return assertExists(
-    document.querySelector<HTMLInputElement>('input[type=file]'),
-  );
-}
-
-function popupFileSelectionDialog(e: Event) {
-  e.preventDefault();
-  delete getFileElement().dataset['useCatapultLegacyUi'];
-  getFileElement().click();
-}
-
-function popupFileSelectionDialogOldUI(e: Event) {
-  e.preventDefault();
-  getFileElement().dataset['useCatapultLegacyUi'] = '1';
-  getFileElement().click();
-}
-
 function downloadTraceFromUrl(url: string): Promise<File> {
   return m.request({
     method: 'GET',
@@ -394,84 +386,6 @@ export function openTraceUrl(url: string): (e: Event) => void {
     e.preventDefault();
     globals.dispatch(Actions.openTraceFromUrl({url}));
   };
-}
-
-function onInputElementFileSelectionChanged(e: Event) {
-  if (!(e.target instanceof HTMLInputElement)) {
-    throw new Error('Not an input element');
-  }
-  if (!e.target.files) return;
-  const file = e.target.files[0];
-  // Reset the value so onchange will be fired with the same file.
-  e.target.value = '';
-
-  if (e.target.dataset['useCatapultLegacyUi'] === '1') {
-    openWithLegacyUi(file);
-    return;
-  }
-
-  globals.logging.logEvent('Trace Actions', 'Open trace from file');
-  globals.dispatch(Actions.openTraceFromFile({file}));
-}
-
-async function openWithLegacyUi(file: File) {
-  // Switch back to the old catapult UI.
-  globals.logging.logEvent('Trace Actions', 'Open trace in Legacy UI');
-  if (await isLegacyTrace(file)) {
-    openFileWithLegacyTraceViewer(file);
-    return;
-  }
-  openInOldUIWithSizeCheck(file);
-}
-
-function openInOldUIWithSizeCheck(trace: Blob) {
-  // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
-  if (trace.size < 1024 * 1024 * 50) {
-    convertToJson(trace);
-    return;
-  }
-
-  // Give the user the option to truncate larger perfetto traces.
-  const size = Math.round(trace.size / (1024 * 1024));
-  showModal({
-    title: 'Legacy UI may fail to open this trace',
-    content: m(
-      'div',
-      m(
-        'p',
-        `This trace is ${size}mb, opening it in the legacy UI ` + `may fail.`,
-      ),
-      m(
-        'p',
-        'More options can be found at ',
-        m(
-          'a',
-          {
-            href: 'https://goto.google.com/opening-large-traces',
-            target: '_blank',
-          },
-          'go/opening-large-traces',
-        ),
-        '.',
-      ),
-    ),
-    buttons: [
-      {
-        text: 'Open full trace (not recommended)',
-        action: () => convertToJson(trace),
-      },
-      {
-        text: 'Open beginning of trace',
-        action: () => convertToJson(trace, /* truncate*/ 'start'),
-      },
-      {
-        text: 'Open end of trace',
-        primary: true,
-        action: () => convertToJson(trace, /* truncate*/ 'end'),
-      },
-    ],
-  });
-  return;
 }
 
 function navigateRecord(e: Event) {
@@ -917,7 +831,7 @@ export class Sidebar implements m.ClassComponent {
           {
             onclick: () => {
               globals.commandManager.runCommand(
-                'dev.perfetto.CoreCommands#ToggleLeftSidebar',
+                'perfetto.CoreCommands#ToggleLeftSidebar',
               );
             },
           },
@@ -930,9 +844,6 @@ export class Sidebar implements m.ClassComponent {
           ),
         ),
       ),
-      m('input.trace_file[type=file]', {
-        onchange: onInputElementFileSelectionChanged,
-      }),
       m(
         '.sidebar-scroll',
         m('.sidebar-scroll-container', ...vdomSections, m(SidebarFooter)),
