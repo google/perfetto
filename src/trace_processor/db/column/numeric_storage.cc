@@ -38,7 +38,6 @@
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
 namespace {
@@ -504,47 +503,6 @@ Range NumericStorageBase::ChainImpl::BinarySearchIntrinsic(
       return {};
   }
   return {};
-}
-
-void NumericStorageBase::ChainImpl::Serialize(StorageProto* msg) const {
-  auto* numeric_storage_msg = msg->set_numeric_storage();
-  numeric_storage_msg->set_is_sorted(is_sorted_);
-  numeric_storage_msg->set_column_type(static_cast<uint32_t>(storage_type_));
-
-  switch (storage_type_) {
-    case ColumnType::kInt64: {
-      const auto* ptr = static_cast<const std::vector<int64_t>*>(vector_ptr_);
-      numeric_storage_msg->set_values(
-          reinterpret_cast<const uint8_t*>(ptr->data()),
-          sizeof(int64_t) * ptr->size());
-      break;
-    }
-    case ColumnType::kInt32: {
-      const auto* ptr = static_cast<const std::vector<int64_t>*>(vector_ptr_);
-      numeric_storage_msg->set_values(
-          reinterpret_cast<const uint8_t*>(ptr->data()),
-          sizeof(int32_t) * ptr->size());
-      break;
-    }
-    case ColumnType::kUint32: {
-      const auto* ptr = static_cast<const std::vector<int64_t>*>(vector_ptr_);
-      numeric_storage_msg->set_values(
-          reinterpret_cast<const uint8_t*>(ptr->data()),
-          sizeof(uint32_t) * ptr->size());
-      break;
-    }
-    case ColumnType::kDouble: {
-      const auto* ptr = static_cast<const std::vector<int64_t>*>(vector_ptr_);
-      numeric_storage_msg->set_values(
-          reinterpret_cast<const uint8_t*>(ptr->data()),
-          sizeof(double_t) * ptr->size());
-      break;
-    }
-    case ColumnType::kDummy:
-    case ColumnType::kId:
-    case ColumnType::kString:
-      PERFETTO_FATAL("Invalid column type for NumericStorage");
-  }
 }
 
 }  // namespace perfetto::trace_processor::column

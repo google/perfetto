@@ -34,7 +34,6 @@
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
 namespace {
@@ -340,12 +339,6 @@ SqlValue NullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
   return non_null_->IsSet(index)
              ? inner_->Get_AvoidUsingBecauseSlow(non_null_->CountSetBits(index))
              : SqlValue();
-}
-
-void NullOverlay::ChainImpl::Serialize(StorageProto* storage) const {
-  auto* null_storage = storage->set_null_overlay();
-  non_null_->Serialize(null_storage->set_bit_vector());
-  inner_->Serialize(null_storage->set_storage());
 }
 
 }  // namespace perfetto::trace_processor::column

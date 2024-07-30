@@ -73,8 +73,6 @@ class ArrangementOverlay final : public DataLayer {
 
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 
-    void Serialize(StorageProto*) const override;
-
     uint32_t size() const override {
       return static_cast<uint32_t>(arrangement_->size());
     }

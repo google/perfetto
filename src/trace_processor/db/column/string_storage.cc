@@ -42,7 +42,6 @@
 #include "src/trace_processor/util/regex.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
 
@@ -642,15 +641,6 @@ SqlValue StringStorage::ChainImpl::Get_AvoidUsingBecauseSlow(
   return id == StringPool::Id::Null()
              ? SqlValue()
              : SqlValue::String(string_pool_->Get(id).c_str());
-}
-
-void StringStorage::ChainImpl::Serialize(StorageProto* msg) const {
-  auto* string_storage_msg = msg->set_string_storage();
-  string_storage_msg->set_is_sorted(is_sorted_);
-
-  string_storage_msg->set_values(
-      reinterpret_cast<const uint8_t*>(data_->data()),
-      sizeof(StringPool::Id) * size());
 }
 
 }  // namespace perfetto::trace_processor::column
