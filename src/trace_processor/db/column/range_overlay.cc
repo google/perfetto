@@ -173,8 +173,4 @@ SqlValue RangeOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
   return inner_->Get_AvoidUsingBecauseSlow(index + range_->start);
 }
 
-void RangeOverlay::ChainImpl::Serialize(StorageProto*) const {
-  PERFETTO_FATAL("Not implemented");
-}
-
 }  // namespace perfetto::trace_processor::column

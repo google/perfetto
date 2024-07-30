@@ -30,7 +30,6 @@
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
 namespace {
@@ -146,12 +145,6 @@ std::unique_ptr<DataLayer> SelectorOverlay::ChainImpl::Flatten(
 SqlValue SelectorOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
     uint32_t index) const {
   return inner_->Get_AvoidUsingBecauseSlow(selector_->IndexOfNthSet(index));
-}
-
-void SelectorOverlay::ChainImpl::Serialize(StorageProto* storage) const {
-  auto* selector_overlay = storage->set_selector_overlay();
-  inner_->Serialize(selector_overlay->set_storage());
-  selector_->Serialize(selector_overlay->set_bit_vector());
 }
 
 void SelectorOverlay::ChainImpl::TranslateToInnerIndices(
