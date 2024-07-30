@@ -32,7 +32,9 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
 #include "src/trace_processor/db/column/selector_overlay.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/table.h"
@@ -129,9 +131,9 @@ class MacroTable : public Table {
   }
 
   PERFETTO_NO_INLINE void OnConstructionCompletedRegularConstructor(
-      std::initializer_list<RefPtr<column::DataLayer>> storage_layers,
-      std::initializer_list<RefPtr<column::DataLayer>> null_layers) {
-    std::vector<RefPtr<column::DataLayer>> overlay_layers(
+      std::initializer_list<RefPtr<column::StorageLayer>> storage_layers,
+      std::initializer_list<RefPtr<column::OverlayLayer>> null_layers) {
+    std::vector<RefPtr<column::OverlayLayer>> overlay_layers(
         OverlayCount(parent_) + 1);
     for (uint32_t i = 0; i < overlay_layers.size() - 1; ++i) {
       PERFETTO_CHECK(overlays()[i].row_map().IsBitVector());

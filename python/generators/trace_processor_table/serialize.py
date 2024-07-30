@@ -175,17 +175,6 @@ class ColumnSerializer:
     }}
     '''
 
-  def iterator_setter(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
-      return None
-    return f'''
-      void set_{self.name}(ColumnType::{self.name}::non_optional_type v) {{
-        auto* col = mutable_table_->mutable_{self.name}();
-        col->SetAtIdx(
-          iterator_.StorageIndexForColumn(col->index_in_table()), v);
-      }}
-    '''
-
   def static_schema(self) -> Optional[str]:
     if self.is_implicit_id or self.is_implicit_type:
       return None
@@ -242,7 +231,7 @@ class ColumnSerializer:
     if self.is_ancestor:
       return None
     return f'''
-  RefPtr<column::DataLayer> {self.name}_storage_layer_;
+  RefPtr<column::StorageLayer> {self.name}_storage_layer_;
   '''
 
   def null_layer(self) -> Optional[str]:
@@ -251,7 +240,7 @@ class ColumnSerializer:
     if not self.is_optional or self.is_string:
       return f''
     return f'''
-  RefPtr<column::DataLayer> {self.name}_null_layer_;
+  RefPtr<column::OverlayLayer> {self.name}_null_layer_;
   '''
 
   def storage_layer_create(self) -> str:
@@ -502,13 +491,9 @@ class TableSerializer(object):
       '''
 
   def iterator(self) -> str:
-    iterator_setters = self.foreach_col(
-        ColumnSerializer.iterator_setter, delimiter='\n')
     return f'''
   class Iterator : public ConstIterator {{
     public:
-     {iterator_setters}
-
      RowReference row_reference() const {{
        return RowReference(mutable_table_, CurrentRowNumber());
      }}
@@ -586,7 +571,7 @@ class TableSerializer(object):
     {self.foreach_col(ColumnSerializer.static_assert_flags)}
     {self.foreach_col(ColumnSerializer.extend_nullable_vector)}
 
-    std::vector<RefPtr<column::DataLayer>> overlay_layers(OverlayCount(&parent) + 1);
+    std::vector<RefPtr<column::OverlayLayer>> overlay_layers(OverlayCount(&parent) + 1);
     for (uint32_t i = 0; i < overlay_layers.size(); ++i) {{
       if (overlays()[i].row_map().IsIndexVector()) {{
         overlay_layers[i].reset(new column::ArrangementOverlay(
