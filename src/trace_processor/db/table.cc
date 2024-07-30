@@ -32,8 +32,10 @@
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/arrangement_overlay.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
 #include "src/trace_processor/db/column/range_overlay.h"
 #include "src/trace_processor/db/column/selector_overlay.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/query_executor.h"
@@ -142,8 +144,7 @@ RowMap Table::TryApplyIndex(std::vector<Constraint>& c_vec) const {
 
   // Prework - use indexes if possible and decide which one.
   std::vector<uint32_t> maybe_idx_cols;
-  for (uint32_t i = 0; i < c_vec.size(); i++) {
-    const Constraint& c = c_vec[i];
+  for (const auto& c : c_vec) {
     // Id columns shouldn't use index.
     if (columns()[c.col_idx].IsId()) {
       break;
@@ -152,7 +153,6 @@ RowMap Table::TryApplyIndex(std::vector<Constraint>& c_vec) const {
     if (!IsSortingOp(c.op)) {
       break;
     }
-
     maybe_idx_cols.push_back(c.col_idx);
 
     // For the next col to be able to use index, all previous constraints have
@@ -178,24 +178,20 @@ RowMap Table::TryApplyIndex(std::vector<Constraint>& c_vec) const {
 
   for (uint32_t i = 0; i < maybe_idx_cols.size(); i++) {
     const Constraint& c = c_vec[i];
-
     Range r =
         ChainForColumn(c.col_idx).OrderedIndexSearch(c.op, c.value, o_idxs);
     o_idxs.data += r.start;
     o_idxs.size = r.size();
   }
+  c_vec.erase(c_vec.begin(),
+              c_vec.begin() + static_cast<uint32_t>(maybe_idx_cols.size()));
 
   std::vector<uint32_t> res_vec(o_idxs.data, o_idxs.data + o_idxs.size);
   if (res_vec.size() < kIndexVectorThreshold) {
     std::sort(res_vec.begin(), res_vec.end());
-    rm = RowMap(std::move(res_vec));
-  } else {
-    rm = RowMap(BitVector::FromUnsortedIndexVector(res_vec));
+    return RowMap(std::move(res_vec));
   }
-
-  c_vec.erase(c_vec.begin(),
-              c_vec.begin() + static_cast<uint32_t>(maybe_idx_cols.size()));
-  return rm;
+  return RowMap(BitVector::FromUnsortedIndexVector(res_vec));
 }
 
 RowMap Table::QueryToRowMap(const Query& q) const {
@@ -270,7 +266,8 @@ Table Table::Sort(const std::vector<Order>& ob) const {
     table.columns_[ob.front().col_idx].flags_ |= ColumnLegacy::Flag::kSorted;
   }
 
-  std::vector<RefPtr<column::DataLayer>> overlay_layers(table.overlays_.size());
+  std::vector<RefPtr<column::OverlayLayer>> overlay_layers(
+      table.overlays_.size());
   for (uint32_t i = 0; i < table.overlays_.size(); ++i) {
     if (table.overlays_[i].row_map().IsIndexVector()) {
       overlay_layers[i].reset(new column::ArrangementOverlay(
@@ -290,9 +287,9 @@ Table Table::Sort(const std::vector<Order>& ob) const {
 }
 
 void Table::OnConstructionCompleted(
-    std::vector<RefPtr<column::DataLayer>> storage_layers,
-    std::vector<RefPtr<column::DataLayer>> null_layers,
-    std::vector<RefPtr<column::DataLayer>> overlay_layers) {
+    std::vector<RefPtr<column::StorageLayer>> storage_layers,
+    std::vector<RefPtr<column::OverlayLayer>> null_layers,
+    std::vector<RefPtr<column::OverlayLayer>> overlay_layers) {
   for (ColumnLegacy& col : columns_) {
     col.BindToTable(this, string_pool_);
   }
