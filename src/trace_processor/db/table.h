@@ -161,7 +161,6 @@ class Table {
       if (cols.size() >= idx.index.size()) {
         continue;
       }
-
       if (std::equal(cols.begin(), cols.end(), idx.columns.begin())) {
         return OrderedIndicesFromIndex(idx.index);
       }
@@ -175,36 +174,32 @@ class Table {
                         std::vector<uint32_t> col_idxs,
                         std::vector<uint32_t> index,
                         bool replace = false) {
-    for (auto& idx : indexes_) {
-      if (idx.name == name) {
-        if (replace) {
-          idx.columns = std::move(col_idxs);
-          idx.index = std::move(index);
-          return base::OkStatus();
-        }
-        return base::ErrStatus(
-            "Index of this name already exists on this table.");
-      }
+    auto it = std::find_if(
+        indexes_.begin(), indexes_.end(),
+        [&name](const ColumnIndex& idx) { return idx.name == name; });
+    if (it == indexes_.end()) {
+      indexes_.push_back({name, std::move(col_idxs), std::move(index)});
+      return base::OkStatus();
     }
-
-    ColumnIndex idx;
-    idx.name = name;
-    idx.columns = std::move(col_idxs);
-    idx.index = std::move(index);
-    indexes_.push_back(std::move(idx));
-    return base::OkStatus();
+    if (replace) {
+      it->columns = std::move(col_idxs);
+      it->index = std::move(index);
+      return base::OkStatus();
+    }
+    return base::ErrStatus("Index of this name already exists on this table.");
   }
 
   // Removes index from the table.
   // Returns an error if index doesn't exist.
   base::Status DropIndex(const std::string& name) {
-    for (uint32_t i = 0; i < indexes_.size(); i++) {
-      if (indexes_[i].name == name) {
-        indexes_.erase(indexes_.begin() + i);
-        return base::OkStatus();
-      }
+    auto it = std::find_if(
+        indexes_.begin(), indexes_.end(),
+        [&name](const ColumnIndex& idx) { return idx.name == name; });
+    if (it == indexes_.end()) {
+      return base::ErrStatus("Index '%s' not found.", name.c_str());
     }
-    return base::ErrStatus("Index '%s' not found.", name.c_str());
+    indexes_.erase(it);
+    return base::OkStatus();
   }
 
   // Sorts the table using the specified order by constraints.
@@ -220,13 +215,11 @@ class Table {
   // TODO(mayzner): This is not a long term function, it should be used with
   // caution.
   std::optional<uint32_t> ColumnIdxFromName(const std::string& col_name) const {
-    auto x = std::find_if(columns_.begin(), columns_.end(),
-                          [col_name](const ColumnLegacy& col) {
-                            return col_name.compare(col.name()) == 0;
-                          });
-
-    return (x == columns_.end()) ? std::nullopt
-                                 : std::make_optional(x->index_in_table());
+    auto x = std::find_if(
+        columns_.begin(), columns_.end(),
+        [col_name](const ColumnLegacy& col) { return col_name == col.name(); });
+    return x == columns_.end() ? std::nullopt
+                               : std::make_optional(x->index_in_table());
   }
 
   uint32_t row_count() const { return row_count_; }
