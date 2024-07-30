@@ -443,6 +443,9 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
 }
 
 base::Status PerfDataTokenizer::NotifyEndOfFile() {
+  if (parsing_state_ != ParsingState::kDone) {
+    return base::ErrStatus("Premature end of perf file.");
+  }
   return base::OkStatus();
 }
 
