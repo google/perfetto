@@ -364,7 +364,6 @@ export class App implements m.ClassComponent {
       id: 'perfetto.RunQuery',
       name: 'Run query',
       callback: () => globals.omnibox.setMode(OmniboxMode.Query),
-      defaultHotkey: '!Mod+O',
     },
     {
       id: 'perfetto.Search',

@@ -14,12 +14,20 @@
 
 import {Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
+import {Actions} from '../../common/actions';
+import {globals} from '../../frontend/globals';
+import {openInOldUIWithSizeCheck} from '../../frontend/legacy_trace_viewer';
 import {
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {
+  isLegacyTrace,
+  openFileWithLegacyTraceViewer,
+} from '../../frontend/legacy_trace_viewer';
+import {DisposableStack} from '../../base/disposable_stack';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -88,24 +96,62 @@ order by total_self_size desc
 limit 100;`;
 
 class CoreCommandsPlugin implements Plugin {
+  private readonly disposable = new DisposableStack();
+
   onActivate(ctx: PluginContext) {
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#ToggleLeftSidebar',
+      id: 'perfetto.CoreCommands#ToggleLeftSidebar',
       name: 'Toggle left sidebar',
       callback: () => {
-        if (ctx.sidebar.isVisible()) {
-          ctx.sidebar.hide();
+        if (globals.state.sidebarVisible) {
+          globals.dispatch(
+            Actions.setSidebar({
+              visible: false,
+            }),
+          );
         } else {
-          ctx.sidebar.show();
+          globals.dispatch(
+            Actions.setSidebar({
+              visible: true,
+            }),
+          );
         }
       },
       defaultHotkey: '!Mod+B',
+    });
+
+    const input = document.createElement('input');
+    input.classList.add('trace_file');
+    input.setAttribute('type', 'file');
+    input.style.display = 'none';
+    input.addEventListener('change', onInputElementFileSelectionChanged);
+    document.body.appendChild(input);
+    this.disposable.defer(() => {
+      document.body.removeChild(input);
+    });
+
+    ctx.registerCommand({
+      id: 'perfetto.CoreCommands#openTrace',
+      name: 'Open trace file',
+      callback: () => {
+        delete input.dataset['useCatapultLegacyUi'];
+        input.click();
+      },
+      defaultHotkey: '!Mod+O',
+    });
+    ctx.registerCommand({
+      id: 'perfetto.CoreCommands#openTraceInLegacyUi',
+      name: 'Open with legacy UI',
+      callback: () => {
+        input.dataset['useCatapultLegacyUi'] = '1';
+        input.click();
+      },
     });
   }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#RunQueryAllProcesses',
+      id: 'perfetto.CoreCommands#RunQueryAllProcesses',
       name: 'Run query: All processes',
       callback: () => {
         ctx.tabs.openQuery(ALL_PROCESSES_QUERY, 'All Processes');
@@ -113,7 +159,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#RunQueryCpuTimeByProcess',
+      id: 'perfetto.CoreCommands#RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
         ctx.tabs.openQuery(CPU_TIME_FOR_PROCESSES, 'CPU time by process');
@@ -121,7 +167,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#RunQueryCyclesByStateByCpu',
+      id: 'perfetto.CoreCommands#RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
         ctx.tabs.openQuery(
@@ -132,7 +178,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#RunQueryCyclesByCpuByProcess',
+      id: 'perfetto.CoreCommands#RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
         ctx.tabs.openQuery(
@@ -143,7 +189,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#RunQueryHeapGraphBytesPerType',
+      id: 'perfetto.CoreCommands#RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
         ctx.tabs.openQuery(
@@ -154,7 +200,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#DebugSqlPerformance',
+      id: 'perfetto.CoreCommands#DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
         ctx.tabs.openQuery(SQL_STATS, 'Recent SQL queries');
@@ -162,7 +208,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#UnpinAllTracks',
+      id: 'perfetto.CoreCommands#UnpinAllTracks',
       name: 'Unpin all pinned tracks',
       callback: () => {
         ctx.timeline.unpinTracksByPredicate((_) => {
@@ -172,7 +218,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#ExpandAllGroups',
+      id: 'perfetto.CoreCommands#ExpandAllGroups',
       name: 'Expand all track groups',
       callback: () => {
         ctx.timeline.expandGroupsByPredicate((_) => {
@@ -182,7 +228,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#CollapseAllGroups',
+      id: 'perfetto.CoreCommands#CollapseAllGroups',
       name: 'Collapse all track groups',
       callback: () => {
         ctx.timeline.collapseGroupsByPredicate((_) => {
@@ -192,7 +238,7 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#PanToTimestamp',
+      id: 'perfetto.CoreCommands#PanToTimestamp',
       name: 'Pan to timestamp',
       callback: (tsRaw: unknown) => {
         if (exists(tsRaw)) {
@@ -211,12 +257,16 @@ class CoreCommandsPlugin implements Plugin {
     });
 
     ctx.registerCommand({
-      id: 'dev.perfetto.CoreCommands#ShowCurrentSelectionTab',
+      id: 'perfetto.CoreCommands#ShowCurrentSelectionTab',
       name: 'Show current selection tab',
       callback: () => {
         ctx.tabs.showTab('current_selection');
       },
     });
+  }
+
+  onDeactivate(_: PluginContext): void {
+    this.disposable[Symbol.dispose]();
   }
 }
 
@@ -232,7 +282,35 @@ function promptForTimestamp(message: string): time | undefined {
   return undefined;
 }
 
+function onInputElementFileSelectionChanged(e: Event) {
+  if (!(e.target instanceof HTMLInputElement)) {
+    throw new Error('Not an input element');
+  }
+  if (!e.target.files) return;
+  const file = e.target.files[0];
+  // Reset the value so onchange will be fired with the same file.
+  e.target.value = '';
+
+  if (e.target.dataset['useCatapultLegacyUi'] === '1') {
+    openWithLegacyUi(file);
+    return;
+  }
+
+  globals.logging.logEvent('Trace Actions', 'Open trace from file');
+  globals.dispatch(Actions.openTraceFromFile({file}));
+}
+
+async function openWithLegacyUi(file: File) {
+  // Switch back to the old catapult UI.
+  globals.logging.logEvent('Trace Actions', 'Open trace in Legacy UI');
+  if (await isLegacyTrace(file)) {
+    openFileWithLegacyTraceViewer(file);
+    return;
+  }
+  openInOldUIWithSizeCheck(file);
+}
+
 export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.CoreCommands',
+  pluginId: 'perfetto.CoreCommands',
   plugin: CoreCommandsPlugin,
 };

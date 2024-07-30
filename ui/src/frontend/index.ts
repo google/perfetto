@@ -264,8 +264,6 @@ function main() {
   if (globals.testing) {
     document.body.classList.add('testing');
   }
-
-  pluginManager.initialize();
 }
 
 function onCssLoaded() {
@@ -355,6 +353,12 @@ function onCssLoaded() {
     // cases.
     routeChange(route);
   });
+
+  // Force one initial render to get everything in place
+  m.render(document.body, m(App, router.resolve()));
+
+  // Initialize plugins, now that we are ready to go
+  pluginManager.initialize();
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.
