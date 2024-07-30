@@ -21,6 +21,7 @@ perfetto_sql_source_set("summary") {
     "slices.sql",
     "threads.sql",
     "threads_w_processes.sql",
+    "trace.sql",
     "tracks.sql",
   ]
 }
