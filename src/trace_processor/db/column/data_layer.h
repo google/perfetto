@@ -267,9 +267,6 @@ class DataLayerChain {
   // chain.
   virtual std::optional<Token> MinElement(Indices&) const = 0;
 
-  // Serializes storage data to proto format.
-  virtual void Serialize(StorageProto*) const = 0;
-
   // Returns a string which represents the column for debugging purposes.
   //
   // Warning: the format of the string returned by this class is *not* stable

@@ -36,7 +36,6 @@
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
 namespace {
@@ -318,10 +317,6 @@ std::optional<Token> IdStorage::ChainImpl::MinElement(Indices& indices) const {
 
 SqlValue IdStorage::ChainImpl::Get_AvoidUsingBecauseSlow(uint32_t index) const {
   return SqlValue::Long(index);
-}
-
-void IdStorage::ChainImpl::Serialize(StorageProto* storage) const {
-  storage->set_id_storage();
 }
 
 }  // namespace perfetto::trace_processor::column
