@@ -145,18 +145,6 @@ export interface PluginContext {
   // Run a command, optionally passing some args.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): any;
-
-  // Control of the sidebar.
-  sidebar: {
-    // Show the sidebar.
-    show(): void;
-
-    // Hide the sidebar.
-    hide(): void;
-
-    // Returns true if the sidebar is visible.
-    isVisible(): boolean;
-  };
 }
 
 export interface SliceTrackColNames {

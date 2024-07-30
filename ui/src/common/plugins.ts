@@ -55,26 +55,6 @@ export class PluginContextImpl implements PluginContext, Disposable {
   private trash = new DisposableStack();
   private alive = true;
 
-  readonly sidebar = {
-    hide() {
-      globals.dispatch(
-        Actions.setSidebar({
-          visible: false,
-        }),
-      );
-    },
-    show() {
-      globals.dispatch(
-        Actions.setSidebar({
-          visible: true,
-        }),
-      );
-    },
-    isVisible() {
-      return globals.state.sidebarVisible;
-    },
-  };
-
   registerCommand(cmd: Command): void {
     // Silently ignore if context is dead.
     if (!this.alive) return;
@@ -169,10 +149,6 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     const tabMan = globals.tabManager;
     const unregister = tabMan.registerLegacyDetailsPanel(detailsPanel);
     this.trash.use(unregister);
-  }
-
-  get sidebar() {
-    return this.ctx.sidebar;
   }
 
   readonly tabs = {

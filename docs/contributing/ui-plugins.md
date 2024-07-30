@@ -120,7 +120,7 @@ is unloaded.
 
 Examples:
 - [dev.perfetto.ExampleSimpleCommand](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleSimpleCommand/index.ts).
-- [dev.perfetto.CoreCommands](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.CoreCommands/index.ts).
+- [perfetto.CoreCommands](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/core_plugins/commands/index.ts).
 - [dev.perfetto.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleState/index.ts).
 
 #### Hotkeys
