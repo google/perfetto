@@ -19,12 +19,14 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
@@ -41,7 +43,7 @@ namespace perfetto::trace_processor {
 namespace {
 using Indices = column::DataLayerChain::Indices;
 
-static constexpr uint32_t kIndexVectorThreshold = 1024;
+constexpr uint32_t kIndexVectorThreshold = 1024;
 
 // Returns if |op| is an operation that can use the fact that the data is
 // sorted.
@@ -69,9 +71,9 @@ void ApplyMinMaxQuery(RowMap& rm,
   std::vector<uint32_t> table_indices = std::move(rm).TakeAsIndexVector();
   auto indices = Indices::Create(table_indices, Indices::State::kMonotonic);
   std::optional<Token> ret_tok =
-      (o.desc) ? chain.MaxElement(indices) : chain.MinElement(indices);
-  rm = (ret_tok.has_value()) ? RowMap(std::vector<uint32_t>{ret_tok->payload})
-                             : RowMap();
+      o.desc ? chain.MaxElement(indices) : chain.MinElement(indices);
+  rm = ret_tok.has_value() ? RowMap(std::vector<uint32_t>{ret_tok->payload})
+                           : RowMap();
 }
 
 void ApplyLimitAndOffset(RowMap& rm, const Query& q) {
@@ -163,7 +165,7 @@ RowMap Table::TryApplyIndex(std::vector<Constraint>& c_vec) const {
   OrderedIndices o_idxs;
   while (!maybe_idx_cols.empty()) {
     if (auto maybe_idx = GetIndex(maybe_idx_cols)) {
-      o_idxs = std::move(*maybe_idx);
+      o_idxs = *maybe_idx;
       break;
     }
     maybe_idx_cols.pop_back();
@@ -188,7 +190,7 @@ RowMap Table::TryApplyIndex(std::vector<Constraint>& c_vec) const {
     std::sort(res_vec.begin(), res_vec.end());
     rm = RowMap(std::move(res_vec));
   } else {
-    rm = RowMap(BitVector::FromUnsortedIndexVector(std::move(res_vec)));
+    rm = RowMap(BitVector::FromUnsortedIndexVector(res_vec));
   }
 
   c_vec.erase(c_vec.begin(),
@@ -319,7 +321,7 @@ void Table::CreateChains() const {
 }
 
 void Table::ApplyDistinct(const Query& q, RowMap* rm) const {
-  auto& ob = q.orders;
+  const auto& ob = q.orders;
   PERFETTO_DCHECK(!ob.empty());
 
   // `q.orders` should be treated here only as information on what should we
