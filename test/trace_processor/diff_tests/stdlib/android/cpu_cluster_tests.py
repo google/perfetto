@@ -312,3 +312,37 @@ class CpuClusters(TestSuite):
         1,1,"[NULL]"
         2,2,"[NULL]"
         """))
+
+  def test_android_cpu_cluster_type_no_frequencies(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          cpu_info {
+            cpus {
+              processor: "unknown"
+            }
+            cpus {
+              processor: "unknown"
+            }
+            cpus {
+              processor: "unknown"
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.cpu.cluster_type;
+
+        SELECT
+          ucpu,
+          cpu,
+          cluster_type
+        FROM
+          android_cpu_cluster_mapping;
+        """,
+        out=Csv("""
+        "ucpu","cpu","cluster_type"
+        0,0,"[NULL]"
+        1,1,"[NULL]"
+        2,2,"[NULL]"
+        """))
