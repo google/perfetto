@@ -44,7 +44,7 @@ PixelModemModule::PixelModemModule(TraceProcessorContext* context)
 ModuleResult PixelModemModule::TokenizePacket(
     const protos::pbzero::TracePacket_Decoder& decoder,
     TraceBlobView* /* packet */,
-    int64_t /* packet_timestamp */,
+    int64_t packet_timestamp,
     RefPtr<PacketSequenceStateGeneration> state,
     uint32_t field_id) {
   // The database packet does not have a timestamp so needs to be handled at
@@ -85,6 +85,9 @@ ModuleResult PixelModemModule::TokenizePacket(
     ts += *ts_it;
 
     protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
+    // Keep the original timestamp to later extract as an arg; the sorter does
+    // not read this.
+    data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
     data_packet->set_pixel_modem_events()->add_events(event_bytes);
     std::vector<uint8_t> vec = data_packet.SerializeAsArray();
     TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
@@ -108,7 +111,7 @@ void PixelModemModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
   auto it = evt.events();
 
   // We guarantee above there will be exactly one event.
-  parser_.ParseEvent(ts, *it);
+  parser_.ParseEvent(ts, decoder.timestamp(), *it);
 }
 
 }  // namespace trace_processor
