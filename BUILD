@@ -2893,6 +2893,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/viz/threads.sql",
     ],
 )
 
