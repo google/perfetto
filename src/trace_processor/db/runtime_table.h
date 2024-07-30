@@ -29,7 +29,8 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/table.h"
@@ -90,13 +91,14 @@ class RuntimeTable : public Table {
     std::vector<std::unique_ptr<VariantStorage>> storage_;
   };
 
-  explicit RuntimeTable(StringPool*,
-                        uint32_t row_count,
-                        std::vector<ColumnLegacy>,
-                        std::vector<ColumnStorageOverlay>,
-                        std::vector<RefPtr<column::DataLayer>> storage_layers,
-                        std::vector<RefPtr<column::DataLayer>> null_layers,
-                        std::vector<RefPtr<column::DataLayer>> overlay_layers);
+  explicit RuntimeTable(
+      StringPool*,
+      uint32_t row_count,
+      std::vector<ColumnLegacy>,
+      std::vector<ColumnStorageOverlay>,
+      std::vector<RefPtr<column::StorageLayer>> storage_layers,
+      std::vector<RefPtr<column::OverlayLayer>> null_layers,
+      std::vector<RefPtr<column::OverlayLayer>> overlay_layers);
   ~RuntimeTable() override;
 
   RuntimeTable(RuntimeTable&&) = default;
