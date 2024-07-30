@@ -24,20 +24,25 @@ import {
 } from '../../public';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-
 import {ThreadStateTrack} from './thread_state_track';
+import {removeFalsyValues} from '../../base/array_utils';
 
 class ThreadState implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
+
     const result = await engine.query(`
+      include perfetto module viz.threads;
+      include perfetto module viz.summary.threads;
+
       select
         utid,
-        upid,
+        t.upid,
         tid,
-        thread.name as threadName,
-        is_main_thread as isMainThread
-      from thread
+        t.name as threadName,
+        is_main_thread as isMainThread,
+        is_kernel_thread as isKernelThread
+      from _threads_with_kernel_flag t
       join _sched_summary using (utid)
     `);
 
@@ -47,20 +52,16 @@ class ThreadState implements Plugin {
       tid: NUM_NULL,
       threadName: STR_NULL,
       isMainThread: NUM_NULL,
+      isKernelThread: NUM,
     });
     for (; it.valid(); it.next()) {
-      const utid = it.utid;
-      const upid = it.upid;
-      const tid = it.tid;
-      const threadName = it.threadName;
+      const {utid, upid, tid, threadName, isMainThread, isKernelThread} = it;
       const displayName = getTrackName({
         utid,
         tid,
         threadName,
         kind: THREAD_STATE_TRACK_KIND,
       });
-
-      const chips = it.isMainThread === 1 ? ['main thread'] : [];
 
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_state`,
@@ -69,7 +70,9 @@ class ThreadState implements Plugin {
           kind: THREAD_STATE_TRACK_KIND,
           utid,
         },
-        chips,
+        chips: removeFalsyValues([
+          isKernelThread === 0 && isMainThread === 1 && 'main thread',
+        ]),
         trackFactory: ({trackKey}) => {
           return new ThreadStateTrack(
             {

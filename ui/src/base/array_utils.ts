@@ -47,3 +47,10 @@ export function isArrayOf<P, Q>(
 ): xs is P[] {
   return xs.every(predicate);
 }
+
+// Filter out falsy values from an array, leaving only the truthy ones
+export function removeFalsyValues<T>(
+  array: (T | false | null | undefined)[],
+): T[] {
+  return array.filter(Boolean) as T[];
+}
