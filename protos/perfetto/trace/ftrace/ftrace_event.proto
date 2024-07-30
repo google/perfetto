@@ -670,5 +670,9 @@ message FtraceEvent {
     MaliMaliPMMCUPOWERDOWNFtraceEvent mali_mali_PM_MCU_POWER_DOWN = 531;
     MaliMaliPMMCURESETWAITFtraceEvent mali_mali_PM_MCU_RESET_WAIT = 532;
     BclIrqTriggerFtraceEvent bcl_irq_trigger = 533;
+    KgslAdrenoCmdbatchQueuedFtraceEvent kgsl_adreno_cmdbatch_queued = 534;
+    KgslAdrenoCmdbatchSubmittedFtraceEvent kgsl_adreno_cmdbatch_submitted = 535;
+    KgslAdrenoCmdbatchSyncFtraceEvent kgsl_adreno_cmdbatch_sync = 536;
+    KgslAdrenoCmdbatchRetiredFtraceEvent kgsl_adreno_cmdbatch_retired = 537;
   }
 }

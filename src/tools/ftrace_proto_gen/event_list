@@ -528,3 +528,7 @@ mali/mali_PM_MCU_PEND_ON_RELOAD
 mali/mali_PM_MCU_POWER_DOWN
 mali/mali_PM_MCU_RESET_WAIT
 bcl_exynos/bcl_irq_trigger
+kgsl/adreno_cmdbatch_queued
+kgsl/adreno_cmdbatch_submitted
+kgsl/adreno_cmdbatch_sync
+kgsl/adreno_cmdbatch_retired
