@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_LOG_READER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_LOG_READER_H_
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 
@@ -53,18 +54,21 @@ class AndroidLogReader : public ChunkedLineReader {
   // Called for each event parsed from the stream.
   // `event_ts_ns` is the ts of the event as read from the log.
   // Default implementation just calls `SendToSorter`.
-  virtual base::Status ProcessEvent(int64_t event_ts, AndroidLogEvent event);
+  virtual base::Status ProcessEvent(std::chrono::nanoseconds event_ts,
+                                    AndroidLogEvent event);
 
  protected:
   // Sends the given event to the sorting stage.
-  // `event_ts_ns` is the ts of the event as read from the log and will be
+  // `event_ts` is the ts of the event as read from the log and will be
   // converted to a trace_ts (with necessary clock conversions applied)
-  base::Status SendToSorter(int64_t event_ts_ns, AndroidLogEvent event);
+  base::Status SendToSorter(std::chrono::nanoseconds event_ts,
+                            AndroidLogEvent event);
 
  private:
   TraceProcessorContext* const context_;
   std::optional<AndroidLogEvent::Format> format_;
   int32_t year_;
+  std::chrono::nanoseconds timezone_offset_;
 };
 
 // Helper struct to deduplicate events.
@@ -73,7 +77,7 @@ class AndroidLogReader : public ChunkedLineReader {
 struct TimestampedAndroidLogEvent {
   // Log timestamp. We use ms resolution because dumpstate files only write at
   // this resolution.
-  int64_t time_ms;
+  std::chrono::milliseconds ts;
   AndroidLogEvent event;
   // Flag to track whether a given event was already matched by the
   // deduplication logic. When set to true we will no longer consider this event
@@ -82,7 +86,7 @@ struct TimestampedAndroidLogEvent {
 
   // Only sort by time to find duplicates at the same ts.
   bool operator<(const TimestampedAndroidLogEvent& other) const {
-    return time_ms < other.time_ms;
+    return ts < other.ts;
   }
 };
 
@@ -94,7 +98,8 @@ class BufferingAndroidLogReader : public AndroidLogReader {
       : AndroidLogReader(context, year) {}
   ~BufferingAndroidLogReader() override;
 
-  base::Status ProcessEvent(int64_t event_ts, AndroidLogEvent event) override;
+  base::Status ProcessEvent(std::chrono::nanoseconds event_ts,
+                            AndroidLogEvent event) override;
 
   std::vector<TimestampedAndroidLogEvent> ConsumeBufferedEvents() && {
     return std::move(events_);
@@ -118,7 +123,8 @@ class DedupingAndroidLogReader : public AndroidLogReader {
                            std::vector<TimestampedAndroidLogEvent> events);
   ~DedupingAndroidLogReader() override;
 
-  base::Status ProcessEvent(int64_t event_ts, AndroidLogEvent event) override;
+  base::Status ProcessEvent(std::chrono::nanoseconds event_ts,
+                            AndroidLogEvent event) override;
 
  private:
   std::vector<TimestampedAndroidLogEvent> events_;

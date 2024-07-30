@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
+
+#include <cstdint>
 #include <optional>
 
 #include "perfetto/base/logging.h"
@@ -731,9 +733,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   }
 
   if (packet.has_timezone_off_mins()) {
+    static constexpr int64_t kNanosInMinute =
+        60ull * 1000ull * 1000ull * 1000ull;
     context_->metadata_tracker->SetMetadata(
         metadata::timezone_off_mins,
         Variadic::Integer(packet.timezone_off_mins()));
+    context_->clock_tracker->set_timezone_offset(packet.timezone_off_mins() *
+                                                 kNanosInMinute);
   }
 
   if (packet.has_android_build_fingerprint()) {
@@ -768,9 +774,8 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   if (packet.has_android_hardware_revision()) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_hardware_revision,
-        Variadic::String(
-            context_->storage->InternString(
-                packet.android_hardware_revision())));
+        Variadic::String(context_->storage->InternString(
+            packet.android_hardware_revision())));
   }
 
   page_size_ = packet.page_size();
