@@ -165,6 +165,10 @@ uint32_t UpperBoundIntrinsic(StringPool* pool,
 
 }  // namespace
 
+StringStorage::StoragePtr StringStorage::GetStoragePtr() {
+  return data_->data();
+}
+
 StringStorage::ChainImpl::ChainImpl(StringPool* string_pool,
                                     const std::vector<StringPool::Id>* data,
                                     bool is_sorted)
@@ -627,12 +631,6 @@ std::optional<Token> StringStorage::ChainImpl::MinElement(
   }
 
   return *tok;
-}
-
-std::unique_ptr<DataLayer> StringStorage::ChainImpl::Flatten(
-    std::vector<uint32_t>&) const {
-  return std::unique_ptr<DataLayer>(
-      new StringStorage(string_pool_, data_, is_sorted_));
 }
 
 SqlValue StringStorage::ChainImpl::Get_AvoidUsingBecauseSlow(

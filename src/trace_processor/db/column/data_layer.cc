@@ -33,9 +33,11 @@
 #include "src/trace_processor/db/column/id_storage.h"
 #include "src/trace_processor/db/column/null_overlay.h"
 #include "src/trace_processor/db/column/numeric_storage.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
 #include "src/trace_processor/db/column/range_overlay.h"
 #include "src/trace_processor/db/column/selector_overlay.h"
 #include "src/trace_processor/db/column/set_id_storage.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/string_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/compare.h"
@@ -167,7 +169,7 @@ Range DataLayerChain::OrderedIndexSearchValidated(
 ArrangementOverlay::ArrangementOverlay(
     const std::vector<uint32_t>* arrangement,
     DataLayerChain::Indices::State arrangement_state)
-    : DataLayer(Impl::kArrangement),
+    : OverlayLayer(Impl::kArrangement),
       arrangement_(arrangement),
       arrangement_state_(arrangement_state) {}
 ArrangementOverlay::~ArrangementOverlay() = default;
@@ -181,7 +183,7 @@ std::unique_ptr<DataLayerChain> ArrangementOverlay::MakeChain(
 }
 
 DenseNullOverlay::DenseNullOverlay(const BitVector* non_null)
-    : DataLayer(Impl::kDenseNull), non_null_(non_null) {}
+    : OverlayLayer(Impl::kDenseNull), non_null_(non_null) {}
 DenseNullOverlay::~DenseNullOverlay() = default;
 
 std::unique_ptr<DataLayerChain> DenseNullOverlay::MakeChain(
@@ -194,7 +196,7 @@ std::unique_ptr<DataLayerChain> DummyStorage::MakeChain() {
   return std::make_unique<ChainImpl>();
 }
 
-IdStorage::IdStorage() : DataLayer(Impl::kId) {}
+IdStorage::IdStorage() : StorageLayer(Impl::kId) {}
 IdStorage::~IdStorage() = default;
 
 std::unique_ptr<DataLayerChain> IdStorage::MakeChain() {
@@ -202,7 +204,7 @@ std::unique_ptr<DataLayerChain> IdStorage::MakeChain() {
 }
 
 NullOverlay::NullOverlay(const BitVector* non_null)
-    : DataLayer(Impl::kNull), non_null_(non_null) {}
+    : OverlayLayer(Impl::kNull), non_null_(non_null) {}
 NullOverlay::~NullOverlay() = default;
 
 std::unique_ptr<DataLayerChain> NullOverlay::MakeChain(
@@ -214,7 +216,7 @@ std::unique_ptr<DataLayerChain> NullOverlay::MakeChain(
 NumericStorageBase::NumericStorageBase(ColumnType type,
                                        bool is_sorted,
                                        Impl impl)
-    : DataLayer(impl), storage_type_(type), is_sorted_(is_sorted) {}
+    : StorageLayer(impl), storage_type_(type), is_sorted_(is_sorted) {}
 
 NumericStorageBase::~NumericStorageBase() = default;
 
@@ -237,7 +239,7 @@ template class NumericStorage<int32_t>;
 template class NumericStorage<int64_t>;
 
 RangeOverlay::RangeOverlay(const Range* range)
-    : DataLayer(Impl::kRange), range_(range) {}
+    : OverlayLayer(Impl::kRange), range_(range) {}
 RangeOverlay::~RangeOverlay() = default;
 
 std::unique_ptr<DataLayerChain> RangeOverlay::MakeChain(
@@ -247,7 +249,7 @@ std::unique_ptr<DataLayerChain> RangeOverlay::MakeChain(
 }
 
 SelectorOverlay::SelectorOverlay(const BitVector* selector)
-    : DataLayer(Impl::kSelector), selector_(selector) {}
+    : OverlayLayer(Impl::kSelector), selector_(selector) {}
 SelectorOverlay::~SelectorOverlay() = default;
 
 std::unique_ptr<DataLayerChain> SelectorOverlay::MakeChain(
@@ -257,7 +259,7 @@ std::unique_ptr<DataLayerChain> SelectorOverlay::MakeChain(
 }
 
 SetIdStorage::SetIdStorage(const std::vector<uint32_t>* values)
-    : DataLayer(Impl::kSetId), values_(values) {}
+    : StorageLayer(Impl::kSetId), values_(values) {}
 SetIdStorage::~SetIdStorage() = default;
 
 std::unique_ptr<DataLayerChain> SetIdStorage::MakeChain() {
@@ -267,7 +269,7 @@ std::unique_ptr<DataLayerChain> SetIdStorage::MakeChain() {
 StringStorage::StringStorage(StringPool* string_pool,
                              const std::vector<StringPool::Id>* data,
                              bool is_sorted)
-    : DataLayer(Impl::kString),
+    : StorageLayer(Impl::kString),
       data_(data),
       string_pool_(string_pool),
       is_sorted_(is_sorted) {}

@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
-#include <iterator>
 #include <limits>
 #include <optional>
 #include <string>
@@ -31,6 +30,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -50,6 +50,10 @@ void IndexSearchWithComparator(uint32_t val, DataLayerChain::Indices& indices) {
 }
 
 }  // namespace
+
+StorageLayer::StoragePtr IdStorage::GetStoragePtr() {
+  return Id{};
+}
 
 SearchValidationResult IdStorage::ChainImpl::ValidateSearchConstraints(
     FilterOp op,

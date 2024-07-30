@@ -131,11 +131,6 @@ void FakeStorageChain::StableSort(Token*, Token*, SortDirection) const {
   PERFETTO_FATAL("Not implemented");
 }
 
-std::unique_ptr<DataLayer> FakeStorageChain::Flatten(
-    std::vector<uint32_t>&) const {
-  return std::unique_ptr<DataLayer>();
-}
-
 SqlValue FakeStorageChain::Get_AvoidUsingBecauseSlow(uint32_t) const {
   PERFETTO_FATAL("Not implemented");
 }

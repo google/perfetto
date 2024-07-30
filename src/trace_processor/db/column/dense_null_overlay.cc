@@ -62,6 +62,14 @@ std::optional<Token> RemoveAllNullsAndReturnTheFirstOne(
 }
 }  // namespace
 
+void DenseNullOverlay::Flatten(std::vector<Token>& tokens) {
+  for (auto& token : tokens) {
+    if (!non_null_->IsSet(token.index)) {
+      token.index = std::numeric_limits<uint32_t>::max();
+    }
+  }
+}
+
 DenseNullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                        const BitVector* non_null)
     : inner_(std::move(inner)), non_null_(non_null) {}
@@ -271,16 +279,6 @@ std::optional<Token> DenseNullOverlay::ChainImpl::MinElement(
 
   return (first_null_it == indices.tokens.end()) ? inner_->MinElement(indices)
                                                  : *first_null_it;
-}
-
-std::unique_ptr<DataLayer> DenseNullOverlay::ChainImpl::Flatten(
-    std::vector<uint32_t>& indices) const {
-  for (auto& i : indices) {
-    if (!non_null_->IsSet(i)) {
-      i = std::numeric_limits<uint32_t>::max();
-    }
-  }
-  return inner_->Flatten(indices);
 }
 
 SqlValue DenseNullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
