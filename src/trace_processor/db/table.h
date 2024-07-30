@@ -22,26 +22,26 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 
 namespace perfetto::trace_processor {
 
 namespace {
+
 using OrderedIndices = column::DataLayerChain::OrderedIndices;
 
 OrderedIndices OrderedIndicesFromIndex(const std::vector<uint32_t>& index) {
@@ -50,6 +50,7 @@ OrderedIndices OrderedIndicesFromIndex(const std::vector<uint32_t>& index) {
   o.size = static_cast<uint32_t>(index.size());
   return o;
 }
+
 }  // namespace
 
 // Represents a table of data with named, strongly typed columns.
@@ -225,10 +226,10 @@ class Table {
   uint32_t row_count() const { return row_count_; }
   StringPool* string_pool() const { return string_pool_; }
   const std::vector<ColumnLegacy>& columns() const { return columns_; }
-  const std::vector<RefPtr<column::DataLayer>>& storage_layers() const {
+  const std::vector<RefPtr<column::StorageLayer>>& storage_layers() const {
     return storage_layers_;
   }
-  const std::vector<RefPtr<column::DataLayer>>& null_layers() const {
+  const std::vector<RefPtr<column::OverlayLayer>>& null_layers() const {
     return null_layers_;
   }
 
@@ -256,9 +257,9 @@ class Table {
   }
 
   void OnConstructionCompleted(
-      std::vector<RefPtr<column::DataLayer>> storage_layers,
-      std::vector<RefPtr<column::DataLayer>> null_layers,
-      std::vector<RefPtr<column::DataLayer>> overlay_layers);
+      std::vector<RefPtr<column::StorageLayer>> storage_layers,
+      std::vector<RefPtr<column::OverlayLayer>> null_layers,
+      std::vector<RefPtr<column::OverlayLayer>> overlay_layers);
 
   ColumnLegacy* GetColumn(uint32_t index) { return &columns_[index]; }
 
@@ -289,9 +290,9 @@ class Table {
   std::vector<ColumnStorageOverlay> overlays_;
   std::vector<ColumnLegacy> columns_;
 
-  std::vector<RefPtr<column::DataLayer>> storage_layers_;
-  std::vector<RefPtr<column::DataLayer>> null_layers_;
-  std::vector<RefPtr<column::DataLayer>> overlay_layers_;
+  std::vector<RefPtr<column::StorageLayer>> storage_layers_;
+  std::vector<RefPtr<column::OverlayLayer>> null_layers_;
+  std::vector<RefPtr<column::OverlayLayer>> overlay_layers_;
   mutable std::vector<std::unique_ptr<column::DataLayerChain>> chains_;
 
   std::vector<ColumnIndex> indexes_;
