@@ -18,6 +18,7 @@ perfetto_sql_source_set("viz") {
   sources = [
     "flamegraph.sql",
     "slices.sql",
+    "threads.sql",
   ]
   deps = [ "summary" ]
 }

@@ -24,12 +24,17 @@ import {
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
+import {removeFalsyValues} from '../../base/array_utils';
 
 class ThreadSlicesPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
+
     const result = await engine.query(`
       include perfetto module viz.summary.slices;
+      include perfetto module viz.summary.threads;
+      include perfetto module viz.threads;
+
       select
         thread_track.utid as utid,
         thread_track.id as trackId,
@@ -37,12 +42,13 @@ class ThreadSlicesPlugin implements Plugin {
         EXTRACT_ARG(thread_track.source_arg_set_id,
                     'is_root_in_scope') as isDefaultTrackForScope,
         tid,
-        thread.name as threadName,
+        t.name as threadName,
         max_depth as maxDepth,
-        thread.upid as upid,
-        is_main_thread as isMainThread
+        t.upid as upid,
+        is_main_thread as isMainThread,
+        is_kernel_thread AS isKernelThread
       from thread_track
-      join thread using(utid)
+      join _threads_with_kernel_flag t using(utid)
       join _slice_track_summary sts on sts.id = thread_track.id
   `);
 
@@ -56,10 +62,21 @@ class ThreadSlicesPlugin implements Plugin {
       maxDepth: NUM,
       upid: NUM_NULL,
       isMainThread: NUM_NULL,
+      isKernelThread: NUM,
     });
 
     for (; it.valid(); it.next()) {
-      const {upid, utid, trackId, trackName, tid, threadName, maxDepth} = it;
+      const {
+        upid,
+        utid,
+        trackId,
+        trackName,
+        tid,
+        threadName,
+        maxDepth,
+        isMainThread,
+        isKernelThread,
+      } = it;
       const displayName = getTrackName({
         name: trackName,
         utid,
@@ -68,8 +85,6 @@ class ThreadSlicesPlugin implements Plugin {
         kind: 'Slices',
       });
 
-      const chips = it.isMainThread === 1 ? ['main thread'] : [];
-
       ctx.registerTrack({
         uri: `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`,
         title: displayName,
@@ -77,7 +92,9 @@ class ThreadSlicesPlugin implements Plugin {
           trackIds: [trackId],
           kind: THREAD_SLICE_TRACK_KIND,
         },
-        chips,
+        chips: removeFalsyValues([
+          isKernelThread === 0 && isMainThread === 1 && 'main thread',
+        ]),
         trackFactory: ({trackKey}) => {
           const newTrackArgs = {
             engine: ctx.engine,
