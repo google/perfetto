@@ -35,6 +35,12 @@
 
 namespace perfetto::trace_processor::column {
 
+void ArrangementOverlay::Flatten(std::vector<Token>& tokens) {
+  for (auto& token : tokens) {
+    token.index = (*arrangement_)[token.index];
+  }
+}
+
 ArrangementOverlay::ChainImpl::ChainImpl(
     std::unique_ptr<DataLayerChain> inner,
     const std::vector<uint32_t>* arrangement,
@@ -202,14 +208,6 @@ std::optional<Token> ArrangementOverlay::ChainImpl::MinElement(
                       ? arrangement_state_
                       : Indices::State::kNonmonotonic;
   return inner_->MinElement(indices);
-}
-
-std::unique_ptr<DataLayer> ArrangementOverlay::ChainImpl::Flatten(
-    std::vector<uint32_t>& indices) const {
-  for (auto& i : indices) {
-    i = (*arrangement_)[i];
-  }
-  return inner_->Flatten(indices);
 }
 
 SqlValue ArrangementOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
