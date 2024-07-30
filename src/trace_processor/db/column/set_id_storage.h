@@ -59,8 +59,6 @@ class SetIdStorage final : public DataLayer {
                     Token* end,
                     SortDirection direction) const override;
 
-    void Serialize(StorageProto*) const override;
-
     void Distinct(Indices&) const override;
 
     std::optional<Token> MaxElement(Indices&) const override;

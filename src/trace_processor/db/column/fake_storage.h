@@ -97,8 +97,6 @@ class FakeStorageChain : public DataLayerChain {
 
   SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 
-  void Serialize(StorageProto*) const override;
-
   uint32_t size() const override { return size_; }
 
   std::string DebugString() const override { return "FakeStorage"; }

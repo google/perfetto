@@ -69,8 +69,6 @@ class SelectorOverlay final : public DataLayer {
 
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 
-    void Serialize(StorageProto*) const override;
-
     uint32_t size() const override { return selector_->size(); }
 
     std::string DebugString() const override { return "SelectorOverlay"; }

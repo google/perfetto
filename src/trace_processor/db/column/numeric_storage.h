@@ -50,8 +50,6 @@ class NumericStorageBase : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    void Serialize(StorageProto*) const override;
-
     std::string DebugString() const override { return "NumericStorage"; }
 
     bool is_sorted() const { return is_sorted_; }
