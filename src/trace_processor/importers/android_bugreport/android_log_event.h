@@ -33,10 +33,7 @@ struct alignas(8) AndroidLogEvent {
   };
 
   static std::optional<Format> DetectFormat(base::StringView line);
-
-  inline static bool IsAndroidLogEvent(base::StringView line) {
-    return DetectFormat(line).has_value();
-  }
+  static bool IsAndroidLogcat(const uint8_t* data, size_t size);
 
   bool operator==(const AndroidLogEvent& o) const {
     return pid == o.pid && tid == o.tid && prio == o.prio && tag == o.tag &&
