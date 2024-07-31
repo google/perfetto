@@ -37,16 +37,21 @@ export class FuzzyFinder<T> {
     this.keyLookup = keyLookup;
   }
 
-  // Return a list of all items that match the serch term.
-  find(searchTerm: string): FuzzyResult<T>[] {
+  // Return a list of items that match any of the search terms.
+  find(...searchTerms: string[]): FuzzyResult<T>[] {
     const result: FuzzyResult<T>[] = [];
-    const indicies: number[] = new Array(searchTerm.length);
 
     for (const item of this.items) {
       const key = this.keyLookup(item);
-      if (match(searchTerm, key, indicies)) {
-        const segments = indiciesToSegments(indicies, key);
-        result.push({item, segments});
+      for (const searchTerm of searchTerms) {
+        const indicies: number[] = new Array(searchTerm.length);
+        if (match(searchTerm, key, indicies)) {
+          const segments = indiciesToSegments(indicies, key);
+          result.push({item, segments});
+
+          // Don't try to match any more...
+          break;
+        }
       }
     }
 

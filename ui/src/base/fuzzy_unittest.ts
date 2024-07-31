@@ -115,4 +115,27 @@ describe('FuzzyFinder', () => {
       ]),
     );
   });
+
+  it('match multiple', () => {
+    const result = finder.find('abc', 'c z d');
+    expect(result).toEqual(
+      expect.arrayContaining([
+        {
+          item: 'ababc',
+          segments: [
+            {matching: true, value: 'ab'},
+            {matching: false, value: 'ab'},
+            {matching: true, value: 'c'},
+          ],
+        },
+        {
+          item: 'c z d z e',
+          segments: [
+            {matching: true, value: 'c z d'},
+            {matching: false, value: ' z e'},
+          ],
+        },
+      ]),
+    );
+  });
 });
