@@ -46,6 +46,7 @@
 // these keys.
 
 import {elementIsEditable} from './dom_utils';
+import {Optional} from './utils';
 
 type Alphabet =
   | 'A'
@@ -126,6 +127,34 @@ const shiftExceptions = [
   ']',
 ];
 
+const macModifierStrings: ReadonlyMap<Modifier, string> = new Map<
+  Modifier,
+  string
+>([
+  ['', ''],
+  ['Mod+', '⌘'],
+  ['Shift+', '⇧'],
+  ['Ctrl+', '⌃'],
+  ['Alt+', '⌥'],
+  ['Mod+Shift+', '⌘⇧'],
+  ['Mod+Alt+', '⌘⌥'],
+  ['Mod+Shift+Alt+', '⌘⇧⌥'],
+  ['Ctrl+Shift+', '⌃⇧'],
+  ['Ctrl+Alt', '⌃⌥'],
+  ['Ctrl+Shift+Alt', '⌃⇧⌥'],
+]);
+
+const pcModifierStrings: ReadonlyMap<Modifier, string> = new Map<
+  Modifier,
+  string
+>([
+  ['', ''],
+  ['Mod+', 'Ctrl+'],
+  ['Mod+Shift+', 'Ctrl+Shift+'],
+  ['Mod+Alt+', 'Ctrl+Alt+'],
+  ['Mod+Shift+Alt+', 'Ctrl+Shift+Alt+'],
+]);
+
 // Represents a deconstructed hotkey.
 export interface HotkeyParts {
   // The name of the primary key of this hotkey.
@@ -141,12 +170,12 @@ export interface HotkeyParts {
 
 // Deconstruct a hotkey from its string representation into its constituent
 // parts.
-export function parseHotkey(hotkey: Hotkey): HotkeyParts | null {
+export function parseHotkey(hotkey: Hotkey): Optional<HotkeyParts> {
   const regex = /^(!?)((?:Mod\+|Shift\+|Alt\+|Ctrl\+)*)(.*)$/;
   const result = hotkey.match(regex);
 
   if (!result) {
-    return null;
+    return undefined;
   }
 
   return {
@@ -154,6 +183,28 @@ export function parseHotkey(hotkey: Hotkey): HotkeyParts | null {
     modifier: result[2] as Modifier,
     key: result[3] as Key,
   };
+}
+
+// Print the hotkey in a human readable format.
+export function formatHotkey(
+  hotkey: Hotkey,
+  spoof?: Platform,
+): Optional<string> {
+  const parsed = parseHotkey(hotkey);
+  return parsed && formatHotkeyParts(parsed, spoof);
+}
+
+function formatHotkeyParts(
+  {modifier, key}: HotkeyParts,
+  spoof?: Platform,
+): string {
+  return `${formatModifier(modifier, spoof)}${key}`;
+}
+
+function formatModifier(modifier: Modifier, spoof?: Platform): string {
+  const platform = spoof || getPlatform();
+  const strings = platform === 'Mac' ? macModifierStrings : pcModifierStrings;
+  return strings.get(modifier) ?? modifier;
 }
 
 // Like |KeyboardEvent| but all fields apart from |key| are optional.
@@ -227,10 +278,6 @@ function checkMods(
 export type Platform = 'Mac' | 'PC';
 
 // Get the current platform (PC or Mac).
-export function getPlatform(spoof?: Platform): Platform {
-  if (spoof) {
-    return spoof;
-  } else {
-    return window.navigator.platform.indexOf('Mac') !== -1 ? 'Mac' : 'PC';
-  }
+export function getPlatform(): Platform {
+  return window.navigator.platform.indexOf('Mac') !== -1 ? 'Mac' : 'PC';
 }

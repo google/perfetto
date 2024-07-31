@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {checkHotkey, Hotkey, parseHotkey} from './hotkeys';
+import {checkHotkey, formatHotkey, Hotkey, parseHotkey} from './hotkeys';
 
 test('parseHotkey', () => {
   expect(parseHotkey('A')).toEqual({
@@ -89,4 +89,12 @@ describe('checkHotkey', () => {
     expect(checkHotkey('X', {key: 'x', target: el})).toBe(false);
     expect(checkHotkey('!X', {key: 'x', target: el})).toBe(true);
   });
+});
+
+test('formatHotkey', () => {
+  expect(formatHotkey('Mod+X', 'Mac')).toEqual('⌘X');
+  expect(formatHotkey('Mod+Shift+X', 'Mac')).toEqual('⌘⇧X');
+
+  expect(formatHotkey('Mod+X', 'PC')).toEqual('Ctrl+X');
+  expect(formatHotkey('Mod+Shift+X', 'PC')).toEqual('Ctrl+Shift+X');
 });

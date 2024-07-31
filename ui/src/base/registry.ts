@@ -71,6 +71,10 @@ export class Registry<T> {
     yield* this.registry.values();
   }
 
+  valuesAsArray(): ReadonlyArray<T> {
+    return Array.from(this.values());
+  }
+
   unregisterAllForTesting(): void {
     this.registry.clear();
   }
