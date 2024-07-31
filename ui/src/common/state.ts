@@ -497,6 +497,8 @@ export interface State {
   // Individual plugin states
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: {[key: string]: any};
+
+  trackFilterTerm: string | undefined;
 }
 
 export declare type RecordMode =
