@@ -20,6 +20,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 perfetto_sql_source_set("android") {
   sources = [
     "ad_services_metric.sql",
+    "android_anomaly.sql",
     "android_anr.sql",
     "android_auto_multiuser.sql",
     "android_batt.sql",
