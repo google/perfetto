@@ -40,11 +40,14 @@ import {TrackRenderContext} from '../public/tracks';
 import {calculateResolution} from '../common/resolution';
 import {PxSpan, TimeScale} from './time_scale';
 import {exists} from '../base/utils';
+import {classNames} from '../base/classnames';
 
 interface Attrs {
   readonly groupKey: string;
-  readonly title: string;
+  readonly title: m.Children;
+  readonly tooltip: string;
   readonly collapsed: boolean;
+  readonly collapsable: boolean;
   readonly trackFSM?: TrackCacheEntry;
   readonly tags?: TrackTags;
   readonly subtitle?: string;
@@ -61,7 +64,8 @@ export class TrackGroupPanel implements Panel {
   }
 
   render(): m.Children {
-    const {groupKey, title, subtitle, chips, collapsed, trackFSM} = this.attrs;
+    const {groupKey, title, subtitle, chips, collapsed, trackFSM, tooltip} =
+      this.attrs;
 
     // The shell should be highlighted if the current search result is inside
     // this track group.
@@ -105,24 +109,38 @@ export class TrackGroupPanel implements Panel {
       m(
         `.shell`,
         {
+          className: classNames(
+            this.attrs.collapsable && 'pf-clickable',
+            highlightClass,
+          ),
           onclick: (e: MouseEvent) => {
             if (e.defaultPrevented) return;
-            globals.dispatch(
-              Actions.toggleTrackGroupCollapsed({
-                groupKey,
-              }),
-            ),
-              e.stopPropagation();
+            if (this.attrs.collapsable) {
+              globals.dispatch(
+                Actions.toggleTrackGroupCollapsed({
+                  groupKey,
+                }),
+              );
+            }
+            e.stopPropagation();
           },
-          class: `${highlightClass}`,
         },
-        m(
-          '.fold-button',
-          m('i.material-icons', collapsed ? Icons.ExpandDown : Icons.ExpandUp),
-        ),
+        this.attrs.collapsable &&
+          m(
+            '.fold-button',
+            m(
+              'i.material-icons',
+              collapsed ? Icons.ExpandDown : Icons.ExpandUp,
+            ),
+          ),
         m(
           '.title-wrapper',
-          m('h1.track-title', {title}, title, chips && renderChips(chips)),
+          m(
+            'h1.track-title',
+            {title: tooltip},
+            title,
+            chips && renderChips(chips),
+          ),
           collapsed && exists(subtitle) && m('h2.track-subtitle', subtitle),
         ),
         m(

@@ -219,8 +219,10 @@
       font-size: 18px;
     }
 
-    &:hover {
+    &.pf-clickable {
       cursor: pointer;
+    }
+    &:hover {
       .fold-button {
         color: hsl(45, 100%, 48%);
       }
