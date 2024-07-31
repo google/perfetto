@@ -51,6 +51,12 @@ test('genTraceConfig() can run without manipulating the input config', () => {
       },
       {
         config: {
+          name: 'linux.system_info',
+          targetBuffer: 1,
+        },
+      },
+      {
+        config: {
           name: 'linux.process_stats',
           targetBuffer: 1,
           processStatsConfig: {
