@@ -35,11 +35,21 @@ test('SysConfig', () => {
   );
   const sources = assertExists(result.dataSources);
   // TODO(hjd): This is all bad. Should just match the whole config.
-  const srcConfig = assertExists(sources[1].config);
+  const srcConfig = assertExists(sources[2].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceEvents.includes('raw_syscalls/sys_enter')).toBe(true);
   expect(ftraceEvents.includes('raw_syscalls/sys_exit')).toBe(true);
+});
+
+test('LinuxSystemInfo present', () => {
+  const config = createEmptyRecordConfig();
+  const result = TraceConfig.decode(
+    genConfigProto(config, {os: 'Q', name: 'Android Q'}),
+  );
+  const sources = assertExists(result.dataSources);
+  const sysInfoConfig = assertExists(sources[1].config);
+  expect(sysInfoConfig.name).toBe('linux.system_info');
 });
 
 test('cpu scheduling includes kSyms if OS >= S', () => {
@@ -49,7 +59,7 @@ test('cpu scheduling includes kSyms if OS >= S', () => {
     genConfigProto(config, {os: 'S', name: 'Android S'}),
   );
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[2].config);
+  const srcConfig = assertExists(sources[3].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceConfig.symbolizeKsyms).toBe(true);
@@ -63,7 +73,7 @@ test('cpu scheduling does not include kSyms if OS <= S', () => {
     genConfigProto(config, {os: 'Q', name: 'Android Q'}),
   );
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[2].config);
+  const srcConfig = assertExists(sources[3].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceConfig.symbolizeKsyms).toBe(false);
@@ -78,7 +88,7 @@ test('kSyms can be enabled individually', () => {
     genConfigProto(config, {os: 'Q', name: 'Android Q'}),
   );
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[1].config);
+  const srcConfig = assertExists(sources[2].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceConfig.symbolizeKsyms).toBe(true);
@@ -93,7 +103,7 @@ test('kSyms can be disabled individually', () => {
     genConfigProto(config, {os: 'Q', name: 'Android Q'}),
   );
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[1].config);
+  const srcConfig = assertExists(sources[2].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceConfig.symbolizeKsyms).toBe(false);
