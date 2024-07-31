@@ -471,3 +471,9 @@ class AndroidMetrics(TestSuite):
           }
         }
         """))
+
+  def test_anomaly_metric(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query=Metric('android_anomaly'),
+        out=Path('android_anomaly_metric.out'))

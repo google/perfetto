@@ -53,6 +53,39 @@ message AdServicesMetric {
 }
 // End of protos/perfetto/metrics/android/ad_services_metric.proto
 
+// Begin of protos/perfetto/metrics/android/android_anomaly_metric.proto
+
+// Detects outlier scenarios in different Android Systems in a trace. For now, this just
+// detects high binder transaction rates. In the future, there could be others
+// like garbage_collection, CPU, broadcasts, etc.
+message AndroidAnomalyMetric {
+
+  enum Unit {
+      UNIT_UNSPECIFIED = 0;
+      COUNT_PER_SECOND = 1;
+  }
+
+  // For anomalies related to a particular process.
+  message ProcessAnomaly {
+    optional string process_name = 1;
+    optional uint32 pid = 2;
+    optional Unit unit = 3;
+    optional uint32 value = 4;
+  }
+
+  // Binder subsystem outliers with the following aggegations:
+  // 1. Max incoming binder transaction count from each process over a one second sliding window.
+  // 2. Max outgoing binder transaction count from each process over a one second sliding window.
+  message Binder {
+      repeated ProcessAnomaly max_incoming_process_count_per_second = 1;
+      repeated ProcessAnomaly max_outgoing_process_count_per_second = 2;
+  }
+
+  optional Binder binder = 1;
+}
+
+// End of protos/perfetto/metrics/android/android_anomaly_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_blocking_call.proto
 
 // Blocking call on the main thread.
@@ -2909,7 +2942,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 71
+// Next id: 72
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -3109,6 +3142,9 @@ message TraceMetrics {
 
   // Android Wattson estimate for markers metrics.
   optional AndroidWattsonTimePeriodMetric wattson_estimate = 70;
+
+  // Android Anomaly metric
+  optional AndroidAnomalyMetric android_anomaly = 71;
 
   // Android
   // Demo extensions.
