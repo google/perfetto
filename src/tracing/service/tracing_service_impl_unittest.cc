@@ -89,6 +89,7 @@ using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::DoAll;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::ExplainMatchResult;
@@ -3982,69 +3983,76 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   producer->WaitForDataSourceStart("data_source");
 
   // Calling ObserveEvents should cause an event for the initial instance state.
-  consumer->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
-  {
-    auto events = consumer->WaitForObservableEvents();
+  auto on_observable_events =
+      task_runner.CreateCheckpoint("on_observable_events");
+  EXPECT_CALL(*consumer, OnObservableEvents)
+      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+        ObservableEvents::DataSourceInstanceStateChange change;
+        change.set_producer_name("mock_producer");
+        change.set_data_source_name("data_source");
+        change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
+        EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
+        on_observable_events();
+      }));
 
-    ObservableEvents::DataSourceInstanceStateChange change;
-    change.set_producer_name("mock_producer");
-    change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
-    EXPECT_EQ(events.instance_state_changes_size(), 1);
-    EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
-  }
+  consumer->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
+
+  task_runner.RunUntilCheckpoint("on_observable_events");
 
   // Disabling should cause an instance state change to STOPPED.
+  on_observable_events = task_runner.CreateCheckpoint("on_observable_events_2");
+  EXPECT_CALL(*consumer, OnObservableEvents)
+      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+        ObservableEvents::DataSourceInstanceStateChange change;
+        change.set_producer_name("mock_producer");
+        change.set_data_source_name("data_source");
+        change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
+        EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
+        on_observable_events();
+      }));
   consumer->DisableTracing();
 
-  {
-    auto events = consumer->WaitForObservableEvents();
-
-    ObservableEvents::DataSourceInstanceStateChange change;
-    change.set_producer_name("mock_producer");
-    change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
-    EXPECT_EQ(events.instance_state_changes_size(), 1);
-    EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
-  }
-
   producer->WaitForDataSourceStop("data_source");
+
   consumer->WaitForTracingDisabled();
+  task_runner.RunUntilCheckpoint("on_observable_events_2");
+
   consumer->FreeBuffers();
 
   // Enable again, this should cause a state change for a new instance to
   // its initial state STOPPED.
+  on_observable_events = task_runner.CreateCheckpoint("on_observable_events_3");
+  EXPECT_CALL(*consumer, OnObservableEvents)
+      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+        ObservableEvents::DataSourceInstanceStateChange change;
+        change.set_producer_name("mock_producer");
+        change.set_data_source_name("data_source");
+        change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
+        EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
+        on_observable_events();
+      }));
+
   trace_config.set_deferred_start(true);
   consumer->EnableTracing(trace_config);
 
-  {
-    auto events = consumer->WaitForObservableEvents();
-
-    ObservableEvents::DataSourceInstanceStateChange change;
-    change.set_producer_name("mock_producer");
-    change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
-    EXPECT_EQ(events.instance_state_changes_size(), 1);
-    EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
-  }
-
   producer->WaitForDataSourceSetup("data_source");
+  task_runner.RunUntilCheckpoint("on_observable_events_3");
 
   // Should move the instance into STARTED state and thus cause an event.
+  on_observable_events = task_runner.CreateCheckpoint("on_observable_events_4");
+  EXPECT_CALL(*consumer, OnObservableEvents)
+      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+        ObservableEvents::DataSourceInstanceStateChange change;
+        change.set_producer_name("mock_producer");
+        change.set_data_source_name("data_source");
+        change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
+        EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
+        on_observable_events();
+      }));
   consumer->StartTracing();
 
-  {
-    auto events = consumer->WaitForObservableEvents();
-
-    ObservableEvents::DataSourceInstanceStateChange change;
-    change.set_producer_name("mock_producer");
-    change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
-    EXPECT_EQ(events.instance_state_changes_size(), 1);
-    EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
-  }
-
   producer->WaitForDataSourceStart("data_source");
+  task_runner.RunUntilCheckpoint("on_observable_events_4");
 
   // Stop observing events.
   consumer->ObserveEvents(0);
