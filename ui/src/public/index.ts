@@ -133,6 +133,19 @@ export interface MetricVisualisation {
   path: string[];
 }
 
+export interface SidebarMenuItem {
+  readonly commandId: string;
+  readonly group:
+    | 'navigation'
+    | 'current_trace'
+    | 'convert_trace'
+    | 'example_traces'
+    | 'support';
+  when?(): boolean;
+  readonly icon: string;
+  readonly priority?: number;
+}
+
 // This interface defines a context for a plugin, which is an object passed to
 // most hooks within the plugin. It should be used to interact with Perfetto.
 export interface PluginContext {
@@ -145,6 +158,11 @@ export interface PluginContext {
   // Run a command, optionally passing some args.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): any;
+
+  // Adds a new menu item to the sidebar.
+  // All entries must map to a command. This will allow the shortcut and
+  // optional shortcut to be displayed on the UI.
+  addSidebarMenuItem(menuItem: SidebarMenuItem): void;
 }
 
 export interface SliceTrackColNames {
