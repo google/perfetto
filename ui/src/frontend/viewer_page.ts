@@ -41,7 +41,7 @@ import {TrackPanel, getTitleFontSize} from './track_panel';
 import {assertExists} from '../base/logging';
 import {PxSpan, TimeScale} from './time_scale';
 import {TrackGroupState} from '../common/state';
-import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
+import {FuzzyFinder, fuzzyMatch, FuzzySegment} from '../base/fuzzy';
 import {exists} from '../base/utils';
 import {EmptyState} from '../widgets/empty_state';
 import {removeFalsyValues} from '../base/array_utils';
@@ -320,6 +320,15 @@ function filterTermIsValid(
   return filterTerm !== undefined && filterTerm !== '';
 }
 
+// Split filter term on commas into a list of tokens, cleaning up any whitespace
+// before and after the token and removing any blank tokens
+function tokenizeFilterTerm(term: string): ReadonlyArray<string> {
+  return term
+    .split(',')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
 // Render the toplevel "scrolling" tracks and track groups
 function renderToplevelPanels(filterTerm: string | undefined): PanelOrGroup[] {
   const scrollingPanels: PanelOrGroup[] = renderTrackPanels(
@@ -329,16 +338,30 @@ function renderToplevelPanels(filterTerm: string | undefined): PanelOrGroup[] {
 
   for (const group of Object.values(globals.state.trackGroups)) {
     if (filterTermIsValid(filterTerm)) {
-      // If we are filtering, render the group header only if it contains
-      // matching tracks
-      const childPanels = renderTrackPanels(group.tracks, filterTerm);
-      if (childPanels.length === 0) continue;
-      scrollingPanels.push({
-        kind: 'group',
-        collapsed: false,
-        childPanels,
-        header: renderTrackGroupPanel(group, false, false),
-      });
+      const tokens = tokenizeFilterTerm(filterTerm);
+      // Match group names that match any of the tokens
+      const result = fuzzyMatch(group.name, ...tokens);
+      if (result.matches) {
+        // If the group name matches, render the entire group as normal
+        const title = renderFuzzyMatchedTrackTitle(result.segments);
+        scrollingPanels.push({
+          kind: 'group',
+          collapsed: group.collapsed,
+          childPanels: group.collapsed ? [] : renderTrackPanels(group.tracks),
+          header: renderTrackGroupPanel(group, true, group.collapsed, title),
+        });
+      } else {
+        // If we are filtering, render the group header only if it contains
+        // matching tracks
+        const childPanels = renderTrackPanels(group.tracks, filterTerm);
+        if (childPanels.length === 0) continue;
+        scrollingPanels.push({
+          kind: 'group',
+          collapsed: false,
+          childPanels,
+          header: renderTrackGroupPanel(group, false, false),
+        });
+      }
     } else {
       // Always render the group header, but only render child tracks if not
       // collapsed
@@ -358,15 +381,12 @@ function renderToplevelPanels(filterTerm: string | undefined): PanelOrGroup[] {
 // the filter term
 function renderTrackPanels(trackKeys: string[], filterTerm?: string): Panel[] {
   if (filterTermIsValid(filterTerm)) {
-    // Search any number of comma separated terms
-    const terms = filterTerm
-      .split(',')
-      .map((term) => term.trim())
-      .filter((term) => term.length > 0);
+    const tokens = tokenizeFilterTerm(filterTerm);
     const matcher = new FuzzyFinder(trackKeys, (key) => {
       return globals.state.tracks[key].name;
     });
-    const filtered = matcher.find(...terms);
+    // Filter tracks which match any of the tokens
+    const filtered = matcher.find(...tokens);
     return filtered.map(({item: key, segments}) => {
       return renderTrackPanel(key, renderFuzzyMatchedTrackTitle(segments));
     });
@@ -403,6 +423,7 @@ function renderTrackGroupPanel(
   group: TrackGroupState,
   collapsable: boolean,
   collapsed: boolean,
+  title?: m.Children,
 ): TrackGroupPanel {
   const summaryTrackKey = group.summaryTrack;
 
@@ -415,14 +436,16 @@ function renderTrackGroupPanel(
       tags: trackBundle.tags,
       chips: trackBundle.chips,
       collapsed,
-      title: group.name,
+      title: exists(title) ? title : group.name,
+      tooltip: group.name,
       collapsable,
     });
   } else {
     return new TrackGroupPanel({
       groupKey: group.key,
       collapsed,
-      title: group.name,
+      title: exists(title) ? title : group.name,
+      tooltip: group.name,
       collapsable,
     });
   }

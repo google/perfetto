@@ -44,7 +44,8 @@ import {classNames} from '../base/classnames';
 
 interface Attrs {
   readonly groupKey: string;
-  readonly title: string;
+  readonly title: m.Children;
+  readonly tooltip: string;
   readonly collapsed: boolean;
   readonly collapsable: boolean;
   readonly trackFSM?: TrackCacheEntry;
@@ -63,7 +64,8 @@ export class TrackGroupPanel implements Panel {
   }
 
   render(): m.Children {
-    const {groupKey, title, subtitle, chips, collapsed, trackFSM} = this.attrs;
+    const {groupKey, title, subtitle, chips, collapsed, trackFSM, tooltip} =
+      this.attrs;
 
     // The shell should be highlighted if the current search result is inside
     // this track group.
@@ -133,7 +135,12 @@ export class TrackGroupPanel implements Panel {
           ),
         m(
           '.title-wrapper',
-          m('h1.track-title', {title}, title, chips && renderChips(chips)),
+          m(
+            'h1.track-title',
+            {title: tooltip},
+            title,
+            chips && renderChips(chips),
+          ),
           collapsed && exists(subtitle) && m('h2.track-subtitle', subtitle),
         ),
         m(

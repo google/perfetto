@@ -124,3 +124,31 @@ function match(searchTerm: string, text: string, indicies: number[]): boolean {
 
   return success;
 }
+
+export interface FuzzyMatch {
+  matches: boolean;
+  segments: FuzzySegment[];
+}
+
+// Fuzzy match a single piece of text against several search terms.
+// If any of the terms match, the result of the match is true.
+export function fuzzyMatch(
+  text: string,
+  ...searchTerms: ReadonlyArray<string>
+): FuzzyMatch {
+  for (const searchTerm of searchTerms) {
+    const indicies: number[] = new Array(searchTerm.length);
+    if (match(searchTerm, text, indicies)) {
+      const segments = indiciesToSegments(indicies, text);
+      return {
+        matches: true,
+        segments,
+      };
+    }
+  }
+
+  return {
+    matches: false,
+    segments: [],
+  };
+}

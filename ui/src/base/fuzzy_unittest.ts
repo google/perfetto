@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FuzzyFinder} from './fuzzy';
+import {FuzzyFinder, fuzzyMatch} from './fuzzy';
 
 describe('FuzzyFinder', () => {
   const items = ['aaa', 'aba', 'zzz', 'c z d z e', 'Foo', 'ababc'];
@@ -137,5 +137,28 @@ describe('FuzzyFinder', () => {
         },
       ]),
     );
+  });
+});
+
+test('fuzzyMatch', () => {
+  expect(fuzzyMatch('foo bar baz', 'foo')).toEqual({
+    matches: true,
+    segments: [
+      {matching: true, value: 'foo'},
+      {matching: false, value: ' bar baz'},
+    ],
+  });
+
+  expect(fuzzyMatch('foo bar baz', 'qux')).toEqual({
+    matches: false,
+    segments: [],
+  });
+
+  expect(fuzzyMatch('bar baz', 'foo', 'bar')).toEqual({
+    matches: true,
+    segments: [
+      {matching: true, value: 'bar'},
+      {matching: false, value: ' baz'},
+    ],
   });
 });
