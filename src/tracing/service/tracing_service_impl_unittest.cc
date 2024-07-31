@@ -2753,14 +2753,14 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
 
   consumer->EnableTracing(trace_config);
 
+  producer->WaitForTracingSetup();
+
   EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
             DataSourceInstanceState::CONFIGURED);
   EXPECT_EQ(GetDataSourceInstanceState("ds_wont_ack"),
             DataSourceInstanceState::CONFIGURED);
   EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_2"),
             DataSourceInstanceState::CONFIGURED);
-
-  producer->WaitForTracingSetup();
 
   producer->WaitForDataSourceSetup("ds_will_ack_1");
   producer->WaitForDataSourceSetup("ds_wont_ack");
@@ -2771,16 +2771,16 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
 
   consumer->StartTracing();
 
+  producer->WaitForDataSourceStart("ds_will_ack_1");
+  producer->WaitForDataSourceStart("ds_wont_ack");
+  producer->WaitForDataSourceStart("ds_will_ack_2");
+
   EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
             DataSourceInstanceState::STARTING);
   EXPECT_EQ(GetDataSourceInstanceState("ds_wont_ack"),
             DataSourceInstanceState::STARTED);
   EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_2"),
             DataSourceInstanceState::STARTED);
-
-  producer->WaitForDataSourceStart("ds_will_ack_1");
-  producer->WaitForDataSourceStart("ds_wont_ack");
-  producer->WaitForDataSourceStart("ds_will_ack_2");
 
   producer->endpoint()->NotifyDataSourceStarted(id1);
 
@@ -3193,14 +3193,6 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   ds_config23->set_target_buffer(2);  // same buffer as data_source2.2.
   consumer->EnableTracing(trace_config);
 
-  ASSERT_EQ(3u, tracing_session()->num_buffers());
-  std::set<BufferID> expected_buffers_producer1 = {
-      tracing_session()->buffers_index[0]};
-  std::set<BufferID> expected_buffers_producer2 = {
-      tracing_session()->buffers_index[1], tracing_session()->buffers_index[2]};
-  EXPECT_EQ(expected_buffers_producer1, GetAllowedTargetBuffers(producer1_id));
-  EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
-
   producer1->WaitForTracingSetup();
   producer1->WaitForDataSourceSetup("data_source1");
 
@@ -3208,6 +3200,14 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   producer2->WaitForDataSourceSetup("data_source2.1");
   producer2->WaitForDataSourceSetup("data_source2.2");
   producer2->WaitForDataSourceSetup("data_source2.3");
+
+  ASSERT_EQ(3u, tracing_session()->num_buffers());
+  std::set<BufferID> expected_buffers_producer1 = {
+      tracing_session()->buffers_index[0]};
+  std::set<BufferID> expected_buffers_producer2 = {
+      tracing_session()->buffers_index[1], tracing_session()->buffers_index[2]};
+  EXPECT_EQ(expected_buffers_producer1, GetAllowedTargetBuffers(producer1_id));
+  EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
 
   producer1->WaitForDataSourceStart("data_source1");
   producer2->WaitForDataSourceStart("data_source2.1");
@@ -3228,6 +3228,7 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   consumer->WaitForTracingDisabled();
 
   consumer->FreeBuffers();
+  task_runner.RunUntilIdle();
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer1_id));
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer2_id));
 }
