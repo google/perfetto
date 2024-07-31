@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 534> descriptors{{
+std::array<FtraceMessageDescriptor, 538> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5868,7 +5868,7 @@ std::array<FtraceMessageDescriptor, 534> descriptors{{
         },
     },
     {
-        "bcl_exynos_bcl_irq_trigger",
+        "bcl_irq_trigger",
         9,
         {
             {},
@@ -5881,6 +5881,73 @@ std::array<FtraceMessageDescriptor, 534> descriptors{{
             {"gpu_limit", ProtoSchemaType::kInt32},
             {"voltage", ProtoSchemaType::kInt32},
             {"capacity", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kgsl_adreno_cmdbatch_queued",
+        5,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"timestamp", ProtoSchemaType::kUint32},
+            {"queued", ProtoSchemaType::kUint32},
+            {"flags", ProtoSchemaType::kUint32},
+            {"prio", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kgsl_adreno_cmdbatch_submitted",
+        13,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"timestamp", ProtoSchemaType::kUint32},
+            {"inflight", ProtoSchemaType::kInt64},
+            {"flags", ProtoSchemaType::kUint32},
+            {"ticks", ProtoSchemaType::kUint64},
+            {"secs", ProtoSchemaType::kUint64},
+            {"usecs", ProtoSchemaType::kUint64},
+            {"prio", ProtoSchemaType::kInt32},
+            {"rb_id", ProtoSchemaType::kInt32},
+            {"rptr", ProtoSchemaType::kUint32},
+            {"wptr", ProtoSchemaType::kUint32},
+            {"q_inflight", ProtoSchemaType::kInt32},
+            {"dispatch_queue", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kgsl_adreno_cmdbatch_sync",
+        4,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"timestamp", ProtoSchemaType::kUint32},
+            {"ticks", ProtoSchemaType::kUint64},
+            {"prio", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kgsl_adreno_cmdbatch_retired",
+        17,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"timestamp", ProtoSchemaType::kUint32},
+            {"inflight", ProtoSchemaType::kInt64},
+            {"recovery", ProtoSchemaType::kUint32},
+            {"flags", ProtoSchemaType::kUint32},
+            {"start", ProtoSchemaType::kUint64},
+            {"retire", ProtoSchemaType::kUint64},
+            {"prio", ProtoSchemaType::kInt32},
+            {"rb_id", ProtoSchemaType::kInt32},
+            {"rptr", ProtoSchemaType::kUint32},
+            {"wptr", ProtoSchemaType::kUint32},
+            {"q_inflight", ProtoSchemaType::kInt32},
+            {"fault_recovery", ProtoSchemaType::kUint64},
+            {"dispatch_queue", ProtoSchemaType::kUint32},
+            {"submitted_to_rb", ProtoSchemaType::kUint64},
+            {"retired_on_gmu", ProtoSchemaType::kUint64},
+            {"active", ProtoSchemaType::kUint64},
         },
     },
 }};
