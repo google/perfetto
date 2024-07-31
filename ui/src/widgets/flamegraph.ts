@@ -639,31 +639,31 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m(Button, {
           label: 'Show Stack',
           onclick: () => {
-            filterButtonClick(`Show Stack: ${name}`);
+            filterButtonClick(`Show Stack: ^${name}$`);
           },
         }),
         m(Button, {
           label: 'Hide Stack',
           onclick: () => {
-            filterButtonClick(`Hide Stack: ${name}`);
+            filterButtonClick(`Hide Stack: ^${name}$`);
           },
         }),
         m(Button, {
           label: 'Hide Frame',
           onclick: () => {
-            filterButtonClick(`Hide Frame: ${name}`);
+            filterButtonClick(`Hide Frame: ^${name}$`);
           },
         }),
         m(Button, {
           label: 'Show From Frame',
           onclick: () => {
-            filterButtonClick(`Show From Frame: ${name}`);
+            filterButtonClick(`Show From Frame: ^${name}$`);
           },
         }),
         m(Button, {
           label: 'Pivot',
           onclick: () => {
-            filterButtonClick(`Pivot: ${name}`);
+            filterButtonClick(`Pivot: ^${name}$`);
           },
         }),
       ),
