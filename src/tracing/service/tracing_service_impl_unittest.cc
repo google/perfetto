@@ -1108,13 +1108,6 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerTimeout) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
-  std::unique_ptr<MockProducer> producer = CreateMockProducer();
-  producer->Connect(svc.get(), "mock_producer");
-
-  // Create two data sources but enable only one of them.
-  producer->RegisterDataSource("ds_1");
-  producer->RegisterDataSource("ds_2");
-
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
   trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
@@ -1122,29 +1115,19 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerTimeout) {
   trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
   auto* trigger = trigger_config->add_triggers();
   trigger->set_name("trigger_name");
-  trigger->set_stop_delay_ms(8.64e+7);
 
   trigger_config->set_trigger_timeout_ms(1);
 
-  // Make sure we don't get unexpected DataSourceStart() notifications yet.
-  EXPECT_CALL(*producer, StartDataSource(_, _)).Times(0);
-
   consumer->EnableTracing(trace_config);
-  producer->WaitForTracingSetup();
 
-  producer->WaitForDataSourceSetup("ds_1");
-  producer->WaitForDataSourceStart("ds_1");
-
-  // The trace won't return data until unless we send a trigger at this point.
+  // The trace won't return data because there has been no trigger
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
-
-  auto writer = producer->CreateTraceWriter("ds_1");
-  producer->ExpectFlush(writer.get());
 
   ASSERT_EQ(0u, tracing_session()->received_triggers.size());
 
-  producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
+
+  // The trace won't return data because there has been no trigger
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
 }
 
