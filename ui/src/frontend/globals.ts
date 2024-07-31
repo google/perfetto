@@ -51,6 +51,8 @@ import {
 } from './search_overview_track';
 import {AppContext} from './app_context';
 import {TraceContext} from './trace_context';
+import {Registry} from '../base/registry';
+import {SidebarMenuItem} from '../public';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -236,6 +238,8 @@ class Globals implements AppContext {
   showTraceErrorPopup = true;
 
   traceContext = defaultTraceContext;
+
+  readonly sidebarMenuItems = new Registry<SidebarMenuItem>((m) => m.commandId);
 
   // This is the app's equivalent of a plugin's onTraceLoad() function.
   // TODO(stevegolton): Eventually initialization that should be done on trace

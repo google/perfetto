@@ -130,8 +130,9 @@ class CoreCommandsPlugin implements Plugin {
       document.body.removeChild(input);
     });
 
+    const OPEN_TRACE_COMMAND_ID = 'perfetto.CoreCommands#openTrace';
     ctx.registerCommand({
-      id: 'perfetto.CoreCommands#openTrace',
+      id: OPEN_TRACE_COMMAND_ID,
       name: 'Open trace file',
       callback: () => {
         delete input.dataset['useCatapultLegacyUi'];
@@ -139,13 +140,26 @@ class CoreCommandsPlugin implements Plugin {
       },
       defaultHotkey: '!Mod+O',
     });
+    ctx.addSidebarMenuItem({
+      commandId: OPEN_TRACE_COMMAND_ID,
+      group: 'navigation',
+      icon: 'folder_open',
+    });
+
+    const OPEN_LEGACY_TRACE_COMMAND_ID =
+      'perfetto.CoreCommands#openTraceInLegacyUi';
     ctx.registerCommand({
-      id: 'perfetto.CoreCommands#openTraceInLegacyUi',
+      id: OPEN_LEGACY_TRACE_COMMAND_ID,
       name: 'Open with legacy UI',
       callback: () => {
         input.dataset['useCatapultLegacyUi'] = '1';
         input.click();
       },
+    });
+    ctx.addSidebarMenuItem({
+      commandId: OPEN_LEGACY_TRACE_COMMAND_ID,
+      group: 'navigation',
+      icon: 'filter_none',
     });
   }
 

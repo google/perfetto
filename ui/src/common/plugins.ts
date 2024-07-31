@@ -33,6 +33,7 @@ import {
   TrackPredicate,
   GroupPredicate,
   TrackRef,
+  SidebarMenuItem,
 } from '../public';
 import {EngineBase, Engine} from '../trace_processor/engine';
 import {Actions} from './actions';
@@ -74,6 +75,10 @@ export class PluginContextImpl implements PluginContext, Disposable {
     this.trash.dispose();
     this.alive = false;
   }
+
+  addSidebarMenuItem(menuItem: SidebarMenuItem): void {
+    this.trash.use(globals.sidebarMenuItems.register(menuItem));
+  }
 }
 
 // This PluginContextTrace implementation provides the plugin access to trace
@@ -100,6 +105,13 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     const dispose = globals.commandManager.registerCommand(cmd);
     this.trash.use(dispose);
+  }
+
+  addSidebarMenuItem(menuItem: SidebarMenuItem): void {
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+
+    this.trash.use(globals.sidebarMenuItems.register(menuItem));
   }
 
   registerTrack(trackDesc: TrackDescriptor): void {
