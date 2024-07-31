@@ -102,6 +102,7 @@ using ::testing::Ne;
 using ::testing::Not;
 using ::testing::Pointee;
 using ::testing::Property;
+using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::StrictMock;
 using ::testing::StringMatchResultListener;
@@ -2511,6 +2512,14 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
     tp->set_for_testing()->set_str("payload");
   }
 
+  FlushRequestID third_flush_id;
+  auto checkpoint = task_runner.CreateCheckpoint("all_flushes_received");
+  EXPECT_CALL(*producer, Flush)
+      .WillOnce(Return())
+      .WillOnce(Return())
+      .WillOnce(SaveArg<0>(&third_flush_id))
+      .WillOnce(InvokeWithoutArgs([checkpoint] { checkpoint(); }));
+
   auto flush_req_1 = consumer->Flush();
   auto flush_req_2 = consumer->Flush();
   auto flush_req_3 = consumer->Flush();
@@ -2518,14 +2527,13 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
   // We'll deliberately let the 4th flush request timeout. Use a lower timeout
   // to keep test time short.
   auto flush_req_4 = consumer->Flush(/*timeout_ms=*/10);
+
+  task_runner.RunUntilCheckpoint("all_flushes_received");
   ASSERT_EQ(4u, GetNumPendingFlushes());
 
-  // Make the producer reply only to the 3rd flush request.
-  InSequence seq;
-  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 1.
-  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 2.
-  producer->ExpectFlush(writer.get());              // Reply only to flush 3.
-  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 4.
+  writer->Flush();
+  // Reply only to flush 3. Do not reply to 1,2 and 4.
+  producer->endpoint()->NotifyFlushComplete(third_flush_id);
 
   // Even if the producer explicily replied only to flush ID == 3, all the
   // previous flushed < 3 should be implicitly acked.
