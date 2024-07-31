@@ -988,6 +988,13 @@ export const StateActions = {
         aggregations,
       );
   },
+
+  setTrackFilterTerm(
+    state: StateDraft,
+    args: {filterTerm: string | undefined},
+  ) {
+    state.trackFilterTerm = args.filterTerm;
+  },
 };
 
 // When we are on the frontend side, we don't really want to execute the

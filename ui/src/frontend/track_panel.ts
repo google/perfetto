@@ -56,7 +56,7 @@ export const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   defaultValue: false,
 });
 
-function getTitleSize(title: string): string | undefined {
+export function getTitleFontSize(title: string): string | undefined {
   const length = title.length;
   if (length > 55) {
     return '9px';
@@ -136,7 +136,7 @@ export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
 
 interface TrackShellAttrs {
   readonly trackKey: string;
-  readonly title: string;
+  readonly title: m.Children;
   readonly buttons: m.Children;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
@@ -184,9 +184,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           'h1',
           {
             title: attrs.title,
-            style: {
-              'font-size': getTitleSize(attrs.title),
-            },
           },
           attrs.title,
           attrs.chips && renderChips(attrs.chips),
@@ -414,7 +411,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
 interface TrackComponentAttrs {
   readonly trackKey: string;
   readonly heightPx?: number;
-  readonly title: string;
+  readonly title: m.Children;
   readonly buttons?: m.Children;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
@@ -489,13 +486,13 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 }
 
 interface TrackPanelAttrs {
-  trackKey: string;
-  title: string;
-  tags?: TrackTags;
+  readonly trackKey: string;
+  readonly title: m.Children;
+  readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
-  trackFSM?: TrackCacheEntry;
-  revealOnCreate?: boolean;
-  closeable: boolean;
+  readonly trackFSM?: TrackCacheEntry;
+  readonly revealOnCreate?: boolean;
+  readonly closeable: boolean;
   readonly pluginId?: string;
 }
 

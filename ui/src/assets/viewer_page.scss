@@ -82,7 +82,12 @@
   .notes-panel {
     height: 20px;
     .pf-toolbar {
-      font-size: 24px;
+      width: var(--track-shell-width);
+      padding-inline: 3px;
+
+      > .pf-text-input {
+        flex: auto;
+      }
     }
   }
 

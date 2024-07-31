@@ -37,16 +37,21 @@ export class FuzzyFinder<T> {
     this.keyLookup = keyLookup;
   }
 
-  // Return a list of all items that match the serch term.
-  find(searchTerm: string): FuzzyResult<T>[] {
+  // Return a list of items that match any of the search terms.
+  find(...searchTerms: string[]): FuzzyResult<T>[] {
     const result: FuzzyResult<T>[] = [];
-    const indicies: number[] = new Array(searchTerm.length);
 
     for (const item of this.items) {
       const key = this.keyLookup(item);
-      if (match(searchTerm, key, indicies)) {
-        const segments = indiciesToSegments(indicies, key);
-        result.push({item, segments});
+      for (const searchTerm of searchTerms) {
+        const indicies: number[] = new Array(searchTerm.length);
+        if (match(searchTerm, key, indicies)) {
+          const segments = indiciesToSegments(indicies, key);
+          result.push({item, segments});
+
+          // Don't try to match any more...
+          break;
+        }
       }
     }
 
@@ -118,4 +123,32 @@ function match(searchTerm: string, text: string, indicies: number[]): boolean {
   }
 
   return success;
+}
+
+export interface FuzzyMatch {
+  matches: boolean;
+  segments: FuzzySegment[];
+}
+
+// Fuzzy match a single piece of text against several search terms.
+// If any of the terms match, the result of the match is true.
+export function fuzzyMatch(
+  text: string,
+  ...searchTerms: ReadonlyArray<string>
+): FuzzyMatch {
+  for (const searchTerm of searchTerms) {
+    const indicies: number[] = new Array(searchTerm.length);
+    if (match(searchTerm, text, indicies)) {
+      const segments = indiciesToSegments(indicies, text);
+      return {
+        matches: true,
+        segments,
+      };
+    }
+  }
+
+  return {
+    matches: false,
+    segments: [],
+  };
 }

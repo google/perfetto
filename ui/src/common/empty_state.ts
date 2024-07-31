@@ -142,5 +142,7 @@ export function createEmptyState(): State {
 
     // Somewhere to store plugins' persistent state.
     plugins: {},
+
+    trackFilterTerm: undefined,
   };
 }

@@ -22,6 +22,7 @@ import {randomColor} from '../core/colorizer';
 import {SpanNote, Note, Selection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';
+import {TextInput} from '../widgets/text_input';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -118,6 +119,26 @@ export class NotesPanel implements Panel {
             title: 'Clear all pinned tracks',
             icon: 'clear_all',
             compact: true,
+          }),
+          m(TextInput, {
+            placeholder: 'Filter tracks...',
+            title:
+              'Track filter - enter one or more comma-separated search terms',
+            value: globals.state.trackFilterTerm,
+            oninput: (e: Event) => {
+              const filterTerm = (e.target as HTMLInputElement).value;
+              globals.dispatch(Actions.setTrackFilterTerm({filterTerm}));
+            },
+          }),
+          m(Button, {
+            type: 'reset',
+            icon: 'backspace',
+            onclick: () => {
+              globals.dispatch(
+                Actions.setTrackFilterTerm({filterTerm: undefined}),
+              );
+            },
+            title: 'Clear track filter',
           }),
         ),
     );
