@@ -18,7 +18,6 @@
 
 #include <stdlib.h>
 #include <unistd.h>
-
 #include <algorithm>
 #include <array>
 #include <bitset>
@@ -147,8 +146,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 9> periods_ms{};
-  std::array<uint32_t, 9> ticks{};
+  std::array<uint32_t, 10> periods_ms{};
+  std::array<uint32_t, 10> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
@@ -160,6 +159,7 @@ SysStatsDataSource::SysStatsDataSource(
   periods_ms[6] = ClampTo10Ms(cfg.diskstat_period_ms(), "diskstat_period_ms");
   periods_ms[7] = ClampTo10Ms(cfg.psi_period_ms(), "psi_period_ms");
   periods_ms[8] = ClampTo10Ms(cfg.thermal_period_ms(), "thermal_period_ms");
+  periods_ms[9] = ClampTo10Ms(cfg.cpuidle_period_ms(), "cpuidle_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -187,6 +187,7 @@ SysStatsDataSource::SysStatsDataSource(
   diskstat_ticks_ = ticks[6];
   psi_ticks_ = ticks[7];
   thermal_ticks_ = ticks[8];
+  cpuidle_ticks_ = ticks[9];
 }
 
 void SysStatsDataSource::Start() {
@@ -245,6 +246,9 @@ void SysStatsDataSource::ReadSysStats() {
   if (thermal_ticks_ && tick_ % thermal_ticks_ == 0)
     ReadThermalZones(sys_stats);
 
+  if (cpuidle_ticks_ && tick_ % cpuidle_ticks_ == 0)
+    ReadCpuIdleStates(sys_stats);
+
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
 
@@ -262,34 +266,30 @@ base::ScopedDir SysStatsDataSource::OpenDirAndLogOnErrorOnce(
   return dir;
 }
 
-std::optional<uint64_t> SysStatsDataSource::ReadThermalZoneTemp(
-    const std::string& thermal_zone) {
-  base::StackString<256> thermal_zone_temp_path("/sys/class/thermal/%s/temp",
-                                                thermal_zone.c_str());
-  base::ScopedFile fd = OpenReadOnly(thermal_zone_temp_path.c_str());
+std::optional<std::string> SysStatsDataSource::ReadFileToString(
+    const std::string& path) {
+  base::ScopedFile fd = OpenReadOnly(path.c_str());
   if (!fd) {
     return std::nullopt;
   }
-  size_t rsize = ReadFile(&fd, thermal_zone_temp_path.c_str());
+  size_t rsize = ReadFile(&fd, path.c_str());
+  if (!rsize)
+    return std::nullopt;
+  return base::StripSuffix(static_cast<char*>(read_buf_.Get()), "\n");
+}
+
+std::optional<uint64_t> SysStatsDataSource::ReadFileToUInt64(
+    const std::string& path) {
+  base::ScopedFile fd = OpenReadOnly(path.c_str());
+  if (!fd) {
+    return std::nullopt;
+  }
+  size_t rsize = ReadFile(&fd, path.c_str());
   if (!rsize)
     return std::nullopt;
 
   return static_cast<uint64_t>(
       strtoll(static_cast<char*>(read_buf_.Get()), nullptr, 10));
-}
-
-std::optional<std::string> SysStatsDataSource::ReadThermalZoneType(
-    const std::string& thermal_zone) {
-  base::StackString<256> thermal_zone_type_path("/sys/class/thermal/%s/type",
-                                                thermal_zone.c_str());
-  base::ScopedFile fd = OpenReadOnly(thermal_zone_type_path.c_str());
-  if (!fd) {
-    return std::nullopt;
-  }
-  size_t rsize = ReadFile(&fd, thermal_zone_type_path.c_str());
-  if (!rsize)
-    return std::nullopt;
-  return base::StripSuffix(static_cast<char*>(read_buf_.Get()), "\n");
 }
 
 void SysStatsDataSource::ReadThermalZones(protos::pbzero::SysStats* sys_stats) {
@@ -309,13 +309,69 @@ void SysStatsDataSource::ReadThermalZones(protos::pbzero::SysStats* sys_stats) {
     }
     auto* thermal_zone = sys_stats->add_thermal_zone();
     thermal_zone->set_name(name);
-    auto temp = ReadThermalZoneTemp(name);
+    base::StackString<256> thermal_zone_temp_path("/sys/class/thermal/%s/temp",
+                                                  name);
+    auto temp = ReadFileToUInt64(thermal_zone_temp_path.ToStdString());
     if (temp) {
       thermal_zone->set_temp(*temp / 1000);
     }
-    auto type = ReadThermalZoneType(name);
+    base::StackString<256> thermal_zone_type_path("/sys/class/thermal/%s/type",
+                                                  name);
+    auto type = ReadFileToString(thermal_zone_type_path.ToStdString());
     if (type) {
       thermal_zone->set_type(*type);
+    }
+  }
+}
+
+void SysStatsDataSource::ReadCpuIdleStates(
+    protos::pbzero::SysStats* sys_stats) {
+  std::string cpu_dir_path = "/sys/devices/system/cpu/";
+  base::ScopedDir cpu_dir =
+      OpenDirAndLogOnErrorOnce(cpu_dir_path, &cpuidle_error_logged_);
+  if (!cpu_dir) {
+    return;
+  }
+  // Iterate over all CPUs.
+  while (struct dirent* cpu_dir_ent = readdir(*cpu_dir)) {
+    const char* cpu_name = cpu_dir_ent->d_name;
+    if (!base::StartsWith(cpu_name, "cpu"))
+      continue;
+    auto maybe_cpu_index =
+        base::StringToUInt32(base::StripPrefix(cpu_name, "cpu"));
+    if (!maybe_cpu_index.has_value()) {
+      continue;
+    }
+    uint32_t cpu_id = maybe_cpu_index.value();
+
+    auto* cpuidle_stats = sys_stats->add_cpuidle_state();
+    cpuidle_stats->set_cpu_id(cpu_id);
+    std::string cpuidle_path =
+        "/sys/devices/system/cpu/" + std::string(cpu_name) + "/cpuidle/";
+    base::ScopedDir cpu_state_dir =
+        OpenDirAndLogOnErrorOnce(cpuidle_path, &cpuidle_error_logged_);
+    if (!cpu_state_dir) {
+      return;
+    }
+    // Iterate over all CPU idle states.
+    while (struct dirent* state_dir_ent = readdir(*cpu_state_dir)) {
+      const char* state_name = state_dir_ent->d_name;
+      if (!base::StartsWith(state_name, "state"))
+        continue;
+      base::StackString<256> cpuidle_state_name_path(
+          "/sys/devices/system/cpu/%s/cpuidle/%s/name", cpu_name, state_name);
+      auto cpuidle_state_name =
+          ReadFileToString(cpuidle_state_name_path.ToStdString());
+
+      base::StackString<256> cpuidle_state_time_path(
+          "/sys/devices/system/cpu/%s/cpuidle/%s/time", cpu_name, state_name);
+      auto time = ReadFileToUInt64(cpuidle_state_time_path.ToStdString());
+      if (!cpuidle_state_name || !time) {
+        continue;
+      }
+      auto cpuidle_state = cpuidle_stats->add_cpuidle_state_entry();
+      cpuidle_state->set_state(*cpuidle_state_name);
+      cpuidle_state->set_duration_us(*time);
     }
   }
 }

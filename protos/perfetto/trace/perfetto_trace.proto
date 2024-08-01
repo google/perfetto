@@ -3163,6 +3163,10 @@ message SysStatsConfig {
   // Polls /sys/class/thermal/* every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 thermal_period_ms = 12;
+
+  // Polls /sys/devices/system/cpu/cpu*/cpuidle/state* every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 cpuidle_period_ms = 13;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -14438,8 +14442,19 @@ message SysStats {
     optional string type = 3;
   }
   repeated ThermalZone thermal_zone = 15;
-}
 
+  // Reading from /sys/devices/system/cpu/cpu*/cpuidle/state*.
+  message CpuIdleStateEntry {
+    // Name of the idle state, e.g. C1-C10
+    optional string state = 1;
+    optional uint64 duration_us = 2;
+  }
+  message CpuIdleState {
+    optional uint32 cpu_id = 1;
+    repeated CpuIdleStateEntry cpuidle_state_entry = 2;
+  }
+  repeated CpuIdleState cpuidle_state = 16;
+}
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto
 
 // Begin of protos/perfetto/trace/system_info.proto
