@@ -47,19 +47,24 @@ WITH data(device, wattson_device) AS (
 )
 select * from data;
 
-CREATE PERFETTO TABLE _wattson_device
-AS
-WITH soc AS (
-  SELECT str_value as model
-  FROM metadata
-  WHERE name = 'android_soc_model'
+CREATE PERFETTO TABLE _wattson_device AS
+WITH soc_model AS (
+  SELECT COALESCE(
+    -- Get model from metadata
+    (SELECT str_value FROM metadata WHERE name = 'android_soc_model'),
+    -- Get device name from metadata and map it to model
+    (
+      SELECT wattson_device
+      FROM _wattson_device_map map
+      JOIN android_device_name ad ON ad.name = map.device
+    )
+  ) as name
 )
-SELECT
-  COALESCE(soc.model, map.wattson_device) as name
-FROM _wattson_device_map as map
-CROSS JOIN android_device_name as ad
-LEFT JOIN soc ON TRUE
-WHERE ad.name = map.device;
+-- Once model is obtained, check to see if the model is supported by Wattson
+-- via checking if model is within a key-value pair mapping
+SELECT DISTINCT name
+FROM soc_model
+JOIN _device_cpu_deep_idle_offsets AS map ON map.device = name;
 
 -- Device specific mapping from CPU to policy
 CREATE PERFETTO TABLE _cpu_to_policy_map

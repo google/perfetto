@@ -185,7 +185,7 @@ class WattsonStdlib(TestSuite):
   # Test that the device name can be extracted from the trace's metadata.
   def test_wattson_device_name(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_cpu_eos.pb'),
+        trace=DataPath('wattson_wo_device_name.pb'),
         query=("""
             INCLUDE PERFETTO MODULE wattson.device_infos;
             select name from _wattson_device
