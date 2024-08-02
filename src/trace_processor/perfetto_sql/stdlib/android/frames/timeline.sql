@@ -39,7 +39,9 @@ WITH all_found AS (
         utid,
         upid
     FROM thread_slice
-    WHERE name GLOB $glob_str AND depth = 0
+    -- Mostly the frame slice is at depth 0. Though it could be pushed to depth 1 while users
+    -- enable low layer trace e.g. atrace_app.
+    WHERE name GLOB $glob_str AND depth IN (0, 1)
 )
 SELECT *
 FROM all_found
