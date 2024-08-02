@@ -233,6 +233,8 @@ class Table {
     return null_layers_;
   }
 
+  bool HasNullOrOverlayLayer(uint32_t col_idx) const;
+
  protected:
   Table(StringPool*,
         uint32_t row_count,
@@ -283,7 +285,10 @@ class Table {
   void ApplyDistinct(const Query&, RowMap*) const;
   void ApplySort(const Query&, RowMap*) const;
 
-  RowMap TryApplyIndex(std::vector<Constraint>&) const;
+  RowMap TryApplyIndex(const std::vector<Constraint>&,
+                       uint32_t& cs_offset) const;
+  RowMap ApplyIdJoinConstraints(const std::vector<Constraint>&,
+                                uint32_t& cs_offset) const;
 
   StringPool* string_pool_ = nullptr;
   uint32_t row_count_ = 0;

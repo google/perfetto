@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
@@ -139,7 +140,8 @@ Table Table::CopyExceptOverlays() const {
   return {string_pool_, row_count_, std::move(cols), {}};
 }
 
-RowMap Table::TryApplyIndex(std::vector<Constraint>& c_vec) const {
+RowMap Table::TryApplyIndex(const std::vector<Constraint>& c_vec,
+                            uint32_t& cs_offset) const {
   RowMap rm(0, row_count());
 
   // Prework - use indexes if possible and decide which one.
@@ -183,8 +185,7 @@ RowMap Table::TryApplyIndex(std::vector<Constraint>& c_vec) const {
     o_idxs.data += r.start;
     o_idxs.size = r.size();
   }
-  c_vec.erase(c_vec.begin(),
-              c_vec.begin() + static_cast<uint32_t>(maybe_idx_cols.size()));
+  cs_offset = static_cast<uint32_t>(maybe_idx_cols.size());
 
   std::vector<uint32_t> res_vec(o_idxs.data, o_idxs.data + o_idxs.size);
   if (res_vec.size() < kIndexVectorThreshold) {
@@ -192,6 +193,29 @@ RowMap Table::TryApplyIndex(std::vector<Constraint>& c_vec) const {
     return RowMap(std::move(res_vec));
   }
   return RowMap(BitVector::FromUnsortedIndexVector(res_vec));
+}
+
+RowMap Table::ApplyIdJoinConstraints(const std::vector<Constraint>& cs,
+                                     uint32_t& cs_offset) const {
+  uint32_t i = 1;
+  uint32_t row = static_cast<uint32_t>(cs.front().value.AsLong());
+  if (row >= row_count()) {
+    return RowMap();
+  }
+  for (; i < cs.size(); i++) {
+    const Constraint& c = cs[i];
+    switch (ChainForColumn(c.col_idx).SingleSearch(c.op, c.value, row)) {
+      case SingleSearchResult::kNoMatch:
+        return RowMap();
+      case SingleSearchResult::kMatch:
+        continue;
+      case SingleSearchResult::kNeedsFullSearch:
+        cs_offset = i;
+        return RowMap(row, row + 1);
+    }
+  }
+  cs_offset = static_cast<uint32_t>(cs.size());
+  return RowMap(row, row + 1);
 }
 
 RowMap Table::QueryToRowMap(const Query& q) const {
@@ -207,11 +231,22 @@ RowMap Table::QueryToRowMap(const Query& q) const {
     CreateChains();
   }
 
-  auto cs_copy = q.constraints;
-  RowMap rm = TryApplyIndex(cs_copy);
+  // Fast path for joining on id.
+  const auto& cs = q.constraints;
+  RowMap rm;
+  uint32_t cs_offset = 0;
+  if (!cs.empty() && cs.front().op == FilterOp::kEq &&
+      cs.front().value.type == SqlValue::kLong &&
+      columns_[cs.front().col_idx].IsId() &&
+      !HasNullOrOverlayLayer(cs.front().col_idx)) {
+    rm = ApplyIdJoinConstraints(cs, cs_offset);
+  } else {
+    rm = TryApplyIndex(cs, cs_offset);
+  }
 
-  // Filter out constraints that are not using index.
-  for (const auto& c : cs_copy) {
+  // Filter on constraints that are not using index.
+  for (; cs_offset < cs.size(); cs_offset++) {
+    const Constraint& c = cs[cs_offset];
     QueryExecutor::ApplyConstraint(c, ChainForColumn(c.col_idx), &rm);
   }
 
@@ -299,6 +334,15 @@ void Table::OnConstructionCompleted(
   storage_layers_ = std::move(storage_layers);
   null_layers_ = std::move(null_layers);
   overlay_layers_ = std::move(overlay_layers);
+}
+
+bool Table::HasNullOrOverlayLayer(uint32_t col_idx) const {
+  if (null_layers_[col_idx].get()) {
+    return true;
+  }
+  const auto& oly_idx = columns_[col_idx].overlay_index();
+  const auto& overlay = overlay_layers_[oly_idx];
+  return overlay.get() != nullptr;
 }
 
 void Table::CreateChains() const {
