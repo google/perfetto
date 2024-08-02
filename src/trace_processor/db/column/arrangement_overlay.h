@@ -39,7 +39,7 @@ class ArrangementOverlay final : public OverlayLayer {
                      DataLayerChain::Indices::State arrangement_state);
   ~ArrangementOverlay() override;
 
-  void Flatten(std::vector<Token>&) override;
+  void Flatten(uint32_t* start, const uint32_t* end, uint32_t stride) override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,

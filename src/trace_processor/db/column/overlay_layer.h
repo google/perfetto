@@ -17,10 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_OVERLAY_LAYER_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_OVERLAY_LAYER_H_
 
-#include <vector>
+#include <cstdint>
 
 #include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
@@ -28,7 +27,16 @@ class OverlayLayer : public DataLayer {
  public:
   ~OverlayLayer() override;
 
-  virtual void Flatten(std::vector<Token>&) = 0;
+  // Translates the indices separtated by |stride| between |start| and |end|
+  // through this overlay.
+  //
+  // Implementations should do something like this:
+  //   for (auto* it = start; it < end; it += stride) {
+  //     *it = (...translate the index at *it);
+  //   }
+  virtual void Flatten(uint32_t* start,
+                       const uint32_t* end,
+                       uint32_t stride) = 0;
 
  protected:
   explicit OverlayLayer(Impl impl);

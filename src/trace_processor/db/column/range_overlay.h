@@ -35,7 +35,7 @@ class RangeOverlay final : public OverlayLayer {
   explicit RangeOverlay(const Range*);
   ~RangeOverlay() override;
 
-  void Flatten(std::vector<Token>&) override;
+  void Flatten(uint32_t* start, const uint32_t* end, uint32_t stride) override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,
