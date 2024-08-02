@@ -225,7 +225,8 @@ class TablesCounters(TestSuite):
             {'machine_id': 1001}),
         query="""
         SELECT count(*)
-        FROM counters
+        FROM counter
+        JOIN counter_track on counter_track.id = counter.track_id
         WHERE -1 < ts group by machine_id;
         """,
         out=Csv("""

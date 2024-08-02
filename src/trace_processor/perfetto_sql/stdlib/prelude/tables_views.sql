@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE prelude.views;
+
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
@@ -122,6 +124,32 @@ SELECT
   ucpu
 FROM
   __intrinsic_sched_slice;
+
+-- Shorter alias for table `sched_slice`.
+CREATE PERFETTO VIEW sched(
+  -- Alias for `sched_slice.id`.
+  id UINT,
+  -- Alias for `sched_slice.type`.
+  type STRING,
+  -- Alias for `sched_slice.ts`.
+  ts LONG,
+  -- Alias for `sched_slice.dur`.
+  dur LONG,
+  -- Alias for `sched_slice.cpu`.
+  cpu UINT,
+  -- Alias for `sched_slice.utid`.
+  utid UINT,
+  -- Alias for `sched_slice.end_state`.
+  end_state STRING,
+  -- Alias for `sched_slice.priority`.
+  priority INT,
+  -- Alias for `sched_slice.ucpu`.
+  ucpu UINT,
+  -- Legacy column, should no longer be used.
+  ts_end UINT
+) AS
+SELECT *, ts + dur as ts_end
+FROM sched_slice;
 
 -- This table contains the scheduling state of every thread on the system during
 -- the trace.
