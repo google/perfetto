@@ -57,7 +57,7 @@ import {
 
 export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   id: 'enableScrollJankPluginV2',
-  name: 'Enable Scroll Jank plugin V2',
+  name: 'Enable Chrome Scroll Jank plugin V2',
   description: 'Adds new tracks and visualizations for scroll jank.',
   defaultValue: false,
 });
