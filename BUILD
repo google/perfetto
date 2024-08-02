@@ -2753,6 +2753,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/frequency.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle_stats.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle_time_in_state.sql",
     ],
 )
 
