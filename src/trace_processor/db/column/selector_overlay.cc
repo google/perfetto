@@ -41,14 +41,12 @@ void TranslateToInnerIndices(const BitVector& selector,
   if (selector.size() == selector.CountSetBits()) {
     return;
   }
-
   if (tokens.size() < selector.size() / kIndexOfNthSetRatio) {
     for (auto& token : tokens) {
       token.index = selector.IndexOfNthSet(token.index);
     }
     return;
   }
-
   // TODO(mayzner): once we have a reverse index for IndexOfNthSet in
   // BitVector, this should no longer be necessary.
   std::vector<uint32_t> lookup = selector.GetSetBitIndices();
@@ -57,10 +55,34 @@ void TranslateToInnerIndices(const BitVector& selector,
   }
 }
 
+void TranslateToInnerIndices(const BitVector& selector,
+                             uint32_t* start,
+                             const uint32_t* end,
+                             uint32_t stride) {
+  if (selector.size() == selector.CountSetBits()) {
+    return;
+  }
+  auto size = static_cast<uint32_t>(end - start);
+  if (size < selector.size() / kIndexOfNthSetRatio) {
+    for (uint32_t* it = start; it < end; it += stride) {
+      *it = selector.IndexOfNthSet(*it);
+    }
+    return;
+  }
+  // TODO(mayzner): once we have a reverse index for IndexOfNthSet in
+  // BitVector, this should no longer be necessary.
+  std::vector<uint32_t> lookup = selector.GetSetBitIndices();
+  for (uint32_t* it = start; it < end; it += stride) {
+    *it = lookup[*it];
+  }
+}
+
 }  // namespace
 
-void SelectorOverlay::Flatten(std::vector<Token>& tokens) {
-  TranslateToInnerIndices(*selector_, tokens);
+void SelectorOverlay::Flatten(uint32_t* start,
+                              const uint32_t* end,
+                              uint32_t stride) {
+  TranslateToInnerIndices(*selector_, start, end, stride);
 }
 
 SelectorOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
