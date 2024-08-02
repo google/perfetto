@@ -551,11 +551,17 @@ bool PerfettoSqlParser::ParseRawArguments(std::vector<RawArgument>& args) {
     // Keywords can be used as names accidentally so have an explicit error
     // message for those.
     if (tok.token_type == SqliteTokenType::TK_GENERIC_KEYWORD) {
-      base::StackString<1024> err(
-          "Malformed function/macro prototype: %.*s is a SQL keyword so "
-          "cannot appear in a prototype",
-          static_cast<int>(tok.str.size()), tok.str.data());
-      return ErrorAtToken(tok, err.c_str());
+      // Ignore "key" which, while being a keyword, is also harmless in
+      // practice.
+      if (base::ToLower(std::string(tok.str)) == "key") {
+        tok.token_type = SqliteTokenType::TK_ID;
+      } else {
+        base::StackString<1024> err(
+            "Malformed function/macro prototype: %.*s is a SQL keyword so "
+            "cannot appear in a prototype",
+            static_cast<int>(tok.str.size()), tok.str.data());
+        return ErrorAtToken(tok, err.c_str());
+      }
     }
     if (expected == kCommaOrRp) {
       PERFETTO_CHECK(expected == kCommaOrRp);
