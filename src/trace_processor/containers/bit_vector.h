@@ -165,9 +165,7 @@ class BitVector {
   // Returns whether the bit at |idx| is set.
   bool IsSet(uint32_t idx) const {
     PERFETTO_DCHECK(idx < size());
-
-    Address addr = IndexToAddress(idx);
-    return ConstBlockFromIndex(addr.block_idx).IsSet(addr.block_offset);
+    return ConstBitWord(&words_[WordFloor(idx)]).IsSet(idx % BitWord::kBits);
   }
 
   // Returns the number of set bits in the BitVector.

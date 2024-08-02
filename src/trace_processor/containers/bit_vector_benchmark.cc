@@ -94,6 +94,28 @@ static void BM_BitVectorAppendFalse(benchmark::State& state) {
 }
 BENCHMARK(BM_BitVectorAppendFalse);
 
+static void BM_BitVectorIsSet(benchmark::State& state) {
+  static constexpr uint32_t kRandomSeed = 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+
+  BitVector bv = BvWithSizeAndSetPercentage(8192, 50);
+
+  static constexpr uint32_t kPoolSize = 1024 * 1024;
+  std::vector<bool> bit_pool(kPoolSize);
+  std::vector<uint32_t> row_pool(kPoolSize);
+  for (uint32_t i = 0; i < kPoolSize; ++i) {
+    bit_pool[i] = rnd_engine() % 2;
+    row_pool[i] = rnd_engine() % 8192;
+  }
+
+  uint32_t pool_idx = 0;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(bv.IsSet(row_pool[pool_idx]));
+    pool_idx = (pool_idx + 1) % kPoolSize;
+  }
+}
+BENCHMARK(BM_BitVectorIsSet);
+
 static void BM_BitVectorSet(benchmark::State& state) {
   static constexpr uint32_t kRandomSeed = 42;
   std::minstd_rand0 rnd_engine(kRandomSeed);
