@@ -32,7 +32,7 @@ from src.trace_processor.tables.track_tables import TRACK_TABLE
 SLICE_TABLE = Table(
     python_module=__file__,
     class_name='SliceTable',
-    sql_name='internal_slice',
+    sql_name='__intrinsic_slice',
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('dur', CppInt64()),

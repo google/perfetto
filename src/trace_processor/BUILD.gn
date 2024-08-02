@@ -184,7 +184,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/intrinsics/functions",
       "perfetto_sql/intrinsics/operators",
       "perfetto_sql/intrinsics/table_functions",
-      "perfetto_sql/prelude",
       "perfetto_sql/stdlib",
       "sqlite",
       "storage",

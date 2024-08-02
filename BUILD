@@ -366,7 +366,6 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-               ":src_trace_processor_perfetto_sql_prelude_prelude",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
@@ -2526,27 +2525,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/prelude:prelude
-perfetto_cc_amalgamated_sql(
-    name = "src_trace_processor_perfetto_sql_prelude_prelude",
-    deps = [
-        ":src_trace_processor_perfetto_sql_prelude_sources",
-    ],
-    outs = [
-        "src/trace_processor/perfetto_sql/prelude/tables_views.h",
-    ],
-    namespace = "prelude::tables_views",
-)
-
-# GN target: //src/trace_processor/perfetto_sql/prelude:sources
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_prelude_sources",
-    srcs = [
-        "src/trace_processor/perfetto_sql/prelude/tables.sql",
-        "src/trace_processor/perfetto_sql/prelude/views.sql",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/auto:auto
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_auto_auto",
@@ -2818,8 +2796,10 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/prelude/casts.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/tables.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/tables_views.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/trace_bounds.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/views.sql",
     ],
 )
 
@@ -6368,7 +6348,6 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-               ":src_trace_processor_perfetto_sql_prelude_prelude",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
@@ -6542,7 +6521,6 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-               ":src_trace_processor_perfetto_sql_prelude_prelude",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
@@ -6784,7 +6762,6 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-               ":src_trace_processor_perfetto_sql_prelude_prelude",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_traceconv_gen_cc_trace_descriptor",
                ":src_traceconv_gen_cc_winscope_descriptor",
