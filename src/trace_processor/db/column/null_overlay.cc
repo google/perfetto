@@ -109,12 +109,14 @@ BitVector ReconcileStorageResult(FilterOp op,
 
 }  // namespace
 
-void NullOverlay::Flatten(std::vector<Token>& tokens) {
-  for (auto& token : tokens) {
-    if (non_null_->IsSet(token.index)) {
-      token.index = non_null_->CountSetBits(token.index);
+void NullOverlay::Flatten(uint32_t* start,
+                          const uint32_t* end,
+                          uint32_t stride) {
+  for (uint32_t* it = start; it < end; it += stride) {
+    if (non_null_->IsSet(*it)) {
+      *it = non_null_->CountSetBits(*it);
     } else {
-      token.index = std::numeric_limits<uint32_t>::max();
+      *it = std::numeric_limits<uint32_t>::max();
     }
   }
 }

@@ -43,8 +43,12 @@ void AddOffsetToTokenIndex(std::vector<Token>& tokens, uint32_t offset) {
 
 }  // namespace
 
-void RangeOverlay::Flatten(std::vector<Token>& tokens) {
-  AddOffsetToTokenIndex(tokens, range_->start);
+void RangeOverlay::Flatten(uint32_t* start,
+                           const uint32_t* end,
+                           uint32_t stride) {
+  for (uint32_t* it = start; it < end; it += stride) {
+    *it += range_->start;
+  }
 }
 
 RangeOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,

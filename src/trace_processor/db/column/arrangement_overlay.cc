@@ -35,9 +35,11 @@
 
 namespace perfetto::trace_processor::column {
 
-void ArrangementOverlay::Flatten(std::vector<Token>& tokens) {
-  for (auto& token : tokens) {
-    token.index = (*arrangement_)[token.index];
+void ArrangementOverlay::Flatten(uint32_t* start,
+                                 const uint32_t* end,
+                                 uint32_t stride) {
+  for (uint32_t* it = start; it < end; it += stride) {
+    *it = (*arrangement_)[*it];
   }
 }
 

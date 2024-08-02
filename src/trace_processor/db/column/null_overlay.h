@@ -21,7 +21,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
@@ -38,7 +37,7 @@ class NullOverlay final : public OverlayLayer {
   explicit NullOverlay(const BitVector* non_null);
   ~NullOverlay() override;
 
-  void Flatten(std::vector<Token>&) override;
+  void Flatten(uint32_t* start, const uint32_t* end, uint32_t stride) override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,

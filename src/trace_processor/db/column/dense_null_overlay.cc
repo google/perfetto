@@ -62,10 +62,12 @@ std::optional<Token> RemoveAllNullsAndReturnTheFirstOne(
 }
 }  // namespace
 
-void DenseNullOverlay::Flatten(std::vector<Token>& tokens) {
-  for (auto& token : tokens) {
-    if (!non_null_->IsSet(token.index)) {
-      token.index = std::numeric_limits<uint32_t>::max();
+void DenseNullOverlay::Flatten(uint32_t* start,
+                               const uint32_t* end,
+                               uint32_t stride) {
+  for (uint32_t* it = start; it < end; it += stride) {
+    if (!non_null_->IsSet(*it)) {
+      *it = std::numeric_limits<uint32_t>::max();
     }
   }
 }
