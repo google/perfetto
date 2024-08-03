@@ -161,18 +161,21 @@ packet {
       message_id: 6924537961316301726
       message: "Test message with a string (%s), an int (%d), a double %g, and a boolean %b."
       level: PROTOLOG_LEVEL_DEBUG
+      location: "com/test/TestClass.java:123"
       group_id: 1
     }
     messages {
       message_id: 1994837961123301128
       message: "Test message with different int formats: %d, 0o%o, 0x%x, %f, %e."
       level: PROTOLOG_LEVEL_WARN
+      location: "com/test/TestClass.java:567"
       group_id: 2
     }
     messages {
       message_id: 9274895847396301003
       message: "Message re-using interned string '%s' == '%s', but '%s' != '%s'"
       level: PROTOLOG_LEVEL_ERROR
+      location: "com/test/TestClass.java:527"
       group_id: 3
     }
     groups {
