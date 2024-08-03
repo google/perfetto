@@ -107,6 +107,7 @@ packet {
       message_id: 6924537961316301726
       message: "Test message with two strings: %s and %s"
       level: PROTOLOG_LEVEL_DEBUG
+      location: "com/test/TestClass.java:123"
       group_id: 1
     }
     groups {

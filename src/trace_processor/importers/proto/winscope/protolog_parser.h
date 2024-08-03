@@ -48,7 +48,8 @@ class ProtoLogParser {
                                       ProtoLogLevel level,
                                       std::string& group_tag,
                                       std::string& formatted_message,
-                                      std::optional<StringId> stacktrace);
+                                      std::optional<StringId> stacktrace,
+                                      std::optional<std::string>& location);
 
   TraceProcessorContext* const context_;
   DescriptorPool pool_;

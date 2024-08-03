@@ -129,9 +129,10 @@ void ProtoLogParser::ParseProtoLogMessage(
       boolean_params, string_params);
   if (decoded_message_opt.has_value()) {
     auto decoded_message = decoded_message_opt.value();
-    PopulateReservedRowWithMessage(row_id, decoded_message.log_level,
-                                   decoded_message.group_tag,
-                                   decoded_message.message, stacktrace);
+    std::optional<std::string> location = decoded_message.location;
+    PopulateReservedRowWithMessage(
+        row_id, decoded_message.log_level, decoded_message.group_tag,
+        decoded_message.message, stacktrace, location);
   } else {
     // Viewer config used to decode messages not yet processed for this message.
     // Delaying decoding...
@@ -172,10 +173,16 @@ void ProtoLogParser::AddViewerConfigToMessageDecoder(
     protos::pbzero::ProtoLogViewerConfig::MessageData::Decoder message_data(
         *it);
 
+    std::optional<std::string> location = std::nullopt;
+    if (message_data.has_location()) {
+      location = message_data.location().ToStdString();
+    }
+
     protolog_message_decoder->TrackMessage(
         message_data.message_id(),
         static_cast<ProtoLogLevel>(message_data.level()),
-        message_data.group_id(), message_data.message().ToStdString());
+        message_data.group_id(), message_data.message().ToStdString(),
+        location);
   }
 }
 
@@ -200,9 +207,10 @@ void ProtoLogParser::ProcessPendingMessagesWithId(uint64_t message_id) {
                                   tracked_message.string_params)
                          .value();
 
+      std::optional<std::string> location = message.location;
       PopulateReservedRowWithMessage(
           tracked_message.table_row_id, message.log_level, message.group_tag,
-          message.message, tracked_message.stacktrace);
+          message.message, tracked_message.stacktrace, location);
     }
 
     // Clear to avoid decoding again
@@ -215,7 +223,8 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
     ProtoLogLevel log_level,
     std::string& group_tag,
     std::string& message,
-    std::optional<StringId> stacktrace) {
+    std::optional<StringId> stacktrace,
+    std::optional<std::string>& location) {
   auto* protolog_table = context_->storage->mutable_protolog_table();
   auto row = protolog_table->FindById(table_row_id).value();
 
@@ -251,6 +260,12 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
 
   if (stacktrace.has_value()) {
     row.set_stacktrace(stacktrace.value());
+  }
+
+  if (location.has_value()) {
+    auto location_string_id =
+        context_->storage->InternString(base::StringView(location.value()));
+    row.set_location(location_string_id);
   }
 }
 

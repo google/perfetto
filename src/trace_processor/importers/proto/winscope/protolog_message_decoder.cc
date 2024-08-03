@@ -118,19 +118,22 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     }
   }
 
-  return DecodedMessage{tracked_message->level, group->tag, formatted_message};
+  return DecodedMessage{tracked_message->level, group->tag, formatted_message,
+                        tracked_message->location};
 }
 
 void ProtoLogMessageDecoder::TrackGroup(uint32_t id, const std::string& tag) {
   tracked_groups_.Insert(id, TrackedGroup{tag});
 }
 
-void ProtoLogMessageDecoder::TrackMessage(uint64_t message_id,
-                                          ProtoLogLevel level,
-                                          uint32_t group_id,
-                                          const std::string& message) {
+void ProtoLogMessageDecoder::TrackMessage(
+    uint64_t message_id,
+    ProtoLogLevel level,
+    uint32_t group_id,
+    const std::string& message,
+    const std::optional<std::string>& location) {
   tracked_messages_.Insert(message_id,
-                           TrackedMessage{level, group_id, message});
+                           TrackedMessage{level, group_id, message, location});
 }
 
 }  // namespace perfetto::trace_processor
