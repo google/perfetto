@@ -649,6 +649,24 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
   EXPECT_EQ(row->ucpu().value, 1u);
 }
 
+TEST_F(ProtoTraceParserTest, LoadCpuIdleStats) {
+  auto* packet = trace_->add_packet();
+  uint64_t ts = 1000;
+  packet->set_timestamp(ts);
+  auto* bundle = packet->set_sys_stats();
+  auto* cpuidle_state = bundle->add_cpuidle_state();
+  cpuidle_state->set_cpu_id(0);
+  auto* cpuidle_state_entry = cpuidle_state->add_cpuidle_state_entry();
+  cpuidle_state_entry->set_state("mock_state0");
+  cpuidle_state_entry->set_duration_us(20000);
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
+                                   static_cast<double>(20000), TrackId{0u}));
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
+}
+
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   auto* packet = trace_->add_packet();
   uint64_t ts = 1000;
