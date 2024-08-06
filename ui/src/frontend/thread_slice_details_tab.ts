@@ -364,7 +364,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
       return m(
         Section,
         {title: 'Preceding Flows'},
-        m(BasicTable, {
+        m(BasicTable<Flow>, {
           columns: [
             {
               title: 'Slice',
@@ -411,7 +411,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
       return m(
         Section,
         {title: 'Following Flows'},
-        m(BasicTable, {
+        m(BasicTable<Flow>, {
           columns: [
             {
               title: 'Slice',
