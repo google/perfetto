@@ -188,7 +188,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     return [
       m('div', this.renderFilters()),
-      m(BasicTable, {
+      m(BasicTable<Row>, {
         data: rows,
         columns: this.state.getSelectedColumns().map((column, i) => ({
           title: this.renderColumnHeader(column, i),
