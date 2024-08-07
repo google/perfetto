@@ -2,6 +2,17 @@ Unreleased:
   Tracing service and probes:
     *
   SQL Standard library:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v47.0 - 2024-08-07:
+  SQL Standard library:
     * Removed `cpu.cpus` and `cpu.size` modules. The functions inside
       for guessing core type were inaccurate and often misleading.
       There is no replacement for these as there is no accurate data
@@ -65,8 +76,6 @@ Unreleased:
     * Added plugin API to add menu items to the sidebar.
     * Added `onTraceReady` plugin hook.
     * Various clean-ups and bugfixes.
-  SDK:
-    *
 
 
 v46.0 - 2024-06-13:
