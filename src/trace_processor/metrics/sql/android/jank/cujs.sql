@@ -55,18 +55,22 @@ cuj_state_markers AS (
       WHEN cuj_state_marker.name GLOB '*FT#end*' THEN 'end'
       WHEN cuj_state_marker.name GLOB '*FT#cancel*' THEN 'cancel'
       WHEN cuj_state_marker.name GLOB '*FT#layerId*' THEN 'layerId'
+      WHEN cuj_state_marker.name GLOB '*#UIThread' THEN 'UIThread'
     ELSE 'other'
     END AS marker_type,
-    cuj_state_marker.name as marker_name
+    cuj_state_marker.name as marker_name,
+    thread_track.utid AS utid
   FROM cujs
   LEFT JOIN slice cuj_state_marker
     ON cuj_state_marker.ts >= cujs.ts
       AND cuj_state_marker.ts < cujs.ts_end
   LEFT JOIN track marker_track on marker_track.id = cuj_state_marker.track_id
+  LEFT JOIN thread_track on cuj_state_marker.track_id = thread_track.id
   WHERE
     -- e.g. J<CUJ_NAME>#FT#end#0 this for backward compatibility
     cuj_state_marker.name GLOB (cujs.cuj_slice_name || "#FT#*")
     OR (marker_track.name = cuj_slice_name and cuj_state_marker.name GLOB 'FT#*')
+    OR cuj_state_marker.name = (cujs.cuj_slice_name || "#UIThread")
 )
 SELECT
   cujs.*,
@@ -102,7 +106,12 @@ SELECT
     FROM cuj_state_markers csm
     WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*endVsync#*'
     LIMIT 1
-  ) AS end_vsync
+  ) AS end_vsync,
+  (
+      SELECT utid from cuj_state_markers csm
+      WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB "*#UIThread"
+      LIMIT 1
+  ) AS ui_thread
 FROM cujs
 WHERE
   state != 'canceled'

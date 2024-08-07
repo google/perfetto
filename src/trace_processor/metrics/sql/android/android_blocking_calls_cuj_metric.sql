@@ -32,6 +32,9 @@ WITH latency_cujs AS (
     SELECT
         ROW_NUMBER() OVER (ORDER BY ts) AS cuj_id,
         process.upid AS upid,
+        -- Latency CUJs don't have a well defined thread. Let's always consider
+        -- the app main thread for those.
+        process.upid AS utid,
         process.name AS process_name,
         process_metadata.metadata AS process_metadata,
         -- Extracts "CUJ_NAME" from "L<CUJ_NAME>"
@@ -52,7 +55,8 @@ WITH latency_cujs AS (
 all_cujs AS (
     SELECT
         cuj_id,
-        upid,
+        cuj.upid,
+        t.utid as ui_thread,
         process_name,
         process_metadata,
         cuj_name,
@@ -60,11 +64,13 @@ all_cujs AS (
         tb.dur,
         tb.ts_end
     FROM android_jank_cuj_main_thread_cuj_boundary tb
-        JOIN android_jank_cuj using (cuj_id)
+        JOIN android_jank_cuj cuj USING (cuj_id)
+        JOIN android_jank_cuj_main_thread t USING (cuj_id)
 UNION
     SELECT
         cuj_id,
         upid,
+        utid as ui_thread,
         process_name,
         process_metadata,
         cuj_name,
@@ -104,8 +110,9 @@ FROM _android_critical_blocking_calls s
     -- only when there is an overlap
     ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end
         -- and are from the same process
-        AND s.upid = cuj.upid;
-
+        AND s.upid = cuj.upid
+        -- from the CUJ ui thread only
+        AND s.utid = cuj.ui_thread;
 
 
 DROP TABLE IF EXISTS android_blocking_calls_cuj_calls;
