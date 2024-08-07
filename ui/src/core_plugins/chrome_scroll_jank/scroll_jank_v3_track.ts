@@ -15,7 +15,7 @@
 import {globals} from '../../frontend/globals';
 import {NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {PrimaryTrackSortKey, Slice} from '../../public';
+import {SCROLL_JANK_V3_TRACK_KIND, Slice} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -26,12 +26,7 @@ import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {getColorForSlice} from '../../core/colorizer';
 import {getLegacySelection} from '../../common/state';
-import {
-  DecideTracksResult,
-  SCROLL_JANK_GROUP_ID,
-  ScrollJankPluginState,
-  ScrollJankV3TrackKind,
-} from './common';
+import {ScrollJankPluginState} from './common';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
@@ -40,7 +35,7 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack {
   constructor(args: NewTrackArgs) {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
-      kind: ScrollJankV3TrackKind,
+      kind: SCROLL_JANK_V3_TRACK_KIND,
       trackKey: this.trackKey,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
@@ -76,7 +71,9 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack {
 
   async onDestroy(): Promise<void> {
     await super.onDestroy();
-    ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3TrackKind);
+    ScrollJankPluginState.getInstance().unregisterTrack(
+      SCROLL_JANK_V3_TRACK_KIND,
+    );
   }
 
   rowToSlice(row: NamedRow): Slice {
@@ -112,19 +109,4 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack {
     }
     super.onUpdatedSlices(slices);
   }
-}
-
-export async function addScrollJankV3ScrollTrack(): Promise<DecideTracksResult> {
-  const result: DecideTracksResult = {
-    tracksToAdd: [],
-  };
-
-  result.tracksToAdd.push({
-    uri: 'perfetto.ChromeScrollJank#scrollJankV3',
-    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    name: 'Chrome Scroll Janks',
-    trackGroup: SCROLL_JANK_GROUP_ID,
-  });
-
-  return result;
 }

@@ -69,6 +69,7 @@ class ThreadState implements Plugin {
         tags: {
           kind: THREAD_STATE_TRACK_KIND,
           utid,
+          upid: upid ?? undefined,
         },
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',

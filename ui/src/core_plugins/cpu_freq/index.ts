@@ -23,6 +23,7 @@ import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {
+  CPU_FREQ_TRACK_KIND,
   Engine,
   Plugin,
   PluginContextTrace,
@@ -33,8 +34,6 @@ import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
 import {Vector} from '../../base/geom';
-
-export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;

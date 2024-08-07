@@ -21,9 +21,7 @@ import {
   Plugin,
   PluginContextTrace,
   PluginDescriptor,
-  PrimaryTrackSortKey,
 } from '../../public';
-import {Engine} from '../../trace_processor/engine';
 
 import {ScreenshotTab} from './screenshot_panel';
 import {ScreenshotsTrack} from './screenshots_track';
@@ -31,33 +29,6 @@ import {ScreenshotsTrack} from './screenshots_track';
 export type DecideTracksResult = {
   tracksToAdd: AddTrackArgs[];
 };
-
-// TODO(stevegolton): Use suggestTrack().
-export async function decideTracks(
-  engine: Engine,
-): Promise<DecideTracksResult> {
-  const result: DecideTracksResult = {
-    tracksToAdd: [],
-  };
-
-  const res = await engine.query(`
-    INCLUDE PERFETTO MODULE android.screenshots;
-    select
-      count() as count
-    from android_screenshots
-  `);
-  const {count} = res.firstRow({count: NUM});
-
-  if (count > 0) {
-    result.tracksToAdd.push({
-      uri: '/screenshots',
-      name: 'Screenshots',
-      trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    });
-  }
-
-  return result;
-}
 
 class ScreenshotsPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

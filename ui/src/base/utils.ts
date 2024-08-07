@@ -27,3 +27,8 @@ export type Result<T, E = {}> =
 
 // Generic "optional" type
 export type Optional<T> = T | undefined;
+
+// Escape characters that are not allowed inside a css selector
+export function escapeCSSSelector(selector: string): string {
+  return selector.replace(/([!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+}

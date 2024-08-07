@@ -31,7 +31,7 @@ import {CounterOptions} from '../../frontend/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {CounterDetailsPanel} from './counter_details_panel';
 import {Time, duration, time} from '../../base/time';
-import {Optional} from '../../base/utils';
+import {exists, Optional} from '../../base/utils';
 
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
@@ -212,7 +212,7 @@ class CounterPlugin implements Plugin {
       order by name asc
     `;
 
-    this.addCpuCounterTracks(ctx, cpuFreqLimitCounterTracksSql);
+    this.addCpuCounterTracks(ctx, cpuFreqLimitCounterTracksSql, 'cpuFreqLimit');
   }
 
   async addCpuPerfCounterTracks(ctx: PluginContextTrace): Promise<void> {
@@ -228,12 +228,13 @@ class CounterPlugin implements Plugin {
       join _counter_track_summary using (id)
       order by perf_session_id asc, pct.name asc, cpu asc
     `;
-    this.addCpuCounterTracks(ctx, addCpuPerfCounterTracksSql);
+    this.addCpuCounterTracks(ctx, addCpuPerfCounterTracksSql, 'cpuPerf');
   }
 
   async addCpuCounterTracks(
     ctx: PluginContextTrace,
     sql: string,
+    scope: string,
   ): Promise<void> {
     const result = await ctx.engine.query(sql);
 
@@ -246,11 +247,12 @@ class CounterPlugin implements Plugin {
       const name = it.name;
       const trackId = it.id;
       ctx.registerTrack({
-        uri: `/cpu_counter_${trackId}`,
+        uri: `counter.cpu.${trackId}`,
         title: name,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
+          scope,
         },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
@@ -317,6 +319,9 @@ class CounterPlugin implements Plugin {
         tags: {
           kind,
           trackIds: [trackId],
+          utid,
+          upid: upid ?? undefined,
+          scope: 'thread',
         },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
@@ -366,13 +371,16 @@ class CounterPlugin implements Plugin {
         pid,
         kind,
         processName,
+        ...(exists(trackName) && {trackName}),
       });
       ctx.registerTrack({
         uri: `/process_${upid}/counter_${trackId}`,
         title: name,
         tags: {
-          kind: COUNTER_TRACK_KIND,
+          kind,
           trackIds: [trackId],
+          upid,
+          scope: 'process',
         },
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
@@ -414,6 +422,7 @@ class CounterPlugin implements Plugin {
           tags: {
             kind: COUNTER_TRACK_KIND,
             trackIds: [trackId],
+            scope: 'gpuFreq',
           },
           trackFactory: (trackCtx) => {
             return new TraceProcessorCounterTrack({
