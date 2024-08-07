@@ -16,7 +16,6 @@ import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
 import {PrimaryTrackSortKey} from '../public';
-import {HEAP_PROFILE_TRACK_KIND} from '../core_plugins/heap_profile';
 import {PROCESS_SCHEDULING_TRACK_KIND} from '../core_plugins/process_summary/process_scheduling_track';
 
 import {StateActions} from './actions';
@@ -29,6 +28,7 @@ import {
   TrackSortKey,
 } from './state';
 import {
+  HEAP_PROFILE_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
 } from '../core/track_kinds';

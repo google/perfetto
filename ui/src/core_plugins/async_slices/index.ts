@@ -70,6 +70,7 @@ class AsyncSlicePlugin implements Plugin {
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
+          scope: 'global',
         },
         trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
@@ -124,6 +125,8 @@ class AsyncSlicePlugin implements Plugin {
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
+          scope: 'process',
+          upid,
         },
         trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
@@ -193,6 +196,7 @@ class AsyncSlicePlugin implements Plugin {
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
+          scope: 'user',
         },
         trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);

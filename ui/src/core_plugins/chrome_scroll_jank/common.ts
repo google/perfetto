@@ -17,8 +17,6 @@ import {ObjectByKey} from '../../common/state';
 import {featureFlags} from '../../core/feature_flags';
 import {CustomSqlDetailsPanelConfig} from '../../frontend/tracks/custom_sql_table_slice_track';
 
-export const SCROLL_JANK_GROUP_ID = 'chrome-scroll-jank-track-group';
-
 export const ENABLE_CHROME_SCROLL_JANK_PLUGIN = featureFlags.register({
   id: 'enableChromeScrollJankPlugin',
   name: 'Enable Chrome Scroll Jank plugin',
@@ -74,9 +72,3 @@ export class ScrollJankPluginState {
     return this.tracks[kind];
   }
 }
-
-export const ScrollJankV3TrackKind =
-  'org.chromium.ScrollJank.scroll_jank_v3_track';
-
-export const CHROME_EVENT_LATENCY_TRACK_KIND =
-  'org.chromium.ScrollJank.event_latencies';

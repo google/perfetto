@@ -28,12 +28,11 @@ import {
 } from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
 
+import {ScrollJankPluginState, ScrollJankTrackSpec} from './common';
 import {
   CHROME_EVENT_LATENCY_TRACK_KIND,
-  ScrollJankPluginState,
-  ScrollJankTrackSpec,
-  ScrollJankV3TrackKind,
-} from './common';
+  SCROLL_JANK_V3_TRACK_KIND,
+} from '../../public';
 
 interface BasicSlice {
   // ID of slice.
@@ -79,10 +78,10 @@ export async function getScrollJankSlices(
   id: number,
 ): Promise<ScrollJankSlice[]> {
   const track = ScrollJankPluginState.getInstance().getTrack(
-    ScrollJankV3TrackKind,
+    SCROLL_JANK_V3_TRACK_KIND,
   );
   if (track == undefined) {
-    throw new Error(`${ScrollJankV3TrackKind} track is not registered.`);
+    throw new Error(`${SCROLL_JANK_V3_TRACK_KIND} track is not registered.`);
   }
 
   const slices = await getSlicesFromTrack(engine, track, {

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {time} from '../base/time';
-import {exists} from '../base/utils';
+import {escapeCSSSelector, exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
@@ -64,12 +64,8 @@ export function focusHorizontalRange(
 // Given a track id, find a track with that id and scroll it into view. If the
 // track is nested inside a track group, scroll to that track group instead.
 // If |openGroup| then open the track group and scroll to the track.
-export function verticalScrollToTrack(
-  trackKey: string | number,
-  openGroup = false,
-) {
-  const trackKeyString = `${trackKey}`;
-  const track = document.querySelector('#track_' + trackKeyString);
+export function verticalScrollToTrack(trackKey: string, openGroup = false) {
+  const track = document.querySelector('#track_' + escapeCSSSelector(trackKey));
 
   if (track) {
     // block: 'nearest' means that it will only scroll if the track is not
@@ -79,13 +75,13 @@ export function verticalScrollToTrack(
   }
 
   let trackGroup = null;
-  const groupKey = getContainingGroupKey(globals.state, trackKeyString);
+  const groupKey = getContainingGroupKey(globals.state, trackKey);
   if (groupKey) {
     trackGroup = document.querySelector('#track_' + groupKey);
   }
 
   if (!groupKey || !trackGroup) {
-    console.error(`Can't scroll, track (${trackKeyString}) not found.`);
+    console.error(`Can't scroll, track (${trackKey}) not found.`);
     return;
   }
 
@@ -103,7 +99,7 @@ export function verticalScrollToTrack(
 
 // Scroll vertically and horizontally to reach track (|trackKey|) at |ts|.
 export function scrollToTrackAndTs(
-  trackKey: string | number | undefined,
+  trackKey: string | undefined,
   ts: time,
   openGroup = false,
 ) {
@@ -115,7 +111,7 @@ export function scrollToTrackAndTs(
 
 // Scroll vertically and horizontally to a track and time range
 export function reveal(
-  trackKey: string | number,
+  trackKey: string,
   start: time,
   end: time,
   openGroup = false,

@@ -42,7 +42,7 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          let trackKey: string | number | undefined;
+          let trackKey: string | undefined;
           for (const track of Object.values(globals.state.tracks)) {
             const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
             if (
@@ -54,9 +54,7 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
             }
           }
 
-          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
           if (trackKey) {
-            /* eslint-enable */
             globals.makeSelection(
               Actions.selectThreadState({
                 id: vnode.attrs.id,

@@ -36,7 +36,6 @@ import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree} from '../../widgets/tree';
 
-import {ScrollJankV3TrackKind} from './common';
 import {
   buildScrollOffsetsGraph,
   getInputScrollDeltas,
@@ -49,6 +48,7 @@ import {
   getSliceForTrack,
   ScrollJankSlice,
 } from './scroll_jank_slice';
+import {SCROLL_JANK_V3_TRACK_KIND} from '../../public';
 
 interface Data {
   // Scroll ID.
@@ -328,7 +328,7 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
         data.push({
           jankLink: getSliceForTrack(
             jankSlice.jankSlice,
-            ScrollJankV3TrackKind,
+            SCROLL_JANK_V3_TRACK_KIND,
             jankSlice.cause,
           ),
           dur: m(DurationWidget, {dur: jankSlice.delayDur}),
