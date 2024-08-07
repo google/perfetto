@@ -29,6 +29,7 @@ import {
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {
   Engine,
+  HEAP_PROFILE_TRACK_KIND,
   LegacyDetailsPanel,
   Plugin,
   PluginContextTrace,
@@ -57,8 +58,6 @@ import {Modal} from '../../widgets/modal';
 import {Router} from '../../frontend/router';
 import {Actions} from '../../common/actions';
 import {SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG} from '../../common/legacy_flamegraph_util';
-
-export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 
 class HeapProfilePlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

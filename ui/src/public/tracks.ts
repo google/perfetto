@@ -230,4 +230,10 @@ interface WellKnownTrackTags {
 
   // Optional: The UPID associated with this track.
   upid: number;
+
+  // Used for sorting and grouping
+  scope: string;
+
+  // Group name, used as a hint to ask track decider to put this in a group
+  groupName: string;
 }

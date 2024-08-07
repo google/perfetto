@@ -109,6 +109,7 @@ class PerfSamplesProfilePlugin implements Plugin {
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           utid,
+          upid: upid ?? undefined,
         },
         trackFactory: ({trackKey}) =>
           new ThreadPerfSamplesProfileTrack(

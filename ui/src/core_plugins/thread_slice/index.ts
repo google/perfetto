@@ -76,6 +76,7 @@ class ThreadSlicesPlugin implements Plugin {
         maxDepth,
         isMainThread,
         isKernelThread,
+        isDefaultTrackForScope,
       } = it;
       const displayName = getTrackName({
         name: trackName,
@@ -91,6 +92,9 @@ class ThreadSlicesPlugin implements Plugin {
         tags: {
           trackIds: [trackId],
           kind: THREAD_SLICE_TRACK_KIND,
+          utid,
+          upid: upid ?? undefined,
+          ...(isDefaultTrackForScope === 1 && {isDefaultTrackForScope: true}),
         },
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',

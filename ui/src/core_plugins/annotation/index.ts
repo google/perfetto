@@ -33,7 +33,11 @@ class AnnotationPlugin implements Plugin {
     const {engine} = ctx;
 
     const result = await engine.query(`
-      select id, name
+      select
+        id,
+        name,
+        upid,
+        group_name as groupName
       from annotation_slice_track
       order by name
     `);
@@ -41,17 +45,21 @@ class AnnotationPlugin implements Plugin {
     const it = result.iter({
       id: NUM,
       name: STR,
+      upid: NUM,
+      groupName: STR,
     });
 
     for (; it.valid(); it.next()) {
-      const id = it.id;
-      const name = it.name;
+      const {id, name, upid, groupName} = it;
 
       ctx.registerTrack({
         uri: `/annotation_${id}`,
         title: name,
         tags: {
           kind: THREAD_SLICE_TRACK_KIND,
+          scope: 'annotation',
+          upid,
+          groupName,
         },
         chips: ['metric'],
         trackFactory: ({trackKey}) => {
@@ -76,7 +84,8 @@ class AnnotationPlugin implements Plugin {
         id,
         name,
         min_value as minValue,
-        max_value as maxValue
+        max_value as maxValue,
+        upid
       FROM annotation_counter_track`);
 
     const counterIt = counterResult.iter({
@@ -84,17 +93,19 @@ class AnnotationPlugin implements Plugin {
       name: STR,
       minValue: NUM_NULL,
       maxValue: NUM_NULL,
+      upid: NUM,
     });
 
     for (; counterIt.valid(); counterIt.next()) {
-      const trackId = counterIt.id;
-      const name = counterIt.name;
+      const {id: trackId, name, upid} = counterIt;
 
       ctx.registerTrack({
         uri: `/annotation_counter_${trackId}`,
         title: name,
         tags: {
           kind: COUNTER_TRACK_KIND,
+          scope: 'annotation',
+          upid,
         },
         chips: ['metric'],
         trackFactory: (trackCtx) => {
