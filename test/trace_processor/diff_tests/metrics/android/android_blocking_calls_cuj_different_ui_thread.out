@@ -1,0 +1,44 @@
+android_blocking_calls_cuj_metric {
+  cuj {
+    id: 1
+    name: "CUJ_NAME"
+    process {
+      name: "com.google.android.with.custom.ui.thread"
+      uid: 10001
+      pid: 5000
+    }
+    ts: 0
+    dur: 18000000
+    blocking_calls {
+      name: "measure"
+      cnt: 1
+      total_dur_ms: 2
+      max_dur_ms: 2
+      min_dur_ms: 2
+      total_dur_ns: 2000000
+      max_dur_ns: 2000000
+      min_dur_ns: 2000000
+    }
+  }
+  cuj {
+    id: 2
+    name: "BACK_PANEL_ARROW"
+    process {
+      name: "com.google.android.with.custom.ui.thread"
+      uid: 10001
+      pid: 5000
+    }
+    ts: 0
+    dur: 18000000
+    blocking_calls {
+      name: "animation"
+      cnt: 1
+      total_dur_ms: 2
+      max_dur_ms: 2
+      min_dur_ms: 2
+      total_dur_ns: 2000000
+      max_dur_ns: 2000000
+      min_dur_ns: 2000000
+    }
+  }
+}
