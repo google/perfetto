@@ -77,7 +77,7 @@ base::Status ReadTrace(
     TraceProcessor* tp,
     const char* filename,
     const std::function<void(uint64_t parsed_size)>& progress_callback) {
-  ReadTraceUnfinalized(tp, filename, progress_callback);
+  RETURN_IF_ERROR(ReadTraceUnfinalized(tp, filename, progress_callback));
   return tp->NotifyEndOfFile();
 }
 
