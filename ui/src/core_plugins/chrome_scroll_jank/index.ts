@@ -15,47 +15,34 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {uuidv4Sql} from '../../base/uuid';
-import {Actions, DeferredAction} from '../../common/actions';
+import {DeferredAction} from '../../common/actions';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
 import {featureFlags} from '../../core/feature_flags';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
   BottomTabToSCSAdapter,
+  CHROME_EVENT_LATENCY_TRACK_KIND,
+  CHROME_TOPLEVEL_SCROLLS_KIND,
   NUM,
   Plugin,
   PluginContextTrace,
   PluginDescriptor,
+  CHROME_SCROLL_JANK_TRACK_KIND,
+  SCROLL_JANK_V3_TRACK_KIND,
 } from '../../public';
 import {Engine} from '../../trace_processor/engine';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
-import {
-  CHROME_EVENT_LATENCY_TRACK_KIND,
-  DecideTracksResult,
-  ENABLE_CHROME_SCROLL_JANK_PLUGIN,
-  SCROLL_JANK_GROUP_ID,
-  ScrollJankV3TrackKind,
-} from './common';
+import {DecideTracksResult, ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './common';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
-import {
-  addLatencyTracks,
-  EventLatencyTrack,
-  JANKY_LATENCY_NAME,
-} from './event_latency_track';
+import {EventLatencyTrack, JANKY_LATENCY_NAME} from './event_latency_track';
 import {ScrollDetailsPanel} from './scroll_details_panel';
-import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
-import {
-  addScrollJankV3ScrollTrack,
-  ScrollJankV3Track,
-} from './scroll_jank_v3_track';
-import {
-  addTopLevelScrollTrack,
-  CHROME_TOPLEVEL_SCROLLS_KIND,
-  TopLevelScrollTrack,
-} from './scroll_track';
+import {ScrollJankV3Track} from './scroll_jank_v3_track';
+import {TopLevelScrollTrack} from './scroll_track';
+import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 
-export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
+const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   id: 'enableScrollJankPluginV2',
   name: 'Enable Chrome Scroll Jank plugin V2',
   description: 'Adds new tracks and visualizations for scroll jank.',
@@ -67,42 +54,19 @@ export type ScrollJankTrackGroup = {
   addTrackGroup: DeferredAction;
 };
 
-export async function getScrollJankTracks(
-  engine: Engine,
-): Promise<ScrollJankTrackGroup> {
-  const result: DecideTracksResult = {
-    tracksToAdd: [],
-  };
-
-  const scrolls = await addTopLevelScrollTrack();
-  result.tracksToAdd = result.tracksToAdd.concat(scrolls.tracksToAdd);
-
-  const janks = await addScrollJankV3ScrollTrack();
-  result.tracksToAdd = result.tracksToAdd.concat(janks.tracksToAdd);
-
-  const eventLatencies = await addLatencyTracks();
-  result.tracksToAdd = result.tracksToAdd.concat(eventLatencies.tracksToAdd);
-
-  const addTrackGroup = Actions.addTrackGroup({
-    name: 'Chrome Scroll Jank',
-    key: SCROLL_JANK_GROUP_ID,
-    collapsed: false,
-    fixedOrdering: true,
-  });
-
-  await ScrollJankCauseMap.initialize(engine);
-  return {tracks: result, addTrackGroup};
-}
-
 class ChromeScrollJankPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    await this.addChromeScrollJankTrack(ctx);
-    await this.addTopLevelScrollTrack(ctx);
-    await this.addEventLatencyTrack(ctx);
-    await this.addScrollJankV3ScrollTrack(ctx);
-
     if (!ENABLE_CHROME_SCROLL_JANK_PLUGIN.get()) {
       return;
+    }
+
+    await this.addChromeScrollJankTrack(ctx);
+
+    if (ENABLE_SCROLL_JANK_PLUGIN_V2.get()) {
+      await this.addTopLevelScrollTrack(ctx);
+      await this.addEventLatencyTrack(ctx);
+      await this.addScrollJankV3ScrollTrack(ctx);
+      await ScrollJankCauseMap.initialize(ctx.engine);
     }
 
     if (!(await isChromeTrace(ctx.engine))) {
@@ -137,11 +101,31 @@ class ChromeScrollJankPlugin implements Plugin {
   private async addChromeScrollJankTrack(
     ctx: PluginContextTrace,
   ): Promise<void> {
+    const queryResult = await ctx.engine.query(`
+      select
+        utid,
+        upid
+      from thread
+      where name='CrBrowserMain'
+    `);
+
+    if (queryResult.numRows() === 0) {
+      return;
+    }
+
+    const it = queryResult.firstRow({
+      utid: NUM,
+      upid: NUM,
+    });
+
+    const {upid, utid} = it;
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank',
       title: 'Scroll Jank causes - long tasks',
       tags: {
-        kind: ChromeTasksScrollJankTrack.kind,
+        kind: CHROME_SCROLL_JANK_TRACK_KIND,
+        upid,
+        utid,
       },
       trackFactory: ({trackKey}) => {
         return new ChromeTasksScrollJankTrack({
@@ -332,7 +316,7 @@ class ChromeScrollJankPlugin implements Plugin {
       uri: 'perfetto.ChromeScrollJank#scrollJankV3',
       title: 'Chrome Scroll Janks',
       tags: {
-        kind: ScrollJankV3TrackKind,
+        kind: SCROLL_JANK_V3_TRACK_KIND,
       },
       trackFactory: ({trackKey}) => {
         return new ScrollJankV3Track({

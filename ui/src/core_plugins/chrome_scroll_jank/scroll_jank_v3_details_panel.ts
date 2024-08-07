@@ -32,13 +32,13 @@ import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
 
-import {CHROME_EVENT_LATENCY_TRACK_KIND} from './common';
 import {
   EventLatencySlice,
   getEventLatencyDescendantSlice,
   getEventLatencySlice,
   getSliceForTrack,
 } from './scroll_jank_slice';
+import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public';
 
 interface Data {
   name: string;

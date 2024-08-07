@@ -15,7 +15,6 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';
-import {sqliteString} from '../base/string_utils';
 import {Actions, AddTrackArgs, DeferredAction} from '../common/actions';
 import {
   InThreadTrackSortKey,
@@ -24,28 +23,29 @@ import {
   UtidToTrackSortKey,
 } from '../common/state';
 import {globals} from '../frontend/globals';
-import {PrimaryTrackSortKey} from '../public';
-import {
-  getThreadOrProcUri,
-  getThreadUriPrefix,
-  getTrackName,
-} from '../public/utils';
+import {PrimaryTrackSortKey, TrackDescriptor} from '../public';
+import {getThreadOrProcUri, getTrackName} from '../public/utils';
 import {Engine, EngineBase} from '../trace_processor/engine';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../trace_processor/query_result';
-import {
-  ENABLE_SCROLL_JANK_PLUGIN_V2,
-  getScrollJankTracks,
-} from '../core_plugins/chrome_scroll_jank';
-import {decideTracks as scrollJankDecideTracks} from '../core_plugins/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
-import {decideTracks as screenshotDecideTracks} from '../core_plugins/screenshots';
+import {NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   ASYNC_SLICE_TRACK_KIND,
+  CHROME_EVENT_LATENCY_TRACK_KIND,
+  CHROME_SCROLL_JANK_TRACK_KIND,
+  CHROME_TOPLEVEL_SCROLLS_KIND,
   COUNTER_TRACK_KIND,
+  CPU_FREQ_TRACK_KIND,
+  CPU_PROFILE_TRACK_KIND,
+  CPU_SLICE_TRACK_KIND,
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
+  HEAP_PROFILE_TRACK_KIND,
+  PERF_SAMPLES_PROFILE_TRACK_KIND,
+  SCROLL_JANK_V3_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
 } from '../core/track_kinds';
+import {exists} from '../base/utils';
+import {sqliteString} from '../base/string_utils';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -78,6 +78,7 @@ const IRQ_REGEX = new RegExp('^(Irq|SoftIrq) Cpu.*');
 const CHROME_TRACK_REGEX = new RegExp('^Chrome.*|^InputLatency::.*');
 const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
+const SCROLL_JANK_GROUP_ID = 'chrome-scroll-jank-track-group';
 
 export async function decideTracks(
   engine: EngineBase,
@@ -97,215 +98,7 @@ class TrackDecider {
     this.engine = engine;
   }
 
-  async getAndroidCpuClusterTypes(): Promise<Map<number, string>> {
-    const cpuToClusterType = new Map<number, string>();
-    await this.engine.query(`
-      include perfetto module android.cpu.cluster_type;
-    `);
-    const result = await this.engine.query(`
-      select cpu, cluster_type as clusterType
-      from android_cpu_cluster_mapping
-    `);
-
-    const it = result.iter({
-      cpu: NUM,
-      clusterType: STR_NULL,
-    });
-
-    for (; it.valid(); it.next()) {
-      const clusterType = it.clusterType;
-      if (clusterType !== null) {
-        cpuToClusterType.set(it.cpu, clusterType);
-      }
-    }
-
-    return cpuToClusterType;
-  }
-
-  async addCpuSchedulingTracks(): Promise<void> {
-    const cpus = globals.traceContext.cpus;
-    const cpuToClusterType = await this.getAndroidCpuClusterTypes();
-
-    for (const cpu of cpus) {
-      const size = cpuToClusterType.get(cpu);
-      const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
-      this.tracksToAdd.push({
-        uri: `/sched_cpu${cpu}`,
-        trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-        name,
-        trackGroup: SCROLLING_TRACK_GROUP,
-      });
-    }
-  }
-
-  async addCpuFreqTracks(engine: Engine): Promise<void> {
-    const cpus = globals.traceContext.cpus;
-
-    for (const cpu of cpus) {
-      // Only add a cpu freq track if we have
-      // cpu freq data.
-      // TODO(hjd): Find a way to display cpu idle
-      // events even if there are no cpu freq events.
-      const cpuFreqIdleResult = await engine.query(`
-        select
-          id as cpuFreqId,
-          (
-            select id
-            from cpu_counter_track
-            where name = 'cpuidle'
-            and cpu = ${cpu}
-            limit 1
-          ) as cpuIdleId
-        from cpu_counter_track
-        join _counter_track_summary using (id)
-        where name = 'cpufreq' and cpu = ${cpu}
-        limit 1;
-      `);
-
-      if (cpuFreqIdleResult.numRows() > 0) {
-        this.tracksToAdd.push({
-          uri: `/cpu_freq_cpu${cpu}`,
-          trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-          name: `Cpu ${cpu} Frequency`,
-          trackGroup: SCROLLING_TRACK_GROUP,
-        });
-      }
-    }
-  }
-
-  async addGlobalAsyncTracks(engine: Engine): Promise<void> {
-    const rawGlobalAsyncTracks = await engine.query(`
-      with global_tracks_grouped as (
-        select distinct t.parent_id, t.name
-        from track t
-        join _slice_track_summary using (id)
-        where t.type in ('track', 'gpu_track', 'cpu_track')
-      )
-      select
-        t.name as name,
-        t.parent_id as parentId,
-        p.name as parentName
-      from global_tracks_grouped AS t
-      left join track p on (t.parent_id = p.id)
-      order by p.name, t.name
-    `);
-    const it = rawGlobalAsyncTracks.iter({
-      name: STR_NULL,
-      parentId: NUM_NULL,
-      parentName: STR_NULL,
-    });
-
-    const parentIdToGroupKey = new Map<number, string>();
-    for (; it.valid(); it.next()) {
-      const kind = ASYNC_SLICE_TRACK_KIND;
-      const rawName = it.name === null ? undefined : it.name;
-      const rawParentName = it.parentName === null ? undefined : it.parentName;
-      const name = getTrackName({name: rawName, kind});
-      const parentTrackId = it.parentId;
-      let groupKey = SCROLLING_TRACK_GROUP;
-
-      if (parentTrackId !== null) {
-        const maybeGroupKey = parentIdToGroupKey.get(parentTrackId);
-        if (maybeGroupKey === undefined) {
-          groupKey = uuidv4();
-          parentIdToGroupKey.set(parentTrackId, groupKey);
-
-          const parentName = getTrackName({name: rawParentName, kind});
-          this.addTrackGroupActions.push(
-            Actions.addTrackGroup({
-              name: parentName,
-              key: groupKey,
-              collapsed: true,
-            }),
-          );
-        } else {
-          groupKey = maybeGroupKey;
-        }
-      }
-
-      const track: AddTrackArgs = {
-        uri: `/async_slices_${rawName}_${it.parentId}`,
-        trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-        trackGroup: groupKey,
-        name,
-      };
-
-      this.tracksToAdd.push(track);
-    }
-  }
-
-  async addGpuFreqTracks(engine: Engine): Promise<void> {
-    const numGpus = globals.traceContext.gpuCount;
-    for (let gpu = 0; gpu < numGpus; gpu++) {
-      // Only add a gpu freq track if we have
-      // gpu freq data.
-      const freqExistsResult = await engine.query(`
-        select *
-        from gpu_counter_track
-        join _counter_track_summary using (id)
-        where name = 'gpufreq' and gpu_id = ${gpu}
-        limit 1;
-      `);
-      if (freqExistsResult.numRows() > 0) {
-        this.tracksToAdd.push({
-          uri: `/gpu_frequency_${gpu}`,
-          name: `Gpu ${gpu} Frequency`,
-          trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
-          trackGroup: SCROLLING_TRACK_GROUP,
-        });
-      }
-    }
-  }
-
-  async addCpuFreqLimitCounterTracks(engine: Engine): Promise<void> {
-    const cpuFreqLimitCounterTracksSql = `
-      select name, id
-      from cpu_counter_track
-      join _counter_track_summary using (id)
-      where name glob "Cpu * Freq Limit"
-      order by name asc
-    `;
-
-    this.addCpuCounterTracks(engine, cpuFreqLimitCounterTracksSql);
-  }
-
-  async addCpuPerfCounterTracks(engine: Engine): Promise<void> {
-    // Perf counter tracks are bound to CPUs, follow the scheduling and
-    // frequency track naming convention ("Cpu N ...").
-    // Note: we might not have a track for a given cpu if no data was seen from
-    // it. This might look surprising in the UI, but placeholder tracks are
-    // wasteful as there's no way of collapsing global counter tracks at the
-    // moment.
-    const addCpuPerfCounterTracksSql = `
-      select printf("Cpu %u %s", cpu, name) as name, id
-      from perf_counter_track as pct
-      join _counter_track_summary using (id)
-      order by perf_session_id asc, pct.name asc, cpu asc
-    `;
-    this.addCpuCounterTracks(engine, addCpuPerfCounterTracksSql);
-  }
-
-  async addCpuCounterTracks(engine: Engine, sql: string): Promise<void> {
-    const result = await engine.query(sql);
-
-    const it = result.iter({
-      name: STR,
-      id: NUM,
-    });
-
-    for (; it.valid(); it.next()) {
-      const name = it.name;
-      const trackId = it.id;
-      this.tracksToAdd.push({
-        uri: `/cpu_counter_${trackId}`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
-        trackGroup: SCROLLING_TRACK_GROUP,
-      });
-    }
-  }
-
-  async groupGlobalIonTracks(): Promise<void> {
+  private groupGlobalIonTracks(): void {
     const ionTracks: AddTrackArgs[] = [];
     let hasSummary = false;
     for (const track of this.tracksToAdd) {
@@ -350,7 +143,7 @@ class TrackDecider {
     this.addTrackGroupActions.push(addGroup);
   }
 
-  async groupGlobalIostatTracks(tag: string, group: string): Promise<void> {
+  private groupGlobalIostatTracks(tag: string, group: string): void {
     const iostatTracks: AddTrackArgs[] = [];
     const devMap = new Map<string, string>();
 
@@ -385,7 +178,7 @@ class TrackDecider {
     }
   }
 
-  async groupGlobalBuddyInfoTracks(): Promise<void> {
+  private groupGlobalBuddyInfoTracks(): void {
     const buddyInfoTracks: AddTrackArgs[] = [];
     const devMap = new Map<string, string>();
 
@@ -424,7 +217,7 @@ class TrackDecider {
     }
   }
 
-  async groupFrequencyTracks(groupName: string): Promise<void> {
+  private groupFrequencyTracks(groupName: string): void {
     let groupUuid = undefined;
     for (const track of this.tracksToAdd) {
       // Group all the frequency tracks together (except the CPU and GPU
@@ -457,7 +250,7 @@ class TrackDecider {
     }
   }
 
-  async groupMiscNonAllowlistedTracks(groupName: string): Promise<void> {
+  private groupMiscNonAllowlistedTracks(groupName: string): void {
     // List of allowlisted track names.
     const ALLOWLIST_REGEXES = [
       new RegExp('^Cpu .*$', 'i'),
@@ -499,7 +292,7 @@ class TrackDecider {
     }
   }
 
-  async groupTracksByRegex(regex: RegExp, groupName: string): Promise<void> {
+  private groupTracksByRegex(regex: RegExp, groupName: string): void {
     let groupUuid = undefined;
 
     for (const track of this.tracksToAdd) {
@@ -527,19 +320,10 @@ class TrackDecider {
     }
   }
 
-  async addAnnotationTracks(engine: Engine): Promise<void> {
-    const sliceResult = await engine.query(`
-      select id, name, upid, group_name
-      from annotation_slice_track
-      order by name
-    `);
-
-    const sliceIt = sliceResult.iter({
-      id: NUM,
-      name: STR,
-      upid: NUM,
-      group_name: STR_NULL,
-    });
+  private addAnnotationTracks(tracks: ReadonlyArray<TrackDescriptor>): void {
+    const annotationTracks = tracks.filter(
+      ({tags}) => tags?.scope === 'annotation',
+    );
 
     interface GroupIds {
       id: string;
@@ -548,41 +332,41 @@ class TrackDecider {
 
     const groupNameToKeys = new Map<string, GroupIds>();
 
-    for (; sliceIt.valid(); sliceIt.next()) {
-      const id = sliceIt.id;
-      const name = sliceIt.name;
-      const upid = sliceIt.upid;
-      const groupName = sliceIt.group_name;
+    annotationTracks
+      .filter(({tags}) => tags?.kind === THREAD_SLICE_TRACK_KIND)
+      .forEach((td) => {
+        const upid = assertExists(td.tags?.upid);
+        const groupName = td.tags?.groupName;
 
-      let summaryTrackKey = undefined;
-      let trackGroupId =
-        upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid);
+        let summaryTrackKey = undefined;
+        let trackGroupId =
+          upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid);
 
-      if (groupName) {
-        // If this is the first track encountered for a certain group,
-        // create an id for the group and use this track as the group's
-        // summary track.
-        const groupKeys = groupNameToKeys.get(groupName);
-        if (groupKeys) {
-          trackGroupId = groupKeys.id;
-        } else {
-          trackGroupId = uuidv4();
-          summaryTrackKey = uuidv4();
-          groupNameToKeys.set(groupName, {
-            id: trackGroupId,
-            summaryTrackKey,
-          });
+        if (groupName !== undefined) {
+          // If this is the first track encountered for a certain group,
+          // create an id for the group and use this track as the group's
+          // summary track.
+          const groupKeys = groupNameToKeys.get(groupName);
+          if (groupKeys) {
+            trackGroupId = groupKeys.id;
+          } else {
+            trackGroupId = uuidv4();
+            summaryTrackKey = uuidv4();
+            groupNameToKeys.set(groupName, {
+              id: trackGroupId,
+              summaryTrackKey,
+            });
+          }
         }
-      }
 
-      this.tracksToAdd.push({
-        uri: `/annotation_${id}`,
-        key: summaryTrackKey,
-        name,
-        trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-        trackGroup: trackGroupId,
+        this.tracksToAdd.push({
+          uri: td.uri,
+          key: summaryTrackKey,
+          name: td.title,
+          trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+          trackGroup: trackGroupId,
+        });
       });
-    }
 
     for (const [groupName, groupKeys] of groupNameToKeys) {
       const addGroup = Actions.addTrackGroup({
@@ -594,536 +378,304 @@ class TrackDecider {
       this.addTrackGroupActions.push(addGroup);
     }
 
-    const counterResult = await engine.query(`
-      SELECT id, name, upid FROM annotation_counter_track
-    `);
+    annotationTracks
+      .filter(({tags}) => tags?.kind === COUNTER_TRACK_KIND)
+      .forEach((td) => {
+        const upid = td.tags?.upid;
 
-    const counterIt = counterResult.iter({
-      id: NUM,
-      name: STR,
-      upid: NUM,
-    });
-
-    for (; counterIt.valid(); counterIt.next()) {
-      const id = counterIt.id;
-      const name = counterIt.name;
-      const upid = counterIt.upid;
-      this.tracksToAdd.push({
-        uri: `/annotation_counter_${id}`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
-        trackGroup:
-          upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid),
+        this.tracksToAdd.push({
+          uri: td.uri,
+          key: td.uri,
+          name: td.title,
+          trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
+          trackGroup: exists(upid)
+            ? this.upidToUuid.get(upid)
+            : SCROLLING_TRACK_GROUP,
+        });
       });
-    }
   }
 
-  async addThreadStateTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select
-        utid,
-        upid,
-        tid,
-        thread.name as threadName
-      from thread
-      join _sched_summary using (utid)
-    `);
-
-    const it = result.iter({
-      utid: NUM,
-      upid: NUM_NULL,
-      tid: NUM_NULL,
-      threadName: STR_NULL,
-    });
-    for (; it.valid(); it.next()) {
-      const utid = it.utid;
-      const tid = it.tid;
-      const upid = it.upid;
-      const threadName = it.threadName;
-      const uuid = this.getUuidUnchecked(utid, upid);
-      if (uuid === undefined) {
-        // If a thread has no scheduling activity (i.e. the sched table has zero
-        // rows for that uid) no track group will be created and we want to skip
-        // the track creation as well.
-        continue;
-      }
-
-      const priority = InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK;
-      const name = getTrackName({
-        utid,
-        tid,
-        threadName,
-        kind: THREAD_STATE_TRACK_KIND,
-      });
-
-      this.tracksToAdd.push({
-        uri: `${getThreadUriPrefix(upid, utid)}_state`,
-        name,
-        trackGroup: uuid,
-        trackSortKey: {
-          utid,
-          priority,
-        },
-      });
-    }
-  }
-
-  async addThreadCpuSampleTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      with thread_cpu_sample as (
-        select distinct utid
-        from cpu_profile_stack_sample
-        where utid != 0
+  private addThreadStateTracks(tracks: ReadonlyArray<TrackDescriptor>): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === THREAD_STATE_TRACK_KIND && tags?.utid !== undefined,
       )
-      select
-        utid,
-        tid,
-        upid,
-        thread.name as threadName
-      from thread_cpu_sample
-      join thread using(utid)`);
+      .forEach((td) => {
+        const upid = td.tags?.upid ?? null;
+        const utid = assertExists(td.tags?.utid);
 
-    const it = result.iter({
-      utid: NUM,
-      upid: NUM_NULL,
-      tid: NUM_NULL,
-      threadName: STR_NULL,
-    });
-    for (; it.valid(); it.next()) {
-      const utid = it.utid;
-      const upid = it.upid;
-      const threadName = it.threadName;
-      const uuid = this.getUuid(utid, upid);
-      this.tracksToAdd.push({
-        uri: `${getThreadUriPrefix(upid, utid)}_cpu_samples`,
-        trackSortKey: {
-          utid,
-          priority: InThreadTrackSortKey.CPU_STACK_SAMPLES_TRACK,
-        },
-        name: `${threadName} (CPU Stack Samples)`,
-        trackGroup: uuid,
+        const groupId = this.getUuidUnchecked(utid, upid);
+        if (groupId === undefined) {
+          // If a thread has no scheduling activity (i.e. the sched table has zero
+          // rows for that uid) no track group will be created and we want to skip
+          // the track creation as well.
+          return;
+        }
+
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackGroup: groupId,
+          trackSortKey: {
+            utid,
+            priority: InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK,
+          },
+        });
       });
-    }
   }
 
-  async addThreadCounterTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select
-        thread_counter_track.name as trackName,
-        utid,
-        upid,
-        tid,
-        thread.name as threadName,
-        thread_counter_track.id as trackId
-      from thread_counter_track
-      join _counter_track_summary using (id)
-      join thread using (utid)
-      where thread_counter_track.name != 'thread_time'
-  `);
-
-    const it = result.iter({
-      trackName: STR_NULL,
-      utid: NUM,
-      upid: NUM_NULL,
-      tid: NUM_NULL,
-      threadName: STR_NULL,
-      trackId: NUM,
-    });
-    for (; it.valid(); it.next()) {
-      const utid = it.utid;
-      const tid = it.tid;
-      const upid = it.upid;
-      const trackId = it.trackId;
-      const trackName = it.trackName;
-      const threadName = it.threadName;
-      const uuid = this.getUuid(utid, upid);
-      const name = getTrackName({
-        name: trackName,
-        utid,
-        tid,
-        kind: COUNTER_TRACK_KIND,
-        threadName,
-        threadTrack: true,
-      });
-      this.tracksToAdd.push({
-        uri: `${getThreadUriPrefix(upid, utid)}_counter_${trackId}`,
-        name,
-        trackSortKey: {
-          utid,
-          priority: InThreadTrackSortKey.ORDINARY,
-        },
-        trackGroup: uuid,
-      });
-    }
-  }
-
-  async addProcessAsyncSliceTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select
-        upid,
-        t.name as trackName,
-        t.track_ids as trackIds,
-        process.name as processName,
-        process.pid as pid
-      from _process_track_summary_by_upid_and_name t
-      join process using(upid)
-      where t.name is null or t.name not glob "* Timeline"
-    `);
-
-    const it = result.iter({
-      upid: NUM,
-      trackName: STR_NULL,
-      trackIds: STR,
-      processName: STR_NULL,
-      pid: NUM_NULL,
-    });
-    for (; it.valid(); it.next()) {
-      const upid = it.upid;
-      const trackName = it.trackName;
-      const rawTrackIds = it.trackIds;
-      const processName = it.processName;
-      const pid = it.pid;
-
-      const uuid = this.getUuid(null, upid);
-      const name = getTrackName({
-        name: trackName,
-        upid,
-        pid,
-        processName,
-        kind: ASYNC_SLICE_TRACK_KIND,
-      });
-
-      this.tracksToAdd.push({
-        uri: `/process_${upid}/async_slices_${rawTrackIds}`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-        trackGroup: uuid,
-      });
-    }
-  }
-
-  async addUserAsyncSliceTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      with grouped_packages as materialized (
-        select
-          uid,
-          group_concat(package_name, ',') as package_name,
-          count() as cnt
-        from package_list
-        group by uid
+  private addThreadCpuSampleTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === CPU_PROFILE_TRACK_KIND && tags?.utid !== undefined,
       )
-      select
-        t.name as name,
-        t.uid as uid,
-        iif(g.cnt = 1, g.package_name, 'UID ' || g.uid) as packageName
-      from _uid_track_track_summary_by_uid_and_name t
-      left join grouped_packages g using (uid)
-    `);
-
-    const it = result.iter({
-      name: STR_NULL,
-      uid: NUM_NULL,
-      packageName: STR_NULL,
-    });
-
-    // Map From [name] -> [uuid, key]
-    const groupMap = new Map<string, string>();
-
-    for (; it.valid(); it.next()) {
-      if (it.name == null || it.uid == null) {
-        continue;
-      }
-      const rawName = it.name;
-      const uid = it.uid === null ? undefined : it.uid;
-      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
-
-      const groupUuid = `uid-track-group${rawName}`;
-      if (groupMap.get(rawName) === undefined) {
-        groupMap.set(rawName, groupUuid);
-      }
-
-      this.tracksToAdd.push({
-        uri: `/async_slices_${rawName}_${uid}`,
-        name: userName,
-        trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-        trackGroup: groupUuid,
+      .forEach((td) => {
+        const utid = assertExists(td.tags?.utid);
+        const groupId = this.getUuid(utid, null);
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: {
+            utid,
+            priority: InThreadTrackSortKey.CPU_STACK_SAMPLES_TRACK,
+          },
+          trackGroup: groupId,
+        });
       });
-    }
-
-    for (const [name, groupUuid] of groupMap) {
-      const addGroup = Actions.addTrackGroup({
-        name: name,
-        key: groupUuid,
-        collapsed: true,
-      });
-      this.addTrackGroupActions.push(addGroup);
-    }
   }
 
-  async addActualFramesTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select
-        upid,
-        t.name as trackName,
-        process.name as processName,
-        process.pid as pid
-      from _process_track_summary_by_upid_and_name t
-      join process using(upid)
-      where t.name = "Actual Timeline"
-    `);
-
-    const it = result.iter({
-      upid: NUM,
-      trackName: STR_NULL,
-      processName: STR_NULL,
-      pid: NUM_NULL,
-    });
-    for (; it.valid(); it.next()) {
-      const upid = it.upid;
-      const trackName = it.trackName;
-      const processName = it.processName;
-      const pid = it.pid;
-
-      const uuid = this.getUuid(null, upid);
-      const kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
-      const name = getTrackName({
-        name: trackName,
-        upid,
-        pid,
-        processName,
-        kind,
+  private addThreadCounterTracks(tracks: ReadonlyArray<TrackDescriptor>): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === COUNTER_TRACK_KIND &&
+          tags?.utid !== undefined &&
+          tags?.scope === 'thread',
+      )
+      .forEach((td) => {
+        const utid = assertExists(td.tags?.utid);
+        const upid = td.tags?.upid ?? null;
+        const groupId = this.getUuid(utid, upid);
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: {
+            utid,
+            priority: InThreadTrackSortKey.ORDINARY,
+          },
+          trackGroup: groupId,
+        });
       });
-
-      this.tracksToAdd.push({
-        uri: `/process_${upid}/actual_frames`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
-        trackGroup: uuid,
-      });
-    }
   }
 
-  async addExpectedFramesTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select
-        upid,
-        t.name as trackName,
-        process.name as processName,
-        process.pid as pid
-      from _process_track_summary_by_upid_and_name t
-      join process using(upid)
-      where t.name = "Expected Timeline"
-    `);
-
-    const it = result.iter({
-      upid: NUM,
-      trackName: STR_NULL,
-      processName: STR_NULL,
-      pid: NUM_NULL,
-    });
-
-    for (; it.valid(); it.next()) {
-      const upid = it.upid;
-      const trackName = it.trackName;
-      const processName = it.processName;
-      const pid = it.pid;
-
-      const uuid = this.getUuid(null, upid);
-      const kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
-      const name = getTrackName({
-        name: trackName,
-        upid,
-        pid,
-        processName,
-        kind,
+  private addProcessAsyncSliceTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === ASYNC_SLICE_TRACK_KIND &&
+          tags?.upid !== undefined &&
+          tags?.scope === 'process',
+      )
+      .forEach((td) => {
+        const upid = assertExists(td.tags?.upid);
+        const groupId = this.getUuid(null, upid);
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+          trackGroup: groupId,
+        });
       });
-
-      this.tracksToAdd.push({
-        uri: `/process_${upid}/expected_frames`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
-        trackGroup: uuid,
-      });
-    }
   }
 
-  async addThreadSliceTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select
-        thread_track.utid as utid,
-        thread_track.id as trackId,
-        thread_track.name as trackName,
-        EXTRACT_ARG(thread_track.source_arg_set_id,
-                    'is_root_in_scope') as isDefaultTrackForScope,
-        tid,
-        thread.name as threadName,
-        thread.upid as upid
-      from thread_track
-      join _slice_track_summary using (id)
-      join thread using(utid)
-  `);
+  private addActualFramesTracks(tracks: ReadonlyArray<TrackDescriptor>): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND &&
+          tags?.upid !== undefined,
+      )
+      .forEach((td) => {
+        const upid = assertExists(td.tags?.upid);
+        const groupId = this.getUuid(null, upid);
 
-    const it = result.iter({
-      utid: NUM,
-      trackId: NUM,
-      trackName: STR_NULL,
-      isDefaultTrackForScope: NUM_NULL,
-      tid: NUM_NULL,
-      threadName: STR_NULL,
-      upid: NUM_NULL,
-    });
-    for (; it.valid(); it.next()) {
-      const {utid, trackId, trackName, tid, threadName, upid} = it;
-      // Note that !!null === false.
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const isDefaultTrackForScope = !!it.isDefaultTrackForScope;
-      const uuid = this.getUuid(utid, upid);
-
-      const kind = THREAD_SLICE_TRACK_KIND;
-      const name = getTrackName({name: trackName, utid, tid, threadName, kind});
-
-      this.tracksToAdd.push({
-        uri: `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`,
-        name,
-        trackGroup: uuid,
-        trackSortKey: {
-          utid,
-          priority: isDefaultTrackForScope
-            ? InThreadTrackSortKey.DEFAULT_TRACK
-            : InThreadTrackSortKey.ORDINARY,
-        },
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
+          trackGroup: groupId,
+        });
       });
-    }
   }
 
-  async addProcessCounterTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select
-        process_counter_track.id as trackId,
-        process_counter_track.name as trackName,
-        upid,
-        process.pid,
-        process.name as processName
-      from process_counter_track
-      join _counter_track_summary using (id)
-      join process using(upid);
-  `);
-    const it = result.iter({
-      trackId: NUM,
-      trackName: STR_NULL,
-      upid: NUM,
-      pid: NUM_NULL,
-      processName: STR_NULL,
-    });
-    for (let i = 0; it.valid(); ++i, it.next()) {
-      const pid = it.pid;
-      const upid = it.upid;
-      const trackId = it.trackId;
-      const trackName = it.trackName;
-      const processName = it.processName;
-      const uuid = this.getUuid(null, upid);
-      const name = getTrackName({
-        name: trackName,
-        upid,
-        pid,
-        kind: COUNTER_TRACK_KIND,
-        processName,
+  private addExpectedFramesTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === EXPECTED_FRAMES_SLICE_TRACK_KIND &&
+          tags?.upid !== undefined,
+      )
+      .forEach((td) => {
+        const upid = assertExists(td.tags?.upid);
+        const groupId = this.getUuid(null, upid);
+
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
+          trackGroup: groupId,
+        });
       });
+  }
+
+  private addThreadSliceTracks(tracks: ReadonlyArray<TrackDescriptor>): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === THREAD_SLICE_TRACK_KIND && tags?.utid !== undefined,
+      )
+      .forEach((td) => {
+        const utid = assertExists(td.tags?.utid);
+        const upid = td.tags?.upid ?? null;
+        const isDefaultTrackForScope = Boolean(td.tags?.isDefaultTrackForScope);
+        const groupId = this.getUuid(utid, upid);
+
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackGroup: groupId,
+          trackSortKey: {
+            utid,
+            priority: isDefaultTrackForScope
+              ? InThreadTrackSortKey.DEFAULT_TRACK
+              : InThreadTrackSortKey.ORDINARY,
+          },
+        });
+      });
+  }
+
+  private async addProcessCounterTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): Promise<void> {
+    const processCounterTracks = tracks.filter(
+      ({tags}) =>
+        tags?.kind === COUNTER_TRACK_KIND &&
+        tags?.scope === 'process' &&
+        tags?.upid !== undefined,
+    );
+
+    for (const td of processCounterTracks) {
+      const upid = assertExists(td.tags?.upid);
+      const groupId = this.getUuid(null, upid);
+      const trackNameTag = td.tags?.trackName;
+      const trackName =
+        typeof trackNameTag === 'string' ? trackNameTag : undefined;
+
       this.tracksToAdd.push({
-        uri: `/process_${upid}/counter_${trackId}`,
-        name,
+        key: td.uri,
+        uri: td.uri,
+        name: td.title,
         trackSortKey: await this.resolveTrackSortKeyForProcessCounterTrack(
           upid,
-          trackName ?? undefined,
+          trackName,
         ),
-        trackGroup: uuid,
+        trackGroup: groupId,
       });
     }
   }
 
-  async addProcessHeapProfileTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select upid
-      from _process_available_info_summary
-      where allocation_count > 0 or graph_object_count > 0
-  `);
-    for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
-      const upid = it.upid;
-      const uuid = this.getUuid(null, upid);
-      this.tracksToAdd.push({
-        uri: `/process_${upid}/heap_profile`,
-        trackSortKey: PrimaryTrackSortKey.HEAP_PROFILE_TRACK,
-        name: `Heap Profile`,
-        trackGroup: uuid,
+  private addProcessHeapProfileTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === HEAP_PROFILE_TRACK_KIND && tags?.upid !== undefined,
+      )
+      .forEach((td) => {
+        const upid = assertExists(td.tags?.upid);
+        const groupId = this.getUuid(null, upid);
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: PrimaryTrackSortKey.HEAP_PROFILE_TRACK,
+          trackGroup: groupId,
+        });
       });
-    }
   }
 
-  async addProcessPerfSamplesTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select upid
-      from _process_available_info_summary
-      where perf_sample_count > 0
-    `);
-    for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
-      const upid = it.upid;
-      const uuid = this.getUuid(null, upid);
-      this.tracksToAdd.push({
-        uri: `/process_${upid}/perf_samples_profile`,
-        trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
-        name: `Process Callstacks`,
-        trackGroup: uuid,
+  private addProcessPerfSamplesTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+          tags?.upid !== undefined,
+      )
+      .forEach((td) => {
+        const upid = assertExists(td.tags?.upid);
+        const groupId = this.getUuid(null, upid);
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
+          trackGroup: groupId,
+        });
       });
-    }
   }
 
-  async addThreadPerfSamplesTracks(engine: Engine): Promise<void> {
-    const result = await engine.query(`
-      select
-        thread.upid,
-        thread.utid,
-        thread.tid,
-        thread.name as threadName
-      from _thread_available_info_summary s
-      join thread using (utid)
-      where s.perf_sample_count > 0
-    `);
-    for (
-      const it = result.iter({
-        upid: NUM_NULL,
-        utid: NUM,
-        tid: NUM,
-        threadName: STR_NULL,
+  private addThreadPerfSamplesTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+          tags?.utid !== undefined,
+      )
+      .forEach((td) => {
+        const upid = td.tags?.upid ?? null;
+        const utid = assertExists(td.tags?.utid);
+        const groupId = this.getUuid(utid, upid);
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
+          trackGroup: groupId,
+        });
       });
-      it.valid();
-      it.next()
-    ) {
-      const {threadName, upid, utid, tid} = it;
-      const name =
-        threadName === null
-          ? `Thread Callstacks ${tid}`
-          : `${threadName} Callstacks ${tid}`;
-      const uuid = this.getUuid(utid, upid);
-      this.tracksToAdd.push({
-        uri: `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`,
-        trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
-        name,
-        trackGroup: uuid,
-      });
-    }
   }
 
-  getUuidUnchecked(utid: number | null, upid: number | null) {
+  private getUuidUnchecked(utid: number | null, upid: number | null) {
     return upid === null
       ? this.utidToUuid.get(utid!)
       : this.upidToUuid.get(upid);
   }
 
-  getUuid(utid: number | null, upid: number | null) {
+  private getUuid(utid: number | null, upid: number | null) {
     return assertExists(this.getUuidUnchecked(utid, upid));
   }
 
-  getOrCreateUuid(utid: number | null, upid: number | null) {
+  private getOrCreateUuid(utid: number | null, upid: number | null) {
     let uuid = this.getUuidUnchecked(utid, upid);
     if (uuid === undefined) {
       uuid = uuidv4();
@@ -1136,11 +688,11 @@ class TrackDecider {
     return uuid;
   }
 
-  setUuidForUpid(upid: number, uuid: string) {
+  private setUuidForUpid(upid: number, uuid: string) {
     this.upidToUuid.set(upid, uuid);
   }
 
-  async addKernelThreadGrouping(engine: Engine): Promise<void> {
+  private async addKernelThreadGrouping(engine: Engine): Promise<void> {
     // Identify kernel threads if this is a linux system trace, and sufficient
     // process information is available. Kernel threads are identified by being
     // children of kthreadd (always pid 2).
@@ -1203,7 +755,7 @@ class TrackDecider {
     }
   }
 
-  async addProcessTrackGroups(engine: Engine): Promise<void> {
+  private async addProcessTrackGroups(engine: Engine): Promise<void> {
     // We want to create groups of tracks in a specific order.
     // The tracks should be grouped:
     //    by upid
@@ -1395,7 +947,7 @@ class TrackDecider {
     return threadOrderingMetadata;
   }
 
-  addPluginTracks(): void {
+  private addPluginTracks(): void {
     const groupNameToUuid = new Map<string, string>();
     const tracks = globals.trackManager.findPotentialTracks();
 
@@ -1423,12 +975,10 @@ class TrackDecider {
         }
       }
 
-      const key = uuidv4();
-
       this.tracksToAdd.push({
         uri: info.uri,
+        key: info.uri,
         name: info.title,
-        key,
         // TODO(hjd): Fix how sorting works. Plugins should expose
         // 'sort keys' which the user can use to choose a sort order.
         trackSortKey: info.sortKey ?? PrimaryTrackSortKey.ORDINARY_TRACK,
@@ -1436,78 +986,147 @@ class TrackDecider {
       });
 
       if (info.isPinned) {
-        this.tracksToPin.push(key);
+        this.tracksToPin.push(info.uri);
       }
     }
   }
 
-  async addScrollJankPluginTracks(): Promise<void> {
-    if (ENABLE_SCROLL_JANK_PLUGIN_V2.get()) {
-      const result = await getScrollJankTracks(this.engine);
-      this.tracksToAdd = this.tracksToAdd.concat(result.tracks.tracksToAdd);
-      this.addTrackGroupActions.push(result.addTrackGroup);
+  private addScrollJankPluginTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    let scrollTracks = this.addTracks(
+      tracks,
+      ({tags}) => tags?.kind === CHROME_TOPLEVEL_SCROLLS_KIND,
+      SCROLL_JANK_GROUP_ID,
+    );
+    scrollTracks = scrollTracks.concat(
+      this.addTracks(
+        tracks,
+        ({tags}) => tags?.kind === SCROLL_JANK_V3_TRACK_KIND,
+        SCROLL_JANK_GROUP_ID,
+      ),
+    );
+    scrollTracks = scrollTracks.concat(
+      this.addTracks(
+        tracks,
+        ({tags}) => tags?.kind === CHROME_EVENT_LATENCY_TRACK_KIND,
+        SCROLL_JANK_GROUP_ID,
+      ),
+    );
+    if (scrollTracks.length > 0) {
+      this.addTrackGroupActions.push(
+        Actions.addTrackGroup({
+          name: 'Chrome Scroll Jank',
+          key: SCROLL_JANK_GROUP_ID,
+          collapsed: false,
+          fixedOrdering: true,
+        }),
+      );
     }
   }
 
-  async decideTracks(): Promise<DeferredAction[]> {
-    {
-      const result = screenshotDecideTracks(this.engine);
-      if (result !== null) {
-        const {tracksToAdd} = await result;
-        this.tracksToAdd.push(...tracksToAdd);
-      }
-    }
+  private addChromeScrollJankTrack(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    tracks
+      .filter(({tags}) => tags?.kind === CHROME_SCROLL_JANK_TRACK_KIND)
+      .forEach((td) => {
+        const upid = assertExists(td.tags?.upid);
+        const utid = assertExists(td.tags?.utid);
+        const groupId = this.getUuid(utid, upid);
+        this.tracksToAdd.push({
+          key: td.uri,
+          uri: td.uri,
+          name: td.title,
+          trackSortKey: {
+            utid,
+            priority: InThreadTrackSortKey.ORDINARY,
+          },
+          trackGroup: groupId,
+        });
+      });
+  }
+
+  // Add an ordinary track from a track descriptor
+  private addTrack(track: TrackDescriptor, groupId?: string): void {
+    this.tracksToAdd.push({
+      key: track.uri,
+      uri: track.uri,
+      name: track.title,
+      trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+      trackGroup: groupId ?? SCROLLING_TRACK_GROUP,
+    });
+  }
+
+  // Add tracks that match some predicate
+  private addTracks(
+    source: ReadonlyArray<TrackDescriptor>,
+    predicate: (td: TrackDescriptor) => boolean,
+    groupId?: string,
+  ): ReadonlyArray<TrackDescriptor> {
+    const filteredTracks = source.filter(predicate);
+    filteredTracks.forEach((a) => this.addTrack(a, groupId));
+    return filteredTracks;
+  }
+
+  public async decideTracks(): Promise<DeferredAction[]> {
+    const tracks = globals.trackManager.getAllTracks();
 
     // Add first the global tracks that don't require per-process track groups.
-    await this.addScrollJankPluginTracks();
-    await this.addCpuSchedulingTracks();
-    await this.addCpuFreqTracks(
-      this.engine.getProxy('TrackDecider::addCpuFreqTracks'),
+    this.addTracks(tracks, ({uri}) => uri === 'screenshots');
+    this.addTracks(tracks, ({tags}) => tags?.kind === CPU_SLICE_TRACK_KIND);
+    this.addTracks(tracks, ({tags}) => tags?.kind === CPU_FREQ_TRACK_KIND);
+    this.addScrollJankPluginTracks(tracks);
+    this.addTracks(
+      tracks,
+      ({tags}) =>
+        tags?.kind === ASYNC_SLICE_TRACK_KIND && tags?.scope === 'global',
     );
-    await this.addGlobalAsyncTracks(
-      this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'),
+    this.addTracks(
+      tracks,
+      ({tags}) =>
+        tags?.kind === COUNTER_TRACK_KIND && tags?.scope === 'gpuFreq',
     );
-    await this.addGpuFreqTracks(
-      this.engine.getProxy('TrackDecider::addGpuFreqTracks'),
+    this.addTracks(
+      tracks,
+      ({tags}) =>
+        tags?.kind === COUNTER_TRACK_KIND && tags?.scope === 'cpuFreqLimit',
     );
-    await this.addCpuFreqLimitCounterTracks(
-      this.engine.getProxy('TrackDecider::addCpuFreqLimitCounterTracks'),
-    );
-    await this.addCpuPerfCounterTracks(
-      this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'),
+    this.addTracks(
+      tracks,
+      ({tags}) =>
+        tags?.kind === COUNTER_TRACK_KIND && tags?.scope === 'cpuPerf',
     );
     this.addPluginTracks();
-    await this.addAnnotationTracks(
-      this.engine.getProxy('TrackDecider::addAnnotationTracks'),
-    );
-    await this.groupGlobalIonTracks();
-    await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
-    await this.groupGlobalIostatTracks(
+    this.addAnnotationTracks(tracks);
+
+    this.groupGlobalIonTracks();
+    this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
+    this.groupGlobalIostatTracks(
       F2FS_IOSTAT_LAT_TAG,
       F2FS_IOSTAT_LAT_GROUP_NAME,
     );
-    await this.groupGlobalIostatTracks(DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
-    await this.groupTracksByRegex(UFS_CMD_TAG_REGEX, UFS_CMD_TAG_GROUP);
-    await this.groupGlobalBuddyInfoTracks();
-    await this.groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
-    await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
-    await this.groupTracksByRegex(
-      ENTITY_RESIDENCY_REGEX,
-      ENTITY_RESIDENCY_GROUP,
-    );
-    await this.groupTracksByRegex(UCLAMP_REGEX, UCLAMP_GROUP);
-    await this.groupFrequencyTracks(FREQUENCY_GROUP);
-    await this.groupTracksByRegex(POWER_RAILS_REGEX, POWER_RAILS_GROUP);
-    await this.groupTracksByRegex(TEMPERATURE_REGEX, TEMPERATURE_GROUP);
-    await this.groupTracksByRegex(IRQ_REGEX, IRQ_GROUP);
-    await this.groupTracksByRegex(CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
-    await this.groupMiscNonAllowlistedTracks(MISC_GROUP);
+    this.groupGlobalIostatTracks(DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
+    this.groupTracksByRegex(UFS_CMD_TAG_REGEX, UFS_CMD_TAG_GROUP);
+    this.groupGlobalBuddyInfoTracks();
+    this.groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
+    this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
+    this.groupTracksByRegex(ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
+    this.groupTracksByRegex(UCLAMP_REGEX, UCLAMP_GROUP);
+    this.groupFrequencyTracks(FREQUENCY_GROUP);
+    this.groupTracksByRegex(POWER_RAILS_REGEX, POWER_RAILS_GROUP);
+    this.groupTracksByRegex(TEMPERATURE_REGEX, TEMPERATURE_GROUP);
+    this.groupTracksByRegex(IRQ_REGEX, IRQ_GROUP);
+    this.groupTracksByRegex(CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
+    this.groupMiscNonAllowlistedTracks(MISC_GROUP);
 
     // Add user slice tracks before listing the processes. These tracks will
     // be listed with their user/package name only, and they will be grouped
     // under on their original shared track names. E.g. "GPU Work Period"
-    await this.addUserAsyncSliceTracks(
-      this.engine.getProxy('TrackDecider::addUserAsyncSliceTracks'),
+    this.addTracks(
+      tracks,
+      ({tags}) =>
+        tags?.kind === ASYNC_SLICE_TRACK_KIND && tags?.scope === 'user',
     );
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
@@ -1528,50 +1147,19 @@ class TrackDecider {
       this.engine.getProxy('TrackDecider::addProcessTrackGroups'),
     );
 
-    await this.addProcessHeapProfileTracks(
-      this.engine.getProxy('TrackDecider::addProcessHeapProfileTracks'),
-    );
-    await this.addProcessPerfSamplesTracks(
-      this.engine.getProxy('TrackDecider::addProcessPerfSamplesTracks'),
-    );
-    await this.addThreadPerfSamplesTracks(
-      this.engine.getProxy('TrackDecider::addThreadPerfSamplesTracks'),
-    );
-    await this.addProcessCounterTracks(
-      this.engine.getProxy('TrackDecider::addProcessCounterTracks'),
-    );
-    await this.addProcessAsyncSliceTracks(
-      this.engine.getProxy('TrackDecider::addProcessAsyncSliceTracks'),
-    );
-    await this.addActualFramesTracks(
-      this.engine.getProxy('TrackDecider::addActualFramesTracks'),
-    );
-    await this.addExpectedFramesTracks(
-      this.engine.getProxy('TrackDecider::addExpectedFramesTracks'),
-    );
-    await this.addThreadCounterTracks(
-      this.engine.getProxy('TrackDecider::addThreadCounterTracks'),
-    );
-    await this.addThreadStateTracks(
-      this.engine.getProxy('TrackDecider::addThreadStateTracks'),
-    );
-    await this.addThreadSliceTracks(
-      this.engine.getProxy('TrackDecider::addThreadSliceTracks'),
-    );
-    await this.addThreadCpuSampleTracks(
-      this.engine.getProxy('TrackDecider::addThreadCpuSampleTracks'),
-    );
+    this.addProcessHeapProfileTracks(tracks);
+    this.addProcessPerfSamplesTracks(tracks);
+    this.addThreadPerfSamplesTracks(tracks);
+    await this.addProcessCounterTracks(tracks);
+    this.addProcessAsyncSliceTracks(tracks);
+    this.addActualFramesTracks(tracks);
+    this.addExpectedFramesTracks(tracks);
+    this.addThreadCounterTracks(tracks);
+    this.addThreadStateTracks(tracks);
+    this.addThreadSliceTracks(tracks);
+    this.addThreadCpuSampleTracks(tracks);
 
-    // TODO(hjd): Move into plugin API.
-    {
-      const result = scrollJankDecideTracks(this.engine, (utid, upid) => {
-        return this.getUuid(utid, upid);
-      });
-      if (result !== null) {
-        const {tracksToAdd} = await result;
-        this.tracksToAdd.push(...tracksToAdd);
-      }
-    }
+    this.addChromeScrollJankTrack(tracks);
 
     this.addTrackGroupActions.push(
       Actions.addTracks({tracks: this.tracksToAdd}),
