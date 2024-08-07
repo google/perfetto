@@ -1261,8 +1261,8 @@ m
 build_id (	RbuildId
 address (Raddress(
 google_lookup_id (	RgoogleLookupId
-¨
-3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"ß
+‹
+3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"Â
 AndroidBinderMetrice
 process_breakdown (28.perfetto.protos.AndroidBinderMetric.PerProcessBreakdownRprocessBreakdown{
 unaggregated_txn_breakdown (2=.perfetto.protos.AndroidBinderMetric.UnaggregatedTxnBreakdownRunaggregatedTxnBreakdown
@@ -1271,7 +1271,8 @@ m
 pid (Rpid
 
 slice_name (	R	sliceName
-count (RcountÆ	
+count (Rcount¬
+
 UnaggregatedTxnBreakdown
 	aidl_name (	RaidlName
 aidl_ts (RaidlTs
@@ -1298,7 +1299,8 @@ server_dur (R	serverDur0
 server_package_version_code (RserverPackageVersionCode?
 is_server_package_debuggable (RisServerPackageDebuggable^
 thread_states (29.perfetto.protos.AndroidBinderMetric.ThreadStateBreakdownRthreadStatesj
-blocked_functions (2=.perfetto.protos.AndroidBinderMetric.BlockedFunctionBreakdownRblockedFunctions
+blocked_functions (2=.perfetto.protos.AndroidBinderMetric.BlockedFunctionBreakdownRblockedFunctionsd
+logical_reasons (2;.perfetto.protos.AndroidBinderMetric.LogicalReasonBreakdownRlogicalReasons
 
 client_tid (R	clientTid
 
@@ -1316,7 +1318,12 @@ server_pid (R	serverPidJJ	½
 thread_state_type (	RthreadStateType)
 blocked_function (	RblockedFunction0
 blocked_function_dur (RblockedFunctionDur4
-blocked_function_count (RblockedFunctionCount
+blocked_function_count (RblockedFunctionCount{
+LogicalReasonBreakdown*
+thread_state_type (	RthreadStateType
+reason (	Rreason
+
+reason_dur (R	reasonDur
 è
 ?protos/perfetto/metrics/android/monitor_contention_metric.protoperfetto.protos"“
 AndroidMonitorContentionMetricH
