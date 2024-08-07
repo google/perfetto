@@ -436,7 +436,8 @@ class TrackDecider {
       )
       .forEach((td) => {
         const utid = assertExists(td.tags?.utid);
-        const groupId = this.getUuid(utid, null);
+        const upid = td.tags?.upid ?? null;
+        const groupId = this.getUuid(utid, upid);
         this.tracksToAdd.push({
           key: td.uri,
           uri: td.uri,
