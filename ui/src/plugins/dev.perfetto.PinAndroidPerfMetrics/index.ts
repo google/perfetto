@@ -39,19 +39,19 @@ class PinAndroidPerfMetrics implements Plugin {
     this.metrics = this.getMetricsFromHash();
   }
 
-  async onTraceLoad(ctx: PluginContextTrace) {
+  async onTraceReady(ctx: PluginContextTrace) {
     ctx.registerCommand({
       id: 'dev.perfetto.PinAndroidPerfMetrics#PinAndroidPerfMetrics',
       name: 'Add and Pin: Jank Metric Slice',
       callback: async (metric) => {
-        metric = prompt('Metrics names (seperated by comma)', '');
+        metric = prompt('Metrics names (separated by comma)', '');
         if (metric === null) return;
         const metricList = metric.split(',');
         this.callHandlers(metricList, ctx, 'debug');
       },
     });
     if (this.metrics.length !== 0) {
-      this.callHandlers(this.metrics, ctx, 'static');
+      this.callHandlers(this.metrics, ctx, 'debug');
     }
   }
 
