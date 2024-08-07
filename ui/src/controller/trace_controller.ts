@@ -633,6 +633,8 @@ export class TraceController extends Controller<States> {
       globals.restoreAppStateAfterTraceLoad = undefined;
     }
 
+    await pluginManager.onTraceReady();
+
     return engineMode;
   }
 

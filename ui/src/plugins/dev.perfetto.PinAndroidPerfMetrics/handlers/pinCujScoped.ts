@@ -172,7 +172,7 @@ class PinCujScopedJank implements MetricHandler {
 
   private async focusOnFirstJank(ctx: PluginContextTrace) {
     const slice = await this.findFirstJank(ctx);
-    await focusOnSlice(slice);
+    focusOnSlice(slice);
   }
 }
 
