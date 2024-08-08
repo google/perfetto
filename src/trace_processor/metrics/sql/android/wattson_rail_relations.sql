@@ -25,179 +25,335 @@ USING
   SPAN_JOIN({{window_table}}, _system_state_mw);
 
 -- The most basic rail components that form the "building blocks" from which all
--- other rails and components are derived
-DROP VIEW IF EXISTS _wattson_base_components_pws;
-CREATE PERFETTO VIEW _wattson_base_components_pws AS
+-- other rails and components are derived. Average power over the entire trace
+-- for each of these rail components.
+DROP VIEW IF EXISTS _wattson_base_components_avg_mw;
+CREATE PERFETTO VIEW _wattson_base_components_avg_mw AS
 SELECT
-  -- *_curve is in units of mW, so multiplying by ns gives pWs
-  SUM(dur * cpu0_mw) as cpu0_pws,
-  SUM(dur * cpu1_mw) as cpu1_pws,
-  SUM(dur * cpu2_mw) as cpu2_pws,
-  SUM(dur * cpu3_mw) as cpu3_pws,
-  SUM(dur * cpu4_mw) as cpu4_pws,
-  SUM(dur * cpu5_mw) as cpu5_pws,
-  SUM(dur * cpu6_mw) as cpu6_pws,
-  SUM(dur * cpu7_mw) as cpu7_pws,
-  SUM(dur * dsu_scu_mw) as dsu_scu_pws,
-  SUM(dur) as total_dur,
+  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 0) as cpu0_poli,
+  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 1) as cpu1_poli,
+  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 2) as cpu2_poli,
+  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 3) as cpu3_poli,
+  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 4) as cpu4_poli,
+  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 5) as cpu5_poli,
+  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 6) as cpu6_poli,
+  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 7) as cpu7_poli,
+  -- Converts all mW of all slices into average mW of total trace
+  SUM(dur * cpu0_mw) / SUM(dur) as cpu0_mw,
+  SUM(dur * cpu1_mw) / SUM(dur) as cpu1_mw,
+  SUM(dur * cpu2_mw) / SUM(dur) as cpu2_mw,
+  SUM(dur * cpu3_mw) / SUM(dur) as cpu3_mw,
+  SUM(dur * cpu4_mw) / SUM(dur) as cpu4_mw,
+  SUM(dur * cpu5_mw) / SUM(dur) as cpu5_mw,
+  SUM(dur * cpu6_mw) / SUM(dur) as cpu6_mw,
+  SUM(dur * cpu7_mw) / SUM(dur) as cpu7_mw,
+  SUM(dur * dsu_scu_mw) / SUM(dur) as dsu_scu_mw,
+  SUM(dur) as period_dur,
   period_id
 FROM _windowed_wattson
 GROUP BY period_id;
 
--- Root node that has all possible components for the CPUSS added together
-DROP VIEW IF EXISTS _wattson_cpu_rail_total;
-CREATE PERFETTO VIEW _wattson_cpu_rail_total AS
-SELECT
-  period_id,
-  total_dur,
-  'cpu_subsystem' as name,
+-- Macro that filters out CPUs that are unrelated to the policy of the table
+-- passed in, and does some bookkeeping to put data in expected format
+CREATE OR REPLACE PERFETTO MACRO
+_get_valid_cpu_mw(policy_tbl_w_cpus TableOrSubQuery)
+RETURNS TableOrSubquery AS
+(
+  WITH input_table_w_filter AS (
+    SELECT
+      *,
+      COALESCE(
+        cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw, cpu6_mw, cpu7_mw
+      ) IS NOT NULL as is_defined,
+      (
+        IFNULL(cpu0_mw, 0) + IFNULL(cpu1_mw, 0) + IFNULL(cpu2_mw, 0)
+         + IFNULL(cpu3_mw, 0) + IFNULL(cpu4_mw, 0) + IFNULL(cpu5_mw, 0)
+         + IFNULL(cpu6_mw, 0) + IFNULL(cpu7_mw, 0)
+      ) as sum_mw
+    FROM $policy_tbl_w_cpus
+  )
+  SELECT
+    is_defined,
+    period_id,
+    period_dur,
+    cast_double!(IIF(is_defined, sum_mw, NULL)) as estimate_mw,
+    AndroidWattsonPolicyEstimate(
+      'estimate_mw', cast_double!(IIF(is_defined, sum_mw, NULL)),
+      'cpu0', IIF(
+        cpu0_mw,
+        AndroidWattsonCpuEstimate('estimate_mw', cpu0_mw),
+        NULL
+      ),
+      'cpu1', IIF(
+        cpu1_mw,
+        AndroidWattsonCpuEstimate('estimate_mw', cpu1_mw),
+        NULL
+      ),
+      'cpu2', IIF(
+        cpu2_mw,
+        AndroidWattsonCpuEstimate('estimate_mw', cpu2_mw),
+        NULL
+      ),
+      'cpu3', IIF(
+        cpu3_mw,
+        AndroidWattsonCpuEstimate('estimate_mw', cpu3_mw),
+        NULL
+      ),
+      'cpu4', IIF(
+        cpu4_mw,
+        AndroidWattsonCpuEstimate('estimate_mw', cpu4_mw),
+        NULL
+      ),
+      'cpu5', IIF(
+        cpu5_mw,
+        AndroidWattsonCpuEstimate('estimate_mw', cpu5_mw),
+        NULL
+      ),
+      'cpu6', IIF(
+        cpu6_mw,
+        AndroidWattsonCpuEstimate('estimate_mw', cpu6_mw),
+        NULL
+      ),
+      'cpu7', IIF(
+        cpu7_mw,
+        AndroidWattsonCpuEstimate('estimate_mw', cpu7_mw),
+        NULL
+      )
+    ) AS proto
+  FROM input_table_w_filter
+);
+
+-- Automatically determines CPUs that correspond to policyX, and picks up NULL
+-- otherwise.
+DROP VIEW IF EXISTS _estimate_policy0_proto;
+CREATE PERFETTO VIEW _estimate_policy0_proto AS
+SELECT * FROM _get_valid_cpu_mw!(
   (
-    cpu0_pws + cpu1_pws + cpu2_pws + cpu3_pws +
-    cpu4_pws + cpu5_pws + cpu6_pws + cpu7_pws +
-    dsu_scu_pws
-  ) / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-GROUP BY period_id;
+    SELECT
+      period_id,
+      period_dur,
+      IIF(cpu0_poli = 0, cpu0_mw, NULL) as cpu0_mw,
+      IIF(cpu1_poli = 0, cpu1_mw, NULL) as cpu1_mw,
+      IIF(cpu2_poli = 0, cpu2_mw, NULL) as cpu2_mw,
+      IIF(cpu3_poli = 0, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 0, cpu4_mw, NULL) as cpu4_mw,
+      IIF(cpu5_poli = 0, cpu5_mw, NULL) as cpu5_mw,
+      IIF(cpu6_poli = 0, cpu6_mw, NULL) as cpu6_mw,
+      IIF(cpu7_poli = 0, cpu7_mw, NULL) as cpu7_mw
+    FROM _wattson_base_components_avg_mw
+    GROUP BY period_id, period_dur
+  )
+);
 
--- Sub-sub-rail, meaning two levels down from the CPU root node
-DROP VIEW IF EXISTS _wattson_cpu_subsubrail_grouped;
-CREATE PERFETTO VIEW _wattson_cpu_subsubrail_grouped AS
-SELECT
-  period_id,
-  'cpu0' as name,
-  map.policy,
-  cpu0_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 0
-GROUP BY period_id
-UNION ALL
-SELECT
-  period_id,
-  'cpu1' as name,
-  map.policy,
-  cpu1_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 1
-GROUP BY period_id
-UNION ALL
-SELECT
-  period_id,
-  'cpu2' as name,
-  map.policy,
-  cpu2_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 2
-GROUP BY period_id
-UNION ALL
-SELECT
-  period_id,
-  'cpu3' as name,
-  map.policy,
-  cpu3_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 3
-GROUP BY period_id
-UNION ALL
-SELECT
-  period_id,
-  'cpu4' as name,
-  map.policy,
-  cpu4_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 4
-GROUP BY period_id
-UNION ALL
-SELECT
-  period_id,
-  'cpu5' as name,
-  map.policy,
-  cpu5_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 5
-GROUP BY period_id
-UNION ALL
-SELECT
-  period_id,
-  'cpu6' as name,
-  map.policy,
-  cpu6_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 6
-GROUP BY period_id
-UNION ALL
-SELECT
-  period_id,
-  'cpu7' as name,
-  map.policy,
-  cpu7_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-CROSS JOIN _dev_cpu_policy_map as map WHERE map.cpu = 7
-GROUP BY period_id;
+DROP VIEW IF EXISTS _estimate_policy1_proto;
+CREATE PERFETTO VIEW _estimate_policy1_proto AS
+SELECT * FROM _get_valid_cpu_mw!(
+  (
+    SELECT
+      period_id,
+      period_dur,
+      IIF(cpu0_poli = 1, cpu0_mw, NULL) as cpu0_mw,
+      IIF(cpu1_poli = 1, cpu1_mw, NULL) as cpu1_mw,
+      IIF(cpu2_poli = 1, cpu2_mw, NULL) as cpu2_mw,
+      IIF(cpu3_poli = 1, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 1, cpu4_mw, NULL) as cpu4_mw,
+      IIF(cpu5_poli = 1, cpu5_mw, NULL) as cpu5_mw,
+      IIF(cpu6_poli = 1, cpu6_mw, NULL) as cpu6_mw,
+      IIF(cpu7_poli = 1, cpu7_mw, NULL) as cpu7_mw
+    FROM _wattson_base_components_avg_mw
+    GROUP BY period_id, period_dur
+  )
+);
 
--- Sub-rail, meaning one level down from the CPU root node
-DROP VIEW IF EXISTS _wattson_cpu_subrail_grouped;
-CREATE PERFETTO VIEW _wattson_cpu_subrail_grouped AS
-SELECT
-  period_id,
-  NULL as policy,
-  'DSU_SCU' as name,
-  dsu_scu_pws / total_dur as estimate_mw
-FROM _wattson_base_components_pws
-GROUP BY period_id
-UNION ALL
-SELECT
-  period_id,
-  policy,
-  CONCAT('policy', policy) as name,
-  SUM(estimate_mw) as estimate_mw
-FROM _wattson_cpu_subsubrail_grouped
-GROUP BY period_id, policy;
+DROP VIEW IF EXISTS _estimate_policy2_proto;
+CREATE PERFETTO VIEW _estimate_policy2_proto AS
+SELECT * FROM _get_valid_cpu_mw!(
+  (
+    SELECT
+      period_id,
+      period_dur,
+      IIF(cpu0_poli = 2, cpu0_mw, NULL) as cpu0_mw,
+      IIF(cpu1_poli = 2, cpu1_mw, NULL) as cpu1_mw,
+      IIF(cpu2_poli = 2, cpu2_mw, NULL) as cpu2_mw,
+      IIF(cpu3_poli = 2, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 2, cpu4_mw, NULL) as cpu4_mw,
+      IIF(cpu5_poli = 2, cpu5_mw, NULL) as cpu5_mw,
+      IIF(cpu6_poli = 2, cpu6_mw, NULL) as cpu6_mw,
+      IIF(cpu7_poli = 2, cpu7_mw, NULL) as cpu7_mw
+    FROM _wattson_base_components_avg_mw
+    GROUP BY period_id, period_dur
+  )
+);
 
--- Grouped by CPUs, the smallest building block available
-DROP VIEW IF EXISTS _cpu_subsubrail_estimate_per_startup_proto;
-CREATE PERFETTO VIEW _cpu_subsubrail_estimate_per_startup_proto AS
-SELECT
-  period_id,
-  policy,
-  RepeatedField(
-    AndroidWattsonRailEstimate(
-      'name', name,
-      'estimate_mw', estimate_mw
-    )
-  ) AS proto
-FROM _wattson_cpu_subsubrail_grouped
-GROUP BY period_id, policy;
+DROP VIEW IF EXISTS _estimate_policy3_proto;
+CREATE PERFETTO VIEW _estimate_policy3_proto AS
+SELECT * FROM _get_valid_cpu_mw!(
+  (
+    SELECT
+      period_id,
+      period_dur,
+      IIF(cpu0_poli = 3, cpu0_mw, NULL) as cpu0_mw,
+      IIF(cpu1_poli = 3, cpu1_mw, NULL) as cpu1_mw,
+      IIF(cpu2_poli = 3, cpu2_mw, NULL) as cpu2_mw,
+      IIF(cpu3_poli = 3, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 3, cpu4_mw, NULL) as cpu4_mw,
+      IIF(cpu5_poli = 3, cpu5_mw, NULL) as cpu5_mw,
+      IIF(cpu6_poli = 3, cpu6_mw, NULL) as cpu6_mw,
+      IIF(cpu7_poli = 3, cpu7_mw, NULL) as cpu7_mw
+    FROM _wattson_base_components_avg_mw
+    GROUP BY period_id, period_dur
+  )
+);
 
--- Grouped by CPU policy
-DROP VIEW IF EXISTS _cpu_subrail_estimate_per_startup_proto;
-CREATE PERFETTO VIEW _cpu_subrail_estimate_per_startup_proto AS
-SELECT
-  period_id,
-  RepeatedField(
-    AndroidWattsonRailEstimate(
-      'name', name,
-      'estimate_mw', estimate_mw,
-      'rail', _cpu_subsubrail_estimate_per_startup_proto.proto
-    )
-  ) AS proto
-FROM _wattson_cpu_subrail_grouped
--- Some subrails will not have any subsubrails, so LEFT JOIN
-LEFT JOIN _cpu_subsubrail_estimate_per_startup_proto USING (period_id, policy)
-GROUP BY period_id;
+DROP VIEW IF EXISTS _estimate_policy4_proto;
+CREATE PERFETTO VIEW _estimate_policy4_proto AS
+SELECT * FROM _get_valid_cpu_mw!(
+  (
+    SELECT
+      period_id,
+      period_dur,
+      IIF(cpu0_poli = 4, cpu0_mw, NULL) as cpu0_mw,
+      IIF(cpu1_poli = 4, cpu1_mw, NULL) as cpu1_mw,
+      IIF(cpu2_poli = 4, cpu2_mw, NULL) as cpu2_mw,
+      IIF(cpu3_poli = 4, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 4, cpu4_mw, NULL) as cpu4_mw,
+      IIF(cpu5_poli = 4, cpu5_mw, NULL) as cpu5_mw,
+      IIF(cpu6_poli = 4, cpu6_mw, NULL) as cpu6_mw,
+      IIF(cpu7_poli = 4, cpu7_mw, NULL) as cpu7_mw
+    FROM _wattson_base_components_avg_mw
+    GROUP BY period_id, period_dur
+  )
+);
 
--- Grouped into single entry for entirety of CPU system
-DROP VIEW IF EXISTS _cpu_rail_estimate_per_startup_proto;
-CREATE PERFETTO VIEW _cpu_rail_estimate_per_startup_proto AS
+DROP VIEW IF EXISTS _estimate_policy5_proto;
+CREATE PERFETTO VIEW _estimate_policy5_proto AS
+SELECT * FROM _get_valid_cpu_mw!(
+  (
+    SELECT
+      period_id,
+      period_dur,
+      IIF(cpu0_poli = 5, cpu0_mw, NULL) as cpu0_mw,
+      IIF(cpu1_poli = 5, cpu1_mw, NULL) as cpu1_mw,
+      IIF(cpu2_poli = 5, cpu2_mw, NULL) as cpu2_mw,
+      IIF(cpu3_poli = 5, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 5, cpu4_mw, NULL) as cpu4_mw,
+      IIF(cpu5_poli = 5, cpu5_mw, NULL) as cpu5_mw,
+      IIF(cpu6_poli = 5, cpu6_mw, NULL) as cpu6_mw,
+      IIF(cpu7_poli = 5, cpu7_mw, NULL) as cpu7_mw
+    FROM _wattson_base_components_avg_mw
+    GROUP BY period_id, period_dur
+  )
+);
+
+DROP VIEW IF EXISTS _estimate_policy6_proto;
+CREATE PERFETTO VIEW _estimate_policy6_proto AS
+SELECT * FROM _get_valid_cpu_mw!(
+  (
+    SELECT
+      period_id,
+      period_dur,
+      IIF(cpu0_poli = 6, cpu0_mw, NULL) as cpu0_mw,
+      IIF(cpu1_poli = 6, cpu1_mw, NULL) as cpu1_mw,
+      IIF(cpu2_poli = 6, cpu2_mw, NULL) as cpu2_mw,
+      IIF(cpu3_poli = 6, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 6, cpu4_mw, NULL) as cpu4_mw,
+      IIF(cpu5_poli = 6, cpu5_mw, NULL) as cpu5_mw,
+      IIF(cpu6_poli = 6, cpu6_mw, NULL) as cpu6_mw,
+      IIF(cpu7_poli = 6, cpu7_mw, NULL) as cpu7_mw
+    FROM _wattson_base_components_avg_mw
+    GROUP BY period_id, period_dur
+  )
+);
+
+DROP VIEW IF EXISTS _estimate_policy7_proto;
+CREATE PERFETTO VIEW _estimate_policy7_proto AS
+SELECT * FROM _get_valid_cpu_mw!(
+  (
+    SELECT
+      period_id,
+      period_dur,
+      IIF(cpu0_poli = 7, cpu0_mw, NULL) as cpu0_mw,
+      IIF(cpu1_poli = 7, cpu1_mw, NULL) as cpu1_mw,
+      IIF(cpu2_poli = 7, cpu2_mw, NULL) as cpu2_mw,
+      IIF(cpu3_poli = 7, cpu3_mw, NULL) as cpu3_mw,
+      IIF(cpu4_poli = 7, cpu4_mw, NULL) as cpu4_mw,
+      IIF(cpu5_poli = 7, cpu5_mw, NULL) as cpu5_mw,
+      IIF(cpu6_poli = 7, cpu6_mw, NULL) as cpu6_mw,
+      IIF(cpu7_poli = 7, cpu7_mw, NULL) as cpu7_mw
+    FROM _wattson_base_components_avg_mw
+    GROUP BY period_id, period_dur
+  )
+);
+
+DROP VIEW IF EXISTS _estimate_dsu_scu;
+CREATE PERFETTO VIEW _estimate_dsu_scu AS
 SELECT
   period_id,
-  RepeatedField(
-    AndroidWattsonRailEstimate(
-      'name', name,
-      'estimate_mw', estimate_mw,
-      'rail', _cpu_subrail_estimate_per_startup_proto.proto
-    )
-  ) AS proto
-FROM _wattson_cpu_rail_total
-JOIN _cpu_subrail_estimate_per_startup_proto USING (period_id)
-GROUP BY period_id;
+  period_dur,
+  dsu_scu_mw
+FROM _wattson_base_components_avg_mw
+GROUP BY period_id, period_dur;
+
+-- Automatically populates the appropriate policy based on the device of the
+-- trace. For policies that do not exist on the device, a NULL proto/estimate is
+-- populated.
+DROP VIEW IF EXISTS _estimate_cpu_subsystem_sum;
+CREATE PERFETTO VIEW _estimate_cpu_subsystem_sum AS
+WITH components AS (
+  SELECT
+    period_id,
+    period_dur,
+    dsu_scu.dsu_scu_mw,
+    IIF(p0.is_defined, p0.estimate_mw, NULL) as p0_mw,
+    IIF(p0.is_defined, p0.proto, NULL) as p0_proto,
+    IIF(p1.is_defined, p1.estimate_mw, NULL) as p1_mw,
+    IIF(p1.is_defined, p1.proto, NULL) as p1_proto,
+    IIF(p2.is_defined, p2.estimate_mw, NULL) as p2_mw,
+    IIF(p2.is_defined, p2.proto, NULL) as p2_proto,
+    IIF(p3.is_defined, p3.estimate_mw, NULL) as p3_mw,
+    IIF(p3.is_defined, p3.proto, NULL) as p3_proto,
+    IIF(p4.is_defined, p4.estimate_mw, NULL) as p4_mw,
+    IIF(p4.is_defined, p4.proto, NULL) as p4_proto,
+    IIF(p5.is_defined, p5.estimate_mw, NULL) as p5_mw,
+    IIF(p5.is_defined, p5.proto, NULL) as p5_proto,
+    IIF(p6.is_defined, p6.estimate_mw, NULL) as p6_mw,
+    IIF(p6.is_defined, p6.proto, NULL) as p6_proto,
+    IIF(p7.is_defined, p7.estimate_mw, NULL) as p7_mw,
+    IIF(p7.is_defined, p7.proto, NULL) as p7_proto
+  FROM _estimate_policy0_proto AS p0
+  JOIN _estimate_policy1_proto AS p1 USING (period_id, period_dur)
+  JOIN _estimate_policy2_proto AS p2 USING (period_id, period_dur)
+  JOIN _estimate_policy3_proto AS p3 USING (period_id, period_dur)
+  JOIN _estimate_policy4_proto AS p4 USING (period_id, period_dur)
+  JOIN _estimate_policy5_proto AS p5 USING (period_id, period_dur)
+  JOIN _estimate_policy6_proto AS p6 USING (period_id, period_dur)
+  JOIN _estimate_policy7_proto AS p7 USING (period_id, period_dur)
+  JOIN _estimate_dsu_scu AS dsu_scu USING (period_id, period_dur)
+),
+components_w_sum AS (
+  SELECT
+    *,
+    (
+      IFNULL(p0_mw, 0) + IFNULL(p1_mw, 0) + IFNULL(p2_mw, 0) + IFNULL(p3_mw, 0)
+      + IFNULL(p4_mw, 0) + IFNULL(p5_mw, 0) + IFNULL(p6_mw, 0)
+      + IFNULL(p7_mw, 0) + dsu_scu_mw
+    ) as sum_mw
+  FROM components
+)
+SELECT
+  period_id,
+  period_dur,
+  AndroidWattsonCpuSubsystemEstimate(
+    'estimate_mw', sum_mw,
+    'policy0', p0_proto,
+    'policy1', p1_proto,
+    'policy2', p2_proto,
+    'policy3', p3_proto,
+    'policy4', p4_proto,
+    'policy5', p5_proto,
+    'policy6', p6_proto,
+    'policy7', p7_proto,
+    'dsu_scu', AndroidWattsonDsuScuEstimate('estimate_mw', dsu_scu_mw)
+  ) as proto
+FROM components_w_sum;
 

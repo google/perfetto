@@ -31,17 +31,16 @@ SELECT RUN_METRIC(
 DROP VIEW IF EXISTS wattson_app_startup_output;
 CREATE PERFETTO VIEW wattson_app_startup_output AS
 SELECT AndroidWattsonTimePeriodMetric(
-  'metric_version', 1,
+  'metric_version', 2,
   'period_type', 'app_startup',
   'period_info', (
     SELECT RepeatedField(
       AndroidWattsonEstimateInfo(
         'period_id', period_id,
-        'period_dur', dur,
-        'rail', _cpu_rail_estimate_per_startup_proto.proto
+        'period_dur', period_dur,
+        'cpu_subsystem', proto
       )
     )
-    FROM _app_startup_window
-    JOIN _cpu_rail_estimate_per_startup_proto USING (period_id)
+    FROM _estimate_cpu_subsystem_sum
   )
 );
