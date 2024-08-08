@@ -1433,7 +1433,6 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
       return;
 
     case TracingSession::CLONED_READ_ONLY:
-      PERFETTO_DLOG("DisableTracing() cannot be called on a cloned session");
       return;
 
     // This is either:
