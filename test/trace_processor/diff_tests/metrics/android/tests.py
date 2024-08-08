@@ -457,6 +457,12 @@ class AndroidMetrics(TestSuite):
         }
         """))
 
+  def test_wattson_trace_threads_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=Metric("wattson_trace_threads"),
+        out=Path('wattson_trace_threads.out'))
+
   def test_anomaly_metric(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
