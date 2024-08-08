@@ -14,12 +14,20 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE android.binder;
+INCLUDE PERFETTO MODULE android.binder_breakdown;
 
 -- Count Binder transactions per process
 DROP VIEW IF EXISTS binder_metrics_by_process;
 CREATE PERFETTO VIEW binder_metrics_by_process AS
 SELECT * FROM android_binder_metrics_by_process;
+
+DROP TABLE IF EXISTS logical_binder_breakdown;
+CREATE PERFETTO TABLE logical_binder_breakdown AS
+SELECT binder_txn_id, 'binder_txn' AS thread_state_type, reason, SUM(dur) AS reason_dur
+FROM android_binder_client_breakdown GROUP BY binder_txn_id, reason
+UNION ALL
+SELECT binder_txn_id, 'binder_reply' AS thread_state_type, reason, SUM(dur) AS reason_dur
+FROM android_binder_server_breakdown GROUP BY binder_txn_id, reason;
 
 DROP VIEW IF EXISTS android_binder_output;
 CREATE PERFETTO VIEW android_binder_output AS
@@ -71,7 +79,8 @@ SELECT AndroidBinderMetric(
               'thread_state_dur', thread_state_dur,
               'thread_state_count', thread_state_count
             )
-          ) FROM android_sync_binder_thread_state_by_txn t WHERE t.binder_txn_id = android_binder_txns.binder_txn_id
+          ) FROM android_sync_binder_thread_state_by_txn t
+            WHERE t.binder_txn_id = android_binder_txns.binder_txn_id
         ),
         'blocked_functions', (
           SELECT RepeatedField(
@@ -81,7 +90,18 @@ SELECT AndroidBinderMetric(
               'blocked_function_dur', blocked_function_dur,
               'blocked_function_count', blocked_function_count
             )
-          ) FROM android_sync_binder_blocked_functions_by_txn b WHERE b.binder_txn_id = android_binder_txns.binder_txn_id
+          ) FROM android_sync_binder_blocked_functions_by_txn b
+            WHERE b.binder_txn_id = android_binder_txns.binder_txn_id
+        ),
+        'logical_reasons', (
+          SELECT RepeatedField(
+            AndroidBinderMetric_LogicalReasonBreakdown(
+              'thread_state_type', thread_state_type,
+              'reason', reason,
+              'reason_dur', reason_dur
+            )
+          ) FROM logical_binder_breakdown b
+            WHERE b.binder_txn_id = android_binder_txns.binder_txn_id
         )
       )
     )
