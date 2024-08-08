@@ -321,8 +321,8 @@ message TraceMetrics {
   // Android Wattson app startup metrics.
   optional AndroidWattsonTimePeriodMetric wattson_app_startup = 69;
 
-  // Android Wattson estimate for markers metrics.
-  optional AndroidWattsonTimePeriodMetric wattson_estimate = 70;
+  // Android Wattson estimate for entire trace metrics.
+  optional AndroidWattsonTimePeriodMetric wattson_trace_estimate = 70;
 
   // Android Anomaly metric
   optional AndroidAnomalyMetric android_anomaly = 71;
