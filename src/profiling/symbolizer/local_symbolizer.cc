@@ -18,6 +18,7 @@
 
 #include <fcntl.h>
 
+#include <charconv>
 #include <cinttypes>
 #include <limits>
 #include <memory>
@@ -85,39 +86,27 @@ constexpr const char* kDefaultSymbolizer = "llvm-symbolizer";
 namespace perfetto {
 namespace profiling {
 
-std::vector<std::string> GetLines(
-    std::function<int64_t(char*, size_t)> fn_read) {
-  std::vector<std::string> lines;
+namespace {
+
+std::string GetLine(std::function<int64_t(char*, size_t)> fn_read) {
+  std::string line;
   char buffer[512];
   int64_t rd = 0;
-  // Cache the partial line of the previous read.
-  std::string last_line;
   while ((rd = fn_read(buffer, sizeof(buffer))) > 0) {
     std::string data(buffer, static_cast<size_t>(rd));
-    // Create stream buffer of last partial line + new data
-    std::stringstream stream(last_line + data);
-    std::string line;
-    last_line = "";
-    while (std::getline(stream, line)) {
-      // Return from reading when we read an empty line.
-      if (line.empty()) {
-        return lines;
-      } else if (stream.eof()) {
-        // Cache off the partial line when we hit end of stream.
-        last_line += line;
-        break;
-      } else {
-        lines.push_back(line);
-      }
+    line += data;
+    if (line.back() == '\n') {
+      break;
     }
+    // There should be no intermediate new lines in the read data.
+    PERFETTO_DCHECK(line.find('\n') == std::string::npos);
   }
   if (rd == -1) {
     PERFETTO_ELOG("Failed to read data from subprocess.");
   }
-  return lines;
+  return line;
 }
 
-namespace {
 bool InRange(const void* base,
              size_t total_size,
              const void* ptr,
@@ -285,25 +274,248 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
   return result;
 }
 
+bool ParseJsonString(const char*& it, const char* end, std::string* out) {
+  *out = "";
+  if (it == end) {
+    return false;
+  }
+  if (*it++ != '"') {
+    return false;
+  }
+  while (true) {
+    if (it == end) {
+      return false;
+    }
+    char c = *it++;
+    if (c == '"') {
+      return true;
+    }
+    if (c == '\\') {
+      if (it == end) {
+        return false;
+      }
+      c = *it++;
+      switch (c) {
+        case '"':
+        case '\\':
+        case '/':
+          out->push_back(c);
+          break;
+        case 'b':
+          out->push_back('\b');
+          break;
+        case 'f':
+          out->push_back('\f');
+          break;
+        case 'n':
+          out->push_back('\n');
+          break;
+        case 'r':
+          out->push_back('\r');
+          break;
+        case 't':
+          out->push_back('\t');
+          break;
+        // Pass-through \u escape codes without re-encoding to utf-8, for
+        // simplicity.
+        case 'u':
+          out->push_back('\\');
+          out->push_back('u');
+          break;
+        default:
+          return false;
+      }
+    } else {
+      out->push_back(c);
+    }
+  }
+}
+
+bool ParseJsonNumber(const char*& it, const char* end, double* out) {
+  bool is_minus = false;
+  double ret = 0;
+  if (it == end) {
+    return false;
+  }
+  if (*it == '-') {
+    ++it;
+    is_minus = true;
+  }
+  while (true) {
+    if (it == end) {
+      return false;
+    }
+    char c = *it++;
+    if (isdigit(c)) {
+      ret = ret * 10 + (c - '0');
+    } else if (c == 'e') {
+      // Scientific syntax is not supported.
+      return false;
+    } else {
+      // Unwind the iterator to point at the end of the number.
+      it--;
+      break;
+    }
+  }
+  *out = is_minus ? -ret : ret;
+  return true;
+}
+
+bool ParseJsonArray(
+    const char*& it,
+    const char* end,
+    std::function<bool(const char*&, const char*)> process_value) {
+  if (it == end) {
+    return false;
+  }
+  char c = *it++;
+  if (c != '[') {
+    return false;
+  }
+  while (true) {
+    if (!process_value(it, end)) {
+      return false;
+    }
+    if (it == end) {
+      return false;
+    }
+    c = *it++;
+    if (c == ']') {
+      return true;
+    }
+    if (c != ',') {
+      return false;
+    }
+  }
+}
+
+bool ParseJsonObject(
+    const char*& it,
+    const char* end,
+    std::function<bool(const char*&, const char*, const std::string&)>
+        process_value) {
+  if (it == end) {
+    return false;
+  }
+  char c = *it++;
+  if (c != '{') {
+    return false;
+  }
+  while (true) {
+    std::string key;
+    if (!ParseJsonString(it, end, &key)) {
+      return false;
+    }
+    if (*it++ != ':') {
+      return false;
+    }
+    if (!process_value(it, end, key)) {
+      return false;
+    }
+    if (it == end) {
+      return false;
+    }
+    c = *it++;
+    if (c == '}') {
+      return true;
+    }
+    if (c != ',') {
+      return false;
+    }
+  }
+}
+
+bool SkipJsonValue(const char*& it, const char* end) {
+  if (it == end) {
+    return false;
+  }
+  char c = *it;
+  if (c == '"') {
+    std::string ignored;
+    return ParseJsonString(it, end, &ignored);
+  }
+  if (isdigit(c) || c == '-') {
+    double ignored;
+    return ParseJsonNumber(it, end, &ignored);
+  }
+  if (c == '[') {
+    return ParseJsonArray(it, end, [](const char*& it, const char* end) {
+      return SkipJsonValue(it, end);
+    });
+  }
+  if (c == '{') {
+    return ParseJsonObject(
+        it, end, [](const char*& it, const char* end, const std::string&) {
+          return SkipJsonValue(it, end);
+        });
+  }
+  return false;
+}
+
 }  // namespace
 
-bool ParseLlvmSymbolizerLine(const std::string& line,
-                             std::string* file_name,
-                             uint32_t* line_no) {
-  size_t col_pos = line.rfind(':');
-  if (col_pos == std::string::npos || col_pos == 0)
-    return false;
-  size_t row_pos = line.rfind(':', col_pos - 1);
-  if (row_pos == std::string::npos || row_pos == 0)
-    return false;
-  *file_name = line.substr(0, row_pos);
-  auto line_no_str = line.substr(row_pos + 1, col_pos - row_pos - 1);
-
-  std::optional<int32_t> opt_parsed_line_no = base::StringToInt32(line_no_str);
-  if (!opt_parsed_line_no || *opt_parsed_line_no < 0)
-    return false;
-  *line_no = static_cast<uint32_t>(*opt_parsed_line_no);
-  return true;
+bool ParseLlvmSymbolizerJsonLine(const std::string& line,
+                                 std::vector<SymbolizedFrame>* result) {
+  // Parse Json of the format:
+  // ```
+  // {"Address":"0x1b72f","ModuleName":"...","Symbol":[{"Column":0,
+  // "Discriminator":0,"FileName":"...","FunctionName":"...","Line":0,
+  // "StartAddress":"","StartFileName":"...","StartLine":0},...]}
+  // ```
+  const char* it = line.data();
+  const char* end = it + line.size();
+  return ParseJsonObject(
+      it, end, [&](const char*& it, const char* end, const std::string& key) {
+        if (key == "Symbol") {
+          return ParseJsonArray(it, end, [&](const char*& it, const char* end) {
+            SymbolizedFrame frame;
+            if (!ParseJsonObject(
+                    it, end,
+                    [&](const char*& it, const char* end,
+                        const std::string& key) {
+                      if (key == "FileName") {
+                        return ParseJsonString(it, end, &frame.file_name);
+                      }
+                      if (key == "FunctionName") {
+                        return ParseJsonString(it, end, &frame.function_name);
+                      }
+                      if (key == "Line") {
+                        double number;
+                        if (!ParseJsonNumber(it, end, &number)) {
+                          return false;
+                        }
+                        frame.line = static_cast<unsigned int>(number);
+                        return true;
+                      }
+                      return SkipJsonValue(it, end);
+                    })) {
+              return false;
+            }
+            // Use "??" for empty filenames, to match non-JSON output.
+            if (frame.file_name.empty()) {
+              frame.file_name = "??";
+            }
+            result->push_back(frame);
+            return true;
+          });
+        }
+        if (key == "Error") {
+          std::string message;
+          if (!ParseJsonObject(it, end,
+                               [&](const char*& it, const char* end,
+                                   const std::string& key) {
+                                 if (key == "Message") {
+                                   return ParseJsonString(it, end, &message);
+                                 }
+                                 return SkipJsonValue(it, end);
+                               })) {
+            return false;
+          }
+          PERFETTO_ELOG("Failed to symbolize: %s.", message.c_str());
+          return true;
+        }
+        return SkipJsonValue(it, end);
+      });
 }
 
 BinaryFinder::~BinaryFinder() = default;
@@ -463,10 +675,10 @@ LocalBinaryFinder::~LocalBinaryFinder() = default;
 LLVMSymbolizerProcess::LLVMSymbolizerProcess(const std::string& symbolizer_path)
     :
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-      subprocess_(symbolizer_path, {}) {
+      subprocess_(symbolizer_path, {"--output-style=JSON"}) {
 }
 #else
-      subprocess_(symbolizer_path, {"llvm-symbolizer"}) {
+      subprocess_(symbolizer_path, {"llvm-symbolizer", "--output-style=JSON"}) {
 }
 #endif
 
@@ -480,34 +692,13 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
     PERFETTO_ELOG("Failed to write to llvm-symbolizer.");
     return result;
   }
-  auto lines = GetLines([&](char* read_buffer, size_t buffer_size) {
+  auto line = GetLine([&](char* read_buffer, size_t buffer_size) {
     return subprocess_.Read(read_buffer, buffer_size);
   });
-  // llvm-symbolizer writes out records in the form of
-  // Foo(Bar*)
-  // foo.cc:123
-  // This is why we should always get a multiple of two number of lines.
-  PERFETTO_DCHECK(lines.size() % 2 == 0);
-  result.resize(lines.size() / 2);
-  for (size_t i = 0; i < lines.size(); ++i) {
-    SymbolizedFrame& cur = result[i / 2];
-    if (i % 2 == 0) {
-      cur.function_name = lines[i];
-    } else {
-      if (!ParseLlvmSymbolizerLine(lines[i], &cur.file_name, &cur.line)) {
-        PERFETTO_ELOG("Failed to parse llvm-symbolizer line: %s",
-                      lines[i].c_str());
-        cur.file_name = "";
-        cur.line = 0;
-      }
-    }
-  }
-
-  for (auto it = result.begin(); it != result.end();) {
-    if (it->function_name == "??")
-      it = result.erase(it);
-    else
-      ++it;
+  // llvm-symbolizer writes out records as one JSON per line.
+  if (!ParseLlvmSymbolizerJsonLine(line, &result)) {
+    PERFETTO_ELOG("Failed to parse llvm-symbolizer JSON: %s", line.c_str());
+    return {};
   }
   return result;
 }
