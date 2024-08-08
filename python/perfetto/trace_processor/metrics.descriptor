@@ -1415,13 +1415,11 @@ destBucket
 avg_duration (RavgDuration!
 max_duration (RmaxDuration!
 sum_duration (RsumDuration
-Ö
-<protos/perfetto/metrics/android/wattson_in_time_period.protoperfetto.protos"¶
+µ
+<protos/perfetto/metrics/android/wattson_in_time_period.protoperfetto.protos"•
 AndroidWattsonTimePeriodMetric%
-metric_version (RmetricVersion
-period_type (	R
-periodTypeL
-period_info (2+.perfetto.protos.AndroidWattsonEstimateInfoR
+metric_version (RmetricVersionL
+period_info (2+.perfetto.protos.AndroidWattsonEstimateInfoR
 periodInfo"²
 AndroidWattsonEstimateInfo
 	period_id (RperiodId

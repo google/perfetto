@@ -20,8 +20,7 @@ package perfetto.protos;
 
 message AndroidWattsonTimePeriodMetric {
   optional int32 metric_version = 1;
-  optional string period_type = 2;
-  repeated AndroidWattsonEstimateInfo period_info = 3;
+  repeated AndroidWattsonEstimateInfo period_info = 2;
 }
 
 message AndroidWattsonEstimateInfo {
