@@ -19,7 +19,7 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
-import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
 import {THREAD_SLICE_TRACK_KIND} from '../../public';
 
@@ -46,7 +46,7 @@ class AnnotationPlugin implements Plugin {
       id: NUM,
       name: STR,
       upid: NUM,
-      groupName: STR,
+      groupName: STR_NULL,
     });
 
     for (; it.valid(); it.next()) {
@@ -59,7 +59,7 @@ class AnnotationPlugin implements Plugin {
           kind: THREAD_SLICE_TRACK_KIND,
           scope: 'annotation',
           upid,
-          groupName,
+          ...(groupName && {groupName}),
         },
         chips: ['metric'],
         trackFactory: ({trackKey}) => {
