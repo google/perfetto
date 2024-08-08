@@ -104,7 +104,11 @@ bool ServiceIPCHostImpl::DoStart() {
   svc_ = TracingService::CreateInstance(std::move(shm_factory), task_runner_,
                                         init_opts_);
 
-  if (producer_ipc_ports_.empty() || !consumer_ipc_port_) {
+  if (producer_ipc_ports_.empty() || !consumer_ipc_port_ ||
+      std::any_of(producer_ipc_ports_.begin(), producer_ipc_ports_.end(),
+                  [](const std::unique_ptr<ipc::Host>& port) {
+                    return port == nullptr;
+                  })) {
     Shutdown();
     return false;
   }
