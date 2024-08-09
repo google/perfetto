@@ -822,6 +822,7 @@ int DbSqliteModule::Column(sqlite3_vtab_cursor* cursor,
   SqlValue value = c->mode == Cursor::Mode::kSingleRow
                        ? source_table->columns()[idx].Get(*c->single_row)
                        : c->iterator->Get(idx);
+
   // We can say kSqliteStatic for strings because all strings are expected
   // to come from the string pool. Thus they will be valid for the lifetime
   // of trace processor. Similarily, for bytes, we can also use

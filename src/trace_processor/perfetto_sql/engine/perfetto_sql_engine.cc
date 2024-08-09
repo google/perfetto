@@ -37,7 +37,10 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
@@ -709,8 +712,6 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
   }
-
-  std::vector<Order> obs;
   std::vector<uint32_t> col_idxs;
   for (const std::string& col_name : index.col_names) {
     const std::optional<uint32_t> opt_col = t->ColumnIdxFromName(col_name);
@@ -719,19 +720,10 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
           "CREATE PERFETTO INDEX: Column '%s' not found in table '%s'",
           index.col_names.front().c_str(), index.table_name.c_str());
     }
-    Order o;
-    o.col_idx = *opt_col;
-    obs.push_back(o);
     col_idxs.push_back(*opt_col);
   }
-
-  Query q;
-  q.orders = obs;
-  RowMap sorted_rm = t->QueryToRowMap(q);
-
-  RETURN_IF_ERROR(t->SetIndex(index.name, std::move(col_idxs),
-                              std::move(sorted_rm).TakeAsIndexVector(),
-                              index.replace));
+  RETURN_IF_ERROR(
+      t->CreateIndex(index.name, std::move(col_idxs), index.replace));
   return base::OkStatus();
 }
 
@@ -742,7 +734,6 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
     return base::ErrStatus("DROP PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
   }
-
   RETURN_IF_ERROR(t->DropIndex(index.name));
   return base::OkStatus();
 }
