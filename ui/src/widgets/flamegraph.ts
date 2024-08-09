@@ -88,6 +88,7 @@ export interface FlamegraphQueryData {
     readonly name: string;
     readonly selfValue: number;
     readonly cumulativeValue: number;
+    readonly parentCumulativeValue?: number;
     readonly properties: ReadonlyMap<string, string>;
     readonly xStart: number;
     readonly xEnd: number;
@@ -591,7 +592,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
     }
     const {queryIdx} = node.source;
-    const {name, cumulativeValue, selfValue, properties} = nodes[queryIdx];
+    const {
+      name,
+      cumulativeValue,
+      selfValue,
+      parentCumulativeValue,
+      properties,
+    } = nodes[queryIdx];
     const filterButtonClick = (filter: string) => {
       this.rawFilters = addFilter(this.rawFilters, filter);
       this.attrs.onFiltersChanged(
@@ -600,23 +607,45 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       this.tooltipPos = undefined;
       scheduleFullRedraw();
     };
+
     const percent = displayPercentage(
       cumulativeValue,
       unfilteredCumulativeValue,
     );
     const selfPercent = displayPercentage(selfValue, unfilteredCumulativeValue);
+
+    let percentText = `all: ${percent}`;
+    let selfPercentText = `all: ${selfPercent}`;
+    if (parentCumulativeValue !== undefined) {
+      const parentPercent = displayPercentage(
+        cumulativeValue,
+        parentCumulativeValue,
+      );
+      percentText += `, parent: ${parentPercent}`;
+      const parentSelfPercent = displayPercentage(
+        selfValue,
+        parentCumulativeValue,
+      );
+      selfPercentText += `, parent: ${parentSelfPercent}`;
+    }
     return m(
       'div',
       m('.tooltip-bold-text', name),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Cumulative:'),
-        m('.tooltip-text', `${displaySize(cumulativeValue, unit)}, ${percent}`),
+        m(
+          '.tooltip-text',
+          `${displaySize(cumulativeValue, unit)} (${percentText})`,
+        ),
       ),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Self:'),
-        m('.tooltip-text', `${displaySize(selfValue, unit)}, ${selfPercent}`),
+        m(
+          '.tooltip-text',
+          `${displaySize(selfValue, unit)} (${selfPercentText})`,
+        ),
       ),
       Array.from(properties, ([key, value]) => {
         return m(

@@ -385,6 +385,7 @@ AS (
     _metasql_map_join_column_list!($grouped, _viz_flamegraph_s_prefix),
     s.value AS selfValue,
     s.cumulativeValue,
+    p.cumulativeValue AS parentCumulativeValue,
     s.depth,
     g.xStart,
     g.xEnd
@@ -403,5 +404,6 @@ AS (
     )
   ) g
   JOIN $merged s USING (id)
+  LEFT JOIN $merged p ON s.parentId = p.id
   ORDER BY rootDistance, xStart
 );
