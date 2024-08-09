@@ -13511,6 +13511,7 @@ python_binary_host {
 filegroup {
     name: "perfetto_src_trace_processor_tables_tables",
     srcs: [
+        "src/trace_processor/tables/macros_internal.cc",
         "src/trace_processor/tables/table_destructors.cc",
     ],
 }

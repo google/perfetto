@@ -3038,6 +3038,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_tables_tables",
     srcs = [
+        "src/trace_processor/tables/macros_internal.cc",
         "src/trace_processor/tables/macros_internal.h",
         "src/trace_processor/tables/table_destructors.cc",
     ],

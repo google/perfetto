@@ -36,6 +36,7 @@ perfetto_tp_tables("tables_python") {
 
 source_set("tables") {
   sources = [
+    "macros_internal.cc",
     "macros_internal.h",
     "table_destructors.cc",
   ]
