@@ -302,6 +302,61 @@ sql_modules::NameToModule GetStdlibModules() {
   return modules;
 }
 
+std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
+    const TraceStorage& storage) {
+  int64_t start_ns = std::numeric_limits<int64_t>::max();
+  int64_t end_ns = std::numeric_limits<int64_t>::min();
+  for (auto it = storage.raw_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts(), end_ns);
+  }
+  for (auto it = storage.sched_slice_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts() + it.dur(), end_ns);
+  }
+  for (auto it = storage.counter_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts(), end_ns);
+  }
+  for (auto it = storage.slice_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts() + it.dur(), end_ns);
+  }
+  for (auto it = storage.heap_profile_allocation_table().IterateRows(); it;
+       ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts(), end_ns);
+  }
+  for (auto it = storage.thread_state_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts() + it.dur(), end_ns);
+  }
+  for (auto it = storage.android_log_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts(), end_ns);
+  }
+  for (auto it = storage.heap_graph_object_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.graph_sample_ts(), start_ns);
+    end_ns = std::max(it.graph_sample_ts(), end_ns);
+  }
+  for (auto it = storage.perf_sample_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts(), end_ns);
+  }
+  for (auto it = storage.cpu_profile_stack_sample_table().IterateRows(); it;
+       ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts(), end_ns);
+  }
+  if (start_ns == std::numeric_limits<int64_t>::max()) {
+    return std::make_pair(0, 0);
+  }
+  if (start_ns == end_ns) {
+    end_ns += 1;
+  }
+  return std::make_pair(start_ns, end_ns);
+}
+
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
@@ -403,7 +458,7 @@ void TraceProcessorImpl::SetCurrentTraceName(const std::string& name) {
 void TraceProcessorImpl::Flush() {
   TraceProcessorStorageImpl::Flush();
   BuildBoundsTable(engine_->sqlite_engine()->db(),
-                   context_.storage->GetTraceTimestampBoundsNs());
+                   GetTraceTimestampBoundsNs(*context_.storage));
 }
 
 base::Status TraceProcessorImpl::NotifyEndOfFile() {
@@ -431,7 +486,7 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   // trace bounds: this is important for parsers like ninja which wait until
   // the end to flush all their data.
   BuildBoundsTable(engine_->sqlite_engine()->db(),
-                   context_.storage->GetTraceTimestampBoundsNs());
+                   GetTraceTimestampBoundsNs(*context_.storage));
 
   TraceProcessorStorageImpl::DestroyContext();
   return base::OkStatus();
@@ -972,7 +1027,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   }
 
   // Fill trace bounds table.
-  BuildBoundsTable(db, context_.storage->GetTraceTimestampBoundsNs());
+  BuildBoundsTable(db, GetTraceTimestampBoundsNs(*context_.storage));
 }
 
 namespace {

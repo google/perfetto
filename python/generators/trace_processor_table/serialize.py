@@ -515,15 +515,15 @@ class TableSerializer(object):
         ColumnSerializer.extend_parent_param_arg, delimiter=', ')
     delim = ',' if params else ''
     return f'''
-  static std::unique_ptr<Table> ExtendParent(
+  static std::unique_ptr<{self.table_name}> ExtendParent(
       const {self.parent_class_name}& parent{delim}
       {params}) {{
-    return std::unique_ptr<Table>(new {self.table_name}(
+    return std::unique_ptr<{self.table_name}>(new {self.table_name}(
         parent.string_pool(), parent, RowMap(0, parent.row_count()){delim}
         {args}));
   }}
 
-  static std::unique_ptr<Table> SelectAndExtendParent(
+  static std::unique_ptr<{self.table_name}> SelectAndExtendParent(
       const {self.parent_class_name}& parent,
       std::vector<{self.parent_class_name}::RowNumber> parent_overlay{delim}
       {params}) {{
@@ -531,7 +531,7 @@ class TableSerializer(object):
     for (uint32_t i = 0; i < parent_overlay.size(); ++i) {{
       prs_untyped[i] = parent_overlay[i].row_number();
     }}
-    return std::unique_ptr<Table>(new {self.table_name}(
+    return std::unique_ptr<{self.table_name}>(new {self.table_name}(
         parent.string_pool(), parent, RowMap(std::move(prs_untyped)){delim}
         {args}));
   }}

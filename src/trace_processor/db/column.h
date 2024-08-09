@@ -214,34 +214,6 @@ class ColumnLegacy {
   // Gets the value of the Column at the given |row|.
   SqlValue Get(uint32_t row) const { return GetAtIdx(overlay().Get(row)); }
 
-  // Returns the minimum value in this column. Returns std::nullopt if this
-  // column is empty.
-  std::optional<SqlValue> Min() const {
-    if (overlay().empty())
-      return std::nullopt;
-
-    if (IsSorted())
-      return Get(0);
-
-    Iterator b(this, 0);
-    Iterator e(this, overlay().size());
-    return *std::min_element(b, e, &compare::SqlValueComparator);
-  }
-
-  // Returns the minimum value in this column. Returns std::nullopt if this
-  // column is empty.
-  std::optional<SqlValue> Max() const {
-    if (overlay().empty())
-      return std::nullopt;
-
-    if (IsSorted())
-      return Get(overlay().size() - 1);
-
-    Iterator b(this, 0);
-    Iterator e(this, overlay().size());
-    return *std::max_element(b, e, &compare::SqlValueComparator);
-  }
-
   // Returns the backing RowMap for this Column.
   // This function is defined out of line because of a circular dependency
   // between |Table| and |Column|.

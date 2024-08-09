@@ -296,9 +296,10 @@ base::StatusOr<std::unique_ptr<Table>> ExperimentalAnnotatedStack::ComputeTable(
   for (uint32_t i = 0; i < cs_rows.size(); i++)
     start_id_vals.Append(start_id.value);
 
-  return tables::ExperimentalAnnotatedCallstackTable::SelectAndExtendParent(
-      cs_table, std::move(cs_rows), std::move(annotation_vals),
-      std::move(start_id_vals));
+  return std::unique_ptr<Table>(
+      tables::ExperimentalAnnotatedCallstackTable::SelectAndExtendParent(
+          cs_table, std::move(cs_rows), std::move(annotation_vals),
+          std::move(start_id_vals)));
 }
 
 uint32_t ExperimentalAnnotatedStack::EstimateRowCount() {
