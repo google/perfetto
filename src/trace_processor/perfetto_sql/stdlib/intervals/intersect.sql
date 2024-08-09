@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE metasql.table_list;
 
 CREATE PERFETTO MACRO _ii_df_agg(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_stringify!($x), $y;
+RETURNS Expr AS __intrinsic_stringify!($x), input.$y;
 
 CREATE PERFETTO MACRO _ii_df_bind(x Expr, y Expr)
 RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
@@ -33,22 +33,18 @@ CREATE PERFETTO MACRO _interval_agg(
 )
 RETURNS TableOrSubquery AS
 (
-  WITH sorted_tab AS (
-    SELECT * FROM $tab ORDER BY ts
-  )
-  SELECT
-    __intrinsic_interval_tree_intervals_agg(
-      id,
-      ts,
-      dur
-      __intrinsic_prefixed_token_zip_join!(
-        $agg_columns,
-        $agg_columns,
-        _ii_df_agg,
-        __intrinsic_token_comma!()
-      )
+  SELECT __intrinsic_interval_tree_intervals_agg(
+    input.id,
+    input.ts,
+    input.dur
+    __intrinsic_prefixed_token_zip_join!(
+      $agg_columns,
+      $agg_columns,
+      _ii_df_agg,
+      __intrinsic_token_comma!()
     )
-  FROM sorted_tab
+  )
+  FROM (SELECT * FROM $tab ORDER BY ts) input
 );
 
 CREATE PERFETTO MACRO _interval_intersect(
@@ -95,11 +91,11 @@ RETURNS TableOrSubquery AS
 
     -- Partition columns. Prefixed to handle case of no partitions.
     __intrinsic_prefixed_token_zip_join!(
-        (c7, c8, c9, c10),
-        $agg_columns,
-        _ii_df_bind,
-        AND
-      )
+      (c7, c8, c9, c10),
+      $agg_columns,
+      _ii_df_bind,
+      AND
+    )
 );
 
 CREATE PERFETTO MACRO _interval_intersect_single(
