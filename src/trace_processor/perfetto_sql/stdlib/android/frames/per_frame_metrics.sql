@@ -64,7 +64,9 @@ CREATE PERFETTO TABLE android_app_vsync_delay_per_frame(
     -- Frame id
     frame_id INT,
     -- App VSYNC delay.
-    app_vsync_delay INT
+    app_vsync_delay INT,
+    -- The latency between VSYNC-app and the start of actual_frame_timeline.
+    start_latency INT
 ) AS
 -- As there can be multiple `DrawFrame` slices, the `frames_surface_slices`
 -- table contains multiple rows for the same `frame_id` which only differ on
@@ -74,14 +76,17 @@ WITH distinct_frames AS (
     SELECT
         frame_id,
         do_frame_id,
-        actual_frame_timeline_id
+        actual_frame_timeline_id,
+        expected_frame_timeline_id
     FROM android_frames
     GROUP BY 1
 )
 SELECT
     frame_id,
-    act.ts - do_frame.ts AS app_vsync_delay
+    act.ts - do_frame.ts AS app_vsync_delay,
+    act.ts - exp.ts AS start_latency
 FROM distinct_frames f
+JOIN slice exp ON (f.expected_frame_timeline_id = exp.id)
 JOIN slice act ON (f.actual_frame_timeline_id = act.id)
 JOIN slice do_frame ON (f.do_frame_id = do_frame.id)
 WHERE act.ts >= do_frame.ts;
