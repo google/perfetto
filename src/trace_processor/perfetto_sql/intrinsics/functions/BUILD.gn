@@ -76,6 +76,7 @@ source_set("functions") {
     "../../../perfetto_sql/intrinsics/table_functions",
     "../../../sqlite",
     "../../../storage",
+    "../../../tables",
     "../../../types",
     "../../../util",
     "../../../util:profile_builder",

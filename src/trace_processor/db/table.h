@@ -141,10 +141,9 @@ class Table {
   Table(Table&& other) noexcept { *this = std::move(other); }
   Table& operator=(Table&& other) noexcept;
 
-  // Return a chain corresponding to a given column.
-  const column::DataLayerChain& ChainForColumn(uint32_t col_idx) const {
-    return *chains_[col_idx];
-  }
+  // Filters and sorts the tables with the arguments specified, returning the
+  // result as a RowMap.
+  RowMap QueryToRowMap(const Query&) const;
 
   // Applies the RowMap |rm| onto this table and returns an iterator over the
   // resulting rows.
@@ -157,10 +156,6 @@ class Table {
   Iterator ApplyAndIterateRows(RowMap rm) const {
     return Iterator(this, std::move(rm));
   }
-
-  // Do not add any further uses.
-  // TODO(lalitm): make this private.
-  RowMap QueryToRowMap(const Query&) const;
 
   std::optional<OrderedIndices> GetIndex(
       const std::vector<uint32_t>& cols) const {
@@ -206,8 +201,9 @@ class Table {
   }
 
   uint32_t row_count() const { return row_count_; }
-  StringPool* string_pool() const { return string_pool_; }
   const std::vector<ColumnLegacy>& columns() const { return columns_; }
+  StringPool* string_pool() const { return string_pool_; }
+
   const std::vector<RefPtr<column::StorageLayer>>& storage_layers() const {
     return storage_layers_;
   }
@@ -253,6 +249,7 @@ class Table {
 
  private:
   friend class ColumnLegacy;
+  friend class QueryExecutor;
 
   struct ColumnIndex {
     std::string name;
@@ -271,6 +268,10 @@ class Table {
                        uint32_t& cs_offset) const;
   RowMap ApplyIdJoinConstraints(const std::vector<Constraint>&,
                                 uint32_t& cs_offset) const;
+
+  const column::DataLayerChain& ChainForColumn(uint32_t col_idx) const {
+    return *chains_[col_idx];
+  }
 
   StringPool* string_pool_ = nullptr;
   uint32_t row_count_ = 0;

@@ -283,15 +283,21 @@ BuildFlamegraphTableHeapSizeAndCount(
 
 static std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildFlamegraphTableCallstackSizeAndCount(
+    const tables::PerfSampleTable& table,
     std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
-    Table::Iterator it) {
-  for (; it; ++it) {
-    int64_t callsite_id =
-        it.Get(tables::PerfSampleTable::ColumnIndex::callsite_id).long_value;
-    int64_t ts = it.Get(tables::PerfSampleTable::ColumnIndex::ts).long_value;
-    uint32_t merged_idx =
-        callsite_to_merged_callsite[static_cast<uint32_t>(callsite_id)];
+    std::vector<Constraint> constraints,
+    const std::unordered_set<uint32_t>& utids) {
+  Query q;
+  q.constraints = std::move(constraints);
+  for (auto it = table.FilterToIterator(q); it; ++it) {
+    if (utids.find(it.utid()) == utids.end()) {
+      continue;
+    }
+
+    uint32_t callsite_id = it.callsite_id().value_or(CallsiteId(0u)).value;
+    int64_t ts = it.ts();
+    uint32_t merged_idx = callsite_to_merged_callsite[callsite_id];
     tbl->mutable_size()->Set(merged_idx, tbl->size()[merged_idx] + 1);
     tbl->mutable_count()->Set(merged_idx, tbl->count()[merged_idx] + 1);
     tbl->mutable_ts()->Set(merged_idx, ts);
@@ -392,21 +398,6 @@ BuildNativeCallStackSamplingFlamegraph(
     cs.emplace_back(Constraint{tables::PerfSampleTable::ColumnIndex::ts, tc.op,
                                SqlValue::Long(tc.value)});
   }
-  std::vector<uint32_t> cs_rows;
-  {
-    Query q;
-    q.constraints = cs;
-    auto it = storage->perf_sample_table().FilterToIterator(q);
-    for (; it; ++it) {
-      if (utids.find(it.utid()) != utids.end()) {
-        cs_rows.push_back(it.row_number().row_number());
-      }
-    }
-  }
-  if (cs_rows.empty()) {
-    return std::make_unique<tables::ExperimentalFlamegraphTable>(
-        storage->mutable_string_pool());
-  }
 
   // The logic underneath is selecting a default timestamp to be used by all
   // frames which do not have a timestamp. The timestamp is taken from the
@@ -415,7 +406,7 @@ BuildNativeCallStackSamplingFlamegraph(
   // the table ExperimentalFlamegraphTable in this class.
   int64_t default_timestamp = 0;
   if (!time_constraints.empty()) {
-    auto& tc = time_constraints[0];
+    const auto& tc = time_constraints[0];
     if (tc.op == FilterOp::kGt) {
       default_timestamp = tc.value + 1;
     } else if (tc.op == FilterOp::kLt) {
@@ -431,10 +422,8 @@ BuildNativeCallStackSamplingFlamegraph(
                                         default_timestamp,
                                         storage->InternString("perf"));
   return BuildFlamegraphTableCallstackSizeAndCount(
-      std::move(table_and_callsites.tbl),
-      table_and_callsites.callsite_to_merged_callsite,
-      storage->perf_sample_table().ApplyAndIterateRows(
-          RowMap(std::move(cs_rows))));
+      storage->perf_sample_table(), std::move(table_and_callsites.tbl),
+      table_and_callsites.callsite_to_merged_callsite, std::move(cs), utids);
 }
 
 }  // namespace perfetto::trace_processor
