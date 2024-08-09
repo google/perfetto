@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
+#include <cstdint>
 #include <memory>
+#include <optional>
+#include <ostream>
+#include <tuple>
 #include <vector>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -22,11 +26,12 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using ::testing::ElementsAre;
@@ -47,8 +52,8 @@ inline void PrintTo(const SliceInfo& info, ::std::ostream* os) {
 
 std::vector<SliceInfo> ToSliceInfo(const tables::SliceTable& slices) {
   std::vector<SliceInfo> infos;
-  for (uint32_t i = 0; i < slices.row_count(); i++) {
-    infos.emplace_back(SliceInfo{slices.ts()[i], slices.dur()[i]});
+  for (auto it = slices.IterateRows(); it; ++it) {
+    infos.emplace_back(SliceInfo{it.ts(), it.dur()});
   }
   return infos;
 }
@@ -80,13 +85,13 @@ TEST_F(SliceTrackerTest, OneSliceDetailed) {
 
   const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
-  EXPECT_EQ(slices.ts()[0], 2);
-  EXPECT_EQ(slices.dur()[0], 8);
-  EXPECT_EQ(slices.track_id()[0], track);
-  EXPECT_EQ(slices.category()[0].value_or(kNullStringId).raw_id(), 0u);
-  EXPECT_EQ(slices.name()[0].value_or(kNullStringId).raw_id(), 1u);
-  EXPECT_EQ(slices.depth()[0], 0u);
-  EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
+  EXPECT_EQ(slices[0].ts(), 2);
+  EXPECT_EQ(slices[0].dur(), 8);
+  EXPECT_EQ(slices[0].track_id(), track);
+  EXPECT_EQ(slices[0].category().value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(slices[0].name().value_or(kNullStringId).raw_id(), 1u);
+  EXPECT_EQ(slices[0].depth(), 0u);
+  EXPECT_EQ(slices[0].arg_set_id(), kInvalidArgSetId);
 }
 
 TEST_F(SliceTrackerTest, OneSliceDetailedWithTranslatedName) {
@@ -103,14 +108,14 @@ TEST_F(SliceTrackerTest, OneSliceDetailedWithTranslatedName) {
 
   const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
-  EXPECT_EQ(slices.ts()[0], 2);
-  EXPECT_EQ(slices.dur()[0], 8);
-  EXPECT_EQ(slices.track_id()[0], track);
-  EXPECT_EQ(slices.category()[0].value_or(kNullStringId).raw_id(), 0u);
-  EXPECT_EQ(slices.name()[0].value_or(kNullStringId).raw_id(),
+  EXPECT_EQ(slices[0].ts(), 2);
+  EXPECT_EQ(slices[0].dur(), 8);
+  EXPECT_EQ(slices[0].track_id(), track);
+  EXPECT_EQ(slices[0].category().value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(slices[0].name().value_or(kNullStringId).raw_id(),
             mapped_name.raw_id());
-  EXPECT_EQ(slices.depth()[0], 0u);
-  EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
+  EXPECT_EQ(slices[0].depth(), 0u);
+  EXPECT_EQ(slices[0].arg_set_id(), kInvalidArgSetId);
 }
 
 TEST_F(SliceTrackerTest, NegativeTimestamps) {
@@ -124,13 +129,15 @@ TEST_F(SliceTrackerTest, NegativeTimestamps) {
 
   const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
-  EXPECT_EQ(slices.ts()[0], -1000);
-  EXPECT_EQ(slices.dur()[0], 499);
-  EXPECT_EQ(slices.track_id()[0], track);
-  EXPECT_EQ(slices.category()[0].value_or(kNullStringId).raw_id(), 0u);
-  EXPECT_EQ(slices.name()[0].value_or(kNullStringId).raw_id(), 1u);
-  EXPECT_EQ(slices.depth()[0], 0u);
-  EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
+
+  auto rr = slices[0];
+  EXPECT_EQ(rr.ts(), -1000);
+  EXPECT_EQ(rr.dur(), 499);
+  EXPECT_EQ(rr.track_id(), track);
+  EXPECT_EQ(rr.category().value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(rr.name().value_or(kNullStringId).raw_id(), 1u);
+  EXPECT_EQ(rr.depth(), 0u);
+  EXPECT_EQ(rr.arg_set_id(), kInvalidArgSetId);
 }
 
 TEST_F(SliceTrackerTest, OneSliceWithArgs) {
@@ -142,35 +149,39 @@ TEST_F(SliceTrackerTest, OneSliceWithArgs) {
                 [](ArgsTracker::BoundInserter* inserter) {
                   inserter->AddArg(/*flat_key=*/StringId::Raw(1),
                                    /*key=*/StringId::Raw(2),
-                                   /*value=*/Variadic::Integer(10));
+                                   /*v=*/Variadic::Integer(10));
                 });
   tracker.End(10 /*ts*/, track, kNullStringId /*cat*/,
               StringId::Raw(1) /*name*/,
               [](ArgsTracker::BoundInserter* inserter) {
                 inserter->AddArg(/*flat_key=*/StringId::Raw(3),
                                  /*key=*/StringId::Raw(4),
-                                 /*value=*/Variadic::Integer(20));
+                                 /*v=*/Variadic::Integer(20));
               });
 
   const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
-  EXPECT_EQ(slices.ts()[0], 2);
-  EXPECT_EQ(slices.dur()[0], 8);
-  EXPECT_EQ(slices.track_id()[0], track);
-  EXPECT_EQ(slices.category()[0].value_or(kNullStringId).raw_id(), 0u);
-  EXPECT_EQ(slices.name()[0].value_or(kNullStringId).raw_id(), 1u);
-  EXPECT_EQ(slices.depth()[0], 0u);
-  auto set_id = slices.arg_set_id()[0];
+
+  auto sr = slices[0];
+  EXPECT_EQ(sr.ts(), 2);
+  EXPECT_EQ(sr.dur(), 8);
+  EXPECT_EQ(sr.track_id(), track);
+  EXPECT_EQ(sr.category().value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(sr.name().value_or(kNullStringId).raw_id(), 1u);
+  EXPECT_EQ(sr.depth(), 0u);
+  auto set_id = sr.arg_set_id();
 
   const auto& args = context_.storage->arg_table();
-  EXPECT_EQ(args.arg_set_id()[0], set_id);
-  EXPECT_EQ(args.flat_key()[0].raw_id(), 1u);
-  EXPECT_EQ(args.key()[0].raw_id(), 2u);
-  EXPECT_EQ(args.int_value()[0], 10);
-  EXPECT_EQ(args.arg_set_id()[1], set_id);
-  EXPECT_EQ(args.flat_key()[1].raw_id(), 3u);
-  EXPECT_EQ(args.key()[1].raw_id(), 4u);
-  EXPECT_EQ(args.int_value()[1], 20);
+  auto ar0 = args[0];
+  auto ar1 = args[1];
+  EXPECT_EQ(ar0.arg_set_id(), set_id);
+  EXPECT_EQ(ar0.flat_key().raw_id(), 1u);
+  EXPECT_EQ(ar0.key().raw_id(), 2u);
+  EXPECT_EQ(ar0.int_value(), 10);
+  EXPECT_EQ(ar1.arg_set_id(), set_id);
+  EXPECT_EQ(ar1.flat_key().raw_id(), 3u);
+  EXPECT_EQ(ar1.key().raw_id(), 4u);
+  EXPECT_EQ(ar1.int_value(), 20);
 }
 
 TEST_F(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
@@ -186,35 +197,38 @@ TEST_F(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
                 [](ArgsTracker::BoundInserter* inserter) {
                   inserter->AddArg(/*flat_key=*/StringId::Raw(1),
                                    /*key=*/StringId::Raw(2),
-                                   /*value=*/Variadic::Integer(10));
+                                   /*v=*/Variadic::Integer(10));
                 });
   tracker.End(10 /*ts*/, track, kNullStringId /*cat*/, raw_name /*name*/,
               [](ArgsTracker::BoundInserter* inserter) {
                 inserter->AddArg(/*flat_key=*/StringId::Raw(3),
                                  /*key=*/StringId::Raw(4),
-                                 /*value=*/Variadic::Integer(20));
+                                 /*v=*/Variadic::Integer(20));
               });
 
   const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
-  EXPECT_EQ(slices.ts()[0], 2);
-  EXPECT_EQ(slices.dur()[0], 8);
-  EXPECT_EQ(slices.track_id()[0], track);
-  EXPECT_EQ(slices.category()[0].value_or(kNullStringId).raw_id(), 0u);
-  EXPECT_EQ(slices.name()[0].value_or(kNullStringId).raw_id(),
-            mapped_name.raw_id());
-  EXPECT_EQ(slices.depth()[0], 0u);
-  auto set_id = slices.arg_set_id()[0];
+
+  auto sr = slices[0];
+  EXPECT_EQ(sr.ts(), 2);
+  EXPECT_EQ(sr.dur(), 8);
+  EXPECT_EQ(sr.track_id(), track);
+  EXPECT_EQ(sr.category().value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(sr.name().value_or(kNullStringId).raw_id(), mapped_name.raw_id());
+  EXPECT_EQ(sr.depth(), 0u);
+  auto set_id = sr.arg_set_id();
 
   const auto& args = context_.storage->arg_table();
-  EXPECT_EQ(args.arg_set_id()[0], set_id);
-  EXPECT_EQ(args.flat_key()[0].raw_id(), 1u);
-  EXPECT_EQ(args.key()[0].raw_id(), 2u);
-  EXPECT_EQ(args.int_value()[0], 10);
-  EXPECT_EQ(args.arg_set_id()[1], set_id);
-  EXPECT_EQ(args.flat_key()[1].raw_id(), 3u);
-  EXPECT_EQ(args.key()[1].raw_id(), 4u);
-  EXPECT_EQ(args.int_value()[1], 20);
+  auto ar0 = args[0];
+  auto ar1 = args[1];
+  EXPECT_EQ(ar0.arg_set_id(), set_id);
+  EXPECT_EQ(ar0.flat_key().raw_id(), 1u);
+  EXPECT_EQ(ar0.key().raw_id(), 2u);
+  EXPECT_EQ(ar0.int_value(), 10);
+  EXPECT_EQ(ar1.arg_set_id(), set_id);
+  EXPECT_EQ(ar1.flat_key().raw_id(), 3u);
+  EXPECT_EQ(ar1.key().raw_id(), 4u);
+  EXPECT_EQ(ar1.int_value(), 20);
 }
 
 TEST_F(SliceTrackerTest, TwoSliceDetailed) {
@@ -232,24 +246,25 @@ TEST_F(SliceTrackerTest, TwoSliceDetailed) {
 
   EXPECT_EQ(slices.row_count(), 2u);
 
-  uint32_t idx = 0;
-  EXPECT_EQ(slices.ts()[idx], 2);
-  EXPECT_EQ(slices.dur()[idx], 8);
-  EXPECT_EQ(slices.track_id()[idx], track);
-  EXPECT_EQ(slices.category()[idx].value_or(kNullStringId).raw_id(), 0u);
-  EXPECT_EQ(slices.name()[idx].value_or(kNullStringId).raw_id(), 1u);
-  EXPECT_EQ(slices.depth()[idx++], 0u);
+  auto sr0 = slices[0];
+  EXPECT_EQ(sr0.ts(), 2);
+  EXPECT_EQ(sr0.dur(), 8);
+  EXPECT_EQ(sr0.track_id(), track);
+  EXPECT_EQ(sr0.category().value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(sr0.name().value_or(kNullStringId).raw_id(), 1u);
+  EXPECT_EQ(sr0.depth(), 0u);
+  EXPECT_EQ(sr0.parent_stack_id(), 0);
 
-  EXPECT_EQ(slices.ts()[idx], 3);
-  EXPECT_EQ(slices.dur()[idx], 2);
-  EXPECT_EQ(slices.track_id()[idx], track);
-  EXPECT_EQ(slices.category()[idx].value_or(kNullStringId).raw_id(), 0u);
-  EXPECT_EQ(slices.name()[idx].value_or(kNullStringId).raw_id(), 2u);
-  EXPECT_EQ(slices.depth()[idx], 1u);
+  auto sr1 = slices[1];
+  EXPECT_EQ(sr1.ts(), 3);
+  EXPECT_EQ(sr1.dur(), 2);
+  EXPECT_EQ(sr1.track_id(), track);
+  EXPECT_EQ(sr1.category().value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(sr1.name().value_or(kNullStringId).raw_id(), 2u);
+  EXPECT_EQ(sr1.depth(), 1u);
+  EXPECT_NE(sr1.stack_id(), 0);
 
-  EXPECT_EQ(slices.parent_stack_id()[0], 0);
-  EXPECT_EQ(slices.stack_id()[0], slices.parent_stack_id()[1]);
-  EXPECT_NE(slices.stack_id()[1], 0);
+  EXPECT_EQ(sr0.stack_id(), sr1.parent_stack_id());
 }
 
 TEST_F(SliceTrackerTest, Scoped) {
@@ -297,8 +312,8 @@ TEST_F(SliceTrackerTest, ParentId) {
   tracker.End(150, track);
   tracker.End(200, track);
 
-  SliceId parent = context_.storage->slice_table().id()[0];
-  SliceId child = context_.storage->slice_table().id()[1];
+  SliceId parent = context_.storage->slice_table()[0].id();
+  SliceId child = context_.storage->slice_table()[1].id();
   EXPECT_THAT(context_.storage->slice_table().parent_id().ToVectorForTesting(),
               ElementsAre(std::nullopt, parent, child));
 }
@@ -352,16 +367,17 @@ TEST_F(SliceTrackerTest, DifferentTracks) {
   tracker.End(10 /*ts*/, track_a);
   tracker.FlushPendingSlices();
 
-  auto slices = ToSliceInfo(context_.storage->slice_table());
+  const auto& table = context_.storage->slice_table();
+  auto slices = ToSliceInfo(table);
   EXPECT_THAT(slices,
               ElementsAre(SliceInfo{0, 10}, SliceInfo{2, 6}, SliceInfo{3, 4}));
 
-  EXPECT_EQ(context_.storage->slice_table().track_id()[0], track_a);
-  EXPECT_EQ(context_.storage->slice_table().track_id()[1], track_b);
-  EXPECT_EQ(context_.storage->slice_table().track_id()[2], track_b);
-  EXPECT_EQ(context_.storage->slice_table().depth()[0], 0u);
-  EXPECT_EQ(context_.storage->slice_table().depth()[1], 0u);
-  EXPECT_EQ(context_.storage->slice_table().depth()[2], 1u);
+  EXPECT_EQ(table[0].track_id(), track_a);
+  EXPECT_EQ(table[1].track_id(), track_b);
+  EXPECT_EQ(table[2].track_id(), track_b);
+  EXPECT_EQ(table[0].depth(), 0u);
+  EXPECT_EQ(table[1].depth(), 0u);
+  EXPECT_EQ(table[2].depth(), 1u);
 }
 
 TEST_F(SliceTrackerTest, EndEventOutOfOrder) {
@@ -401,15 +417,16 @@ TEST_F(SliceTrackerTest, EndEventOutOfOrder) {
 
   tracker.FlushPendingSlices();
 
-  auto slices = ToSliceInfo(context_.storage->slice_table());
+  const auto& st = context_.storage->slice_table();
+  auto slices = ToSliceInfo(st);
   EXPECT_THAT(slices, ElementsAre(SliceInfo{50, 100}, SliceInfo{100, 50},
                                   SliceInfo{450, 100}, SliceInfo{800, 200},
                                   SliceInfo{1100, -1}, SliceInfo{1300, 0 - 1}));
 
-  EXPECT_EQ(context_.storage->slice_table().depth()[0], 0u);
-  EXPECT_EQ(context_.storage->slice_table().depth()[1], 1u);
-  EXPECT_EQ(context_.storage->slice_table().depth()[2], 0u);
-  EXPECT_EQ(context_.storage->slice_table().depth()[3], 0u);
+  EXPECT_EQ(st[0].depth(), 0u);
+  EXPECT_EQ(st[1].depth(), 1u);
+  EXPECT_EQ(st[2].depth(), 0u);
+  EXPECT_EQ(st[3].depth(), 0u);
 }
 
 TEST_F(SliceTrackerTest, GetTopmostSliceOnTrack) {
@@ -421,12 +438,12 @@ TEST_F(SliceTrackerTest, GetTopmostSliceOnTrack) {
   EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), std::nullopt);
 
   tracker.Begin(100, track, StringId::Raw(11), StringId::Raw(11));
-  SliceId slice1 = context_.storage->slice_table().id()[0];
+  SliceId slice1 = context_.storage->slice_table()[0].id();
 
   EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track).value(), slice1);
 
   tracker.Begin(120, track, StringId::Raw(22), StringId::Raw(22));
-  SliceId slice2 = context_.storage->slice_table().id()[1];
+  SliceId slice2 = context_.storage->slice_table()[1].id();
 
   EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track).value(), slice2);
 
@@ -458,22 +475,21 @@ TEST_F(SliceTrackerTest, OnSliceBeginCallback) {
   EXPECT_TRUE(slice_records.empty());
 
   tracker.Begin(100, track1, StringId::Raw(11), StringId::Raw(11));
-  SliceId slice1 = context_.storage->slice_table().id()[0];
+  SliceId slice1 = context_.storage->slice_table()[0].id();
   EXPECT_THAT(track_records, ElementsAre(TrackId{1u}));
   EXPECT_THAT(slice_records, ElementsAre(slice1));
 
   tracker.Begin(120, track2, StringId::Raw(22), StringId::Raw(22));
-  SliceId slice2 = context_.storage->slice_table().id()[1];
+  SliceId slice2 = context_.storage->slice_table()[1].id();
   EXPECT_THAT(track_records, ElementsAre(TrackId{1u}, TrackId{2u}));
   EXPECT_THAT(slice_records, ElementsAre(slice1, slice2));
 
   tracker.Begin(330, track1, StringId::Raw(33), StringId::Raw(33));
-  SliceId slice3 = context_.storage->slice_table().id()[2];
+  SliceId slice3 = context_.storage->slice_table()[2].id();
   EXPECT_THAT(track_records,
               ElementsAre(TrackId{1u}, TrackId{2u}, TrackId{1u}));
   EXPECT_THAT(slice_records, ElementsAre(slice1, slice2, slice3));
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

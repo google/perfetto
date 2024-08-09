@@ -90,8 +90,8 @@ UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
 }
 
 void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
-  auto* thread_table = context_->storage->mutable_thread_table();
-  auto* process_table = context_->storage->mutable_process_table();
+  auto& thread_table = *context_->storage->mutable_thread_table();
+  auto& process_table = *context_->storage->mutable_process_table();
 
   // Don't bother creating a new thread if we're just going to
   // end it straight away.
@@ -106,21 +106,28 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
     return;
 
   UniqueTid utid = *opt_utid;
-  thread_table->mutable_end_ts()->Set(utid, timestamp);
+
+  auto td = thread_table[utid];
+  td.set_end_ts(timestamp);
 
   // Remove the thread from the list of threads being tracked as any event after
   // this one should be ignored.
   auto& vector = tids_[tid];
   vector.erase(std::remove(vector.begin(), vector.end(), utid), vector.end());
 
-  auto opt_upid = thread_table->upid()[utid];
-  if (!opt_upid.has_value() || process_table->pid()[*opt_upid] != tid)
+  auto opt_upid = td.upid();
+  if (!opt_upid) {
     return;
+  }
+  auto ps = process_table[*opt_upid];
+  if (ps.pid() != tid) {
+    return;
+  }
 
   // If the process pid and thread tid are equal then, as is the main thread
   // of the process, we should also finish the process itself.
-  PERFETTO_DCHECK(thread_table->is_main_thread()[utid].value());
-  process_table->mutable_end_ts()->Set(*opt_upid, timestamp);
+  PERFETTO_DCHECK(*td.is_main_thread());
+  ps.set_end_ts(timestamp);
   pids_.Erase(tid);
 }
 
@@ -129,16 +136,17 @@ std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(uint32_t tid) {
   if (!opt_utid)
     return std::nullopt;
 
-  auto* threads = context_->storage->mutable_thread_table();
+  auto& threads = *context_->storage->mutable_thread_table();
   UniqueTid utid = *opt_utid;
+  auto rr = threads[utid];
 
   // Ensure that the tid matches the tid we were looking for.
-  PERFETTO_DCHECK(threads->tid()[utid] == tid);
+  PERFETTO_DCHECK(rr.tid() == tid);
   // Ensure that the thread's machine ID matches the context's machine ID.
-  PERFETTO_DCHECK(threads->machine_id()[utid] == context_->machine_id());
+  PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
   // If the thread is being tracked by the process tracker, it should not be
   // known to have ended.
-  PERFETTO_DCHECK(!threads->end_ts()[utid].has_value());
+  PERFETTO_DCHECK(!rr.end_ts().has_value());
 
   return utid;
 }
@@ -162,7 +170,7 @@ void ProcessTracker::UpdateThreadNameByUtid(UniqueTid utid,
   if (thread_name_id.is_null())
     return;
 
-  auto* thread_table = context_->storage->mutable_thread_table();
+  auto& thread_table = *context_->storage->mutable_thread_table();
   if (PERFETTO_UNLIKELY(thread_name_priorities_.size() <= utid)) {
     // This condition can happen in a multi-machine tracing session:
     // Machine 1 gets utid 0, 1
@@ -171,31 +179,33 @@ void ProcessTracker::UpdateThreadNameByUtid(UniqueTid utid,
     thread_name_priorities_.resize(utid + 1);
   }
   if (priority >= thread_name_priorities_[utid]) {
-    thread_table->mutable_name()->Set(utid, thread_name_id);
+    thread_table[utid].set_name(thread_name_id);
     thread_name_priorities_[utid] = priority;
   }
 }
 
 bool ProcessTracker::IsThreadAlive(UniqueTid utid) {
-  auto* threads = context_->storage->mutable_thread_table();
-  auto* processes = context_->storage->mutable_process_table();
+  auto& threads = *context_->storage->mutable_thread_table();
+  auto& processes = *context_->storage->mutable_process_table();
 
   // If the thread has an end ts, it's certainly dead.
-  if (threads->end_ts()[utid].has_value())
+  auto rr = threads[utid];
+  if (rr.end_ts().has_value())
     return false;
 
   // If we don't know the parent process, we have to consider this thread alive.
-  auto opt_current_upid = threads->upid()[utid];
+  auto opt_current_upid = rr.upid();
   if (!opt_current_upid)
     return true;
 
   // If the process is already dead, the thread can't be alive.
   UniquePid current_upid = *opt_current_upid;
-  if (processes->end_ts()[current_upid].has_value())
+  auto prr = processes[current_upid];
+  if (prr.end_ts().has_value())
     return false;
 
   // If the process has been replaced in |pids_|, this thread is dead.
-  uint32_t current_pid = processes->pid()[current_upid];
+  uint32_t current_pid = prr.pid();
   auto* pid_it = pids_.Find(current_pid);
   return !pid_it || *pid_it == current_upid;
 }
@@ -203,8 +213,8 @@ bool ProcessTracker::IsThreadAlive(UniqueTid utid) {
 std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(
     uint32_t tid,
     std::optional<uint32_t> pid) {
-  auto* threads = context_->storage->mutable_thread_table();
-  auto* processes = context_->storage->mutable_process_table();
+  auto& threads = *context_->storage->mutable_thread_table();
+  auto& processes = *context_->storage->mutable_process_table();
 
   auto* vector_it = tids_.Find(tid);
   if (!vector_it)
@@ -215,22 +225,24 @@ std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(
   const auto& vector = *vector_it;
   for (auto it = vector.rbegin(); it != vector.rend(); it++) {
     UniqueTid current_utid = *it;
+    auto rr = threads[current_utid];
 
     // If we finished this thread, we should have removed it from the vector
     // entirely.
-    PERFETTO_DCHECK(!threads->end_ts()[current_utid].has_value());
+    PERFETTO_DCHECK(!rr.end_ts().has_value());
 
     // If the thread is dead, ignore it.
     if (!IsThreadAlive(current_utid))
       continue;
 
     // If we don't know the parent process, we have to choose this thread.
-    auto opt_current_upid = threads->upid()[current_utid];
+    auto opt_current_upid = rr.upid();
     if (!opt_current_upid)
       return current_utid;
 
     // We found a thread that matches both the tid and its parent pid.
-    uint32_t current_pid = processes->pid()[*opt_current_upid];
+    auto prr = processes[*opt_current_upid];
+    uint32_t current_pid = prr.pid();
     if (!pid || current_pid == *pid)
       return current_utid;
   }
@@ -238,24 +250,23 @@ std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(
 }
 
 UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
-  auto* thread_table = context_->storage->mutable_thread_table();
+  auto& thread_table = *context_->storage->mutable_thread_table();
 
   // Try looking for a thread that matches both tid and thread group id (pid).
   std::optional<UniqueTid> opt_utid = GetThreadOrNull(tid, pid);
 
   // If no matching thread was found, create a new one.
   UniqueTid utid = opt_utid ? *opt_utid : StartNewThread(std::nullopt, tid);
-  PERFETTO_DCHECK(thread_table->tid()[utid] == tid);
+  auto rr = thread_table[utid];
+  PERFETTO_DCHECK(rr.tid() == tid);
   // Ensure that the thread's machine ID matches the context's machine ID.
-  PERFETTO_DCHECK(thread_table->machine_id()[utid] == context_->machine_id());
+  PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
 
   // Find matching process or create new one.
-  if (!thread_table->upid()[utid].has_value()) {
+  if (!rr.upid().has_value()) {
     AssociateThreadToProcess(utid, GetOrCreateProcess(pid));
   }
-
-  ResolvePendingAssociations(utid, *thread_table->upid()[utid]);
-
+  ResolvePendingAssociations(utid, *rr.upid());
   return utid;
 }
 
@@ -321,22 +332,23 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
   // process.
   UniquePid upid = GetOrCreateProcess(pid);
 
-  auto* process_table = context_->storage->mutable_process_table();
-  auto* thread_table = context_->storage->mutable_thread_table();
+  auto& process_table = *context_->storage->mutable_process_table();
+  auto& thread_table = *context_->storage->mutable_thread_table();
 
-  PERFETTO_DCHECK(!process_table->name()[upid].has_value());
-  PERFETTO_DCHECK(!process_table->start_ts()[upid].has_value());
+  auto prr = process_table[upid];
+  PERFETTO_DCHECK(!prr.name().has_value());
+  PERFETTO_DCHECK(!prr.start_ts().has_value());
 
   if (timestamp) {
-    process_table->mutable_start_ts()->Set(upid, *timestamp);
+    prr.set_start_ts(*timestamp);
   }
-  process_table->mutable_name()->Set(upid, main_thread_name);
+  prr.set_name(main_thread_name);
 
   if (parent_tid) {
     UniqueTid parent_utid = GetOrCreateThread(*parent_tid);
-    auto opt_parent_upid = thread_table->upid()[parent_utid];
+    auto opt_parent_upid = thread_table[parent_utid].upid();
     if (opt_parent_upid.has_value()) {
-      process_table->mutable_parent_upid()->Set(upid, *opt_parent_upid);
+      prr.set_parent_upid(*opt_parent_upid);
     } else {
       pending_parent_assocs_.emplace_back(parent_utid, upid);
     }
@@ -354,13 +366,13 @@ UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
   }
 
   UniquePid upid = GetOrCreateProcess(pid);
-  auto* process_table = context_->storage->mutable_process_table();
+  auto& process_table = *context_->storage->mutable_process_table();
 
   // If we both know the previous and current parent pid and the two are not
   // matching, we must have died and restarted: create a new process.
+  auto prr = process_table[upid];
   if (pupid) {
-    std::optional<UniquePid> prev_parent_upid =
-        process_table->parent_upid()[upid];
+    std::optional<UniquePid> prev_parent_upid = prr.parent_upid();
     if (prev_parent_upid && prev_parent_upid != pupid) {
       upid = StartNewProcess(std::nullopt, ppid, pid, kNullStringId,
                              ThreadNamePriority::kOther);
@@ -368,61 +380,68 @@ UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
   }
 
   StringId proc_name_id = context_->storage->InternString(name);
-  process_table->mutable_name()->Set(upid, proc_name_id);
-  process_table->mutable_cmdline()->Set(
-      upid, context_->storage->InternString(cmdline));
-  if (pupid)
-    process_table->mutable_parent_upid()->Set(upid, *pupid);
-
+  prr.set_name(proc_name_id);
+  prr.set_cmdline(context_->storage->InternString(cmdline));
+  if (pupid) {
+    prr.set_parent_upid(*pupid);
+  }
   return upid;
 }
 
 void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
-  auto* process_table = context_->storage->mutable_process_table();
-  process_table->mutable_uid()->Set(upid, uid);
+  auto& process_table = *context_->storage->mutable_process_table();
+  auto rr = process_table[upid];
+  rr.set_uid(uid);
 
   // The notion of the app ID (as derived from the uid) is defined in
   // frameworks/base/core/java/android/os/UserHandle.java
-  process_table->mutable_android_appid()->Set(upid, uid % 100000);
+  rr.set_android_appid(uid % 100000);
 }
 
 void ProcessTracker::SetProcessNameIfUnset(UniquePid upid,
                                            StringId process_name_id) {
-  auto* process_table = context_->storage->mutable_process_table();
-  if (!process_table->name()[upid].has_value())
-    process_table->mutable_name()->Set(upid, process_name_id);
+  auto& pt = *context_->storage->mutable_process_table();
+  if (auto rr = pt[upid]; !rr.name().has_value()) {
+    rr.set_name(process_name_id);
+  }
 }
 
 void ProcessTracker::SetStartTsIfUnset(UniquePid upid,
                                        int64_t start_ts_nanoseconds) {
-  auto* process_table = context_->storage->mutable_process_table();
-  if (!process_table->start_ts()[upid].has_value())
-    process_table->mutable_start_ts()->Set(upid, start_ts_nanoseconds);
+  auto& pt = *context_->storage->mutable_process_table();
+  if (auto rr = pt[upid]; !rr.start_ts().has_value()) {
+    rr.set_start_ts(start_ts_nanoseconds);
+  }
 }
 
 void ProcessTracker::UpdateThreadNameAndMaybeProcessName(
     uint32_t tid,
     StringId thread_name,
     ThreadNamePriority priority) {
-  auto* thread_table = context_->storage->mutable_thread_table();
-  auto* process_table = context_->storage->mutable_process_table();
+  auto& tt = *context_->storage->mutable_thread_table();
+  auto& pt = *context_->storage->mutable_process_table();
 
   UniqueTid utid = UpdateThreadName(tid, thread_name, priority);
-  std::optional<UniquePid> opt_upid = thread_table->upid()[utid];
-  if (opt_upid.has_value() && process_table->pid()[*opt_upid] == tid) {
-    PERFETTO_DCHECK(thread_table->is_main_thread()[utid]);
-    process_table->mutable_name()->Set(*opt_upid, thread_name);
+  auto trr = tt[utid];
+  std::optional<UniquePid> opt_upid = trr.upid();
+  if (!opt_upid.has_value()) {
+    return;
+  }
+  auto prr = pt[*opt_upid];
+  if (prr.pid() == tid) {
+    PERFETTO_DCHECK(trr.is_main_thread());
+    prr.set_name(thread_name);
   }
 }
 
 UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid) {
-  auto* process_table = context_->storage->mutable_process_table();
+  auto& process_table = *context_->storage->mutable_process_table();
 
   // If the insertion succeeds, we'll fill the upid below.
   auto it_and_ins = pids_.Insert(pid, UniquePid{0});
   if (!it_and_ins.second) {
     // Ensure that the process has not ended.
-    PERFETTO_DCHECK(!process_table->end_ts()[*it_and_ins.first].has_value());
+    PERFETTO_DCHECK(!process_table[*it_and_ins.first].end_ts().has_value());
     return *it_and_ins.first;
   }
 
@@ -430,7 +449,7 @@ UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid) {
   row.pid = pid;
   row.machine_id = context_->machine_id();
 
-  UniquePid upid = process_table->Insert(row).row;
+  UniquePid upid = process_table.Insert(row).row;
   *it_and_ins.first = upid;  // Update the newly inserted hashmap entry.
 
   // Create an entry for the main thread.
@@ -442,14 +461,16 @@ UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid) {
 }
 
 void ProcessTracker::AssociateThreads(UniqueTid utid1, UniqueTid utid2) {
-  auto* tt = context_->storage->mutable_thread_table();
+  auto& tt = *context_->storage->mutable_thread_table();
 
   // First of all check if one of the two threads is already bound to a process.
   // If that is the case, map the other thread to the same process and resolve
   // recursively any associations pending on the other thread.
 
-  auto opt_upid1 = tt->upid()[utid1];
-  auto opt_upid2 = tt->upid()[utid2];
+  auto rr1 = tt[utid1];
+  auto rr2 = tt[utid2];
+  auto opt_upid1 = rr1.upid();
+  auto opt_upid2 = rr2.upid();
 
   if (opt_upid1.has_value() && !opt_upid2.has_value()) {
     AssociateThreadToProcess(utid2, *opt_upid1);
@@ -466,7 +487,7 @@ void ProcessTracker::AssociateThreads(UniqueTid utid1, UniqueTid utid2) {
   if (opt_upid1.has_value() && opt_upid1 != opt_upid2) {
     // Cannot associate two threads that belong to two different processes.
     PERFETTO_ELOG("Process tracker failure. Cannot associate threads %u, %u",
-                  tt->tid()[utid1], tt->tid()[utid2]);
+                  rr1.tid(), rr2.tid());
     context_->storage->IncrementStats(stats::process_tracker_errors);
     return;
   }
@@ -476,9 +497,11 @@ void ProcessTracker::AssociateThreads(UniqueTid utid1, UniqueTid utid2) {
 
 void ProcessTracker::ResolvePendingAssociations(UniqueTid utid_arg,
                                                 UniquePid upid) {
-  auto* tt = context_->storage->mutable_thread_table();
-  auto* pt = context_->storage->mutable_process_table();
-  PERFETTO_DCHECK(tt->upid()[utid_arg] == upid);
+  auto& tt = *context_->storage->mutable_thread_table();
+  auto& pt = *context_->storage->mutable_process_table();
+
+  auto trr = tt[utid_arg];
+  PERFETTO_DCHECK(trr.upid() == upid);
 
   std::vector<UniqueTid> resolved_utids;
   resolved_utids.emplace_back(utid_arg);
@@ -498,9 +521,9 @@ void ProcessTracker::ResolvePendingAssociations(UniqueTid utid_arg,
       PERFETTO_DCHECK(child_upid != upid);
 
       // Set the parent pid of the other process
-      PERFETTO_DCHECK(!pt->parent_upid()[child_upid] ||
-                      pt->parent_upid()[child_upid] == upid);
-      pt->mutable_parent_upid()->Set(child_upid, upid);
+      auto crr = pt[child_upid];
+      PERFETTO_DCHECK(!crr.parent_upid() || crr.parent_upid() == upid);
+      crr.set_parent_upid(upid);
 
       // Erase the pair. The |pending_parent_assocs_| vector is not sorted and
       // swapping a std::pair<uint32_t, uint32_t> is cheap.
@@ -523,8 +546,8 @@ void ProcessTracker::ResolvePendingAssociations(UniqueTid utid_arg,
       PERFETTO_DCHECK(other_utid != utid);
 
       // Update the other thread and associated it to the same process.
-      PERFETTO_DCHECK(!tt->upid()[other_utid] ||
-                      tt->upid()[other_utid] == upid);
+      auto orr = tt[other_utid];
+      PERFETTO_DCHECK(!orr.upid() || orr.upid() == upid);
       AssociateThreadToProcess(other_utid, upid);
 
       // Swap the current element to the end of the list and move the end
@@ -545,11 +568,13 @@ void ProcessTracker::ResolvePendingAssociations(UniqueTid utid_arg,
 }
 
 void ProcessTracker::AssociateThreadToProcess(UniqueTid utid, UniquePid upid) {
-  auto* thread_table = context_->storage->mutable_thread_table();
-  thread_table->mutable_upid()->Set(utid, upid);
-  auto* process_table = context_->storage->mutable_process_table();
-  bool main_thread = thread_table->tid()[utid] == process_table->pid()[upid];
-  thread_table->mutable_is_main_thread()->Set(utid, main_thread);
+  auto& thread_table = *context_->storage->mutable_thread_table();
+  auto& process_table = *context_->storage->mutable_process_table();
+
+  auto trr = thread_table[utid];
+  auto prr = process_table[upid];
+  trr.set_upid(upid);
+  trr.set_is_main_thread(trr.tid() == prr.pid());
 }
 
 void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {

@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 
+#include <utility>
+#include <vector>
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -81,6 +83,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
+using ::std::make_pair;
 using ::testing::_;
 using ::testing::Args;
 using ::testing::AtLeast;
@@ -312,8 +315,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     RowMap rm = args.QueryToRowMap(q);
     bool found = false;
     for (auto it = rm.IterateRows(); it; it.Next()) {
-      if (args.key()[it.index()] == key_id) {
-        EXPECT_EQ(args.flat_key()[it.index()], key_id);
+      if (args[it.index()].key() == key_id) {
+        EXPECT_EQ(args[it.index()].flat_key(), key_id);
         if (storage_->GetArgValue(it.index()) == value) {
           found = true;
           break;
@@ -401,17 +404,17 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   std::vector<std::string> expected_keys;
   for (uint32_t i = 0; i < args.row_count(); i++) {
     expected_keys.push_back(
-        context_.storage->GetString(args.key()[i]).ToStdString());
+        context_.storage->GetString(args[i].key()).ToStdString());
   }
   ASSERT_THAT(expected_keys,
               testing::ElementsAre("pid", "comm", "clone_flags",
                                    "oom_score_adj", "ip", "buf"));
-  ASSERT_EQ(args.int_value()[0], 123);
-  ASSERT_STREQ(args.string_value().GetString(1).c_str(), task_newtask);
-  ASSERT_EQ(args.int_value()[2], 12);
-  ASSERT_EQ(args.int_value()[3], 15);
-  ASSERT_EQ(args.int_value()[4], 20);
-  ASSERT_STREQ(args.string_value().GetString(5).c_str(), buf_value);
+  ASSERT_EQ(args[0].int_value(), 123);
+  ASSERT_EQ(context_.storage->GetString(*args[1].string_value()), task_newtask);
+  ASSERT_EQ(args[2].int_value(), 12);
+  ASSERT_EQ(args[3].int_value(), 15);
+  ASSERT_EQ(args[4].int_value(), 20);
+  ASSERT_EQ(context_.storage->GetString(*args[5].string_value()), buf_value);
 
   // TODO(hjd): Add test ftrace event with all field types
   // and test here.
@@ -449,12 +452,12 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   const auto& raw = storage_->raw_table();
 
   ASSERT_EQ(raw.row_count(), 1u);
-  ASSERT_EQ(raw.ts()[raw.row_count() - 1], 100);
-  ASSERT_EQ(storage_->thread_table().tid()[raw.utid()[raw.row_count() - 1]],
+  ASSERT_EQ(raw[raw.row_count() - 1].ts(), 100);
+  ASSERT_EQ(storage_->thread_table()[raw[raw.row_count() - 1].utid()].tid(),
             10u);
-  ASSERT_EQ(raw.name().GetString(raw.row_count() - 1), "Test");
+  ASSERT_EQ(storage_->GetString(raw[raw.row_count() - 1].name()), "Test");
 
-  auto set_id = raw.arg_set_id()[raw.row_count() - 1];
+  auto set_id = raw[raw.row_count() - 1].arg_set_id();
 
   const auto& args = storage_->arg_table();
   Query q;
@@ -463,14 +466,14 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
 
   auto row = rm.Get(0);
 
-  ASSERT_EQ(args.key().GetString(row), "meta1");
-  ASSERT_EQ(args.string_value().GetString(row++), "value1");
+  ASSERT_EQ(storage_->GetString(args[row].key()), "meta1");
+  ASSERT_EQ(storage_->GetString(*args[row++].string_value()), "value1");
 
-  ASSERT_EQ(args.key().GetString(row), "meta2");
-  ASSERT_EQ(args.int_value()[row++], -2);
+  ASSERT_EQ(storage_->GetString(args[row].key()), "meta2");
+  ASSERT_EQ(args[row++].int_value(), -2);
 
-  ASSERT_EQ(args.key().GetString(row), "meta3");
-  ASSERT_EQ(args.int_value()[row++], 3);
+  ASSERT_EQ(storage_->GetString(args[row].key()), "meta3");
+  ASSERT_EQ(args[row++].int_value(), 3);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
@@ -620,7 +623,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->cpu_counter_track_table().ucpu()[0].value, 10u);
+  EXPECT_EQ(context_.storage->cpu_counter_track_table()[0].ucpu().value, 10u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
@@ -947,14 +950,14 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
-  EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 2003000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 12000);
-  auto id_1 = storage_->slice_table().id().IndexOf(SliceId(1u));
-  EXPECT_TRUE(id_1);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_1], 2005000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_1], 5000);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->thread_ts(), 2003000);
+  EXPECT_EQ(rr_0->thread_dur(), 12000);
+  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
+  EXPECT_TRUE(rr_1);
+  EXPECT_EQ(rr_1->thread_ts(), 2005000);
+  EXPECT_EQ(rr_1->thread_dur(), 5000);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
@@ -1036,14 +1039,14 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
-  EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 2005000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 5000);
-  auto id_1 = storage_->slice_table().id().IndexOf(SliceId(1u));
-  EXPECT_TRUE(id_1);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_1], 2007000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_1], 0);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->thread_ts(), 2005000);
+  EXPECT_EQ(rr_0->thread_dur(), 5000);
+  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
+  EXPECT_TRUE(rr_1);
+  EXPECT_EQ(rr_1->thread_ts(), 2007000);
+  EXPECT_EQ(rr_1->thread_dur(), 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
@@ -1235,24 +1238,24 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 3u);
-  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
-  EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 2003000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 12000);
-  EXPECT_EQ(storage_->slice_table().thread_instruction_count()[*id_0], 3010);
-  EXPECT_EQ(storage_->slice_table().thread_instruction_delta()[*id_0], 50);
-  auto id_1 = storage_->slice_table().id().IndexOf(SliceId(1u));
-  EXPECT_TRUE(id_1);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_1], 2005000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_1], 5000);
-  EXPECT_EQ(storage_->slice_table().thread_instruction_count()[*id_1], 3020);
-  EXPECT_EQ(storage_->slice_table().thread_instruction_delta()[*id_1], 20);
-  auto id_2 = storage_->slice_table().id().IndexOf(SliceId(2u));
-  EXPECT_TRUE(id_2);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_2], 2030000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_2], 0);
-  EXPECT_EQ(storage_->slice_table().thread_instruction_count()[*id_2], 3100);
-  EXPECT_EQ(storage_->slice_table().thread_instruction_delta()[*id_2], 0);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->thread_ts(), 2003000);
+  EXPECT_EQ(rr_0->thread_dur(), 12000);
+  EXPECT_EQ(rr_0->thread_instruction_count(), 3010);
+  EXPECT_EQ(rr_0->thread_instruction_delta(), 50);
+  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
+  EXPECT_TRUE(rr_1);
+  EXPECT_EQ(rr_1->thread_ts(), 2005000);
+  EXPECT_EQ(rr_1->thread_dur(), 5000);
+  EXPECT_EQ(rr_1->thread_instruction_count(), 3020);
+  EXPECT_EQ(rr_1->thread_instruction_delta(), 20);
+  auto rr_2 = storage_->slice_table().FindById(SliceId(2u));
+  EXPECT_TRUE(rr_2);
+  EXPECT_EQ(rr_2->thread_ts(), 2030000);
+  EXPECT_EQ(rr_2->thread_dur(), 0);
+  EXPECT_EQ(rr_2->thread_instruction_count(), 3100);
+  EXPECT_EQ(rr_2->thread_instruction_delta(), 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
@@ -1388,14 +1391,14 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   // First track is for the thread; second first async, third and fourth for
   // thread time and instruction count, others are the async event tracks.
   EXPECT_EQ(storage_->track_table().row_count(), 6u);
-  EXPECT_EQ(storage_->track_table().name()[1], ev_1);
-  EXPECT_EQ(storage_->track_table().name()[4], ev_2);
-  EXPECT_EQ(storage_->track_table().name()[5], ev_2);
+  EXPECT_EQ(storage_->track_table()[1].name(), ev_1);
+  EXPECT_EQ(storage_->track_table()[4].name(), ev_2);
+  EXPECT_EQ(storage_->track_table()[5].name(), ev_2);
 
   EXPECT_EQ(storage_->process_track_table().row_count(), 3u);
-  EXPECT_EQ(storage_->process_track_table().upid()[0], 1u);
-  EXPECT_EQ(storage_->process_track_table().upid()[1], 1u);
-  EXPECT_EQ(storage_->process_track_table().upid()[2], 1u);
+  EXPECT_EQ(storage_->process_track_table()[0].upid(), 1u);
+  EXPECT_EQ(storage_->process_track_table()[1].upid(), 1u);
+  EXPECT_EQ(storage_->process_track_table()[2].upid(), 1u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(0u));
@@ -1575,12 +1578,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   // default track (parent of async track), fourth is "Thread track 2", fifth &
   // sixth are thread time tracks for thread 1 and 2.
   EXPECT_EQ(storage_->track_table().row_count(), 5u);
-  EXPECT_EQ(storage_->track_table().name().GetString(0), "Thread track 1");
-  EXPECT_EQ(storage_->track_table().name().GetString(1), "Async track 1");
-  EXPECT_EQ(storage_->track_table().name().GetString(2), "Thread track 2");
+  EXPECT_EQ(storage_->GetString((storage_->track_table()[0].name())),
+            "Thread track 1");
+  EXPECT_EQ(storage_->GetString((storage_->track_table()[1].name())),
+            "Async track 1");
+  EXPECT_EQ(storage_->GetString((storage_->track_table()[2].name())),
+            "Thread track 2");
   EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
-  EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
-  EXPECT_EQ(storage_->thread_track_table().utid()[1], 2u);
+  EXPECT_EQ(storage_->thread_track_table()[0].utid(), 1u);
+  EXPECT_EQ(storage_->thread_track_table()[1].utid(), 2u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(2u));
@@ -1592,19 +1598,19 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
             20);
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
-  EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 2007000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 0);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->thread_ts(), 2007000);
+  EXPECT_EQ(rr_0->thread_dur(), 0);
   // There was no thread instructions in the packets above.
-  EXPECT_FALSE(storage_->slice_table().thread_instruction_count()[*id_0]);
-  EXPECT_FALSE(storage_->slice_table().thread_instruction_delta()[*id_0]);
-  auto id_1 = storage_->slice_table().id().IndexOf(SliceId(1u));
-  EXPECT_TRUE(id_1);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_1], 2008000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_1], 0);
-  EXPECT_FALSE(storage_->slice_table().thread_instruction_count()[*id_1]);
-  EXPECT_FALSE(storage_->slice_table().thread_instruction_delta()[*id_1]);
+  EXPECT_FALSE(rr_0->thread_instruction_count());
+  EXPECT_FALSE(rr_0->thread_instruction_delta());
+  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
+  EXPECT_TRUE(rr_1);
+  EXPECT_EQ(rr_1->thread_ts(), 2008000);
+  EXPECT_EQ(rr_1->thread_dur(), 0);
+  EXPECT_FALSE(rr_1->thread_instruction_count());
+  EXPECT_FALSE(rr_1->thread_instruction_delta());
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
@@ -1697,14 +1703,14 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
   // First track is thread time track, second is "t1".
   EXPECT_EQ(storage_->track_table().row_count(), 2u);
   EXPECT_EQ(storage_->thread_track_table().row_count(), 1u);
-  EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
+  EXPECT_EQ(storage_->thread_track_table()[0].utid(), 1u);
 
   // Counter values should also be imported into thread slices.
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
-  EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 1000000);
-  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 10000);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->thread_ts(), 1000000);
+  EXPECT_EQ(rr_0->thread_dur(), 10000);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
@@ -2338,9 +2344,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_GT(context_.storage->android_log_table().row_count(), 0u);
-  EXPECT_EQ(context_.storage->android_log_table().ts()[0], 1010000);
-  EXPECT_EQ(context_.storage->android_log_table().msg()[0], body_1);
-  EXPECT_EQ(context_.storage->android_log_table().tag()[0], source_location_id);
+  EXPECT_EQ(context_.storage->android_log_table()[0].ts(), 1010000);
+  EXPECT_EQ(context_.storage->android_log_table()[0].msg(), body_1);
+  EXPECT_EQ(context_.storage->android_log_table()[0].tag(), source_location_id);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
@@ -2412,14 +2418,14 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   // Verify raw_table and args contents.
   const auto& raw_table = storage_->raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
-  EXPECT_EQ(raw_table.ts()[0], 1010000);
-  EXPECT_EQ(raw_table.name()[0],
+  EXPECT_EQ(raw_table[0].ts(), 1010000);
+  EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("track_event.legacy_event"));
-  auto ucpu = raw_table.ucpu()[0];
+  auto ucpu = raw_table[0].ucpu();
   const auto& cpu_table = storage_->cpu_table();
-  EXPECT_EQ(cpu_table.cpu()[ucpu.value], 0u);
-  EXPECT_EQ(raw_table.utid()[0], 1u);
-  EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
+  EXPECT_EQ(cpu_table[ucpu.value].cpu(), 0u);
+  EXPECT_EQ(raw_table[0].utid(), 1u);
+  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
   EXPECT_GE(storage_->arg_table().row_count(), 10u);
 
@@ -2534,9 +2540,9 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   // Verify raw_table and args contents.
   const auto& raw_table = storage_->raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
-  EXPECT_EQ(raw_table.name()[0],
+  EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.metadata"));
-  EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
+  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
   EXPECT_EQ(storage_->arg_table().row_count(), 2u);
   EXPECT_TRUE(HasArg(1u, storage_->InternString(kStringName),
@@ -2565,9 +2571,9 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
   // Verify raw_table and args contents.
   const auto& raw_table = storage_->raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
-  EXPECT_EQ(raw_table.name()[0],
+  EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.legacy_system_trace"));
-  EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
+  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
   EXPECT_EQ(storage_->arg_table().row_count(), 1u);
   EXPECT_TRUE(HasArg(1u, storage_->InternString("data"),
@@ -2593,9 +2599,9 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
   // Verify raw_table and args contents.
   const auto& raw_table = storage_->raw_table();
   EXPECT_EQ(raw_table.row_count(), 1u);
-  EXPECT_EQ(raw_table.name()[0],
+  EXPECT_EQ(raw_table[0].name(),
             storage_->InternString("chrome_event.legacy_user_trace"));
-  EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
+  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
 
   EXPECT_EQ(storage_->arg_table().row_count(), 1u);
   EXPECT_TRUE(
@@ -2620,17 +2626,15 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
 
   context_.sorter->ExtractEventsForced();
 
-  const auto& meta_keys = storage_->metadata_table().name();
-  const auto& meta_values = storage_->metadata_table().str_value();
   EXPECT_EQ(storage_->metadata_table().row_count(), 3u);
 
   std::vector<std::pair<base::StringView, base::StringView>> meta_entries;
-  for (uint32_t i = 0; i < storage_->metadata_table().row_count(); i++) {
-    meta_entries.emplace_back(
-        std::make_pair(meta_keys.GetString(i), meta_values.GetString(i)));
+  for (auto it = storage_->metadata_table().IterateRows(); it; ++it) {
+    meta_entries.emplace_back(std::make_pair(
+        storage_->GetString(it.name()), storage_->GetString(*it.str_value())));
   }
   EXPECT_THAT(meta_entries,
-              UnorderedElementsAreArray({std::make_pair(benchmark, kName),
+              UnorderedElementsAreArray({make_pair(benchmark, kName),
                                          std::make_pair(tags, kTag1),
                                          std::make_pair(tags, kTag2)}));
 }
@@ -2666,17 +2670,18 @@ TEST_F(ProtoTraceParserTest, LoadChromeMetadata) {
 
   const auto& metadata = storage_->metadata_table();
 
-  EXPECT_STREQ(metadata.name().GetString(0).c_str(), "cr-str_name");
-  EXPECT_STREQ(metadata.str_value().GetString(0).c_str(), "foostr");
+  EXPECT_STREQ(storage_->GetString(metadata[0].name()).c_str(), "cr-str_name");
+  EXPECT_STREQ(storage_->GetString(*metadata[0].str_value()).c_str(), "foostr");
 
-  EXPECT_STREQ(metadata.name().GetString(1).c_str(), "cr-int_name");
-  EXPECT_EQ(metadata.int_value()[1], 42);
+  EXPECT_STREQ(storage_->GetString(metadata[1].name()).c_str(), "cr-int_name");
+  EXPECT_EQ(metadata[1].int_value(), 42);
 
-  EXPECT_STREQ(metadata.name().GetString(2).c_str(), "cr-bool_name");
-  EXPECT_EQ(metadata.int_value()[2], 1);
+  EXPECT_STREQ(storage_->GetString(metadata[2].name()).c_str(), "cr-bool_name");
+  EXPECT_EQ(metadata[2].int_value(), 1);
 
-  EXPECT_STREQ(metadata.name().GetString(3).c_str(), "cr-json_name");
-  EXPECT_STREQ(metadata.str_value().GetString(3).c_str(), "{key: value}");
+  EXPECT_STREQ(storage_->GetString(metadata[3].name()).c_str(), "cr-json_name");
+  EXPECT_STREQ(storage_->GetString(*metadata[3].str_value()).c_str(),
+               "{key: value}");
 }
 
 TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
@@ -2717,19 +2722,19 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   const auto& package_list = context_.storage->package_list_table();
   ASSERT_EQ(package_list.row_count(), 2u);
 
-  EXPECT_STREQ(storage_->GetString(package_list.package_name()[0]).c_str(),
+  EXPECT_STREQ(storage_->GetString(package_list[0].package_name()).c_str(),
                "com.test.app");
-  EXPECT_EQ(package_list.uid()[0], 1000u);
-  EXPECT_EQ(package_list.debuggable()[0], false);
-  EXPECT_EQ(package_list.profileable_from_shell()[0], true);
-  EXPECT_EQ(package_list.version_code()[0], 42);
+  EXPECT_EQ(package_list[0].uid(), 1000u);
+  EXPECT_EQ(package_list[0].debuggable(), false);
+  EXPECT_EQ(package_list[0].profileable_from_shell(), true);
+  EXPECT_EQ(package_list[0].version_code(), 42);
 
-  EXPECT_STREQ(storage_->GetString(package_list.package_name()[1]).c_str(),
+  EXPECT_STREQ(storage_->GetString(package_list[1].package_name()).c_str(),
                "com.test.app2");
-  EXPECT_EQ(package_list.uid()[1], 1001u);
-  EXPECT_EQ(package_list.debuggable()[1], false);
-  EXPECT_EQ(package_list.profileable_from_shell()[1], false);
-  EXPECT_EQ(package_list.version_code()[1], 43);
+  EXPECT_EQ(package_list[1].uid(), 1001u);
+  EXPECT_EQ(package_list[1].debuggable(), false);
+  EXPECT_EQ(package_list[1].profileable_from_shell(), false);
+  EXPECT_EQ(package_list[1].version_code(), 43);
 }
 
 TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
@@ -2770,12 +2775,12 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
   const auto& package_list = context_.storage->package_list_table();
   ASSERT_EQ(package_list.row_count(), 1u);
 
-  EXPECT_STREQ(storage_->GetString(package_list.package_name()[0]).c_str(),
+  EXPECT_STREQ(storage_->GetString(package_list[0].package_name()).c_str(),
                "com.test.app");
-  EXPECT_EQ(package_list.uid()[0], 1000u);
-  EXPECT_EQ(package_list.debuggable()[0], false);
-  EXPECT_EQ(package_list.profileable_from_shell()[0], true);
-  EXPECT_EQ(package_list.version_code()[0], 42);
+  EXPECT_EQ(package_list[0].uid(), 1000u);
+  EXPECT_EQ(package_list[0].debuggable(), false);
+  EXPECT_EQ(package_list[0].profileable_from_shell(), true);
+  EXPECT_EQ(package_list[0].version_code(), 42);
 }
 
 TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
@@ -2851,25 +2856,25 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   const auto& samples = storage_->cpu_profile_stack_sample_table();
   EXPECT_EQ(samples.row_count(), 3u);
 
-  EXPECT_EQ(samples.ts()[0], 11000);
-  EXPECT_EQ(samples.callsite_id()[0], CallsiteId{0});
-  EXPECT_EQ(samples.utid()[0], 1u);
-  EXPECT_EQ(samples.process_priority()[0], 20);
+  EXPECT_EQ(samples[0].ts(), 11000);
+  EXPECT_EQ(samples[0].callsite_id(), CallsiteId{0});
+  EXPECT_EQ(samples[0].utid(), 1u);
+  EXPECT_EQ(samples[0].process_priority(), 20);
 
-  EXPECT_EQ(samples.ts()[1], 26000);
-  EXPECT_EQ(samples.callsite_id()[1], CallsiteId{1});
-  EXPECT_EQ(samples.utid()[1], 1u);
-  EXPECT_EQ(samples.process_priority()[1], 20);
+  EXPECT_EQ(samples[1].ts(), 26000);
+  EXPECT_EQ(samples[1].callsite_id(), CallsiteId{1});
+  EXPECT_EQ(samples[1].utid(), 1u);
+  EXPECT_EQ(samples[1].process_priority(), 20);
 
-  EXPECT_EQ(samples.ts()[2], 68000);
-  EXPECT_EQ(samples.callsite_id()[2], CallsiteId{0});
-  EXPECT_EQ(samples.utid()[2], 1u);
-  EXPECT_EQ(samples.process_priority()[2], 30);
+  EXPECT_EQ(samples[2].ts(), 68000);
+  EXPECT_EQ(samples[2].callsite_id(), CallsiteId{0});
+  EXPECT_EQ(samples[2].utid(), 1u);
+  EXPECT_EQ(samples[2].process_priority(), 30);
 
   // Breakpad build_ids should not be modified/mangled.
   ASSERT_STREQ(
       context_.storage
-          ->GetString(storage_->stack_profile_mapping_table().build_id()[0])
+          ->GetString(storage_->stack_profile_mapping_table()[0].build_id())
           .c_str(),
       "3BBCFBD372448A727265C3E7C4D954F91");
 }
@@ -2938,9 +2943,9 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
   EXPECT_EQ(samples.row_count(), 1u);
 
   // Should have been translated to boottime, i.e. 10015 us absolute.
-  EXPECT_EQ(samples.ts()[0], 10015000);
-  EXPECT_EQ(samples.callsite_id()[0], CallsiteId{0});
-  EXPECT_EQ(samples.utid()[0], 1u);
+  EXPECT_EQ(samples[0].ts(), 10015000);
+  EXPECT_EQ(samples[0].callsite_id(), CallsiteId{0});
+  EXPECT_EQ(samples[0].utid(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, ConfigUuid) {

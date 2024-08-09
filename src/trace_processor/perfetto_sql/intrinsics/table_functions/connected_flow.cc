@@ -216,7 +216,7 @@ base::StatusOr<std::unique_ptr<Table>> ConnectedFlow::ComputeTable(
   }
 
   SliceId start_id{static_cast<uint32_t>(arguments[0].AsLong())};
-  if (!slice.id().IndexOf(start_id)) {
+  if (!slice.FindById(start_id)) {
     return base::ErrStatus("invalid slice id %" PRIu32 "",
                            static_cast<uint32_t>(start_id.value));
   }

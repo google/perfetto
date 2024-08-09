@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -711,7 +712,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
   if (PERFETTO_UNLIKELY(ts < drop_ftrace_data_before_ts_)) {
     context_->storage->IncrementStats(
         stats::ftrace_packet_before_tracing_start);
-    return util::OkStatus();
+    return base::OkStatus();
   }
   using protos::pbzero::FtraceEvent;
   const TraceBlobView& event = data.packet;
@@ -736,7 +737,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     // not associated with any pid. The rest of trace parsing logic for
     // hypervisor events will use the pid 0.
     if (no_pid && !PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(fld.id())) {
-      return util::ErrStatus("Pid field not found in ftrace packet");
+      return base::ErrStatus("Pid field not found in ftrace packet");
     }
 
     ConstBytes fld_bytes = fld.as_bytes();
@@ -1305,7 +1306,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
   }
 
   PERFETTO_DCHECK(!decoder.bytes_left());
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 base::Status FtraceParser::ParseInlineSchedSwitch(
@@ -1319,7 +1320,7 @@ base::Status FtraceParser::ParseInlineSchedSwitch(
     if (ts < drop_ftrace_data_before_ts_) {
       context_->storage->IncrementStats(
           stats::ftrace_packet_before_tracing_start);
-      return util::OkStatus();
+      return base::OkStatus();
     }
   }
 
@@ -1329,7 +1330,7 @@ base::Status FtraceParser::ParseInlineSchedSwitch(
   ftrace_sched_tracker->PushSchedSwitchCompact(
       cpu, ts, data.prev_state, static_cast<uint32_t>(data.next_pid),
       data.next_prio, data.next_comm, parse_only_into_raw);
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 base::Status FtraceParser::ParseInlineSchedWaking(
@@ -1343,7 +1344,7 @@ base::Status FtraceParser::ParseInlineSchedWaking(
     if (ts < drop_ftrace_data_before_ts_) {
       context_->storage->IncrementStats(
           stats::ftrace_packet_before_tracing_start);
-      return util::OkStatus();
+      return base::OkStatus();
     }
   }
 
@@ -1353,7 +1354,7 @@ base::Status FtraceParser::ParseInlineSchedWaking(
   ftrace_sched_tracker->PushSchedWakingCompact(
       cpu, ts, static_cast<uint32_t>(data.pid), data.target_cpu, data.prio,
       data.comm, data.common_flags, parse_only_into_raw);
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 void FtraceParser::MaybeOnFirstFtraceEvent() {
@@ -1895,9 +1896,7 @@ void FtraceParser::ParseBclIrq(int64_t ts, protozero::ConstBytes data) {
   // id
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_id_);
-  context_->event_tracker->PushCounter(ts,
-                                       throttle ? bcl.id() : -1,
-                                       track);
+  context_->event_tracker->PushCounter(ts, throttle ? bcl.id() : -1, track);
   // throttle
   track = context_->track_tracker->InternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_throttle_);
@@ -1905,32 +1904,27 @@ void FtraceParser::ParseBclIrq(int64_t ts, protozero::ConstBytes data) {
   // cpu0_limit
   track = context_->track_tracker->InternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu0_);
-  context_->event_tracker->PushCounter(ts,
-                                       throttle ? bcl.cpu0_limit() : 0,
+  context_->event_tracker->PushCounter(ts, throttle ? bcl.cpu0_limit() : 0,
                                        track);
   // cpu1_limit
   track = context_->track_tracker->InternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu1_);
-  context_->event_tracker->PushCounter(ts,
-                                       throttle ? bcl.cpu1_limit() : 0,
+  context_->event_tracker->PushCounter(ts, throttle ? bcl.cpu1_limit() : 0,
                                        track);
   // cpu2_limit
   track = context_->track_tracker->InternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu2_);
-  context_->event_tracker->PushCounter(ts,
-                                       throttle ? bcl.cpu2_limit() : 0,
+  context_->event_tracker->PushCounter(ts, throttle ? bcl.cpu2_limit() : 0,
                                        track);
   // tpu_limit
   track = context_->track_tracker->InternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_tpu_);
-  context_->event_tracker->PushCounter(ts,
-                                       throttle ? bcl.tpu_limit(): 0,
+  context_->event_tracker->PushCounter(ts, throttle ? bcl.tpu_limit() : 0,
                                        track);
   // gpu_limit
   track = context_->track_tracker->InternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_gpu_);
-  context_->event_tracker->PushCounter(ts,
-                                       throttle ? bcl.gpu_limit() : 0,
+  context_->event_tracker->PushCounter(ts, throttle ? bcl.gpu_limit() : 0,
                                        track);
   // voltage
   track = context_->track_tracker->InternGlobalCounterTrack(
@@ -2584,8 +2578,8 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
     PERFETTO_DCHECK(updated_utid == *opt_utid);
 
     // UpdateThread above should ensure this is always set.
-    UniquePid upid = *context_->storage->thread_table().upid()[*opt_utid];
-    PERFETTO_DCHECK(context_->storage->process_table().pid()[upid] == pid);
+    UniquePid upid = *context_->storage->thread_table()[*opt_utid].upid();
+    PERFETTO_DCHECK(context_->storage->process_table()[upid].pid() == pid);
 
     track = context_->track_tracker->InternProcessCounterTrack(
         gpu_mem_total_name_id_, upid, gpu_mem_total_unit_id_,

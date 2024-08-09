@@ -985,35 +985,37 @@ class TraceStorage {
   }
 
   Variadic GetArgValue(uint32_t row) const {
+    auto rr = arg_table_[row];
+
     Variadic v;
-    v.type = *GetVariadicTypeForId(arg_table_.value_type()[row]);
+    v.type = *GetVariadicTypeForId(rr.value_type());
 
     // Force initialization of union to stop GCC complaining.
     v.int_value = 0;
 
     switch (v.type) {
       case Variadic::Type::kBool:
-        v.bool_value = static_cast<bool>(*arg_table_.int_value()[row]);
+        v.bool_value = static_cast<bool>(*rr.int_value());
         break;
       case Variadic::Type::kInt:
-        v.int_value = *arg_table_.int_value()[row];
+        v.int_value = *rr.int_value();
         break;
       case Variadic::Type::kUint:
-        v.uint_value = static_cast<uint64_t>(*arg_table_.int_value()[row]);
+        v.uint_value = static_cast<uint64_t>(*rr.int_value());
         break;
       case Variadic::Type::kString: {
-        auto opt_value = arg_table_.string_value()[row];
+        auto opt_value = rr.string_value();
         v.string_value = opt_value ? *opt_value : kNullStringId;
         break;
       }
       case Variadic::Type::kPointer:
-        v.pointer_value = static_cast<uint64_t>(*arg_table_.int_value()[row]);
+        v.pointer_value = static_cast<uint64_t>(*rr.int_value());
         break;
       case Variadic::Type::kReal:
-        v.real_value = *arg_table_.real_value()[row];
+        v.real_value = *rr.real_value();
         break;
       case Variadic::Type::kJson: {
-        auto opt_value = arg_table_.string_value()[row];
+        auto opt_value = rr.string_value();
         v.json_value = opt_value ? *opt_value : kNullStringId;
         break;
       }

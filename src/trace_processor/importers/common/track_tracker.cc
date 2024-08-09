@@ -16,14 +16,18 @@
 
 #include "src/trace_processor/importers/common/track_tracker.h"
 
+#include <cstdint>
 #include <optional>
+#include <utility>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -164,10 +168,11 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
     if (name != kNullStringId) {
       // The track may have been created for an end event without name. In that
       // case, update it with this event's name.
-      auto* tracks = context_->storage->mutable_track_table();
-      uint32_t track_row = *tracks->id().IndexOf(it->second);
-      if (tracks->name()[track_row] == kNullStringId)
-        tracks->mutable_name()->Set(track_row, name);
+      auto& tracks = *context_->storage->mutable_track_table();
+      auto rr = *tracks.FindById(it->second);
+      if (rr.name() == kNullStringId) {
+        rr.set_name(name);
+      }
     }
     return it->second;
   }

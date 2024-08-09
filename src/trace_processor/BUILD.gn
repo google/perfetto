@@ -56,9 +56,12 @@ source_set("export_json") {
     "../../gn:default_deps",
     "../../include/perfetto/ext/trace_processor:export_json",
     "../base",
+    "containers",
     "importers/json:minimal",
     "storage",
+    "tables",
     "types",
+    "util",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
 }
@@ -280,6 +283,7 @@ perfetto_unittest_source_set("top_level_unittests") {
       "importers/common",
       "importers/proto:minimal",
       "storage",
+      "tables",
       "types",
     ]
   }

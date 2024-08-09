@@ -181,11 +181,9 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       auto opt_tts = json::CoerceToTs(value["tts"]);
       if (opt_slice_id.has_value() && opt_tts) {
         auto* slice = storage->mutable_slice_table();
-        auto maybe_row = slice->id().IndexOf(*opt_slice_id);
-        PERFETTO_DCHECK(maybe_row.has_value());
-        auto start_tts = slice->thread_ts()[*maybe_row];
-        if (start_tts) {
-          slice->mutable_thread_dur()->Set(*maybe_row, *opt_tts - *start_tts);
+        auto rr = *slice->FindById(*opt_slice_id);
+        if (auto start_tts = rr.thread_ts(); start_tts) {
+          rr.set_thread_dur(*opt_tts - *start_tts);
         }
       }
       break;
