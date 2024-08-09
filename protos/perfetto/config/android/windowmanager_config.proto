@@ -28,6 +28,9 @@ message WindowManagerConfig {
 
     // Trace state snapshots every time a transaction is committed.
     LOG_FREQUENCY_TRANSACTION = 2;
+
+    // Trace single state snapshots when the data source is started.
+    LOG_FREQUENCY_SINGLE_DUMP = 3;
   }
   optional LogFrequency log_frequency = 1;
 
