@@ -232,7 +232,7 @@ class ArgsTracker {
  private:
   template <typename Table>
   BoundInserter AddArgsTo(Table* table, typename Table::Id id) {
-    uint32_t row = *table->id().IndexOf(id);
+    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
     return BoundInserter(this, table->mutable_arg_set_id(), row);
   }
 
