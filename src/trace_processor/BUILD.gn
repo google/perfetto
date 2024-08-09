@@ -238,6 +238,18 @@ if (enable_perfetto_trace_processor_sqlite) {
       ]
     }
   }
+
+  # Shell target which does not link all the extra libraryes linked by
+  # trace processor shell (e.g. httpd, libprotobuf etc.). Use for binary size
+  # analysis of the trace processor library.
+  executable("trace_processor_minimal_shell") {
+    deps = [
+      ":lib",
+      "../../gn:default_deps",
+      "util",
+    ]
+    sources = [ "minimal_shell.cc" ]
+  }
 }  # if (enable_perfetto_trace_processor_sqlite)
 
 perfetto_unittest_source_set("top_level_unittests") {
