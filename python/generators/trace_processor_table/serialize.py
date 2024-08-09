@@ -657,12 +657,11 @@ class {self.table_name} : public macros_internal::MacroTable {{
   Iterator IterateRows() {{ return Iterator(this, Table::IterateRows()); }}
 
   ConstIterator FilterToIterator(const Query& q) const {{
-    return ConstIterator(
-      this, ApplyAndIterateRows(QueryToRowMap(q)));
+    return ConstIterator(this, QueryToIterator(q));
   }}
 
   Iterator FilterToIterator(const Query& q) {{
-    return Iterator(this, ApplyAndIterateRows(QueryToRowMap(q)));
+    return Iterator(this, QueryToIterator(q));
   }}
 
   void ShrinkToFit() {{
