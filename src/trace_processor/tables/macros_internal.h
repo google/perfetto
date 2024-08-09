@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"

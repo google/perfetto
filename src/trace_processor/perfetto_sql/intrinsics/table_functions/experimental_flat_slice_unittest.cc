@@ -57,20 +57,20 @@ class TableInseter {
 
 class TableAsserter {
  public:
-  explicit TableAsserter(Table::Iterator it) : iterator_(std::move(it)) {}
+  explicit TableAsserter(tables::ExperimentalFlatSliceTable::Iterator it)
+      : iterator_(std::move(it)) {}
 
   void NextSlice(int64_t ts, int64_t dur) {
-    using CI = tables::ExperimentalFlatSliceTable::ColumnIndex;
     ASSERT_TRUE(HasMoreSlices());
-    ASSERT_EQ(iterator_.Get(CI::ts).AsLong(), ts);
-    ASSERT_EQ(iterator_.Get(CI::dur).AsLong(), dur);
+    ASSERT_EQ(iterator_.ts(), ts);
+    ASSERT_EQ(iterator_.dur(), dur);
     ++iterator_;
   }
 
   bool HasMoreSlices() { return bool(iterator_); }
 
  private:
-  Table::Iterator iterator_;
+  tables::ExperimentalFlatSliceTable::Iterator iterator_;
 };
 
 TEST(ExperimentalFlatSlice, Smoke) {
@@ -102,7 +102,7 @@ TEST(ExperimentalFlatSlice, Smoke) {
   auto out = ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, 0, 400);
   Query q;
   q.orders = {out->track_id().ascending(), out->ts().ascending()};
-  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(q));
+  auto it = out->FilterToIterator(q);
 
   TableAsserter asserter(std::move(it));
 
@@ -186,7 +186,7 @@ TEST(ExperimentalFlatSlice, Bounds) {
       ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, start, end);
   Query q;
   q.orders = {out->track_id().ascending(), out->ts().ascending()};
-  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(q));
+  auto it = out->FilterToIterator(q);
 
   TableAsserter asserter(std::move(it));
 

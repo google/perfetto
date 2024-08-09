@@ -42,9 +42,9 @@ std::string ToVis(const Table& table) {
   using CI = tables::ExperimentalSliceLayoutTable::ColumnIndex;
   std::vector<std::string> lines;
   for (auto it = table.IterateRows(); it; ++it) {
-    int64_t layout_depth = it.Get(CI::layout_depth).long_value;
-    int64_t ts = it.Get(CI::ts).long_value;
-    int64_t dur = it.Get(CI::dur).long_value;
+    int64_t layout_depth = it.Get(CI::layout_depth).AsLong();
+    int64_t ts = it.Get(CI::ts).AsLong();
+    int64_t dur = it.Get(CI::dur).AsLong();
     const char* filter_track_ids = it.Get(CI::filter_track_ids).AsString();
     if (std::string("") == filter_track_ids) {
       continue;
