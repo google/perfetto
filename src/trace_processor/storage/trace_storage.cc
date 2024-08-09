@@ -16,38 +16,20 @@
 
 #include "src/trace_processor/storage/trace_storage.h"
 
-#include <string.h>
-#include <algorithm>
-#include <limits>
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/no_destructor.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
-
-void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& ts_col,
-                              int64_t* min_value,
-                              int64_t* max_value,
-                              const TypedColumn<int64_t>* dur_col = nullptr) {
-  if (ts_col.overlay().empty())
-    return;
-
-  int64_t col_min = ts_col.Min()->AsLong();
-  int64_t col_max = ts_col.Max()->AsLong();
-
-  if (dur_col) {
-    PERFETTO_CHECK(ts_col.IsSorted());
-    PERFETTO_CHECK(dur_col->overlay().size() == ts_col.overlay().size());
-    for (uint32_t i = 0; i < dur_col->overlay().size(); i++) {
-      col_max = std::max(ts_col[i] + (*dur_col)[i], col_max);
-    }
-  }
-
-  *min_value = std::min(*min_value, col_min);
-  *max_value = std::max(*max_value, col_max);
-}
 
 std::vector<NullTermStringView> CreateRefTypeStringMap() {
   std::vector<NullTermStringView> map(static_cast<size_t>(RefType::kRefMax));
@@ -115,34 +97,4 @@ void TraceStorage::SqlStats::RecordQueryEnd(uint32_t row, int64_t time_ended) {
   times_ended_[queue_row] = time_ended;
 }
 
-std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
-  int64_t start_ns = std::numeric_limits<int64_t>::max();
-  int64_t end_ns = std::numeric_limits<int64_t>::min();
-
-  DbTableMaybeUpdateMinMax(raw_table_.ts(), &start_ns, &end_ns);
-  DbTableMaybeUpdateMinMax(sched_slice_table_.ts(), &start_ns, &end_ns,
-                           &sched_slice_table_.dur());
-  DbTableMaybeUpdateMinMax(counter_table_.ts(), &start_ns, &end_ns);
-  DbTableMaybeUpdateMinMax(slice_table_.ts(), &start_ns, &end_ns,
-                           &slice_table_.dur());
-  DbTableMaybeUpdateMinMax(heap_profile_allocation_table_.ts(), &start_ns,
-                           &end_ns);
-  DbTableMaybeUpdateMinMax(thread_state_table_.ts(), &start_ns, &end_ns);
-  DbTableMaybeUpdateMinMax(android_log_table_.ts(), &start_ns, &end_ns);
-  DbTableMaybeUpdateMinMax(heap_graph_object_table_.graph_sample_ts(),
-                           &start_ns, &end_ns);
-  DbTableMaybeUpdateMinMax(perf_sample_table_.ts(), &start_ns, &end_ns);
-  DbTableMaybeUpdateMinMax(cpu_profile_stack_sample_table_.ts(), &start_ns,
-                           &end_ns);
-
-  if (start_ns == std::numeric_limits<int64_t>::max()) {
-    return std::make_pair(0, 0);
-  }
-  if (start_ns == end_ns) {
-    end_ns += 1;
-  }
-  return std::make_pair(start_ns, end_ns);
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

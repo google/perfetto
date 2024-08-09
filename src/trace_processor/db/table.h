@@ -211,8 +211,6 @@ class Table {
     return null_layers_;
   }
 
-  bool HasNullOrOverlayLayer(uint32_t col_idx) const;
-
  protected:
   Table(StringPool*,
         uint32_t row_count,
@@ -256,6 +254,8 @@ class Table {
     std::vector<uint32_t> columns;
     std::vector<uint32_t> index;
   };
+
+  bool HasNullOrOverlayLayer(uint32_t col_idx) const;
 
   void CreateChains() const;
 

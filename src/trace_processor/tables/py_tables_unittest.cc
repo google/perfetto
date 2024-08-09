@@ -183,24 +183,12 @@ TEST_F(PyTablesUnittest, Extend) {
 
   auto slice_ext = TestSliceTable::ExtendParent(event_, std::move(dur));
   ASSERT_EQ(slice_ext->row_count(), 3u);
-  ASSERT_EQ(
-      slice_ext->columns()[TestSliceTable::ColumnIndex::ts].Get(0).AsLong(),
-      50);
-  ASSERT_EQ(
-      slice_ext->columns()[TestSliceTable::ColumnIndex::dur].Get(0).AsLong(),
-      512);
-  ASSERT_EQ(
-      slice_ext->columns()[TestSliceTable::ColumnIndex::ts].Get(1).AsLong(),
-      100);
-  ASSERT_EQ(
-      slice_ext->columns()[TestSliceTable::ColumnIndex::dur].Get(1).AsLong(),
-      1024);
-  ASSERT_EQ(
-      slice_ext->columns()[TestSliceTable::ColumnIndex::ts].Get(2).AsLong(),
-      150);
-  ASSERT_EQ(
-      slice_ext->columns()[TestSliceTable::ColumnIndex::dur].Get(2).AsLong(),
-      2048);
+  ASSERT_EQ((*slice_ext)[0].ts(), 50);
+  ASSERT_EQ((*slice_ext)[0].dur(), 512);
+  ASSERT_EQ((*slice_ext)[1].ts(), 100);
+  ASSERT_EQ((*slice_ext)[1].dur(), 1024);
+  ASSERT_EQ((*slice_ext)[2].ts(), 150);
+  ASSERT_EQ((*slice_ext)[2].dur(), 2048);
 }
 
 TEST_F(PyTablesUnittest, SelectAndExtend) {
@@ -216,12 +204,8 @@ TEST_F(PyTablesUnittest, SelectAndExtend) {
   auto slice_ext = TestSliceTable::SelectAndExtendParent(
       event_, std::move(rows), std::move(dur));
   ASSERT_EQ(slice_ext->row_count(), 1u);
-  ASSERT_EQ(
-      slice_ext->columns()[TestSliceTable::ColumnIndex::ts].Get(0).AsLong(),
-      100);
-  ASSERT_EQ(
-      slice_ext->columns()[TestSliceTable::ColumnIndex::dur].Get(0).AsLong(),
-      1024);
+  ASSERT_EQ((*slice_ext)[0].ts(), 100);
+  ASSERT_EQ((*slice_ext)[0].dur(), 1024);
 }
 
 TEST_F(PyTablesUnittest, SetIdColumns) {
