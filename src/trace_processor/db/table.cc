@@ -20,10 +20,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -138,84 +140,6 @@ Table Table::CopyExceptOverlays() const {
     cols.emplace_back(col, col.index_in_table(), col.overlay_index());
   }
   return {string_pool_, row_count_, std::move(cols), {}};
-}
-
-RowMap Table::TryApplyIndex(const std::vector<Constraint>& c_vec,
-                            uint32_t& cs_offset) const {
-  RowMap rm(0, row_count());
-
-  // Prework - use indexes if possible and decide which one.
-  std::vector<uint32_t> maybe_idx_cols;
-  for (const auto& c : c_vec) {
-    // Id columns shouldn't use index.
-    if (columns()[c.col_idx].IsId()) {
-      break;
-    }
-    // The operation has to support sorting.
-    if (!IsSortingOp(c.op)) {
-      break;
-    }
-    maybe_idx_cols.push_back(c.col_idx);
-
-    // For the next col to be able to use index, all previous constraints have
-    // to be equality.
-    if (c.op != FilterOp::kEq) {
-      break;
-    }
-  }
-
-  OrderedIndices o_idxs;
-  while (!maybe_idx_cols.empty()) {
-    if (auto maybe_idx = GetIndex(maybe_idx_cols)) {
-      o_idxs = *maybe_idx;
-      break;
-    }
-    maybe_idx_cols.pop_back();
-  }
-
-  // If we can't use the index just apply constraints in a standard way.
-  if (maybe_idx_cols.empty()) {
-    return rm;
-  }
-
-  for (uint32_t i = 0; i < maybe_idx_cols.size(); i++) {
-    const Constraint& c = c_vec[i];
-    Range r =
-        ChainForColumn(c.col_idx).OrderedIndexSearch(c.op, c.value, o_idxs);
-    o_idxs.data += r.start;
-    o_idxs.size = r.size();
-  }
-  cs_offset = static_cast<uint32_t>(maybe_idx_cols.size());
-
-  std::vector<uint32_t> res_vec(o_idxs.data, o_idxs.data + o_idxs.size);
-  if (res_vec.size() < kIndexVectorThreshold) {
-    std::sort(res_vec.begin(), res_vec.end());
-    return RowMap(std::move(res_vec));
-  }
-  return RowMap(BitVector::FromUnsortedIndexVector(res_vec));
-}
-
-RowMap Table::ApplyIdJoinConstraints(const std::vector<Constraint>& cs,
-                                     uint32_t& cs_offset) const {
-  uint32_t i = 1;
-  uint32_t row = static_cast<uint32_t>(cs.front().value.AsLong());
-  if (row >= row_count()) {
-    return RowMap();
-  }
-  for (; i < cs.size(); i++) {
-    const Constraint& c = cs[i];
-    switch (ChainForColumn(c.col_idx).SingleSearch(c.op, c.value, row)) {
-      case SingleSearchResult::kNoMatch:
-        return RowMap();
-      case SingleSearchResult::kMatch:
-        continue;
-      case SingleSearchResult::kNeedsFullSearch:
-        cs_offset = i;
-        return RowMap(row, row + 1);
-    }
-  }
-  cs_offset = static_cast<uint32_t>(cs.size());
-  return RowMap(row, row + 1);
 }
 
 RowMap Table::QueryToRowMap(const Query& q) const {
@@ -361,6 +285,41 @@ void Table::CreateChains() const {
   }
 }
 
+base::Status Table::CreateIndex(const std::string& name,
+                                std::vector<uint32_t> col_idxs,
+                                bool replace) {
+  Query q;
+  for (const auto& c : col_idxs) {
+    q.orders.push_back({c});
+  }
+  std::vector<uint32_t> index = QueryToRowMap(q).TakeAsIndexVector();
+
+  auto it = std::find_if(
+      indexes_.begin(), indexes_.end(),
+      [&name](const ColumnIndex& idx) { return idx.name == name; });
+  if (it == indexes_.end()) {
+    indexes_.push_back({name, std::move(col_idxs), std::move(index)});
+    return base::OkStatus();
+  }
+  if (replace) {
+    it->columns = std::move(col_idxs);
+    it->index = std::move(index);
+    return base::OkStatus();
+  }
+  return base::ErrStatus("Index of this name already exists on this table.");
+}
+
+base::Status Table::DropIndex(const std::string& name) {
+  auto it = std::find_if(
+      indexes_.begin(), indexes_.end(),
+      [&name](const ColumnIndex& idx) { return idx.name == name; });
+  if (it == indexes_.end()) {
+    return base::ErrStatus("Index '%s' not found.", name.c_str());
+  }
+  indexes_.erase(it);
+  return base::OkStatus();
+}
+
 void Table::ApplyDistinct(const Query& q, RowMap* rm) const {
   const auto& ob = q.orders;
   PERFETTO_DCHECK(!ob.empty());
@@ -413,6 +372,84 @@ void Table::ApplySort(const Query& q, RowMap* rm) const {
   }
 
   *rm = RowMap(std::move(idx));
+}
+
+RowMap Table::TryApplyIndex(const std::vector<Constraint>& c_vec,
+                            uint32_t& cs_offset) const {
+  RowMap rm(0, row_count());
+
+  // Prework - use indexes if possible and decide which one.
+  std::vector<uint32_t> maybe_idx_cols;
+  for (const auto& c : c_vec) {
+    // Id columns shouldn't use index.
+    if (columns()[c.col_idx].IsId()) {
+      break;
+    }
+    // The operation has to support sorting.
+    if (!IsSortingOp(c.op)) {
+      break;
+    }
+    maybe_idx_cols.push_back(c.col_idx);
+
+    // For the next col to be able to use index, all previous constraints have
+    // to be equality.
+    if (c.op != FilterOp::kEq) {
+      break;
+    }
+  }
+
+  OrderedIndices o_idxs;
+  while (!maybe_idx_cols.empty()) {
+    if (auto maybe_idx = GetIndex(maybe_idx_cols)) {
+      o_idxs = *maybe_idx;
+      break;
+    }
+    maybe_idx_cols.pop_back();
+  }
+
+  // If we can't use the index just apply constraints in a standard way.
+  if (maybe_idx_cols.empty()) {
+    return rm;
+  }
+
+  for (uint32_t i = 0; i < maybe_idx_cols.size(); i++) {
+    const Constraint& c = c_vec[i];
+    Range r =
+        ChainForColumn(c.col_idx).OrderedIndexSearch(c.op, c.value, o_idxs);
+    o_idxs.data += r.start;
+    o_idxs.size = r.size();
+  }
+  cs_offset = static_cast<uint32_t>(maybe_idx_cols.size());
+
+  std::vector<uint32_t> res_vec(o_idxs.data, o_idxs.data + o_idxs.size);
+  if (res_vec.size() < kIndexVectorThreshold) {
+    std::sort(res_vec.begin(), res_vec.end());
+    return RowMap(std::move(res_vec));
+  }
+  return RowMap(BitVector::FromUnsortedIndexVector(res_vec));
+}
+
+RowMap Table::ApplyIdJoinConstraints(const std::vector<Constraint>& cs,
+                                     uint32_t& cs_offset) const {
+  uint32_t i = 1;
+  uint32_t row = static_cast<uint32_t>(cs.front().value.AsLong());
+  if (row >= row_count()) {
+    return RowMap();
+  }
+  for (; i < cs.size(); i++) {
+    const Constraint& c = cs[i];
+    switch (ChainForColumn(c.col_idx).SingleSearch(c.op, c.value, row)) {
+      case SingleSearchResult::kNoMatch:
+        return RowMap();
+      case SingleSearchResult::kMatch:
+        continue;
+      case SingleSearchResult::kNeedsFullSearch:
+        cs_offset = i;
+        return RowMap(row, row + 1);
+    }
+  }
+  cs_offset = static_cast<uint32_t>(cs.size());
+  return RowMap(row, row + 1);
 }
 
 }  // namespace perfetto::trace_processor

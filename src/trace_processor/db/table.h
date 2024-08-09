@@ -146,15 +146,21 @@ class Table {
     return *chains_[col_idx];
   }
 
-  // Filters and sorts the tables with the arguments specified, returning the
-  // result as a RowMap.
-  RowMap QueryToRowMap(const Query&) const;
-
   // Applies the RowMap |rm| onto this table and returns an iterator over the
   // resulting rows.
+  Iterator QueryToIterator(const Query& q) const {
+    return ApplyAndIterateRows(QueryToRowMap(q));
+  }
+
+  // Do not add any further uses.
+  // TODO(lalitm): make this private.
   Iterator ApplyAndIterateRows(RowMap rm) const {
     return Iterator(this, std::move(rm));
   }
+
+  // Do not add any further uses.
+  // TODO(lalitm): make this private.
+  RowMap QueryToRowMap(const Query&) const;
 
   std::optional<OrderedIndices> GetIndex(
       const std::vector<uint32_t>& cols) const {
@@ -171,37 +177,13 @@ class Table {
 
   // Adds an index onto column.
   // Returns an error if index already exists and `!replace`.
-  base::Status SetIndex(const std::string& name,
-                        std::vector<uint32_t> col_idxs,
-                        std::vector<uint32_t> index,
-                        bool replace = false) {
-    auto it = std::find_if(
-        indexes_.begin(), indexes_.end(),
-        [&name](const ColumnIndex& idx) { return idx.name == name; });
-    if (it == indexes_.end()) {
-      indexes_.push_back({name, std::move(col_idxs), std::move(index)});
-      return base::OkStatus();
-    }
-    if (replace) {
-      it->columns = std::move(col_idxs);
-      it->index = std::move(index);
-      return base::OkStatus();
-    }
-    return base::ErrStatus("Index of this name already exists on this table.");
-  }
+  base::Status CreateIndex(const std::string& name,
+                           std::vector<uint32_t> col_idxs,
+                           bool replace);
 
   // Removes index from the table.
   // Returns an error if index doesn't exist.
-  base::Status DropIndex(const std::string& name) {
-    auto it = std::find_if(
-        indexes_.begin(), indexes_.end(),
-        [&name](const ColumnIndex& idx) { return idx.name == name; });
-    if (it == indexes_.end()) {
-      return base::ErrStatus("Index '%s' not found.", name.c_str());
-    }
-    indexes_.erase(it);
-    return base::OkStatus();
-  }
+  base::Status DropIndex(const std::string& name);
 
   // Sorts the table using the specified order by constraints.
   Table Sort(const std::vector<Order>&) const;
