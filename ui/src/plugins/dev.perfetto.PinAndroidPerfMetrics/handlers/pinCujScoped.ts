@@ -145,7 +145,7 @@ class PinCujScopedJank implements MetricHandler {
 
   private async findFirstJank(
     ctx: PluginContextTrace,
-  ): Promise<SliceIdentifier> {
+  ): Promise<SliceIdentifier | undefined> {
     const queryForFirstJankyFrame = `
       SELECT slice_id, track_id, ts, dur FROM slice
         WHERE type = "actual_frame_timeline_slice"
@@ -155,6 +155,9 @@ class PinCujScopedJank implements MetricHandler {
         AS VARCHAR(20) );
     `;
     const queryResult = await ctx.engine.query(queryForFirstJankyFrame);
+    if (queryResult.numRows() === 0) {
+      return undefined;
+    }
     const row = queryResult.firstRow({
       slice_id: NUM,
       track_id: NUM,
@@ -172,7 +175,9 @@ class PinCujScopedJank implements MetricHandler {
 
   private async focusOnFirstJank(ctx: PluginContextTrace) {
     const slice = await this.findFirstJank(ctx);
-    await focusOnSlice(slice);
+    if (slice) {
+      focusOnSlice(slice);
+    }
   }
 }
 
