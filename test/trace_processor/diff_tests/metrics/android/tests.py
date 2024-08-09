@@ -425,9 +425,9 @@ class AndroidMetrics(TestSuite):
   def test_wattson_estimate_output(self):
     return DiffTestBlueprint(
         trace=DataPath('wattson_eos_suspend.pb'),
-        query=Metric("wattson_trace_estimate"),
+        query=Metric("wattson_trace_rails"),
         out=Csv("""
-        wattson_trace_estimate {
+        wattson_trace_rails {
           metric_version: 2
           period_info {
             period_id: 1

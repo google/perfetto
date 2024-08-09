@@ -30,8 +30,8 @@ SELECT RUN_METRIC(
   'window_table', '_wattson_period_windows'
 );
 
-DROP VIEW IF EXISTS wattson_trace_estimate_output;
-CREATE PERFETTO VIEW wattson_trace_estimate_output AS
+DROP VIEW IF EXISTS wattson_trace_rails_output;
+CREATE PERFETTO VIEW wattson_trace_rails_output AS
 SELECT AndroidWattsonTimePeriodMetric(
   'metric_version', 2,
   'period_info', (
