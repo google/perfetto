@@ -73,9 +73,9 @@ TEST_F(PyTablesUnittest, ArgsTableProprties) {
 TEST_F(PyTablesUnittest, InsertEvent) {
   event_.Insert(TestEventTable::Row(100, 0));
 
-  ASSERT_EQ(event_.type().GetString(0).ToStdString(), "event");
-  ASSERT_EQ(event_.ts()[0], 100);
-  ASSERT_EQ(event_.arg_set_id()[0], 0u);
+  ASSERT_EQ(pool_.Get(event_[0].type()).ToStdString(), "event");
+  ASSERT_EQ(event_[0].ts(), 100);
+  ASSERT_EQ(event_[0].arg_set_id(), 0u);
 }
 
 TEST_F(PyTablesUnittest, InsertEventSpecifyCols) {
@@ -84,16 +84,16 @@ TEST_F(PyTablesUnittest, InsertEventSpecifyCols) {
   row.arg_set_id = 0;
   event_.Insert(row);
 
-  ASSERT_EQ(event_.type().GetString(0).ToStdString(), "event");
-  ASSERT_EQ(event_.ts()[0], 100);
-  ASSERT_EQ(event_.arg_set_id()[0], 0u);
+  ASSERT_EQ(pool_.Get(event_[0].type()).ToStdString(), "event");
+  ASSERT_EQ(event_[0].ts(), 100);
+  ASSERT_EQ(event_[0].arg_set_id(), 0u);
 }
 
 TEST_F(PyTablesUnittest, MutableColumn) {
   event_.Insert(TestEventTable::Row(100, 0));
 
-  ASSERT_EQ((*event_.mutable_ts())[0], 100);
-  ASSERT_EQ((*event_.mutable_arg_set_id())[0], 0u);
+  ASSERT_EQ(event_[0].ts(), 100);
+  ASSERT_EQ(event_[0].arg_set_id(), 0u);
 }
 
 TEST_F(PyTablesUnittest, ShrinkToFit) {
@@ -142,32 +142,32 @@ TEST_F(PyTablesUnittest, ParentAndChildInsert) {
   slice_.Insert(TestSliceTable::Row(200, 3, 20));
 
   ASSERT_EQ(event_.row_count(), 4u);
-  ASSERT_EQ(event_.id()[0], TestEventTable::Id{0});
-  ASSERT_EQ(event_.type().GetString(0), "event");
-  ASSERT_EQ(event_.ts()[0], 50);
+  ASSERT_EQ(event_[0].id(), TestEventTable::Id{0});
+  ASSERT_EQ(pool_.Get(event_[0].type()), "event");
+  ASSERT_EQ(event_[0].ts(), 50);
 
-  ASSERT_EQ(event_.id()[1], TestEventTable::Id{1});
-  ASSERT_EQ(event_.type().GetString(1), "slice");
-  ASSERT_EQ(event_.ts()[1], 100);
+  ASSERT_EQ(event_[1].id(), TestEventTable::Id{1});
+  ASSERT_EQ(pool_.Get(event_[1].type()), "slice");
+  ASSERT_EQ(event_[1].ts(), 100);
 
-  ASSERT_EQ(event_.id()[2], TestEventTable::Id{2});
-  ASSERT_EQ(event_.type().GetString(2), "event");
-  ASSERT_EQ(event_.ts()[2], 150);
+  ASSERT_EQ(event_[2].id(), TestEventTable::Id{2});
+  ASSERT_EQ(pool_.Get(event_[2].type()), "event");
+  ASSERT_EQ(event_[2].ts(), 150);
 
-  ASSERT_EQ(event_.id()[3], TestEventTable::Id{3});
-  ASSERT_EQ(event_.type().GetString(3), "slice");
-  ASSERT_EQ(event_.ts()[3], 200);
+  ASSERT_EQ(event_[3].id(), TestEventTable::Id{3});
+  ASSERT_EQ(pool_.Get(event_[3].type()), "slice");
+  ASSERT_EQ(event_[3].ts(), 200);
 
   ASSERT_EQ(slice_.row_count(), 2u);
-  ASSERT_EQ(slice_.id()[0], TestEventTable::Id{1});
-  ASSERT_EQ(slice_.type().GetString(0), "slice");
-  ASSERT_EQ(slice_.ts()[0], 100);
-  ASSERT_EQ(slice_.dur()[0], 10);
+  ASSERT_EQ(slice_[0].id(), TestEventTable::Id{1});
+  ASSERT_EQ(pool_.Get(slice_[0].type()), "slice");
+  ASSERT_EQ(slice_[0].ts(), 100);
+  ASSERT_EQ(slice_[0].dur(), 10);
 
-  ASSERT_EQ(slice_.id()[1], TestEventTable::Id{3});
-  ASSERT_EQ(slice_.type().GetString(1), "slice");
-  ASSERT_EQ(slice_.ts()[1], 200);
-  ASSERT_EQ(slice_.dur()[1], 20);
+  ASSERT_EQ(slice_[1].id(), TestEventTable::Id{3});
+  ASSERT_EQ(pool_.Get(slice_[1].type()), "slice");
+  ASSERT_EQ(slice_[1].ts(), 200);
+  ASSERT_EQ(slice_[1].dur(), 20);
 }
 
 TEST_F(PyTablesUnittest, Extend) {

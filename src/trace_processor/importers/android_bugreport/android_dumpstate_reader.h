@@ -35,7 +35,7 @@ class AndroidDumpstateReader : public ChunkedLineReader {
                          std::vector<TimestampedAndroidLogEvent> logcat_events);
   ~AndroidDumpstateReader() override;
 
-  util::Status ParseLine(base::StringView line) override;
+  base::Status ParseLine(base::StringView line) override;
   void EndOfStream(base::StringView leftovers) override;
 
  private:

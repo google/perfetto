@@ -69,19 +69,19 @@ TEST_F(AsyncTrackSetTrackerUnittest, Smoke) {
 
   ASSERT_EQ(begin, end);
 
-  uint32_t row = *storage_->process_track_table().id().IndexOf(begin);
-  ASSERT_EQ(storage_->process_track_table().upid()[row], 1u);
-  ASSERT_EQ(storage_->process_track_table().name()[row],
-            storage_->InternString("test"));
+  const auto& process = storage_->process_track_table();
+  auto rr = *process.FindById(begin);
+  ASSERT_EQ(rr.upid(), 1u);
+  ASSERT_EQ(rr.name(), storage_->string_pool().GetId("test"));
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, EndFirst) {
   auto end = tracker_->End(nestable_id_, 1);
 
-  uint32_t row = *storage_->process_track_table().id().IndexOf(end);
-  ASSERT_EQ(storage_->process_track_table().upid()[row], 1u);
-  ASSERT_EQ(storage_->process_track_table().name()[row],
-            storage_->InternString("test"));
+  const auto& process = storage_->process_track_table();
+  auto rr = *process.FindById(end);
+  ASSERT_EQ(rr.upid(), 1u);
+  ASSERT_EQ(rr.name(), storage_->string_pool().GetId("test"));
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, LegacySaturating) {

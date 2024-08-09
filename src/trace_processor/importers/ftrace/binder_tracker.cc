@@ -15,14 +15,20 @@
  */
 
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 // Binder tracker: displays slices for binder transactions and other operations.
 // =============================================================================
@@ -268,7 +274,7 @@ void BinderTracker::Transaction(int64_t ts,
     if (is_reply) {
       UniqueTid utid = context_->process_tracker->GetOrCreateThread(
           static_cast<uint32_t>(dest_tid));
-      auto dest_thread_name = context_->storage->thread_table().name()[utid];
+      auto dest_thread_name = context_->storage->thread_table()[utid].name();
       auto dest_args_inserter = [this, dest_tid, &dest_thread_name](
                                     ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(dest_thread_, Variadic::Integer(dest_tid));
@@ -363,7 +369,7 @@ void BinderTracker::TransactionReceived(int64_t ts,
       auto args_inserter = [this, utid,
                             pid](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(dest_thread_, Variadic::UnsignedInteger(pid));
-        auto dest_thread_name = context_->storage->thread_table().name()[utid];
+        auto dest_thread_name = context_->storage->thread_table()[utid].name();
         if (dest_thread_name.has_value()) {
           inserter->AddArg(dest_name_, Variadic::String(*dest_thread_name));
         }

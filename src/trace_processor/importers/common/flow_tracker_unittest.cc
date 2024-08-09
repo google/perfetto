@@ -70,8 +70,10 @@ TEST_F(FlowTrackerTest, SingleFlowEventExplicitInSliceBinding) {
 
   const auto& flows = context_.storage->flow_table();
   EXPECT_EQ(flows.row_count(), 1u);
-  EXPECT_EQ(flows.slice_out()[0], out_slice_id);
-  EXPECT_EQ(flows.slice_in()[0], in_slice_id);
+
+  auto f = flows[0];
+  EXPECT_EQ(f.slice_out(), out_slice_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
 }
 
 TEST_F(FlowTrackerTest, SingleFlowEventWaitForNextSlice) {
@@ -103,8 +105,10 @@ TEST_F(FlowTrackerTest, SingleFlowEventWaitForNextSlice) {
   slice_tracker->End(160, track_2, StringId::Raw(2), StringId::Raw(2));
 
   EXPECT_EQ(flows.row_count(), 1u);
-  EXPECT_EQ(flows.slice_out()[0], out_slice_id);
-  EXPECT_EQ(flows.slice_in()[0], in_slice_id);
+
+  auto f = flows[0];
+  EXPECT_EQ(f.slice_out(), out_slice_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
 }
 
 TEST_F(FlowTrackerTest, SingleFlowEventWaitForNextSliceScoped) {
@@ -135,8 +139,10 @@ TEST_F(FlowTrackerTest, SingleFlowEventWaitForNextSliceScoped) {
   SliceId in_slice_id = slice_tracker->GetTopmostSliceOnTrack(track_2).value();
 
   EXPECT_EQ(flows.row_count(), 1u);
-  EXPECT_EQ(flows.slice_out()[0], out_slice_id);
-  EXPECT_EQ(flows.slice_in()[0], in_slice_id);
+
+  auto f = flows[0];
+  EXPECT_EQ(f.slice_out(), out_slice_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
 }
 
 TEST_F(FlowTrackerTest, TwoFlowEventsWaitForNextSlice) {
@@ -180,10 +186,14 @@ TEST_F(FlowTrackerTest, TwoFlowEventsWaitForNextSlice) {
   slice_tracker->End(170, track_2, StringId::Raw(3), StringId::Raw(3));
 
   EXPECT_EQ(flows.row_count(), 2u);
-  EXPECT_EQ(flows.slice_out()[0], out_slice1_id);
-  EXPECT_EQ(flows.slice_in()[0], in_slice_id);
-  EXPECT_EQ(flows.slice_out()[1], out_slice2_id);
-  EXPECT_EQ(flows.slice_in()[1], in_slice_id);
+
+  auto f = flows[0];
+  EXPECT_EQ(f.slice_out(), out_slice1_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
+
+  f = flows[1];
+  EXPECT_EQ(f.slice_out(), out_slice2_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
 }
 
 TEST_F(FlowTrackerTest, TwoFlowEventsSliceInSlice) {
@@ -227,10 +237,14 @@ TEST_F(FlowTrackerTest, TwoFlowEventsSliceInSlice) {
 
   const auto& flows = context_.storage->flow_table();
   EXPECT_EQ(flows.row_count(), 2u);
-  EXPECT_EQ(flows.slice_out()[0], out_slice2_id);
-  EXPECT_EQ(flows.slice_in()[0], in_slice_id);
-  EXPECT_EQ(flows.slice_out()[1], out_slice1_id);
-  EXPECT_EQ(flows.slice_in()[1], in_slice_id);
+
+  auto f = flows[0];
+  EXPECT_EQ(f.slice_out(), out_slice2_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
+
+  f = flows[1];
+  EXPECT_EQ(f.slice_out(), out_slice1_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
 }
 
 TEST_F(FlowTrackerTest, FlowEventsWithStep) {
@@ -268,10 +282,14 @@ TEST_F(FlowTrackerTest, FlowEventsWithStep) {
 
   const auto& flows = context_.storage->flow_table();
   EXPECT_EQ(flows.row_count(), 2u);
-  EXPECT_EQ(flows.slice_out()[0], out_slice1_id);
-  EXPECT_EQ(flows.slice_in()[0], inout_slice2_id);
-  EXPECT_EQ(flows.slice_out()[1], inout_slice2_id);
-  EXPECT_EQ(flows.slice_in()[1], in_slice_id);
+
+  auto f = flows[0];
+  EXPECT_EQ(f.slice_out(), out_slice1_id);
+  EXPECT_EQ(f.slice_in(), inout_slice2_id);
+
+  f = flows[1];
+  EXPECT_EQ(f.slice_out(), inout_slice2_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
 }
 
 }  // namespace

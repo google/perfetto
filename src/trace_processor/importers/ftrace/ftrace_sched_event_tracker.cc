@@ -28,6 +28,7 @@
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/task_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -66,14 +67,14 @@ FtraceSchedEventTracker::FtraceSchedEventTracker(TraceProcessorContext* context)
 FtraceSchedEventTracker::~FtraceSchedEventTracker() = default;
 
 void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
-                                        int64_t ts,
-                                        uint32_t prev_pid,
-                                        base::StringView prev_comm,
-                                        int32_t prev_prio,
-                                        int64_t prev_state,
-                                        uint32_t next_pid,
-                                        base::StringView next_comm,
-                                        int32_t next_prio) {
+                                              int64_t ts,
+                                              uint32_t prev_pid,
+                                              base::StringView prev_comm,
+                                              int32_t prev_prio,
+                                              int64_t prev_state,
+                                              uint32_t next_pid,
+                                              base::StringView next_comm,
+                                              int32_t next_prio) {
   if (!context_->sched_event_tracker->UpdateEventTrackerTimestamp(
           ts, "sched_switch", stats::sched_switch_out_of_order)) {
     return;
@@ -95,7 +96,7 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
     prev_pid_match_prev_next_pid = prev_pid == pending_sched->last_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
       context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-          prev_state_string_id);
+                                                       prev_state_string_id);
     } else {
       // If the pids are not consistent, make a note of this.
       context_->storage->IncrementStats(stats::mismatched_sched_switch_tids);
@@ -112,8 +113,8 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   AddRawSchedSwitchEvent(cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio,
                          prev_state, next_pid, next_comm_id, next_prio);
 
-  auto new_slice_idx = context_->sched_event_tracker
-                           ->AddStartSlice(cpu, ts, next_utid, next_prio);
+  auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
+      cpu, ts, next_utid, next_prio);
 
   // Finally, update the info for the next sched switch on this CPU.
   pending_sched->pending_slice_storage_idx = new_slice_idx;
@@ -179,7 +180,7 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // Do a fresh task name lookup in case it was updated by a task_rename while
   // scheduled.
   StringId prev_comm_id =
-      context_->storage->thread_table().name()[prev_utid].value_or(
+      context_->storage->thread_table()[prev_utid].name().value_or(
           kNullStringId);
 
   AddRawSchedSwitchEvent(cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio,
