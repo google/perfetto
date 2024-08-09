@@ -80,7 +80,7 @@ class ColumnSerializer:
 
   def const_row_ref_getter(self) -> Optional[str]:
     return f'''ColumnType::{self.name}::type {self.name}() const {{
-      return table_->{self.name}()[row_number_];
+      return table()->{self.name}()[row_number_];
     }}'''
 
   def row_ref_getter(self) -> Optional[str]:
@@ -169,7 +169,7 @@ class ColumnSerializer:
     name = self.name
     return f'''
     ColumnType::{self.name}::type {name}() const {{
-      const auto& col = table_->{name}();
+      const auto& col = table()->{name}();
       return col.GetAtIdx(
         iterator_.StorageIndexForColumn(col.index_in_table()));
     }}
@@ -385,7 +385,7 @@ class TableSerializer(object):
 
    private:
     {self.table_name}* mutable_table() const {{
-      return const_cast<{self.table_name}*>(table_);
+      return const_cast<{self.table_name}*>(table());
     }}
   }};
   static_assert(std::is_trivially_destructible_v<RowReference>,
@@ -495,17 +495,14 @@ class TableSerializer(object):
   class Iterator : public ConstIterator {{
     public:
      RowReference row_reference() const {{
-       return RowReference(mutable_table_, CurrentRowNumber());
+       return {{const_cast<{self.table_name}*>(table()), CurrentRowNumber()}};
      }}
 
     private:
      friend class {self.table_name};
 
      explicit Iterator({self.table_name}* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)),
-          mutable_table_(table) {{}}
-
-     {self.table_name}* mutable_table_ = nullptr;
+        : ConstIterator(table, std::move(iterator)) {{}}
   }};
       '''
 
