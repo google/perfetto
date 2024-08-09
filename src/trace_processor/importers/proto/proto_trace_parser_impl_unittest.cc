@@ -14,35 +14,51 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/proto_trace_reader.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
 #include <utility>
 #include <vector>
-#include "perfetto/base/logging.h"
+
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
+#include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -79,8 +95,7 @@
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using ::std::make_pair;
@@ -256,12 +271,13 @@ class ProtoTraceParserTest : public ::testing::Test {
   ProtoTraceParserTest() {
     storage_ = new TraceStorage();
     context_.storage.reset(storage_);
-    context_.track_tracker.reset(new TrackTracker(&context_));
-    context_.global_args_tracker.reset(
-        new GlobalArgsTracker(context_.storage.get()));
+    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
+    context_.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.mapping_tracker.reset(new MappingTracker(&context_));
-    context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
-    context_.args_tracker.reset(new ArgsTracker(&context_));
+    context_.stack_profile_tracker =
+        std::make_unique<StackProfileTracker>(&context_);
+    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
@@ -277,14 +293,16 @@ class ProtoTraceParserTest : public ::testing::Test {
         new ProcessTrackTranslationTable(storage_));
     slice_ = new NiceMock<MockSliceTracker>(&context_);
     context_.slice_tracker.reset(slice_);
-    context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
+    context_.slice_translation_table =
+        std::make_unique<SliceTranslationTable>(storage_);
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
-    context_.flow_tracker.reset(new FlowTracker(&context_));
-    context_.proto_trace_parser.reset(new ProtoTraceParserImpl(&context_));
-    context_.sorter.reset(
-        new TraceSorter(&context_, TraceSorter::SortingMode::kFullSort));
-    context_.descriptor_pool_.reset(new DescriptorPool());
+    context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
+    context_.proto_trace_parser =
+        std::make_unique<ProtoTraceParserImpl>(&context_);
+    context_.sorter = std::make_shared<TraceSorter>(
+        &context_, TraceSorter::SortingMode::kFullSort);
+    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
 
     RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);
@@ -294,7 +312,7 @@ class ProtoTraceParserTest : public ::testing::Test {
 
   void SetUp() override { ResetTraceBuffers(); }
 
-  util::Status Tokenize() {
+  base::Status Tokenize() {
     trace_->Finalize();
     std::vector<uint8_t> trace_bytes = trace_.SerializeAsArray();
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);
@@ -312,12 +330,12 @@ class ProtoTraceParserTest : public ::testing::Test {
     const auto& args = storage_->arg_table();
     Query q;
     q.constraints = {args.arg_set_id().eq(set_id)};
-    RowMap rm = args.QueryToRowMap(q);
+
     bool found = false;
-    for (auto it = rm.IterateRows(); it; it.Next()) {
-      if (args[it.index()].key() == key_id) {
-        EXPECT_EQ(args[it.index()].flat_key(), key_id);
-        if (storage_->GetArgValue(it.index()) == value) {
+    for (auto it = args.FilterToIterator(q); it; ++it) {
+      if (it.key() == key_id) {
+        EXPECT_EQ(it.flat_key(), key_id);
+        if (storage_->GetArgValue(it.row_number().row_number()) == value) {
           found = true;
           break;
         }
@@ -462,18 +480,21 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   const auto& args = storage_->arg_table();
   Query q;
   q.constraints = {args.arg_set_id().eq(set_id)};
-  RowMap rm = args.QueryToRowMap(q);
 
-  auto row = rm.Get(0);
+  auto it = args.FilterToIterator(q);
+  ASSERT_TRUE(it);
 
-  ASSERT_EQ(storage_->GetString(args[row].key()), "meta1");
-  ASSERT_EQ(storage_->GetString(*args[row++].string_value()), "value1");
+  ASSERT_EQ(storage_->GetString(it.key()), "meta1");
+  ASSERT_EQ(storage_->GetString(*it.string_value()), "value1");
+  ASSERT_TRUE(++it);
 
-  ASSERT_EQ(storage_->GetString(args[row].key()), "meta2");
-  ASSERT_EQ(args[row++].int_value(), -2);
+  ASSERT_EQ(storage_->GetString(it.key()), "meta2");
+  ASSERT_EQ(it.int_value(), -2);
+  ASSERT_TRUE(++it);
 
-  ASSERT_EQ(storage_->GetString(args[row].key()), "meta3");
-  ASSERT_EQ(args[row++].int_value(), 3);
+  ASSERT_EQ(storage_->GetString(it.key()), "meta3");
+  ASSERT_EQ(it.int_value(), 3);
+  ASSERT_FALSE(++it);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
@@ -1074,10 +1095,10 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     legacy_event->set_phase('B');
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
   }
@@ -1137,13 +1158,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
         protos::pbzero::TrackEvent::LegacyEvent::FLOW_OUT);
 
     auto* interned_data = packet->set_interned_data();
-    auto cat2 = interned_data->add_event_categories();
+    auto* cat2 = interned_data->add_event_categories();
     cat2->set_iid(2);
     cat2->set_name("cat2");
-    auto cat3 = interned_data->add_event_categories();
+    auto* cat3 = interned_data->add_event_categories();
     cat3->set_iid(3);
     cat3->set_name("cat3");
-    auto ev2 = interned_data->add_event_names();
+    auto* ev2 = interned_data->add_event_names();
     ev2->set_iid(4);
     ev2->set_name("ev2");
   }
@@ -1285,10 +1306,10 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     legacy_event->set_use_async_tts(true);
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
   }
@@ -1318,7 +1339,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     legacy_event->set_global_id(10);
 
     auto* interned_data = packet->set_interned_data();
-    auto ev2 = interned_data->add_event_names();
+    auto* ev2 = interned_data->add_event_names();
     ev2->set_iid(2);
     ev2->set_name("ev2");
   }
@@ -1335,7 +1356,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     legacy_event->set_global_id(15);
 
     auto* interned_data = packet->set_interned_data();
-    auto cat2 = interned_data->add_event_categories();
+    auto* cat2 = interned_data->add_event_categories();
     cat2->set_iid(2);
     cat2->set_name("cat2");
   }
@@ -1452,10 +1473,10 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     legacy_event->set_use_async_tts(true);
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
   }
@@ -1472,10 +1493,10 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     event->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(2);
     cat1->set_name("cat2");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(2);
     ev1->set_name("ev2");
   }
@@ -1519,10 +1540,10 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     event->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat3");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev3");
   }
@@ -1922,10 +1943,10 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     legacy_event->set_phase('B');
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
   }
@@ -1949,10 +1970,10 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     legacy_event->set_phase('B');
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev2 = interned_data->add_event_names();
+    auto* ev2 = interned_data->add_event_names();
     ev2->set_iid(1);
     ev2->set_name("ev2");
   }
@@ -2057,16 +2078,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     legacy_event->set_phase('B');
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
-    auto an1 = interned_data->add_debug_annotation_names();
+    auto* an1 = interned_data->add_debug_annotation_names();
     an1->set_iid(1);
     an1->set_name("an1");
-    auto an2 = interned_data->add_debug_annotation_names();
+    auto* an2 = interned_data->add_debug_annotation_names();
     an2->set_iid(2);
     an2->set_name("an2");
   }
@@ -2103,25 +2124,25 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     legacy_event->set_phase('E');
 
     auto* interned_data = packet->set_interned_data();
-    auto an3 = interned_data->add_debug_annotation_names();
+    auto* an3 = interned_data->add_debug_annotation_names();
     an3->set_iid(3);
     an3->set_name("an3");
-    auto an4 = interned_data->add_debug_annotation_names();
+    auto* an4 = interned_data->add_debug_annotation_names();
     an4->set_iid(4);
     an4->set_name("an4");
-    auto an5 = interned_data->add_debug_annotation_names();
+    auto* an5 = interned_data->add_debug_annotation_names();
     an5->set_iid(5);
     an5->set_name("an5");
-    auto an6 = interned_data->add_debug_annotation_names();
+    auto* an6 = interned_data->add_debug_annotation_names();
     an6->set_iid(6);
     an6->set_name("an6");
-    auto an7 = interned_data->add_debug_annotation_names();
+    auto* an7 = interned_data->add_debug_annotation_names();
     an7->set_iid(7);
     an7->set_name("an7");
-    auto an8 = interned_data->add_debug_annotation_names();
+    auto* an8 = interned_data->add_debug_annotation_names();
     an8->set_iid(8);
     an8->set_name("an8");
-    auto an9 = interned_data->add_debug_annotation_names();
+    auto* an9 = interned_data->add_debug_annotation_names();
     an9->set_iid(9);
     an9->set_name("an8.foo");
   }
@@ -2230,13 +2251,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
     legacy_event->set_phase('B');
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
-    auto loc1 = interned_data->add_source_locations();
+    auto* loc1 = interned_data->add_source_locations();
     loc1->set_iid(1);
     loc1->set_file_name("file1");
     loc1->set_function_name("func1");
@@ -2295,19 +2316,19 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
     legacy_event->set_phase('I');
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
 
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
 
-    auto body = interned_data->add_log_message_body();
+    auto* body = interned_data->add_log_message_body();
     body->set_iid(1);
     body->set_body("body1");
 
-    auto loc1 = interned_data->add_source_locations();
+    auto* loc1 = interned_data->add_source_locations();
     loc1->set_iid(1);
     loc1->set_file_name("file1");
     loc1->set_function_name("func1");
@@ -2383,13 +2404,13 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
     annotation1->set_uint_value(10u);
 
     auto* interned_data = packet->set_interned_data();
-    auto cat1 = interned_data->add_event_categories();
+    auto* cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_event_names();
+    auto* ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
-    auto an1 = interned_data->add_debug_annotation_names();
+    auto* an1 = interned_data->add_debug_annotation_names();
     an1->set_iid(1);
     an1->set_name("an1");
   }
@@ -2505,7 +2526,7 @@ TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
     metadata->set_int_value(23);
   }
 
-  util::Status status = Tokenize();
+  base::Status status = Tokenize();
   EXPECT_TRUE(status.ok());
   context_.sorter->ExtractEventsForced();
 
@@ -2625,13 +2646,12 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   base::StringView tags = metadata::kNames[metadata::benchmark_story_tags];
 
   context_.sorter->ExtractEventsForced();
-
   EXPECT_EQ(storage_->metadata_table().row_count(), 3u);
 
   std::vector<std::pair<base::StringView, base::StringView>> meta_entries;
   for (auto it = storage_->metadata_table().IterateRows(); it; ++it) {
-    meta_entries.emplace_back(std::make_pair(
-        storage_->GetString(it.name()), storage_->GetString(*it.str_value())));
+    meta_entries.emplace_back(storage_->GetString(it.name()),
+                              storage_->GetString(*it.str_value()));
   }
   EXPECT_THAT(meta_entries,
               UnorderedElementsAreArray({make_pair(benchmark, kName),
@@ -2797,29 +2817,29 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
 
     auto* interned_data = packet->set_interned_data();
 
-    auto mapping = interned_data->add_mappings();
+    auto* mapping = interned_data->add_mappings();
     mapping->set_iid(1);
     mapping->set_build_id(1);
 
-    auto build_id = interned_data->add_build_ids();
+    auto* build_id = interned_data->add_build_ids();
     build_id->set_iid(1);
     build_id->set_str("3BBCFBD372448A727265C3E7C4D954F91");
 
-    auto frame = interned_data->add_frames();
+    auto* frame = interned_data->add_frames();
     frame->set_iid(1);
     frame->set_rel_pc(0x42);
     frame->set_mapping_id(1);
 
-    auto frame2 = interned_data->add_frames();
+    auto* frame2 = interned_data->add_frames();
     frame2->set_iid(2);
     frame2->set_rel_pc(0x4242);
     frame2->set_mapping_id(1);
 
-    auto callstack = interned_data->add_callstacks();
+    auto* callstack = interned_data->add_callstacks();
     callstack->set_iid(1);
     callstack->add_frame_ids(1);
 
-    auto callstack2 = interned_data->add_callstacks();
+    auto* callstack2 = interned_data->add_callstacks();
     callstack2->set_iid(42);
     callstack2->add_frame_ids(2);
   }
@@ -2907,20 +2927,20 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
 
     auto* interned_data = packet->set_interned_data();
 
-    auto mapping = interned_data->add_mappings();
+    auto* mapping = interned_data->add_mappings();
     mapping->set_iid(1);
     mapping->set_build_id(1);
 
-    auto build_id = interned_data->add_build_ids();
+    auto* build_id = interned_data->add_build_ids();
     build_id->set_iid(1);
     build_id->set_str("3BBCFBD372448A727265C3E7C4D954F91");
 
-    auto frame = interned_data->add_frames();
+    auto* frame = interned_data->add_frames();
     frame->set_iid(1);
     frame->set_rel_pc(0x42);
     frame->set_mapping_id(1);
 
-    auto callstack = interned_data->add_callstacks();
+    auto* callstack = interned_data->add_callstacks();
     callstack->set_iid(1);
     callstack->add_frame_ids(1);
   }
@@ -3010,5 +3030,4 @@ TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

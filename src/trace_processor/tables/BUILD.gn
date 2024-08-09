@@ -65,6 +65,7 @@ source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../containers",
     "../db",
+    "../db/column",
   ]
 }
 

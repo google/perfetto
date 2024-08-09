@@ -108,7 +108,7 @@ static void BM_TableFilterRootId(benchmark::State& state) {
     root.Insert({});
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterRootId)->Apply(TableFilterArgs);
@@ -129,7 +129,7 @@ static void BM_TableFilterRootIdAndOther(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterRootIdAndOther)->Apply(TableFilterArgs);
@@ -148,7 +148,7 @@ static void BM_TableFilterChildId(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterChildId)->Apply(TableFilterArgs);
@@ -172,7 +172,7 @@ static void BM_TableFilterChildIdAndSortedInRoot(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterChildIdAndSortedInRoot)->Apply(TableFilterArgs);
@@ -193,7 +193,7 @@ static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterRootNonNullEqMatchMany)->Apply(TableFilterArgs);
@@ -216,7 +216,7 @@ static void BM_TableFilterRootMultipleNonNull(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterRootMultipleNonNull)->Apply(TableFilterArgs);
@@ -241,7 +241,7 @@ static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterRootNullableEqMatchMany)->Apply(TableFilterArgs);
@@ -265,7 +265,7 @@ static void BM_TableFilterChildNonNullEqMatchMany(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterChildNonNullEqMatchMany)->Apply(TableFilterArgs);
@@ -292,7 +292,7 @@ static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterChildNullableEqMatchMany)->Apply(TableFilterArgs);
@@ -317,7 +317,7 @@ static void BM_TableFilterChildNonNullEqMatchManyInParent(
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterChildNonNullEqMatchManyInParent)
@@ -343,7 +343,7 @@ static void BM_TableFilterChildNullableEqMatchManyInParent(
   Query q;
   q.constraints = {child.root_nullable().eq(1)};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterChildNullableEqMatchManyInParent)
@@ -364,7 +364,7 @@ static void BM_TableFilterParentSortedEq(benchmark::State& state) {
   Query q;
   q.constraints = {root.root_sorted().eq(22)};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterParentSortedEq)->Apply(TableFilterArgs);
@@ -391,7 +391,7 @@ static void BM_TableFilterParentSortedAndOther(benchmark::State& state) {
   q.constraints = {root.root_sorted().eq(last_group),
                    root.root_non_null().eq(size - 1)};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterParentSortedAndOther)->Apply(TableFilterArgs);
@@ -413,7 +413,7 @@ static void BM_TableFilterChildSortedEq(benchmark::State& state) {
   Query q;
   q.constraints = {child.child_sorted().eq(22)};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterChildSortedEq)->Apply(TableFilterArgs);
@@ -438,7 +438,7 @@ static void BM_TableFilterChildSortedEqInParent(benchmark::State& state) {
   Query q;
   q.constraints = {child.root_sorted().eq(22)};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableFilterChildSortedEqInParent)->Apply(TableFilterArgs);
@@ -461,7 +461,7 @@ static void BM_TableSortRootNonNull(benchmark::State& state) {
   Query q;
   q.orders = {root.root_non_null().ascending()};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableSortRootNonNull)->Apply(TableSortArgs);
@@ -485,7 +485,7 @@ static void BM_TableSortRootNullable(benchmark::State& state) {
   Query q;
   q.orders = {root.root_nullable().ascending()};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(root.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableSortRootNullable)->Apply(TableSortArgs);
@@ -515,7 +515,7 @@ static void BM_TableSortChildNonNullInParent(benchmark::State& state) {
   Query q;
   q.orders = {child.root_non_null().ascending()};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableSortChildNonNullInParent)->Apply(TableSortArgs);
@@ -547,7 +547,7 @@ static void BM_TableSortChildNullableInParent(benchmark::State& state) {
   Query q;
   q.orders = {child.root_nullable().ascending()};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(child.ApplyAndIterateRows(child.QueryToRowMap(q)));
+    benchmark::DoNotOptimize(child.FilterToIterator(q));
   }
 }
 BENCHMARK(BM_TableSortChildNullableInParent)->Apply(TableSortArgs);
