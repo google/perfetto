@@ -301,6 +301,8 @@ source_set("unittests") {
     "../../../../protos/perfetto/trace/sys_stats:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../../protozero",
+    "../../containers",
+    "../../db/column",
     "../../sorter",
     "../../storage",
     "../../tables",

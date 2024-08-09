@@ -668,6 +668,17 @@ class {self.table_name} : public macros_internal::MacroTable {{
     {self.foreach_col(ColumnSerializer.shrink_to_fit)}
   }}
 
+  ConstRowReference operator[](uint32_t r) const {{
+    return ConstRowReference(this, r);
+  }}
+  RowReference operator[](uint32_t r) {{ return RowReference(this, r); }}
+  ConstRowReference operator[](RowNumber r) const {{
+    return ConstRowReference(this, r.row_number());
+  }}
+  RowReference operator[](RowNumber r) {{
+    return RowReference(this, r.row_number());
+  }}
+
   std::optional<ConstRowReference> FindById(Id find_id) const {{
     std::optional<uint32_t> row = id().IndexOf(find_id);
     return row ? std::make_optional(ConstRowReference(this, *row))

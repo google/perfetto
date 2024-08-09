@@ -15,9 +15,12 @@
  */
 
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
+#include <cstdint>
+#include <string>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"
@@ -81,17 +84,16 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_Counter) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->perf_counter_track_table();
-  auto row_id = track_table.id().IndexOf(track_id);
+  auto rr = track_table.FindById(track_id);
 
   // track exists and looks sensible
-  ASSERT_TRUE(row_id.has_value());
-  EXPECT_EQ(track_table.perf_session_id()[*row_id], stream.perf_session_id);
-  EXPECT_EQ(track_table.cpu()[*row_id], cpu0);
-  EXPECT_TRUE(track_table.is_timebase()[*row_id]);
+  ASSERT_TRUE(rr.has_value());
+  EXPECT_EQ(rr->perf_session_id(), stream.perf_session_id);
+  EXPECT_EQ(rr->cpu(), cpu0);
+  EXPECT_TRUE(rr->is_timebase());
 
   // Name derived from the timebase.
-  std::string track_name =
-      context.storage->GetString(track_table.name()[*row_id]).ToStdString();
+  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
   ASSERT_EQ(track_name, "page-faults");
 }
 
@@ -112,17 +114,16 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_Tracepoint) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->perf_counter_track_table();
-  auto row_id = track_table.id().IndexOf(track_id);
+  auto rr = track_table.FindById(track_id);
 
   // track exists and looks sensible
-  ASSERT_TRUE(row_id.has_value());
-  EXPECT_EQ(track_table.perf_session_id()[*row_id], stream.perf_session_id);
-  EXPECT_EQ(track_table.cpu()[*row_id], cpu0);
-  EXPECT_TRUE(track_table.is_timebase()[*row_id]);
+  ASSERT_TRUE(rr.has_value());
+  EXPECT_EQ(rr->perf_session_id(), stream.perf_session_id);
+  EXPECT_EQ(rr->cpu(), cpu0);
+  EXPECT_TRUE(rr->is_timebase());
 
   // Name derived from the timebase.
-  std::string track_name =
-      context.storage->GetString(track_table.name()[*row_id]).ToStdString();
+  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
   ASSERT_EQ(track_name, "sched:sched_switch");
 }
 
@@ -135,18 +136,17 @@ TEST_F(PerfSampleTrackerTest, UnknownCounterTreatedAsCpuClock) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->perf_counter_track_table();
-  auto row_id = track_table.id().IndexOf(track_id);
+  auto rr = track_table.FindById(track_id);
 
   // track exists and looks sensible
-  ASSERT_TRUE(row_id.has_value());
-  EXPECT_EQ(track_table.perf_session_id()[*row_id], stream.perf_session_id);
-  EXPECT_EQ(track_table.cpu()[*row_id], cpu0);
-  EXPECT_TRUE(track_table.is_timebase()[*row_id]);
+  ASSERT_TRUE(rr.has_value());
+  EXPECT_EQ(rr->perf_session_id(), stream.perf_session_id);
+  EXPECT_EQ(rr->cpu(), cpu0);
+  EXPECT_TRUE(rr->is_timebase());
 
   // If the trace doesn't have a PerfSampleDefaults describing the timebase
   // counter, we assume cpu-clock.
-  std::string track_name =
-      context.storage->GetString(track_table.name()[*row_id]).ToStdString();
+  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
   ASSERT_EQ(track_name, "cpu-clock");
 }
 
@@ -170,17 +170,16 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_ConfigSuppliedName) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->perf_counter_track_table();
-  auto row_id = track_table.id().IndexOf(track_id);
+  auto rr = track_table.FindById(track_id);
 
   // track exists and looks sensible
-  ASSERT_TRUE(row_id.has_value());
-  EXPECT_EQ(track_table.perf_session_id()[*row_id], stream.perf_session_id);
-  EXPECT_EQ(track_table.cpu()[*row_id], cpu0);
-  EXPECT_TRUE(track_table.is_timebase()[*row_id]);
+  ASSERT_TRUE(rr.has_value());
+  EXPECT_EQ(rr->perf_session_id(), stream.perf_session_id);
+  EXPECT_EQ(rr->cpu(), cpu0);
+  EXPECT_TRUE(rr->is_timebase());
 
   // Using the config-supplied name for the track.
-  std::string track_name =
-      context.storage->GetString(track_table.name()[*row_id]).ToStdString();
+  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
   ASSERT_EQ(track_name, "test-name");
 }
 

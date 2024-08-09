@@ -586,13 +586,14 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       }
     }
     if (!class_package) {
-      auto app_id = storage_->process_table()
-                        .android_appid()[sequence_state.current_upid];
+      auto app_id = storage_->process_table()[sequence_state.current_upid]
+                        .android_appid();
       if (app_id) {
-        auto pkg_row = storage_->package_list_table().uid().IndexOf(*app_id);
-        if (pkg_row) {
-          class_package =
-              storage_->package_list_table().package_name()[*pkg_row];
+        for (auto it = storage_->package_list_table().IterateRows(); it; ++it) {
+          if (it.uid() == *app_id) {
+            class_package = it.package_name();
+            break;
+          }
         }
       }
     }
@@ -736,18 +737,18 @@ void HeapGraphTracker::PopulateSuperClasses(const SequenceState& seq) {
 
   auto* classes_tbl = storage_->mutable_heap_graph_class_table();
   std::map<ClassDescriptor, ClassTable::Id> class_to_id;
-  for (uint32_t idx = 0; idx < classes_tbl->row_count(); ++idx) {
-    class_to_id[{classes_tbl->name()[idx], classes_tbl->location()[idx]}] =
-        classes_tbl->id()[idx];
+  for (auto it = classes_tbl->IterateRows(); it; ++it) {
+    class_to_id[{it.name(), it.location()}] = it.id();
   }
 
   // Iterate through the classes table and annotate with superclasses.
   // We iterate all rows on the classes table (even though the superclass
   // mapping was generated on the current sequence) - if we cannot identify
   // a superclass we will just skip.
-  for (uint32_t idx = 0; idx < classes_tbl->row_count(); ++idx) {
-    auto name = storage_->GetString(classes_tbl->name()[idx]);
-    auto location = classes_tbl->location()[idx];
+  for (uint32_t i = 0; i < classes_tbl->row_count(); ++i) {
+    auto rr = (*classes_tbl)[i];
+    auto name = storage_->GetString(rr.name());
+    auto location = rr.location();
     auto normalized = GetNormalizedType(name);
     if (normalized.is_static_class || normalized.number_of_arrays > 0)
       continue;
@@ -766,9 +767,7 @@ void HeapGraphTracker::PopulateSuperClasses(const SequenceState& seq) {
       // instances would not appear here).
       continue;
     }
-    auto superclass_id = superclass_it->second;
-    // Mutate the superclass column
-    classes_tbl->mutable_superclass_id()->Set(idx, superclass_id);
+    rr.set_superclass_id(superclass_it->second);
   }
 }
 

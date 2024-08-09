@@ -214,34 +214,6 @@ class ColumnLegacy {
   // Gets the value of the Column at the given |row|.
   SqlValue Get(uint32_t row) const { return GetAtIdx(overlay().Get(row)); }
 
-  // Returns the row containing the given value in the Column.
-  std::optional<uint32_t> IndexOf(SqlValue value) const {
-    switch (type_) {
-      // TODO(lalitm): investigate whether we could make this more efficient
-      // by first checking the type of the column and comparing explicitly
-      // based on that type.
-      case ColumnType::kInt32:
-      case ColumnType::kUint32:
-      case ColumnType::kInt64:
-      case ColumnType::kDouble:
-      case ColumnType::kString: {
-        for (uint32_t i = 0; i < overlay().size(); i++) {
-          if (compare::SqlValue(Get(i), value) == 0)
-            return i;
-        }
-        return std::nullopt;
-      }
-      case ColumnType::kId: {
-        if (value.type != SqlValue::Type::kLong)
-          return std::nullopt;
-        return overlay().RowOf(static_cast<uint32_t>(value.long_value));
-      }
-      case ColumnType::kDummy:
-        PERFETTO_FATAL("IndexOf not allowed on dummy column");
-    }
-    PERFETTO_FATAL("For GCC");
-  }
-
   // Returns the minimum value in this column. Returns std::nullopt if this
   // column is empty.
   std::optional<SqlValue> Min() const {

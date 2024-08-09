@@ -16,8 +16,18 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 
-#include "perfetto/base/logging.h"
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <utility>
+
+#include "perfetto/ext/base/string_view.h"
+#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/profiler_util.h"
 #include "test/gtest_and_gmock.h"
 
@@ -61,8 +71,8 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   constexpr int64_t kTimestamp = 1;
 
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.process_tracker.reset(new ProcessTracker(&context));
+  context.storage = std::make_shared<TraceStorage>();
+  context.process_tracker = std::make_unique<ProcessTracker>(&context);
   context.process_tracker->GetOrCreateProcess(kPid);
 
   HeapGraphTracker tracker(context.storage.get());
@@ -171,19 +181,16 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   const auto& objs_table = context.storage->heap_graph_object_table();
   const auto& class_table = context.storage->heap_graph_class_table();
   size_t count_bitmaps = 0;
-  for (uint32_t obj_row = 0; obj_row < objs_table.row_count(); ++obj_row) {
-    std::optional<uint32_t> class_row =
-        class_table.id().IndexOf(objs_table.type_id()[obj_row]);
+  for (auto it = objs_table.IterateRows(); it; ++it) {
+    auto class_row = class_table.FindById(it.type_id());
     ASSERT_TRUE(class_row.has_value());
-    if (context.storage->string_pool().Get(class_table.name()[*class_row]) ==
+    if (context.storage->string_pool().Get(class_row->name()) ==
         "android.graphics.Bitmap") {
-      EXPECT_EQ(objs_table.native_size()[obj_row], 24242);
+      EXPECT_EQ(it.native_size(), 24242);
       count_bitmaps++;
     } else {
-      EXPECT_EQ(objs_table.native_size()[obj_row], 0)
-          << context.storage->string_pool()
-                 .Get(class_table.name()[*class_row])
-                 .c_str()
+      EXPECT_EQ(it.native_size(), 0)
+          << context.storage->string_pool().Get(class_row->name()).c_str()
           << " has non zero native_size";
     }
   }
@@ -216,7 +223,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   constexpr uint64_t kA = 3;
   constexpr uint64_t kB = 4;
 
-  base::StringView field = base::StringView("foo");
+  auto field = base::StringView("foo");
   StringPool::Id x = context.storage->InternString("X");
   StringPool::Id y = context.storage->InternString("Y");
   StringPool::Id a = context.storage->InternString("A");
@@ -424,12 +431,12 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   EXPECT_THAT(counts, UnorderedElementsAre(1, 1));
 }
 
-static const char kArray[] = "X[]";
-static const char kDoubleArray[] = "X[][]";
-static const char kNoArray[] = "X";
-static const char kLongNoArray[] = "ABCDE";
-static const char kStaticClassNoArray[] = "java.lang.Class<abc>";
-static const char kStaticClassArray[] = "java.lang.Class<abc[]>";
+constexpr char kArray[] = "X[]";
+constexpr char kDoubleArray[] = "X[][]";
+constexpr char kNoArray[] = "X";
+constexpr char kLongNoArray[] = "ABCDE";
+constexpr char kStaticClassNoArray[] = "java.lang.Class<abc>";
+constexpr char kStaticClassArray[] = "java.lang.Class<abc[]>";
 
 TEST(HeapGraphTrackerTest, NormalizeTypeName) {
   // sizeof(...) - 1 below to get rid of the null-byte.

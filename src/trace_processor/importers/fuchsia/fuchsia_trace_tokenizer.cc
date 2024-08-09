@@ -626,7 +626,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
 
           UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(obj_id),
                                                static_cast<uint32_t>(pid));
-          storage->mutable_thread_table()->mutable_name()->Set(utid, name);
+          auto& tt = *storage->mutable_thread_table();
+          tt[utid].set_name(name);
           break;
         }
         default: {

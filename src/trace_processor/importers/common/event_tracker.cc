@@ -39,10 +39,11 @@ std::optional<CounterId> EventTracker::PushProcessCounterForThread(
     double value,
     StringId name_id,
     UniqueTid utid) {
+  const auto& counter = context_->storage->counter_table();
   auto opt_id = PushCounter(timestamp, value, kInvalidTrackId);
   if (opt_id) {
     PendingUpidResolutionCounter pending;
-    pending.row = *context_->storage->counter_table().id().IndexOf(*opt_id);
+    pending.row = counter.FindById(*opt_id)->ToRowNumber().row_number();
     pending.utid = utid;
     pending.name_id = name_id;
     pending_upid_resolution_counter_.emplace_back(pending);
@@ -83,7 +84,7 @@ void EventTracker::FlushPendingEvents() {
   const auto& thread_table = context_->storage->thread_table();
   for (const auto& pending_counter : pending_upid_resolution_counter_) {
     UniqueTid utid = pending_counter.utid;
-    std::optional<UniquePid> upid = thread_table.upid()[utid];
+    std::optional<UniquePid> upid = thread_table[utid].upid();
 
     TrackId track_id = kInvalidTrackId;
     if (upid.has_value()) {
@@ -96,8 +97,8 @@ void EventTracker::FlushPendingEvents() {
       track_id = context_->track_tracker->InternThreadCounterTrack(
           pending_counter.name_id, utid);
     }
-    context_->storage->mutable_counter_table()->mutable_track_id()->Set(
-        pending_counter.row, track_id);
+    auto& counter = *context_->storage->mutable_counter_table();
+    counter[pending_counter.row].set_track_id(track_id);
   }
   pending_upid_resolution_counter_.clear();
 }
