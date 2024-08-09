@@ -3193,8 +3193,8 @@ message TraceMetrics {
   // Android Broadcasts aggregated metrics
   optional AndroidBroadcastsMetric android_broadcasts = 68;
 
-  // Android Wattson app startup metrics.
-  optional AndroidWattsonTimePeriodMetric wattson_app_startup = 69;
+  // Android Wattson rail estimate for each app startup.
+  optional AndroidWattsonTimePeriodMetric wattson_app_startup_rails = 69;
 
   // Android Wattson rail estimate for duration of entire trace.
   optional AndroidWattsonTimePeriodMetric wattson_trace_rails = 70;

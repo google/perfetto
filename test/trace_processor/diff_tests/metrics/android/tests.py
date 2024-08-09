@@ -369,12 +369,12 @@ class AndroidMetrics(TestSuite):
         query=Metric("android_broadcasts"),
         out=Path('android_broadcasts.out'))
 
-  def test_wattson_app_startup_output(self):
+  def test_wattson_app_startup_rails_output(self):
     return DiffTestBlueprint(
         trace=DataPath('android_calculator_startup.pb'),
-        query=Metric("wattson_app_startup"),
+        query=Metric("wattson_app_startup_rails"),
         out=Csv("""
-        wattson_app_startup {
+        wattson_app_startup_rails {
           metric_version: 2
           period_info {
             period_id: 1

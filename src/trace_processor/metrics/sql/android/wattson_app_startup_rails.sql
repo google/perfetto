@@ -28,8 +28,8 @@ SELECT RUN_METRIC(
   'window_table', '_app_startup_window'
 );
 
-DROP VIEW IF EXISTS wattson_app_startup_output;
-CREATE PERFETTO VIEW wattson_app_startup_output AS
+DROP VIEW IF EXISTS wattson_app_startup_rails_output;
+CREATE PERFETTO VIEW wattson_app_startup_rails_output AS
 SELECT AndroidWattsonTimePeriodMetric(
   'metric_version', 2,
   'period_info', (
