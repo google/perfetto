@@ -21,6 +21,21 @@ from python.generators.diff_tests.testing import TestSuite
 
 class Frames(TestSuite):
 
+  def test_android_frames_get_frame_table_with_id(self):
+    return DiffTestBlueprint(
+        trace=Path('../../metrics/graphics/android_doframe_depth.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.frames.timeline;
+        SELECT frame_id, name, depth
+        FROM android_frames_choreographer_do_frame doframe
+        JOIN slice USING(id);
+        """,
+        out=Csv("""
+        "frame_id","name","depth"
+        10,"Choreographer#doFrame 10",0
+        11,"Choreographer#doFrame 11",1
+        """))
+
   def test_android_frames_choreographer_do_frame(self):
     return DiffTestBlueprint(
         trace=Path('../../metrics/graphics/android_jank_cuj.py'),
