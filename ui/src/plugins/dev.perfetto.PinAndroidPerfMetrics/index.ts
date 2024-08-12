@@ -15,7 +15,7 @@
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {TrackType} from '../dev.perfetto.AndroidCujs/trackUtils';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
-import {MetricHandlerMatch} from './handlers/metricUtils';
+import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
 import {PLUGIN_ID} from './pluginId';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
@@ -91,28 +91,30 @@ class PinAndroidPerfMetrics implements Plugin {
     return metricList.map((metric) => decodeURIComponent(metric));
   }
 
-  private getMetricsToShow(metricList: string[]) {
+  private getMetricsToShow(metricList: string[]): MetricHandlerMatch[] {
+    const sortedMetricList = [...metricList].sort();
     const validMetrics: MetricHandlerMatch[] = [];
-    metricList.forEach((metric) => {
-      const matchedHandler = this.matchMetricToHandler(metric);
-      if (matchedHandler) {
-        validMetrics.push(matchedHandler);
+    const alreadyMatchedMetricData: Set<string> = new Set();
+    for (const metric of sortedMetricList) {
+      for (const metricHandler of METRIC_HANDLERS) {
+        const metricData = metricHandler.match(metric);
+        if (!metricData) continue;
+        const jsonMetricData = this.metricDataToJson(metricData);
+        if (!alreadyMatchedMetricData.has(jsonMetricData)) {
+          alreadyMatchedMetricData.add(jsonMetricData);
+          validMetrics.push({
+            metricData: metricData,
+            metricHandler: metricHandler,
+          });
+        }
       }
-    });
+    }
     return validMetrics;
   }
 
-  private matchMetricToHandler(metric: string): MetricHandlerMatch | null {
-    for (const metricHandler of METRIC_HANDLERS) {
-      const match = metricHandler.match(metric);
-      if (match) {
-        return {
-          metricData: match,
-          metricHandler: metricHandler,
-        };
-      }
-    }
-    return null;
+  private metricDataToJson(metricData: MetricData): string {
+    // Used to have a deterministic keys order.
+    return JSON.stringify(metricData, Object.keys(metricData).sort());
   }
 }
 

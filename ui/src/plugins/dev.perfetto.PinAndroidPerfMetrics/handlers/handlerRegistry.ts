@@ -16,9 +16,11 @@ import {MetricHandler} from './metricUtils';
 import {pinBlockingCallHandlerInstance} from './pinBlockingCall';
 import {pinCujScopedJankInstance} from './pinCujScoped';
 import {pinFullTraceJankInstance} from './fullTraceJankMetricHandler';
+import {pinCujInstance} from './pinCujMetricHandler';
 
 // TODO: b/337774166 - Add handlers for the metric name categories here
 export const METRIC_HANDLERS: MetricHandler[] = [
+  pinCujInstance,
   pinCujScopedJankInstance,
   pinBlockingCallHandlerInstance,
   pinFullTraceJankInstance,
