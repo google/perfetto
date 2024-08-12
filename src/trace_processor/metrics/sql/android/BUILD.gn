@@ -143,7 +143,7 @@ perfetto_sql_source_set("android") {
     "sysui_notif_shade_list_builder_slices.sql",
     "sysui_update_notif_on_ui_mode_changed_metric.sql",
     "unsymbolized_frames.sql",
-    "wattson_app_startup.sql",
+    "wattson_app_startup_rails.sql",
     "wattson_rail_relations.sql",
     "wattson_tasks_attribution.sql",
     "wattson_trace_rails.sql",
