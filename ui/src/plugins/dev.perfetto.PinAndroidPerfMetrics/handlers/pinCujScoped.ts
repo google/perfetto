@@ -112,7 +112,7 @@ class PinCujScopedJank implements MetricHandler {
     const processName = metricData.process;
 
     const createJankyCujFrameTable = `
-    CREATE PERFETTO TABLE _janky_frames_during_cuj_from_metric_key AS
+    CREATE OR REPLACE PERFETTO TABLE _janky_frames_during_cuj_from_metric_key AS
     SELECT
       f.vsync as id,
       f.ts AS ts,
