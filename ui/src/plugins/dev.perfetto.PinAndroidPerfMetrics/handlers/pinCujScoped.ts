@@ -21,7 +21,6 @@ import {
 import {LONG, NUM} from '../../../trace_processor/query_result';
 import {PluginContextTrace} from '../../../public';
 import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
-import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
 import {
   addAndPinSliceTrack,
   focusOnSlice,
@@ -73,23 +72,12 @@ class PinCujScopedJank implements MetricHandler {
     // TODO: b/349502258 - Refactor to single API
     const {config: cujScopedJankSlice, trackName: trackName} =
       await this.cujScopedTrackConfig(metricData, ctx);
-    this.pinSingleCuj(ctx, metricData, type);
     const uri = `${PLUGIN_ID}#CUJScopedJankSlice#${metricData}`;
 
     addAndPinSliceTrack(ctx, cujScopedJankSlice, trackName, type, uri);
     if (ENABLE_FOCUS_ON_FIRST_JANK) {
       await this.focusOnFirstJank(ctx);
     }
-  }
-
-  private pinSingleCuj(
-    ctx: PluginContextTrace,
-    metricData: CujScopedMetricData,
-    type: TrackType,
-  ) {
-    const uri = `${PLUGIN_ID}#CUJScopedBoundaryTimes#${metricData}`;
-    const trackName = `Jank CUJ: ${metricData.cujName}`;
-    addJankCUJDebugTrack(ctx, trackName, type, metricData.cujName, uri);
   }
 
   private async cujScopedTrackConfig(
