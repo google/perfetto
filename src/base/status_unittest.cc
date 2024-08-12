@@ -15,11 +15,17 @@
  */
 
 #include "perfetto/base/status.h"
+#include <string>
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace base {
+namespace perfetto::base {
+
+TEST(StatusTest, HugeError) {
+  std::string x(4096, 'x');
+  base::Status status = base::ErrStatus("%s", x.c_str());
+  ASSERT_EQ(status.message(), x);
+}
 
 TEST(StatusTest, GetMissingPayload) {
   base::Status status = base::ErrStatus("Error");
@@ -63,5 +69,4 @@ TEST(StatusTest, SetMultipleAndDuplicate) {
   ASSERT_EQ(status.GetPayload("test.foo.com/bar2"), "2");
 }
 
-}  // namespace base
-}  // namespace perfetto
+}  // namespace perfetto::base
