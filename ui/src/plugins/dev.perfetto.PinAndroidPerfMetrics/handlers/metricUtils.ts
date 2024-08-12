@@ -61,11 +61,17 @@ export interface BlockingCallMetricData {
   aggregation: string;
 }
 
+/** Represents a cuj to be pinned. */
+export interface CujMetricData {
+  cujName: string;
+}
+
 // Common MetricData for all handler. If new needed then add here.
 export type MetricData =
   | FullTraceMetricData
   | CujScopedMetricData
-  | BlockingCallMetricData;
+  | BlockingCallMetricData
+  | CujMetricData;
 
 // Common JankType for cujScoped and fullTrace metrics
 export type JankType = 'sf_frames' | 'app_frames' | 'frames';
