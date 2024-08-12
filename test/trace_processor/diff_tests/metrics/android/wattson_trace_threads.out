@@ -1,15 +1,15 @@
 wattson_trace_threads {
   metric_version: 1
   task_info {
-    estimate_mws: 34.338558
-    estimate_mw: 3.970208
+    estimate_mws: 34.415016
+    estimate_mw: 3.979049
     thread_name: "swapper"
     thread_id: 0
     process_id: 0
   }
   task_info {
-    estimate_mws: 19.853722
-    estimate_mw: 2.295478
+    estimate_mws: 19.853703
+    estimate_mw: 2.295476
     thread_name: "RenderThread"
     process_name: "com.google.android.wearable.sysui"
     thread_id: 1986
@@ -17,15 +17,15 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 17.530441
-    estimate_mw: 2.026861
+    estimate_mw: 2.026862
     thread_name: "Jit thread pool"
     process_name: "system_server"
     thread_id: 1344
     process_id: 1302
   }
   task_info {
-    estimate_mws: 16.980276
-    estimate_mw: 1.963251
+    estimate_mws: 16.980274
+    estimate_mw: 1.963252
     thread_name: "surfaceflinger"
     process_name: "/system/bin/surfaceflinger"
     thread_id: 755
@@ -40,7 +40,7 @@ wattson_trace_threads {
     process_id: 1926
   }
   task_info {
-    estimate_mws: 13.373357
+    estimate_mws: 13.373355
     estimate_mw: 1.546221
     thread_name: "binder:685_3"
     process_name: "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
@@ -56,8 +56,8 @@ wattson_trace_threads {
     process_id: 1302
   }
   task_info {
-    estimate_mws: 6.504194
-    estimate_mw: 0.752012
+    estimate_mws: 6.504173
+    estimate_mw: 0.752010
     thread_name: "binder:1302_A"
     process_name: "system_server"
     thread_id: 2015
@@ -72,8 +72,8 @@ wattson_trace_threads {
     process_id: 1302
   }
   task_info {
-    estimate_mws: 4.769787
-    estimate_mw: 0.551480
+    estimate_mws: 4.769800
+    estimate_mw: 0.551482
     thread_name: "RenderEngine"
     process_name: "/system/bin/surfaceflinger"
     thread_id: 788
@@ -96,7 +96,7 @@ wattson_trace_threads {
     process_id: 2856
   }
   task_info {
-    estimate_mws: 4.117814
+    estimate_mws: 4.117818
     estimate_mw: 0.476100
     thread_name: "logd.writer"
     process_name: "/system/bin/logd"
@@ -145,7 +145,7 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 3.459922
-    estimate_mw: 0.400034
+    estimate_mw: 0.400035
     thread_name: "logcat"
     process_name: "logcat"
     thread_id: 1230
@@ -153,7 +153,7 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 3.429554
-    estimate_mw: 0.396523
+    estimate_mw: 0.396524
     thread_name: "system_server"
     process_name: "system_server"
     thread_id: 1302
@@ -208,7 +208,7 @@ wattson_trace_threads {
     process_id: 904
   }
   task_info {
-    estimate_mws: 2.550922
+    estimate_mws: 2.550916
     estimate_mw: 0.294936
     thread_name: "kworker/u8:0"
     process_name: "kworker/u8:0"
@@ -225,7 +225,7 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 2.386123
-    estimate_mw: 0.275882
+    estimate_mw: 0.275883
     thread_name: "binder:1302_15"
     process_name: "system_server"
     thread_id: 3754
@@ -241,7 +241,7 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 2.171289
-    estimate_mw: 0.251043
+    estimate_mw: 0.251044
     thread_name: "RenderThread"
     process_name: "com.google.android.wearable.watchface.rwf"
     thread_id: 2301
@@ -256,7 +256,7 @@ wattson_trace_threads {
     process_id: 1302
   }
   task_info {
-    estimate_mws: 2.091428
+    estimate_mws: 2.091430
     estimate_mw: 0.241810
     thread_name: "rcu_preempt"
     process_name: "rcu_preempt"
@@ -273,7 +273,7 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 1.914560
-    estimate_mw: 0.221360
+    estimate_mw: 0.221361
     thread_name: "arable.systemui"
     process_name: "com.google.android.apps.wearable.systemui"
     thread_id: 2171
@@ -440,15 +440,15 @@ wattson_trace_threads {
     process_id: 211
   }
   task_info {
-    estimate_mws: 1.007066
-    estimate_mw: 0.116436
+    estimate_mws: 1.007070
+    estimate_mw: 0.116437
     thread_name: "android.fg"
     process_name: "system_server"
     thread_id: 1415
     process_id: 1302
   }
   task_info {
-    estimate_mws: 0.969983
+    estimate_mws: 0.969980
     estimate_mw: 0.112149
     thread_name: "rcuog/0"
     process_name: "rcuog/0"
@@ -456,7 +456,7 @@ wattson_trace_threads {
     process_id: 15
   }
   task_info {
-    estimate_mws: 0.952084
+    estimate_mws: 0.952077
     estimate_mw: 0.110079
     thread_name: "binder:1926_3"
     process_name: "com.google.android.wearable.sysui"
@@ -568,8 +568,8 @@ wattson_trace_threads {
     process_id: 1999
   }
   task_info {
-    estimate_mws: 0.744167
-    estimate_mw: 0.086040
+    estimate_mws: 0.744159
+    estimate_mw: 0.086039
     thread_name: "servicemanager"
     process_name: "/system/bin/servicemanager"
     thread_id: 213
@@ -593,7 +593,7 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 0.675997
-    estimate_mw: 0.078158
+    estimate_mw: 0.078159
     thread_name: "binder:1302_4"
     process_name: "system_server"
     thread_id: 1592
@@ -745,7 +745,7 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 0.490345
-    estimate_mw: 0.056693
+    estimate_mw: 0.056694
     thread_name: "traced"
     process_name: "/system/bin/traced"
     thread_id: 905
@@ -777,7 +777,7 @@ wattson_trace_threads {
   }
   task_info {
     estimate_mws: 0.454063
-    estimate_mw: 0.052498
+    estimate_mw: 0.052499
     thread_name: "putmethod.latin"
     process_name: "com.google.android.inputmethod.latin"
     thread_id: 4997
@@ -1080,8 +1080,8 @@ wattson_trace_threads {
     process_id: 257
   }
   task_info {
-    estimate_mws: 0.247046
-    estimate_mw: 0.028563
+    estimate_mws: 0.247037
+    estimate_mw: 0.028562
     thread_name: "SDM_EventThread"
     process_name: "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
     thread_id: 727
@@ -1280,8 +1280,8 @@ wattson_trace_threads {
     process_id: 678
   }
   task_info {
-    estimate_mws: 0.158685
-    estimate_mw: 0.018347
+    estimate_mws: 0.158692
+    estimate_mw: 0.018348
     thread_name: "binder:650_4"
     process_name: "/vendor/bin/hw/android.hardware.gnss-aidl-service-qti"
     thread_id: 5498
