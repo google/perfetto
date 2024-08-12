@@ -16,20 +16,53 @@
 
 #include "perfetto/base/status.h"
 
-#include <stdarg.h>
 #include <algorithm>
+#include <cstdarg>
+#include <cstdio>
+#include <string>
+#include <utility>
 
-namespace perfetto {
-namespace base {
+namespace perfetto::base {
 
 Status ErrStatus(const char* format, ...) {
-  char buffer[1024];
-  va_list ap;
-  va_start(ap, format);
-  vsnprintf(buffer, sizeof(buffer), format, ap);
-  va_end(ap);
-  Status status(buffer);
-  return status;
+  std::string buf;
+  buf.resize(1024);
+  for (;;) {
+    va_list ap;
+    va_start(ap, format);
+    int N = vsnprintf(buf.data(), buf.size() - 1, format, ap);
+    va_end(ap);
+
+    if (N <= 0) {
+      buf = "[printf format error]";
+      break;
+    }
+
+    auto sN = static_cast<size_t>(N);
+    if (sN > buf.size() - 1) {
+      // Indicates that the string was truncated and sN is the "number of
+      // non-null bytes which would be needed to fit the result". This is the
+      // C99 standard behaviour in the case of truncation. In that case, resize
+      // the buffer to match the returned value (with + 1 for the null
+      // terminator) and try again.
+      buf.resize(sN + 1);
+      continue;
+    }
+    if (sN == buf.size() - 1) {
+      // Indicates that the string was likely truncated and sN is just the
+      // number of bytes written into the string. This is the behaviour of
+      // non-standard compilers (MSVC) etc. In that case, just double the
+      // storage and try again.
+      buf.resize(sN * 2);
+      continue;
+    }
+
+    // Otherwise, indicates the string was written successfully: we need to
+    // resize to match the number of non-null bytes and return.
+    buf.resize(sN);
+    break;
+  }
+  return Status(std::move(buf));
 }
 
 std::optional<std::string_view> Status::GetPayload(
@@ -70,5 +103,4 @@ bool Status::ErasePayload(std::string_view type_url) {
   return erased;
 }
 
-}  // namespace base
-}  // namespace perfetto
+}  // namespace perfetto::base
