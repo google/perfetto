@@ -77,6 +77,7 @@ import "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto";
 import "protos/perfetto/metrics/android/android_broadcasts_metric.proto";
 import "protos/perfetto/metrics/android/wattson_in_time_period.proto";
 import "protos/perfetto/metrics/android/android_anomaly_metric.proto";
+import "protos/perfetto/metrics/android/wattson_tasks_attribution.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -123,7 +124,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 72
+// Next id: 73
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -326,6 +327,9 @@ message TraceMetrics {
 
   // Android Anomaly metric
   optional AndroidAnomalyMetric android_anomaly = 71;
+
+  // Android Wattson app startup metrics.
+  optional AndroidWattsonTasksAttributionMetric wattson_trace_threads = 72;
 
   // Android
   // Demo extensions.
