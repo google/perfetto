@@ -83,5 +83,6 @@ perfetto_proto_library("@TYPE@") {
     "trace_quality.proto",
     "unsymbolized_frames.proto",
     "wattson_in_time_period.proto",
+    "wattson_tasks_attribution.proto",
   ]
 }

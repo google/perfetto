@@ -2929,6 +2929,28 @@ message AndroidWattsonDsuScuEstimate {
 
 // End of protos/perfetto/metrics/android/wattson_in_time_period.proto
 
+// Begin of protos/perfetto/metrics/android/wattson_tasks_attribution.proto
+
+message AndroidWattsonTasksAttributionMetric {
+  optional int32 metric_version = 1;
+  // Lists tasks (e.g. threads, process, package) and associated estimates
+  repeated AndroidWattsonTaskInfo task_info = 2;
+}
+
+message AndroidWattsonTaskInfo {
+  // Average estimated power for wall duration in mW
+  optional float estimate_mw = 1;
+  // Total energy over wall duration across CPUs in mWs
+  optional float estimate_mws = 2;
+  optional string thread_name = 3;
+  optional string process_name = 4;
+  optional string package_name = 5;
+  optional int32 thread_id = 6;
+  optional int32 process_id = 7;
+}
+
+// End of protos/perfetto/metrics/android/wattson_tasks_attribution.proto
+
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
@@ -2976,7 +2998,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 72
+// Next id: 73
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -3179,6 +3201,9 @@ message TraceMetrics {
 
   // Android Anomaly metric
   optional AndroidAnomalyMetric android_anomaly = 71;
+
+  // Android Wattson app startup metrics.
+  optional AndroidWattsonTasksAttributionMetric wattson_trace_threads = 72;
 
   // Android
   // Demo extensions.
