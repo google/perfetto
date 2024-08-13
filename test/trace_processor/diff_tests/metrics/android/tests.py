@@ -468,3 +468,9 @@ class AndroidMetrics(TestSuite):
         trace=DataPath('android_binder_metric_trace.atr'),
         query=Metric('android_anomaly'),
         out=Path('android_anomaly_metric.out'))
+
+  def test_wattson_markers_threads_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_w_packages_Imarkers.pb'),
+        query=Metric("wattson_markers_threads"),
+        out=Path('wattson_markers_threads.out'))
