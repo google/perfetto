@@ -45,6 +45,14 @@ template("perfetto_cc_proto_descriptor") {
       rebase_path(root_gen_dir, root_build_dir),
       "--cpp_out",
       rebase_path(generated_header, root_build_dir),
+    ]
+    if (defined(invoker.namespace)) {
+      args += [
+        "--namespace",
+        invoker.namespace,
+      ]
+    }
+    args += [
       rebase_path(descriptor_file_path, root_build_dir),
     ]
     inputs = [ descriptor_file_path ]
