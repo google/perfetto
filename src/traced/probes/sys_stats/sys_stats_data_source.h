@@ -21,6 +21,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "perfetto/ext/base/paged_memory.h"
