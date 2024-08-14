@@ -128,7 +128,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
 
   std::string id = value.isMember("id") ? value["id"].asString() : "";
 
-  base::StringView cat = value.isMember("cat")
+  base::StringView cat = value.isMember("cat") && value["cat"].isString()
                              ? base::StringView(value["cat"].asCString())
                              : base::StringView();
   StringId cat_id = storage->InternString(cat);
