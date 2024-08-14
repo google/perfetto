@@ -83,6 +83,10 @@ ModuleResult PixelModemModule::TokenizePacket(
   for (auto it = evt.events(); it && ts_it; ++it, ++ts_it) {
     protozero::ConstBytes event_bytes = *it;
     ts += *ts_it;
+    if (ts < 0) {
+      context_->storage->IncrementStats(stats::pixel_modem_negative_timestamp);
+      continue;
+    }
 
     protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
     // Keep the original timestamp to later extract as an arg; the sorter does
