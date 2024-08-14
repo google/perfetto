@@ -20,13 +20,6 @@ import {exists} from '../base/utils';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Popup, PopupPosition} from '../widgets/popup';
-
-import {Filter, SqlTableState} from './widgets/sql/table/state';
-import {SqlTable} from './widgets/sql/table/table';
-import {
-  SqlTableDescription,
-  tableDisplayName,
-} from './widgets/sql/table/table_description';
 import {Engine} from '../public';
 import {assertExists} from '../base/logging';
 import {uuidv4} from '../base/uuid';
@@ -34,10 +27,12 @@ import {addEphemeralTab} from '../common/addEphemeralTab';
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {globals} from './globals';
 import {AddDebugTrackMenu} from './debug_tracks/add_debug_track_menu';
+import {SqlTableDescription, SqlTableState} from './widgets/sql/table2/state';
+import {Filter} from './widgets/sql/table2/column';
+import {SqlTable} from './widgets/sql/table2/table';
 
 interface SqlTableTabConfig {
   table: SqlTableDescription;
-  displayName?: string;
   filters?: Filter[];
   imports?: string[];
 }
@@ -67,12 +62,10 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   constructor(args: NewBottomTabArgs<SqlTableTabConfig>) {
     super(args);
 
-    this.state = new SqlTableState(
-      this.engine,
-      this.config.table,
-      this.config.filters,
-      this.config.imports,
-    );
+    this.state = new SqlTableState(this.engine, this.config.table, {
+      filters: this.config.filters,
+      imports: this.config.imports,
+    });
   }
 
   static create(args: NewBottomTabArgs<SqlTableTabConfig>): SqlTableTab {
@@ -97,7 +90,7 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
         onclick: () => this.state.goForward(),
       }),
     ];
-    const {selectStatement, columns} = this.state.buildSqlSelectStatement();
+    const {selectStatement, columns} = this.state.getCurrentRequest();
     const addDebugTrack = m(
       Popup,
       {
@@ -107,7 +100,7 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
       m(AddDebugTrackMenu, {
         dataSource: {
           sqlSource: selectStatement,
-          columns: columns,
+          columns: Object.values(columns).filter((c) => !c.startsWith('__')),
         },
         engine: this.engine,
       }),
@@ -141,7 +134,7 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   }
 
   private getDisplayName(): string {
-    return this.config.displayName ?? tableDisplayName(this.config.table);
+    return this.config.table.displayName ?? this.config.table.name;
   }
 
   isLoading(): boolean {

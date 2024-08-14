@@ -45,7 +45,7 @@ import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from './widgets/duration';
 import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
 
 interface PathItem {
   tree: PivotTree;
@@ -137,7 +137,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             }
             addSqlTableTab({
               table: SqlTables.slice,
-              filters: queryFilters,
+              // TODO(altimin): this should properly reference the required columns, but it works for now (until the pivot table is going to be rewritten to be more flexible).
+              filters: queryFilters.map((f) => ({op: () => f, columns: []})),
             });
           },
         },

@@ -56,8 +56,8 @@ import {Utid} from '../trace_processor/sql_utils/core_types';
 import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 import {DisposableStack} from '../base/disposable_stack';
 import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 import {getThreadInfo} from '../trace_processor/sql_utils/thread';
+import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;
@@ -317,12 +317,11 @@ export class App implements m.ClassComponent {
       },
     },
     {
-      id: 'perfetto.ShowSliceTable',
-      name: 'Open new slice table tab',
+      id: 'perfetto.ShowTable.slice',
+      name: 'Open table: slice',
       callback: () => {
         addSqlTableTab({
           table: SqlTables.slice,
-          displayName: 'slice',
         });
       },
     },
