@@ -15,8 +15,6 @@
 import {CujMetricData, MetricHandler} from './metricUtils';
 import {PluginContextTrace} from '../../../public';
 import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
-import {TrackType} from '../../dev.perfetto.AndroidCujs/trackUtils';
-import {PLUGIN_ID} from '../pluginId';
 
 /** Pins a single CUJ from CUJ scoped metrics. */
 class PinCujMetricHandler implements MetricHandler {
@@ -39,30 +37,21 @@ class PinCujMetricHandler implements MetricHandler {
 
   /**
    * Adds the debug tracks for cuj Scoped jank metrics
-   * registerStaticTrack used when plugin adds tracks onTraceload()
-   * addDebugSliceTrack used for adding tracks using the command
    *
    * @param {CujMetricData} metricData Parsed metric data for the cuj scoped jank
    * @param {PluginContextTrace} ctx PluginContextTrace for trace related properties and methods
-   * @param {TrackType} type 'static' for onTraceload and 'debug' for command
    * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
    */
   public async addMetricTrack(
     metricData: CujMetricData,
     ctx: PluginContextTrace,
-    type: TrackType,
   ) {
-    this.pinSingleCuj(ctx, metricData.cujName, type);
+    this.pinSingleCuj(ctx, metricData.cujName);
   }
 
-  private pinSingleCuj(
-    ctx: PluginContextTrace,
-    cujName: string,
-    type: TrackType,
-  ) {
-    const uri = `${PLUGIN_ID}#PinCuj#${cujName}`;
+  private pinSingleCuj(ctx: PluginContextTrace, cujName: string) {
     const trackName = `Jank CUJ: ${cujName}`;
-    addJankCUJDebugTrack(ctx, trackName, type, cujName, uri);
+    addJankCUJDebugTrack(ctx, trackName, cujName);
   }
 }
 
