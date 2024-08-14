@@ -111,6 +111,7 @@ class QueryInput implements m.ClassComponent {
 
       onUpdate: (text: string) => {
         state.enteredText = text;
+        raf.scheduleFullRedraw();
       },
     });
   }
@@ -121,6 +122,14 @@ export const QueryPage = createPage({
     return m(
       '.query-page',
       m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),
+      state.enteredText.includes('"') &&
+        m(
+          Callout,
+          {icon: 'warning'},
+          `" (double quote) character observed in query; if this is being used to ` +
+            `define a string, please use ' (single quote) instead. Using double quotes ` +
+            `can cause subtle problems which are very hard to debug.`,
+        ),
       m(QueryInput),
       state.executedQuery === undefined
         ? null
