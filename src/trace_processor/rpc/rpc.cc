@@ -223,7 +223,18 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         resp.Send(rpc_response_fn_);
       } else {
         protozero::ConstBytes args = req.query_args();
-        auto it = QueryInternal(args.data, args.size);
+        protos::pbzero::QueryArgs::Decoder query(args.data, args.size);
+        std::string sql = query.sql_query().ToStdString();
+
+        PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
+                          [&](metatrace::Record* r) {
+                            r->AddArg("SQL", sql);
+                            if (query.has_tag()) {
+                              r->AddArg("tag", query.tag());
+                            }
+                          });
+
+        auto it = trace_processor_->ExecuteQuery(sql);
         QueryResultSerializer serializer(std::move(it));
         for (bool has_more = true; has_more;) {
           const auto seq_id = tx_seq_id_++;
@@ -405,18 +416,6 @@ void Rpc::MaybePrintProgress() {
 void Rpc::Query(const uint8_t* args,
                 size_t len,
                 const QueryResultBatchCallback& result_callback) {
-  auto it = QueryInternal(args, len);
-  QueryResultSerializer serializer(std::move(it));
-
-  std::vector<uint8_t> res;
-  for (bool has_more = true; has_more;) {
-    has_more = serializer.Serialize(&res);
-    result_callback(res.data(), res.size(), has_more);
-    res.clear();
-  }
-}
-
-Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
   protos::pbzero::QueryArgs::Decoder query(args, len);
   std::string sql = query.sql_query().ToStdString();
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
@@ -427,7 +426,16 @@ Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
                       }
                     });
 
-  return trace_processor_->ExecuteQuery(sql);
+  auto it = trace_processor_->ExecuteQuery(sql);
+
+  QueryResultSerializer serializer(std::move(it));
+
+  std::vector<uint8_t> res;
+  for (bool has_more = true; has_more;) {
+    has_more = serializer.Serialize(&res);
+    result_callback(res.data(), res.size(), has_more);
+    res.clear();
+  }
 }
 
 void Rpc::RestoreInitialTables() {
