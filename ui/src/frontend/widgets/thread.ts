@@ -14,15 +14,18 @@
 
 import m from 'mithril';
 
-import {
-  ThreadInfo,
-  getThreadName,
-} from '../../trace_processor/sql_utils/thread';
-import {MenuItem, PopupMenu2} from '../../widgets/menu';
-import {Anchor} from '../../widgets/anchor';
-import {exists} from '../../base/utils';
-import {Icons} from '../../base/semantic_icons';
 import {copyToClipboard} from '../../base/clipboard';
+import {Icons} from '../../base/semantic_icons';
+import {exists} from '../../base/utils';
+import {addEphemeralTab} from '../../common/addEphemeralTab';
+import {
+  getThreadName,
+  ThreadInfo,
+} from '../../trace_processor/sql_utils/thread';
+import {Anchor} from '../../widgets/anchor';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
+import {getEngine} from '../get_engine';
+import {ThreadDetailsTab} from '../thread_details_tab';
 
 export function renderThreadRef(info: ThreadInfo): m.Children {
   const name = info.name;
@@ -47,6 +50,19 @@ export function renderThreadRef(info: ThreadInfo): m.Children {
       icon: Icons.Copy,
       label: 'Copy utid',
       onclick: () => copyToClipboard(`${info.utid}`),
+    }),
+    m(MenuItem, {
+      icon: Icons.ExternalLink,
+      label: 'Show thread details',
+      onclick: () =>
+        addEphemeralTab(
+          'threadDetails',
+          new ThreadDetailsTab({
+            engine: getEngine('ThreadDetails'),
+            utid: info.utid,
+            tid: info.tid,
+          }),
+        ),
     }),
   );
 }
