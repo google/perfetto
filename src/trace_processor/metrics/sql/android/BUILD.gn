@@ -137,6 +137,7 @@ perfetto_sql_source_set("android") {
     "startup/mcycles_per_launch.sql",
     "startup/slice_functions.sql",
     "startup/slow_start_reasons.sql",
+    "startup/slow_start_thresholds.sql",
     "startup/system_state.sql",
     "startup/thread_state_breakdown.sql",
     "sysui_notif_shade_list_builder_metric.sql",
