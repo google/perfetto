@@ -563,9 +563,9 @@ PerfettoSqlEngine::CreateTableImpl(
 base::Status PerfettoSqlEngine::ExecuteCreateTable(
     const PerfettoSqlParser::CreateTable& create_table) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
-                    "CREATE_PERFETTO_TABLE",
+                    "CREATE PERFETTO TABLE",
                     [&create_table](metatrace::Record* record) {
-                      record->AddArg("Table", create_table.name);
+                      record->AddArg("table_name", create_table.name);
                     });
 
   auto stmt_or = engine_->PrepareStatement(create_table.sql);
@@ -631,6 +631,11 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
 
 base::Status PerfettoSqlEngine::ExecuteCreateView(
     const PerfettoSqlParser::CreateView& create_view) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "CREATE PERFETTO VIEW",
+                    [&create_view](metatrace::Record* record) {
+                      record->AddArg("view_name", create_view.name);
+                    });
+
   // Verify that the underlying SQL statement is valid.
   auto stmt = sqlite_engine()->PrepareStatement(create_view.select_sql);
   RETURN_IF_ERROR(stmt.status());
@@ -685,10 +690,11 @@ base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
 base::Status PerfettoSqlEngine::ExecuteInclude(
     const PerfettoSqlParser::Include& include,
     const PerfettoSqlParser& parser) {
-  std::string key = include.key;
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "Include",
-                    [key](metatrace::Record* r) { r->AddArg("Module", key); });
+  PERFETTO_TP_TRACE(
+      metatrace::Category::QUERY_TIMELINE, "INCLUDE PERFETTO MODULE",
+      [&include](metatrace::Record* r) { r->AddArg("include", include.key); });
 
+  std::string key = include.key;
   if (key == "*") {
     for (auto moduleIt = modules_.GetIterator(); moduleIt; ++moduleIt) {
       RETURN_IF_ERROR(IncludeModuleImpl(moduleIt.value(), key, parser));
@@ -707,6 +713,14 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
 
 base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     const PerfettoSqlParser::CreateIndex& index) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                    "CREATE PERFETTO INDEX",
+                    [&index](metatrace::Record* record) {
+                      record->AddArg("index_name", index.name);
+                      record->AddArg("table_name", index.table_name);
+                      record->AddArg("cols", base::Join(index.col_names, ", "));
+                    });
+
   Table* t = GetMutableTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
@@ -729,6 +743,12 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
 
 base::Status PerfettoSqlEngine::ExecuteDropIndex(
     const PerfettoSqlParser::DropIndex& index) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "DROP PERFETTO INDEX",
+                    [&index](metatrace::Record* record) {
+                      record->AddArg("index_name", index.name);
+                      record->AddArg("table_name", index.table_name);
+                    });
+
   Table* t = GetMutableTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("DROP PERFETTO INDEX: Table '%s' not found",
@@ -788,6 +808,14 @@ base::Status PerfettoSqlEngine::IncludeFileImpl(
 
 base::Status PerfettoSqlEngine::ExecuteCreateFunction(
     const PerfettoSqlParser::CreateFunction& cf) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                    "CREATE PERFETTO FUNCTION",
+                    [&cf](metatrace::Record* record) {
+                      record->AddArg("name", cf.prototype.function_name);
+                      record->AddArg("prototype", cf.prototype.ToString());
+                      record->AddArg("returns", cf.returns);
+                    });
+
   if (!cf.is_table) {
     return RegisterRuntimeFunction(cf.replace, cf.prototype, cf.returns,
                                    cf.sql);
@@ -915,6 +943,12 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
 
 base::Status PerfettoSqlEngine::ExecuteCreateMacro(
     const PerfettoSqlParser::CreateMacro& create_macro) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                    "CREATE PERFETTO MACRO",
+                    [&create_macro](metatrace::Record* record) {
+                      record->AddArg("name", create_macro.name.sql());
+                    });
+
   // Check that the argument types is one of the allowed types.
   for (const auto& [name, type] : create_macro.args) {
     if (!IsTokenAllowedInMacro(type.sql())) {
