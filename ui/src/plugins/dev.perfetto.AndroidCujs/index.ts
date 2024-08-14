@@ -15,27 +15,23 @@
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {addDebugSliceTrack} from '../../public';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {addAndPinSliceTrack, TrackType} from './trackUtils';
+import {addAndPinSliceTrack} from './trackUtils';
 
 /**
  * Adds the Debug Slice Track for given Jank CUJ name
  *
  * @param {PluginContextTrace} ctx For properties and methods of trace viewer
  * @param {string} trackName Display Name of the track
- * @param {TrackType} type Track type for jank CUJ slice track
  * @param {string | string[]} cujNames List of Jank CUJs to pin
- * @param {string} uri Identifier for the track in case of 'static' type
  */
 export function addJankCUJDebugTrack(
   ctx: PluginContextTrace,
   trackName: string,
-  type: TrackType,
   cujNames?: string | string[],
-  uri?: string,
 ) {
   const jankCujTrackConfig: SimpleSliceTrackConfig =
     generateJankCujTrackConfig(cujNames);
-  addAndPinSliceTrack(ctx, jankCujTrackConfig, trackName, type, uri);
+  addAndPinSliceTrack(ctx, jankCujTrackConfig, trackName);
 }
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
@@ -224,7 +220,7 @@ class AndroidCujs implements Plugin {
       name: 'Add track: Android jank CUJs',
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() => {
-          addJankCUJDebugTrack(ctx, 'Jank CUJs', 'debug');
+          addJankCUJDebugTrack(ctx, 'Jank CUJs');
         });
       },
     });

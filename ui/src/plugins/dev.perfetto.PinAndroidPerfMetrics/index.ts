@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {TrackType} from '../dev.perfetto.AndroidCujs/trackUtils';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
 import {PLUGIN_ID} from './pluginId';
@@ -47,19 +46,15 @@ class PinAndroidPerfMetrics implements Plugin {
         metric = prompt('Metrics names (separated by comma)', '');
         if (metric === null) return;
         const metricList = metric.split(',');
-        this.callHandlers(metricList, ctx, 'debug');
+        this.callHandlers(metricList, ctx);
       },
     });
     if (this.metrics.length !== 0) {
-      this.callHandlers(this.metrics, ctx, 'debug');
+      this.callHandlers(this.metrics, ctx);
     }
   }
 
-  private async callHandlers(
-    metricsList: string[],
-    ctx: PluginContextTrace,
-    type: TrackType,
-  ) {
+  private async callHandlers(metricsList: string[], ctx: PluginContextTrace) {
     // List of metrics that actually match some handler
     const metricsToShow: MetricHandlerMatch[] =
       this.getMetricsToShow(metricsList);
@@ -70,7 +65,7 @@ class PinAndroidPerfMetrics implements Plugin {
 
     await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
     for (const {metricData, metricHandler} of metricsToShow) {
-      metricHandler.addMetricTrack(metricData, ctx, type);
+      metricHandler.addMetricTrack(metricData, ctx);
     }
   }
 
