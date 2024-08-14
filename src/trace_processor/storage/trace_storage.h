@@ -331,6 +331,8 @@ class TraceStorage {
     sched_slice_table_.ShrinkToFit();
     thread_state_table_.ShrinkToFit();
     arg_table_.ShrinkToFit();
+    heap_graph_object_table_.ShrinkToFit();
+    heap_graph_reference_table_.ShrinkToFit();
   }
 
   const tables::ThreadTable& thread_table() const { return thread_table_; }
