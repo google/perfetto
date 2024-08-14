@@ -57,16 +57,12 @@ JOIN slice USING (id);
 -- Calculated as time difference between the actual frame start (from
 -- `actual_frame_timeline_slice`) and start of the `Choreographer#doFrame`
 -- slice.
--- NOTE: Sometimes because of data losses `app_vsync_delay` can be negative.
--- The frames where it happens are filtered out.
 -- For Googlers: more details in go/android-performance-metrics-glossary.
 CREATE PERFETTO TABLE android_app_vsync_delay_per_frame(
     -- Frame id
     frame_id INT,
     -- App VSYNC delay.
-    app_vsync_delay INT,
-    -- The latency between VSYNC-app and the start of actual_frame_timeline.
-    start_latency INT
+    app_vsync_delay INT
 ) AS
 -- As there can be multiple `DrawFrame` slices, the `frames_surface_slices`
 -- table contains multiple rows for the same `frame_id` which only differ on
@@ -83,13 +79,10 @@ WITH distinct_frames AS (
 )
 SELECT
     frame_id,
-    act.ts - do_frame.ts AS app_vsync_delay,
-    act.ts - exp.ts AS start_latency
+    act.ts - exp.ts AS app_vsync_delay
 FROM distinct_frames f
 JOIN slice exp ON (f.expected_frame_timeline_id = exp.id)
-JOIN slice act ON (f.actual_frame_timeline_id = act.id)
-JOIN slice do_frame ON (f.do_frame_id = do_frame.id)
-WHERE act.ts >= do_frame.ts;
+JOIN slice act ON (f.actual_frame_timeline_id = act.id);
 
 -- How much time did the frame take across the UI Thread + RenderThread.
 -- Calculated as sum of `app VSYNC delay` `Choreographer#doFrame` slice
