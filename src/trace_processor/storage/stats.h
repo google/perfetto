@@ -379,7 +379,9 @@ namespace stats {
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
   F(mali_unknown_mcu_state_id,            kSingle,  kError,   kAnalysis,       \
-      "An invalid Mali GPU MCU state ID was detected.")
+      "An invalid Mali GPU MCU state ID was detected."),                       \
+  F(pixel_modem_negative_timestamp,       kSingle,  kError,   kAnalysis,       \
+      "A negative timestamp was received from a Pixel modem event.")
 // clang-format on
 
 enum Type {
