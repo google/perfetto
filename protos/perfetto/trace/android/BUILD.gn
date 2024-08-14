@@ -138,4 +138,8 @@ perfetto_proto_library("android_track_event_@TYPE@") {
   generate_descriptor = "android_track_event.descriptor"
   sources = [ "android_track_event.proto" ]
   deps = [ ":android_track_event_source_set" ]
+
+  # This is the descriptor for an extension. It shouldn't include the descriptor
+  # for the base message as well.
+  exclude_imports = true
 }
