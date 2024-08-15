@@ -31,9 +31,9 @@ import {
 import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 import {getThreadName} from '../trace_processor/sql_utils/thread';
 import {getProcessName} from '../trace_processor/sql_utils/process';
+import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
@@ -58,8 +58,12 @@ export function renderDetails(
             onclick: () => {
               addSqlTableTab({
                 table: SqlTables.slice,
-                displayName: 'slice',
-                filters: [`name = ${sqliteString(slice.name)}`],
+                filters: [
+                  {
+                    op: (cols) => `${cols[0]} = ${sqliteString(slice.name)}`,
+                    columns: ['name'],
+                  },
+                ],
               });
             },
           }),

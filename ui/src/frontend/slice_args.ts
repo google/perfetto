@@ -28,7 +28,7 @@ import {TreeNode} from '../widgets/tree';
 import {Arg} from '../trace_processor/sql_utils/args';
 import {globals} from './globals';
 import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(engine: Engine, args: Arg[]): m.Children {
@@ -90,10 +90,19 @@ function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
             table: SqlTables.slice,
             filters: [
               {
-                type: 'arg_filter',
-                argSetIdColumn: 'arg_set_id',
-                argName: fullKey,
-                op: `= ${sqliteString(displayValue)}`,
+                op: (cols) => `${cols[0]} = ${sqliteString(displayValue)}`,
+                columns: [
+                  {
+                    column: 'display_value',
+                    source: {
+                      table: 'args',
+                      joinOn: {
+                        arg_set_id: 'arg_set_id',
+                        key: sqliteString(fullKey),
+                      },
+                    },
+                  },
+                ],
               },
             ],
           });
