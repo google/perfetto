@@ -58,8 +58,6 @@ class SystemProbesParser {
   const StringId num_forks_name_id_;
   const StringId num_irq_total_name_id_;
   const StringId num_softirq_total_name_id_;
-  const StringId num_irq_name_id_;
-  const StringId num_softirq_name_id_;
   const StringId oom_score_adj_id_;
   const StringId thermal_unit_id_;
   std::vector<StringId> meminfo_strs_id_;
