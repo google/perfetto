@@ -14,15 +14,16 @@
 
 import m from 'mithril';
 
-import {DetailsShell} from '../../../widgets/details_shell';
-import {uuidv4} from '../../../base/uuid';
-import {BottomTab, NewBottomTabArgs} from '../../bottom_tab';
-import {VegaView} from '../../../widgets/vega_view';
-import {addEphemeralTab} from '../../../common/addEphemeralTab';
-import {HistogramState} from './state';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
+import {uuidv4} from '../../../base/uuid';
+import {addBottomTab} from '../../../common/addEphemeralTab';
 import {Engine} from '../../../public';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {VegaView} from '../../../widgets/vega_view';
+import {BottomTab, NewBottomTabArgs} from '../../bottom_tab';
 import {Filter, filterTitle} from '../../widgets/sql/table2/column';
+
+import {HistogramState} from './state';
 
 interface HistogramTabConfig {
   columnTitle: string; // Human readable column name (ex: Duration)
@@ -42,7 +43,7 @@ export function addHistogramTab(
     uuid: uuidv4(),
   });
 
-  addEphemeralTab(histogramTab, 'histogramTab');
+  addBottomTab(histogramTab, 'histogramTab');
 }
 
 export class HistogramTab extends BottomTab<HistogramTabConfig> {

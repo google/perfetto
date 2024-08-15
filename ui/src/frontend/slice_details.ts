@@ -17,23 +17,23 @@ import m from 'mithril';
 import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
 import {exists} from '../base/utils';
+import {SliceDetails} from '../trace_processor/sql_utils/slice';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {Tree, TreeNode} from '../widgets/tree';
 
-import {SliceDetails} from '../trace_processor/sql_utils/slice';
 import {
   BreakdownByThreadState,
   BreakdownByThreadStateTreeNode,
 } from './sql/thread_state';
-import {DurationWidget} from './widgets/duration';
-import {Timestamp} from './widgets/timestamp';
 import {addSqlTableTab} from './sql_table_tab';
-import {getThreadName} from '../trace_processor/sql_utils/thread';
-import {getProcessName} from '../trace_processor/sql_utils/process';
+import {DurationWidget} from './widgets/duration';
+import {renderProcessRef} from './widgets/process';
 import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
+import {renderThreadRef} from './widgets/thread';
+import {Timestamp} from './widgets/timestamp';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
@@ -99,12 +99,12 @@ export function renderDetails(
       slice.thread &&
         m(TreeNode, {
           left: 'Thread',
-          right: getThreadName(slice.thread),
+          right: renderThreadRef(slice.thread),
         }),
       slice.process &&
         m(TreeNode, {
           left: 'Process',
-          right: getProcessName(slice.process),
+          right: renderProcessRef(slice.process),
         }),
       slice.process &&
         exists(slice.process.uid) &&
