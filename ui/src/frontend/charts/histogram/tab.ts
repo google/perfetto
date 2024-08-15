@@ -21,7 +21,7 @@ import {Engine} from '../../../public';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {VegaView} from '../../../widgets/vega_view';
 import {BottomTab, NewBottomTabArgs} from '../../bottom_tab';
-import {Filter, filterTitle} from '../../widgets/sql/table2/column';
+import {Filter, filterTitle} from '../../widgets/sql/table/column';
 
 import {HistogramState} from './state';
 

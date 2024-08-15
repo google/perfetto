@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,37 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {arrayEquals} from '../../../../base/array_utils';
-import {SortDirection} from '../../../../base/comparison_utils';
-import {isString} from '../../../../base/object_utils';
-import {sqliteString} from '../../../../base/string_utils';
-import {raf} from '../../../../core/raf_scheduler';
-import {Engine} from '../../../../trace_processor/engine';
+import {Engine} from '../../../../public';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {
-  constraintsToQueryPrefix,
-  constraintsToQuerySuffix,
-  SQLConstraints,
-} from '../../../../trace_processor/sql_utils';
-
-import {
-  Column,
-  columnFromSqlTableColumn,
-  formatSqlProjection,
-  SqlProjection,
-  sqlProjectionsForColumn,
+  tableColumnAlias,
+  ColumnOrderClause,
+  Filter,
+  isSqlColumnEqual,
+  SqlColumn,
+  sqlColumnId,
+  TableColumn,
 } from './column';
-import {SqlTableDescription, startsHidden} from './table_description';
-
-interface ColumnOrderClause {
-  // We only allow the table to be sorted by the columns which are displayed to
-  // the user to avoid confusion, so we use a reference to the underlying Column
-  // here and compare it by reference down the line.
-  column: Column;
-  direction: SortDirection;
-}
+import {buildSqlQuery} from './query_builder';
+import {raf} from '../../../../core/raf_scheduler';
+import {SortDirection} from '../../../../base/comparison_utils';
+import {assertTrue} from '../../../../base/logging';
+import {SqlTableDescription} from './table_description';
 
 const ROW_LIMIT = 100;
+
+interface Request {
+  // Select statement, without the includes and the LIMIT and OFFSET clauses.
+  selectStatement: string;
+  // Query, including the LIMIT and OFFSET clauses.
+  query: string;
+  // Map of SqlColumn's id to the column name in the query.
+  columns: {[key: string]: string};
+}
 
 // Result of the execution of the query.
 interface Data {
@@ -50,20 +46,6 @@ interface Data {
   rows: Row[];
   error?: string;
 }
-
-// In the common case, filter is an expression which evaluates to a boolean.
-// However, when filtering args, it's substantially (10x) cheaper to do a
-// join with the args table, as it means that trace processor can cache the
-// query on the key instead of invoking a function for each row of the entire
-// `slice` table.
-export type Filter =
-  | string
-  | {
-      type: 'arg_filter';
-      argSetIdColumn: string;
-      argName: string;
-      op: string;
-    };
 
 interface RowCount {
   // Total number of rows in view, excluding the pagination.
@@ -75,130 +57,157 @@ interface RowCount {
   filters: Filter[];
 }
 
+function isFilterEqual(a: Filter, b: Filter) {
+  return (
+    a.op === b.op &&
+    a.columns.length === b.columns.length &&
+    a.columns.every((c, i) => isSqlColumnEqual(c, b.columns[i]))
+  );
+}
+
+function areFiltersEqual(a: Filter[], b: Filter[]) {
+  if (a.length !== b.length) return false;
+  return a.every((f, i) => isFilterEqual(f, b[i]));
+}
+
 export class SqlTableState {
-  private readonly engine_: Engine;
-  private readonly table_: SqlTableDescription;
   private readonly additionalImports: string[];
 
-  get engine() {
-    return this.engine_;
-  }
-  get table() {
-    return this.table_;
-  }
-
+  // Columns currently displayed to the user. All potential columns can be found `this.table.columns`.
+  private columns: TableColumn[];
   private filters: Filter[];
-  private columns: Column[];
   private orderBy: ColumnOrderClause[];
   private offset = 0;
+  private request: Request;
   private data?: Data;
   private rowCount?: RowCount;
 
   constructor(
-    engine: Engine,
-    table: SqlTableDescription,
-    filters?: Filter[],
-    imports?: string[],
+    readonly engine: Engine,
+    readonly config: SqlTableDescription,
+    args?: {
+      initialColumns?: TableColumn[];
+      additionalColumns?: TableColumn[];
+      imports?: string[];
+      filters?: Filter[];
+      orderBy?: ColumnOrderClause[];
+    },
   ) {
-    this.engine_ = engine;
-    this.table_ = table;
-    this.additionalImports = imports || [];
+    this.additionalImports = args?.imports || [];
 
-    this.filters = filters || [];
+    this.filters = args?.filters || [];
     this.columns = [];
-    for (const column of this.table.columns) {
-      if (startsHidden(column)) continue;
-      this.columns.push(columnFromSqlTableColumn(column));
+
+    if (args?.initialColumns !== undefined) {
+      assertTrue(
+        args?.additionalColumns === undefined,
+        'Only one of `initialColumns` and `additionalColumns` can be set',
+      );
+      this.columns.push(...args.initialColumns);
+    } else {
+      for (const column of this.config.columns) {
+        if (column instanceof TableColumn && column.startsHidden !== true) {
+          this.columns.push(column);
+        }
+      }
+      if (args?.additionalColumns !== undefined) {
+        this.columns.push(...args.additionalColumns);
+      }
     }
+
     this.orderBy = [];
 
+    this.request = this.buildRequest();
     this.reload();
   }
 
-  // Compute the actual columns to fetch. Some columns can appear multiple times
-  // (e.g. we might need "ts" to be able to show it, as well as a dependency for
-  // "slice_id" to be able to jump to it, so this function will deduplicate
-  // projections by alias.
-  private getSQLProjections(): SqlProjection[] {
-    const projections = [];
-    const aliases = new Set<string>();
-    for (const column of this.columns) {
-      for (const p of sqlProjectionsForColumn(column)) {
-        if (aliases.has(p.alias)) continue;
-        aliases.add(p.alias);
-        projections.push(p);
-      }
-    }
-    return projections;
-  }
-
-  getQueryConstraints(): SQLConstraints {
-    const result: SQLConstraints = {
-      commonTableExpressions: {},
-      joins: [],
-      filters: [],
-    };
-    let cteId = 0;
-    for (const filter of this.filters) {
-      if (isString(filter)) {
-        result.filters!.push(filter);
-      } else {
-        const cteName = `arg_sets_${cteId++}`;
-        result.commonTableExpressions![cteName] = `
-          SELECT DISTINCT arg_set_id
-          FROM args
-          WHERE key = ${sqliteString(filter.argName)}
-            AND display_value ${filter.op}
-        `;
-        result.joins!.push(
-          `JOIN ${cteName} ON ${cteName}.arg_set_id = ${this.table.name}.${filter.argSetIdColumn}`,
-        );
-      }
-    }
-    return result;
-  }
-
   private getSQLImports() {
-    const tableImports = this.table.imports || [];
+    const tableImports = this.config.imports || [];
     return [...tableImports, ...this.additionalImports]
       .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
       .join('\n');
   }
 
   private getCountRowsSQLQuery(): string {
-    const constraints = this.getQueryConstraints();
     return `
       ${this.getSQLImports()}
 
-      ${constraintsToQueryPrefix(constraints)}
-      SELECT
-        COUNT() AS count
-      FROM ${this.table.name}
-      ${constraintsToQuerySuffix(constraints)}
+      ${this.getSqlQuery({count: 'COUNT()'})}
     `;
   }
 
-  buildSqlSelectStatement(): {
+  // Return a query which selects the given columns, applying the filters and ordering currently in effect.
+  getSqlQuery(columns: {[key: string]: SqlColumn}): string {
+    return buildSqlQuery({
+      table: this.config.name,
+      columns,
+      filters: this.filters,
+      orderBy: this.orderBy,
+    });
+  }
+
+  // We need column names to pass to the debug track creation logic.
+  private buildSqlSelectStatement(): {
     selectStatement: string;
-    columns: string[];
+    columns: {[key: string]: string};
   } {
-    const projections = this.getSQLProjections();
-    const orderBy = this.orderBy.map((c) => ({
-      fieldName: c.column.alias,
-      direction: c.direction,
-    }));
-    const constraints = this.getQueryConstraints();
-    constraints.orderBy = orderBy;
-    const statement = `
-      ${constraintsToQueryPrefix(constraints)}
-      SELECT
-        ${projections.map(formatSqlProjection).join(',\n')}
-      FROM ${this.table.name}
-      ${constraintsToQuerySuffix(constraints)}
-    `;
+    const columns: {[key: string]: SqlColumn} = {};
+    // A set of columnIds for quick lookup.
+    const sqlColumnIds: Set<string> = new Set();
+    // We want to use the shortest posible name for each column, but we also need to mindful of potential collisions.
+    // To avoid collisions, we append a number to the column name if there are multiple columns with the same name.
+    const columnNameCount: {[key: string]: number} = {};
+
+    const tableColumns: {column: TableColumn; name: string; alias: string}[] =
+      [];
+
+    for (const column of this.columns) {
+      // If TableColumn has an alias, use it. Otherwise, use the column name.
+      const name = tableColumnAlias(column);
+      if (!(name in columnNameCount)) {
+        columnNameCount[name] = 0;
+      }
+      // Note: this can break if the user specifies a column which ends with `__<number>`.
+      // We intentionally use two underscores to avoid collisions and will fix it down the line if it turns out to be a problem.
+      const alias = `${name}__${++columnNameCount[name]}`;
+      tableColumns.push({column, name, alias});
+    }
+
+    for (const column of tableColumns) {
+      const sqlColumn = column.column.primaryColumn();
+      // If we have only one column with this name, we don't need to disambiguate it.
+      if (columnNameCount[column.name] === 1) {
+        columns[column.name] = sqlColumn;
+      } else {
+        columns[column.alias] = sqlColumn;
+      }
+      sqlColumnIds.add(sqlColumnId(sqlColumn));
+    }
+
+    // We are going to be less fancy for the dependendent columns can just always suffix them with a unique integer.
+    let dependentColumnCount = 0;
+    for (const column of tableColumns) {
+      const dependentColumns =
+        column.column.dependentColumns !== undefined
+          ? column.column.dependentColumns()
+          : {};
+      for (const col of Object.values(dependentColumns)) {
+        if (sqlColumnIds.has(sqlColumnId(col))) continue;
+        const name = typeof col === 'string' ? col : col.column;
+        const alias = `__${name}_${dependentColumnCount++}`;
+        columns[alias] = col;
+        sqlColumnIds.add(sqlColumnId(col));
+      }
+    }
+
     return {
-      selectStatement: statement,
-      columns: projections.map((p) => p.alias),
+      selectStatement: this.getSqlQuery(columns),
+      columns: Object.fromEntries(
+        Object.entries(columns).map(([key, value]) => [
+          sqlColumnId(value),
+          key,
+        ]),
+      ),
     };
   }
 
@@ -210,13 +219,8 @@ export class SqlTableState {
     `;
   }
 
-  getPaginatedSQLQuery(): string {
-    // We fetch one more row to determine if we can go forward.
-    return `
-      ${this.getNonPaginatedSQLQuery()}
-      LIMIT ${ROW_LIMIT + 1}
-      OFFSET ${this.offset}
-    `;
+  getPaginatedSQLQuery(): Request {
+    return this.request;
   }
 
   canGoForward(): boolean {
@@ -259,8 +263,20 @@ export class SqlTableState {
     };
   }
 
+  private buildRequest(): Request {
+    const {selectStatement, columns} = this.buildSqlSelectStatement();
+    // We fetch one more row to determine if we can go forward.
+    const query = `
+      ${this.getSQLImports()}
+      ${selectStatement}
+      LIMIT ${ROW_LIMIT + 1}
+      OFFSET ${this.offset}
+    `;
+    return {selectStatement, query, columns};
+  }
+
   private async loadData(): Promise<Data> {
-    const queryRes = await this.engine.query(this.getPaginatedSQLQuery());
+    const queryRes = await this.engine.query(this.request.query);
     const rows: Row[] = [];
     for (const it = queryRes.iter({}); it.valid(); it.next()) {
       const row: Row = {};
@@ -282,26 +298,37 @@ export class SqlTableState {
     }
 
     const newFilters = this.rowCount?.filters;
-    const filtersMatch = newFilters && arrayEquals(newFilters, this.filters);
+    const filtersMatch =
+      newFilters && areFiltersEqual(newFilters, this.filters);
     this.data = undefined;
+    const request = this.buildRequest();
+    this.request = request;
     if (!filtersMatch) {
       this.rowCount = undefined;
     }
 
-    // Delay the visual update by 50ms to avoid flickering (if the query returns
-    // before the data is loaded.
-    setTimeout(() => raf.scheduleFullRedraw(), 50);
+    // Run a delayed UI update to avoid flickering if the query returns quickly.
+    raf.scheduleDelayedFullRedraw();
 
     if (!filtersMatch) {
       this.rowCount = await this.loadRowCount();
     }
-    this.data = await this.loadData();
+
+    const data = await this.loadData();
+
+    // If the request has changed since we started loading the data, do not update the state.
+    if (this.request !== request) return;
+    this.data = data;
 
     raf.scheduleFullRedraw();
   }
 
   getTotalRowCount(): number | undefined {
     return this.rowCount?.count;
+  }
+
+  getCurrentRequest(): Request {
+    return this.request;
   }
 
   getDisplayedRows(): Row[] {
@@ -316,15 +343,13 @@ export class SqlTableState {
     return this.data === undefined;
   }
 
-  // Filters are compared by reference, so the caller is required to pass an
-  // object which was previously returned by getFilters.
-  removeFilter(filter: Filter) {
-    this.filters = this.filters.filter((f) => f !== filter);
+  addFilter(filter: Filter) {
+    this.filters.push(filter);
     this.reload();
   }
 
-  addFilter(filter: string) {
-    this.filters.push(filter);
+  removeFilter(filter: Filter) {
+    this.filters = this.filters.filter((f) => !isFilterEqual(f, filter));
     this.reload();
   }
 
@@ -334,7 +359,9 @@ export class SqlTableState {
 
   sortBy(clause: ColumnOrderClause) {
     // Remove previous sort by the same column.
-    this.orderBy = this.orderBy.filter((c) => c.column !== clause.column);
+    this.orderBy = this.orderBy.filter(
+      (c) => !isSqlColumnEqual(c.column, clause.column),
+    );
     // Add the new sort clause to the front, so we effectively stable-sort the
     // data currently displayed to the user.
     this.orderBy.unshift(clause);
@@ -346,13 +373,19 @@ export class SqlTableState {
     this.reload();
   }
 
-  isSortedBy(column: Column): SortDirection | undefined {
+  isSortedBy(column: TableColumn): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
-    if (this.orderBy[0].column !== column) return undefined;
+    if (!isSqlColumnEqual(this.orderBy[0].column, column.primaryColumn())) {
+      return undefined;
+    }
     return this.orderBy[0].direction;
   }
 
-  addColumn(column: Column, index: number) {
+  getOrderedBy(): ColumnOrderClause[] {
+    return this.orderBy;
+  }
+
+  addColumn(column: TableColumn, index: number) {
     this.columns.splice(index + 1, 0, column);
     this.reload({offset: 'keep'});
   }
@@ -362,12 +395,14 @@ export class SqlTableState {
     this.columns.splice(index, 1);
     // We can only filter by the visibile columns to avoid confusing the user,
     // so we remove order by clauses that refer to the hidden column.
-    this.orderBy = this.orderBy.filter((c) => c.column !== column);
+    this.orderBy = this.orderBy.filter(
+      (c) => !isSqlColumnEqual(c.column, column.primaryColumn()),
+    );
     // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
     this.reload({offset: 'keep'});
   }
 
-  getSelectedColumns(): Column[] {
+  getSelectedColumns(): TableColumn[] {
     return this.columns;
   }
 }

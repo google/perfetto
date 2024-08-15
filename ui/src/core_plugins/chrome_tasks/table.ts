@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTableDescription} from '../../frontend/widgets/sql/table2/state';
+import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
 import {
   ArgSetColumnSet,
   DurationColumn,
   SliceIdColumn,
   StandardColumn,
   TimestampColumn,
-} from '../../frontend/widgets/sql/table2/well_known_columns';
+} from '../../frontend/widgets/sql/table/well_known_columns';
 
 export const chromeTasksTable: SqlTableDescription = {
   imports: ['chrome.tasks'],

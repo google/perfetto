@@ -57,7 +57,7 @@ import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 import {DisposableStack} from '../base/disposable_stack';
 import {addSqlTableTab} from './sql_table_tab';
 import {getThreadInfo} from '../trace_processor/sql_utils/thread';
-import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
+import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;

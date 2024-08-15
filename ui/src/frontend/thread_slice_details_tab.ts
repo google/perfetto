@@ -43,7 +43,7 @@ import {DurationWidget} from './widgets/duration';
 import {addSqlTableTab} from './sql_table_tab';
 import {SliceRef} from './widgets/slice';
 import {BasicTable} from '../widgets/basic_table';
-import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
+import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 
 interface ContextMenuItem {
   name: string;

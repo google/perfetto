@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,81 +12,178 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqliteString} from '../../../../base/string_utils';
+import m from 'mithril';
 
-import {
-  ArgSetIdColumn,
-  dependendentColumns,
-  DisplayConfig,
-  RegularSqlTableColumn,
-} from './table_description';
+import {SqlValue} from '../../../../trace_processor/query_result';
+import {Engine} from '../../../../public';
+import {SortDirection} from '../../../../base/comparison_utils';
+import {arrayEquals} from '../../../../base/array_utils';
 
-// This file contains the defintions of different column types that can be
-// displayed in the table viewer.
+// We are dealing with two types of columns here:
+// - Column, which is shown to a user in table (high-level, ColumnTable).
+// - Column in the underlying SQL data (low-level, SqlColumn).
+// They are related, but somewhat separate due to the fact that some table columns need to work with multiple SQL values to display it properly.
+// For example, a "time range" column would need both timestamp and duration to display interactive experience (e.g. highlight the time range on hover).
+// Each TableColumn has a primary SqlColumn, as well as optional dependent columns.
 
-export interface Column {
-  // SQL expression calculating the value of this column.
-  expression: string;
-  // Unique name for this column.
-  // The relevant bit of SQL fetching this column will be ${expression} as
-  // ${alias}.
-  alias: string;
-  // Title to be displayed in the table header.
-  title: string;
-  // How the value of this column should be rendered.
-  display?: DisplayConfig;
-}
-
-export function columnFromSqlTableColumn(c: RegularSqlTableColumn): Column {
-  return {
-    expression: c.name,
-    alias: c.name,
-    title: c.title || c.name,
-    display: c.display,
-  };
-}
-
-export function argColumn(
-  tableName: string,
-  c: ArgSetIdColumn,
-  argName: string,
-): Column {
-  const escape = (name: string) => name.replace(/[^A-Za-z0-9]/g, '_');
-  return {
-    expression: `extract_arg(${tableName}.${c.name}, ${sqliteString(argName)})`,
-    alias: `_arg_${c.name}_${escape(argName)}`,
-    title: `${c.title ?? c.name} ${argName}`,
-  };
-}
-
-// A single instruction from a select part of the SQL statement, i.e.
-// select `expression` as `alias`.
-export type SqlProjection = {
-  expression: string;
-  alias: string;
+// A source table for a SQL column, representing the joined table and the join constraints.
+export type SourceTable = {
+  table: string;
+  joinOn: {[key: string]: SqlColumn};
 };
 
-export function formatSqlProjection(p: SqlProjection): string {
-  return `${p.expression} as ${p.alias}`;
+// A column in the SQL query. It can be either a column from a base table or a "lookup" column from a joined table.
+export type SqlColumn =
+  | string
+  | {
+      column: string;
+      source: SourceTable;
+    };
+
+// A unique identifier for the SQL column.
+export function sqlColumnId(column: SqlColumn) {
+  if (typeof column === 'string') {
+    return column;
+  }
+  // If the join is performed on a single column `id`, we can use a simpler representation (i.e. `table[id].column`).
+  if (arrayEquals(Object.keys(column.source.joinOn), ['id'])) {
+    return `${column.source.table}[${Object.values(column.source.joinOn)[0]}].${column.column}`;
+  }
+  // Otherwise, we need to list all the join constraints.
+  const lookup = Object.entries(column.source.joinOn)
+    .map(([key, value]): string => `${key}=${sqlColumnId(value)}`)
+    .join(', ');
+  return `${column.source.table}[${lookup}].${column.column}`;
 }
 
-// Returns a list of projections (i.e. parts of the SELECT clause) that should
-// be added to the query fetching the data to be able to display the given
-// column (e.g. `foo` or `f(bar) as baz`).
-// Some table columns are backed by multiple SQL columns (e.g. slice_id is
-// backed by id, ts, dur and track_id), so we need to return a list.
-export function sqlProjectionsForColumn(column: Column): SqlProjection[] {
-  const result: SqlProjection[] = [
-    {
-      expression: column.expression,
-      alias: column.alias,
-    },
-  ];
-  for (const dependency of dependendentColumns(column.display)) {
-    result.push({
-      expression: dependency,
-      alias: dependency,
-    });
+export function isSqlColumnEqual(a: SqlColumn, b: SqlColumn): boolean {
+  return sqlColumnId(a) === sqlColumnId(b);
+}
+
+function sqlColumnName(column: SqlColumn): string {
+  if (typeof column === 'string') {
+    return column;
   }
-  return result;
+  return column.column;
+}
+
+// Interface which allows TableColumn and TableColumnSet to interact with the table (e.g. add filters, or run the query).
+export interface TableManager {
+  addFilter(filter: Filter): void;
+
+  engine: Engine;
+  getSqlQuery(data: {[key: string]: SqlColumn}): string;
+}
+
+export interface TableColumnParams {
+  // See TableColumn.tag.
+  tag?: string;
+  // See TableColumn.alias.
+  alias?: string;
+  // See TableColumn.startsHidden.
+  startsHidden?: boolean;
+}
+
+// Class which represents a column in a table, which can be displayed to the user.
+// It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
+export abstract class TableColumn {
+  constructor(params?: TableColumnParams) {
+    this.tag = params?.tag;
+    this.alias = params?.alias;
+    this.startsHidden = params?.startsHidden ?? false;
+  }
+
+  // Column title to be displayed.
+  // If not set, then `alias` will be used if it's unique.
+  // If `alias` is not set as well, then `sqlColumnId(primaryColumn())` will be used.
+  // TODO(altimin): This should return m.Children, but a bunch of things, including low-level widgets (Button, MenuItem, Anchor) need to be fixed first.
+  getTitle?(): string | undefined;
+
+  // Some SQL columns can map to multiple table columns. For example, a "utid" can be displayed as an integer column, or as a "thread" column, which displays "$thread_name [$tid]".
+  // Each column should have a unique id, so in these cases `tag` is appended to the primary column id to guarantee uniqueness.
+  readonly tag?: string;
+
+  // Preferred alias to be used in the SQL query. If omitted, column name will be used instead, including postfixing it with an integer if necessary.
+  // However, e.g. explicit aliases like `process_name` and `thread_name` are typically preferred to `name_1`, `name_2`, hence the need for explicit aliasing.
+  readonly alias?: string;
+
+  // Whether the column should be hidden by default.
+  readonly startsHidden: boolean;
+
+  // The SQL column this data corresponds to. Will be also used for sorting and aggregation purposes.
+  abstract primaryColumn(): SqlColumn;
+
+  // Sometimes to display an interactive cell more than a single value is needed (e.g. "time range" corresponds to (ts, dur) pair. While we want to show the duration, we would want to highlight the interval on hover, for which both timestamp and duration are needed.
+  dependentColumns?(): {[key: string]: SqlColumn};
+
+  // Render a table cell. `value` corresponds to the fetched SQL value for the primary column, `dependentColumns` are the fetched values for the dependent columns.
+  abstract renderCell(
+    value: SqlValue,
+    tableManager: TableManager,
+    dependentColumns: {[key: string]: SqlValue},
+  ): m.Children;
+}
+
+// Returns a unique identifier for the table column.
+export function tableColumnId(column: TableColumn): string {
+  const primaryColumnName = sqlColumnId(column.primaryColumn());
+  if (column.tag) {
+    return `${primaryColumnName}#${column.tag}`;
+  }
+  return primaryColumnName;
+}
+
+export function tableColumnAlias(column: TableColumn): string {
+  return column.alias ?? sqlColumnName(column.primaryColumn());
+}
+
+// This class represents a set of columns, from which the user can choose which columns to display. It is typically impossible or impractical to list all possible columns, so this class allows to discover them dynamically.
+// Two examples of canonical TableColumnSet usage are:
+// - Argument sets, where the set of arguments can be arbitrary large (and can change when the user changes filters on the table).
+// - Dependent columns, where the id.
+export abstract class TableColumnSet {
+  // TODO(altimin): This should return m.Children, same comment as in TableColumn.getTitle applies here.
+  abstract getTitle(): string;
+
+  // Returns a list of columns from this TableColumnSet which should be displayed by default.
+  initialColumns?(): TableColumn[];
+
+  // Returns a list of columns which can be added to the table from the current TableColumnSet.
+  abstract discover(manager: TableManager): Promise<
+    {
+      key: string;
+      // TODO(altimin): This probably should allow returning TableColumnSet as well.
+      column: TableColumn;
+    }[]
+  >;
+}
+
+// A filter which can be applied to the table.
+export interface Filter {
+  // Operation: it takes a list of column names and should return a valid SQL expression for this filter.
+  op: (cols: string[]) => string;
+  // Columns that the `op` should reference. The number of columns should match the number of interpolations in `op`.
+  columns: SqlColumn[];
+  // Returns a human-readable title for the filter. If not set, `op` will be used.
+  // TODO(altimin): This probably should return m.Children, but currently Button expects its label to be string.
+  getTitle?(): string;
+}
+
+// Returns a default string representation of the filter.
+export function formatFilter(filter: Filter): string {
+  return filter.op(filter.columns.map((c) => sqlColumnId(c)));
+}
+
+// Returns a human-readable title for the filter.
+export function filterTitle(filter: Filter): string {
+  if (filter.getTitle !== undefined) {
+    return filter.getTitle();
+  }
+  return formatFilter(filter);
+}
+
+// A column order clause, which specifies the column and the direction in which it should be sorted.
+export interface ColumnOrderClause {
+  column: SqlColumn;
+  direction: SortDirection;
 }

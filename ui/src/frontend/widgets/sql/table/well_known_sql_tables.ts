@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,98 +13,43 @@
 // limitations under the License.
 
 import {SqlTableDescription} from './table_description';
+import {
+  ArgSetColumnSet,
+  DurationColumn,
+  SliceIdColumn,
+  StandardColumn,
+  TimestampColumn,
+} from './well_known_columns';
 
 const sliceTable: SqlTableDescription = {
   imports: ['slices.slices'],
   name: '_slice_with_thread_and_process_info',
   displayName: 'slice',
   columns: [
-    {
-      name: 'id',
-      title: 'ID',
-      display: {
-        type: 'slice_id',
-        ts: 'ts',
-        dur: 'dur',
-        trackId: 'track_id',
-      },
-    },
-    {
-      name: 'ts',
-      title: 'Timestamp',
-      display: {
-        type: 'timestamp',
-      },
-    },
-    {
-      name: 'dur',
-      title: 'Duration',
-      display: {
-        type: 'duration',
-      },
-    },
-    {
-      name: 'thread_dur',
-      title: 'Thread duration',
-      display: {
-        type: 'thread_duration',
-      },
-    },
-    {
-      name: 'category',
-      title: 'Category',
-    },
-    {
-      name: 'name',
-      title: 'Name',
-    },
-    {
-      name: 'track_id',
-      title: 'Track ID',
-      startsHidden: true,
-    },
-    {
-      name: 'track_name',
-      title: 'Track name',
-      startsHidden: true,
-    },
-    {
-      name: 'thread_name',
-      title: 'Thread name',
-    },
-    {
-      name: 'utid',
-      startsHidden: true,
-    },
-    {
-      name: 'tid',
-    },
-    {
-      name: 'process_name',
-      title: 'Process name',
-    },
-    {
-      name: 'upid',
-      startsHidden: true,
-    },
-    {
-      name: 'pid',
-    },
-    {
-      name: 'depth',
-      title: 'Depth',
-      startsHidden: true,
-    },
-    {
-      name: 'parent_id',
+    new SliceIdColumn({
+      sliceId: 'id',
+      ts: 'ts',
+      dur: 'dur',
+      trackId: 'track_id',
+    }),
+    new TimestampColumn('ts', {title: 'Timestamp'}),
+    new DurationColumn('dur', {title: 'Duration'}),
+    new DurationColumn('thread_dur', {title: 'Thread duration'}),
+    new StandardColumn('category', {title: 'Category'}),
+    new StandardColumn('name', {title: 'Name'}),
+    new StandardColumn('track_id', {title: 'Track ID', startsHidden: true}),
+    new StandardColumn('thread_name', {title: 'Thread name'}),
+    new StandardColumn('utid', {title: 'utid', startsHidden: true}),
+    new StandardColumn('tid', {title: 'tid'}),
+    new StandardColumn('process_name', {title: 'Process name'}),
+    new StandardColumn('upid', {title: 'upid'}),
+    new StandardColumn('pid', {title: 'pid', startsHidden: true}),
+    new StandardColumn('depth', {title: 'Depth', startsHidden: true}),
+    new StandardColumn('parent_id', {
       title: 'Parent slice ID',
       startsHidden: true,
-    },
-    {
-      name: 'arg_set_id',
-      title: 'Arg',
-      type: 'arg_set_id',
-    },
+    }),
+    new ArgSetColumnSet('arg_set_id'),
   ],
 };
 
