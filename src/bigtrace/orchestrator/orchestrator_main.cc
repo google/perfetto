@@ -15,6 +15,7 @@
  */
 
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <mutex>
 
@@ -183,6 +184,7 @@ base::Status OrchestratorMain(int argc, char** argv) {
   }
   grpc::ChannelArguments args;
   args.SetLoadBalancingPolicyName("round_robin");
+  args.SetMaxReceiveMessageSize(std::numeric_limits<int32_t>::max());
   auto channel = grpc::CreateCustomChannel(
       target_address, grpc::InsecureChannelCredentials(), args);
   auto stub = protos::BigtraceWorker::NewStub(channel);
@@ -190,6 +192,8 @@ base::Status OrchestratorMain(int argc, char** argv) {
 
   // Setup the Orchestrator Server
   grpc::ServerBuilder builder;
+  builder.SetMaxReceiveMessageSize(std::numeric_limits<int32_t>::max());
+  builder.SetMaxMessageSize(std::numeric_limits<int32_t>::max());
   builder.AddListeningPort(server_socket, grpc::InsecureServerCredentials());
   builder.RegisterService(service.get());
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
