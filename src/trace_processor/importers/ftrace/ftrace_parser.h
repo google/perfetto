@@ -321,10 +321,6 @@ class FtraceParser {
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
-  const StringId cpu_freq_name_id_;
-  const StringId cpu_freq_throttle_name_id_;
-  const StringId gpu_freq_name_id_;
-  const StringId cpu_idle_name_id_;
   const StringId suspend_resume_name_id_;
   const StringId suspend_resume_minimal_name_id_;
   const StringId suspend_resume_minimal_slice_name_id_;
