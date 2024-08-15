@@ -72,6 +72,33 @@ class TrackTracker {
     kPkvmHypervisor,
   };
 
+  // Classifications of CPU counter tracks.
+  enum class CpuCounterTrackType {
+    // Frequency CPU counters
+    kFrequency,
+    kFreqThrottle,
+    kMaxFreqLimit,
+    kMinFreqLimit,
+
+    kIdle,
+    kIdleState,
+    kUtilization,
+    kCapacity,
+    kNrRunning,
+
+    // Time CPU spent in state.
+    kUserTime,
+    kNiceUserTime,
+    kSystemModeTime,
+    kIoWaitTime,
+    kIrqTime,
+    kSoftIrqTime,
+    kIdleTime,
+  };
+
+  // Classifications of GPU counter tracks.
+  enum class GpuCounterTrackType { kFreqency };
+
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter&)>;
 
   explicit TrackTracker(TraceProcessorContext*);
@@ -119,7 +146,13 @@ class TrackTracker {
                                    StringId description = kNullStringId);
 
   // Interns a counter track associated with a cpu into the storage.
-  TrackId InternCpuCounterTrack(StringId name, uint32_t cpu);
+  TrackId InternCpuCounterTrack(CpuCounterTrackType, uint32_t cpu);
+
+  // Interns a counter track associated with a GPU into the storage.
+  TrackId InternGpuCounterTrack(GpuCounterTrackType, uint32_t gpu_id);
+
+  // Interns a counter track associated with a cpu into the storage.
+  TrackId InternCpuIdleStateTrack(uint32_t cpu, StringId state);
 
   // Interns a counter track associated with a thread into the storage.
   TrackId InternThreadCounterTrack(StringId name, UniqueTid utid);
@@ -135,9 +168,6 @@ class TrackTracker {
 
   // Interns a counter track associated with an softirq into the storage.
   TrackId InternSoftirqCounterTrack(StringId name, int32_t softirq);
-
-  // Interns a counter track associated with a GPU into the storage.
-  TrackId InternGpuCounterTrack(StringId name, uint32_t gpu_id);
 
   // Interns energy counter track associated with a
   // Energy breakdown into the storage.
@@ -213,10 +243,26 @@ class TrackTracker {
              std::tie(r.trace_id, r.upid, r.source_scope);
     }
   };
+  struct CpuCounterTrackTuple {
+    // Required fields.
+    CpuCounterTrackType type;
+    uint32_t cpu;
+    StringId name = StringPool::Id::Null();
+
+    // Optional properties of the track.
+    uint64_t optional_hash = 0;
+
+    friend bool operator<(const CpuCounterTrackTuple& l,
+                          const CpuCounterTrackTuple& r) {
+      return std::tie(l.type, l.cpu, l.optional_hash) <
+             std::tie(r.type, r.cpu, r.optional_hash);
+    }
+  };
   static constexpr size_t kGroupCount =
       static_cast<uint32_t>(Group::kSizeSentinel);
 
-  TrackId InternTrackForGroup(Group group);
+  TrackId InternTrackForGroup(Group);
+  TrackId InternCpuCounterTrack(CpuCounterTrackTuple);
 
   std::optional<TrackId>* TryGetUniqueTrack(UniqueTrackType type) {
     switch (type) {
@@ -245,7 +291,7 @@ class TrackTracker {
   std::map<GpuWorkPeriodTrackTuple, TrackId> gpu_work_period_tracks_;
 
   std::map<StringId, TrackId> global_counter_tracks_by_name_;
-  std::map<std::pair<StringId, uint32_t>, TrackId> cpu_counter_tracks_;
+  std::map<CpuCounterTrackTuple, TrackId> cpu_counter_tracks_;
   std::map<std::pair<StringId, UniqueTid>, TrackId> utid_counter_tracks_;
   std::map<std::pair<StringId, UniquePid>, TrackId> upid_counter_tracks_;
   std::map<std::pair<StringId, int32_t>, TrackId> irq_counter_tracks_;
