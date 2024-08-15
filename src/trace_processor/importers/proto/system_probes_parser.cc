@@ -133,8 +133,6 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
       num_softirq_total_name_id_(
           context->storage->InternString("num_softirq_total")),
-      num_irq_name_id_(context->storage->InternString("num_irq")),
-      num_softirq_name_id_(context->storage->InternString("num_softirq")),
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       thermal_unit_id_(context->storage->InternString("C")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
@@ -381,7 +379,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
 
     TrackId track = context_->track_tracker->InternIrqCounterTrack(
-        num_irq_name_id_, ic.irq());
+        TrackTracker::IrqCounterTrackType::kIrqCount, ic.irq());
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
@@ -390,7 +388,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
 
     TrackId track = context_->track_tracker->InternSoftirqCounterTrack(
-        num_softirq_name_id_, ic.irq());
+        TrackTracker::SoftIrqCounterTrackType::kSoftIrqCount, ic.irq());
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
