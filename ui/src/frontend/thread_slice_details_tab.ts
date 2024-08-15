@@ -41,9 +41,9 @@ import {
 import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {DurationWidget} from './widgets/duration';
 import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 import {SliceRef} from './widgets/slice';
 import {BasicTable} from '../widgets/basic_table';
+import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
 
 interface ContextMenuItem {
   name: string;
@@ -95,7 +95,11 @@ const ITEMS: ContextMenuItem[] = [
       addSqlTableTab({
         table: SqlTables.slice,
         filters: [
-          `id IN (SELECT id FROM _slice_ancestor_and_self(${slice.id}))`,
+          {
+            op: (cols) =>
+              `${cols[0]} IN (SELECT id FROM _slice_ancestor_and_self(${slice.id}))`,
+            columns: ['id'],
+          },
         ],
         imports: ['slices.hierarchy'],
       }),
@@ -107,7 +111,11 @@ const ITEMS: ContextMenuItem[] = [
       addSqlTableTab({
         table: SqlTables.slice,
         filters: [
-          `id IN (SELECT id FROM _slice_descendant_and_self(${slice.id}))`,
+          {
+            op: (cols) =>
+              `${cols[0]} IN (SELECT id FROM _slice_descendant_and_self(${slice.id}))`,
+            columns: ['id'],
+          },
         ],
         imports: ['slices.hierarchy'],
       }),
