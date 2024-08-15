@@ -99,6 +99,10 @@ class TrackTracker {
   // Classifications of GPU counter tracks.
   enum class GpuCounterTrackType { kFreqency };
 
+  enum class IrqCounterTrackType { kIrqCount };
+
+  enum class SoftIrqCounterTrackType { kSoftIrqCount };
+
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter&)>;
 
   explicit TrackTracker(TraceProcessorContext*);
@@ -114,11 +118,6 @@ class TrackTracker {
 
   // Interns a process track into the storage.
   TrackId InternProcessTrack(UniquePid upid);
-
-  // Interns a Fuchsia async track into the storage.
-  TrackId InternFuchsiaAsyncTrack(StringId name,
-                                  uint32_t upid,
-                                  int64_t correlation_id);
 
   // Interns a given GPU track into the storage.
   TrackId InternGpuTrack(const tables::GpuTrackTable::Row& row);
@@ -164,10 +163,10 @@ class TrackTracker {
                                     StringId description = kNullStringId);
 
   // Interns a counter track associated with an irq into the storage.
-  TrackId InternIrqCounterTrack(StringId name, int32_t irq);
+  TrackId InternIrqCounterTrack(IrqCounterTrackType, int32_t irq);
 
   // Interns a counter track associated with an softirq into the storage.
-  TrackId InternSoftirqCounterTrack(StringId name, int32_t softirq);
+  TrackId InternSoftirqCounterTrack(SoftIrqCounterTrackType, int32_t softirq);
 
   // Interns energy counter track associated with a
   // Energy breakdown into the storage.
@@ -198,6 +197,11 @@ class TrackTracker {
                                  tables::PerfSessionTable::Id perf_session_id,
                                  uint32_t cpu,
                                  bool is_timebase);
+
+  // Interns a Fuchsia async track into the storage.
+  TrackId InternFuchsiaAsyncTrack(StringId name,
+                                  uint32_t upid,
+                                  int64_t correlation_id);
 
   // NOTE:
   // The below method should only be called by AsyncTrackSetTracker
@@ -264,18 +268,6 @@ class TrackTracker {
   TrackId InternTrackForGroup(Group);
   TrackId InternCpuCounterTrack(CpuCounterTrackTuple);
 
-  std::optional<TrackId>* TryGetUniqueTrack(UniqueTrackType type) {
-    switch (type) {
-      case UniqueTrackType::kTrigger:
-        return &trigger_track_id_;
-      case UniqueTrackType::kInterconnect:
-        return &interconnect_events_track_id_;
-      case UniqueTrackType::kChromeLegacyGlobalInstant:
-        return &chrome_global_instant_track_id_;
-    }
-    PERFETTO_FATAL("For gcc");
-  }
-
   std::array<std::optional<TrackId>, kGroupCount> group_track_ids_;
 
   std::map<UniqueTid, TrackId> thread_tracks_;
@@ -292,20 +284,21 @@ class TrackTracker {
 
   std::map<StringId, TrackId> global_counter_tracks_by_name_;
   std::map<CpuCounterTrackTuple, TrackId> cpu_counter_tracks_;
+  std::map<std::pair<GpuCounterTrackType, uint32_t>, TrackId>
+      gpu_counter_tracks_;
   std::map<std::pair<StringId, UniqueTid>, TrackId> utid_counter_tracks_;
   std::map<std::pair<StringId, UniquePid>, TrackId> upid_counter_tracks_;
-  std::map<std::pair<StringId, int32_t>, TrackId> irq_counter_tracks_;
-  std::map<std::pair<StringId, int32_t>, TrackId> softirq_counter_tracks_;
-  std::map<std::pair<StringId, uint32_t>, TrackId> gpu_counter_tracks_;
+  std::map<std::pair<IrqCounterTrackType, int32_t>, TrackId>
+      irq_counter_tracks_;
+  std::map<std::pair<SoftIrqCounterTrackType, int32_t>, TrackId>
+      softirq_counter_tracks_;
   std::map<std::pair<StringId, int32_t>, TrackId> energy_counter_tracks_;
   std::map<std::pair<StringId, int32_t>, TrackId> uid_counter_tracks_;
   std::map<std::pair<StringId, int32_t>, TrackId>
       energy_per_uid_counter_tracks_;
   std::map<StringId, TrackId> linux_device_tracks_;
 
-  std::optional<TrackId> chrome_global_instant_track_id_;
-  std::optional<TrackId> trigger_track_id_;
-  std::optional<TrackId> interconnect_events_track_id_;
+  std::map<UniqueTrackType, TrackId> unique_tracks_;
 
   const StringId source_key_ = kNullStringId;
   const StringId trace_id_key_ = kNullStringId;

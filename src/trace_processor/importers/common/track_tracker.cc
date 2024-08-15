@@ -144,6 +144,23 @@ const char* GetGpuCounterTrackName(TrackTracker::GpuCounterTrackType type) {
   PERFETTO_FATAL("For gcc");
 }
 
+const char* GetIrqCounterTrackName(TrackTracker::IrqCounterTrackType type) {
+  switch (type) {
+    case TrackTracker::IrqCounterTrackType::kIrqCount:
+      return "num_irq";
+  }
+  PERFETTO_FATAL("For gcc");
+}
+
+const char* GetSoftIrqCounterTrackName(
+    TrackTracker::SoftIrqCounterTrackType type) {
+  switch (type) {
+    case TrackTracker::SoftIrqCounterTrackType::kSoftIrqCount:
+      return "num_softirq";
+  }
+  PERFETTO_FATAL("For gcc");
+}
+
 }  // namespace
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
@@ -200,21 +217,22 @@ TrackId TrackTracker::InternCpuTrack(CpuTrackType type, uint32_t cpu) {
 }
 
 TrackId TrackTracker::InternUniqueTrack(UniqueTrackType type) {
-  auto* track_id = TryGetUniqueTrack(type);
-  if (track_id->has_value()) {
-    return track_id->value();
-  }
+  auto it = unique_tracks_.find(type);
+  if (it != unique_tracks_.end())
+    return it->second;
+
   tables::TrackTable::Row row;
   row.name = context_->storage->InternString(GetUniqueTrackName(type));
   row.machine_id = context_->machine_id();
-  *track_id = context_->storage->mutable_track_table()->Insert(row).id;
+  TrackId id = context_->storage->mutable_track_table()->Insert(row).id;
+  unique_tracks_[type] = id;
 
   if (type == UniqueTrackType::kChromeLegacyGlobalInstant) {
-    context_->args_tracker->AddArgsTo(track_id->value())
-        .AddArg(source_key_, Variadic::String(chrome_source_));
+    context_->args_tracker->AddArgsTo(id).AddArg(
+        source_key_, Variadic::String(chrome_source_));
   }
 
-  return track_id->value();
+  return id;
 }
 
 TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
@@ -444,48 +462,51 @@ TrackId TrackTracker::InternProcessCounterTrack(StringId raw_name,
   return track;
 }
 
-TrackId TrackTracker::InternIrqCounterTrack(StringId name, int32_t irq) {
-  auto it = irq_counter_tracks_.find(std::make_pair(name, irq));
+TrackId TrackTracker::InternIrqCounterTrack(IrqCounterTrackType type,
+                                            int32_t irq) {
+  auto it = irq_counter_tracks_.find(std::make_pair(type, irq));
   if (it != irq_counter_tracks_.end()) {
     return it->second;
   }
 
-  tables::IrqCounterTrackTable::Row row(name);
+  tables::IrqCounterTrackTable::Row row(
+      context_->storage->InternString(GetIrqCounterTrackName(type)));
   row.irq = irq;
   row.machine_id = context_->machine_id();
 
   TrackId track =
       context_->storage->mutable_irq_counter_track_table()->Insert(row).id;
-  irq_counter_tracks_[std::make_pair(name, irq)] = track;
+  irq_counter_tracks_[std::make_pair(type, irq)] = track;
   return track;
 }
 
-TrackId TrackTracker::InternSoftirqCounterTrack(StringId name,
+TrackId TrackTracker::InternSoftirqCounterTrack(SoftIrqCounterTrackType type,
                                                 int32_t softirq) {
-  auto it = softirq_counter_tracks_.find(std::make_pair(name, softirq));
+  auto it = softirq_counter_tracks_.find(std::make_pair(type, softirq));
   if (it != softirq_counter_tracks_.end()) {
     return it->second;
   }
 
-  tables::SoftirqCounterTrackTable::Row row(name);
+  tables::SoftirqCounterTrackTable::Row row(
+      context_->storage->InternString(GetSoftIrqCounterTrackName(type)));
   row.softirq = softirq;
   row.machine_id = context_->machine_id();
 
   TrackId track =
       context_->storage->mutable_softirq_counter_track_table()->Insert(row).id;
-  softirq_counter_tracks_[std::make_pair(name, softirq)] = track;
+  softirq_counter_tracks_[std::make_pair(type, softirq)] = track;
   return track;
 }
 
 TrackId TrackTracker::InternGpuCounterTrack(GpuCounterTrackType type,
                                             uint32_t gpu_id) {
   StringId name = context_->storage->InternString(GetGpuCounterTrackName(type));
-  auto it = gpu_counter_tracks_.find(std::make_pair(name, gpu_id));
+  auto it = gpu_counter_tracks_.find(std::make_pair(type, gpu_id));
   if (it != gpu_counter_tracks_.end()) {
     return it->second;
   }
   TrackId track = CreateGpuCounterTrack(name, gpu_id);
-  gpu_counter_tracks_[std::make_pair(name, gpu_id)] = track;
+  gpu_counter_tracks_[std::make_pair(type, gpu_id)] = track;
   return track;
 }
 
