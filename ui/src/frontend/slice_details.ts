@@ -31,7 +31,7 @@ import {
 import {addSqlTableTab} from './sql_table_tab';
 import {DurationWidget} from './widgets/duration';
 import {renderProcessRef} from './widgets/process';
-import {SqlTables} from './widgets/sql/table2/well_known_sql_tables';
+import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 import {renderThreadRef} from './widgets/thread';
 import {Timestamp} from './widgets/timestamp';
 

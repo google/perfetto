@@ -26,9 +26,10 @@ import {Popup, PopupPosition} from '../widgets/popup';
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {AddDebugTrackMenu} from './debug_tracks/add_debug_track_menu';
 import {getEngine} from './get_engine';
-import {Filter} from './widgets/sql/table2/column';
-import {SqlTableDescription, SqlTableState} from './widgets/sql/table2/state';
-import {SqlTable} from './widgets/sql/table2/table';
+import {Filter} from './widgets/sql/table/column';
+import {SqlTableState} from './widgets/sql/table/state';
+import {SqlTable} from './widgets/sql/table/table';
+import {SqlTableDescription} from './widgets/sql/table/table_description';
 
 interface SqlTableTabConfig {
   table: SqlTableDescription;

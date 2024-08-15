@@ -1,4 +1,4 @@
-// Copyright (C) 2022 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,34 +13,26 @@
 // limitations under the License.
 
 import {EngineBase} from '../../../../trace_processor/engine';
-import {Column} from './column';
+import {tableColumnId} from './column';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
+import {
+  ArgSetColumnSet,
+  StandardColumn,
+  TimestampColumn,
+} from './well_known_columns';
+
+const idColumn = new StandardColumn('id');
+const nameColumn = new StandardColumn('name', {title: 'Name'});
+const tsColumn = new TimestampColumn('ts', {
+  title: 'Timestamp',
+  startsHidden: true,
+});
 
 const table: SqlTableDescription = {
   name: 'table',
   displayName: 'Table',
-  columns: [
-    {
-      name: 'id',
-    },
-    {
-      name: 'name',
-      title: 'Name',
-    },
-    {
-      name: 'ts',
-      display: {
-        type: 'timestamp',
-      },
-      startsHidden: true,
-    },
-    {
-      name: 'arg_set_id',
-      type: 'arg_set_id',
-      title: 'Arg',
-    },
-  ],
+  columns: [idColumn, nameColumn, tsColumn, new ArgSetColumnSet('arg_set_id')],
 };
 
 class FakeEngine extends EngineBase {
@@ -53,37 +45,28 @@ test('sqlTableState: columnManupulation', () => {
   const engine = new FakeEngine();
   const state = new SqlTableState(engine, table);
 
-  const idColumn = {
-    alias: 'id',
-    expression: 'id',
-    title: 'id',
-  };
-  const nameColumn = {
-    alias: 'name',
-    expression: 'name',
-    title: 'Name',
-  };
-  const tsColumn: Column = {
-    alias: 'ts',
-    expression: 'ts',
-    title: 'ts',
-    display: {
-      type: 'timestamp',
-    },
-  };
-
   // The initial set of columns should include "id" and "name",
   // but not "ts" (as it is marked as startsHidden) and not "arg_set_id"
   // (as it is a special column).
-  expect(state.getSelectedColumns()).toEqual([idColumn, nameColumn]);
+  expect(state.getSelectedColumns().map((c) => tableColumnId(c))).toEqual([
+    'id',
+    'name',
+  ]);
 
   state.addColumn(tsColumn, 0);
 
-  expect(state.getSelectedColumns()).toEqual([idColumn, tsColumn, nameColumn]);
+  expect(state.getSelectedColumns().map((c) => tableColumnId(c))).toEqual([
+    'id',
+    'ts',
+    'name',
+  ]);
 
   state.hideColumnAtIndex(0);
 
-  expect(state.getSelectedColumns()).toEqual([tsColumn, nameColumn]);
+  expect(state.getSelectedColumns().map((c) => tableColumnId(c))).toEqual([
+    'ts',
+    'name',
+  ]);
 });
 
 test('sqlTableState: sortedColumns', () => {
@@ -92,15 +75,14 @@ test('sqlTableState: sortedColumns', () => {
 
   // Verify that we have two columns: "id" and "name" and
   // save references to them.
-  expect(state.getSelectedColumns().length).toBe(2);
-  const idColumn = state.getSelectedColumns()[0];
-  expect(idColumn.alias).toBe('id');
-  const nameColumn = state.getSelectedColumns()[1];
-  expect(nameColumn.alias).toBe('name');
+  expect(state.getSelectedColumns().map((c) => tableColumnId(c))).toEqual([
+    'id',
+    'name',
+  ]);
 
   // Sort by name column and verify that it is sorted by.
   state.sortBy({
-    column: nameColumn,
+    column: nameColumn.primaryColumn(),
     direction: 'ASC',
   });
   expect(state.isSortedBy(idColumn)).toBe(undefined);
@@ -108,7 +90,7 @@ test('sqlTableState: sortedColumns', () => {
 
   // Sort by the same column in the opposite direction.
   state.sortBy({
-    column: nameColumn,
+    column: nameColumn.primaryColumn(),
     direction: 'DESC',
   });
   expect(state.isSortedBy(idColumn)).toBe(undefined);
@@ -116,7 +98,7 @@ test('sqlTableState: sortedColumns', () => {
 
   // Sort by the id column.
   state.sortBy({
-    column: idColumn,
+    column: idColumn.primaryColumn(),
     direction: 'ASC',
   });
   expect(state.isSortedBy(idColumn)).toBe('ASC');
@@ -142,7 +124,7 @@ test('sqlTableState: sqlStatement', () => {
   const state = new SqlTableState(engine, table);
 
   // Check the generated SQL statement.
-  expect(normalize(state.buildSqlSelectStatement().selectStatement)).toBe(
-    'SELECT id as id, name as name FROM table',
+  expect(normalize(state.getCurrentRequest().query)).toBe(
+    'SELECT table_0.id AS id, table_0.name AS name FROM table AS table_0 LIMIT 101 OFFSET 0',
   );
 });
