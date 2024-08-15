@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -60,6 +61,40 @@ const char* GetNameForGroup(TrackTracker::Group group) {
   PERFETTO_FATAL("For GCC");
 }
 
+std::string GetCpuTrackName(TrackTracker::CpuTrackType type, uint32_t cpu) {
+  switch (type) {
+    case TrackTracker::CpuTrackType::kIrqCpu:
+      return base::StackString<255>("Irq Cpu %u", cpu).c_str();
+    case TrackTracker::CpuTrackType::kSortIrqCpu:
+      return base::StackString<255>("SoftIrq Cpu %u", cpu).c_str();
+    case TrackTracker::CpuTrackType::kNapiGroCpu:
+      return base::StackString<255>("Napi Gro Cpu %u", cpu).c_str();
+    case TrackTracker::CpuTrackType::kMaxFreqCpu:
+      return base::StackString<255>("Cpu %u Max Freq Limit", cpu).c_str();
+    case TrackTracker::CpuTrackType::kMinFreqCpu:
+      return base::StackString<255>("Cpu %u Min Freq Limit", cpu).c_str();
+    case TrackTracker::CpuTrackType::kFuncgraphCpu:
+      return base::StackString<255>("swapper%u -funcgraph", cpu).c_str();
+    case TrackTracker::CpuTrackType::kMaliIrqCpu:
+      return base::StackString<255>("Mali Irq Cpu %u", cpu).c_str();
+    case TrackTracker::CpuTrackType::kPkvmHypervisor:
+      return base::StackString<255>("pkVM Hypervisor CPU %u", cpu).c_str();
+  }
+  PERFETTO_FATAL("For gcc");
+}
+
+const char* GetUniqueTrackName(TrackTracker::UniqueTrackType type) {
+  switch (type) {
+    case TrackTracker::UniqueTrackType::kTrigger:
+      return "Trace Triggers";
+    case TrackTracker::UniqueTrackType::kInterconnect:
+      return "Interconnect Events";
+    case TrackTracker::UniqueTrackType::kChromeLegacyGlobalInstant:
+      return "";
+  }
+  PERFETTO_FATAL("For gcc");
+}
+
 }  // namespace
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
@@ -99,14 +134,9 @@ TrackId TrackTracker::InternProcessTrack(UniquePid upid) {
   return id;
 }
 
-TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
-                                              uint32_t upid,
-                                              int64_t correlation_id) {
-  return InternLegacyChromeAsyncTrack(name, upid, correlation_id, false,
-                                      StringId());
-}
-
-TrackId TrackTracker::InternCpuTrack(StringId name, uint32_t cpu) {
+TrackId TrackTracker::InternCpuTrack(CpuTrackType type, uint32_t cpu) {
+  std::string track_name = GetCpuTrackName(type, cpu);
+  StringId name = context_->storage->InternString(track_name.c_str());
   auto it = cpu_tracks_.find(std::make_pair(name, cpu));
   if (it != cpu_tracks_.end()) {
     return it->second;
@@ -117,8 +147,32 @@ TrackId TrackTracker::InternCpuTrack(StringId name, uint32_t cpu) {
   row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_cpu_track_table()->Insert(row).id;
   cpu_tracks_[std::make_pair(name, cpu)] = id;
-
   return id;
+}
+
+TrackId TrackTracker::InternUniqueTrack(UniqueTrackType type) {
+  auto* track_id = TryGetUniqueTrack(type);
+  if (track_id->has_value()) {
+    return track_id->value();
+  }
+  tables::TrackTable::Row row;
+  row.name = context_->storage->InternString(GetUniqueTrackName(type));
+  row.machine_id = context_->machine_id();
+  *track_id = context_->storage->mutable_track_table()->Insert(row).id;
+
+  if (type == UniqueTrackType::kChromeLegacyGlobalInstant) {
+    context_->args_tracker->AddArgsTo(track_id->value())
+        .AddArg(source_key_, Variadic::String(chrome_source_));
+  }
+
+  return track_id->value();
+}
+
+TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
+                                              uint32_t upid,
+                                              int64_t correlation_id) {
+  return InternLegacyChromeAsyncTrack(name, upid, correlation_id, false,
+                                      StringId());
 }
 
 TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
@@ -238,42 +292,6 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
       source_key_, Variadic::String(chrome_source_));
 
   return id;
-}
-
-TrackId TrackTracker::GetOrCreateLegacyChromeGlobalInstantTrack() {
-  if (!chrome_global_instant_track_id_) {
-    tables::TrackTable::Row row;
-    row.machine_id = context_->machine_id();
-    chrome_global_instant_track_id_ =
-        context_->storage->mutable_track_table()->Insert(row).id;
-
-    context_->args_tracker->AddArgsTo(*chrome_global_instant_track_id_)
-        .AddArg(source_key_, Variadic::String(chrome_source_));
-  }
-  return *chrome_global_instant_track_id_;
-}
-
-TrackId TrackTracker::GetOrCreateTriggerTrack() {
-  if (trigger_track_id_) {
-    return *trigger_track_id_;
-  }
-  tables::TrackTable::Row row;
-  row.name = context_->storage->InternString("Trace Triggers");
-  row.machine_id = context_->machine_id();
-  trigger_track_id_ = context_->storage->mutable_track_table()->Insert(row).id;
-  return *trigger_track_id_;
-}
-
-TrackId TrackTracker::GetOrCreateInterconnectTrack() {
-  if (interconnect_events_track_id_) {
-    return *interconnect_events_track_id_;
-  }
-  tables::TrackTable::Row row;
-  row.name = context_->storage->InternString("Interconnect Events");
-  row.machine_id = context_->machine_id();
-  interconnect_events_track_id_ =
-      context_->storage->mutable_track_table()->Insert(row).id;
-  return *interconnect_events_track_id_;
 }
 
 TrackId TrackTracker::InternGlobalCounterTrack(TrackTracker::Group group,

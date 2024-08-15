@@ -18,8 +18,12 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
 
 #include <optional>
+#include <string>
 
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -48,9 +52,35 @@ class TrackTracker {
     // Keep this last.
     kSizeSentinel,
   };
+
+  // Classifications of unique tracks (one per trace).
+  enum class UniqueTrackType {
+    kTrigger,
+    kInterconnect,
+    kChromeLegacyGlobalInstant
+  };
+
+  // Classifications of CPU tracks.
+  enum class CpuTrackType {
+    kIrqCpu,
+    kSortIrqCpu,
+    kNapiGroCpu,
+    kMaliIrqCpu,
+    kMinFreqCpu,
+    kMaxFreqCpu,
+    kFuncgraphCpu,
+    kPkvmHypervisor,
+  };
+
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter&)>;
 
   explicit TrackTracker(TraceProcessorContext*);
+
+  // Interns a unique track into the storage.
+  TrackId InternUniqueTrack(UniqueTrackType);
+
+  // Interns a global track keyed by CPU + name into the storage.
+  TrackId InternCpuTrack(CpuTrackType, uint32_t cpu);
 
   // Interns a thread track into the storage.
   TrackId InternThreadTrack(UniqueTid utid);
@@ -62,9 +92,6 @@ class TrackTracker {
   TrackId InternFuchsiaAsyncTrack(StringId name,
                                   uint32_t upid,
                                   int64_t correlation_id);
-
-  // Interns a global track keyed by CPU + name into the storage.
-  TrackId InternCpuTrack(StringId name, uint32_t cpu);
 
   // Interns a given GPU track into the storage.
   TrackId InternGpuTrack(const tables::GpuTrackTable::Row& row);
@@ -83,16 +110,6 @@ class TrackTracker {
   // Interns a track for legacy Chrome process-scoped instant events into the
   // storage.
   TrackId InternLegacyChromeProcessInstantTrack(UniquePid upid);
-
-  // Lazily creates the track for legacy Chrome global instant events.
-  TrackId GetOrCreateLegacyChromeGlobalInstantTrack();
-
-  // Returns the ID of the implicit trace-global default track for triggers
-  // received by the service.
-  TrackId GetOrCreateTriggerTrack();
-
-  // Returns the ID of the track for Google Interconnect events
-  TrackId GetOrCreateInterconnectTrack();
 
   // Interns a global counter track into the storage.
   TrackId InternGlobalCounterTrack(Group group,
@@ -200,6 +217,18 @@ class TrackTracker {
       static_cast<uint32_t>(Group::kSizeSentinel);
 
   TrackId InternTrackForGroup(Group group);
+
+  std::optional<TrackId>* TryGetUniqueTrack(UniqueTrackType type) {
+    switch (type) {
+      case UniqueTrackType::kTrigger:
+        return &trigger_track_id_;
+      case UniqueTrackType::kInterconnect:
+        return &interconnect_events_track_id_;
+      case UniqueTrackType::kChromeLegacyGlobalInstant:
+        return &chrome_global_instant_track_id_;
+    }
+    PERFETTO_FATAL("For gcc");
+  }
 
   std::array<std::optional<TrackId>, kGroupCount> group_track_ids_;
 
