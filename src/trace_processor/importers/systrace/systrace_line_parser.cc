@@ -42,8 +42,6 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
       rss_stat_tracker_(context_),
       sched_wakeup_name_id_(ctx->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(ctx->storage->InternString("sched_waking")),
-      cpufreq_name_id_(ctx->storage->InternString("cpufreq")),
-      cpuidle_name_id_(ctx->storage->InternString("cpuidle")),
       workqueue_name_id_(ctx->storage->InternString("workqueue")),
       sched_blocked_reason_id_(
           ctx->storage->InternString("sched_blocked_reason")),
@@ -139,7 +137,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        cpufreq_name_id_, event_cpu.value());
+        TrackTracker::CpuCounterTrackType::kFrequency, event_cpu.value());
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "cpu_idle") {
     std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
@@ -152,7 +150,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        cpuidle_name_id_, event_cpu.value());
+        TrackTracker::CpuCounterTrackType::kIdle, event_cpu.value());
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "binder_transaction") {
     auto id = base::StringToInt32(args["transaction"]);
