@@ -379,6 +379,10 @@ if (enable_perfetto_grpc) {
     public_configs = [ "//buildtools:grpc_public_config" ]
     public_deps = [ "//buildtools/grpc:grpc++" ]
   }
+
+  group("cpp_httplib") {
+    public_deps = [ "//buildtools:cpp_httplib" ]
+  }
 }
 
 if (enable_perfetto_trace_processor_linenoise) {
