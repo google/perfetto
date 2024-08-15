@@ -17,18 +17,17 @@ import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
 import {Icons} from '../base/semantic_icons';
 import {exists} from '../base/utils';
+import {uuidv4} from '../base/uuid';
+import {addBottomTab} from '../common/addEphemeralTab';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Popup, PopupPosition} from '../widgets/popup';
-import {Engine} from '../public';
-import {assertExists} from '../base/logging';
-import {uuidv4} from '../base/uuid';
-import {addEphemeralTab} from '../common/addEphemeralTab';
+
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
-import {globals} from './globals';
 import {AddDebugTrackMenu} from './debug_tracks/add_debug_track_menu';
-import {SqlTableDescription, SqlTableState} from './widgets/sql/table2/state';
+import {getEngine} from './get_engine';
 import {Filter} from './widgets/sql/table2/column';
+import {SqlTableDescription, SqlTableState} from './widgets/sql/table2/state';
 import {SqlTable} from './widgets/sql/table2/table';
 
 interface SqlTableTabConfig {
@@ -40,18 +39,11 @@ interface SqlTableTabConfig {
 export function addSqlTableTab(config: SqlTableTabConfig): void {
   const queryResultsTab = new SqlTableTab({
     config,
-    engine: getEngine(),
+    engine: getEngine('QueryResult'),
     uuid: uuidv4(),
   });
 
-  addEphemeralTab(queryResultsTab, 'sqlTable');
-}
-
-// TODO(stevegolton): Find a way to make this more elegant.
-function getEngine(): Engine {
-  const engConfig = globals.getCurrentEngine();
-  const engineId = assertExists(engConfig).id;
-  return assertExists(globals.engines.get(engineId)).getProxy('QueryResult');
+  addBottomTab(queryResultsTab, 'sqlTable');
 }
 
 export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
