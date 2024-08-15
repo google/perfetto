@@ -516,8 +516,8 @@ class TrackEventParser::EventImporter {
             }
             break;
           case LegacyEvent::SCOPE_GLOBAL:
-            track_id_ = context_->track_tracker
-                            ->GetOrCreateLegacyChromeGlobalInstantTrack();
+            track_id_ = context_->track_tracker->InternUniqueTrack(
+                TrackTracker::UniqueTrackType::kChromeLegacyGlobalInstant);
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;
