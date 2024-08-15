@@ -53,9 +53,9 @@ class EventTrackerTest : public ::testing::Test {
 TEST_F(EventTrackerTest, CounterDuration) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
-  StringId name_id = kNullStringId;
 
-  TrackId track = context.track_tracker->InternCpuCounterTrack(name_id, cpu);
+  TrackId track = context.track_tracker->InternCpuCounterTrack(
+      TrackTracker::CpuCounterTrackType::kFrequency, cpu);
   context.event_tracker->PushCounter(timestamp, 1000, track);
   context.event_tracker->PushCounter(timestamp + 1, 4000, track);
   context.event_tracker->PushCounter(timestamp + 3, 5000, track);
