@@ -21,6 +21,7 @@ from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import ColumnDoc
+from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
@@ -30,12 +31,14 @@ from src.trace_processor.tables.metadata_tables import CPU_TABLE, MACHINE_TABLE
 TRACK_TABLE = Table(
     python_module=__file__,
     class_name="TrackTable",
-    sql_name="track",
+    sql_name="__intrinsic_track",
     columns=[
         C("name", CppString()),
         C("parent_id", CppOptional(CppSelfTableId())),
         C("source_arg_set_id", CppOptional(CppUint32())),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C("classification", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("tags", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -68,6 +71,15 @@ TRACK_TABLE = Table(
                 '''
                   Machine identifier, non-null for tracks on a remote machine.
                 ''',
+            'classification':
+                '''
+                  Classification of this track. Responsible for grouping
+                  similar tracks together.
+                ''',
+            'tags':
+                ColumnDoc(
+                    doc='Additional details about the track.',
+                    joinable='args.arg_set_id'),
         }))
 
 PROCESS_TRACK_TABLE = Table(
