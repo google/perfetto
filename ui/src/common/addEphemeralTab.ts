@@ -14,11 +14,25 @@
 import {uuidv4} from '../base/uuid';
 import {BottomTab} from '../frontend/bottom_tab';
 import {globals} from '../frontend/globals';
+import {Tab} from '../public';
 import {BottomTabToTabAdapter} from '../public/utils';
+
 import {Actions} from './actions';
 
-export function addEphemeralTab(tab: BottomTab, uriPrefix: string): void {
+export function addEphemeralTab(uriPrefix: string, tab: Tab): void {
   const uri = `${uriPrefix}#${uuidv4()}`;
+
+  globals.tabManager.registerTab({
+    uri,
+    content: tab,
+    isEphemeral: true,
+  });
+
+  globals.dispatch(Actions.showTab({uri}));
+}
+
+export function addBottomTab(tab: BottomTab, uriPrefix: string): void {
+  const uri = `${uriPrefix}#${tab.uuid}`;
 
   globals.tabManager.registerTab({
     uri,
