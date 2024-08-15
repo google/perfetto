@@ -22,8 +22,7 @@ import {addEphemeralTab} from '../../../common/addEphemeralTab';
 import {HistogramState} from './state';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {Engine} from '../../../public';
-import {isString} from '../../../base/object_utils';
-import {Filter} from '../../widgets/sql/table/state';
+import {Filter, filterTitle} from '../../widgets/sql/table2/column';
 
 interface HistogramTabConfig {
   columnTitle: string; // Human readable column name (ex: Duration)
@@ -122,14 +121,8 @@ export class HistogramTab extends BottomTab<HistogramTabConfig> {
     let desc = `Count distribution for ${this.config.tableDisplay ?? ''} table`;
 
     if (this.config.filters) {
-      const filterStrings: string[] = [];
       desc += ' where ';
-
-      for (const f of this.config.filters) {
-        filterStrings.push(`${isString(f) ? f : `${f.argName} ${f.op}`}`);
-      }
-
-      desc += filterStrings.join(', ');
+      desc += this.config.filters.map((f) => filterTitle(f)).join(', ');
     }
 
     return desc;
