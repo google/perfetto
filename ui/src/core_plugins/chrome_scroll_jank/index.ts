@@ -56,11 +56,37 @@ export type ScrollJankTrackGroup = {
 
 class ChromeScrollJankPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    if (!ENABLE_CHROME_SCROLL_JANK_PLUGIN.get()) {
-      return;
-    }
+    if (ENABLE_CHROME_SCROLL_JANK_PLUGIN.get()) {
+      await this.addChromeScrollJankTrack(ctx);
 
-    await this.addChromeScrollJankTrack(ctx);
+      if (!(await isChromeTrace(ctx.engine))) {
+        return;
+      }
+
+      // Initialise the chrome_tasks_delaying_input_processing table. It will be
+      // used in the tracks above.
+      await ctx.engine.query(`
+        INCLUDE PERFETTO MODULE deprecated.v42.common.slices;
+        SELECT RUN_METRIC(
+          'chrome/chrome_tasks_delaying_input_processing.sql',
+          'duration_causing_jank_ms',
+          /* duration_causing_jank_ms = */ '8');`);
+
+      const query = `
+         select
+           s1.full_name,
+           s1.duration_ms,
+           s1.slice_id,
+           s1.thread_dur_ms,
+           s2.id,
+           s2.ts,
+           s2.dur,
+           s2.track_id
+         from chrome_tasks_delaying_input_processing s1
+         join slice s2 on s1.slice_id=s2.id
+         `;
+      ctx.tabs.openQuery(query, 'Scroll Jank: long tasks');
+    }
 
     if (ENABLE_SCROLL_JANK_PLUGIN_V2.get()) {
       await this.addTopLevelScrollTrack(ctx);
@@ -68,34 +94,6 @@ class ChromeScrollJankPlugin implements Plugin {
       await this.addScrollJankV3ScrollTrack(ctx);
       await ScrollJankCauseMap.initialize(ctx.engine);
     }
-
-    if (!(await isChromeTrace(ctx.engine))) {
-      return;
-    }
-
-    // Initialise the chrome_tasks_delaying_input_processing table. It will be
-    // used in the tracks above.
-    await ctx.engine.query(`
-      INCLUDE PERFETTO MODULE deprecated.v42.common.slices;
-      SELECT RUN_METRIC(
-        'chrome/chrome_tasks_delaying_input_processing.sql',
-        'duration_causing_jank_ms',
-        /* duration_causing_jank_ms = */ '8');`);
-
-    const query = `
-       select
-         s1.full_name,
-         s1.duration_ms,
-         s1.slice_id,
-         s1.thread_dur_ms,
-         s2.id,
-         s2.ts,
-         s2.dur,
-         s2.track_id
-       from chrome_tasks_delaying_input_processing s1
-       join slice s2 on s1.slice_id=s2.id
-       `;
-    ctx.tabs.openQuery(query, 'Scroll Jank: long tasks');
   }
 
   private async addChromeScrollJankTrack(
