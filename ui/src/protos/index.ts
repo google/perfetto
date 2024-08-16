@@ -71,6 +71,8 @@ import QueryServiceStateRequest = protos.perfetto.protos.QueryServiceStateReques
 import QueryServiceStateResponse = protos.perfetto.protos.QueryServiceStateResponse;
 import ReadBuffersRequest = protos.perfetto.protos.ReadBuffersRequest;
 import ReadBuffersResponse = protos.perfetto.protos.ReadBuffersResponse;
+import RegisterSqlModuleArgs = protos.perfetto.protos.RegisterSqlModuleArgs;
+import RegisterSqlModuleResult = protos.perfetto.protos.RegisterSqlModuleResult;
 import ResetTraceProcessorArgs = protos.perfetto.protos.ResetTraceProcessorArgs;
 import StatCounters = protos.perfetto.protos.SysStatsConfig.StatCounters;
 import StatusResult = protos.perfetto.protos.StatusResult;
@@ -138,6 +140,8 @@ export {
   QueryServiceStateResponse,
   ReadBuffersRequest,
   ReadBuffersResponse,
+  RegisterSqlModuleArgs,
+  RegisterSqlModuleResult,
   ResetTraceProcessorArgs,
   StatCounters,
   StatusResult,

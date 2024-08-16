@@ -186,6 +186,16 @@ export const defaultTraceContext: TraceContext = {
   gpuCount: 0,
 };
 
+interface SqlModule {
+  readonly name: string;
+  readonly sql: string;
+}
+
+interface SqlPackage {
+  readonly name: string;
+  readonly modules: SqlModule[];
+}
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -236,6 +246,7 @@ class Globals implements AppContext {
   showPanningHint = false;
   permalinkHash?: string;
   showTraceErrorPopup = true;
+  extraSqlPackages: SqlPackage[] = [];
 
   traceContext = defaultTraceContext;
 

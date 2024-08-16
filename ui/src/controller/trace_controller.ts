@@ -430,6 +430,9 @@ export class TraceController extends Controller<States> {
         ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
       });
     }
+    for (const p of globals.extraSqlPackages) {
+      await engine.registerSqlModules(p);
+    }
     this.engine = engine;
 
     if (isMetatracingEnabled()) {
