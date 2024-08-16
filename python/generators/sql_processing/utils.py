@@ -49,8 +49,8 @@ CREATE_TABLE_AS_PATTERN = update_pattern(fr'^CREATE TABLE ({NAME}) AS')
 
 CREATE_VIEW_AS_PATTERN = update_pattern(fr'^CREATE VIEW ({NAME}) AS')
 
-DROP_TABLE_VIEW_PATTERN = update_pattern(fr'^DROP (TABLE|VIEW) IF EXISTS '
-                                         fr'({NAME});$')
+DROP_TABLE_VIEW_PATTERN = update_pattern(
+    fr'^DROP (VIEW|TABLE|INDEX) (?:IF EXISTS)? ({NAME});$')
 
 INCLUDE_ALL_PATTERN = update_pattern(
     fr'^INCLUDE PERFETTO MODULE [a-zA-Z0-9_\.]*\*;')
@@ -212,6 +212,17 @@ def check_banned_create_view_as(sql: str, filename: str) -> List[str]:
     name = matches[0]
     errors.append(f"CREATE VIEW '{name}' is deprecated. "
                   "Use CREATE PERFETTO VIEW instead.\n"
+                  f"Offending file: {filename}\n")
+  return errors
+
+
+# Given SQL string check whether there is usage of DROP TABLE/VIEW/MACRO/INDEX.
+def check_banned_drop(sql: str, filename: str) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(DROP_TABLE_VIEW_PATTERN, sql).items():
+    sql_type = matches[0]
+    name = matches[2]
+    errors.append(f"Dropping object {sql_type} '{name}' is banned.\n"
                   f"Offending file: {filename}\n")
   return errors
 
