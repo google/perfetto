@@ -32,6 +32,7 @@
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/metatrace_config.h"
@@ -323,6 +324,16 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_REGISTER_SQL_MODULE: {
+      Response resp(tx_seq_id_++, req_type);
+      base::Status status = RegisterSqlModule(req.register_sql_module_args());
+      auto* res = resp->set_register_sql_module_result();
+      if (!status.ok()) {
+        res->set_error(status.message());
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unkown request" response, so the client can do feature
@@ -397,6 +408,18 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
             : SoftDropFtraceDataBefore::kNoDrop;
   }
   ResetTraceProcessorInternal(config);
+}
+
+base::Status Rpc::RegisterSqlModule(protozero::ConstBytes bytes) {
+  protos::pbzero::RegisterSqlModuleArgs::Decoder args(bytes);
+  SqlModule module;
+  module.name = args.top_level_package_name().ToStdString();
+  module.allow_module_override = args.allow_module_override();
+  for (auto it = args.modules(); it; ++it) {
+    protos::pbzero::RegisterSqlModuleArgs::Module::Decoder m(*it);
+    module.files.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
+  }
+  return trace_processor_->RegisterSqlModule(module);
 }
 
 void Rpc::MaybePrintProgress() {
