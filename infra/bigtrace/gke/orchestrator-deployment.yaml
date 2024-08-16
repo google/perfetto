@@ -15,21 +15,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: orchestrator-deployment
+  name: orchestrator
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: orchestrator-deployment
+      app: orchestrator
   template:
     metadata:
       labels:
-        app: orchestrator-deployment
+        app: orchestrator
     spec:
       containers:
-      - image: docker.io/library/orchestrator_image:latest
-        imagePullPolicy: Never
+      - image: # [ZONE]-docker.pkg.dev/[PROJECT_NAME]/[REPO_NAME]/bigtrace_orchestrator
+        command: ["/perfetto/out/dist/orchestrator_main"]
+        args: ["-l", "worker:5052", "-r", "dns:///", "-s", "0.0.0.0:5051", "-t", "100"]
+        imagePullPolicy: IfNotPresent
         name: orchestrator
         ports:
         - containerPort: 5051
           protocol: TCP
+        resources:
+          requests:
+            cpu: "7"
+          limits:
+            cpu: "7"

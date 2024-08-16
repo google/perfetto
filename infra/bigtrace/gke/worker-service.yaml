@@ -12,23 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Service
 metadata:
   name: worker
 spec:
-  replicas: 3
+  clusterIP: None
+  ports:
+  - port: 5052
+    targetPort: 5052
   selector:
-    matchLabels:
-      app: worker
-  template:
-    metadata:
-      labels:
-        app: worker
-    spec:
-      containers:
-      - name: worker
-        image: docker.io/library/worker_image:latest
-        imagePullPolicy: Never
-        ports:
-        - containerPort: 5052
+    app: worker
