@@ -33,7 +33,7 @@ WITH
   idle_prev AS (
     SELECT
       ts,
-      dur,
+      LAG(ts, 1, trace_start()) OVER (PARTITION BY cpu ORDER by ts) as prev_ts,
       value AS idle,
       cli.value - cli.delta_value AS idle_prev,
       cct.cpu
@@ -47,18 +47,16 @@ WITH
     )) AS cli
     JOIN cpu_counter_track AS cct ON cli.track_id = cct.id
   ),
-  -- Adjusted ts if applicable, which makes the current deep idle state
-  -- slightly shorter.
+  -- Adjusted ts if applicable, which makes the current active state longer if
+  -- it is coming from an idle exit.
   idle_mod AS (
     SELECT
       IIF(
-        idle_prev = 4294967295 AND idle = 1,
-        IIF(dur > offset_ns, ts + offset_ns, ts + dur),
+        idle_prev = 1 AND idle = 4294967295,
+        -- extend ts backwards by offset_ns at most up to prev_ts
+        MAX(ts - offset_ns, prev_ts),
         ts
       ) as ts,
-      -- ts_next is the starting timestamp of the next slice (i.e. end ts of
-      -- current slice)
-      ts + dur as ts_next,
       cpu,
       idle
     FROM idle_prev
@@ -66,9 +64,8 @@ WITH
   )
 SELECT
   ts,
-  lead(ts, 1, trace_end()) OVER (PARTITION BY cpu ORDER by ts) - ts as dur,
+  LEAD(ts, 1, trace_end()) OVER (PARTITION BY cpu ORDER by ts) - ts as dur,
   cpu,
   cast_int!(IIF(idle = 4294967295, -1, idle)) AS idle
-FROM idle_mod
-WHERE ts != ts_next;
+FROM idle_mod;
 
