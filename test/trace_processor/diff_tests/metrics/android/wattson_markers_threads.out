@@ -1,15 +1,15 @@
 wattson_markers_threads {
   metric_version: 1
   task_info {
-    estimate_mws: 15.301090
-    estimate_mw: 7.530545
+    estimate_mws: 15.333553
+    estimate_mw: 7.546518
     thread_name: "swapper"
     thread_id: 0
     process_id: 0
   }
   task_info {
-    estimate_mws: 11.805103
-    estimate_mw: 5.809969
+    estimate_mws: 11.805121
+    estimate_mw: 5.809974
     thread_name: "RenderThread"
     process_name: "com.google.android.wearable.sysui"
     thread_id: 3099
@@ -17,31 +17,31 @@ wattson_markers_threads {
   }
   task_info {
     estimate_mws: 9.112684
-    estimate_mw: 4.484875
+    estimate_mw: 4.484872
     thread_name: "binder:683_3"
     process_name: "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
     thread_id: 816
     process_id: 683
   }
   task_info {
-    estimate_mws: 8.802605
-    estimate_mw: 4.332267
+    estimate_mws: 8.802570
+    estimate_mw: 4.332248
     thread_name: "surfaceflinger"
     process_name: "/system/bin/surfaceflinger"
     thread_id: 742
     process_id: 742
   }
   task_info {
-    estimate_mws: 4.008006
-    estimate_mw: 1.972570
+    estimate_mws: 4.007993
+    estimate_mw: 1.972562
     thread_name: ".wearable.sysui"
     process_name: "com.google.android.wearable.sysui"
     thread_id: 2710
     process_id: 2710
   }
   task_info {
-    estimate_mws: 1.779130
-    estimate_mw: 0.875612
+    estimate_mws: 1.779128
+    estimate_mw: 0.875610
     thread_name: "crtc_commit:80"
     process_name: "crtc_commit:80"
     thread_id: 300
@@ -49,7 +49,7 @@ wattson_markers_threads {
   }
   task_info {
     estimate_mws: 1.436499
-    estimate_mw: 0.706984
+    estimate_mw: 0.706983
     thread_name: "binder:2710_E"
     process_name: "com.google.android.wearable.sysui"
     thread_id: 6515
@@ -72,8 +72,8 @@ wattson_markers_threads {
     process_id: 11407
   }
   task_info {
-    estimate_mws: 1.231459
-    estimate_mw: 0.606072
+    estimate_mws: 1.231494
+    estimate_mw: 0.606089
     thread_name: "BckgrndExec HP"
     process_name: "/system/bin/surfaceflinger"
     thread_id: 837
@@ -105,7 +105,7 @@ wattson_markers_threads {
   }
   task_info {
     estimate_mws: 0.872391
-    estimate_mw: 0.429354
+    estimate_mw: 0.429353
     thread_name: "binder:2710_7"
     process_name: "com.google.android.wearable.sysui"
     thread_id: 5691
@@ -129,15 +129,15 @@ wattson_markers_threads {
   }
   task_info {
     estimate_mws: 0.795564
-    estimate_mw: 0.391543
+    estimate_mw: 0.391542
     thread_name: "kgsl_dispatcher"
     process_name: "kgsl_dispatcher"
     thread_id: 122
     process_id: 122
   }
   task_info {
-    estimate_mws: 0.716028
-    estimate_mw: 0.352398
+    estimate_mws: 0.715993
+    estimate_mw: 0.352381
     thread_name: "irq/33-4520300."
     process_name: "irq/33-4520300."
     thread_id: 307
@@ -153,7 +153,7 @@ wattson_markers_threads {
   }
   task_info {
     estimate_mws: 0.659174
-    estimate_mw: 0.324418
+    estimate_mw: 0.324417
     thread_name: "surfaceflinger"
     process_name: "/system/bin/surfaceflinger"
     thread_id: 788
@@ -209,7 +209,7 @@ wattson_markers_threads {
   }
   task_info {
     estimate_mws: 0.197450
-    estimate_mw: 0.097177
+    estimate_mw: 0.097176
     thread_name: "FileWatcherThre"
     process_name: "/vendor/bin/hw/android.hardware.thermal-service.pixel"
     thread_id: 1544
@@ -257,7 +257,7 @@ wattson_markers_threads {
   }
   task_info {
     estimate_mws: 0.095284
-    estimate_mw: 0.046895
+    estimate_mw: 0.046894
     thread_name: "rcuop/2"
     process_name: "rcuop/2"
     thread_id: 41
