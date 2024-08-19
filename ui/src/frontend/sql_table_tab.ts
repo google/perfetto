@@ -84,6 +84,9 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
       }),
     ];
     const {selectStatement, columns} = this.state.getCurrentRequest();
+    const debugTrackColumns = Object.values(columns).filter(
+      (c) => !c.startsWith('__'),
+    );
     const addDebugTrack = m(
       Popup,
       {
@@ -92,8 +95,8 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
       },
       m(AddDebugTrackMenu, {
         dataSource: {
-          sqlSource: selectStatement,
-          columns: Object.values(columns).filter((c) => !c.startsWith('__')),
+          sqlSource: `SELECT ${debugTrackColumns.join(', ')} FROM (${selectStatement})`,
+          columns: debugTrackColumns,
         },
         engine: this.engine,
       }),
