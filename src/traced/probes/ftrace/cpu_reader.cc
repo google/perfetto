@@ -292,27 +292,24 @@ size_t CpuReader::ReadAndProcessBatch(
     }
   }  // end of metatrace::FTRACE_CPU_READ_BATCH
 
-  // Parse the pages and write to the trace for all relevant data
-  // sources.
+  // Parse the pages and write to the trace for all relevant data sources.
   if (pages_read == 0)
     return pages_read;
 
-  uint64_t last_read_ts = last_read_event_ts_;
   for (FtraceDataSource* data_source : started_data_sources) {
-    last_read_ts = last_read_event_ts_;
     ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
         data_source->parsing_config(), data_source->mutable_parse_errors(),
-        &last_read_ts, parsing_buf, pages_read, compact_sched_buf, table_,
-        symbolizer_, ftrace_clock_snapshot_, ftrace_clock_);
+        data_source->mutable_bundle_end_timestamp(cpu_), parsing_buf,
+        pages_read, compact_sched_buf, table_, symbolizer_,
+        ftrace_clock_snapshot_, ftrace_clock_);
   }
-  last_read_event_ts_ = last_read_ts;
-
   return pages_read;
 }
 
-void CpuReader::Bundler::StartNewPacket(bool lost_events,
-                                        uint64_t last_read_event_timestamp) {
+void CpuReader::Bundler::StartNewPacket(
+    bool lost_events,
+    uint64_t previous_bundle_end_timestamp) {
   FinalizeAndRunSymbolizer();
   packet_ = trace_writer_->NewTracePacket();
   bundle_ = packet_->set_ftrace_events();
@@ -325,7 +322,7 @@ void CpuReader::Bundler::StartNewPacket(bool lost_events,
   // note: set-to-zero is valid and expected for the first bundle per cpu
   // (outside of concurrent tracing), with the effective meaning of "all data is
   // valid since the data source was started".
-  bundle_->set_last_read_event_timestamp(last_read_event_timestamp);
+  bundle_->set_previous_bundle_end_timestamp(previous_bundle_end_timestamp);
 
   if (ftrace_clock_) {
     bundle_->set_ftrace_clock(ftrace_clock_);
@@ -410,13 +407,6 @@ void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
 // event bundle proto with a timestamp, letting the trace processor decide
 // whether to discard or keep the post-error data. Previously, we crashed as
 // soon as we encountered such an error.
-// TODO(rsavitski, b/192586066): consider moving last_read_event_ts tracking to
-// be per-datasource. The current implementation can be pessimistic if there are
-// multiple concurrent data sources, one of which is only interested in sparse
-// events (imagine a print filter and one matching event every minute, while the
-// buffers are read - advancing the last read timestamp - multiple times per
-// second). Tracking the timestamp of the last event *written into the
-// datasource* can be more accurate.
 // static
 bool CpuReader::ProcessPagesForDataSource(
     TraceWriter* trace_writer,
@@ -424,7 +414,7 @@ bool CpuReader::ProcessPagesForDataSource(
     size_t cpu,
     const FtraceDataSourceConfig* ds_config,
     base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
-    uint64_t* last_read_event_ts,
+    uint64_t* bundle_end_timestamp,
     const uint8_t* parsing_buf,
     const size_t pages_read,
     CompactSchedBuffer* compact_sched_buf,
@@ -436,7 +426,7 @@ bool CpuReader::ProcessPagesForDataSource(
   Bundler bundler(trace_writer, metadata,
                   ds_config->symbolize_ksyms ? symbolizer : nullptr, cpu,
                   ftrace_clock_snapshot, ftrace_clock, compact_sched_buf,
-                  ds_config->compact_sched.enabled, *last_read_event_ts);
+                  ds_config->compact_sched.enabled, *bundle_end_timestamp);
 
   bool success = true;
   size_t pages_parsed = 0;
@@ -472,14 +462,14 @@ bool CpuReader::ProcessPagesForDataSource(
             kCompactSchedInternerThreshold;
 
     if (page_header->lost_events || interner_past_threshold) {
-      // pass in an updated last_read_event_ts since we're starting a new
+      // pass in an updated bundle_end_timestamp since we're starting a new
       // bundle, which needs to reference the last timestamp from the prior one.
-      bundler.StartNewPacket(page_header->lost_events, *last_read_event_ts);
+      bundler.StartNewPacket(page_header->lost_events, *bundle_end_timestamp);
     }
 
     FtraceParseStatus status =
         ParsePagePayload(parse_pos, &page_header.value(), table, ds_config,
-                         &bundler, metadata, last_read_event_ts);
+                         &bundler, metadata, bundle_end_timestamp);
 
     if (status != FtraceParseStatus::FTRACE_STATUS_OK) {
       WriteAndSetParseError(&bundler, parse_errors, page_header->timestamp,
@@ -560,12 +550,12 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
     const FtraceDataSourceConfig* ds_config,
     Bundler* bundler,
     FtraceMetadata* metadata,
-    uint64_t* last_read_event_ts) {
+    uint64_t* bundle_end_timestamp) {
   const uint8_t* ptr = start_of_payload;
   const uint8_t* const end = ptr + page_header->size;
 
   uint64_t timestamp = page_header->timestamp;
-  uint64_t last_data_record_ts = 0;
+  uint64_t last_written_event_ts = 0;
 
   while (ptr < end) {
     EventHeader event_header;
@@ -652,10 +642,12 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
           const CompactSchedWakingFormat& sched_waking_format =
               table->compact_sched_format().sched_waking;
 
+          // Special-cased filtering of ftrace/print events to retain only the
+          // matching events.
+          bool event_written = true;
           bool ftrace_print_filter_enabled =
               ds_config->print_filter.has_value();
 
-          // compact sched_switch
           if (compact_sched_enabled &&
               ftrace_event_id == sched_switch_format.event_id) {
             if (event_size < sched_switch_format.size)
@@ -663,8 +655,6 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
 
             ParseSchedSwitchCompact(start, timestamp, &sched_switch_format,
                                     bundler->compact_sched_buf(), metadata);
-
-            // compact sched_waking
           } else if (compact_sched_enabled &&
                      ftrace_event_id == sched_waking_format.event_id) {
             if (event_size < sched_waking_format.size)
@@ -672,7 +662,6 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
 
             ParseSchedWakingCompact(start, timestamp, &sched_waking_format,
                                     bundler->compact_sched_buf(), metadata);
-
           } else if (ftrace_print_filter_enabled &&
                      ftrace_event_id == ds_config->print_filter->event_id()) {
             if (ds_config->print_filter->IsEventInteresting(start, next)) {
@@ -683,6 +672,8 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
                               event, metadata)) {
                 return FtraceParseStatus::FTRACE_STATUS_INVALID_EVENT;
               }
+            } else {  // print event did NOT pass the filter
+              event_written = false;
             }
           } else {
             // Common case: parse all other types of enabled events.
@@ -694,14 +685,17 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
               return FtraceParseStatus::FTRACE_STATUS_INVALID_EVENT;
             }
           }
-        }
-        last_data_record_ts = timestamp;
-        ptr = next;  // jump to next event
-      }              // default case
+          if (event_written) {
+            last_written_event_ts = timestamp;
+          }
+        }  // IsEventEnabled(id)
+        ptr = next;
+      }              // case (data_record)
     }                // switch (event_header.type_or_length)
   }                  // while (ptr < end)
-  if (last_data_record_ts)
-    *last_read_event_ts = last_data_record_ts;
+
+  if (last_written_event_ts)
+    *bundle_end_timestamp = last_written_event_ts;
   return FtraceParseStatus::FTRACE_STATUS_OK;
 }
 
