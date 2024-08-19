@@ -1022,7 +1022,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitch) {
   EXPECT_EQ(last_read_event_ts_, 1'045'157'726'697'236ULL);
 
   auto bundle = GetBundle();
-  EXPECT_EQ(0u, bundle.last_read_event_timestamp());
+  EXPECT_EQ(0u, bundle.previous_bundle_end_timestamp());
   ASSERT_EQ(bundle.event().size(), 6u);
   {
     const protos::gen::FtraceEvent& event = bundle.event()[1];
@@ -1081,7 +1081,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitchCompactFormat) {
   auto bundle = GetBundle();
 
   const auto& compact_sched = bundle.compact_sched();
-  EXPECT_EQ(0u, bundle.last_read_event_timestamp());
+  EXPECT_EQ(0u, bundle.previous_bundle_end_timestamp());
 
   EXPECT_EQ(6u, compact_sched.switch_timestamp().size());
   EXPECT_EQ(6u, compact_sched.switch_prev_state().size());
@@ -3569,9 +3569,9 @@ char g_last_ts_test_page_2[] = R"(
     00000250: 645f 7072 696e 740a 0000 0000 0000 0000  d_print.........
   )";
 
-// Tests that |last_read_event_timestamp| is correctly updated in cases where a
-// single ProcessPagesForDataSource call produces multiple ftrace bundle packets
-// (due to splitting on data loss markers).
+// Tests that |previous_bundle_end_timestamp| is correctly updated in cases
+// where a single ProcessPagesForDataSource call produces multiple ftrace bundle
+// packets (due to splitting on data loss markers).
 TEST(CpuReaderTest, LastReadEventTimestampWithSplitBundles) {
   // build test buffer with 3 pages
   ProtoTranslationTable* table = GetTable("synthetic");
@@ -3615,8 +3615,8 @@ TEST(CpuReaderTest, LastReadEventTimestampWithSplitBundles) {
   // Therefore we expect two bundles, as we start a new one whenever we
   // encounter data loss (to set the |lost_events| field in the bundle proto).
   //
-  // In terms of |last_read_event_timestamp|, the first bundle will emit zero
-  // since that's our initial input. The second bundle needs to emit the
+  // In terms of |previous_bundle_end_timestamp|, the first bundle will emit
+  // zero since that's our initial input. The second bundle needs to emit the
   // timestamp of the last event in the first bundle.
   auto packets = trace_writer.GetAllTracePackets();
   ASSERT_EQ(2u, packets.size());
@@ -3625,18 +3625,18 @@ TEST(CpuReaderTest, LastReadEventTimestampWithSplitBundles) {
   auto const& first_bundle = packets[0].ftrace_events();
   EXPECT_FALSE(first_bundle.lost_events());
   ASSERT_EQ(2u, first_bundle.event().size());
-  EXPECT_TRUE(first_bundle.has_last_read_event_timestamp());
-  EXPECT_EQ(0u, first_bundle.last_read_event_timestamp());
+  EXPECT_TRUE(first_bundle.has_previous_bundle_end_timestamp());
+  EXPECT_EQ(0u, first_bundle.previous_bundle_end_timestamp());
 
   const uint64_t kSecondPrintTs = 1308020252356549ULL;
   EXPECT_EQ(kSecondPrintTs, first_bundle.event()[1].timestamp());
-  EXPECT_EQ(0u, first_bundle.last_read_event_timestamp());
+  EXPECT_EQ(0u, first_bundle.previous_bundle_end_timestamp());
 
-  // 1 print + lost_events + updated last_read_event_timestamp
+  // 1 print + lost_events + updated previous_bundle_end_timestamp
   auto const& second_bundle = packets[1].ftrace_events();
   EXPECT_TRUE(second_bundle.lost_events());
   EXPECT_EQ(1u, second_bundle.event().size());
-  EXPECT_EQ(kSecondPrintTs, second_bundle.last_read_event_timestamp());
+  EXPECT_EQ(kSecondPrintTs, second_bundle.previous_bundle_end_timestamp());
 }
 
 }  // namespace
