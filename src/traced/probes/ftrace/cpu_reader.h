@@ -105,7 +105,10 @@ class CpuReader {
     std::unique_ptr<CompactSchedBuffer> compact_sched_;
   };
 
-  // Helper class to generate `TracePacket`s when needed. Public for testing.
+  // Facilitates lazy proto writing - not every event in the kernel ring buffer
+  // is serialised in the trace, so this class allows for trace packets to be
+  // written only if there's at least one relevant event in the ring buffer
+  // batch. Public for testing.
   class Bundler {
    public:
     Bundler(TraceWriter* trace_writer,
@@ -116,7 +119,7 @@ class CpuReader {
             protos::pbzero::FtraceClock ftrace_clock,
             CompactSchedBuffer* compact_sched_buf,
             bool compact_sched_enabled,
-            uint64_t last_read_event_ts)
+            uint64_t previous_bundle_end_ts)
         : trace_writer_(trace_writer),
           metadata_(metadata),
           symbolizer_(symbolizer),
@@ -125,7 +128,7 @@ class CpuReader {
           ftrace_clock_(ftrace_clock),
           compact_sched_enabled_(compact_sched_enabled),
           compact_sched_buf_(compact_sched_buf),
-          initial_last_read_event_ts_(last_read_event_ts) {
+          initial_previous_bundle_end_ts_(previous_bundle_end_ts) {
       if (compact_sched_enabled_)
         compact_sched_buf_->Reset();
     }
@@ -134,13 +137,14 @@ class CpuReader {
 
     protos::pbzero::FtraceEventBundle* GetOrCreateBundle() {
       if (!bundle_) {
-        StartNewPacket(false, initial_last_read_event_ts_);
+        StartNewPacket(false, initial_previous_bundle_end_ts_);
       }
       return bundle_;
     }
 
     // Forces the creation of a new TracePacket.
-    void StartNewPacket(bool lost_events, uint64_t last_read_event_timestamp);
+    void StartNewPacket(bool lost_events,
+                        uint64_t previous_bundle_end_timestamp);
 
     // This function is called after the contents of a FtraceBundle are written.
     void FinalizeAndRunSymbolizer();
@@ -161,7 +165,7 @@ class CpuReader {
     protos::pbzero::FtraceClock const ftrace_clock_;
     const bool compact_sched_enabled_;
     CompactSchedBuffer* const compact_sched_buf_;
-    uint64_t initial_last_read_event_ts_;
+    uint64_t initial_previous_bundle_end_ts_;
 
     TraceWriter::TracePacketHandle packet_;
     protos::pbzero::FtraceEventBundle* bundle_ = nullptr;
@@ -306,7 +310,7 @@ class CpuReader {
       const FtraceDataSourceConfig* ds_config,
       Bundler* bundler,
       FtraceMetadata* metadata,
-      uint64_t* last_read_event_ts);
+      uint64_t* bundle_end_timestamp);
 
   // Parse a single raw ftrace event beginning at |start| and ending at |end|
   // and write it into the provided bundle as a proto.
@@ -374,7 +378,7 @@ class CpuReader {
       size_t cpu,
       const FtraceDataSourceConfig* ds_config,
       base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
-      uint64_t* last_read_event_ts,
+      uint64_t* bundle_end_timestamp,
       const uint8_t* parsing_buf,
       size_t pages_read,
       CompactSchedBuffer* compact_sched_buf,
@@ -402,7 +406,6 @@ class CpuReader {
   const ProtoTranslationTable* table_;
   LazyKernelSymbolizer* symbolizer_;
   base::ScopedFile trace_fd_;
-  uint64_t last_read_event_ts_ = 0;
   protos::pbzero::FtraceClock ftrace_clock_{};
   const FtraceClockSnapshot* ftrace_clock_snapshot_;
 };
