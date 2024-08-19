@@ -3635,6 +3635,20 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
     PERFETTO_ELOG("Unable to read ro.boot.hardware.revision");
   }
 
+  std::string hw_ufs_value = base::GetAndroidProp("ro.boot.hardware.ufs");
+  if (!hw_ufs_value.empty()) {
+    info->set_android_storage_model(hw_ufs_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.ufs");
+  }
+
+  std::string hw_ddr_value = base::GetAndroidProp("ro.boot.hardware.ddr");
+  if (!hw_ddr_value.empty()) {
+    info->set_android_ram_model(hw_ddr_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.boot.hardware.ddr");
+  }
+
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
