@@ -21,8 +21,51 @@ from python.generators.diff_tests.testing import TestSuite
 class FtraceCrop(TestSuite):
 
   # Expect the first begin event on cpu1 gets suppressed as it is below the
-  # maximum of last_read_event_timestamps.
+  # maximum of previous_bundle_end_timestamps.
   def test_crop_atrace_slice(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet { ftrace_events {
+          cpu: 1
+          previous_bundle_end_timestamp: 1000
+          event {
+            timestamp: 1500
+            pid: 42
+            print { buf: "B|42|FilteredOut\n" }
+          }
+          event {
+            timestamp: 2700
+            pid: 42
+            print { buf: "E|42\n" }
+          }
+        }}
+        packet { ftrace_events {
+          cpu: 0
+          previous_bundle_end_timestamp: 2000
+          event {
+            timestamp: 2200
+            pid: 42
+            print { buf: "B|42|Kept\n" }
+          }
+        }}
+        """),
+        query="""
+        select
+          ts,
+          rtrim(extract_arg(raw.arg_set_id, "buf"), char(0x0a)) as raw_print,
+          slice.dur as slice_dur,
+          slice.name as slice_name
+        from raw left join slice using (ts)
+        """,
+        out=Csv("""
+        "ts","raw_print","slice_dur","slice_name"
+        1500,"B|42|FilteredOut","[NULL]","[NULL]"
+        2200,"B|42|Kept",500,"Kept"
+        2700,"E|42","[NULL]","[NULL]"
+        """))
+
+  # As test_crop_atrace_slice, with the older "last_read_event_timestamp" field
+  def test_crop_atrace_slice_legacy_field(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet { ftrace_events {
@@ -66,13 +109,13 @@ class FtraceCrop(TestSuite):
 
   # First compact_switch per cpu doesn't generate any events, successive
   # switches generate a |raw| entry, but no scheduling slices until past all
-  # last_read_event_timestamps.
+  # previous_bundle_end_timestamps.
   def test_crop_compact_sched_switch(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
           ftrace_events {
-            last_read_event_timestamp: 1000
+            previous_bundle_end_timestamp: 1000
             cpu: 3
             compact_sched {
               intern_table: "zero:3"
@@ -92,7 +135,7 @@ class FtraceCrop(TestSuite):
         }
         packet {
           ftrace_events {
-            last_read_event_timestamp: 0
+            previous_bundle_end_timestamp: 0
             cpu: 6
             compact_sched {
               intern_table: "zero:6"
