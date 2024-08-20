@@ -19,6 +19,7 @@ import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
 import {addEphemeralTab} from '../../common/addEphemeralTab';
 import {
+  getProcessInfo,
   getProcessName,
   ProcessInfo,
 } from '../../trace_processor/sql_utils/process';
@@ -26,6 +27,11 @@ import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
 import {getEngine} from '../get_engine';
 import {ProcessDetailsTab} from '../process_details_tab';
+import {
+  createSqlIdRefRenderer,
+  sqlIdRegistry,
+} from './sql/details/sql_ref_renderer_registry';
+import {asUpid} from '../../trace_processor/sql_utils/core_types';
 
 export function renderProcessRef(info: ProcessInfo): m.Children {
   const name = info.name;
@@ -66,3 +72,10 @@ export function renderProcessRef(info: ProcessInfo): m.Children {
     }),
   );
 }
+
+sqlIdRegistry['process'] = createSqlIdRefRenderer<ProcessInfo>(
+  async (engine, id) => await getProcessInfo(engine, asUpid(Number(id))),
+  (data: ProcessInfo) => ({
+    value: renderProcessRef(data),
+  }),
+);

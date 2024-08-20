@@ -19,6 +19,7 @@ import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
 import {addEphemeralTab} from '../../common/addEphemeralTab';
 import {
+  getThreadInfo,
   getThreadName,
   ThreadInfo,
 } from '../../trace_processor/sql_utils/thread';
@@ -26,6 +27,11 @@ import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
 import {getEngine} from '../get_engine';
 import {ThreadDetailsTab} from '../thread_details_tab';
+import {
+  createSqlIdRefRenderer,
+  sqlIdRegistry,
+} from './sql/details/sql_ref_renderer_registry';
+import {asUtid} from '../../trace_processor/sql_utils/core_types';
 
 export function renderThreadRef(info: ThreadInfo): m.Children {
   const name = info.name;
@@ -66,3 +72,10 @@ export function renderThreadRef(info: ThreadInfo): m.Children {
     }),
   );
 }
+
+sqlIdRegistry['thread'] = createSqlIdRefRenderer<ThreadInfo>(
+  async (engine, id) => await getThreadInfo(engine, asUtid(Number(id))),
+  (data: ThreadInfo) => ({
+    value: renderThreadRef(data),
+  }),
+);
