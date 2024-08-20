@@ -208,10 +208,12 @@ void PerfRingBuffer::Consume(size_t bytes) {
 EventReader::EventReader(uint32_t cpu,
                          perf_event_attr event_attr,
                          base::ScopedFile perf_fd,
+                         std::vector<base::ScopedFile> followers_fds,
                          PerfRingBuffer ring_buffer)
     : cpu_(cpu),
       event_attr_(event_attr),
       perf_fd_(std::move(perf_fd)),
+      follower_fds_(std::move(followers_fds)),
       ring_buffer_(std::move(ring_buffer)) {}
 
 EventReader& EventReader::operator=(EventReader&& other) noexcept {
@@ -226,21 +228,46 @@ EventReader& EventReader::operator=(EventReader&& other) noexcept {
 std::optional<EventReader> EventReader::ConfigureEvents(
     uint32_t cpu,
     const EventConfig& event_cfg) {
-  auto leader_fd = PerfEventOpen(cpu, event_cfg.perf_attr());
-  if (!leader_fd) {
+  auto timebase_fd = PerfEventOpen(cpu, event_cfg.perf_attr());
+  if (!timebase_fd) {
     PERFETTO_PLOG("Failed perf_event_open");
     return std::nullopt;
   }
-  if (!MaybeApplyTracepointFilter(leader_fd.get(), event_cfg.timebase_event()))
+
+  // Open followers.
+  std::vector<base::ScopedFile> follower_fds;
+  for (auto follower_attr : event_cfg.perf_attr_followers()) {
+    auto follower_fd = PerfEventOpen(cpu, &follower_attr, timebase_fd.get());
+    if (!follower_fd) {
+      PERFETTO_PLOG("Failed perf_event_open (follower)");
+      return std::nullopt;
+    }
+    follower_fds.push_back(std::move(follower_fd));
+  }
+
+  // Apply the tracepoint to the timebase.
+  if (!MaybeApplyTracepointFilter(timebase_fd.get(),
+                                  event_cfg.timebase_event()))
     return std::nullopt;
 
-  auto ring_buffer =
-      PerfRingBuffer::Allocate(leader_fd.get(), event_cfg.ring_buffer_pages());
+  // Apply the tracepoint to the followers.
+  if (follower_fds.size() != event_cfg.follower_events().size()) {
+    return std::nullopt;
+  }
+
+  for (size_t i = 0; i < follower_fds.size(); ++i) {
+    if (!MaybeApplyTracepointFilter(follower_fds[i].get(),
+                                    event_cfg.follower_events()[i]))
+      return std::nullopt;
+  }
+
+  auto ring_buffer = PerfRingBuffer::Allocate(timebase_fd.get(),
+                                              event_cfg.ring_buffer_pages());
   if (!ring_buffer.has_value()) {
     return std::nullopt;
   }
-  return EventReader(cpu, *event_cfg.perf_attr(), std::move(leader_fd),
-                     std::move(ring_buffer.value()));
+  return EventReader(cpu, *event_cfg.perf_attr(), std::move(timebase_fd),
+                     std::move(follower_fds), std::move(ring_buffer.value()));
 }
 
 std::optional<ParsedSample> EventReader::ReadUntilSample(
@@ -325,7 +352,23 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
   }
 
   if (event_attr_.sample_type & PERF_SAMPLE_READ) {
-    parse_pos = ReadValue(&sample.common.timebase_count, parse_pos);
+    if (event_attr_.read_format & PERF_FORMAT_GROUP) {
+      // When PERF_FORMAT_GROUP is specified, the record starts with the number
+      // of events it contains followed by the events. The event list always
+      // starts with the value of the timebase.
+      // In a ParsedSample, the value of the timebase goes into timebase_count
+      // and the value of the followers events goes into follower_counts.
+      uint64_t nr = 0;
+      parse_pos = ReadValue(&nr, parse_pos);
+      PERFETTO_CHECK(nr != 0);
+      parse_pos = ReadValue(&sample.common.timebase_count, parse_pos);
+      sample.common.follower_counts.resize(nr - 1);
+      for (size_t i = 0; i < nr - 1; ++i) {
+        parse_pos = ReadValue(&sample.common.follower_counts[i], parse_pos);
+      }
+    } else {
+      parse_pos = ReadValue(&sample.common.timebase_count, parse_pos);
+    }
   }
 
   if (event_attr_.sample_type & PERF_SAMPLE_CALLCHAIN) {

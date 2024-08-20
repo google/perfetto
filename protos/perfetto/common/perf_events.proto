@@ -151,3 +151,16 @@ message PerfEvents {
     PERF_CLOCK_BOOTTIME = 4;
   }
 }
+
+// Additional events associated with a leader.
+// Configuration is similar to Timebase event. Because data acquisition is
+// driven by the leader there is no option to configure the clock or the
+// frequency.
+message FollowerEvent {
+  oneof event {
+    PerfEvents.Counter counter = 1;
+    PerfEvents.Tracepoint tracepoint = 2;
+    PerfEvents.RawEvent raw_event = 3;
+  }
+  optional string name = 4;
+}

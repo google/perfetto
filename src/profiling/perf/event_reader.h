@@ -99,6 +99,7 @@ class EventReader {
   EventReader(uint32_t cpu,
               perf_event_attr event_attr,
               base::ScopedFile perf_fd,
+              std::vector<base::ScopedFile> followers_fds,
               PerfRingBuffer ring_buffer);
 
   ParsedSample ParseSampleRecord(uint32_t cpu, const char* record_start);
@@ -107,6 +108,7 @@ class EventReader {
   const uint32_t cpu_;
   const perf_event_attr event_attr_;
   base::ScopedFile perf_fd_;
+  std::vector<base::ScopedFile> follower_fds_;
   PerfRingBuffer ring_buffer_;
 };
 

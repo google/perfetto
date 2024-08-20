@@ -39,10 +39,11 @@ struct CommonSampleData {
   pid_t tid = 0;
   uint64_t timestamp = 0;
   uint64_t timebase_count = 0;
+  std::vector<uint64_t> follower_counts;
 };
 
 // A parsed perf sample record (PERF_RECORD_SAMPLE from the kernel buffer).
-// Self-contained, used as as input to the callstack unwinding.
+// Self-contained, used as input to the callstack unwinding.
 struct ParsedSample {
   // move-only
   ParsedSample() = default;
