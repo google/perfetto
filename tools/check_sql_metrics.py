@@ -127,7 +127,7 @@ def check(path: str, metrics_sources: str) -> List[str]:
       sql,
       path.split(ROOT_DIR)[1],
       metrics_sources.split(ROOT_DIR)[1], CREATE_TABLE_ALLOWLIST)
-  errors += check_banned_create_view_as(sql, path.split(ROOT_DIR)[1])
+  errors += check_banned_create_view_as(sql)
   for name, [line, type] in create_table_view_dir.items():
     if name not in drop_table_view_dir:
       errors.append(f'Missing DROP before CREATE {type.upper()} "{name}"\n'
@@ -142,7 +142,7 @@ def check(path: str, metrics_sources: str) -> List[str]:
       errors.append(f'DROP type doesnt match CREATE {type.upper()} "{name}"\n'
                     f'Offending file: {path}\n')
 
-  errors += check_banned_words(sql, path)
+  errors += check_banned_words(sql)
   return errors
 
 
