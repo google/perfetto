@@ -354,3 +354,42 @@ class WattsonStdlib(TestSuite):
             "total_l3","total_little_cpus","total_mid_cpus","total_big_cpus","total"
             0.000000,2602.930000,0.000000,0.000000,2602.930000
             """))
+
+  # Tests that total calculations are correct
+  def test_wattson_idle_attribution(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_eos_suspend.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
+            SELECT
+              SUM(estimate_mw * dur) / 1000000000 as idle_transition_cost_mws,
+              utid,
+              upid
+            FROM _idle_transition_cost
+            GROUP BY utid
+            ORDER BY idle_transition_cost_mws DESC
+            LIMIT 20
+            """),
+        out=Csv("""
+            "idle_transition_cost_mws","utid","upid"
+            18.291706,10,10
+            6.929671,73,73
+            5.366740,146,146
+            4.596243,457,457
+            4.488426,515,137
+            4.178230,1262,401
+            3.907947,694,353
+            3.580991,169,169
+            3.575903,11,11
+            3.270123,147,147
+            3.251823,396,396
+            3.156336,486,486
+            2.998187,727,356
+            2.945958,606,326
+            2.899400,464,464
+            2.781249,29,29
+            2.567914,1270,401
+            2.446651,471,471
+            2.434878,172,172
+            2.256320,414,414
+            """))
