@@ -15,13 +15,20 @@
 import m from 'mithril';
 
 import {Time, duration, time} from '../../base/time';
-import {SliceSqlId} from '../../trace_processor/sql_utils/core_types';
+import {
+  asSliceSqlId,
+  SliceSqlId,
+} from '../../trace_processor/sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
 import {BigintMath} from '../../base/bigint_math';
-import {SliceDetails} from '../../trace_processor/sql_utils/slice';
+import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
+import {
+  createSqlIdRefRenderer,
+  sqlIdRegistry,
+} from './sql/details/sql_ref_renderer_registry';
 
 interface SliceRefAttrs {
   readonly id: SliceSqlId;
@@ -84,3 +91,18 @@ export function sliceRef(slice: SliceDetails, name?: string): m.Child {
     sqlTrackId: slice.trackId,
   });
 }
+
+sqlIdRegistry['slice'] = createSqlIdRefRenderer<{
+  slice: SliceDetails | undefined;
+  id: bigint;
+}>(
+  async (engine, id) => {
+    return {
+      id,
+      slice: await getSlice(engine, asSliceSqlId(Number(id))),
+    };
+  },
+  ({id, slice}) => ({
+    value: slice !== undefined ? sliceRef(slice) : `Unknown slice ${id}`,
+  }),
+);
