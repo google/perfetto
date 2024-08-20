@@ -414,73 +414,122 @@ class MacroDocParser(AbstractDocParser):
     )
 
 
-class ParsedFile:
-  """Data class containing all of the docmentation of single SQL file"""
+class Include:
+  package: str
+  module: str
+  module_as_list: List[str]
+
+  def __init__(self, package: str, module: str, module_as_list: List[str]):
+    self.package = package
+    self.module = module
+    self.module_as_list = module_as_list
+
+
+class IncludeParser(AbstractDocParser):
+  """Parses the includes of module."""
+
+  def __init__(self, path: str, module: str):
+    super().__init__(path, module)
+
+  def parse(self, doc: DocsExtractor.Extract) -> Optional[Include]:
+    self.module = list(doc.obj_match)[0]
+    module_as_list = self.module.split('.')
+
+    return Include(
+        package=module_as_list[0],
+        module=self.module,
+        module_as_list=module_as_list,
+    )
+
+
+class ParsedModule:
+  """Data class containing all of the documentation of single SQL file"""
+  package_name: str = ""
+  module_as_list: List[str]
+  module: str
   errors: List[str] = []
   table_views: List[TableOrView] = []
   functions: List[Function] = []
   table_functions: List[TableFunction] = []
   macros: List[Macro] = []
+  includes: List[Include]
 
-  def __init__(self, errors: List[str], table_views: List[TableOrView],
+  def __init__(self, package_name: str, module_as_list: List[str],
+               errors: List[str], table_views: List[TableOrView],
                functions: List[Function], table_functions: List[TableFunction],
-               macros: List[Macro]):
+               macros: List[Macro], includes: List[Include]):
+    self.package_name = package_name
+    self.module_as_list = module_as_list
+    self.module = ".".join(module_as_list)
     self.errors = errors
     self.table_views = table_views
     self.functions = functions
     self.table_functions = table_functions
     self.macros = macros
+    self.includes = includes
 
 
-def parse_file(path: str, sql: str) -> Optional[ParsedFile]:
+def parse_file(path: str, sql: str) -> Optional[ParsedModule]:
   """Reads the provided SQL and, if possible, generates a dictionary with data
     from documentation together with errors from validation of the schema."""
   if sys.platform.startswith('win'):
     path = path.replace('\\', '/')
 
-  # Get module name
-  module_name = path.split('/stdlib/')[-1].split('/')[0]
+  module_as_list: List[str] = path.split('/stdlib/')[-1].split(".sql")[0].split(
+      '/')
 
-  # Disable support for `deprecated` module
-  if module_name == "deprecated":
+  # Get package name
+  package_name = module_as_list[0]
+
+  # Disable support for `deprecated` package
+  if package_name == "deprecated":
     return
 
   # Extract all the docs from the SQL.
-  extractor = DocsExtractor(path, module_name, sql)
+  extractor = DocsExtractor(path, package_name, sql)
   docs = extractor.extract()
   if extractor.errors:
-    return ParsedFile(extractor.errors, [], [], [], [])
+    return ParsedModule(package_name, module_as_list, extractor.errors, [], [],
+                        [], [], [])
 
   # Parse the extracted docs.
-  errors = []
-  table_views = []
-  functions = []
-  table_functions = []
-  macros = []
+  errors: List[str] = []
+  table_views: List[TableOrView] = []
+  functions: List[Function] = []
+  table_functions: List[TableFunction] = []
+  macros: List[Macro] = []
+  includes: List[Include] = []
   for doc in docs:
     if doc.obj_kind == ObjKind.table_view:
-      parser = TableViewDocParser(path, module_name)
+      parser = TableViewDocParser(path, package_name)
       res = parser.parse(doc)
       if res:
         table_views.append(res)
       errors += parser.errors
     if doc.obj_kind == ObjKind.function:
-      parser = FunctionDocParser(path, module_name)
+      parser = FunctionDocParser(path, package_name)
       res = parser.parse(doc)
       if res:
         functions.append(res)
       errors += parser.errors
     if doc.obj_kind == ObjKind.table_function:
-      parser = TableFunctionDocParser(path, module_name)
+      parser = TableFunctionDocParser(path, package_name)
       res = parser.parse(doc)
       if res:
         table_functions.append(res)
       errors += parser.errors
     if doc.obj_kind == ObjKind.macro:
-      parser = MacroDocParser(path, module_name)
+      parser = MacroDocParser(path, package_name)
       res = parser.parse(doc)
       if res:
         macros.append(res)
       errors += parser.errors
+    if doc.obj_kind == ObjKind.include:
+      parser = IncludeParser(path, package_name)
+      res = parser.parse(doc)
+      if res:
+        includes.append(res)
+      errors += parser.errors
 
-  return ParsedFile(errors, table_views, functions, table_functions, macros)
+  return ParsedModule(package_name, module_as_list, errors, table_views,
+                      functions, table_functions, macros, includes)
