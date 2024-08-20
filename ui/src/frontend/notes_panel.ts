@@ -29,13 +29,13 @@ import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
-import {isTraceLoaded} from './sidebar';
 import {Timestamp} from './widgets/timestamp';
 import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public';
 import {PxSpan, TimeScale} from './time_scale';
 import {canvasClip} from '../common/canvas_utils';
+import {isTraceLoaded} from './trace_attrs';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;

@@ -60,6 +60,7 @@ import {VizPage} from './viz_page';
 import {WidgetsPage} from './widgets_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
+import {initAnalytics} from './analytics';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -208,7 +209,7 @@ function main() {
   globals.embeddedMode = route.args.mode === 'embedded';
   globals.hideSidebar = route.args.hideSidebar === true;
 
-  globals.initialize(stateActionDispatcher);
+  globals.initialize(stateActionDispatcher, initAnalytics);
 
   globals.serviceWorkerController.install();
 
