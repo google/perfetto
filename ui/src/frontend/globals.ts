@@ -35,7 +35,7 @@ import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
 import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-import {Analytics, initAnalytics} from './analytics';
+import type {Analytics} from './analytics';
 import {Timeline} from './timeline';
 import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
@@ -306,7 +306,10 @@ class Globals implements AppContext {
     this._timeline = new Timeline(this._store, new TimeSpan(start, end));
   }
 
-  initialize(dispatchMultiple: DispatchMultiple) {
+  initialize(
+    dispatchMultiple: DispatchMultiple,
+    initAnalytics: () => Analytics,
+  ) {
     this._dispatchMultiple = dispatchMultiple;
 
     setPerfHooks(
@@ -321,6 +324,12 @@ class Globals implements AppContext {
       /* eslint-disable @typescript-eslint/strict-boolean-expressions */
       self.location && self.location.search.indexOf('testing=1') >= 0;
     /* eslint-enable */
+
+    // TODO(stevegolton): This is a mess. We should just inject this object in,
+    // instead of passing in a function. The only reason this is done like this
+    // is because the current implementation of initAnalytics depends on the
+    // state of globals.testing, so this needs to be set before we run the
+    // function.
     this._logging = initAnalytics();
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
