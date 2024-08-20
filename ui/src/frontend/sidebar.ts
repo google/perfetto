@@ -37,7 +37,12 @@ import {downloadData, downloadUrl} from './download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {Router} from './router';
-import {createTraceLink, isDownloadable, shareTrace} from './trace_attrs';
+import {
+  createTraceLink,
+  isDownloadable,
+  isTraceLoaded,
+  shareTrace,
+} from './trace_attrs';
 import {
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
@@ -369,10 +374,6 @@ function convertTraceToJson(e: Event) {
     .catch((error) => {
       throw new Error(`Failed to get current trace ${error}`);
     });
-}
-
-export function isTraceLoaded(): boolean {
-  return globals.getCurrentEngine() !== undefined;
 }
 
 function navigateRecord(e: Event) {

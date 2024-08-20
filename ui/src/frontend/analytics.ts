@@ -93,7 +93,7 @@ export interface Analytics {
   isEnabled(): boolean;
 }
 
-export class NullAnalytics implements Analytics {
+class NullAnalytics implements Analytics {
   initialize() {}
   updatePath(_: string) {}
   logEvent(_category: TraceCategories | null, _event: string) {}
