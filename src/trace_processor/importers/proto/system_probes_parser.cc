@@ -781,6 +781,20 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             packet.android_hardware_revision())));
   }
 
+  if (packet.has_android_storage_model()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_storage_model,
+        Variadic::String(context_->storage->InternString(
+            packet.android_storage_model())));
+  }
+
+  if (packet.has_android_ram_model()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_ram_model,
+        Variadic::String(context_->storage->InternString(
+            packet.android_ram_model())));
+  }
+
   page_size_ = packet.page_size();
   if (!page_size_) {
     page_size_ = 4096;
