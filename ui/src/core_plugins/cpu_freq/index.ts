@@ -25,7 +25,7 @@ import {globals} from '../../frontend/globals';
 import {
   CPU_FREQ_TRACK_KIND,
   Engine,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   Track,
@@ -403,7 +403,7 @@ class CpuFreqTrack implements Track {
   }
 }
 
-class CpuFreq implements Plugin {
+class CpuFreq implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
 

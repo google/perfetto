@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {Engine} from '../../trace_processor/engine';
 import {
   SimpleSliceTrack,
@@ -1146,7 +1150,7 @@ const BT_ACTIVITY = `
   from step2
 `;
 
-class AndroidLongBatteryTracing implements Plugin {
+class AndroidLongBatteryTracing implements PerfettoPlugin {
   addSliceTrack(
     ctx: PluginContextTrace,
     name: string,

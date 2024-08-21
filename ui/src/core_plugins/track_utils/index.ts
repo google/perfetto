@@ -20,13 +20,13 @@ import {
 import {OmniboxMode} from '../../frontend/omnibox_manager';
 import {verticalScrollToTrack} from '../../frontend/scroll_helper';
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   PromptOption,
 } from '../../public';
 
-class TrackUtilsPlugin implements Plugin {
+class TrackUtilsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'perfetto.RunQueryInSelectedTimeWindow',

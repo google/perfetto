@@ -17,7 +17,7 @@ import {
   STR_NULL,
   LONG_NULL,
   NUM,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   PrimaryTrackSortKey,
@@ -138,7 +138,7 @@ async function getCounterEventBounds(
   return {ts: leftTs, dur: duration};
 }
 
-class CounterPlugin implements Plugin {
+class CounterPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addCounterTracks(ctx);
     await this.addGpuFrequencyTracks(ctx);

@@ -22,7 +22,7 @@ import {
   LegacyDetailsPanel,
   MetricVisualisation,
   Migrate,
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -360,13 +360,13 @@ export class PluginRegistry extends Registry<PluginDescriptor> {
 }
 
 export interface PluginDetails {
-  plugin: Plugin;
+  plugin: PerfettoPlugin;
   context: PluginContext & Disposable;
   traceContext?: PluginContextTraceImpl;
   previousOnTraceLoadTimeMillis?: number;
 }
 
-function makePlugin(info: PluginDescriptor): Plugin {
+function makePlugin(info: PluginDescriptor): PerfettoPlugin {
   const {plugin} = info;
 
   // Class refs are functions, concrete plugins are not

@@ -31,7 +31,7 @@ import {
   Engine,
   HEAP_PROFILE_TRACK_KIND,
   LegacyDetailsPanel,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -59,7 +59,7 @@ import {Router} from '../../frontend/router';
 import {Actions} from '../../common/actions';
 import {SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG} from '../../common/legacy_flamegraph_util';
 
-class HeapProfilePlugin implements Plugin {
+class HeapProfilePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       select distinct upid from heap_profile_allocation

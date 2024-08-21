@@ -14,7 +14,7 @@
 
 import {
   NUM_NULL,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   STR_NULL,
@@ -52,7 +52,7 @@ class GpuPidTrack extends NamedSliceTrack {
   }
 }
 
-class GpuByProcess implements Plugin {
+class GpuByProcess implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     // Find all unique upid values in gpu_slices and join with process table.
     const results = await ctx.engine.query(`

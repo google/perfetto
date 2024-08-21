@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {MetricVisualisation, Plugin, PluginDescriptor} from '../../public';
+import {
+  MetricVisualisation,
+  PerfettoPlugin,
+  PluginDescriptor,
+} from '../../public';
 
 const SPEC = `
 {
@@ -31,7 +35,7 @@ const SPEC = `
 }
 `;
 
-class AndroidBinderVizPlugin implements Plugin {
+class AndroidBinderVizPlugin implements PerfettoPlugin {
   metricVisualisations(): MetricVisualisation[] {
     return [
       {

@@ -18,7 +18,7 @@ import {asThreadStateSqlId} from '../../trace_processor/sql_utils/core_types';
 import {ThreadStateTab} from '../../frontend/thread_state_tab';
 import {
   BottomTabToSCSAdapter,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -27,7 +27,7 @@ import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadStateTrack} from './thread_state_track';
 import {removeFalsyValues} from '../../base/array_utils';
 
-class ThreadState implements Plugin {
+class ThreadState implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
 

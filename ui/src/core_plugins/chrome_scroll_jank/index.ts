@@ -24,7 +24,7 @@ import {
   CHROME_EVENT_LATENCY_TRACK_KIND,
   CHROME_TOPLEVEL_SCROLLS_KIND,
   NUM,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   CHROME_SCROLL_JANK_TRACK_KIND,
@@ -54,7 +54,7 @@ export type ScrollJankTrackGroup = {
   addTrackGroup: DeferredAction;
 };
 
-class ChromeScrollJankPlugin implements Plugin {
+class ChromeScrollJankPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     if (ENABLE_CHROME_SCROLL_JANK_PLUGIN.get()) {
       await this.addChromeScrollJankTrack(ctx);

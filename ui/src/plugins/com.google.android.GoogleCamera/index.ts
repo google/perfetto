@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   TrackRef,
@@ -21,7 +21,7 @@ import {
 
 import * as cameraConstants from './googleCameraConstants';
 
-class GoogleCamera implements Plugin {
+class GoogleCamera implements PerfettoPlugin {
   private ctx!: PluginContextTrace;
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
