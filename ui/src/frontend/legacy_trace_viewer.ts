@@ -121,7 +121,7 @@ export async function openFileWithLegacyTraceViewer(file: File) {
   }
 }
 
-export function openBufferWithLegacyTraceViewer(
+function openBufferWithLegacyTraceViewer(
   name: string,
   data: ArrayBuffer | string,
   size: number,
@@ -175,7 +175,7 @@ export function openBufferWithLegacyTraceViewer(
 export function openInOldUIWithSizeCheck(trace: Blob) {
   // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
   if (trace.size < 1024 * 1024 * 50) {
-    convertToJson(trace);
+    convertToJson(trace, openBufferWithLegacyTraceViewer);
     return;
   }
 
@@ -206,16 +206,26 @@ export function openInOldUIWithSizeCheck(trace: Blob) {
     buttons: [
       {
         text: 'Open full trace (not recommended)',
-        action: () => convertToJson(trace),
+        action: () => convertToJson(trace, openBufferWithLegacyTraceViewer),
       },
       {
         text: 'Open beginning of trace',
-        action: () => convertToJson(trace, /* truncate*/ 'start'),
+        action: () =>
+          convertToJson(
+            trace,
+            openBufferWithLegacyTraceViewer,
+            /* truncate*/ 'start',
+          ),
       },
       {
         text: 'Open end of trace',
         primary: true,
-        action: () => convertToJson(trace, /* truncate*/ 'end'),
+        action: () =>
+          convertToJson(
+            trace,
+            openBufferWithLegacyTraceViewer,
+            /* truncate*/ 'end',
+          ),
       },
     ],
   });
