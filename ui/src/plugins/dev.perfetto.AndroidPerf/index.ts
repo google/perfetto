@@ -14,12 +14,12 @@
 
 import {
   addDebugSliceTrack,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 
-class AndroidPerf implements Plugin {
+class AndroidPerf implements PerfettoPlugin {
   async addAppProcessStartsDebugTrack(
     ctx: PluginContextTrace,
     reason: string,

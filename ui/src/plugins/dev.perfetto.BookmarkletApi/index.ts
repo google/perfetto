@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -25,7 +25,7 @@ declare global {
   }
 }
 
-class BookmarkletApi implements Plugin {
+class BookmarkletApi implements PerfettoPlugin {
   private pluginCtx?: PluginContext;
 
   onActivate(pluginCtx: PluginContext): void {

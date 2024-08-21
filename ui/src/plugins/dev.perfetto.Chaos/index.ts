@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   addDebugSliceTrack,
 } from '../../public';
 
-class Chaos implements Plugin {
+class Chaos implements PerfettoPlugin {
   onActivate(ctx: PluginContext): void {
     ctx.registerCommand({
       id: 'dev.perfetto.Chaos#CrashNow',

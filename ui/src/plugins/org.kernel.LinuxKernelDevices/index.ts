@@ -14,7 +14,7 @@
 
 import {
   NUM,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   STR_NULL,
@@ -24,7 +24,7 @@ import {ASYNC_SLICE_TRACK_KIND} from '../../public';
 
 // This plugin renders visualizations of runtime power state transitions for
 // Linux kernel devices (devices managed by Linux drivers).
-class LinuxKernelDevices implements Plugin {
+class LinuxKernelDevices implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       select

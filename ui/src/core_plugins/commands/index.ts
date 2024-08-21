@@ -18,7 +18,7 @@ import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {openInOldUIWithSizeCheck} from '../../frontend/legacy_trace_viewer';
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -95,7 +95,7 @@ group by
 order by total_self_size desc
 limit 100;`;
 
-class CoreCommandsPlugin implements Plugin {
+class CoreCommandsPlugin implements PerfettoPlugin {
   private readonly disposable = new DisposableStack();
 
   onActivate(ctx: PluginContext) {

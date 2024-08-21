@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  NUM,
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 
 // List of tracks to pin
 const TRACKS_TO_PIN: string[] = [
@@ -27,7 +32,7 @@ const TRACKS_TO_PIN: string[] = [
 const SYSTEM_UI_PROCESS: string = 'com.android.systemui';
 
 // Plugin that pins the tracks relevant to System UI
-class PinSysUITracks implements Plugin {
+class PinSysUITracks implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     // Find the upid for the sysui process
     const result = await ctx.engine.query(`

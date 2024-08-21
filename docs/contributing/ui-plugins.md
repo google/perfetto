@@ -82,7 +82,7 @@ while a trace is loaded, whereas commands registered in `onActivate()` are
 available all the time the plugin is active.
 
 ```typescript
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   onActivate(ctx: PluginContext): void {
     ctx.registerCommand(
        {
@@ -193,7 +193,7 @@ Plugins may register tracks with Perfetto using
 `PluginContextTrace.registerTrack()`, usually in their `onTraceLoad` function.
 
 ```ts
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   onTraceLoad(ctx: PluginContextTrace): void {
     ctx.registerTrack({
       uri: 'dev.MyPlugin#ExampleTrack',
@@ -216,7 +216,7 @@ Thus it only makes sense to add default tracks in your plugin's `onTraceLoad`
 function, as adding a default track later will have no effect.
 
 ```ts
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   onTraceLoad(ctx: PluginContextTrace): void {
     ctx.registerTrack({
       // ... as above ...
@@ -236,7 +236,7 @@ shortcut for doing both in one go: `PluginContextTrace.registerStaticTrack()`,
 which saves having to repeat the URI and display name.
 
 ```ts
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   onTraceLoad(ctx: PluginContextTrace): void {
     ctx.registerStaticTrack({
       uri: 'dev.MyPlugin#ExampleTrack',
@@ -256,7 +256,7 @@ as a result of a command or on some other user action such as a button click.
 We can do this using `PluginContext.timeline.addTrack()`.
 
 ```ts
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   onTraceLoad(ctx: PluginContextTrace): void {
     ctx.registerTrack({
       // ... as above ...
@@ -298,7 +298,7 @@ class MyTab implements Tab {
   }
 }
 
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   onActivate(_: PluginContext): void {}
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerTab({
@@ -381,7 +381,7 @@ class MyNameTab implements Tab {
   }
 }
 
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   onActivate(_: PluginContext): void {}
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
@@ -425,7 +425,7 @@ Plugins may register interest in providing content for this tab using the
 For example:
 
 ```ts
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   onActivate(_: PluginContext): void {}
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerDetailsPanel({
@@ -512,7 +512,7 @@ interface MyState {
 To access permalink state, call `mountStore()` on your `PluginContextTrace`
 object, passing in a migration function.
 ```typescript
-class MyPlugin implements Plugin {
+class MyPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const store = ctx.mountStore(migrate);
   }

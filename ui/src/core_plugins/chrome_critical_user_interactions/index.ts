@@ -20,7 +20,7 @@ import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details
 import {globals} from '../../frontend/globals';
 import {
   BottomTabToSCSAdapter,
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -46,7 +46,7 @@ function addCriticalUserInteractionTrack() {
   ]);
 }
 
-class CriticalUserInteractionPlugin implements Plugin {
+class CriticalUserInteractionPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerTrack({
       uri: CriticalUserInteractionTrack.kind,

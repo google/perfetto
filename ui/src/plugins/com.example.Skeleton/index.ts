@@ -15,7 +15,7 @@
 import {
   createStore,
   MetricVisualisation,
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -27,7 +27,7 @@ interface State {
 }
 
 // SKELETON: Rename this class to match your plugin.
-class Skeleton implements Plugin {
+class Skeleton implements PerfettoPlugin {
   private store: Store<State> = createStore({foo: 'foo'});
 
   /**

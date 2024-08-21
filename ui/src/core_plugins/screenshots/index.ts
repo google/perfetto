@@ -18,7 +18,7 @@ import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details
 import {
   BottomTabToSCSAdapter,
   NUM,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -30,7 +30,7 @@ export type DecideTracksResult = {
   tracksToAdd: AddTrackArgs[];
 };
 
-class ScreenshotsPlugin implements Plugin {
+class ScreenshotsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const res = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.screenshots;

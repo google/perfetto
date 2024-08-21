@@ -20,7 +20,7 @@ import {
   BottomTabToSCSAdapter,
   NUM,
   NUM_NULL,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   STR_NULL,
@@ -30,7 +30,7 @@ import {ChromeTasksDetailsTab} from './details';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 
-class ChromeTasksPlugin implements Plugin {
+class ChromeTasksPlugin implements PerfettoPlugin {
   onActivate() {}
 
   async onTraceLoad(ctx: PluginContextTrace) {
