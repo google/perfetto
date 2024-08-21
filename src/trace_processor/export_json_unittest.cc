@@ -768,8 +768,8 @@ TEST_F(ExportJsonTest, InstantEvent) {
   const char* kName = "name";
 
   // Global legacy track.
-  TrackId track = context_.track_tracker->InternUniqueTrack(
-      TrackTracker::UniqueTrackType::kChromeLegacyGlobalInstant);
+  TrackId track = context_.track_tracker->InternGlobalTrack(
+      TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));

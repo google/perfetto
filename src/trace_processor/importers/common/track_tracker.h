@@ -53,8 +53,8 @@ class TrackTracker {
     kSizeSentinel,
   };
 
-  // Classifications of unique tracks (one per trace).
-  enum class UniqueTrackType {
+  // Classifications of global tracks (one per trace).
+  enum class GlobalTrackType {
     kTrigger,
     kInterconnect,
     kChromeLegacyGlobalInstant
@@ -97,20 +97,20 @@ class TrackTracker {
   };
 
   // Classifications of GPU counter tracks.
-  enum class GpuCounterTrackType { kFreqency };
+  enum class GpuCounterTrackType { kFrequency };
 
-  enum class IrqCounterTrackType { kIrqCount };
+  enum class IrqCounterTrackType { kCount };
 
-  enum class SoftIrqCounterTrackType { kSoftIrqCount };
+  enum class SoftIrqCounterTrackType { kCount };
 
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter&)>;
 
   explicit TrackTracker(TraceProcessorContext*);
 
   // Interns a unique track into the storage.
-  TrackId InternUniqueTrack(UniqueTrackType);
+  TrackId InternGlobalTrack(GlobalTrackType);
 
-  // Interns a global track keyed by CPU + name into the storage.
+  // Interns a global track keyed by track type + CPU into the storage.
   TrackId InternCpuTrack(CpuTrackType, uint32_t cpu);
 
   // Interns a thread track into the storage.
@@ -265,6 +265,102 @@ class TrackTracker {
   static constexpr size_t kGroupCount =
       static_cast<uint32_t>(Group::kSizeSentinel);
 
+  std::string GetClassification(TrackTracker::GlobalTrackType type) {
+    switch (type) {
+      case TrackTracker::GlobalTrackType::kTrigger:
+        return "triggers";
+      case TrackTracker::GlobalTrackType::kInterconnect:
+        return "interconnect_events";
+      case TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant:
+        return "legacy_chrome_global_instants";
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
+  std::string GetClassification(TrackTracker::CpuTrackType type) {
+    switch (type) {
+      case CpuTrackType::kIrqCpu:
+        return "irq";
+      case CpuTrackType::kSortIrqCpu:
+        return "soft_irq";
+      case CpuTrackType::kNapiGroCpu:
+        return "napi_gro";
+      case CpuTrackType::kMaliIrqCpu:
+        return "mali_irq";
+      case CpuTrackType::kMinFreqCpu:
+        return "min_freq";
+      case CpuTrackType::kMaxFreqCpu:
+        return "max_freq";
+      case CpuTrackType::kFuncgraphCpu:
+        return "funcgraph";
+      case CpuTrackType::kPkvmHypervisor:
+        return "pkvm_hypervisor";
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
+  std::string GetClassification(TrackTracker::CpuCounterTrackType type) {
+    switch (type) {
+      case CpuCounterTrackType::kFrequency:
+        return "frequency";
+      case CpuCounterTrackType::kFreqThrottle:
+        return "frequency_throttle";
+      case CpuCounterTrackType::kMaxFreqLimit:
+        return "max_frequency_limit";
+      case CpuCounterTrackType::kMinFreqLimit:
+        return "min_frequency_limit";
+      case CpuCounterTrackType::kIdle:
+        return "idle";
+      case CpuCounterTrackType::kIdleState:
+        return "idle_state";
+      case CpuCounterTrackType::kIdleTime:
+        return "idle_time";
+      case CpuCounterTrackType::kUtilization:
+        return "utilization";
+      case CpuCounterTrackType::kCapacity:
+        return "capacity";
+      case CpuCounterTrackType::kNrRunning:
+        return "nr_running";
+      case CpuCounterTrackType::kUserTime:
+        return "user_time";
+      case CpuCounterTrackType::kNiceUserTime:
+        return "nice_user_time";
+      case CpuCounterTrackType::kSystemModeTime:
+        return "system_mode_time";
+      case CpuCounterTrackType::kIoWaitTime:
+        return "io_wait_time";
+      case CpuCounterTrackType::kIrqTime:
+        return "irq_time";
+      case CpuCounterTrackType::kSoftIrqTime:
+        return "soft_irq_time";
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
+  std::string GetClassification(TrackTracker::GpuCounterTrackType type) {
+    switch (type) {
+      case GpuCounterTrackType::kFrequency:
+        return "frequency";
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
+  std::string GetClassification(TrackTracker::IrqCounterTrackType type) {
+    switch (type) {
+      case IrqCounterTrackType::kCount:
+        return "count";
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
+  std::string GetClassification(TrackTracker::SoftIrqCounterTrackType type) {
+    switch (type) {
+      case SoftIrqCounterTrackType::kCount:
+        return "count";
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
   TrackId InternTrackForGroup(Group);
   TrackId InternCpuCounterTrack(CpuCounterTrackTuple);
 
@@ -298,7 +394,7 @@ class TrackTracker {
       energy_per_uid_counter_tracks_;
   std::map<StringId, TrackId> linux_device_tracks_;
 
-  std::map<UniqueTrackType, TrackId> unique_tracks_;
+  std::map<GlobalTrackType, TrackId> unique_tracks_;
 
   const StringId source_key_ = kNullStringId;
   const StringId trace_id_key_ = kNullStringId;
