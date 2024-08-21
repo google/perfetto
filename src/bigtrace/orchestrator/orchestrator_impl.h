@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+#ifndef SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
+#define SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
+
 #include "perfetto/ext/base/threading/thread_pool.h"
 #include "protos/perfetto/bigtrace/orchestrator.grpc.pb.h"
 #include "protos/perfetto/bigtrace/worker.grpc.pb.h"
-
-#ifndef SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
-#define SRC_BIGTRACE_ORCHESTRATOR_ORCHESTRATOR_IMPL_H_
 
 namespace perfetto::bigtrace {
 
