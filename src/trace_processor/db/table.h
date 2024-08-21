@@ -160,7 +160,7 @@ class Table {
   std::optional<OrderedIndices> GetIndex(
       const std::vector<uint32_t>& cols) const {
     for (const auto& idx : indexes_) {
-      if (cols.size() >= idx.columns.size()) {
+      if (cols.size() > idx.columns.size()) {
         continue;
       }
       if (std::equal(cols.begin(), cols.end(), idx.columns.begin())) {
