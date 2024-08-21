@@ -259,6 +259,28 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
       continue;
     }
 
+    // b/324757089: we are not precisely tracking process lifetimes, so the
+    // sample might be for a different process that reused the pid since the
+    // start of the session. Normally this is both infrequent and not a problem
+    // since the unwinding will fail due to invalidated procfs descriptors.
+    // However we need this explicit skip for the specific case of a kernel
+    // thread reusing a userspace pid, as the unwinding doesn't expect absent
+    // userspace state for a thought-to-be-userspace process.
+    // TODO(rsavitski): start tracking process exits more accurately, either
+    // via PERF_RECORD_EXIT records or by checking the validity of the procfs
+    // descriptors.
+    if (PERFETTO_UNLIKELY(!entry.sample.regs &&
+                          proc_state.status ==
+                              ProcessState::Status::kFdsResolved)) {
+      PERFETTO_DLOG(
+          "Unwinder discarding sample for pid [%d]: uspace->kthread pid reuse",
+          static_cast<int>(pid));
+
+      PERFETTO_CHECK(sampled_stack_bytes == 0);
+      entry = UnwindEntry::Invalid();
+      continue;
+    }
+
     // Sample ready - process it.
     if (proc_state.status == ProcessState::Status::kFdsResolved ||
         proc_state.status == ProcessState::Status::kNoUserspace) {
