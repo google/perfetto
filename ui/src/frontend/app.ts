@@ -55,7 +55,7 @@ import {OmniboxMode, PromptOption} from './omnibox_manager';
 import {Utid} from '../trace_processor/sql_utils/core_types';
 import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 import {DisposableStack} from '../base/disposable_stack';
-import {addSqlTableTab} from './sql_table_tab';
+import {addSqlTableTab} from './sql_table_tab_command';
 import {getThreadInfo} from '../trace_processor/sql_utils/thread';
 import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 
