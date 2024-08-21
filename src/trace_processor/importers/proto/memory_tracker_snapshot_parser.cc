@@ -169,8 +169,8 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
 
   // For now, we use the existing global instant event track for chrome events,
   // since memory dumps are global.
-  TrackId track_id = context_->track_tracker->InternUniqueTrack(
-      TrackTracker::UniqueTrackType::kChromeLegacyGlobalInstant);
+  TrackId track_id = context_->track_tracker->InternGlobalTrack(
+      TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
 
   tables::MemorySnapshotTable::Row snapshot_row(
       ts, track_id, level_of_detail_ids_[static_cast<size_t>(level_of_detail)]);
