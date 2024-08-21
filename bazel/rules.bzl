@@ -29,7 +29,7 @@ def default_cc_args():
         "linkopts": select({
             "@perfetto//bazel:os_linux": ["-ldl", "-lrt", "-lpthread"],
             "@perfetto//bazel:os_osx": [],
-            "@perfetto//bazel:os_windows": [],
+            "@perfetto//bazel:os_windows": ["ws2_32.lib"],
             "//conditions:default": ["-ldl"],
         }),
     }
