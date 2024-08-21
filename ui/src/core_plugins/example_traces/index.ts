@@ -14,7 +14,7 @@
 
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
+import {PerfettoPlugin, PluginContext, PluginDescriptor} from '../../public';
 
 const EXAMPLE_ANDROID_TRACE_URL =
   'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';
@@ -27,7 +27,7 @@ function openTraceUrl(url: string): void {
   globals.dispatch(Actions.openTraceFromUrl({url}));
 }
 
-class ExampleTracesPlugin implements Plugin {
+class ExampleTracesPlugin implements PerfettoPlugin {
   onActivate(ctx: PluginContext) {
     const OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID =
       'perfetto.CoreCommands#openExampleAndroidTrace';

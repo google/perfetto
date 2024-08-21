@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -30,7 +30,7 @@ const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
  * and group name. When no match is found for a saved track, it tries again
  * without numbers.
  */
-class RestorePinnedTrack implements Plugin {
+class RestorePinnedTrack implements PerfettoPlugin {
   onActivate(_ctx: PluginContext): void {}
 
   private ctx!: PluginContextTrace;

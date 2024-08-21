@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -44,7 +44,7 @@ type SessionId = number;
  * their durations don't match. The initial viewport bound for each trace is
  * selected when the enable command is called.
  */
-class TimelineSync implements Plugin {
+class TimelineSync implements PerfettoPlugin {
   private _chan?: BroadcastChannel;
   private _ctx?: PluginContextTrace;
   private _traceLoadTime = 0;

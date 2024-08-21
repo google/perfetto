@@ -17,7 +17,7 @@ import m from 'mithril';
 import {CpuProfileDetailsPanel} from '../../frontend/cpu_profile_panel';
 import {
   CPU_PROFILE_TRACK_KIND,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -26,7 +26,7 @@ import {CpuProfileTrack} from './cpu_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
 
-class CpuProfile implements Plugin {
+class CpuProfile implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (

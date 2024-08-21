@@ -17,7 +17,7 @@ import m from 'mithril';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {
   Engine,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -36,7 +36,7 @@ const DEFAULT_STATE: FtracePluginState = {
   },
 };
 
-class FtraceRawPlugin implements Plugin {
+class FtraceRawPlugin implements PerfettoPlugin {
   private trash = new DisposableStack();
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

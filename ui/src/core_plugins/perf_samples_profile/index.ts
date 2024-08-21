@@ -25,7 +25,11 @@ import {
   LegacyFlamegraphDetailsPanel,
   profileType,
 } from '../../frontend/legacy_flamegraph_panel';
-import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {
   LegacySelection,
@@ -51,7 +55,7 @@ export interface Data extends TrackData {
   tsStarts: BigInt64Array;
 }
 
-class PerfSamplesProfilePlugin implements Plugin {
+class PerfSamplesProfilePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const pResult = await ctx.engine.query(`
       select distinct upid
