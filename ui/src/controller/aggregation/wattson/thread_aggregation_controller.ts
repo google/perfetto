@@ -41,8 +41,10 @@ export class WattsonThreadAggregationController extends AggregationController {
     if (selectedCpus.length === 0) return false;
 
     const duration = area.end - area.start;
+    const cpusCsv = `(` + selectedCpus.join() + `)`;
     engine.query(`
       INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+      INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
       INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
 
       CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
@@ -55,6 +57,16 @@ export class WattsonThreadAggregationController extends AggregationController {
       CREATE VIRTUAL TABLE _windowed_summary
       USING
         SPAN_JOIN(_ui_selection_window, _sched_w_thread_process_package_summary);
+
+      -- Only get idle attribution in user defined window and filter by selected
+      -- CPUs and GROUP BY thread
+      CREATE OR REPLACE PERFETTO TABLE _per_thread_idle_attribution AS
+      SELECT
+        ROUND(SUM(idle_cost_mws), 2) as idle_cost_mws,
+        utid
+      FROM _filter_idle_attribution(${area.start}, ${duration})
+      WHERE cpu in ${cpusCsv}
+      GROUP BY utid;
     `);
     this.runEstimateThreadsQuery(engine, selectedCpus, duration);
 
@@ -124,10 +136,13 @@ export class WattsonThreadAggregationController extends AggregationController {
       SELECT
         ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
+        COALESCE(idle_cost_mws, 0) as idle_cost_mws,
         thread_name,
+        utid,
         tid,
         pid
       FROM _unioned_per_cpu_total
+      LEFT JOIN _per_thread_idle_attribution USING (utid)
       GROUP BY utid;
     `;
 
@@ -157,17 +172,24 @@ export class WattsonThreadAggregationController extends AggregationController {
         columnId: 'pid',
       },
       {
-        title: 'Average estimated power (mW)',
+        title: 'Average power (estimated mW)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'avg_mw',
         sum: true,
       },
       {
-        title: 'Total estimated energy (mWs)',
+        title: 'Total energy (estimated mWs)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'total_mws',
+        sum: true,
+      },
+      {
+        title: 'Idle transitions overhead (estimated mWs)',
+        kind: 'NUMBER',
+        columnConstructor: Float64Array,
+        columnId: 'idle_cost_mws',
         sum: true,
       },
     ];
