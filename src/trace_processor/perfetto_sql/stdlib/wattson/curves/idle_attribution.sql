@@ -128,3 +128,17 @@ FROM _interval_intersect!(
 JOIN _idle_w_threads as threads ON threads._auto_id = id_0
 JOIN _system_state_mw as power ON power._auto_id = id_1;
 
+-- Macro for easily filtering idle attribution to a specified time window. This
+-- information can then further be filtered by specific CPU and GROUP BY on
+-- either utid or upid
+CREATE PERFETTO FUNCTION _filter_idle_attribution(ts LONG, dur LONG)
+RETURNS Table(idle_cost_mws LONG, utid INT, upid INT, cpu INT) AS
+SELECT
+  cost.estimate_mw * cost.dur / 1e9 as idle_cost_mws,
+  cost.utid,
+  cost.upid,
+  cost.cpu
+FROM _interval_intersect_single!(
+  $ts, $dur, _ii_table!(_idle_transition_cost)
+) ii
+JOIN _idle_transition_cost as cost ON cost._auto_id = id;
