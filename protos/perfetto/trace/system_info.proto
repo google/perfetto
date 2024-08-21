@@ -35,6 +35,15 @@ message SystemInfo {
   // The hardware reversion from android device
   optional string android_hardware_revision = 10;
 
+  // The storage component from android_device. This field has been introduced
+  // after Android W in Aug 2024 and is not supported on older versions.
+  optional string android_storage_model = 11;
+
+  // The RAM component information from android device. This field has been
+  // introduced after Android W in Aug 2024 and is not supported on older
+  // versions.
+  optional string android_ram_model = 12;
+
   // The version of traced (the same returned by `traced --version`).
   // This is a human readable string with and its format varies depending on
   // the build system and the repo (standalone vs AOSP).
