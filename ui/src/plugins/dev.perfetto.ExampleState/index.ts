@@ -15,7 +15,7 @@
 import {exists} from '../../base/utils';
 import {
   createStore,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   Store,
@@ -27,7 +27,7 @@ interface State {
 
 // This example plugin shows using state that is persisted in the
 // permalink.
-class ExampleState implements Plugin {
+class ExampleState implements PerfettoPlugin {
   private store: Store<State> = createStore({counter: 0});
 
   private migrate(initialState: unknown): State {

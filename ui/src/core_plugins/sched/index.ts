@@ -17,7 +17,7 @@ import {Actions} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   PrimaryTrackSortKey,
@@ -26,7 +26,7 @@ import {
 import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {RunnableThreadCountTrack} from './runnable_thread_count';
 
-class SchedPlugin implements Plugin {
+class SchedPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace) {
     const runnableThreadCountUri = `/runnable_thread_count`;
     ctx.registerTrack({

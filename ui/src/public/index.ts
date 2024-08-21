@@ -316,7 +316,7 @@ export interface PluginContextTrace extends PluginContext {
   prompt(text: string, options?: PromptOption[]): Promise<string>;
 }
 
-export interface Plugin {
+export interface PerfettoPlugin {
   // Lifecycle methods.
   onActivate?(ctx: PluginContext): void;
   onTraceLoad?(ctx: PluginContextTrace): Promise<void>;
@@ -340,7 +340,7 @@ export interface Plugin {
 // ... which can then be passed around by class i.e. MyPlugin
 export interface PluginClass {
   // Instantiate the plugin.
-  new (): Plugin;
+  new (): PerfettoPlugin;
 }
 
 // Describes a reference to a registered track.
@@ -381,7 +381,7 @@ export interface GroupRef {
 export type GroupPredicate = (info: GroupRef) => boolean;
 
 // Plugins can be class refs or concrete plugin implementations.
-export type PluginFactory = PluginClass | Plugin;
+export type PluginFactory = PluginClass | PerfettoPlugin;
 
 export interface PluginDescriptor {
   // A unique string for your plugin. To ensure the name is unique you

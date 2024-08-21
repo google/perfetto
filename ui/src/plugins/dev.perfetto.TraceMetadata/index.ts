@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  NUM,
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {SimpleSliceTrack} from '../../frontend/simple_slice_track';
 
-class TraceMetadata implements Plugin {
+class TraceMetadata implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const res = await ctx.engine.query(`
       select count() as cnt from (select 1 from clock_snapshot limit 1)

@@ -14,14 +14,14 @@
 
 import {
   NUM,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   STR,
 } from '../../public';
 import {addDebugSliceTrack} from '../../public';
 
-class AndroidClientServer implements Plugin {
+class AndroidClientServer implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidClientServer#ThreadRuntimeIPC',

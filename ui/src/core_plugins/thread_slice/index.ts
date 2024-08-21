@@ -17,7 +17,7 @@ import {THREAD_SLICE_TRACK_KIND} from '../../public';
 import {ThreadSliceDetailsTab} from '../../frontend/thread_slice_details_tab';
 import {
   BottomTabToSCSAdapter,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -26,7 +26,7 @@ import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {removeFalsyValues} from '../../base/array_utils';
 
-class ThreadSlicesPlugin implements Plugin {
+class ThreadSlicesPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
 
