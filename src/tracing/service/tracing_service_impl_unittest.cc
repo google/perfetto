@@ -35,6 +35,7 @@
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -6034,6 +6035,48 @@ TEST_F(TracingServiceImplTest, DetachAttach) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   Eq("payload-2")))));
+}
+
+TEST_F(TracingServiceImplTest, DetachDurationTimeoutFreeBuffers) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  trace_config.set_duration_ms(1);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(100000);
+  auto pipe_pair = base::Pipe::Create();
+  consumer->EnableTracing(trace_config, std::move(pipe_pair.wr));
+
+  std::string on_detach_name = "on_detach";
+  auto on_detach = task_runner.CreateCheckpoint(on_detach_name);
+  EXPECT_CALL(*consumer, OnDetach(Eq(true))).WillOnce(Invoke(on_detach));
+
+  consumer->Detach("mykey");
+
+  task_runner.RunUntilCheckpoint(on_detach_name);
+
+  std::string file_closed_name = "file_closed";
+  auto file_closed = task_runner.CreateCheckpoint(file_closed_name);
+  task_runner.AddFileDescriptorWatch(*pipe_pair.rd, [&] {
+    char buf[1024];
+    if (base::Read(*pipe_pair.rd, buf, sizeof(buf)) <= 0) {
+      file_closed();
+    }
+  });
+  task_runner.RunUntilCheckpoint(file_closed_name);
+
+  // Disabled and detached tracing sessions are automatically deleted:
+  // reattaching fails.
+  std::string on_attach_name = "on_attach";
+  auto on_attach = task_runner.CreateCheckpoint(on_attach_name);
+  EXPECT_CALL(*consumer, OnAttach(Eq(false), _))
+      .WillOnce(InvokeWithoutArgs(on_attach));
+  consumer->Attach("mykey");
+  task_runner.RunUntilCheckpoint(on_attach_name);
 }
 
 }  // namespace perfetto
