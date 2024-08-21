@@ -1618,7 +1618,7 @@ void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
   uint32_t gpu = freq.gpu_id();
   uint32_t new_freq = freq.state();
   TrackId track = context_->track_tracker->InternGpuCounterTrack(
-      TrackTracker::GpuCounterTrackType::kFreqency, gpu);
+      TrackTracker::GpuCounterTrackType::kFrequency, gpu);
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 
@@ -1629,7 +1629,7 @@ void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
   // Source data is frequency / 1000, so we correct that here:
   double new_freq = static_cast<double>(freq.gpu_freq()) * 1000.0;
   TrackId track = context_->track_tracker->InternGpuCounterTrack(
-      TrackTracker::GpuCounterTrackType::kFreqency, gpu);
+      TrackTracker::GpuCounterTrackType::kFrequency, gpu);
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 
@@ -1792,8 +1792,8 @@ void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
 
 void FtraceParser::ParseGoogleIccEvent(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GoogleIccEventFtraceEvent::Decoder evt(blob.data, blob.size);
-  TrackId track_id = context_->track_tracker->InternUniqueTrack(
-      TrackTracker::UniqueTrackType::kInterconnect);
+  TrackId track_id = context_->track_tracker->InternGlobalTrack(
+      TrackTracker::GlobalTrackType::kInterconnect);
   StringId slice_name_id =
       context_->storage->InternString(base::StringView(evt.event()));
   context_->slice_tracker->Scoped(timestamp, track_id, google_icc_event_id_,
@@ -1802,8 +1802,8 @@ void FtraceParser::ParseGoogleIccEvent(int64_t timestamp, ConstBytes blob) {
 
 void FtraceParser::ParseGoogleIrmEvent(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GoogleIrmEventFtraceEvent::Decoder evt(blob.data, blob.size);
-  TrackId track_id = context_->track_tracker->InternUniqueTrack(
-      TrackTracker::UniqueTrackType::kInterconnect);
+  TrackId track_id = context_->track_tracker->InternGlobalTrack(
+      TrackTracker::GlobalTrackType::kInterconnect);
   StringId slice_name_id =
       context_->storage->InternString(base::StringView(evt.event()));
   context_->slice_tracker->Scoped(timestamp, track_id, google_irm_event_id_,
