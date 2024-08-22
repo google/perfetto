@@ -17,7 +17,7 @@ import {duration, time} from '../base/time';
 import {Optional} from '../base/utils';
 import {UntypedEventSet} from '../core/event_set';
 import {LegacySelection, Selection} from '../core/selection_manager';
-import {Size} from '../base/geom';
+import {Size, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../frontend/time_scale';
 import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 
@@ -108,14 +108,6 @@ export interface TrackSelectionDetailsPanel {
   isLoading?(): boolean;
 }
 
-export interface SliceRect {
-  left: number;
-  width: number;
-  top: number;
-  height: number;
-  visible: boolean;
-}
-
 /**
  * Contextual information passed to mouse events.
  */
@@ -175,12 +167,13 @@ export interface Track {
    */
   render(ctx: TrackRenderContext): void;
   onFullRedraw?(): void;
-  getSliceRect?(
-    ctx: TrackRenderContext,
-    tStart: time,
-    tEnd: time,
-    depth: number,
-  ): Optional<SliceRect>;
+
+  /**
+   * Return the vertical bounds (top & bottom) of a slice were it to be rendered
+   * at a specific depth, given the slice height and padding/spacing that this
+   * track uses.
+   */
+  getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
   getHeight(): number;
   getTrackShellButtons?(): m.Children;
   onMouseMove?(event: TrackMouseEvent): void;
