@@ -16,8 +16,10 @@ import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_descri
 import {
   ArgSetColumnSet,
   DurationColumn,
+  ProcessColumn,
   SliceIdColumn,
   StandardColumn,
+  ThreadColumn,
   TimestampColumn,
 } from '../../frontend/widgets/sql/table/well_known_columns';
 
@@ -27,26 +29,17 @@ export function getSliceTable(): SqlTableDescription {
     name: '_slice_with_thread_and_process_info',
     displayName: 'slice',
     columns: [
-      new SliceIdColumn({
-        sliceId: 'id',
-        ts: 'ts',
-        dur: 'dur',
-        trackId: 'track_id',
-      }),
+      new SliceIdColumn('id'),
       new TimestampColumn('ts', {title: 'Timestamp'}),
       new DurationColumn('dur', {title: 'Duration'}),
       new DurationColumn('thread_dur', {title: 'Thread duration'}),
       new StandardColumn('category', {title: 'Category'}),
       new StandardColumn('name', {title: 'Name'}),
       new StandardColumn('track_id', {title: 'Track ID', startsHidden: true}),
-      new StandardColumn('thread_name', {title: 'Thread name'}),
-      new StandardColumn('utid', {title: 'utid', startsHidden: true}),
-      new StandardColumn('tid', {title: 'tid'}),
-      new StandardColumn('process_name', {title: 'Process name'}),
-      new StandardColumn('upid', {title: 'upid'}),
-      new StandardColumn('pid', {title: 'pid', startsHidden: true}),
+      new ThreadColumn('utid', {title: 'Thread'}),
+      new ProcessColumn('upid', {title: 'Process'}),
       new StandardColumn('depth', {title: 'Depth', startsHidden: true}),
-      new StandardColumn('parent_id', {
+      new SliceIdColumn('parent_id', {
         title: 'Parent slice ID',
         startsHidden: true,
       }),

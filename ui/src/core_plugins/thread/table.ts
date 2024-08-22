@@ -14,6 +14,7 @@
 
 import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
 import {
+  ProcessColumn,
   StandardColumn,
   TimestampColumn,
 } from '../../frontend/widgets/sql/table/well_known_columns';
@@ -27,7 +28,7 @@ export function getThreadTable(): SqlTableDescription {
       new StandardColumn('name'),
       new TimestampColumn('start_ts'),
       new TimestampColumn('end_ts'),
-      new StandardColumn('upid'),
+      new ProcessColumn('upid'),
       new StandardColumn('is_main_thread'),
     ],
   };

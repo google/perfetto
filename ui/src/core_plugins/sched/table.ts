@@ -15,7 +15,10 @@
 import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
 import {
   DurationColumn,
+  ProcessColumn,
+  SchedIdColumn,
   StandardColumn,
+  ThreadColumn,
   TimestampColumn,
 } from '../../frontend/widgets/sql/table/well_known_columns';
 
@@ -23,13 +26,25 @@ export function getSchedTable(): SqlTableDescription {
   return {
     name: 'sched',
     columns: [
-      new StandardColumn('id'),
+      new SchedIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
       new StandardColumn('cpu'),
-      new StandardColumn('utid'),
-      new StandardColumn('end_state'),
       new StandardColumn('priority'),
+      new ThreadColumn('utid', {title: 'Thread'}),
+      new ProcessColumn(
+        {
+          column: 'upid',
+          source: {
+            table: 'thread',
+            joinOn: {
+              utid: 'utid',
+            },
+          },
+        },
+        {title: 'Process'},
+      ),
+      new StandardColumn('end_state'),
       new StandardColumn('ucpu'),
     ],
   };

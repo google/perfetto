@@ -15,7 +15,10 @@
 import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
 import {
   DurationColumn,
+  ProcessColumn,
   StandardColumn,
+  ThreadColumn,
+  ThreadStateIdColumn,
   TimestampColumn,
 } from '../../frontend/widgets/sql/table/well_known_columns';
 
@@ -23,16 +26,28 @@ export function getThreadStateTable(): SqlTableDescription {
   return {
     name: 'thread_state',
     columns: [
-      new StandardColumn('id'),
+      new ThreadStateIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
-      new StandardColumn('cpu'),
-      new StandardColumn('utid'),
       new StandardColumn('state'),
+      new StandardColumn('cpu'),
+      new ThreadColumn('utid', {title: 'Thread'}),
+      new ProcessColumn(
+        {
+          column: 'upid',
+          source: {
+            table: 'thread',
+            joinOn: {
+              utid: 'utid',
+            },
+          },
+        },
+        {title: 'Process'},
+      ),
       new StandardColumn('io_wait'),
       new StandardColumn('blocked_function'),
-      new StandardColumn('waker_utid'),
-      new StandardColumn('waker_id'),
+      new ThreadColumn('waker_utid', {title: 'Waker thread'}),
+      new ThreadStateIdColumn('waker_id'),
       new StandardColumn('irq_context'),
       new StandardColumn('ucpu'),
     ],

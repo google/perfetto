@@ -29,7 +29,6 @@ import {globals} from './globals';
 import {
   aggregationIndex,
   areaFilters,
-  extractArgumentExpression,
   sliceAggregationColumns,
   tables,
 } from './pivot_table_query_generator';
@@ -47,6 +46,8 @@ import {DurationWidget} from './widgets/duration';
 import {addSqlTableTab} from './sql_table_tab_command';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists} from '../base/logging';
+import {Filter, SqlColumn} from './widgets/sql/table/column';
+import {argSqlColumn} from './widgets/sql/table/well_known_columns';
 
 interface PathItem {
   tree: PivotTree;
@@ -62,31 +63,30 @@ interface DrillFilter {
   value: ColumnType;
 }
 
-function drillFilterColumnName(column: TableColumn): string {
+function drillFilterColumnName(column: TableColumn): SqlColumn {
   switch (column.kind) {
     case 'argument':
-      return extractArgumentExpression(
-        column.argument,
-        assertExists(getSqlTableDescription('slice')).name,
-      );
+      return argSqlColumn('arg_set_id', column.argument);
     case 'regular':
       return `${column.column}`;
   }
 }
 
 // Convert DrillFilter to SQL condition to be used in WHERE clause.
-function renderDrillFilter(filter: DrillFilter): string {
+function renderDrillFilter(filter: DrillFilter): Filter {
   const column = drillFilterColumnName(filter.column);
-  if (filter.value === null) {
-    return `${column} IS NULL`;
-  } else if (typeof filter.value === 'number') {
-    return `${column} = ${filter.value}`;
-  } else if (filter.value instanceof Uint8Array) {
+  const value = filter.value;
+  if (value === null) {
+    return {op: (cols) => `${cols[0]} IS NULL`, columns: [column]};
+  } else if (typeof value === 'number' || typeof value === 'bigint') {
+    return {op: (cols) => `${cols[0]} = ${filter.value}`, columns: [column]};
+  } else if (value instanceof Uint8Array) {
     throw new Error(`BLOB as DrillFilter not implemented`);
-  } else if (typeof filter.value === 'bigint') {
-    return `${column} = ${filter.value}`;
   }
-  return `${column} = ${sqliteString(filter.value)}`;
+  return {
+    op: (cols) => `${cols[0]} = ${sqliteString(value)}`,
+    columns: [column],
+  };
 }
 
 function readableColumnName(column: TableColumn) {
@@ -142,7 +142,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             addSqlTableTab({
               table: assertExists(getSqlTableDescription('slice')),
               // TODO(altimin): this should properly reference the required columns, but it works for now (until the pivot table is going to be rewritten to be more flexible).
-              filters: queryFilters.map((f) => ({op: () => f, columns: []})),
+              filters: queryFilters,
             });
           },
         },

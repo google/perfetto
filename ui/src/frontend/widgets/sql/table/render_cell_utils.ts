@@ -39,7 +39,7 @@ function filterOptionMenuItem(
 }
 
 // Return a list of "standard" menu items, adding corresponding filters to the given cell.
-function getStandardFilters(
+export function getStandardFilters(
   value: SqlValue,
   c: SqlColumn,
   tableManager: TableManager,
