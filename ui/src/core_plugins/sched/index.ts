@@ -16,6 +16,8 @@ import {uuidv4} from '../../base/uuid';
 import {Actions} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
+import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
+import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
 import {
   PerfettoPlugin,
   PluginContextTrace,
@@ -25,6 +27,7 @@ import {
 
 import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {RunnableThreadCountTrack} from './runnable_thread_count';
+import {getSchedTable} from './table';
 
 class SchedPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace) {
@@ -74,6 +77,17 @@ class SchedPlugin implements PerfettoPlugin {
         callback: () => addPinnedTrack(uri, title),
       });
     }
+
+    sqlTableRegistry['sched'] = getSchedTable();
+    ctx.registerCommand({
+      id: 'perfetto.ShowTable.sched',
+      name: 'Open table: sched',
+      callback: () => {
+        addSqlTableTab({
+          table: getSchedTable(),
+        });
+      },
+    });
   }
 }
 
