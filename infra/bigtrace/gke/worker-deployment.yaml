@@ -12,15 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: Service
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: worker
 spec:
-  clusterIP: None
-  ports:
-  - protocol: TCP
-    port: 5052
-    targetPort: 5052
+  replicas: 5
   selector:
-    app: worker
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: worker
+        image: # [ZONE]-docker.pkg.dev/[PROJECT_NAME]/[REPO_NAME]/bigtrace_worker
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5052
+        resources:
+          requests:
+            cpu: "7"
