@@ -51,15 +51,6 @@ const char* const
         "sint64",    // TYPE_SINT64
 };
 
-const char* const
-    kLabelToName[google::protobuf::FieldDescriptor::MAX_LABEL + 1] = {
-        "ERROR",  // 0 is reserved for errors
-
-        "optional",  // LABEL_OPTIONAL
-        "required",  // LABEL_REQUIRED
-        "repeated",  // LABEL_REPEATED
-};
-
 std::optional<std::string> MinimizeType(const std::string& a,
                                         const std::string& b) {
   auto a_pieces = base::SplitString(a, ".");
@@ -198,14 +189,20 @@ ProtoFile::Field FieldFromDescriptor(
     const google::protobuf::Descriptor& parent,
     const google::protobuf::FieldDescriptor& desc) {
   auto field = InitFromDescriptor<ProtoFile::Field>(desc);
-  // Map fields have label repeated but are actually emitted without a label
-  // in practice.
-  field.label = desc.is_map() ? "" : kLabelToName[desc.label()];
+  field.is_repeated = desc.is_repeated();
   field.packageless_type = FieldTypeFromDescriptor(parent, desc, true);
   field.type = FieldTypeFromDescriptor(parent, desc, false);
   field.name = desc.name();
   field.number = desc.number();
   field.options = OptionsFromMessage(*desc.file()->pool(), desc.options());
+
+  // Protobuf editions: packed fields are no longer an option, but have the same
+  // syntax as far as writing the merged .proto file is concerned.
+  if (desc.is_packed()) {
+    field.options.push_back(
+        ProtoFile::Option{"features.repeated_field_encoding", "PACKED"});
+  }
+
   return field;
 }
 
