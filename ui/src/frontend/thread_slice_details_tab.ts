@@ -43,7 +43,8 @@ import {DurationWidget} from './widgets/duration';
 import {addSqlTableTab} from './sql_table_tab_command';
 import {SliceRef} from './widgets/slice';
 import {BasicTable} from '../widgets/basic_table';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
+import {assertExists} from '../base/logging';
 
 interface ContextMenuItem {
   name: string;
@@ -93,7 +94,7 @@ const ITEMS: ContextMenuItem[] = [
     shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
     run: (slice: SliceDetails) =>
       addSqlTableTab({
-        table: SqlTables.slice,
+        table: assertExists(getSqlTableDescription('slice')),
         filters: [
           {
             op: (cols) =>
@@ -109,7 +110,7 @@ const ITEMS: ContextMenuItem[] = [
     shouldDisplay: () => true,
     run: (slice: SliceDetails) =>
       addSqlTableTab({
-        table: SqlTables.slice,
+        table: assertExists(getSqlTableDescription('slice')),
         filters: [
           {
             op: (cols) =>

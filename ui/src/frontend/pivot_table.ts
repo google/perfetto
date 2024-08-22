@@ -45,7 +45,8 @@ import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from './widgets/duration';
 import {addSqlTableTab} from './sql_table_tab_command';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
+import {assertExists} from '../base/logging';
 
 interface PathItem {
   tree: PivotTree;
@@ -64,7 +65,10 @@ interface DrillFilter {
 function drillFilterColumnName(column: TableColumn): string {
   switch (column.kind) {
     case 'argument':
-      return extractArgumentExpression(column.argument, SqlTables.slice.name);
+      return extractArgumentExpression(
+        column.argument,
+        assertExists(getSqlTableDescription('slice')).name,
+      );
     case 'regular':
       return `${column.column}`;
   }
@@ -136,7 +140,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
               queryFilters.push(...areaFilters(area));
             }
             addSqlTableTab({
-              table: SqlTables.slice,
+              table: assertExists(getSqlTableDescription('slice')),
               // TODO(altimin): this should properly reference the required columns, but it works for now (until the pivot table is going to be rewritten to be more flexible).
               filters: queryFilters.map((f) => ({op: () => f, columns: []})),
             });
@@ -439,7 +443,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     }
 
     const sliceAggregationsItem = this.aggregationPopupTableGroup(
-      SqlTables.slice.name,
+      assertExists(getSqlTableDescription('slice')).name,
       sliceAggregationColumns,
       index,
     );

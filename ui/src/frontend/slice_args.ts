@@ -27,8 +27,9 @@ import {TreeNode} from '../widgets/tree';
 
 import {Arg} from '../trace_processor/sql_utils/args';
 import {globals} from './globals';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
 import {addSqlTableTab} from './sql_table_tab_command';
+import {assertExists} from '../base/logging';
+import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(engine: Engine, args: Arg[]): m.Children {
@@ -87,7 +88,7 @@ function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
         icon: 'search',
         onclick: () => {
           addSqlTableTab({
-            table: SqlTables.slice,
+            table: assertExists(getSqlTableDescription('slice')),
             filters: [
               {
                 op: (cols) => `${cols[0]} = ${sqliteString(displayValue)}`,
