@@ -30,7 +30,7 @@ function makeMockTrack() {
 
     render: jest.fn(),
     onFullRedraw: jest.fn(),
-    getSliceRect: jest.fn(),
+    getSliceVerticalBounds: jest.fn(),
     getHeight: jest.fn(),
     getTrackShellButtons: jest.fn(),
     onMouseMove: jest.fn(),

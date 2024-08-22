@@ -45,7 +45,6 @@ export {
   Track,
   TrackContext,
   TrackTags,
-  SliceRect,
   DetailsPanel,
   LegacyDetailsPanel,
   TrackSelectionDetailsPanel,

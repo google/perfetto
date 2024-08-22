@@ -29,7 +29,12 @@ import {NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
-import {Panel, PanelContainer, PanelOrGroup} from './panel_container';
+import {
+  Panel,
+  PanelContainer,
+  PanelOrGroup,
+  RenderedPanelInfo,
+} from './panel_container';
 import {publishShowPanningHint} from './publish';
 import {TabPanel} from './tab_panel';
 import {TickmarkPanel} from './tickmark_panel';
@@ -45,6 +50,9 @@ import {FuzzyFinder, fuzzyMatch, FuzzySegment} from '../base/fuzzy';
 import {exists} from '../base/utils';
 import {EmptyState} from '../widgets/empty_state';
 import {removeFalsyValues} from '../base/array_utils';
+import {renderFlows} from './flow_events_renderer';
+import {Size} from '../base/geom';
+import {canvasClip, canvasSave} from '../common/canvas_utils';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -296,6 +304,7 @@ class TraceViewer implements m.ClassComponent {
                 const timelineWidth = width - TRACK_SHELL_WIDTH;
                 this.timelineWidthPx = timelineWidth;
               },
+              renderOverlay,
             }),
       ),
       m(TabPanel),
@@ -304,6 +313,22 @@ class TraceViewer implements m.ClassComponent {
     globals.trackManager.flushOldTracks();
     return result;
   }
+}
+
+function renderOverlay(
+  ctx: CanvasRenderingContext2D,
+  canvasSize: Size,
+  panels: ReadonlyArray<RenderedPanelInfo>,
+): void {
+  const size = {
+    width: canvasSize.width - TRACK_SHELL_WIDTH,
+    height: canvasSize.height,
+  };
+
+  using _ = canvasSave(ctx);
+  ctx.translate(TRACK_SHELL_WIDTH, 0);
+  canvasClip(ctx, 0, 0, size.width, size.height);
+  renderFlows(ctx, size, panels);
 }
 
 // Given a set of fuzzy matched results, render the matching segments in bold
