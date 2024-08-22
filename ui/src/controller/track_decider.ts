@@ -628,7 +628,8 @@ class TrackDecider {
       .filter(
         ({tags}) =>
           tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
-          tags?.upid !== undefined,
+          tags.upid !== undefined &&
+          tags.utid === undefined,
       )
       .forEach((td) => {
         const upid = assertExists(td.tags?.upid);
