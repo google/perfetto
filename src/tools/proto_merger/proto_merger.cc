@@ -202,7 +202,7 @@ base::Status MergeField(const ProtoFile::Field& input,
   // Get the comments, label and the name from the source of truth.
   out.leading_comments = upstream.leading_comments;
   out.trailing_comments = upstream.trailing_comments;
-  out.label = upstream.label;
+  out.is_repeated = upstream.is_repeated;
   out.name = upstream.name;
 
   // Get everything else from the input.

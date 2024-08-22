@@ -120,12 +120,11 @@ std::string SerializeField(size_t indent,
   std::string output;
   output += SerializeLeadingComments(prefix, field);
 
-  std::string label;
-  if (write_label) {
-    label = field.label + " ";
-  }
-  output += prefix + label + field.type + " " + field.name + " = " +
-            std::to_string(field.number);
+  output += prefix;
+  if (write_label && field.is_repeated)
+    output += "repeated ";
+  output +=
+      field.type + " " + field.name + " = " + std::to_string(field.number);
 
   output += SerializeOptions(field.options);
   output += ";\n";
