@@ -370,8 +370,14 @@ bool PerfettoSqlParser::ParseCreatePerfettoIndex(bool replace,
     return ErrorAtToken(token, err.c_str());
   }
 
-  Token terminal = tokenizer_.NextTerminal();
-  statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
+  token = tokenizer_.NextNonWhitespace();
+  if (!token.IsTerminal()) {
+    return ErrorAtToken(
+        token,
+        "Expected semicolon after columns list in CREATE PERFETTO INDEX.");
+  }
+
+  statement_sql_ = tokenizer_.Substr(first_non_space_token, token);
   statement_ = CreateIndex{replace, index_name, table_name, cols};
   return true;
 }
