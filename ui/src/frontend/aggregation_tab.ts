@@ -193,39 +193,7 @@ class AreaDetailsPanel implements m.ClassComponent {
       return this.perfSampleFlamegraphAttrs;
     }
     const upids = getUpidsFromPerfSampleAreaSelection(currentSelection);
-    if (upids.length === 0) {
-      const utids = getUtidsFromPerfSampleAreaSelection(currentSelection);
-      if (utids.length === 0) {
-        return undefined;
-      }
-      return {
-        engine: assertExists(this.getCurrentEngine()),
-        metrics: [
-          ...metricsFromTableOrSubquery(
-            `
-              (
-                select id, parent_id as parentId, name, self_count
-                from _linux_perf_callstacks_for_samples!((
-                  select p.callsite_id
-                  from perf_sample p
-                  where p.ts >= ${currentSelection.start}
-                    and p.ts <= ${currentSelection.end}
-                    and p.utid in (${utids.join(',')})
-                ))
-              )
-            `,
-            [
-              {
-                name: 'Perf Samples',
-                unit: '',
-                columnName: 'self_count',
-              },
-            ],
-            'include perfetto module linux.perf.samples',
-          ),
-        ],
-      };
-    }
+    const utids = getUtidsFromPerfSampleAreaSelection(currentSelection);
     return {
       engine: assertExists(this.getCurrentEngine()),
       metrics: [
@@ -239,7 +207,10 @@ class AreaDetailsPanel implements m.ClassComponent {
                 join thread t using (utid)
                 where p.ts >= ${currentSelection.start}
                   and p.ts <= ${currentSelection.end}
-                  and t.upid in (${upids.join(',')})
+                  and (
+                    p.utid in (${utids.join(',')})
+                    or t.upid in (${upids.join(',')})
+                  )
               ))
             )
           `,
@@ -387,13 +358,12 @@ function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   for (const trackId of currentSelection.tracks) {
     const track: TrackState | undefined = globals.state.tracks[trackId];
     const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
-    if (trackInfo?.tags?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
-      continue;
+    if (
+      trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo.tags?.utid === undefined
+    ) {
+      upids.push(assertExists(trackInfo.tags?.upid));
     }
-    if (trackInfo.tags?.upid === undefined) {
-      continue;
-    }
-    upids.push(trackInfo.tags?.upid);
   }
   return upids;
 }
@@ -403,13 +373,12 @@ function getUtidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   for (const trackId of currentSelection.tracks) {
     const track: TrackState | undefined = globals.state.tracks[trackId];
     const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
-    if (trackInfo?.tags?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
-      continue;
+    if (
+      trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
+      trackInfo.tags?.utid !== undefined
+    ) {
+      utids.push(trackInfo.tags?.utid);
     }
-    if (trackInfo.tags?.utid === undefined) {
-      continue;
-    }
-    utids.push(trackInfo.tags?.utid);
   }
   return utids;
 }
