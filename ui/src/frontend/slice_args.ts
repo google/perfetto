@@ -27,8 +27,8 @@ import {TreeNode} from '../widgets/tree';
 
 import {Arg} from '../trace_processor/sql_utils/args';
 import {globals} from './globals';
-import {addSqlTableTab} from './sql_table_tab';
 import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {addSqlTableTab} from './sql_table_tab_command';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(engine: Engine, args: Arg[]): m.Children {
