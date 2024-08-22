@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+import {assertExists} from '../base/logging';
 import {sqliteString} from '../base/string_utils';
 import {Area, PivotTableQuery, PivotTableState} from '../common/state';
 import {getSelectedTrackKeys} from '../controller/aggregation/slice_aggregation_controller';
 
 import {Aggregation, TableColumn} from './pivot_table_types';
-import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
+import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 
 export interface Table {
   name: string;
@@ -28,7 +29,7 @@ export interface Table {
 }
 
 export const sliceTable = {
-  name: SqlTables.slice.name,
+  name: '_slice_with_process_and_thread_info',
   displayName: 'slice',
   columns: [
     'type',
@@ -98,7 +99,10 @@ export function expression(column: TableColumn): string {
     case 'regular':
       return `${column.table}.${column.column}`;
     case 'argument':
-      return extractArgumentExpression(column.argument, SqlTables.slice.name);
+      return extractArgumentExpression(
+        column.argument,
+        assertExists(getSqlTableDescription('slice')).name,
+      );
   }
 }
 
@@ -159,7 +163,7 @@ export function generateQueryFromState(
 
     select
       ${renderedPivots.concat(aggregations).join(',\n')}
-    from ${SqlTables.slice.name}
+    from ${assertExists(getSqlTableDescription('slice')).name}
     ${whereClause}
     group by ${renderedPivots.join(', ')}
     ${sortClauses.length > 0 ? 'order by ' + sortClauses.join(', ') : ''}
