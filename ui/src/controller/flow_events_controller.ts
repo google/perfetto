@@ -315,6 +315,9 @@ export class FlowEventsController extends Controller<'main'> {
       : `directly_connected_flow(${sliceId})`;
 
     const query = `
+    -- Include slices.flow to initialise indexes on 'flow.slice_in' and 'flow.slice_out'.
+    INCLUDE PERFETTO MODULE slices.flow;
+
     select
       f.slice_out as beginSliceId,
       t1.track_id as beginTrackId,
