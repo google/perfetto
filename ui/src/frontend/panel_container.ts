@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {assertExists, assertFalse} from '../base/logging';
-import {time} from '../base/time';
 import {
   PerfStatsSource,
   RunningStatistics,
@@ -26,7 +25,6 @@ import {
   runningStatStr,
 } from '../core/perf';
 import {raf} from '../core/raf_scheduler';
-import {SliceRect} from '../public';
 
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {canvasClip} from '../common/canvas_utils';
@@ -35,15 +33,12 @@ import {
   TOPBAR_HEIGHT,
   TRACK_SHELL_WIDTH,
 } from './css_constants';
-import {
-  FlowEventsRenderer,
-  FlowEventsRendererArgs,
-} from './flow_events_renderer';
 import {globals} from './globals';
-import {Size} from '../base/geom';
+import {Rect, Size, VerticalBounds} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
 import {PxSpan, TimeScale} from './time_scale';
+import {Optional} from '../base/utils';
 
 const CANVAS_OVERDRAW_PX = 100;
 
@@ -54,7 +49,7 @@ export interface Panel {
   readonly trackKey?: string; // Defined if this panel represents are track
   readonly groupKey?: string; // Defined if this panel represents a group - i.e. a group summary track
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size): void;
-  getSliceRect?(tStart: time, tDur: time, depth: number): SliceRect | undefined;
+  getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
 }
 
 export interface PanelGroup {
@@ -70,6 +65,14 @@ export interface PanelContainerAttrs {
   panels: PanelOrGroup[];
   className?: string;
   onPanelStackResize?: (width: number, height: number) => void;
+
+  // Called after all panels have been rendered to the canvas, to give the
+  // caller the opportunity to render an overlay on top of the panels.
+  renderOverlay?(
+    ctx: CanvasRenderingContext2D,
+    size: Size,
+    panels: ReadonlyArray<RenderedPanelInfo>,
+  ): void;
 }
 
 interface PanelInfo {
@@ -79,6 +82,11 @@ interface PanelInfo {
   width: number;
   clientX: number;
   clientY: number;
+}
+
+export interface RenderedPanelInfo {
+  panel: Panel;
+  rect: Rect;
 }
 
 export class PanelContainer
@@ -199,8 +207,8 @@ export class PanelContainer
     globals.timeline.selectArea(area.start, area.end, tracks);
   }
 
-  constructor() {
-    const onRedraw = () => this.renderCanvas();
+  constructor({attrs}: m.CVnode<PanelContainerAttrs>) {
+    const onRedraw = () => this.renderCanvas(attrs);
     raf.addRedrawCallback(onRedraw);
     this.trash.defer(() => {
       raf.removeRedrawCallback(onRedraw);
@@ -240,7 +248,7 @@ export class PanelContainer
     });
 
     virtualCanvas.setLayoutShiftListener(() => {
-      this.renderCanvas();
+      this.renderCanvas(vnode.attrs);
     });
 
     this.onupdate(vnode);
@@ -343,7 +351,7 @@ export class PanelContainer
     });
   }
 
-  private renderCanvas() {
+  private renderCanvas(attrs: PanelContainerAttrs) {
     if (!this.ctx) return;
     if (!this.virtualCanvas) return;
 
@@ -360,7 +368,7 @@ export class PanelContainer
 
     this.handleAreaSelection();
 
-    const totalRenderedPanels = this.renderPanels(ctx, vc);
+    const totalRenderedPanels = this.renderPanels(ctx, vc, attrs);
 
     this.drawTopLayerOnCanvas(ctx, vc);
 
@@ -376,11 +384,12 @@ export class PanelContainer
   private renderPanels(
     ctx: CanvasRenderingContext2D,
     vc: VirtualCanvas,
+    attrs: PanelContainerAttrs,
   ): number {
     let panelTop = 0;
     let totalOnCanvas = 0;
 
-    const flowEventsRendererArgs = new FlowEventsRendererArgs();
+    const renderedPanels = Array<RenderedPanelInfo>();
 
     for (let i = 0; i < this.panelInfos.length; i++) {
       const {
@@ -396,8 +405,6 @@ export class PanelContainer
         right: panelWidth,
       };
       const panelSize = {width: panelWidth, height: panelHeight};
-
-      flowEventsRendererArgs.registerPanel(panel, panelTop, panelHeight);
 
       if (vc.overlapsCanvas(panelRect)) {
         totalOnCanvas++;
@@ -417,20 +424,20 @@ export class PanelContainer
         ctx.restore();
       }
 
+      renderedPanels.push({
+        panel,
+        rect: {
+          top: panelTop,
+          bottom: panelTop + panelHeight,
+          left: 0,
+          right: panelWidth,
+        },
+      });
+
       panelTop += panelHeight;
     }
 
-    const flowEventsRenderer = new FlowEventsRenderer();
-
-    ctx.save();
-    ctx.translate(TRACK_SHELL_WIDTH, 0);
-    const trackSize = {
-      width: vc.size.width - TRACK_SHELL_WIDTH,
-      height: vc.size.height,
-    };
-    canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
-    flowEventsRenderer.render(ctx, flowEventsRendererArgs, trackSize);
-    ctx.restore();
+    attrs.renderOverlay?.(ctx, vc.size, renderedPanels);
 
     return totalOnCanvas;
   }

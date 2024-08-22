@@ -17,11 +17,11 @@ import m from 'mithril';
 
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
-import {TimeSpan, time} from '../base/time';
+import {TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
 import {TrackCacheEntry} from '../common/track_cache';
 import {raf} from '../core/raf_scheduler';
-import {SliceRect, Track, TrackTags} from '../public';
+import {Track, TrackTags} from '../public';
 
 import {checkerboard} from './checkerboard';
 import {
@@ -31,7 +31,7 @@ import {
 } from './css_constants';
 import {globals} from './globals';
 import {generateTicks, TickType, getMaxMajorTicks} from './gridline_helper';
-import {Size} from '../base/geom';
+import {Size, VerticalBounds} from '../base/geom';
 import {Panel} from './panel_container';
 import {verticalScrollToTrack} from './scroll_helper';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
@@ -42,7 +42,7 @@ import {canvasClip} from '../common/canvas_utils';
 import {PxSpan, TimeScale} from './time_scale';
 import {getLegacySelection} from '../common/state';
 import {CloseTrackButton} from './close_track_button';
-import {exists} from '../base/utils';
+import {exists, Optional} from '../base/utils';
 import {Intent} from '../widgets/common';
 import {TrackRenderContext} from '../public/tracks';
 import {calculateResolution} from '../common/resolution';
@@ -499,7 +499,6 @@ interface TrackPanelAttrs {
 export class TrackPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = true;
-  private previousTrackContext?: TrackRenderContext;
 
   constructor(private readonly attrs: TrackPanelAttrs) {}
 
@@ -594,7 +593,6 @@ export class TrackPanel implements Panel {
         ctx,
         timescale,
       };
-      this.previousTrackContext = trackRenderCtx;
       if (!track.getError()) {
         track.render(trackRenderCtx);
       }
@@ -613,19 +611,11 @@ export class TrackPanel implements Panel {
     ctx.restore();
   }
 
-  getSliceRect(tStart: time, tDur: time, depth: number): SliceRect | undefined {
-    if (
-      this.attrs.trackFSM === undefined ||
-      this.previousTrackContext === undefined
-    ) {
+  getSliceVerticalBounds(depth: number): Optional<VerticalBounds> {
+    if (this.attrs.trackFSM === undefined) {
       return undefined;
     }
-    return this.attrs.trackFSM.track.getSliceRect?.(
-      this.previousTrackContext,
-      tStart,
-      tDur,
-      depth,
-    );
+    return this.attrs.trackFSM.track.getSliceVerticalBounds?.(depth);
   }
 }
 
