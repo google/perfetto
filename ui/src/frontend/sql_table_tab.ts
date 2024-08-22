@@ -31,13 +31,13 @@ import {SqlTableState} from './widgets/sql/table/state';
 import {SqlTable} from './widgets/sql/table/table';
 import {SqlTableDescription} from './widgets/sql/table/table_description';
 
-interface SqlTableTabConfig {
+export interface SqlTableTabConfig {
   table: SqlTableDescription;
   filters?: Filter[];
   imports?: string[];
 }
 
-export function addSqlTableTab(config: SqlTableTabConfig): void {
+export function addSqlTableTabImpl(config: SqlTableTabConfig): void {
   const queryResultsTab = new SqlTableTab({
     config,
     engine: getEngine('QueryResult'),

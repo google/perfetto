@@ -40,7 +40,7 @@ import {
 } from './sql/thread_state';
 import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {DurationWidget} from './widgets/duration';
-import {addSqlTableTab} from './sql_table_tab';
+import {addSqlTableTab} from './sql_table_tab_command';
 import {SliceRef} from './widgets/slice';
 import {BasicTable} from '../widgets/basic_table';
 import {SqlTables} from './widgets/sql/table/well_known_sql_tables';
