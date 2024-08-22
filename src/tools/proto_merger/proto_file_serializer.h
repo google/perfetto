@@ -31,13 +31,11 @@ namespace proto_merger {
 //       name: Baz
 //       fields: [
 //         Field {
-//           label: optional
 //           type: Foo
 //           name: foo
 //           number: 1
 //         }
 //         Field {
-//           label: optional
 //           type: Bar
 //           name: bar
 //           number: 2
@@ -50,8 +48,8 @@ namespace proto_merger {
 // will convert to:
 //
 // message Baz {
-//   optional Foo foo = 1;
-//   optonal Bar bar = 2;
+//   Foo foo = 1;
+//   Bar bar = 2;
 // }
 std::string ProtoFileToDotProto(const ProtoFile&);
 
