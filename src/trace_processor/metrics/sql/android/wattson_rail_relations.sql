@@ -76,47 +76,47 @@ RETURNS TableOrSubquery AS
     is_defined,
     period_id,
     period_dur,
-    cast_double!(IIF(is_defined, sum_mw, NULL)) as estimate_mw,
+    cast_double!(IIF(is_defined, sum_mw, NULL)) as estimated_mw,
     AndroidWattsonPolicyEstimate(
-      'estimate_mw', cast_double!(IIF(is_defined, sum_mw, NULL)),
+      'estimated_mw', cast_double!(IIF(is_defined, sum_mw, NULL)),
       'cpu0', IIF(
         cpu0_mw,
-        AndroidWattsonCpuEstimate('estimate_mw', cpu0_mw),
+        AndroidWattsonCpuEstimate('estimated_mw', cpu0_mw),
         NULL
       ),
       'cpu1', IIF(
         cpu1_mw,
-        AndroidWattsonCpuEstimate('estimate_mw', cpu1_mw),
+        AndroidWattsonCpuEstimate('estimated_mw', cpu1_mw),
         NULL
       ),
       'cpu2', IIF(
         cpu2_mw,
-        AndroidWattsonCpuEstimate('estimate_mw', cpu2_mw),
+        AndroidWattsonCpuEstimate('estimated_mw', cpu2_mw),
         NULL
       ),
       'cpu3', IIF(
         cpu3_mw,
-        AndroidWattsonCpuEstimate('estimate_mw', cpu3_mw),
+        AndroidWattsonCpuEstimate('estimated_mw', cpu3_mw),
         NULL
       ),
       'cpu4', IIF(
         cpu4_mw,
-        AndroidWattsonCpuEstimate('estimate_mw', cpu4_mw),
+        AndroidWattsonCpuEstimate('estimated_mw', cpu4_mw),
         NULL
       ),
       'cpu5', IIF(
         cpu5_mw,
-        AndroidWattsonCpuEstimate('estimate_mw', cpu5_mw),
+        AndroidWattsonCpuEstimate('estimated_mw', cpu5_mw),
         NULL
       ),
       'cpu6', IIF(
         cpu6_mw,
-        AndroidWattsonCpuEstimate('estimate_mw', cpu6_mw),
+        AndroidWattsonCpuEstimate('estimated_mw', cpu6_mw),
         NULL
       ),
       'cpu7', IIF(
         cpu7_mw,
-        AndroidWattsonCpuEstimate('estimate_mw', cpu7_mw),
+        AndroidWattsonCpuEstimate('estimated_mw', cpu7_mw),
         NULL
       )
     ) AS proto
@@ -304,21 +304,21 @@ WITH components AS (
     period_id,
     period_dur,
     dsu_scu.dsu_scu_mw,
-    IIF(p0.is_defined, p0.estimate_mw, NULL) as p0_mw,
+    IIF(p0.is_defined, p0.estimated_mw, NULL) as p0_mw,
     IIF(p0.is_defined, p0.proto, NULL) as p0_proto,
-    IIF(p1.is_defined, p1.estimate_mw, NULL) as p1_mw,
+    IIF(p1.is_defined, p1.estimated_mw, NULL) as p1_mw,
     IIF(p1.is_defined, p1.proto, NULL) as p1_proto,
-    IIF(p2.is_defined, p2.estimate_mw, NULL) as p2_mw,
+    IIF(p2.is_defined, p2.estimated_mw, NULL) as p2_mw,
     IIF(p2.is_defined, p2.proto, NULL) as p2_proto,
-    IIF(p3.is_defined, p3.estimate_mw, NULL) as p3_mw,
+    IIF(p3.is_defined, p3.estimated_mw, NULL) as p3_mw,
     IIF(p3.is_defined, p3.proto, NULL) as p3_proto,
-    IIF(p4.is_defined, p4.estimate_mw, NULL) as p4_mw,
+    IIF(p4.is_defined, p4.estimated_mw, NULL) as p4_mw,
     IIF(p4.is_defined, p4.proto, NULL) as p4_proto,
-    IIF(p5.is_defined, p5.estimate_mw, NULL) as p5_mw,
+    IIF(p5.is_defined, p5.estimated_mw, NULL) as p5_mw,
     IIF(p5.is_defined, p5.proto, NULL) as p5_proto,
-    IIF(p6.is_defined, p6.estimate_mw, NULL) as p6_mw,
+    IIF(p6.is_defined, p6.estimated_mw, NULL) as p6_mw,
     IIF(p6.is_defined, p6.proto, NULL) as p6_proto,
-    IIF(p7.is_defined, p7.estimate_mw, NULL) as p7_mw,
+    IIF(p7.is_defined, p7.estimated_mw, NULL) as p7_mw,
     IIF(p7.is_defined, p7.proto, NULL) as p7_proto
   FROM _estimate_policy0_proto AS p0
   JOIN _estimate_policy1_proto AS p1 USING (period_id, period_dur)
@@ -344,7 +344,7 @@ SELECT
   period_id,
   period_dur,
   AndroidWattsonCpuSubsystemEstimate(
-    'estimate_mw', sum_mw,
+    'estimated_mw', sum_mw,
     'policy0', p0_proto,
     'policy1', p1_proto,
     'policy2', p2_proto,
@@ -353,7 +353,7 @@ SELECT
     'policy5', p5_proto,
     'policy6', p6_proto,
     'policy7', p7_proto,
-    'dsu_scu', AndroidWattsonDsuScuEstimate('estimate_mw', dsu_scu_mw)
+    'dsu_scu', AndroidWattsonDsuScuEstimate('estimated_mw', dsu_scu_mw)
   ) as proto
 FROM components_w_sum;
 

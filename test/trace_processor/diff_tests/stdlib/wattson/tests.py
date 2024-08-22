@@ -362,7 +362,7 @@ class WattsonStdlib(TestSuite):
         query=("""
             INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
             SELECT
-              SUM(estimate_mw * dur) / 1000000000 as idle_transition_cost_mws,
+              SUM(estimated_mw * dur) / 1000000000 as idle_transition_cost_mws,
               utid,
               upid
             FROM _idle_transition_cost
