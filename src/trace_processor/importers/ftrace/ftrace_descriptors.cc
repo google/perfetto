@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 538> descriptors{{
+std::array<FtraceMessageDescriptor, 540> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5948,6 +5948,23 @@ std::array<FtraceMessageDescriptor, 538> descriptors{{
             {"submitted_to_rb", ProtoSchemaType::kUint64},
             {"retired_on_gmu", ProtoSchemaType::kUint64},
             {"active", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "pixel_mm_kswapd_wake",
+        1,
+        {
+            {},
+            {"whatever", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "pixel_mm_kswapd_done",
+        2,
+        {
+            {},
+            {"delta_nr_scanned", ProtoSchemaType::kUint64},
+            {"delta_nr_reclaimed", ProtoSchemaType::kUint64},
         },
     },
 }};

@@ -9681,6 +9681,18 @@ message SchedSwitchWithCtrsFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/perf_trace_counters.proto
 
+// Begin of protos/perfetto/trace/ftrace/pixel_mm.proto
+
+message PixelMmKswapdWakeFtraceEvent {
+  optional int32 whatever = 1;
+}
+message PixelMmKswapdDoneFtraceEvent {
+  optional uint64 delta_nr_scanned = 1;
+  optional uint64 delta_nr_reclaimed = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/pixel_mm.proto
+
 // Begin of protos/perfetto/trace/ftrace/power.proto
 
 message CpuFrequencyFtraceEvent {
@@ -11092,6 +11104,8 @@ message FtraceEvent {
     KgslAdrenoCmdbatchSubmittedFtraceEvent kgsl_adreno_cmdbatch_submitted = 535;
     KgslAdrenoCmdbatchSyncFtraceEvent kgsl_adreno_cmdbatch_sync = 536;
     KgslAdrenoCmdbatchRetiredFtraceEvent kgsl_adreno_cmdbatch_retired = 537;
+    PixelMmKswapdWakeFtraceEvent pixel_mm_kswapd_wake = 538;
+    PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
   }
 }
 
