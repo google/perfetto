@@ -27,6 +27,7 @@ import {
   SimpleCounterTrack,
   SimpleCounterTrackConfig,
 } from '../../frontend/simple_counter_track';
+import {globals} from '../../frontend/globals';
 
 interface ContainedTrace {
   uuid: string;
@@ -1466,6 +1467,39 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
       );
 
     const e = ctx.engine;
+
+    if (globals.isInternalUser) {
+      await e.query(
+        `INCLUDE PERFETTO MODULE
+            google3.wireless.android.telemetry.trace_extractor.modules.modem_tea_metrics`,
+      );
+      const counters = await e.query(
+        `select distinct name from pixel_modem_counters`,
+      );
+      const countersIt = counters.iter({name: 'str'});
+      for (; countersIt.valid(); countersIt.next()) {
+        this.addCounterTrack(
+          ctx,
+          countersIt.name,
+          `select ts, value from pixel_modem_counters where name = "${countersIt.name}"`,
+          groupName,
+        );
+      }
+      const slices = await e.query(
+        `select distinct track_name from pixel_modem_slices`,
+      );
+      const slicesIt = slices.iter({track_name: 'str'});
+      for (; slicesIt.valid(); slicesIt.next()) {
+        this.addSliceTrack(
+          ctx,
+          it.name,
+          `select ts dur, slice_name as name from pixel_modem_counters
+              where track_name = "${slicesIt.track_name}"`,
+          groupName,
+        );
+      }
+    }
+
     await e.query(MODEM_RIL_STRENGTH);
     await e.query(MODEM_RIL_CHANNELS_PREAMBLE);
 
