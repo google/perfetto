@@ -42,7 +42,8 @@ class InProcessSharedMemory : public SharedMemory {
   }
 
   // SharedMemory implementation.
-  void* start() const override;
+  using SharedMemory::start;  // Equal priority to const and non-const versions
+  const void* start() const override;
   size_t size() const override;
 
   class Factory : public SharedMemory::Factory {
