@@ -430,9 +430,6 @@ export class TraceController extends Controller<States> {
         ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
       });
     }
-    for (const p of globals.extraSqlPackages) {
-      await engine.registerSqlModules(p);
-    }
     this.engine = engine;
 
     if (isMetatracingEnabled()) {
@@ -490,6 +487,9 @@ export class TraceController extends Controller<States> {
     } else {
       assertTrue(this.engine instanceof HttpRpcEngine);
       await this.engine.restoreInitialTables();
+    }
+    for (const p of globals.extraSqlPackages) {
+      await this.engine.registerSqlModules(p);
     }
 
     // traceUuid will be '' if the trace is not cacheable (URL or RPC).
