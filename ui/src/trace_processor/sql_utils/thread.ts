@@ -64,7 +64,10 @@ function getDisplayName(
   return id === undefined ? name : `${name} [${id}]`;
 }
 
-export function getThreadName(info?: ThreadInfo): string | undefined {
+export function getThreadName(info?: {
+  name?: string;
+  tid?: number;
+}): string | undefined {
   return getDisplayName(info?.name, info?.tid);
 }
 

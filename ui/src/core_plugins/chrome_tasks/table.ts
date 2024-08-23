@@ -25,15 +25,7 @@ export const chromeTasksTable: SqlTableDescription = {
   imports: ['chrome.tasks'],
   name: 'chrome_tasks',
   columns: [
-    new SliceIdColumn(
-      {
-        sliceId: 'id',
-        ts: 'ts',
-        dur: 'dur',
-        trackId: 'track_id',
-      },
-      {title: 'ID'},
-    ),
+    new SliceIdColumn('id', {title: 'ID'}),
     new TimestampColumn('ts', {title: 'Timestamp'}),
     new DurationColumn('dur', {title: 'Duration'}),
     new DurationColumn('thread_dur', {title: 'Thread duration'}),
