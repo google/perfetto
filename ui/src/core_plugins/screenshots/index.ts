@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {uuidv4} from '../../base/uuid';
-import {AddTrackArgs} from '../../common/actions';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
   BottomTabToSCSAdapter,
@@ -25,10 +24,6 @@ import {
 
 import {ScreenshotTab} from './screenshot_panel';
 import {ScreenshotsTrack} from './screenshots_track';
-
-export type DecideTracksResult = {
-  tracksToAdd: AddTrackArgs[];
-};
 
 class ScreenshotsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
