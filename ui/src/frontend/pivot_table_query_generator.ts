@@ -86,11 +86,19 @@ function aggregationAlias(aggregationIndex: number): string {
   return `agg_${aggregationIndex}`;
 }
 
-export function areaFilters(area: Area): string[] {
+export function areaFilters(
+  area: Area,
+): {op: (cols: string[]) => string; columns: string[]}[] {
   return [
-    `ts + dur > ${area.start}`,
-    `ts < ${area.end}`,
-    `track_id in (${getSelectedTrackKeys(area).join(', ')})`,
+    {
+      op: (cols) => `${cols[0]} + ${cols[1]} > ${area.start}`,
+      columns: ['ts', 'dur'],
+    },
+    {op: (cols) => `${cols[0]} < ${area.end}`, columns: ['ts']},
+    {
+      op: (cols) => `${cols[0]} in (${getSelectedTrackKeys(area).join(', ')})`,
+      columns: ['track_id'],
+    },
   ];
 }
 
@@ -156,7 +164,9 @@ export function generateQueryFromState(
   }
 
   const whereClause = state.constrainToArea
-    ? `where ${areaFilters(state.selectionArea).join(' and\n')}`
+    ? `where ${areaFilters(state.selectionArea)
+        .map((f) => f.op(f.columns))
+        .join(' and\n')}`
     : '';
   const text = `
     INCLUDE PERFETTO MODULE slices.slices;

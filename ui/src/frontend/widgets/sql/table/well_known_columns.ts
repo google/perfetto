@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {SqlValue, STR} from '../../../../trace_processor/query_result';
 import {
   TableColumn,
   TableColumnSet,
@@ -22,19 +21,36 @@ import {
   SqlColumn,
   sqlColumnId,
   TableColumnParams,
+  SourceTable,
 } from './column';
 import {
   getStandardContextMenuItems,
+  getStandardFilters,
   renderStandardCell,
 } from './render_cell_utils';
 import {Timestamp} from '../../timestamp';
 import {Duration, Time} from '../../../../base/time';
 import {DurationWidget} from '../../duration';
-import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 import {renderError} from '../../../../widgets/error';
 import {SliceRef} from '../../slice';
-import {asSliceSqlId} from '../../../../trace_processor/sql_utils/core_types';
+import {
+  asSchedSqlId,
+  asSliceSqlId,
+  asThreadStateSqlId,
+  asUpid,
+  asUtid,
+} from '../../../../trace_processor/sql_utils/core_types';
 import {sqliteString} from '../../../../base/string_utils';
+import {ThreadStateRef} from '../../thread_state';
+import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
+import {getThreadName} from '../../../../trace_processor/sql_utils/thread';
+import {Anchor} from '../../../../widgets/anchor';
+import {threadRefMenuItems} from '../../thread';
+import {Icons} from '../../../../base/semantic_icons';
+import {SqlValue, STR} from '../../../../trace_processor/query_result';
+import {getProcessName} from '../../../../trace_processor/sql_utils/process';
+import {processRefMenuItems} from '../../process';
+import {SchedRef} from '../../sched';
 
 type ColumnParams = TableColumnParams & {
   title?: string;
@@ -124,21 +140,44 @@ export class DurationColumn extends TableColumn {
   }
 }
 
+function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
+  return renderError(
+    `Wrong type for ${type} column ${sqlColumnId(name)}: bigint expected, ${typeof value} found`,
+  );
+}
+
 export class SliceIdColumn extends TableColumn {
+  private columns: {ts: SqlColumn; dur: SqlColumn; trackId: SqlColumn};
+
   constructor(
-    private columns: {
-      sliceId: SqlColumn;
-      trackId: SqlColumn;
-      ts: SqlColumn;
-      dur: SqlColumn;
-    },
+    private id: SqlColumn,
     private params?: ColumnParams,
   ) {
     super(params);
+
+    const sliceTable: SourceTable = {
+      table: 'slice',
+      joinOn: {id: this.id},
+    };
+
+    this.columns = {
+      ts: {
+        column: 'ts',
+        source: sliceTable,
+      },
+      dur: {
+        column: 'dur',
+        source: sliceTable,
+      },
+      trackId: {
+        column: 'track_id',
+        source: sliceTable,
+      },
+    };
   }
 
   primaryColumn(): SqlColumn {
-    return this.columns.sliceId;
+    return this.id;
   }
 
   getTitle() {
@@ -146,16 +185,12 @@ export class SliceIdColumn extends TableColumn {
   }
 
   dependentColumns() {
-    return {
-      trackId: this.columns.trackId,
-      ts: this.columns.ts,
-      dur: this.columns.dur,
-    };
+    return this.columns;
   }
 
   renderCell(
     value: SqlValue,
-    _: TableManager,
+    manager: TableManager,
     data: {[key: string]: SqlValue},
   ): m.Children {
     const id = value;
@@ -163,30 +198,18 @@ export class SliceIdColumn extends TableColumn {
     const dur = data['dur'] === null ? -1n : data['dur'];
     const trackId = data['trackId'];
 
-    const columnNotFoundError = (type: string, name: string) =>
-      renderError(`${type} column ${name} not found`);
-    const wrongTypeError = (type: string, name: SqlColumn, value: SqlValue) =>
-      renderError(
-        `Wrong type for ${type} column ${sqlColumnId(name)}: bigint expected, ${typeof value} found`,
-      );
-
-    if (typeof id !== 'bigint') {
-      return sqlValueToReadableString(id);
+    if (id === null) {
+      return renderStandardCell(id, this.id, manager);
     }
-    if (ts === undefined) {
-      return columnNotFoundError('Timestamp', sqlColumnId(this.columns.ts));
+    if (ts === null || trackId === null) {
+      return renderError(`Slice with id ${id} not found`);
     }
+    if (typeof id !== 'bigint') return wrongTypeError('id', this.id, id);
     if (typeof ts !== 'bigint') {
       return wrongTypeError('timestamp', this.columns.ts, ts);
     }
-    if (dur === undefined) {
-      return columnNotFoundError('Duration', sqlColumnId(this.columns.dur));
-    }
     if (typeof dur !== 'bigint') {
       return wrongTypeError('duration', this.columns.dur, dur);
-    }
-    if (trackId === undefined) {
-      return columnNotFoundError('Track id', sqlColumnId(this.columns.trackId));
     }
     if (typeof trackId !== 'bigint') {
       return wrongTypeError('track id', this.columns.trackId, trackId);
@@ -200,6 +223,395 @@ export class SliceIdColumn extends TableColumn {
       sqlTrackId: Number(trackId),
       switchToCurrentSelectionTab: false,
     });
+  }
+}
+
+export class SchedIdColumn extends TableColumn {
+  private columns: {ts: SqlColumn; dur: SqlColumn; cpu: SqlColumn};
+
+  constructor(
+    private id: SqlColumn,
+    private params?: ColumnParams,
+  ) {
+    super(params);
+
+    const schedTable: SourceTable = {
+      table: 'sched',
+      joinOn: {id: this.id},
+    };
+
+    this.columns = {
+      ts: {
+        column: 'ts',
+        source: schedTable,
+      },
+      dur: {
+        column: 'dur',
+        source: schedTable,
+      },
+      cpu: {
+        column: 'cpu',
+        source: schedTable,
+      },
+    };
+  }
+
+  primaryColumn(): SqlColumn {
+    return this.id;
+  }
+
+  getTitle() {
+    return this.params?.title;
+  }
+
+  dependentColumns() {
+    return {
+      ts: this.columns.ts,
+      dur: this.columns.dur,
+      cpu: this.columns.cpu,
+    };
+  }
+
+  renderCell(
+    value: SqlValue,
+    manager: TableManager,
+    data: {[key: string]: SqlValue},
+  ): m.Children {
+    const id = value;
+    const ts = data['ts'];
+    const dur = data['dur'] === null ? -1n : data['dur'];
+    const cpu = data['cpu'];
+
+    if (id === null) {
+      return renderStandardCell(id, this.id, manager);
+    }
+    if (ts === null || cpu === null) {
+      return renderError(`Sched with id ${id} not found`);
+    }
+    if (typeof id !== 'bigint') return wrongTypeError('id', this.id, id);
+    if (typeof ts !== 'bigint') {
+      return wrongTypeError('timestamp', this.columns.ts, ts);
+    }
+    if (typeof dur !== 'bigint') {
+      return wrongTypeError('duration', this.columns.dur, dur);
+    }
+    if (typeof cpu !== 'bigint') {
+      return wrongTypeError('track id', this.columns.cpu, cpu);
+    }
+
+    return m(SchedRef, {
+      id: asSchedSqlId(Number(id)),
+      ts: Time.fromRaw(ts),
+      dur: dur,
+      cpu: Number(cpu),
+      name: `${id}`,
+      switchToCurrentSelectionTab: false,
+    });
+  }
+}
+
+export class ThreadStateIdColumn extends TableColumn {
+  private columns: {ts: SqlColumn; dur: SqlColumn; utid: SqlColumn};
+
+  constructor(
+    private id: SqlColumn,
+    private params?: ColumnParams,
+  ) {
+    super(params);
+
+    const threadStateTable: SourceTable = {
+      table: 'thread_state',
+      joinOn: {id: this.id},
+    };
+
+    this.columns = {
+      ts: {
+        column: 'ts',
+        source: threadStateTable,
+      },
+      dur: {
+        column: 'dur',
+        source: threadStateTable,
+      },
+      utid: {
+        column: 'utid',
+        source: threadStateTable,
+      },
+    };
+  }
+
+  primaryColumn(): SqlColumn {
+    return this.id;
+  }
+
+  getTitle() {
+    return this.params?.title;
+  }
+
+  dependentColumns() {
+    return {
+      ts: this.columns.ts,
+      dur: this.columns.dur,
+      utid: this.columns.utid,
+    };
+  }
+
+  renderCell(
+    value: SqlValue,
+    manager: TableManager,
+    data: {[key: string]: SqlValue},
+  ): m.Children {
+    const id = value;
+    const ts = data['ts'];
+    const dur = data['dur'] === null ? -1n : data['dur'];
+    const utid = data['utid'];
+
+    if (id === null) {
+      return renderStandardCell(id, this.id, manager);
+    }
+    if (ts === null || utid === null) {
+      return renderError(`Thread state with id ${id} not found`);
+    }
+    if (typeof id !== 'bigint') return wrongTypeError('id', this.id, id);
+    if (typeof ts !== 'bigint') {
+      return wrongTypeError('timestamp', this.columns.ts, ts);
+    }
+    if (typeof dur !== 'bigint') {
+      return wrongTypeError('duration', this.columns.dur, dur);
+    }
+    if (typeof utid !== 'bigint') {
+      return wrongTypeError('track id', this.columns.utid, utid);
+    }
+
+    return m(ThreadStateRef, {
+      id: asThreadStateSqlId(Number(id)),
+      ts: Time.fromRaw(ts),
+      dur: dur,
+      utid: asUtid(Number(utid)),
+      name: `${id}`,
+      switchToCurrentSelectionTab: false,
+    });
+  }
+}
+
+export class ThreadColumn extends TableColumn {
+  private columns: {name: SqlColumn; tid: SqlColumn};
+
+  constructor(
+    private utid: SqlColumn,
+    private params?: ColumnParams,
+  ) {
+    super(params);
+
+    const threadTable: SourceTable = {
+      table: 'thread',
+      joinOn: {id: this.utid},
+    };
+
+    this.columns = {
+      name: {
+        column: 'name',
+        source: threadTable,
+      },
+      tid: {
+        column: 'tid',
+        source: threadTable,
+      },
+    };
+  }
+
+  primaryColumn(): SqlColumn {
+    return this.utid;
+  }
+
+  getTitle() {
+    return this.params?.title;
+  }
+
+  dependentColumns() {
+    return {
+      tid: this.columns.tid,
+      name: this.columns.name,
+    };
+  }
+
+  renderCell(
+    value: SqlValue,
+    manager: TableManager,
+    data: {[key: string]: SqlValue},
+  ): m.Children {
+    const utid = value;
+    const rawTid = data['tid'];
+    const rawName = data['name'];
+
+    if (utid === null) {
+      return renderStandardCell(utid, this.utid, manager);
+    }
+    if (typeof utid !== 'bigint') {
+      return wrongTypeError('utid', this.utid, utid);
+    }
+    if (rawTid !== null && typeof rawTid !== 'bigint') {
+      return wrongTypeError('tid', this.columns.tid, rawTid);
+    }
+    if (rawName !== null && typeof rawName !== 'string') {
+      return wrongTypeError('name', this.columns.name, rawName);
+    }
+
+    const name: string | undefined = rawName ?? undefined;
+    const tid: number | undefined =
+      rawTid !== null ? Number(rawTid) : undefined;
+
+    return m(
+      PopupMenu2,
+      {
+        trigger: m(
+          Anchor,
+          getThreadName({
+            name: name ?? undefined,
+            tid: tid !== null ? Number(tid) : undefined,
+          }),
+        ),
+      },
+      threadRefMenuItems({utid: asUtid(Number(utid)), name, tid}),
+      m(MenuDivider),
+      m(
+        MenuItem,
+        {
+          label: 'Add filter',
+          icon: Icons.Filter,
+        },
+        m(
+          MenuItem,
+          {
+            label: 'utid',
+          },
+          getStandardFilters(utid, this.utid, manager),
+        ),
+        m(
+          MenuItem,
+          {
+            label: 'thread name',
+          },
+          getStandardFilters(rawName, this.columns.name, manager),
+        ),
+        m(
+          MenuItem,
+          {
+            label: 'tid',
+          },
+          getStandardFilters(rawTid, this.columns.tid, manager),
+        ),
+      ),
+    );
+  }
+}
+
+export class ProcessColumn extends TableColumn {
+  private columns: {name: SqlColumn; pid: SqlColumn};
+
+  constructor(
+    private upid: SqlColumn,
+    private params?: ColumnParams,
+  ) {
+    super(params);
+
+    const processTable: SourceTable = {
+      table: 'process',
+      joinOn: {id: this.upid},
+    };
+
+    this.columns = {
+      name: {
+        column: 'name',
+        source: processTable,
+      },
+      pid: {
+        column: 'pid',
+        source: processTable,
+      },
+    };
+  }
+
+  primaryColumn(): SqlColumn {
+    return this.upid;
+  }
+
+  getTitle() {
+    return this.params?.title;
+  }
+
+  dependentColumns() {
+    return this.columns;
+  }
+
+  renderCell(
+    value: SqlValue,
+    manager: TableManager,
+    data: {[key: string]: SqlValue},
+  ): m.Children {
+    const upid = value;
+    const rawPid = data['pid'];
+    const rawName = data['name'];
+
+    if (upid === null) {
+      return renderStandardCell(upid, this.upid, manager);
+    }
+    if (typeof upid !== 'bigint') {
+      return wrongTypeError('upid', this.upid, upid);
+    }
+    if (rawPid !== null && typeof rawPid !== 'bigint') {
+      return wrongTypeError('pid', this.columns.pid, rawPid);
+    }
+    if (rawName !== null && typeof rawName !== 'string') {
+      return wrongTypeError('name', this.columns.name, rawName);
+    }
+
+    const name: string | undefined = rawName ?? undefined;
+    const pid: number | undefined =
+      rawPid !== null ? Number(rawPid) : undefined;
+
+    return m(
+      PopupMenu2,
+      {
+        trigger: m(
+          Anchor,
+          getProcessName({
+            name: name ?? undefined,
+            pid: pid !== null ? Number(pid) : undefined,
+          }),
+        ),
+      },
+      processRefMenuItems({upid: asUpid(Number(upid)), name, pid}),
+      m(MenuDivider),
+      m(
+        MenuItem,
+        {
+          label: 'Add filter',
+          icon: Icons.Filter,
+        },
+        m(
+          MenuItem,
+          {
+            label: 'upid',
+          },
+          getStandardFilters(upid, this.upid, manager),
+        ),
+        m(
+          MenuItem,
+          {
+            label: 'process name',
+          },
+          getStandardFilters(rawName, this.columns.name, manager),
+        ),
+        m(
+          MenuItem,
+          {
+            label: 'tid',
+          },
+          getStandardFilters(rawPid, this.columns.pid, manager),
+        ),
+      ),
+    );
   }
 }
 
@@ -231,24 +643,29 @@ export class ArgSetColumnSet extends TableColumnSet {
     for (; it.valid(); it.next()) {
       result.push({
         key: it.key,
-        column: new StandardColumn(
-          {
-            column: 'display_value',
-            source: {
-              table: 'args',
-              joinOn: {
-                arg_set_id: this.column,
-                key: sqliteString(it.key),
-              },
-            },
-          },
-          {
-            title: `${sqlColumnId(this.column)}[${it.key}]`,
-            alias: it.key.replace(/[^a-zA-Z0-9_]/g, '__'),
-          },
-        ),
+        column: argTableColumn(this.column, it.key),
       });
     }
     return result;
   }
+}
+
+export function argSqlColumn(argSetId: SqlColumn, key: string): SqlColumn {
+  return {
+    column: 'display_value',
+    source: {
+      table: 'args',
+      joinOn: {
+        arg_set_id: argSetId,
+        key: sqliteString(key),
+      },
+    },
+  };
+}
+
+export function argTableColumn(argSetId: SqlColumn, key: string) {
+  return new StandardColumn(argSqlColumn(argSetId, key), {
+    title: `${sqlColumnId(argSetId)}[${key}]`,
+    alias: `arg_${key.replace(/[^a-zA-Z0-9_]/g, '__')}`,
+  });
 }

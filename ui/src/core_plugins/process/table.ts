@@ -15,6 +15,7 @@
 import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
 import {
   ArgSetColumnSet,
+  ProcessColumn,
   StandardColumn,
   TimestampColumn,
 } from '../../frontend/widgets/sql/table/well_known_columns';
@@ -28,7 +29,7 @@ export function getProcessTable(): SqlTableDescription {
       new StandardColumn('name'),
       new TimestampColumn('start_ts'),
       new TimestampColumn('end_ts'),
-      new StandardColumn('parent_upid'),
+      new ProcessColumn('parent_upid'),
       new StandardColumn('uid'),
       new StandardColumn('android_appid'),
       new StandardColumn('cmdline', {startsHidden: true}),

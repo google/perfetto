@@ -75,6 +75,9 @@ function getDisplayName(
   return id === undefined ? name : `${name} [${id}]`;
 }
 
-export function getProcessName(info?: ProcessInfo): string | undefined {
+export function getProcessName(info?: {
+  name?: string;
+  pid?: number;
+}): string | undefined {
   return getDisplayName(info?.name, info?.pid);
 }
