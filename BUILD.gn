@@ -15,21 +15,10 @@
 import("gn/perfetto.gni")
 import("gn/test.gni")
 
-# +----------------------------------------------------------------------------+
-# | "all" targets definition: defines targets reachable by the various configs |
-# +----------------------------------------------------------------------------+
-# There is a subtletly here related with chromium and other GN embedders.
-# When adding a dependency some_dir/:target_name, some_dir/BUILD.gn is
-# "discovered". As a side effect any *other* target defined in some_dir/BUILD.gn
-# (and its transitive dependencies) becomes implicitly part of the "default"
-# target, the one invoked running ninja -C out/xxx without further args.
-# Because of this, care must be taken to wrap dependencies to targets in other
-# build files with if (enable_xxx) flags. Accidentally including a harmless
-# target that happens to be defined in the same BUILD.gn that contains targets
-# incompatible with the chromium build will cause build/roll failures.
-
+# Define all targets for various configurations.
 all_targets = [ "protos/perfetto/trace:perfetto_trace_protos" ]
 
+# Conditionally add targets based on feature flags.
 if (enable_perfetto_platform_services) {
   all_targets += [
     "src/perfetto_cmd:perfetto",
@@ -46,8 +35,10 @@ if (enable_perfetto_platform_services) {
 
 if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
   if (enable_perfetto_grpc) {
-    all_targets += [ "src/bigtrace/orchestrator:orchestrator_main" ]
-    all_targets += [ "src/bigtrace/worker:worker_main" ]
+    all_targets += [
+      "src/bigtrace/orchestrator:orchestrator_main",
+      "src/bigtrace/worker:worker_main",
+    ]
   }
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
 }
@@ -59,13 +50,7 @@ if (enable_perfetto_trace_processor) {
 if (enable_perfetto_traceconv) {
   all_targets += [ "src/traceconv" ]
   if (is_cross_compiling) {
-    # In many cross-compilation scenarios (typically Android) developers expect
-    # the host version of traceconv to be available somewhere in out/, so
-    # they can convert Android traces on their dev machine. Also
-    # tools/gen_android_bp explicitly depends on the host version for the
-    # cc_binary_host("traceconv") target in Android.bp.
-    # Note that when cross-compiling the host executable will be available in
-    # out/xxx/gcc_like_host/traceconv NOT just out/xxx/traceconv.
+    # For cross-compilation scenarios, include the host version of traceconv.
     all_targets += [ "src/traceconv($host_toolchain)" ]
   }
 }
@@ -95,7 +80,7 @@ if (perfetto_build_with_android) {
 if (enable_perfetto_tools) {
   all_targets += [ "src/tools" ]
 
-  # Windows does not have an IPC implementation.
+  # Exclude websocket_bridge on Windows.
   if (!is_win) {
     all_targets += [ "src/websocket_bridge" ]
   }
@@ -105,8 +90,9 @@ if (enable_perfetto_unittests) {
   import("gn/perfetto_unittests.gni")
   test("perfetto_unittests") {
     if (is_fuchsia) {
-      additional_manifest_fragments =
-          [ "//build/config/fuchsia/test/network.shard.test-cml" ]  # nogncheck
+      additional_manifest_fragments = [
+        "//build/config/fuchsia/test/network.shard.test-cml"  # nogncheck
+      ]
     }
     deps = perfetto_unittests_targets
   }
@@ -161,24 +147,14 @@ if (enable_perfetto_fuzzers) {
   all_targets += [ ":fuzzers" ]
 }
 
-# Less interesting stuff that makes sense only in the standalone build, mainly
-# compile-time checks for the CI.
+# Include less common targets that are relevant in standalone builds.
 if (perfetto_build_standalone) {
   all_targets += [
     "test/configs",
-
-    # Used to evaluate the Python folder for Bazel script generation.
     "python:trace_processor_py",
-
-    # For checking all generated xxx.gen.{cc,h} files without waiting for
-    # embedders to try to use them and fail.
     "protos/perfetto/config:cpp",
     "protos/perfetto/common:cpp",
-
-    # Used in the when updating the ftrace protos
     "protos/perfetto/trace/ftrace:descriptor",
-
-    # Checks that the "fake" backend implementations build.
     "src/tracing:client_api_no_backends_compile_test",
   ]
   if (is_linux || is_android || is_mac) {
@@ -191,34 +167,27 @@ if (enable_perfetto_merged_protos_check) {
   all_targets += [ "protos/perfetto/trace:merged_trace_lite" ]
 }
 
-# The CTS code is built (but not ran) also in standalone builds. This is to
-# catch refactoring breakages earlier without having to wait for treehugger.
+# Include CTS code for Android builds.
 if (is_android && (perfetto_build_standalone || perfetto_build_with_android)) {
-  all_targets += [ "test/cts:perfetto_cts_deps" ]
-  all_targets += [ "test/vts:perfetto_vts_deps" ]
+  all_targets += [
+    "test/cts:perfetto_cts_deps",
+    "test/vts:perfetto_vts_deps"
+  ]
 }
 
+# Define the "all" group, including test targets.
 group("all") {
-  testonly = true  # allow to build also test targets
+  testonly = true  # Allow building test targets
   deps = all_targets
 }
 
-# This target is used when running ninja without any argument (by default would
-# build all reachable targets). This is mainly used to prevent the UI being
-# built when running ninja -C out/xxx.
-# This has effect only in standalone builds, no effect on chromium builds.
-# Chromium's "all" target depends on our "all" target above. However chromium's
-# "default" target depends on any target that we cause to be discovered by
-# depending on other GN files.
+# Define the "default" group, used for general builds.
 group("default") {
   testonly = true
   deps = [ ":all" ]
 }
 
-# +----------------------------------------------------------------------------+
-# | Other definitions: root targets that don't belong to any other subdirectory|
-# +----------------------------------------------------------------------------+
-
+# Define additional groups for UI and site.
 if (enable_perfetto_ui) {
   group("ui") {
     deps = [ "ui" ]
@@ -231,23 +200,9 @@ if (enable_perfetto_site) {
   }
 }
 
-# In Android builds, we build the code of traced and traced_probes in one shared
-# library that exposes one xxx_main() for each. The executables themselves are
-# tiny shells that just invoke their own entry point into the library.
-# This is done merely for saving binary size, because the three binaries happen
-# to share a lot of code.
-# When setting monolithic_binaries=true (only supported in standalone builds)
-# it builds more conventional executables, where each binary has the full
-# implementation and no shared library dependency. This is to make dev cycles
-# on Android faster, avoiding all the LD_LIBRARY_PATH boilerplate.
-# libperfetto.so is also used for stuff that is exposed to the rest of the
-# Android tree.
+# Configure libperfetto based on the build type and monolithic binaries flag.
 if (enable_perfetto_platform_services) {
-  if (monolithic_binaries) {
-    libperfetto_target_type = "static_library"
-  } else {
-    libperfetto_target_type = "shared_library"
-  }
+  libperfetto_target_type = monolithic_binaries ? "static_library" : "shared_library"
 
   target(libperfetto_target_type, "libperfetto") {
     if (libperfetto_target_type == "static_library") {
@@ -263,11 +218,8 @@ if (enable_perfetto_platform_services) {
   }
 }
 
+# Define a client library target if not building with Chromium.
 if (!build_with_chromium) {
-  # Client library target exposed to the Android tree.
-  # Still in experimental stage and not API stable yet.
-  # See "libperfetto_client_example" (in Android.bp.extras) for an example
-  # on how to use the Perfetto Client API from the android tree.
   static_library("libperfetto_client_experimental") {
     complete_static_lib = true
     public_deps = [
@@ -280,10 +232,7 @@ if (!build_with_chromium) {
   }
 }
 
-# TODO(primiano): there seem to be two "libperfetto" and one
-# "libperfetto_client_experimental" targets defined within this BUILD.gn file.
-# Rationalize them with eseckler@. For now seems this one is only used from
-# chromium and the other one only from the Android tree.
+# Define libperfetto for Chromium builds.
 if (build_with_chromium) {
   component("libperfetto") {
     public_configs = [ "gn:public_config" ]
@@ -327,18 +276,13 @@ if (build_with_chromium) {
     }
   }
 
-  # TODO(altimin): this is a temp workaround around very strange link failures
-  # on win-dbg-ng buildbot.
+  # Define libtrace_processor with conditional source set or component.
   if (!is_win) {
     libtrace_processor_target_type = "source_set"
   } else {
     libtrace_processor_target_type = "component"
   }
 
-  # In Chromium, we want to ensure that we don't link dynamically against sqlite
-  # (as Chromium also uses a more restricted version of sqlite which is actually
-  # shipped to the users).
-  # source_set helps us to achieve that.
   target(libtrace_processor_target_type, "libtrace_processor") {
     public_configs = [ "gn:public_config" ]
     deps = [ "src/trace_processor:lib" ]
@@ -346,6 +290,8 @@ if (build_with_chromium) {
     configs += [ "//build/config/compiler:no_chromium_code" ]  # nogncheck
     public_deps = [ "include/perfetto/trace_processor" ]
   }
+
+  # Define test support for Chromium builds.
   component("perfetto_test_support") {
     testonly = true
     public_configs = [ "gn:public_config" ]
@@ -355,3 +301,4 @@ if (build_with_chromium) {
     deps = [ "src/tracing/test:test_support" ]
   }
 }
+
