@@ -14,9 +14,10 @@
 
 import m from 'mithril';
 
-import {CpuProfileDetailsPanel} from '../../frontend/cpu_profile_panel';
 import {
   CPU_PROFILE_TRACK_KIND,
+  Engine,
+  LegacyDetailsPanel,
   PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
@@ -25,6 +26,16 @@ import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {CpuProfileTrack} from './cpu_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
+import {Monitor} from '../../base/monitor';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+  QueryFlamegraphAttrs,
+} from '../../core/query_flamegraph';
+import {Timestamp} from '../../frontend/widgets/timestamp';
+import {assertExists} from '../../base/logging';
+import {DetailsShell} from '../../widgets/details_shell';
+import {CpuProfileSampleSelection, LegacySelection} from '../../common/state';
 
 class CpuProfile implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -40,7 +51,8 @@ class CpuProfile implements PerfettoPlugin {
         upid,
         thread.name as threadName
       from thread_cpu_sample
-      join thread using(utid)`);
+      join thread using(utid)
+    `);
 
     const it = result.iter({
       utid: NUM,
@@ -60,19 +72,90 @@ class CpuProfile implements PerfettoPlugin {
           utid,
           ...(exists(upid) && {upid}),
         },
-        trackFactory: () => new CpuProfileTrack(ctx.engine, utid),
+        trackFactory: ({trackKey}) =>
+          new CpuProfileTrack(
+            {
+              engine: ctx.engine,
+              trackKey,
+            },
+            utid,
+          ),
       });
     }
+    ctx.registerDetailsPanel(
+      new CpuProfileSampleFlamegraphDetailsPanel(ctx.engine),
+    );
+  }
+}
 
-    ctx.registerDetailsPanel({
-      render: (sel) => {
-        if (sel.kind === 'CPU_PROFILE_SAMPLE') {
-          return m(CpuProfileDetailsPanel);
-        } else {
-          return undefined;
-        }
-      },
-    });
+class CpuProfileSampleFlamegraphDetailsPanel implements LegacyDetailsPanel {
+  private sel?: CpuProfileSampleSelection;
+  private selMonitor = new Monitor([() => this.sel?.ts, () => this.sel?.utid]);
+  private flamegraphAttrs?: QueryFlamegraphAttrs;
+
+  constructor(private engine: Engine) {}
+
+  render(sel: LegacySelection) {
+    if (sel.kind !== 'CPU_PROFILE_SAMPLE') {
+      this.sel = undefined;
+      return undefined;
+    }
+    const {ts, utid} = sel;
+    this.sel = sel;
+    if (this.selMonitor.ifStateChanged()) {
+      this.flamegraphAttrs = {
+        engine: this.engine,
+        metrics: [
+          ...metricsFromTableOrSubquery(
+            `
+              (
+                select
+                  id,
+                  parent_id as parentId,
+                  name,
+                  mapping_name,
+                  source_file,
+                  cast(line_number AS text) as line_number,
+                  self_count
+                from _callstacks_for_cpu_profile_stack_samples!((
+                  select p.callsite_id
+                  from cpu_profile_stack_sample p
+                  where p.ts = ${ts} and p.utid = ${utid}
+                ))
+              )
+            `,
+            [
+              {
+                name: 'CPU Profile Samples',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module callstacks.stack_profile',
+            [{name: 'mapping_name', displayName: 'Mapping'}],
+            [
+              {name: 'source_file', displayName: 'Source File'},
+              {name: 'line_number', displayName: 'Line Number'},
+            ],
+          ),
+        ],
+      };
+    }
+    return m(
+      '.flamegraph-profile',
+      m(
+        DetailsShell,
+        {
+          fillParent: true,
+          title: m('.title', 'CPU Profile Samples'),
+          description: [],
+          buttons: [
+            m('div.time', `Timestamp: `, m(Timestamp, {ts: this.sel.ts})),
+          ],
+        },
+        m(QueryFlamegraph, assertExists(this.flamegraphAttrs)),
+      ),
+    );
   }
 }
 
