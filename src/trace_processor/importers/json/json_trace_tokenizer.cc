@@ -16,22 +16,31 @@
 
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
+#include <cctype>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
+#include <utility>
 
-#include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
-
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/json/json_utils.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/importers/systrace/systrace_line.h"
+#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
-
+namespace perfetto::trace_processor {
 namespace {
+
+std::string FormatErrorContext(const char* s, const char* e) {
+  return {s, static_cast<size_t>(e - s)};
+}
 
 base::Status AppendUnescapedCharacter(char c,
                                       bool is_escaping,
@@ -64,7 +73,7 @@ base::Status AppendUnescapedCharacter(char c,
         key->append("\\u");
         break;
       default:
-        return base::ErrStatus("Illegal character in JSON");
+        return base::ErrStatus("Illegal character in JSON %c", c);
     }
   } else if (c != '\\') {
     key->push_back(c);
@@ -213,7 +222,7 @@ ReadDictRes ReadOneJsonDict(const char* start,
         return ReadDictRes::kEndOfTrace;
       if (--braces > 0)
         continue;
-      size_t len = static_cast<size_t>((s + 1) - dict_begin);
+      auto len = static_cast<size_t>((s + 1) - dict_begin);
       *value = base::StringView(dict_begin, len);
       *next = s + 1;
       return ReadDictRes::kFoundDict;
@@ -324,11 +333,12 @@ base::Status ExtractValueForJsonKey(base::StringView dict,
         state = kInsideDict;
         continue;
       }
-      return base::ErrStatus("Unexpected character before JSON dict");
+      return base::ErrStatus("Unexpected character before JSON dict: '%c'", *s);
     }
 
-    if (state == kAfterDict)
-      return base::ErrStatus("Unexpected character after JSON dict");
+    if (state == kAfterDict) {
+      return base::ErrStatus("Unexpected character after JSON dict: '%c'", *s);
+    }
 
     PERFETTO_DCHECK(state == kInsideDict);
     PERFETTO_DCHECK(s < end);
@@ -347,18 +357,22 @@ base::Status ExtractValueForJsonKey(base::StringView dict,
     if (res == ReadKeyRes::kFatalError) {
       return base::ErrStatus(
           "Failure parsing JSON: encountered fatal error while parsing key for "
-          "value");
+          "value: '%s'",
+          FormatErrorContext(s, end).c_str());
     }
 
     if (res == ReadKeyRes::kNeedsMoreData) {
-      return base::ErrStatus("Failure parsing JSON: partial JSON dictionary");
+      return base::ErrStatus(
+          "Failure parsing JSON: partial JSON dictionary: '%s'",
+          FormatErrorContext(s, end).c_str());
     }
 
     PERFETTO_DCHECK(res == ReadKeyRes::kFoundKey);
 
     if (*s == '[') {
       return base::ErrStatus(
-          "Failure parsing JSON: unsupported JSON dictionary with array");
+          "Failure parsing JSON: unsupported JSON dictionary with array: '%s'",
+          FormatErrorContext(s, end).c_str());
     }
 
     std::string value_str;
@@ -369,14 +383,17 @@ base::Status ExtractValueForJsonKey(base::StringView dict,
           dict_res == ReadDictRes::kEndOfArray ||
           dict_res == ReadDictRes::kEndOfTrace) {
         return base::ErrStatus(
-            "Failure parsing JSON: unable to parse dictionary");
+            "Failure parsing JSON: unable to parse dictionary: '%s'",
+            FormatErrorContext(s, end).c_str());
       }
       value_str = dict_str.ToStdString();
     } else if (*s == '"') {
       auto str_res = ReadOneJsonString(s, end, &value_str, &s);
       if (str_res == ReadStringRes::kNeedsMoreData ||
           str_res == ReadStringRes::kFatalError) {
-        return base::ErrStatus("Failure parsing JSON: unable to parse string");
+        return base::ErrStatus(
+            "Failure parsing JSON: unable to parse string: '%s",
+            FormatErrorContext(s, end).c_str());
       }
     } else {
       const char* value_start = s;
@@ -396,8 +413,10 @@ base::Status ExtractValueForJsonKey(base::StringView dict,
     }
   }
 
-  if (state != kAfterDict)
-    return base::ErrStatus("Failure parsing JSON: malformed dictionary");
+  if (state != kAfterDict) {
+    return base::ErrStatus("Failure parsing JSON: malformed dictionary: '%s'",
+                           FormatErrorContext(start, end).c_str());
+  }
 
   *value = std::nullopt;
   return base::OkStatus();
@@ -673,5 +692,4 @@ base::Status JsonTraceTokenizer::NotifyEndOfFile() {
              : base::ErrStatus("JSON trace file is incomplete");
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
