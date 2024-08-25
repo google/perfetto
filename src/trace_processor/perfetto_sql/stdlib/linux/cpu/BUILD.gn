@@ -19,6 +19,7 @@ perfetto_sql_source_set("cpu") {
     "frequency.sql",
     "idle.sql",
     "idle_stats.sql",
+    "idle_time_in_state.sql",
   ]
   deps = [ "utilization" ]
 }
