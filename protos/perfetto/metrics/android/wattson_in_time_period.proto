@@ -31,7 +31,7 @@ message AndroidWattsonEstimateInfo {
 
 message AndroidWattsonCpuSubsystemEstimate {
   // estimates and estimates of subrails
-  optional float estimate_mw = 1;
+  optional float estimated_mw = 1;
   optional AndroidWattsonPolicyEstimate policy0 = 2;
   optional AndroidWattsonPolicyEstimate policy1 = 3;
   optional AndroidWattsonPolicyEstimate policy2 = 4;
@@ -44,7 +44,7 @@ message AndroidWattsonCpuSubsystemEstimate {
 }
 
 message AndroidWattsonPolicyEstimate {
-  optional float estimate_mw = 1;
+  optional float estimated_mw = 1;
   optional AndroidWattsonCpuEstimate cpu0 = 2;
   optional AndroidWattsonCpuEstimate cpu1 = 3;
   optional AndroidWattsonCpuEstimate cpu2 = 4;
@@ -56,9 +56,9 @@ message AndroidWattsonPolicyEstimate {
 }
 
 message AndroidWattsonCpuEstimate {
-  optional float estimate_mw = 1;
+  optional float estimated_mw = 1;
 }
 
 message AndroidWattsonDsuScuEstimate {
-  optional float estimate_mw = 1;
+  optional float estimated_mw = 1;
 }

@@ -1415,7 +1415,7 @@ destBucket
 avg_duration (RavgDuration!
 max_duration (RmaxDuration!
 sum_duration (RsumDuration
-µ
+½
 <protos/perfetto/metrics/android/wattson_in_time_period.protoperfetto.protos"•
 AndroidWattsonTimePeriodMetric%
 metric_version (RmetricVersionL
@@ -1425,10 +1425,9 @@ periodInfo"²
 	period_id (RperiodId
 
 period_dur (R	periodDurX
-cpu_subsystem (23.perfetto.protos.AndroidWattsonCpuSubsystemEstimateRcpuSubsystem"Õ
-"AndroidWattsonCpuSubsystemEstimate
-estimate_mw (R
-estimateMwG
+cpu_subsystem (23.perfetto.protos.AndroidWattsonCpuSubsystemEstimateRcpuSubsystem"×
+"AndroidWattsonCpuSubsystemEstimate!
+estimated_mw (RestimatedMwG
 policy0 (2-.perfetto.protos.AndroidWattsonPolicyEstimateRpolicy0G
 policy1 (2-.perfetto.protos.AndroidWattsonPolicyEstimateRpolicy1G
 policy2 (2-.perfetto.protos.AndroidWattsonPolicyEstimateRpolicy2G
@@ -1438,10 +1437,9 @@ estimateMwG
 policy6 (2-.perfetto.protos.AndroidWattsonPolicyEstimateRpolicy6G
 policy7	 (2-.perfetto.protos.AndroidWattsonPolicyEstimateRpolicy7F
 dsu_scu
- (2-.perfetto.protos.AndroidWattsonDsuScuEstimateRdsuScu"¿
-AndroidWattsonPolicyEstimate
-estimate_mw (R
-estimateMw>
+ (2-.perfetto.protos.AndroidWattsonDsuScuEstimateRdsuScu"Á
+AndroidWattsonPolicyEstimate!
+estimated_mw (RestimatedMw>
 cpu0 (2*.perfetto.protos.AndroidWattsonCpuEstimateRcpu0>
 cpu1 (2*.perfetto.protos.AndroidWattsonCpuEstimateRcpu1>
 cpu2 (2*.perfetto.protos.AndroidWattsonCpuEstimateRcpu2>
@@ -1449,13 +1447,11 @@ estimateMw>
 cpu4 (2*.perfetto.protos.AndroidWattsonCpuEstimateRcpu4>
 cpu5 (2*.perfetto.protos.AndroidWattsonCpuEstimateRcpu5>
 cpu6 (2*.perfetto.protos.AndroidWattsonCpuEstimateRcpu6>
-cpu7	 (2*.perfetto.protos.AndroidWattsonCpuEstimateRcpu7"<
-AndroidWattsonCpuEstimate
-estimate_mw (R
-estimateMw"?
-AndroidWattsonDsuScuEstimate
-estimate_mw (R
-estimateMw
+cpu7	 (2*.perfetto.protos.AndroidWattsonCpuEstimateRcpu7">
+AndroidWattsonCpuEstimate!
+estimated_mw (RestimatedMw"A
+AndroidWattsonDsuScuEstimate!
+estimated_mw (RestimatedMw
 ›
 <protos/perfetto/metrics/android/android_anomaly_metric.protoperfetto.protos"É
 AndroidAnomalyMetricD
@@ -1471,15 +1467,14 @@ estimateMw
 Unit
 UNIT_UNSPECIFIED 
 COUNT_PER_SECOND
-ê
+î
 ?protos/perfetto/metrics/android/wattson_tasks_attribution.protoperfetto.protos"“
 $AndroidWattsonTasksAttributionMetric%
 metric_version (RmetricVersionD
-	task_info (2'.perfetto.protos.AndroidWattsonTaskInfoRtaskInfo"ÿ
-AndroidWattsonTaskInfo
-estimate_mw (R
-estimateMw!
-estimate_mws (RestimateMws
+	task_info (2'.perfetto.protos.AndroidWattsonTaskInfoRtaskInfo"ƒ
+AndroidWattsonTaskInfo!
+estimated_mw (RestimatedMw#
+estimated_mws (RestimatedMws
 thread_name (	R
 threadName!
 process_name (	RprocessName!

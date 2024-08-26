@@ -26,9 +26,9 @@ message AndroidWattsonTasksAttributionMetric {
 
 message AndroidWattsonTaskInfo {
   // Average estimated power for wall duration in mW
-  optional float estimate_mw = 1;
+  optional float estimated_mw = 1;
   // Total energy over wall duration across CPUs in mWs
-  optional float estimate_mws = 2;
+  optional float estimated_mws = 2;
   optional string thread_name = 3;
   optional string process_name = 4;
   optional string package_name = 5;
