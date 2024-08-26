@@ -37,27 +37,27 @@ DROP VIEW IF EXISTS _wattson_thread_attribution;
 CREATE PERFETTO VIEW _wattson_thread_attribution AS
 SELECT
   -- active time of thread divided by total time where Wattson is defined
-  SUM(estimate_mw * dur) / 1000000000 as estimate_mws,
+  SUM(estimated_mw * dur) / 1000000000 as estimated_mws,
   (
-    SUM(estimate_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
-  ) as estimate_mw,
+    SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
+  ) as estimated_mw,
   thread_name,
   process_name,
   tid,
   pid
 FROM _windowed_threads_system_state
 GROUP BY utid
-ORDER BY estimate_mw DESC;
+ORDER BY estimated_mw DESC;
 
 DROP VIEW IF EXISTS wattson_markers_threads_output;
 CREATE PERFETTO VIEW wattson_markers_threads_output AS
 SELECT AndroidWattsonTasksAttributionMetric(
-  'metric_version', 1,
+  'metric_version', 2,
   'task_info', (
     SELECT RepeatedField(
       AndroidWattsonTaskInfo(
-        'estimate_mws', ROUND(estimate_mws, 6),
-        'estimate_mw', ROUND(estimate_mw, 6),
+        'estimated_mws', ROUND(estimated_mws, 6),
+        'estimated_mw', ROUND(estimated_mw, 6),
         'thread_name', thread_name,
         'process_name', process_name,
         'thread_id', tid,

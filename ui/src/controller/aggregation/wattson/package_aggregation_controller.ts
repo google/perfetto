@@ -88,14 +88,14 @@ export class WattsonPackageAggregationController extends AggregationController {
         columnId: 'dur_ms',
       },
       {
-        title: 'Average estimated power (mW)',
+        title: 'Average power (estimated mW)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'avg_mw',
         sum: true,
       },
       {
-        title: 'Total estimated energy (mWs)',
+        title: 'Total energy (estimated mWs)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'total_mws',
