@@ -323,3 +323,58 @@ class LinuxCpu(TestSuite):
          "cpu","state","count","dur","avg_dur","idle_percent"
          0,2,2,2000000,1000000,40.000000
          """))
+
+  def test_linux_cpu_idle_time_in_state(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          sys_stats {
+            cpuidle_state {
+              cpu_id: 0
+              cpuidle_state_entry {
+                state: "C8"
+                duration_us: 1000000
+              }
+            }
+          }
+          timestamp: 200000000000
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          sys_stats {
+            cpuidle_state {
+              cpu_id: 0
+              cpuidle_state_entry {
+                state: "C8"
+                duration_us: 1000100
+              }
+            }
+          }
+          timestamp: 200001000000
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          sys_stats {
+            cpuidle_state {
+              cpu_id: 0
+              cpuidle_state_entry {
+                state: "C8"
+                duration_us: 1000200
+              }
+            }
+          }
+          timestamp: 200002000000
+          trusted_packet_sequence_id: 2
+        }
+         """),
+        query="""
+         INCLUDE PERFETTO MODULE linux.cpu.idle_time_in_state;
+         SELECT * FROM cpu_idle_time_in_state_counters;
+         """,
+        out=Csv("""
+         "ts","state_name","idle_percentage","total_residency","time_slice"
+          200001000000,"cpuidle.C8",10.000000,100.000000,1000
+          200002000000,"cpuidle.C8",10.000000,100.000000,1000
+          200001000000,"cpuidle.C0",90.000000,900.000000,1000
+          200002000000,"cpuidle.C0",90.000000,900.000000,1000
+         """))
