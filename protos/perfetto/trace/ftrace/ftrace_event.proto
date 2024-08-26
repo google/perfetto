@@ -63,6 +63,7 @@ import "protos/perfetto/trace/ftrace/net.proto";
 import "protos/perfetto/trace/ftrace/oom.proto";
 import "protos/perfetto/trace/ftrace/panel.proto";
 import "protos/perfetto/trace/ftrace/perf_trace_counters.proto";
+import "protos/perfetto/trace/ftrace/pixel_mm.proto";
 import "protos/perfetto/trace/ftrace/power.proto";
 import "protos/perfetto/trace/ftrace/printk.proto";
 import "protos/perfetto/trace/ftrace/raw_syscalls.proto";
@@ -674,5 +675,7 @@ message FtraceEvent {
     KgslAdrenoCmdbatchSubmittedFtraceEvent kgsl_adreno_cmdbatch_submitted = 535;
     KgslAdrenoCmdbatchSyncFtraceEvent kgsl_adreno_cmdbatch_sync = 536;
     KgslAdrenoCmdbatchRetiredFtraceEvent kgsl_adreno_cmdbatch_retired = 537;
+    PixelMmKswapdWakeFtraceEvent pixel_mm_kswapd_wake = 538;
+    PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
   }
 }
