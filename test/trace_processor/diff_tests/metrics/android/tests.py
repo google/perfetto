@@ -375,47 +375,47 @@ class AndroidMetrics(TestSuite):
         query=Metric("wattson_app_startup_rails"),
         out=Csv("""
         wattson_app_startup_rails {
-          metric_version: 2
+          metric_version: 3
           period_info {
             period_id: 1
             period_dur: 384847255
             cpu_subsystem {
-              estimate_mw: 4568.1772
+              estimated_mw: 4568.1772
               policy0 {
-                estimate_mw: 578.31256
+                estimated_mw: 578.31256
                 cpu0 {
-                  estimate_mw: 148.99423
+                  estimated_mw: 148.99423
                 }
                 cpu1 {
-                  estimate_mw: 130.13142
+                  estimated_mw: 130.13142
                 }
                 cpu2 {
-                  estimate_mw: 127.60357
+                  estimated_mw: 127.60357
                 }
                 cpu3 {
-                  estimate_mw: 171.58333
+                  estimated_mw: 171.58333
                 }
               }
               policy4 {
-                estimate_mw: 684.18835
+                estimated_mw: 684.18835
                 cpu4 {
-                  estimate_mw: 344.39563
+                  estimated_mw: 344.39563
                 }
                 cpu5 {
-                  estimate_mw: 339.7927
+                  estimated_mw: 339.7927
                 }
               }
               policy6 {
-                estimate_mw: 2163.158
+                estimated_mw: 2163.158
                 cpu6 {
-                  estimate_mw: 1080.6881
+                  estimated_mw: 1080.6881
                 }
                 cpu7 {
-                  estimate_mw: 1082.47
+                  estimated_mw: 1082.47
                 }
               }
               dsu_scu {
-                estimate_mw: 1142.5181
+                estimated_mw: 1142.5181
               }
             }
           }
@@ -428,29 +428,29 @@ class AndroidMetrics(TestSuite):
         query=Metric("wattson_trace_rails"),
         out=Csv("""
         wattson_trace_rails {
-          metric_version: 2
+          metric_version: 3
           period_info {
             period_id: 1
             period_dur: 61792616758
             cpu_subsystem {
-              estimate_mw: 42.12355
+              estimated_mw: 42.12355
               policy0 {
-                estimate_mw: 34.71888
+                estimated_mw: 34.71888
                 cpu0 {
-                  estimate_mw: 10.7050705
+                  estimated_mw: 10.7050705
                 }
                 cpu1 {
-                  estimate_mw: 8.315672
+                  estimated_mw: 8.315672
                 }
                 cpu2 {
-                  estimate_mw: 7.7776303
+                  estimated_mw: 7.7776303
                 }
                 cpu3 {
-                  estimate_mw: 7.920505
+                  estimated_mw: 7.920505
                 }
               }
               dsu_scu {
-                estimate_mw: 7.404673
+                estimated_mw: 7.404673
               }
             }
           }
@@ -481,29 +481,29 @@ class AndroidMetrics(TestSuite):
         query=Metric("wattson_markers_rails"),
         out=Csv("""
         wattson_markers_rails {
-          metric_version: 2
+          metric_version: 3
           period_info {
             period_id: 1
             period_dur: 2031871358
             cpu_subsystem {
-              estimate_mw: 46.540943
+              estimated_mw: 46.540943
               policy0 {
-                estimate_mw: 34.037483
+                estimated_mw: 34.037483
                 cpu0 {
-                  estimate_mw: 14.416655
+                  estimated_mw: 14.416655
                 }
                 cpu1 {
-                  estimate_mw: 6.641429
+                  estimated_mw: 6.641429
                 }
                 cpu2 {
-                  estimate_mw: 8.134797
+                  estimated_mw: 8.134797
                 }
                 cpu3 {
-                  estimate_mw: 4.8446035
+                  estimated_mw: 4.8446035
                 }
               }
               dsu_scu {
-                estimate_mw: 12.503458
+                estimated_mw: 12.503458
               }
             }
           }

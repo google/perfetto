@@ -117,7 +117,7 @@ SELECT
     WHEN 6 THEN power.cpu6_mw
     WHEN 7 THEN power.cpu7_mw
     ELSE 0
-  END estimate_mw
+  END estimated_mw
 FROM _interval_intersect!(
   (
     _ii_table!(_idle_w_threads),
@@ -134,7 +134,7 @@ JOIN _system_state_mw as power ON power._auto_id = id_1;
 CREATE PERFETTO FUNCTION _filter_idle_attribution(ts LONG, dur LONG)
 RETURNS Table(idle_cost_mws LONG, utid INT, upid INT, cpu INT) AS
 SELECT
-  cost.estimate_mw * cost.dur / 1e9 as idle_cost_mws,
+  cost.estimated_mw * cost.dur / 1e9 as idle_cost_mws,
   cost.utid,
   cost.upid,
   cost.cpu
