@@ -320,6 +320,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       pkvm_hyp_cpu_tracker_(context),
       gpu_work_period_tracker_(context),
       thermal_tracker_(context),
+      pixel_mm_kswapd_event_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -1295,6 +1296,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kBclIrqTriggerFieldNumber: {
         ParseBclIrq(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kPixelMmKswapdWakeFieldNumber: {
+        pixel_mm_kswapd_event_tracker_.ParsePixelMmKswapdWake(ts, pid);
+        break;
+      }
+      case FtraceEvent::kPixelMmKswapdDoneFieldNumber: {
+        pixel_mm_kswapd_event_tracker_.ParsePixelMmKswapdDone(ts, pid, fld_bytes);
         break;
       }
       default:
