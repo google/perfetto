@@ -71,7 +71,7 @@ export interface ThreadStateSelection {
 export interface LogSelection {
   kind: 'LOG';
   id: number;
-  trackKey: string;
+  trackUri: string;
 }
 
 export interface GenericSliceSelection {
@@ -93,7 +93,7 @@ export type LegacySelection = (
   | PerfSamplesSelection
   | LogSelection
   | GenericSliceSelection
-) & {trackKey?: string};
+) & {trackUri?: string};
 export type SelectionKind = LegacySelection['kind']; // 'THREAD_STATE' | 'SLICE' ...
 
 // New Selection types:
@@ -104,13 +104,13 @@ export interface LegacySelectionWrapper {
 
 export interface SingleSelection {
   kind: 'single';
-  trackKey: string;
+  trackUri: string;
   eventId: number;
 }
 
 export interface AreaSelection {
   kind: 'area';
-  tracks: string[];
+  trackUris: string[];
   start: time;
   end: time;
 }
@@ -217,22 +217,22 @@ export class SelectionManager {
   }
 
   setEvent(
-    trackKey: string,
+    trackUri: string,
     eventId: number,
     legacySelection?: LegacySelection,
   ) {
     this.clear();
-    this.addEvent(trackKey, eventId, legacySelection);
+    this.addEvent(trackUri, eventId, legacySelection);
   }
 
   addEvent(
-    trackKey: string,
+    trackUri: string,
     eventId: number,
     legacySelection?: LegacySelection,
   ) {
     this.addSelection({
       kind: 'single',
-      trackKey,
+      trackUri,
       eventId,
     });
     if (legacySelection) {

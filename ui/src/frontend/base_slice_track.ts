@@ -171,7 +171,7 @@ export abstract class BaseSliceTrack<
 {
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
   protected engine: Engine;
-  protected trackKey: string;
+  protected uri: string;
   protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
@@ -249,7 +249,7 @@ export abstract class BaseSliceTrack<
 
   constructor(args: NewTrackArgs) {
     this.engine = args.engine;
-    this.trackKey = args.trackKey;
+    this.uri = args.uri;
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
     // we know about (ts, dur, ...).

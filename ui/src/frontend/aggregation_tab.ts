@@ -27,7 +27,7 @@ import {
   LegacyFlamegraphDetailsPanel,
   FlamegraphSelectionParams,
 } from './legacy_flamegraph_panel';
-import {AreaSelection, ProfileType, TrackState} from '../common/state';
+import {AreaSelection, ProfileType} from '../common/state';
 import {assertExists} from '../base/logging';
 import {Monitor} from '../base/monitor';
 import {
@@ -208,9 +208,8 @@ class AreaDetailsPanel implements m.ClassComponent {
       return this.cpuProfileFlamegraphAttrs;
     }
     const utids = [];
-    for (const trackId of currentSelection.tracks) {
-      const track: TrackState | undefined = globals.state.tracks[trackId];
-      const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
+    for (const trackUri of currentSelection.trackUris) {
+      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
       if (trackInfo?.tags?.kind === CPU_PROFILE_TRACK_KIND) {
         utids.push(trackInfo.tags?.utid);
       }
@@ -318,9 +317,8 @@ class AreaDetailsPanel implements m.ClassComponent {
       return this.sliceFlamegraphAttrs;
     }
     const trackIds = [];
-    for (const trackId of currentSelection.tracks) {
-      const track: TrackState | undefined = globals.state.tracks[trackId];
-      const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
+    for (const trackUri of currentSelection.trackUris) {
+      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
       if (trackInfo?.tags?.kind !== THREAD_SLICE_TRACK_KIND) {
         continue;
       }
@@ -435,9 +433,8 @@ export class AggregationsTabs implements Disposable {
 
 function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   const upids = [];
-  for (const trackId of currentSelection.tracks) {
-    const track: TrackState | undefined = globals.state.tracks[trackId];
-    const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
+  for (const trackUri of currentSelection.trackUris) {
+    const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
     if (
       trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
       trackInfo.tags?.utid === undefined
@@ -450,9 +447,8 @@ function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
 
 function getUtidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   const utids = [];
-  for (const trackId of currentSelection.tracks) {
-    const track: TrackState | undefined = globals.state.tracks[trackId];
-    const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
+  for (const trackUri of currentSelection.trackUris) {
+    const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
     if (
       trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
       trackInfo.tags?.utid !== undefined

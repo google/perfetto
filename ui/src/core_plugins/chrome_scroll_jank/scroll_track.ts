@@ -48,7 +48,7 @@ export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {
 
     ScrollJankPluginState.getInstance().registerTrack({
       kind: TopLevelScrollTrack.kind,
-      trackKey: this.trackKey,
+      trackUri: this.uri,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });

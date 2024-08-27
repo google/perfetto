@@ -46,8 +46,8 @@ export interface Panel {
   readonly kind: 'panel';
   render(): m.Children;
   readonly selectable: boolean;
-  readonly trackKey?: string; // Defined if this panel represents are track
-  readonly groupKey?: string; // Defined if this panel represents a group - i.e. a group summary track
+  readonly trackUri?: string; // Defined if this panel represents are track
+  readonly groupUri?: string; // Defined if this panel represents a group - i.e. a group summary track
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size): void;
   getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
 }
@@ -55,8 +55,8 @@ export interface Panel {
 export interface PanelGroup {
   readonly kind: 'group';
   readonly collapsed: boolean;
-  readonly header: Panel;
-  readonly childPanels: Panel[];
+  readonly header?: Panel;
+  readonly childPanels: PanelOrGroup[];
 }
 
 export type PanelOrGroup = Panel | PanelGroup;
@@ -189,17 +189,19 @@ export class PanelContainer
     // Get the track ids from the panels.
     const tracks = [];
     for (const panel of panels) {
-      if (panel.trackKey !== undefined) {
-        tracks.push(panel.trackKey);
+      if (panel.trackUri !== undefined) {
+        tracks.push(panel.trackUri);
         continue;
       }
-      if (panel.groupKey !== undefined) {
-        const trackGroup = globals.state.trackGroups[panel.groupKey];
+      if (panel.groupUri !== undefined) {
+        const trackGroup = globals.workspace.flatGroups.find(
+          (g) => g.uri === panel.groupUri,
+        );
         // Only select a track group and all child tracks if it is closed.
-        if (trackGroup.collapsed) {
-          tracks.push(panel.groupKey);
-          for (const track of trackGroup.tracks) {
-            tracks.push(track);
+        if (trackGroup && trackGroup.collapsed) {
+          tracks.push(panel.groupUri);
+          for (const track of trackGroup.flatTracks) {
+            tracks.push(track.uri);
           }
         }
       }
@@ -289,11 +291,12 @@ export class PanelContainer
     if (node.kind === 'group') {
       return m(
         'div.pf-panel-group',
-        this.renderPanel(
-          node.header,
-          `${panelId}-header`,
-          node.collapsed ? '' : '.pf-sticky',
-        ),
+        node.header &&
+          this.renderPanel(
+            node.header,
+            `${panelId}-header`,
+            node.collapsed ? '' : '.pf-sticky',
+          ),
         ...node.childPanels.map((child, index) =>
           this.renderTree(child, `${panelId}-${index}`),
         ),
@@ -338,7 +341,7 @@ export class PanelContainer
       const panel = assertExists(this.panelById.get(panelId));
 
       // NOTE: the id can be undefined for singletons like overview timeline.
-      const key = panel.trackKey || panel.groupKey || '';
+      const key = panel.trackUri || panel.groupUri || '';
       const rect = panelElement.getBoundingClientRect();
       this.panelInfos.push({
         trackOrGroupKey: key,
@@ -456,14 +459,14 @@ export class PanelContainer
     ) {
       return;
     }
-    if (this.panelInfos.length === 0 || area.tracks.length === 0) return;
+    if (this.panelInfos.length === 0 || area.trackUris.length === 0) return;
 
     // Find the minY and maxY of the selected tracks in this panel container.
     let selectedTracksMinY = this.panelContainerHeight + this.panelContainerTop;
     let selectedTracksMaxY = this.panelContainerTop;
     let trackFromCurrentContainerSelected = false;
     for (let i = 0; i < this.panelInfos.length; i++) {
-      if (area.tracks.includes(this.panelInfos[i].trackOrGroupKey)) {
+      if (area.trackUris.includes(this.panelInfos[i].trackOrGroupKey)) {
         trackFromCurrentContainerSelected = true;
         selectedTracksMinY = Math.min(
           selectedTracksMinY,

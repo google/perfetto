@@ -181,18 +181,20 @@ export class ScrollJankSliceRef
             throw new Error(`${vnode.attrs.kind} track is not registered.`);
           }
 
+          const trackUri = track.key;
+
           globals.makeSelection(
             Actions.selectGenericSlice({
               id: vnode.attrs.id,
               sqlTableName: track.sqlTableName,
               start: vnode.attrs.ts,
               duration: vnode.attrs.dur,
-              trackKey: track.key,
+              trackUri,
               detailsPanelConfig: track.detailsPanelConfig,
             }),
           );
 
-          scrollToTrackAndTs(track.key, vnode.attrs.ts, true);
+          scrollToTrackAndTs(trackUri, vnode.attrs.ts, true);
         },
       },
       vnode.attrs.name,

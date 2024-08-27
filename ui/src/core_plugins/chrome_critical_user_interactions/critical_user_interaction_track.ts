@@ -139,7 +139,7 @@ export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack {
         sqlTableName: this.tableName,
         start: args.slice.ts,
         duration: args.slice.dur,
-        trackKey: this.trackKey,
+        trackUri: this.uri,
         detailsPanelConfig: {
           kind: detailsPanelConfig.kind,
           config: detailsPanelConfig.config,

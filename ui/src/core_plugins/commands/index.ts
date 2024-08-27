@@ -230,9 +230,8 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#UnpinAllTracks',
       name: 'Unpin all pinned tracks',
       callback: () => {
-        ctx.timeline.unpinTracksByPredicate((_) => {
-          return true;
-        });
+        const workspace = ctx.timeline.workspace;
+        workspace.pinnedTracks.forEach((t) => workspace.unpinTrack(t));
       },
     });
 
@@ -240,9 +239,7 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#ExpandAllGroups',
       name: 'Expand all track groups',
       callback: () => {
-        ctx.timeline.expandGroupsByPredicate((_) => {
-          return true;
-        });
+        ctx.timeline.workspace.flatGroups.forEach((g) => g.expand());
       },
     });
 
@@ -250,9 +247,7 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#CollapseAllGroups',
       name: 'Collapse all track groups',
       callback: () => {
-        ctx.timeline.collapseGroupsByPredicate((_) => {
-          return true;
-        });
+        ctx.timeline.workspace.flatGroups.forEach((g) => g.collapse());
       },
     });
 

@@ -539,6 +539,9 @@ export class TraceController extends Controller<States> {
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
+    // Clear the default workspace, ready for more tracks to be inserted
+    globals.workspace.clear();
+
     if (globals.restoreAppStateAfterTraceLoad) {
       deserializeAppStatePhase1(globals.restoreAppStateAfterTraceLoad);
     }
@@ -548,9 +551,10 @@ export class TraceController extends Controller<States> {
     });
 
     {
-      // When we reload from a permalink don't create extra tracks:
-      const {pinnedTracks, tracks} = globals.state;
-      if (!pinnedTracks.length && !Object.keys(tracks).length) {
+      // When we reload from a permalink don't create extra tracks.
+      // TODO(stevegolton): This is a terrible way of telling whether we have
+      // loaded from a permalink or not.
+      if (globals.workspace.flatTracks.length === 0) {
         await this.listTracks();
       }
     }
@@ -573,9 +577,6 @@ export class TraceController extends Controller<States> {
       const res = await engine.query(query);
       publishHasFtrace(res.numRows() > 0);
     }
-
-    globals.dispatch(Actions.sortThreadTracks({}));
-    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
     await this.selectPerfSample(traceDetails);
@@ -600,8 +601,6 @@ export class TraceController extends Controller<States> {
         });
       }
     }
-
-    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     // Trace Processor doesn't support the reliable range feature for JSON
     // traces.
@@ -715,15 +714,19 @@ export class TraceController extends Controller<States> {
       });
 
       const id = row.traceProcessorTrackId;
-      const trackKey = globals.trackManager.trackKeyByTrackId.get(id);
-      if (trackKey === undefined) {
+      const track = globals.workspace.flatTracks.find((t) =>
+        globals.trackManager
+          .resolveTrackInfo(t.uri)
+          ?.tags?.trackIds?.includes(id),
+      );
+      if (track === undefined) {
         return;
       }
       globals.setLegacySelection(
         {
           kind: 'SLICE',
           id: row.id,
-          trackKey,
+          trackUri: track.uri,
           table: 'slice',
         },
         {
@@ -738,8 +741,7 @@ export class TraceController extends Controller<States> {
   private async listTracks() {
     this.updateStatus('Loading tracks');
     const engine = assertExists(this.engine);
-    const actions = await decideTracks(engine);
-    globals.dispatchMultiple(actions);
+    await decideTracks(engine);
   }
 
   // Show the list of default tabs, but don't make them active!

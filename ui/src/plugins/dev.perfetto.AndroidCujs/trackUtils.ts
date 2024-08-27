@@ -14,11 +14,15 @@
 
 import {globals} from '../../frontend/globals';
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
-import {addDebugSliceTrack, PluginContextTrace} from '../../public';
+import {
+  addDebugSliceTrack,
+  PluginContextTrace,
+  TrackDescriptor,
+} from '../../public';
 import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
 import {time, Time} from '../../base/time';
 import {BigintMath} from '../../base/bigint_math';
-import {reveal} from '../../frontend/scroll_helper';
+import {scrollToTrackAndTimeSpan} from '../../frontend/scroll_helper';
 
 /**
  * Adds debug tracks from SimpleSliceTrackConfig
@@ -83,12 +87,12 @@ export function focusOnSlice(slice: SliceIdentifier) {
     return;
   }
   const trackId = slice.trackId;
-  const trackKey = getTrackKey(trackId);
+  const track = getTrackForTrackId(trackId);
   globals.setLegacySelection(
     {
       kind: 'SLICE',
       id: slice.sliceId,
-      trackKey: trackKey,
+      trackUri: track?.uri,
       table: 'slice',
     },
     {
@@ -101,13 +105,14 @@ export function focusOnSlice(slice: SliceIdentifier) {
 }
 
 /**
- * Given the trackId of the track, retrieves its trackKey
+ * Given the trackId of the track, retrieves its corresponding TrackDescriptor.
  *
- * @param {number} trackId track_id of the track
- * @returns {string} trackKey given to the track with queried trackId
+ * @param trackId track_id of the track
  */
-function getTrackKey(trackId: number): string | undefined {
-  return globals.trackManager.trackKeyByTrackId.get(trackId);
+function getTrackForTrackId(trackId: number): TrackDescriptor | undefined {
+  return globals.trackManager.getAllTracks().find((trackDescriptor) => {
+    return trackDescriptor?.tags?.trackIds?.includes(trackId);
+  });
 }
 
 /**
@@ -131,10 +136,15 @@ export async function focusOnTimeAndTrack(slice: SliceIdentifier) {
   const sliceStart = slice.ts;
   // row.dur can be negative. Clamp to 1ns.
   const sliceDur = BigintMath.max(slice.dur, 1n);
-  const trackKey = getTrackKey(trackId);
+  const track = getTrackForTrackId(trackId);
   // true for whether to expand the process group the track belongs to
-  if (trackKey == undefined) {
+  if (track == undefined) {
     return;
   }
-  reveal(trackKey, sliceStart, Time.add(sliceStart, sliceDur), true);
+  scrollToTrackAndTimeSpan(
+    track.uri,
+    sliceStart,
+    Time.add(sliceStart, sliceDur),
+    true,
+  );
 }

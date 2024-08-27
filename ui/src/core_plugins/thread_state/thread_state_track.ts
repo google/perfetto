@@ -89,7 +89,7 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
     globals.makeSelection(
       Actions.selectThreadState({
         id: args.slice.id,
-        trackKey: this.trackKey,
+        trackUri: this.uri,
       }),
     );
   }

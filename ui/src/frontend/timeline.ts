@@ -83,13 +83,13 @@ export class Timeline {
   selectArea(
     start: time,
     end: time,
-    tracks = this._selectedArea ? this._selectedArea.tracks : [],
+    tracks = this._selectedArea ? this._selectedArea.trackUris : [],
   ) {
     assertTrue(
       end >= start,
       `Impossible select area: start [${start}] >= end [${end}]`,
     );
-    this._selectedArea = {start, end, tracks};
+    this._selectedArea = {start, end, trackUris: tracks};
     raf.scheduleFullRedraw();
   }
 

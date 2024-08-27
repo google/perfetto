@@ -37,7 +37,7 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: CHROME_EVENT_LATENCY_TRACK_KIND,
-      trackKey: this.trackKey,
+      trackUri: this.uri,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });

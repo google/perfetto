@@ -33,6 +33,7 @@ import {canvasClip} from '../common/canvas_utils';
 export class TimeAxisPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = false;
+  readonly id = 'time-axis-panel';
 
   render(): m.Children {
     return m('.time-axis-panel');

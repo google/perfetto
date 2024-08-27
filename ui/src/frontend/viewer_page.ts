@@ -30,7 +30,6 @@ import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {
-  Panel,
   PanelContainer,
   PanelOrGroup,
   RenderedPanelInfo,
@@ -45,9 +44,10 @@ import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel, getTitleFontSize} from './track_panel';
 import {assertExists} from '../base/logging';
 import {PxSpan, TimeScale} from './time_scale';
-import {TrackGroupState} from '../common/state';
-import {FuzzyFinder, fuzzyMatch, FuzzySegment} from '../base/fuzzy';
-import {exists} from '../base/utils';
+import {GroupNode, Node, TrackNode} from './workspace';
+import {fuzzyMatch, FuzzySegment} from '../base/fuzzy';
+
+import {exists, Optional} from '../base/utils';
 import {EmptyState} from '../widgets/empty_state';
 import {removeFalsyValues} from '../base/array_utils';
 import {renderFlows} from './flow_events_renderer';
@@ -195,7 +195,7 @@ class TraceViewer implements m.ClassComponent {
             timeline.selectArea(
               Time.max(Time.min(keepTime, newTime), traceTime.start),
               Time.min(Time.max(keepTime, newTime), traceTime.end),
-              selection.tracks,
+              selection.trackUris,
             );
           }
         } else {
@@ -276,15 +276,14 @@ class TraceViewer implements m.ClassComponent {
         ),
         m(PanelContainer, {
           className: 'pinned-panel-container',
-          panels: globals.state.pinnedTracks.map((key) => {
-            const trackBundle = resolveTrack(key);
+          panels: globals.workspace.pinnedTracks.map((track) => {
+            const trackBundle = resolveTrack(track.uri, track.displayName);
             return new TrackPanel({
-              trackKey: key,
-              title: trackBundle.title,
+              track: track,
+              title: trackBundle.displayName,
               tags: trackBundle.tags,
               trackFSM: trackBundle.trackFSM,
               revealOnCreate: true,
-              closeable: trackBundle.closeable,
               chips: trackBundle.chips,
               pluginId: trackBundle.pluginId,
             });
@@ -355,143 +354,141 @@ function tokenizeFilterTerm(term: string): ReadonlyArray<string> {
 }
 
 // Render the toplevel "scrolling" tracks and track groups
-function renderToplevelPanels(filterTerm: string | undefined): PanelOrGroup[] {
-  const scrollingPanels: PanelOrGroup[] = renderTrackPanels(
-    globals.state.scrollingTracks,
-    filterTerm,
-  );
-
-  for (const group of Object.values(globals.state.trackGroups)) {
-    if (filterTermIsValid(filterTerm)) {
-      const tokens = tokenizeFilterTerm(filterTerm);
-      // Match group names that match any of the tokens
-      const result = fuzzyMatch(group.name, ...tokens);
-      if (result.matches) {
-        // If the group name matches, render the entire group as normal
-        const title = renderFuzzyMatchedTrackTitle(result.segments);
-        scrollingPanels.push({
-          kind: 'group',
-          collapsed: group.collapsed,
-          childPanels: group.collapsed ? [] : renderTrackPanels(group.tracks),
-          header: renderTrackGroupPanel(group, true, group.collapsed, title),
-        });
-      } else {
-        // If we are filtering, render the group header only if it contains
-        // matching tracks
-        const childPanels = renderTrackPanels(group.tracks, filterTerm);
-        if (childPanels.length === 0) continue;
-        scrollingPanels.push({
-          kind: 'group',
-          collapsed: false,
-          childPanels,
-          header: renderTrackGroupPanel(group, false, false),
-        });
-      }
-    } else {
-      // Always render the group header, but only render child tracks if not
-      // collapsed
-      scrollingPanels.push({
-        kind: 'group',
-        collapsed: group.collapsed,
-        childPanels: group.collapsed ? [] : renderTrackPanels(group.tracks),
-        header: renderTrackGroupPanel(group, true, group.collapsed),
-      });
-    }
-  }
-
-  return scrollingPanels;
+function renderToplevelPanels(filterTerm: Optional<string>): PanelOrGroup[] {
+  return renderNodes(globals.workspace.children, filterTerm);
 }
 
 // Given a list of tracks and a filter term, return a list pf panels filtered by
 // the filter term
-function renderTrackPanels(trackKeys: string[], filterTerm?: string): Panel[] {
-  if (filterTermIsValid(filterTerm)) {
-    const tokens = tokenizeFilterTerm(filterTerm);
-    const matcher = new FuzzyFinder(trackKeys, (key) => {
-      return globals.state.tracks[key].name;
-    });
-    // Filter tracks which match any of the tokens
-    const filtered = matcher.find(...tokens);
-    return filtered.map(({item: key, segments}) => {
-      return renderTrackPanel(key, renderFuzzyMatchedTrackTitle(segments));
-    });
-  } else {
-    // No point in applying any filtering...
-    return trackKeys.map((key) => {
-      return renderTrackPanel(key);
-    });
-  }
+function renderNodes(
+  nodes: ReadonlyArray<Node>,
+  filterTerm?: string,
+): PanelOrGroup[] {
+  return nodes.flatMap((node) => {
+    if (node instanceof GroupNode) {
+      if (node.headless) {
+        return renderNodes(node.children, filterTerm);
+      } else {
+        if (filterTermIsValid(filterTerm)) {
+          const tokens = tokenizeFilterTerm(filterTerm);
+          const match = fuzzyMatch(node.displayName, ...tokens);
+          if (match.matches) {
+            return {
+              kind: 'group',
+              collapsed: node.collapsed,
+              header: renderGroupHeaderPanel(
+                node,
+                true,
+                node.collapsed,
+                renderFuzzyMatchedTrackTitle(match.segments),
+              ),
+              childPanels: node.collapsed ? [] : renderNodes(node.children),
+            };
+          } else {
+            const childPanels = renderNodes(node.children, filterTerm);
+            if (childPanels.length > 0) {
+              return {
+                kind: 'group',
+                collapsed: false,
+                header: renderGroupHeaderPanel(node, false, node.collapsed),
+                childPanels,
+              };
+            }
+            return [];
+          }
+        } else {
+          return {
+            kind: 'group',
+            collapsed: node.collapsed,
+            header: renderGroupHeaderPanel(node, true, node.collapsed),
+            childPanels: node.collapsed
+              ? []
+              : renderNodes(node.children, filterTerm),
+          };
+        }
+      }
+    } else {
+      if (filterTermIsValid(filterTerm)) {
+        const tokens = tokenizeFilterTerm(filterTerm);
+        const match = fuzzyMatch(node.displayName, ...tokens);
+        if (match.matches) {
+          return renderTrackPanel(
+            node,
+            renderFuzzyMatchedTrackTitle(match.segments),
+          );
+        } else {
+          return [];
+        }
+      } else {
+        return renderTrackPanel(node);
+      }
+    }
+  });
 }
 
-function renderTrackPanel(key: string, title?: m.Children) {
-  const trackBundle = resolveTrack(key);
+function renderTrackPanel(track: TrackNode, title?: m.Children) {
+  const trackBundle = resolveTrack(track.uri, track.displayName);
   return new TrackPanel({
-    trackKey: key,
+    track: track,
     title: m(
       'span',
       {
         style: {
-          'font-size': getTitleFontSize(trackBundle.title),
+          'font-size': getTitleFontSize(trackBundle.displayName),
         },
       },
-      Boolean(title) ? title : trackBundle.title,
+      Boolean(title) ? title : trackBundle.displayName,
     ),
     tags: trackBundle.tags,
     trackFSM: trackBundle.trackFSM,
-    closeable: trackBundle.closeable,
     chips: trackBundle.chips,
     pluginId: trackBundle.pluginId,
   });
 }
 
-function renderTrackGroupPanel(
-  group: TrackGroupState,
+function renderGroupHeaderPanel(
+  group: GroupNode,
   collapsable: boolean,
   collapsed: boolean,
   title?: m.Children,
 ): TrackGroupPanel {
-  const summaryTrackKey = group.summaryTrack;
-
-  if (exists(summaryTrackKey)) {
-    const trackBundle = resolveTrack(summaryTrackKey);
+  if (group.headerTrackUri !== undefined) {
+    const trackBundle = resolveTrack(group.headerTrackUri, group.displayName);
     return new TrackGroupPanel({
-      groupKey: group.key,
+      groupNode: group,
       trackFSM: trackBundle.trackFSM,
       subtitle: trackBundle.subtitle,
       tags: trackBundle.tags,
       chips: trackBundle.chips,
       collapsed,
-      title: exists(title) ? title : group.name,
-      tooltip: group.name,
+      title: exists(title) ? title : group.displayName,
+      tooltip: group.displayName,
       collapsable,
     });
   } else {
     return new TrackGroupPanel({
-      groupKey: group.key,
+      groupNode: group,
       collapsed,
-      title: exists(title) ? title : group.name,
-      tooltip: group.name,
+      title: exists(title) ? title : group.displayName,
+      tooltip: group.displayName,
       collapsable,
     });
   }
 }
 
 // Resolve a track and its metadata through the track cache
-function resolveTrack(key: string): TrackBundle {
-  const trackState = globals.state.tracks[key];
-  const {uri, name, closeable} = trackState;
+function resolveTrack(uri: string, displayName: string): TrackBundle {
   const trackDesc = globals.trackManager.resolveTrackInfo(uri);
   const trackCacheEntry =
-    trackDesc && globals.trackManager.resolveTrack(key, trackDesc);
+    trackDesc && globals.trackManager.resolveTrack(uri, trackDesc);
   const trackFSM = trackCacheEntry;
   const tags = trackCacheEntry?.desc.tags;
   const subtitle = trackCacheEntry?.desc.subtitle;
   const chips = trackCacheEntry?.desc.chips;
   const plugin = trackCacheEntry?.desc.pluginId;
   return {
-    title: name,
+    displayName,
     subtitle,
-    closeable: closeable ?? false,
     tags,
     trackFSM,
     chips,
@@ -500,9 +497,8 @@ function resolveTrack(key: string): TrackBundle {
 }
 
 interface TrackBundle {
-  readonly title: string;
+  readonly displayName: string;
   readonly subtitle?: string;
-  readonly closeable: boolean;
   readonly trackFSM?: TrackCacheEntry;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;

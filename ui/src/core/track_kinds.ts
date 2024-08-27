@@ -35,3 +35,4 @@ export const SCROLL_JANK_V3_TRACK_KIND =
   'org.chromium.ScrollJank.scroll_jank_v3_track';
 export const CHROME_SCROLL_JANK_TRACK_KIND =
   'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
+export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';

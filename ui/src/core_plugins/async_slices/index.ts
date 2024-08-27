@@ -76,8 +76,12 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           kind: ASYNC_SLICE_TRACK_KIND,
           scope: 'global',
         },
-        trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
+        trackFactory: ({trackUri}) => {
+          return new AsyncSliceTrack(
+            {engine, uri: trackUri},
+            maxDepth,
+            trackIds,
+          );
         },
       });
     }
@@ -132,9 +136,9 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           scope: 'process',
           upid,
         },
-        trackFactory: ({trackKey}) => {
+        trackFactory: ({trackUri}) => {
           return new AsyncSliceTrack(
-            {engine: ctx.engine, trackKey},
+            {engine: ctx.engine, uri: trackUri},
             maxDepth,
             trackIds,
           );
@@ -202,8 +206,12 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           kind: ASYNC_SLICE_TRACK_KIND,
           scope: 'user',
         },
-        trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
+        trackFactory: ({trackUri}) => {
+          return new AsyncSliceTrack(
+            {engine, uri: trackUri},
+            maxDepth,
+            trackIds,
+          );
         },
       });
     }

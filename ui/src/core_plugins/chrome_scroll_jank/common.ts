@@ -48,12 +48,12 @@ export class ScrollJankPluginState {
 
   public registerTrack(args: {
     kind: string;
-    trackKey: string;
+    trackUri: string;
     tableName: string;
     detailsPanelConfig: CustomSqlDetailsPanelConfig;
   }): void {
     this.tracks[args.kind] = {
-      key: args.trackKey,
+      key: args.trackUri,
       sqlTableName: args.tableName,
       detailsPanelConfig: args.detailsPanelConfig,
     };

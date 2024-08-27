@@ -72,11 +72,11 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        trackFactory: ({trackKey}) =>
+        trackFactory: ({trackUri}) =>
           new ProcessPerfSamplesProfileTrack(
             {
               engine: ctx.engine,
-              trackKey,
+              uri: trackUri,
             },
             upid,
           ),
@@ -115,11 +115,11 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
         },
-        trackFactory: ({trackKey}) =>
+        trackFactory: ({trackUri}) =>
           new ThreadPerfSamplesProfileTrack(
             {
               engine: ctx.engine,
-              trackKey,
+              uri: trackUri,
             },
             utid,
           ),

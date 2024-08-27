@@ -28,10 +28,10 @@ export class ExpectedFramesTrack extends NamedSliceTrack {
   constructor(
     engine: Engine,
     maxDepth: number,
-    trackKey: string,
+    uri: string,
     private trackIds: number[],
   ) {
-    super({engine, trackKey});
+    super({engine, uri});
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,

@@ -24,13 +24,10 @@ import {AggregationController} from './aggregation_controller';
 export class CounterAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     const trackIds: (string | number)[] = [];
-    for (const trackKey of area.tracks) {
-      const track = globals.state.tracks[trackKey];
-      if (track?.uri) {
-        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
-          trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
-        }
+    for (const trackUri of area.trackUris) {
+      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
+        trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
       }
     }
     if (trackIds.length === 0) return false;

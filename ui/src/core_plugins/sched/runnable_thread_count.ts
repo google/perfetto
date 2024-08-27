@@ -12,24 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
 import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
-import {CloseTrackButton} from '../../frontend/close_track_button';
 import {NewTrackArgs} from '../../frontend/track';
 
 export class RunnableThreadCountTrack extends BaseCounterTrack {
   constructor(args: NewTrackArgs) {
     super(args);
-  }
-
-  getTrackShellButtons(): m.Children {
-    return m(CloseTrackButton, {
-      trackKey: this.trackKey,
-    });
   }
 
   protected getDefaultCounterOptions(): CounterOptions {
