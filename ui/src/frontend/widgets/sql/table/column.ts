@@ -30,6 +30,10 @@ import {arrayEquals} from '../../../../base/array_utils';
 export type SourceTable = {
   table: string;
   joinOn: {[key: string]: SqlColumn};
+  // Whether more performant 'INNER JOIN' can be used instead of 'LEFT JOIN'.
+  // Special care should be taken to ensure that a) all rows exist in a target table, and b) the source is not null, otherwise the rows will be filtered out.
+  // false by default.
+  innerJoin?: boolean;
 };
 
 // A column in the SQL query. It can be either a column from a base table or a "lookup" column from a joined table.

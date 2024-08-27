@@ -29,7 +29,7 @@ export function getSliceTable(): SqlTableDescription {
     name: '_slice_with_thread_and_process_info',
     displayName: 'slice',
     columns: [
-      new SliceIdColumn('id'),
+      new SliceIdColumn('id', {notNull: true}),
       new TimestampColumn('ts', {title: 'Timestamp'}),
       new DurationColumn('dur', {title: 'Duration'}),
       new DurationColumn('thread_dur', {title: 'Thread duration'}),

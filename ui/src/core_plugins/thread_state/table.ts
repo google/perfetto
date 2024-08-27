@@ -26,12 +26,12 @@ export function getThreadStateTable(): SqlTableDescription {
   return {
     name: 'thread_state',
     columns: [
-      new ThreadStateIdColumn('id'),
+      new ThreadStateIdColumn('id', {notNull: true}),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
       new StandardColumn('state'),
       new StandardColumn('cpu', {aggregationType: 'nominal'}),
-      new ThreadColumn('utid', {title: 'Thread'}),
+      new ThreadColumn('utid', {title: 'Thread', notNull: true}),
       new ProcessColumn(
         {
           column: 'upid',
@@ -40,9 +40,10 @@ export function getThreadStateTable(): SqlTableDescription {
             joinOn: {
               utid: 'utid',
             },
+            innerJoin: true,
           },
         },
-        {title: 'Process'},
+        {title: 'Process', notNull: true},
       ),
       new StandardColumn('io_wait', {aggregationType: 'nominal'}),
       new StandardColumn('blocked_function'),
