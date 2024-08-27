@@ -972,8 +972,8 @@ class TrackDecider {
       .forEach((n) => globals.workspace.addChild(n));
 
     // If there is only one group, expand it
-    const groups = globals.workspace.flatGroups;
-    if (groups.length === 1) {
+    const groups = globals.workspace.children;
+    if (groups.length === 1 && groups[0] instanceof GroupNode) {
       groups[0].expand();
     }
   }
