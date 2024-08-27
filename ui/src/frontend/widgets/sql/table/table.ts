@@ -201,6 +201,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
               query: this.state.getSqlQuery(
                 Object.fromEntries([[columnAlias, column.primaryColumn()]]),
               ),
+              aggregationType: column.aggregation?.().dataType,
             },
             this.state.engine,
           );

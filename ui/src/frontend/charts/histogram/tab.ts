@@ -19,6 +19,7 @@ import {uuidv4} from '../../../base/uuid';
 import {addBottomTab} from '../../../common/addEphemeralTab';
 import {Engine} from '../../../public';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {Spinner} from '../../../widgets/spinner';
 import {VegaView} from '../../../widgets/vega_view';
 import {BottomTab, NewBottomTabArgs} from '../../bottom_tab';
 import {Filter, filterTitle} from '../../widgets/sql/table/column';
@@ -31,6 +32,7 @@ interface HistogramTabConfig {
   filters?: Filter[]; // Filters applied to SQL table
   tableDisplay?: string; // Human readable table name (ex: slices)
   query: string; // SQL query for the underlying data
+  aggregationType?: 'nominal' | 'quantitative'; // Aggregation type.
 }
 
 export function addHistogramTab(
@@ -58,6 +60,7 @@ export class HistogramTab extends BottomTab<HistogramTabConfig> {
       this.engine,
       this.config.query,
       this.config.sqlColumn,
+      this.config.aggregationType,
     );
   }
 
@@ -66,6 +69,10 @@ export class HistogramTab extends BottomTab<HistogramTabConfig> {
   }
 
   viewTab() {
+    const data = this.state.data;
+    if (data === undefined) {
+      return m(Spinner);
+    }
     return m(
       DetailsShell,
       {
@@ -80,24 +87,20 @@ export class HistogramTab extends BottomTab<HistogramTabConfig> {
               "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
               "mark": "bar",
               "data": {
-                "values": ${
-                  this.state.data
-                    ? stringifyJsonWithBigints(this.state.data)
-                    : []
-                }
+                "values": ${stringifyJsonWithBigints(data.rows)}
               },
               "encoding": {
-                "${this.state.chartConfig.binAxis}": {
-                  "bin": ${this.state.chartConfig.isBinned},
+                "${data.chartConfig.binAxis}": {
+                  "bin": ${data.chartConfig.isBinned},
                   "field": "${this.config.sqlColumn}",
-                  "type": "${this.state.chartConfig.binAxisType}",
+                  "type": "${data.chartConfig.binAxisType}",
                   "title": "${this.config.columnTitle}",
-                  "sort": ${this.state.chartConfig.sort},
+                  "sort": ${data.chartConfig.sort},
                   "axis": {
-                    "labelLimit": ${this.state.chartConfig.labelLimit}
+                    "labelLimit": ${data.chartConfig.labelLimit}
                   }
                 },
-                "${this.state.chartConfig.countAxis}": {
+                "${data.chartConfig.countAxis}": {
                   "aggregate": "count",
                   "title": "Count"
                 }
@@ -112,7 +115,7 @@ export class HistogramTab extends BottomTab<HistogramTabConfig> {
 
   getTitle(): string {
     return `${this.toTitleCase(this.config.columnTitle)} ${
-      this.state.chartConfig.binAxisType === 'quantitative'
+      this.state.data?.chartConfig.binAxisType === 'quantitative'
         ? 'Histogram'
         : 'Counts'
     }`;
@@ -140,6 +143,6 @@ export class HistogramTab extends BottomTab<HistogramTabConfig> {
   }
 
   isLoading(): boolean {
-    return this.state.isLoading;
+    return this.state.data === undefined;
   }
 }
