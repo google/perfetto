@@ -36,22 +36,24 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
       include perfetto module viz.threads;
 
       select
-        thread_track.utid as utid,
-        thread_track.id as trackId,
-        thread_track.name as trackName,
-        EXTRACT_ARG(thread_track.source_arg_set_id,
-                    'is_root_in_scope') as isDefaultTrackForScope,
-        tid,
+        tt.utid as utid,
+        tt.id as trackId,
+        tt.name as trackName,
+        extract_arg(
+          tt.source_arg_set_id,
+          'is_root_in_scope'
+        ) as isDefaultTrackForScope,
+        t.tid,
         t.name as threadName,
-        max_depth as maxDepth,
+        s.max_depth as maxDepth,
         t.upid as upid,
-        is_main_thread as isMainThread,
-        is_kernel_thread AS isKernelThread
-      from thread_track
+        t.is_main_thread as isMainThread,
+        t.is_kernel_thread AS isKernelThread
+      from _thread_track_summary_by_utid_and_name s
       join _threads_with_kernel_flag t using(utid)
-      join _slice_track_summary sts on sts.id = thread_track.id
+      join thread_track tt on s.track_id = tt.id
+      where s.track_count = 1
   `);
-
     const it = result.iter({
       utid: NUM,
       trackId: NUM,
@@ -64,7 +66,6 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
       isMainThread: NUM_NULL,
       isKernelThread: NUM,
     });
-
     for (; it.valid(); it.next()) {
       const {
         upid,
