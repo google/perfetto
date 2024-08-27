@@ -438,7 +438,8 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
           context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
       context_->slice_tracker->Scoped(ts, track_id, kNullStringId, state_id, 0);
     } else if (name.StartsWith("debug.tracing.battery_stats.") ||
-               name == "debug.tracing.mcc" || name == "debug.tracing.mnc") {
+               name == "debug.tracing.mcc" || name == "debug.tracing.mnc" ||
+               name == "debug.tracing.desktop_mode_visible_tasks") {
       StringId name_id = context_->storage->InternString(
           name.substr(strlen("debug.tracing.")));
       std::optional<int32_t> state =
