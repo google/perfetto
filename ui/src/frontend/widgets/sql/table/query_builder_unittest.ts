@@ -107,6 +107,83 @@ test('query_builder.simple_join', () => {
   );
 });
 
+// Check a query with INNER JOIN instead of LEFT JOIN.
+test('query_builder.left_join', () => {
+  expect(
+    normalise(
+      buildSqlQuery({
+        table: 'foo',
+        columns: {
+          foo_id: 'id',
+          slice_name: {
+            column: 'name',
+            source: {
+              table: 'slice',
+              innerJoin: true,
+              joinOn: {
+                id: 'slice_id',
+              },
+            },
+          },
+        },
+      }),
+    ),
+  ).toBe(
+    normalise(`
+    SELECT
+      foo_0.id AS foo_id,
+      slice_1.name AS slice_name
+    FROM foo AS foo_0
+    JOIN slice AS slice_1 ON slice_1.id = foo_0.slice_id
+  `),
+  );
+});
+
+// Check a query which has both INNER JOIN and LEFT JOIN on the same table.
+// The correct behaviour here is debatable (probably we can upgrade INNER JOIN to LEFT JOIN),
+// but for now we just generate the query with two separate joins.
+test('query_builder.left_join_and_inner_join', () => {
+  expect(
+    normalise(
+      buildSqlQuery({
+        table: 'foo',
+        columns: {
+          foo_id: 'id',
+          slice_name: {
+            column: 'name',
+            source: {
+              table: 'slice',
+              innerJoin: true,
+              joinOn: {
+                id: 'slice_id',
+              },
+            },
+          },
+          slice_depth: {
+            column: 'depth',
+            source: {
+              table: 'slice',
+              joinOn: {
+                id: 'slice_id',
+              },
+            },
+          },
+        },
+      }),
+    ),
+  ).toBe(
+    normalise(`
+    SELECT
+      foo_0.id AS foo_id,
+      slice_1.name AS slice_name,
+      slice_2.depth AS slice_depth
+    FROM foo AS foo_0
+    JOIN slice AS slice_1 ON slice_1.id = foo_0.slice_id
+    LEFT JOIN slice AS slice_2 ON slice_2.id = foo_0.slice_id
+  `),
+  );
+});
+
 test('query_builder.join_with_multiple_columns', () => {
   // This test checks that the query builder can correctly deduplicate joins when we request multiple columns from the joined table.
   const parent: SourceTable = {

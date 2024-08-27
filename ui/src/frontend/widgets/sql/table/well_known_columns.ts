@@ -156,18 +156,26 @@ function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   );
 }
 
+interface IdColumnParams {
+  // Whether the column is guaranteed not to have null values.
+  // (this will allow us to upgrage the joins on this column to more performant INNER JOINs).
+  notNull?: boolean;
+}
+
 export class SliceIdColumn extends TableColumn {
   private columns: {ts: SqlColumn; dur: SqlColumn; trackId: SqlColumn};
 
   constructor(
     private id: SqlColumn,
-    private params?: ColumnParams,
+    private params?: ColumnParams & IdColumnParams,
   ) {
     super(params);
 
     const sliceTable: SourceTable = {
       table: 'slice',
       joinOn: {id: this.id},
+      // If the column is guaranteed not to have null values, we can use an INNER JOIN.
+      innerJoin: this.params?.notNull === true,
     };
 
     this.columns = {
@@ -241,13 +249,15 @@ export class SchedIdColumn extends TableColumn {
 
   constructor(
     private id: SqlColumn,
-    private params?: ColumnParams,
+    private params?: ColumnParams & IdColumnParams,
   ) {
     super(params);
 
     const schedTable: SourceTable = {
       table: 'sched',
       joinOn: {id: this.id},
+      // If the column is guaranteed not to have null values, we can use an INNER JOIN.
+      innerJoin: this.params?.notNull === true,
     };
 
     this.columns = {
@@ -325,13 +335,15 @@ export class ThreadStateIdColumn extends TableColumn {
 
   constructor(
     private id: SqlColumn,
-    private params?: ColumnParams,
+    private params?: ColumnParams & IdColumnParams,
   ) {
     super(params);
 
     const threadStateTable: SourceTable = {
       table: 'thread_state',
       joinOn: {id: this.id},
+      // If the column is guaranteed not to have null values, we can use an INNER JOIN.
+      innerJoin: this.params?.notNull === true,
     };
 
     this.columns = {
@@ -409,13 +421,15 @@ export class ThreadColumn extends TableColumn {
 
   constructor(
     private utid: SqlColumn,
-    private params?: ColumnParams,
+    private params?: ColumnParams & IdColumnParams,
   ) {
     super(params);
 
     const threadTable: SourceTable = {
       table: 'thread',
       joinOn: {id: this.utid},
+      // If the column is guaranteed not to have null values, we can use an INNER JOIN.
+      innerJoin: this.params?.notNull === true,
     };
 
     this.columns = {
@@ -525,13 +539,15 @@ export class ProcessColumn extends TableColumn {
 
   constructor(
     private upid: SqlColumn,
-    private params?: ColumnParams,
+    private params?: ColumnParams & IdColumnParams,
   ) {
     super(params);
 
     const processTable: SourceTable = {
       table: 'process',
       joinOn: {id: this.upid},
+      // If the column is guaranteed not to have null values, we can use an INNER JOIN.
+      innerJoin: this.params?.notNull === true,
     };
 
     this.columns = {
