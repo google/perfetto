@@ -691,6 +691,20 @@ TEST_F(ProtoTraceParserTest, LoadCpuIdleStats) {
   EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
+TEST_F(ProtoTraceParserTest, LoadGpuFreqStats) {
+  auto* packet = trace_->add_packet();
+  uint64_t ts = 1000;
+  packet->set_timestamp(ts);
+  auto* bundle = packet->set_sys_stats();
+  bundle->add_gpufreq_mhz(300);
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
+                                   static_cast<double>(300), TrackId{1u}));
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+}
+
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   auto* packet = trace_->add_packet();
   uint64_t ts = 1000;
