@@ -16,7 +16,7 @@ import {Engine} from '../../../public';
 import {Row} from '../../../trace_processor/query_result';
 
 interface ChartConfig {
-  binAxisType?: 'nominal' | 'quantitative';
+  binAxisType: 'nominal' | 'quantitative';
   binAxis: 'x' | 'y';
   countAxis: 'x' | 'y';
   sort: string;
@@ -24,36 +24,53 @@ interface ChartConfig {
   labelLimit?: number;
 }
 
-export class HistogramState {
-  private readonly sqlColumn: string;
-  private readonly engine: Engine;
-  private readonly query: string;
+interface HistogramData {
+  readonly rows: Row[];
+  readonly error?: string;
+  readonly chartConfig: ChartConfig;
+}
 
-  data?: Row[];
-  chartConfig: ChartConfig;
-
-  get isLoading() {
-    return this.data === undefined;
-  }
-
-  constructor(engine: Engine, query: string, column: string) {
-    this.engine = engine;
-    this.query = query;
-    this.sqlColumn = column;
-
-    this.chartConfig = {
+function getHistogramConfig(
+  aggregationType: 'nominal' | 'quantitative',
+): ChartConfig {
+  const labelLimit = 500;
+  if (aggregationType === 'nominal') {
+    return {
+      binAxisType: aggregationType,
+      binAxis: 'y',
+      countAxis: 'x',
+      sort: `{
+        "op": "count",
+        "order": "descending"
+      }`,
+      isBinned: false,
+      labelLimit,
+    };
+  } else {
+    return {
+      binAxisType: aggregationType,
       binAxis: 'x',
-      binAxisType: 'nominal',
       countAxis: 'y',
       sort: 'false',
       isBinned: true,
-      labelLimit: 500,
+      labelLimit,
     };
+  }
+}
 
-    this.getData();
+export class HistogramState {
+  data?: HistogramData;
+
+  constructor(
+    private readonly engine: Engine,
+    private readonly query: string,
+    private readonly sqlColumn: string,
+    private readonly aggregationType?: 'nominal' | 'quantitative',
+  ) {
+    this.loadData();
   }
 
-  async getData() {
+  private async loadData() {
     const res = await this.engine.query(`
       SELECT ${this.sqlColumn}
       FROM (
@@ -63,14 +80,12 @@ export class HistogramState {
 
     const rows: Row[] = [];
 
+    let hasQuantitativeData = false;
+
     for (const it = res.iter({}); it.valid(); it.next()) {
       const rowVal = it.get(this.sqlColumn);
-
-      if (
-        this.chartConfig.binAxisType === 'nominal' &&
-        typeof rowVal === 'bigint'
-      ) {
-        this.chartConfig.binAxisType = 'quantitative';
+      if (typeof rowVal === 'bigint') {
+        hasQuantitativeData = true;
       }
 
       rows.push({
@@ -78,17 +93,17 @@ export class HistogramState {
       });
     }
 
-    this.data = rows;
+    const aggregationType =
+      this.aggregationType !== undefined
+        ? this.aggregationType
+        : hasQuantitativeData
+          ? 'quantitative'
+          : 'nominal';
 
-    if (this.chartConfig.binAxisType === 'nominal') {
-      this.chartConfig.binAxis = 'y';
-      this.chartConfig.countAxis = 'x';
-      this.chartConfig.sort = `{
-          "op": "count",
-          "order": "descending"
-        }`;
-      this.chartConfig.isBinned = false;
-    }
+    this.data = {
+      rows,
+      chartConfig: getHistogramConfig(aggregationType),
+    };
 
     raf.scheduleFullRedraw();
   }

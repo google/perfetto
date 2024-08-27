@@ -35,7 +35,11 @@ export function getSliceTable(): SqlTableDescription {
       new DurationColumn('thread_dur', {title: 'Thread duration'}),
       new StandardColumn('category', {title: 'Category'}),
       new StandardColumn('name', {title: 'Name'}),
-      new StandardColumn('track_id', {title: 'Track ID', startsHidden: true}),
+      new StandardColumn('track_id', {
+        title: 'Track ID',
+        aggregationType: 'nominal',
+        startsHidden: true,
+      }),
       new ThreadColumn('utid', {title: 'Thread'}),
       new ProcessColumn('upid', {title: 'Process'}),
       new StandardColumn('depth', {title: 'Depth', startsHidden: true}),

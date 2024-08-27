@@ -30,7 +30,7 @@ export function getThreadStateTable(): SqlTableDescription {
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
       new StandardColumn('state'),
-      new StandardColumn('cpu'),
+      new StandardColumn('cpu', {aggregationType: 'nominal'}),
       new ThreadColumn('utid', {title: 'Thread'}),
       new ProcessColumn(
         {
@@ -44,12 +44,15 @@ export function getThreadStateTable(): SqlTableDescription {
         },
         {title: 'Process'},
       ),
-      new StandardColumn('io_wait'),
+      new StandardColumn('io_wait', {aggregationType: 'nominal'}),
       new StandardColumn('blocked_function'),
       new ThreadColumn('waker_utid', {title: 'Waker thread'}),
       new ThreadStateIdColumn('waker_id'),
-      new StandardColumn('irq_context'),
-      new StandardColumn('ucpu'),
+      new StandardColumn('irq_context', {aggregationType: 'nominal'}),
+      new StandardColumn('ucpu', {
+        aggregationType: 'nominal',
+        startsHidden: true,
+      }),
     ],
   };
 }
