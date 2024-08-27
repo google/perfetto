@@ -15,6 +15,20 @@
 
 INCLUDE PERFETTO MODULE viz.summary.slices;
 
+CREATE PERFETTO TABLE _thread_track_summary_by_utid_and_name AS
+SELECT
+  utid,
+  name,
+  -- Only meaningful when track_count == 1.
+  id as track_id,
+  -- Only meaningful when track_count == 1.
+  max_depth as max_depth,
+  GROUP_CONCAT(id) AS track_ids,
+  COUNT() AS track_count
+FROM thread_track
+JOIN _slice_track_summary USING (id)
+GROUP BY utid, name;
+
 CREATE PERFETTO TABLE _process_track_summary_by_upid_and_name AS
 SELECT
   upid,

@@ -385,6 +385,23 @@ class TrackDecider {
       });
   }
 
+  private addAsyncThreadSliceTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === ASYNC_SLICE_TRACK_KIND &&
+          tags?.utid !== undefined &&
+          tags?.scope === 'thread',
+      )
+      .forEach((td) => {
+        const utid = assertExists(td.tags?.utid);
+        const group = this.getThreadGroup(utid);
+        group.addChild(new TrackNode(td.uri, td.title));
+      });
+  }
+
   private async addProcessCounterTracks(
     tracks: ReadonlyArray<TrackDescriptor>,
   ): Promise<void> {
@@ -904,6 +921,7 @@ class TrackDecider {
 
     await this.addProcessCounterTracks(tracks);
     this.addProcessAsyncSliceTracks(tracks);
+    this.addAsyncThreadSliceTracks(tracks);
 
     this.addChromeScrollJankTrack(tracks);
 
