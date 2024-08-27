@@ -197,6 +197,8 @@ interface SqlPackage {
   readonly modules: SqlModule[];
 }
 
+const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -238,6 +240,8 @@ class Globals implements AppContext {
   private _selectionManager = new SelectionManager(this._store);
   private _hasFtrace: boolean = false;
   private _searchOverviewTrack?: SearchOverviewTrack;
+  readonly workspaces: Workspace[] = [];
+  private _currentWorkspace: Workspace;
 
   omnibox = new OmniboxManager();
   areaFlamegraphCache = new LegacyFlamegraphCache('area');
@@ -253,7 +257,20 @@ class Globals implements AppContext {
 
   readonly sidebarMenuItems = new Registry<SidebarMenuItem>((m) => m.commandId);
 
-  readonly workspace = new Workspace('Default Workspace');
+  get workspace(): Workspace {
+    return this._currentWorkspace;
+  }
+
+  resetWorkspaces(): void {
+    this.workspaces.length = 0;
+    const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
+    this.workspaces.push(defaultWorkspace);
+    this._currentWorkspace = defaultWorkspace;
+  }
+
+  switchWorkspace(workspace: Workspace): void {
+    this._currentWorkspace = workspace;
+  }
 
   // This is the app's equivalent of a plugin's onTraceLoad() function.
   // TODO(stevegolton): Eventually initialization that should be done on trace
@@ -307,6 +324,10 @@ class Globals implements AppContext {
   constructor() {
     const {start, end} = defaultTraceContext;
     this._timeline = new Timeline(this._store, new TimeSpan(start, end));
+
+    const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
+    this.workspaces.push(defaultWorkspace);
+    this._currentWorkspace = defaultWorkspace;
   }
 
   initialize(
