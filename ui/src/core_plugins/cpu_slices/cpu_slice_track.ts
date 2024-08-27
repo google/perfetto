@@ -61,12 +61,12 @@ export class CpuSliceTrack implements Track {
   private lastRowId = -1;
   private engine: Engine;
   private cpu: number;
-  private trackKey: string;
+  private uri: string;
   private trackUuid = uuidv4Sql();
 
-  constructor(engine: Engine, trackKey: string, cpu: number) {
+  constructor(engine: Engine, uri: string, cpu: number) {
     this.engine = engine;
-    this.trackKey = trackKey;
+    this.uri = uri;
     this.cpu = cpu;
   }
 
@@ -438,7 +438,7 @@ export class CpuSliceTrack implements Track {
       {
         kind: 'SCHED_SLICE',
         id,
-        trackKey: this.trackKey,
+        trackUri: this.uri,
       },
       {
         clearSearch: true,

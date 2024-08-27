@@ -26,14 +26,14 @@ export type KeyLookup<T> = (x: T) => string;
 
 // Finds approx matching in arbitrary lists of items.
 export class FuzzyFinder<T> {
-  private items: T[];
-  private keyLookup: KeyLookup<T>;
+  private readonly items: ReadonlyArray<T>;
+  private readonly keyLookup: KeyLookup<T>;
 
   // Because we operate on arbitrary lists, a key lookup function is required to
   // so we know which part of the list is to be be searched. It should return
   // the relevant search string for each item.
-  constructor(items: ArrayLike<T>, keyLookup: KeyLookup<T>) {
-    this.items = Array.from(items);
+  constructor(items: ReadonlyArray<T>, keyLookup: KeyLookup<T>) {
+    this.items = items;
     this.keyLookup = keyLookup;
   }
 

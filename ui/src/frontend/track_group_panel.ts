@@ -15,8 +15,6 @@
 import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
-import {Actions} from '../common/actions';
-import {getContainingGroupKey} from '../common/state';
 import {TrackCacheEntry} from '../common/track_cache';
 import {TrackTags} from '../public';
 
@@ -41,9 +39,12 @@ import {calculateResolution} from '../common/resolution';
 import {PxSpan, TimeScale} from './time_scale';
 import {exists} from '../base/utils';
 import {classNames} from '../base/classnames';
+import {GroupNode} from './workspace';
+import {raf} from '../core/raf_scheduler';
+import {Actions} from '../common/actions';
 
 interface Attrs {
-  readonly groupKey: string;
+  readonly groupNode: GroupNode;
   readonly title: m.Children;
   readonly tooltip: string;
   readonly collapsed: boolean;
@@ -57,41 +58,41 @@ interface Attrs {
 export class TrackGroupPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = true;
-  readonly groupKey: string;
+  readonly groupUri: string;
 
-  constructor(private attrs: Attrs) {
-    this.groupKey = attrs.groupKey;
+  constructor(private readonly attrs: Attrs) {
+    this.groupUri = attrs.groupNode.uri;
   }
 
   render(): m.Children {
-    const {groupKey, title, subtitle, chips, collapsed, trackFSM, tooltip} =
-      this.attrs;
+    const {title, subtitle, chips, collapsed, trackFSM, tooltip} = this.attrs;
 
     // The shell should be highlighted if the current search result is inside
     // this track group.
     let highlightClass = '';
     const searchIndex = globals.state.searchIndex;
     if (searchIndex !== -1) {
-      const trackKey = globals.currentSearchResults.trackKeys[searchIndex];
-      const containingGroupKey = getContainingGroupKey(globals.state, trackKey);
-      if (containingGroupKey === groupKey) {
+      const uri = globals.currentSearchResults.trackUris[searchIndex];
+      if (this.attrs.groupNode.flatTracks.find((t) => t.uri === uri)) {
         highlightClass = 'flash';
       }
     }
 
     const selection = globals.state.selection;
 
-    const trackGroup = globals.state.trackGroups[groupKey];
+    // const trackGroup = globals.state.trackGroups[groupKey];
     let checkBox = Icons.BlankCheckbox;
     if (selection.kind === 'area') {
       if (
-        selection.tracks.includes(groupKey) &&
-        trackGroup.tracks.every((id) => selection.tracks.includes(id))
+        this.attrs.groupNode.flatTracks.every((track) =>
+          selection.trackUris.includes(track.uri),
+        )
       ) {
         checkBox = Icons.Checkbox;
       } else if (
-        selection.tracks.includes(groupKey) ||
-        trackGroup.tracks.some((id) => selection.tracks.includes(id))
+        this.attrs.groupNode.flatTracks.some((track) =>
+          selection.trackUris.includes(track.uri),
+        )
       ) {
         checkBox = Icons.IndeterminateCheckbox;
       }
@@ -102,7 +103,7 @@ export class TrackGroupPanel implements Panel {
     return m(
       `.track-group-panel[collapsed=${collapsed}]`,
       {
-        id: 'track_' + groupKey,
+        id: 'track_' + this.groupUri,
         oncreate: () => this.onupdate(),
         onupdate: () => this.onupdate(),
       },
@@ -116,11 +117,8 @@ export class TrackGroupPanel implements Panel {
           onclick: (e: MouseEvent) => {
             if (e.defaultPrevented) return;
             if (this.attrs.collapsable) {
-              globals.dispatch(
-                Actions.toggleTrackGroupCollapsed({
-                  groupKey,
-                }),
-              );
+              this.attrs.groupNode.toggleCollapsed();
+              raf.scheduleFullRedraw();
             }
             e.stopPropagation();
           },
@@ -150,9 +148,11 @@ export class TrackGroupPanel implements Panel {
             m(Button, {
               onclick: (e: MouseEvent) => {
                 globals.dispatch(
-                  Actions.toggleTrackSelection({
-                    key: groupKey,
-                    isTrackGroup: true,
+                  Actions.toggleGroupAreaSelection({
+                    // Dump URIs of all contained tracks & nodes, including this group
+                    trackUris: this.attrs.groupNode.flatNodes
+                      .map((t) => t.uri)
+                      .concat(this.attrs.groupNode.uri),
                   }),
                 );
                 e.stopPropagation();
@@ -189,8 +189,11 @@ export class TrackGroupPanel implements Panel {
   ) {
     const selection = globals.state.selection;
     if (selection.kind !== 'area') return;
+    const someSelected = this.attrs.groupNode.flatTracks.some((track) =>
+      selection.trackUris.includes(track.uri),
+    );
     const selectedAreaDuration = selection.end - selection.start;
-    if (selection.tracks.includes(this.groupKey)) {
+    if (someSelected) {
       ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';
       ctx.fillRect(
         timescale.timeToPx(selection.start),
@@ -230,7 +233,7 @@ export class TrackGroupPanel implements Panel {
           visibleWindow,
           size: trackSize,
           ctx,
-          trackKey: track.trackKey,
+          trackUri: track.trackUri,
           resolution: calculateResolution(visibleWindow, trackSize.width),
           timescale,
         };

@@ -288,10 +288,10 @@ export class SelectionController extends Controller<'main'> {
       const name = it.name;
       const value = it.value ?? 'NULL';
       if (name === 'destination slice id' && !isNaN(Number(value))) {
-        const destTrackId = await this.getDestTrackId(value);
+        const destTrackUri = await this.getDestTrackUri(value);
         args.set('Destination Slice', {
           kind: 'SCHED_SLICE',
-          trackId: destTrackId,
+          trackUri: destTrackUri,
           sliceId: Number(value),
           rawValue: value,
         });
@@ -302,25 +302,23 @@ export class SelectionController extends Controller<'main'> {
     return args;
   }
 
-  async getDestTrackId(sliceId: string): Promise<string> {
+  async getDestTrackUri(sliceId: string): Promise<string> {
     const trackIdQuery = `select track_id as trackId from slice
     where slice_id = ${sliceId}`;
     const result = await this.args.engine.query(trackIdQuery);
     const trackId = result.firstRow({trackId: NUM}).trackId;
     // TODO(hjd): If we had a consistent mapping from TP track_id
     // UI track id for slice tracks this would be unnecessary.
-    let trackKey = '';
-    for (const track of Object.values(globals.state.tracks)) {
+    for (const track of globals.workspace.flatTracks) {
       const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
       if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
         const trackIds = trackInfo?.tags?.trackIds;
         if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
-          trackKey = track.key;
-          break;
+          return track.uri;
         }
       }
     }
-    return trackKey;
+    return '';
   }
 
   // TODO(altimin): We currently rely on the ThreadStateDetails for supporting

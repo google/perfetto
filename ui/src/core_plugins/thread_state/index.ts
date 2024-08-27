@@ -77,11 +77,11 @@ class ThreadState implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        trackFactory: ({trackKey}) => {
+        trackFactory: ({trackUri}) => {
           return new ThreadStateTrack(
             {
               engine: ctx.engine,
-              trackKey,
+              uri: trackUri,
             },
             utid,
           );

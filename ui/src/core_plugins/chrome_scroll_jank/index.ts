@@ -119,10 +119,10 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         upid,
         utid,
       },
-      trackFactory: ({trackKey}) => {
+      trackFactory: ({trackUri}) => {
         return new ChromeTasksScrollJankTrack({
           engine: ctx.engine,
-          trackKey,
+          uri: trackUri,
         });
       },
     });
@@ -140,10 +140,10 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
       tags: {
         kind: CHROME_TOPLEVEL_SCROLLS_KIND,
       },
-      trackFactory: ({trackKey}) => {
+      trackFactory: ({trackUri}) => {
         return new TopLevelScrollTrack({
           engine: ctx.engine,
-          trackKey,
+          uri: trackUri,
         });
       },
     });
@@ -271,8 +271,11 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
       tags: {
         kind: CHROME_EVENT_LATENCY_TRACK_KIND,
       },
-      trackFactory: ({trackKey}) => {
-        return new EventLatencyTrack({engine: ctx.engine, trackKey}, baseTable);
+      trackFactory: ({trackUri}) => {
+        return new EventLatencyTrack(
+          {engine: ctx.engine, uri: trackUri},
+          baseTable,
+        );
       },
     });
 
@@ -310,10 +313,10 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
       tags: {
         kind: SCROLL_JANK_V3_TRACK_KIND,
       },
-      trackFactory: ({trackKey}) => {
+      trackFactory: ({trackUri}) => {
         return new ScrollJankV3Track({
           engine: ctx.engine,
-          trackKey,
+          uri: trackUri,
         });
       },
     });

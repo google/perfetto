@@ -36,7 +36,7 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: SCROLL_JANK_V3_TRACK_KIND,
-      trackKey: this.trackKey,
+      trackUri: this.uri,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });

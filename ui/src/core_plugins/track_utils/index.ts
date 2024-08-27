@@ -66,24 +66,15 @@ class TrackUtilsPlugin implements PerfettoPlugin {
             sortedOptions,
           );
 
-          // Find the first track with this URI
-          const firstTrack = Object.values(globals.state.tracks).find(
-            ({uri}) => uri === selectedUri,
+          verticalScrollToTrack(selectedUri, true);
+          const traceTime = globals.traceContext;
+          globals.makeSelection(
+            Actions.selectArea({
+              start: traceTime.start,
+              end: traceTime.end,
+              trackUris: [selectedUri],
+            }),
           );
-          if (firstTrack) {
-            console.log(firstTrack);
-            verticalScrollToTrack(firstTrack.key, true);
-            const traceTime = globals.traceContext;
-            globals.makeSelection(
-              Actions.selectArea({
-                start: traceTime.start,
-                end: traceTime.end,
-                tracks: [firstTrack.key],
-              }),
-            );
-          } else {
-            alert(`No tracks with uri ${selectedUri} on the timeline`);
-          }
         } catch {
           // Prompt was probably cancelled - do nothing.
         }

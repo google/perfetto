@@ -75,11 +75,11 @@ class HeapProfilePlugin implements PerfettoPlugin {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
-        trackFactory: ({trackKey}) => {
+        trackFactory: ({trackUri}) => {
           return new HeapProfileTrack(
             {
               engine: ctx.engine,
-              trackKey,
+              uri: trackUri,
             },
             upid,
           );

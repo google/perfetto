@@ -12,21 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
 import {assertExists} from '../base/logging';
-import {Actions, AddTrackArgs, DeferredAction} from '../common/actions';
-import {
-  InThreadTrackSortKey,
-  SCROLLING_TRACK_GROUP,
-  TrackSortKey,
-  UtidToTrackSortKey,
-} from '../common/state';
 import {globals} from '../frontend/globals';
-import {PrimaryTrackSortKey, TrackDescriptor} from '../public';
-import {getThreadOrProcUri, getTrackName} from '../public/utils';
+import {TrackDescriptor} from '../public';
 import {Engine, EngineBase} from '../trace_processor/engine';
-import {NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
+import {NUM, STR, STR_NULL} from '../trace_processor/query_result';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   ASYNC_SLICE_TRACK_KIND,
@@ -44,8 +34,8 @@ import {
   THREAD_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
 } from '../core/track_kinds';
-import {exists} from '../base/utils';
-import {sqliteString} from '../base/string_utils';
+import {exists, Optional} from '../base/utils';
+import {GroupNode, ContainerNode, TrackNode} from '../frontend/workspace';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -78,34 +68,31 @@ const IRQ_REGEX = new RegExp('^(Irq|SoftIrq) Cpu.*');
 const CHROME_TRACK_REGEX = new RegExp('^Chrome.*|^InputLatency::.*');
 const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
-const SCROLL_JANK_GROUP_ID = 'chrome-scroll-jank-track-group';
 
-export async function decideTracks(
-  engine: EngineBase,
-): Promise<DeferredAction[]> {
-  return new TrackDecider(engine).decideTracks();
+export async function decideTracks(engine: EngineBase): Promise<void> {
+  await new TrackDecider(engine).decideTracks();
 }
 
 class TrackDecider {
   private engine: EngineBase;
-  private upidToUuid = new Map<number, string>();
-  private utidToUuid = new Map<number, string>();
-  private tracksToAdd: AddTrackArgs[] = [];
-  private tracksToPin: string[] = [];
-  private addTrackGroupActions: DeferredAction[] = [];
+  private threadGroups = new Map<number, GroupNode>();
+  private processGroups = new Map<number, GroupNode>();
 
   constructor(engine: EngineBase) {
     this.engine = engine;
   }
 
   private groupGlobalIonTracks(): void {
-    const ionTracks: AddTrackArgs[] = [];
+    const ionTracks: TrackNode[] = [];
     let hasSummary = false;
-    for (const track of this.tracksToAdd) {
-      const isIon = track.name.startsWith(MEM_ION);
-      const isIonCounter = track.name === MEM_ION;
-      const isDmaHeapCounter = track.name === MEM_DMA_COUNTER_NAME;
-      const isDmaBuffferSlices = track.name === MEM_DMA;
+
+    for (const track of globals.workspace.children) {
+      if (!(track instanceof TrackNode)) continue;
+
+      const isIon = track.displayName.startsWith(MEM_ION);
+      const isIonCounter = track.displayName === MEM_ION;
+      const isDmaHeapCounter = track.displayName === MEM_DMA_COUNTER_NAME;
+      const isDmaBuffferSlices = track.displayName === MEM_DMA;
       if (isIon || isIonCounter || isDmaHeapCounter || isDmaBuffferSlices) {
         ionTracks.push(track);
       }
@@ -117,136 +104,85 @@ class TrackDecider {
       return;
     }
 
-    const groupUuid = uuidv4();
-    const summaryTrackKey = uuidv4();
-    let foundSummary = false;
-
+    let group: Optional<GroupNode>;
     for (const track of ionTracks) {
-      if (
-        !foundSummary &&
-        [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.name)
-      ) {
-        foundSummary = true;
-        track.key = summaryTrackKey;
-        track.trackGroup = undefined;
+      if (!group && [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.uri)) {
+        globals.workspace.removeChild(track);
+        group = new GroupNode(track.displayName);
+        group.headerTrackUri = track.uri;
+        globals.workspace.addChild(group);
       } else {
-        track.trackGroup = groupUuid;
+        group?.addChild(track);
       }
     }
-
-    const addGroup = Actions.addTrackGroup({
-      summaryTrackKey,
-      name: MEM_DMA_COUNTER_NAME,
-      key: groupUuid,
-      collapsed: true,
-    });
-    this.addTrackGroupActions.push(addGroup);
   }
 
-  private groupGlobalIostatTracks(tag: string, group: string): void {
-    const iostatTracks: AddTrackArgs[] = [];
-    const devMap = new Map<string, string>();
+  private groupGlobalIostatTracks(tag: string, groupName: string): void {
+    const devMap = new Map<string, GroupNode>();
 
-    for (const track of this.tracksToAdd) {
-      if (track.name.startsWith(tag)) {
-        iostatTracks.push(track);
+    for (const track of globals.workspace.children) {
+      if (track instanceof TrackNode && track.displayName.startsWith(tag)) {
+        const name = track.displayName.split('.', 3);
+        const key = name[1];
+
+        let parentGroup = devMap.get(key);
+        if (!parentGroup) {
+          const group = new GroupNode(groupName);
+          globals.workspace.addChild(group);
+          devMap.set(key, group);
+          parentGroup = group;
+        }
+
+        track.displayName = name[2];
+        parentGroup.addChild(track);
       }
-    }
-
-    if (iostatTracks.length === 0) {
-      return;
-    }
-
-    for (const track of iostatTracks) {
-      const name = track.name.split('.', 3);
-
-      if (!devMap.has(name[1])) {
-        devMap.set(name[1], uuidv4());
-      }
-      track.name = name[2];
-      track.trackGroup = devMap.get(name[1]);
-    }
-
-    for (const [key, value] of devMap) {
-      const groupName = group + key;
-      const addGroup = Actions.addTrackGroup({
-        name: groupName,
-        key: value,
-        collapsed: true,
-      });
-      this.addTrackGroupActions.push(addGroup);
     }
   }
 
   private groupGlobalBuddyInfoTracks(): void {
-    const buddyInfoTracks: AddTrackArgs[] = [];
-    const devMap = new Map<string, string>();
+    const devMap = new Map<string, GroupNode>();
 
-    for (const track of this.tracksToAdd) {
-      if (track.name.startsWith(BUDDY_INFO_TAG)) {
-        buddyInfoTracks.push(track);
+    for (const track of globals.workspace.children) {
+      if (
+        track instanceof TrackNode &&
+        track.displayName.startsWith(BUDDY_INFO_TAG)
+      ) {
+        const tokens = track.uri.split('[');
+        const node = tokens[1].slice(0, -1);
+        const zone = tokens[2].slice(0, -1);
+        const size = tokens[3].slice(0, -1);
+
+        const groupName = 'Buddyinfo:  Node: ' + node + ' Zone: ' + zone;
+        if (!devMap.has(groupName)) {
+          const group = new GroupNode(groupName);
+          devMap.set(groupName, group);
+          globals.workspace.addChild(group);
+        }
+        track.displayName = 'Chunk size: ' + size;
+        const group = devMap.get(groupName)!;
+        group.addChild(track);
       }
-    }
-
-    if (buddyInfoTracks.length === 0) {
-      return;
-    }
-
-    for (const track of buddyInfoTracks) {
-      const tokens = track.name.split('[');
-      const node = tokens[1].slice(0, -1);
-      const zone = tokens[2].slice(0, -1);
-      const size = tokens[3].slice(0, -1);
-
-      const groupName = 'Buddyinfo:  Node: ' + node + ' Zone: ' + zone;
-      if (!devMap.has(groupName)) {
-        devMap.set(groupName, uuidv4());
-      }
-      track.name = 'Chunk size: ' + size;
-      track.trackGroup = devMap.get(groupName);
-    }
-
-    for (const [key, value] of devMap) {
-      const groupName = key;
-      const addGroup = Actions.addTrackGroup({
-        name: groupName,
-        key: value,
-        collapsed: true,
-      });
-      this.addTrackGroupActions.push(addGroup);
     }
   }
 
   private groupFrequencyTracks(groupName: string): void {
-    let groupUuid = undefined;
-    for (const track of this.tracksToAdd) {
+    const group = new GroupNode(groupName);
+
+    for (const track of globals.workspace.children) {
+      if (!(track instanceof TrackNode)) continue;
       // Group all the frequency tracks together (except the CPU and GPU
       // frequency ones).
       if (
-        track.name.endsWith('Frequency') &&
-        !track.name.startsWith('Cpu') &&
-        !track.name.startsWith('Gpu')
+        track.displayName.endsWith('Frequency') &&
+        !track.displayName.startsWith('Cpu') &&
+        !track.displayName.startsWith('Gpu')
       ) {
-        if (
-          track.trackGroup !== undefined &&
-          track.trackGroup !== SCROLLING_TRACK_GROUP
-        ) {
-          continue;
-        }
-        if (groupUuid === undefined) {
-          groupUuid = uuidv4();
-        }
-        track.trackGroup = groupUuid;
+        group.addChild(track);
       }
     }
 
-    if (groupUuid !== undefined) {
-      const addGroup = Actions.addTrackGroup({
-        name: groupName,
-        key: groupUuid,
-        collapsed: true,
-      });
-      this.addTrackGroupActions.push(addGroup);
+    if (group.children.length > 0) {
+      globals.workspace.addChild(group);
     }
   }
 
@@ -261,62 +197,35 @@ class TrackDecider {
       new RegExp('^Android logs$'),
     ];
 
-    let groupUuid = undefined;
-    for (const track of this.tracksToAdd) {
-      if (
-        track.trackGroup !== undefined &&
-        track.trackGroup !== SCROLLING_TRACK_GROUP
-      ) {
-        continue;
-      }
+    const group = new GroupNode(groupName);
+    for (const track of globals.workspace.children) {
+      if (!(track instanceof TrackNode)) continue;
       let allowlisted = false;
       for (const regex of ALLOWLIST_REGEXES) {
-        allowlisted = allowlisted || regex.test(track.name);
+        allowlisted = allowlisted || regex.test(track.displayName);
       }
       if (allowlisted) {
         continue;
       }
-      if (groupUuid === undefined) {
-        groupUuid = uuidv4();
-      }
-      track.trackGroup = groupUuid;
+      group.addChild(track);
     }
 
-    if (groupUuid !== undefined) {
-      const addGroup = Actions.addTrackGroup({
-        name: groupName,
-        key: groupUuid,
-        collapsed: true,
-      });
-      this.addTrackGroupActions.push(addGroup);
+    if (group.children.length > 0) {
+      globals.workspace.addChild(group);
     }
   }
 
   private groupTracksByRegex(regex: RegExp, groupName: string): void {
-    let groupUuid = undefined;
+    const group = new GroupNode(groupName);
 
-    for (const track of this.tracksToAdd) {
-      if (regex.test(track.name)) {
-        if (
-          track.trackGroup !== undefined &&
-          track.trackGroup !== SCROLLING_TRACK_GROUP
-        ) {
-          continue;
-        }
-        if (groupUuid === undefined) {
-          groupUuid = uuidv4();
-        }
-        track.trackGroup = groupUuid;
+    for (const track of globals.workspace.children) {
+      if (track instanceof TrackNode && regex.test(track.displayName)) {
+        group.addChild(track);
       }
     }
 
-    if (groupUuid !== undefined) {
-      const addGroup = Actions.addTrackGroup({
-        name: groupName,
-        key: groupUuid,
-        collapsed: true,
-      });
-      this.addTrackGroupActions.push(addGroup);
+    if (group.children.length > 0) {
+      globals.workspace.addChild(group);
     }
   }
 
@@ -324,13 +233,7 @@ class TrackDecider {
     const annotationTracks = tracks.filter(
       ({tags}) => tags?.scope === 'annotation',
     );
-
-    interface GroupIds {
-      id: string;
-      summaryTrackKey: string;
-    }
-
-    const groupNameToKeys = new Map<string, GroupIds>();
+    const groups = new Map<string, GroupNode>();
 
     annotationTracks
       .filter(({tags}) => tags?.kind === THREAD_SLICE_TRACK_KIND)
@@ -338,60 +241,42 @@ class TrackDecider {
         const upid = assertExists(td.tags?.upid);
         const groupName = td.tags?.groupName;
 
-        let summaryTrackKey = undefined;
-        let trackGroupId =
-          upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid);
+        // We want to try and find a group to put this track in. If groupName is
+        // defined, create a new group or place in existing one if it already
+        // exists Otherwise, try upid to see if we can put this in a process
+        // group
 
-        if (groupName !== undefined) {
-          // If this is the first track encountered for a certain group,
-          // create an id for the group and use this track as the group's
-          // summary track.
-          const groupKeys = groupNameToKeys.get(groupName);
-          if (groupKeys) {
-            trackGroupId = groupKeys.id;
+        let container: ContainerNode;
+        if (groupName) {
+          const existingGroup = groups.get(groupName);
+          if (!existingGroup) {
+            const group = new GroupNode(groupName);
+            group.headerTrackUri = td.uri;
+            container = group;
+            groups.set(groupName, group);
+            globals.workspace.addChild(group);
           } else {
-            trackGroupId = uuidv4();
-            summaryTrackKey = uuidv4();
-            groupNameToKeys.set(groupName, {
-              id: trackGroupId,
-              summaryTrackKey,
-            });
+            container = existingGroup;
+          }
+        } else {
+          const procGroup = this.processGroups.get(upid);
+          if (upid !== 0 && procGroup) {
+            container = procGroup;
+          } else {
+            container = globals.workspace;
           }
         }
 
-        this.tracksToAdd.push({
-          uri: td.uri,
-          key: summaryTrackKey,
-          name: td.title,
-          trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-          trackGroup: trackGroupId,
-        });
+        container.addChild(new TrackNode(td.uri, td.title));
       });
-
-    for (const [groupName, groupKeys] of groupNameToKeys) {
-      const addGroup = Actions.addTrackGroup({
-        summaryTrackKey: groupKeys.summaryTrackKey,
-        name: groupName,
-        key: groupKeys.id,
-        collapsed: true,
-      });
-      this.addTrackGroupActions.push(addGroup);
-    }
 
     annotationTracks
       .filter(({tags}) => tags?.kind === COUNTER_TRACK_KIND)
       .forEach((td) => {
         const upid = td.tags?.upid;
-
-        this.tracksToAdd.push({
-          uri: td.uri,
-          key: td.uri,
-          name: td.title,
-          trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
-          trackGroup: exists(upid)
-            ? this.upidToUuid.get(upid)
-            : SCROLLING_TRACK_GROUP,
-        });
+        const parent =
+          (exists(upid) && this.processGroups.get(upid)) || globals.workspace;
+        parent.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -402,27 +287,9 @@ class TrackDecider {
           tags?.kind === THREAD_STATE_TRACK_KIND && tags?.utid !== undefined,
       )
       .forEach((td) => {
-        const upid = td.tags?.upid ?? null;
         const utid = assertExists(td.tags?.utid);
-
-        const groupId = this.getUuidUnchecked(utid, upid);
-        if (groupId === undefined) {
-          // If a thread has no scheduling activity (i.e. the sched table has zero
-          // rows for that uid) no track group will be created and we want to skip
-          // the track creation as well.
-          return;
-        }
-
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackGroup: groupId,
-          trackSortKey: {
-            utid,
-            priority: InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK,
-          },
-        });
+        const group = this.getThreadGroup(utid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -436,18 +303,8 @@ class TrackDecider {
       )
       .forEach((td) => {
         const utid = assertExists(td.tags?.utid);
-        const upid = td.tags?.upid ?? null;
-        const groupId = this.getUuid(utid, upid);
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: {
-            utid,
-            priority: InThreadTrackSortKey.CPU_STACK_SAMPLES_TRACK,
-          },
-          trackGroup: groupId,
-        });
+        const group = this.getThreadGroup(utid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -461,18 +318,8 @@ class TrackDecider {
       )
       .forEach((td) => {
         const utid = assertExists(td.tags?.utid);
-        const upid = td.tags?.upid ?? null;
-        const groupId = this.getUuid(utid, upid);
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: {
-            utid,
-            priority: InThreadTrackSortKey.ORDINARY,
-          },
-          trackGroup: groupId,
-        });
+        const group = this.getThreadGroup(utid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -488,14 +335,8 @@ class TrackDecider {
       )
       .forEach((td) => {
         const upid = assertExists(td.tags?.upid);
-        const groupId = this.getUuid(null, upid);
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup: groupId,
-        });
+        const group = this.getProcGroup(upid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -508,15 +349,8 @@ class TrackDecider {
       )
       .forEach((td) => {
         const upid = assertExists(td.tags?.upid);
-        const groupId = this.getUuid(null, upid);
-
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
-          trackGroup: groupId,
-        });
+        const group = this.getProcGroup(upid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -531,15 +365,8 @@ class TrackDecider {
       )
       .forEach((td) => {
         const upid = assertExists(td.tags?.upid);
-        const groupId = this.getUuid(null, upid);
-
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
-          trackGroup: groupId,
-        });
+        const group = this.getProcGroup(upid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -551,22 +378,10 @@ class TrackDecider {
       )
       .forEach((td) => {
         const utid = assertExists(td.tags?.utid);
-        const upid = td.tags?.upid ?? null;
-        const isDefaultTrackForScope = Boolean(td.tags?.isDefaultTrackForScope);
-        const groupId = this.getUuid(utid, upid);
-
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackGroup: groupId,
-          trackSortKey: {
-            utid,
-            priority: isDefaultTrackForScope
-              ? InThreadTrackSortKey.DEFAULT_TRACK
-              : InThreadTrackSortKey.ORDINARY,
-          },
-        });
+        // const upid = td.tags?.upid;
+        // const isDefaultTrackForScope = Boolean(td.tags?.isDefaultTrackForScope);
+        const group = this.getThreadGroup(utid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -582,21 +397,11 @@ class TrackDecider {
 
     for (const td of processCounterTracks) {
       const upid = assertExists(td.tags?.upid);
-      const groupId = this.getUuid(null, upid);
-      const trackNameTag = td.tags?.trackName;
-      const trackName =
-        typeof trackNameTag === 'string' ? trackNameTag : undefined;
-
-      this.tracksToAdd.push({
-        key: td.uri,
-        uri: td.uri,
-        name: td.title,
-        trackSortKey: await this.resolveTrackSortKeyForProcessCounterTrack(
-          upid,
-          trackName,
-        ),
-        trackGroup: groupId,
-      });
+      const group = this.getProcGroup(upid);
+      // const trackNameTag = td.tags?.trackName;
+      // const trackName =
+      //   typeof trackNameTag === 'string' ? trackNameTag : undefined;
+      group.addChild(new TrackNode(td.uri, td.title));
     }
   }
 
@@ -610,14 +415,8 @@ class TrackDecider {
       )
       .forEach((td) => {
         const upid = assertExists(td.tags?.upid);
-        const groupId = this.getUuid(null, upid);
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: PrimaryTrackSortKey.HEAP_PROFILE_TRACK,
-          trackGroup: groupId,
-        });
+        const group = this.getProcGroup(upid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -633,14 +432,8 @@ class TrackDecider {
       )
       .forEach((td) => {
         const upid = assertExists(td.tags?.upid);
-        const groupId = this.getUuid(null, upid);
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
-          trackGroup: groupId,
-        });
+        const group = this.getProcGroup(upid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
@@ -654,44 +447,29 @@ class TrackDecider {
           tags?.utid !== undefined,
       )
       .forEach((td) => {
-        const upid = td.tags?.upid ?? null;
+        // const upid = td.tags?.upid;
         const utid = assertExists(td.tags?.utid);
-        const groupId = this.getUuid(utid, upid);
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
-          trackGroup: groupId,
-        });
+        const group = this.getThreadGroup(utid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
-  private getUuidUnchecked(utid: number | null, upid: number | null) {
-    return upid === null
-      ? this.utidToUuid.get(utid!)
-      : this.upidToUuid.get(upid);
-  }
-
-  private getUuid(utid: number | null, upid: number | null) {
-    return assertExists(this.getUuidUnchecked(utid, upid));
-  }
-
-  private getOrCreateUuid(utid: number | null, upid: number | null) {
-    let uuid = this.getUuidUnchecked(utid, upid);
-    if (uuid === undefined) {
-      uuid = uuidv4();
-      if (upid === null) {
-        this.utidToUuid.set(utid!, uuid);
-      } else {
-        this.upidToUuid.set(upid, uuid);
-      }
+  private getProcGroup(upid: number): GroupNode {
+    const group = this.processGroups.get(upid);
+    if (group) {
+      return group;
+    } else {
+      throw new Error(`Unable to find proc group with upid ${upid}`);
     }
-    return uuid;
   }
 
-  private setUuidForUpid(upid: number, uuid: string) {
-    this.upidToUuid.set(upid, uuid);
+  private getThreadGroup(utid: number): GroupNode {
+    const group = this.threadGroups.get(utid);
+    if (group) {
+      return group;
+    } else {
+      throw new Error(`Unable to find thread group with utid ${utid}`);
+    }
   }
 
   private async addKernelThreadGrouping(engine: Engine): Promise<void> {
@@ -735,41 +513,25 @@ class TrackDecider {
     // main track. It doesn't summarise the kernel threads within the group,
     // but creating a dedicated track type is out of scope at the time of
     // writing.
-    const kthreadGroupUuid = uuidv4();
-    const summaryTrackKey = uuidv4();
-    this.tracksToAdd.push({
-      uri: '/kernel',
-      key: summaryTrackKey,
-      trackSortKey: PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
-      name: `Kernel thread summary`,
-    });
-    const addTrackGroup = Actions.addTrackGroup({
-      summaryTrackKey,
-      name: `Kernel threads`,
-      key: kthreadGroupUuid,
-      collapsed: true,
-    });
-    this.addTrackGroupActions.push(addTrackGroup);
+    const group = new GroupNode('Kernel threads');
+    group.headerTrackUri = '/kernel'; // Summary track
+    globals.workspace.addChild(group);
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
-      this.setUuidForUpid(it.upid, kthreadGroupUuid);
+      const {utid} = it;
+
+      const threadGroup = new GroupNode(`Kernel Thread ${utid}`);
+      threadGroup.headless = true;
+      group.addChild(threadGroup);
+
+      this.threadGroups.set(utid, threadGroup);
     }
   }
 
-  private async addProcessTrackGroups(engine: Engine): Promise<void> {
-    // We want to create groups of tracks in a specific order.
-    // The tracks should be grouped:
-    //    by upid
-    //    or (if upid is null) by utid
-    // the groups should be sorted by:
-    //  Chrome-based process rank based on process names (e.g. Browser)
-    //  has a heap profile or not
-    //  total cpu time *for the whole parent process*
-    //  process name
-    //  upid
-    //  thread name
-    //  utid
+  // Adds top level groups for processes and thread that don't belong to a
+  // process.
+  private async addProcessGroups(engine: Engine): Promise<void> {
     const result = await engine.query(`
       with processGroups as (
         select
@@ -813,16 +575,10 @@ class TrackDecider {
       select *
       from (
         select
-          upid,
-          null as utid,
-          pid,
-          null as tid,
-          processName,
-          null as threadName,
-          sumRunningDur > 0 as hasSched,
-          heapProfileAllocationCount > 0
-            or heapGraphObjectCount > 0 as hasHeapInfo,
-          ifnull(chromeProcessLabels, '') as chromeProcessLabels
+          'process' as kind,
+          upid as uid,
+          pid as id,
+          processName as name
         from processGroups
         order by
           chromeProcessRank desc,
@@ -838,15 +594,10 @@ class TrackDecider {
       select *
       from (
         select
-          null,
-          utid,
-          null as pid,
-          tid,
-          null as processName,
-          threadName,
-          sumRunningDur > 0 as hasSched,
-          0 as hasHeapInfo,
-          '' as chromeProcessLabels
+          'thread' as kind,
+          utid as uid,
+          tid as id,
+          threadName as name
         from threadGroups
         order by
           perfSampleCount desc,
@@ -858,137 +609,154 @@ class TrackDecider {
   `);
 
     const it = result.iter({
-      upid: NUM_NULL,
-      utid: NUM_NULL,
-      pid: NUM_NULL,
-      tid: NUM_NULL,
-      processName: STR_NULL,
-      threadName: STR_NULL,
-      hasSched: NUM_NULL,
-      hasHeapInfo: NUM_NULL,
+      kind: STR,
+      uid: NUM,
+      id: NUM,
+      name: STR_NULL,
     });
     for (; it.valid(); it.next()) {
-      const utid = it.utid;
-      const upid = it.upid;
-      const pid = it.pid;
-      const tid = it.tid;
-      const threadName = it.threadName;
-      const processName = it.processName;
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const hasSched = !!it.hasSched;
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const hasHeapInfo = !!it.hasHeapInfo;
+      const {kind, uid, id, name} = it;
 
-      const summaryTrackKey = uuidv4();
+      if (kind === 'process') {
+        // Ignore kernel process groups
+        if (this.processGroups.has(uid)) {
+          continue;
+        }
 
-      const uri = getThreadOrProcUri(upid, utid);
+        function getProcessDisplayName(
+          processName: string | undefined,
+          pid: number,
+        ) {
+          if (processName) {
+            return `${stripPathFromExecutable(processName)} ${pid}`;
+          } else {
+            return `Process ${pid}`;
+          }
+        }
 
-      // If previous groupings (e.g. kernel threads) picked up there tracks,
-      // don't try to regroup them.
-      const pUuid =
-        upid === null ? this.utidToUuid.get(utid!) : this.upidToUuid.get(upid);
-      if (pUuid !== undefined) {
-        continue;
+        const displayName = getProcessDisplayName(name ?? undefined, id);
+
+        const group = new GroupNode(displayName);
+        group.headerTrackUri = `/process_${uid}`; // Summary track URI
+        globals.workspace.addChild(group);
+        this.processGroups.set(uid, group);
+      } else {
+        // Ignore kernel process groups
+        if (this.threadGroups.has(uid)) {
+          continue;
+        }
+
+        function getThreadDisplayName(
+          threadName: string | undefined,
+          pid: number,
+        ) {
+          if (threadName) {
+            return `${stripPathFromExecutable(threadName)} ${pid}`;
+          } else {
+            return `Thread ${pid}`;
+          }
+        }
+
+        const displayName = getThreadDisplayName(name ?? undefined, id);
+
+        const group = new GroupNode(displayName);
+        group.headerTrackUri = `/thread_${uid}`; // Summary track URI
+        globals.workspace.addChild(group);
+        this.threadGroups.set(uid, group);
       }
-
-      this.tracksToAdd.push({
-        uri,
-        key: summaryTrackKey,
-        trackSortKey: hasSched
-          ? PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK
-          : PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
-        name: `${upid === null ? tid : pid} summary`,
-      });
-
-      const name = getTrackName({
-        utid,
-        processName,
-        pid,
-        threadName,
-        tid,
-        upid,
-      });
-
-      const addTrackGroup = Actions.addTrackGroup({
-        summaryTrackKey,
-        name: stripPathFromExecutable(name),
-        key: this.getOrCreateUuid(utid, upid),
-        // Perf profiling tracks remain collapsed, otherwise we would have too
-        // many expanded process tracks for some perf traces, leading to
-        // jankyness.
-        collapsed: !hasHeapInfo,
-      });
-      this.addTrackGroupActions.push(addTrackGroup);
     }
   }
 
-  private async computeThreadOrderingMetadata(): Promise<UtidToTrackSortKey> {
-    const result = await this.engine.query(`
-      select
-        utid,
-        tid,
-        (select pid from process p where t.upid = p.upid) as pid,
-        t.name as threadName
-      from thread t
-    `);
+  // Create all the nested & headless thread groups that live inside existing
+  // process groups.
+  private async addThreadGroups(engine: Engine): Promise<void> {
+    const result = await engine.query(`
+      with threadGroups as (
+        select
+          utid,
+          upid,
+          tid,
+          thread.name as threadName,
+          CASE
+            WHEN thread.is_main_thread = 1 THEN 10
+            WHEN thread.name = 'CrBrowserMain' THEN 10
+            WHEN thread.name = 'CrRendererMain' THEN 10
+            WHEN thread.name = 'CrGpuMain' THEN 10
+            WHEN thread.name glob '*RenderThread*' THEN 9
+            WHEN thread.name glob '*GPU completion*' THEN 8
+            WHEN thread.name = 'Chrome_ChildIOThread' THEN 7
+            WHEN thread.name = 'Chrome_IOThread' THEN 7
+            WHEN thread.name = 'Compositor' THEN 6
+            WHEN thread.name = 'VizCompositorThread' THEN 6
+            ELSE 5
+          END as priority
+        from _thread_available_info_summary
+        join thread using (utid)
+        where upid is not null
+      )
+      select *
+      from (
+        select
+          utid,
+          upid,
+          tid,
+          threadName
+        from threadGroups
+        order by
+          priority desc,
+          tid asc
+      )
+  `);
 
     const it = result.iter({
       utid: NUM,
-      tid: NUM_NULL,
-      pid: NUM_NULL,
+      tid: NUM,
+      upid: NUM,
       threadName: STR_NULL,
     });
-
-    const threadOrderingMetadata: UtidToTrackSortKey = {};
     for (; it.valid(); it.next()) {
-      threadOrderingMetadata[it.utid] = {
-        tid: it.tid === null ? undefined : it.tid,
-        sortKey: TrackDecider.getThreadSortKey(it.threadName, it.tid, it.pid),
-      };
+      const {utid, tid, upid, threadName} = it;
+
+      // Ignore kernel thread groups
+      if (this.threadGroups.has(utid)) {
+        continue;
+      }
+
+      const threadGroup = new GroupNode(threadName ?? `Thread ${tid}`);
+      this.threadGroups.set(utid, threadGroup);
+      threadGroup.headless = true;
+      threadGroup.expand();
+
+      this.processGroups.get(upid)?.addChild(threadGroup);
     }
-    return threadOrderingMetadata;
   }
 
   private addPluginTracks(): void {
-    const groupNameToUuid = new Map<string, string>();
+    const groups = new Map<string, GroupNode>();
     const tracks = globals.trackManager.findPotentialTracks();
 
     for (const info of tracks) {
       const groupName = info.groupName;
+      let container: ContainerNode = globals.workspace;
 
-      let groupUuid = SCROLLING_TRACK_GROUP;
       if (groupName) {
-        const uuid = groupNameToUuid.get(groupName);
-        if (uuid) {
-          groupUuid = uuid;
+        const existingGroup = groups.get(groupName);
+        if (existingGroup) {
+          container = existingGroup;
         } else {
           // Add the group
-          groupUuid = uuidv4();
-          const addGroup = Actions.addTrackGroup({
-            name: groupName,
-            key: groupUuid,
-            collapsed: true,
-            fixedOrdering: true,
-          });
-          this.addTrackGroupActions.push(addGroup);
-
-          // Add group to the map
-          groupNameToUuid.set(groupName, groupUuid);
+          const group = new GroupNode(groupName);
+          container = group;
+          globals.workspace.addChild(group);
+          groups.set(groupName, group);
         }
       }
 
-      this.tracksToAdd.push({
-        uri: info.uri,
-        key: info.uri,
-        name: info.title,
-        // TODO(hjd): Fix how sorting works. Plugins should expose
-        // 'sort keys' which the user can use to choose a sort order.
-        trackSortKey: info.sortKey ?? PrimaryTrackSortKey.ORDINARY_TRACK,
-        trackGroup: groupUuid,
-      });
+      const track = new TrackNode(info.uri, info.title);
+      container.addChild(track);
 
       if (info.isPinned) {
-        this.tracksToPin.push(info.uri);
+        track.pin();
       }
     }
   }
@@ -996,35 +764,22 @@ class TrackDecider {
   private addScrollJankPluginTracks(
     tracks: ReadonlyArray<TrackDescriptor>,
   ): void {
-    let scrollTracks = this.addTracks(
-      tracks,
-      ({tags}) => tags?.kind === CHROME_TOPLEVEL_SCROLLS_KIND,
-      SCROLL_JANK_GROUP_ID,
-    );
-    scrollTracks = scrollTracks.concat(
-      this.addTracks(
-        tracks,
-        ({tags}) => tags?.kind === SCROLL_JANK_V3_TRACK_KIND,
-        SCROLL_JANK_GROUP_ID,
-      ),
-    );
-    scrollTracks = scrollTracks.concat(
-      this.addTracks(
-        tracks,
-        ({tags}) => tags?.kind === CHROME_EVENT_LATENCY_TRACK_KIND,
-        SCROLL_JANK_GROUP_ID,
-      ),
-    );
-    if (scrollTracks.length > 0) {
-      this.addTrackGroupActions.push(
-        Actions.addTrackGroup({
-          name: 'Chrome Scroll Jank',
-          key: SCROLL_JANK_GROUP_ID,
-          collapsed: false,
-          fixedOrdering: true,
-        }),
-      );
-    }
+    const group = new GroupNode('Chrome Scroll Jank');
+    tracks
+      .filter(({tags}) => tags?.kind === CHROME_TOPLEVEL_SCROLLS_KIND)
+      .forEach((td) => {
+        group.addChild(new TrackNode(td.uri, td.title));
+      });
+    tracks
+      .filter(({tags}) => tags?.kind === SCROLL_JANK_V3_TRACK_KIND)
+      .forEach((td) => {
+        group.addChild(new TrackNode(td.uri, td.title));
+      });
+    tracks
+      .filter(({tags}) => tags?.kind === CHROME_EVENT_LATENCY_TRACK_KIND)
+      .forEach((td) => {
+        group.addChild(new TrackNode(td.uri, td.title));
+      });
   }
 
   private addChromeScrollJankTrack(
@@ -1033,45 +788,28 @@ class TrackDecider {
     tracks
       .filter(({tags}) => tags?.kind === CHROME_SCROLL_JANK_TRACK_KIND)
       .forEach((td) => {
-        const upid = assertExists(td.tags?.upid);
         const utid = assertExists(td.tags?.utid);
-        const groupId = this.getUuid(utid, upid);
-        this.tracksToAdd.push({
-          key: td.uri,
-          uri: td.uri,
-          name: td.title,
-          trackSortKey: {
-            utid,
-            priority: InThreadTrackSortKey.ORDINARY,
-          },
-          trackGroup: groupId,
-        });
+        const group = this.getThreadGroup(utid);
+        group.addChild(new TrackNode(td.uri, td.title));
       });
   }
 
   // Add an ordinary track from a track descriptor
-  private addTrack(track: TrackDescriptor, groupId?: string): void {
-    this.tracksToAdd.push({
-      key: track.uri,
-      uri: track.uri,
-      name: track.title,
-      trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-      trackGroup: groupId ?? SCROLLING_TRACK_GROUP,
-    });
+  private addTrack(track: TrackDescriptor): void {
+    globals.workspace.addChild(new TrackNode(track.uri, track.title));
   }
 
   // Add tracks that match some predicate
   private addTracks(
     source: ReadonlyArray<TrackDescriptor>,
     predicate: (td: TrackDescriptor) => boolean,
-    groupId?: string,
   ): ReadonlyArray<TrackDescriptor> {
     const filteredTracks = source.filter(predicate);
-    filteredTracks.forEach((a) => this.addTrack(a, groupId));
+    filteredTracks.forEach((a) => this.addTrack(a));
     return filteredTracks;
   }
 
-  public async decideTracks(): Promise<DeferredAction[]> {
+  public async decideTracks(): Promise<void> {
     const tracks = globals.trackManager.getAllTracks();
 
     // Add first the global tracks that don't require per-process track groups.
@@ -1145,110 +883,56 @@ class TrackDecider {
     // create a track per process. If a process has been completely idle and has
     // no sched events, no track group will be emitted.
     // Will populate this.addTrackGroupActions
-    await this.addProcessTrackGroups(
+    await this.addProcessGroups(
       this.engine.getProxy('TrackDecider::addProcessTrackGroups'),
     );
 
-    this.addProcessHeapProfileTracks(tracks);
-    this.addProcessPerfSamplesTracks(tracks);
-    this.addThreadPerfSamplesTracks(tracks);
-    await this.addProcessCounterTracks(tracks);
-    this.addProcessAsyncSliceTracks(tracks);
-    this.addActualFramesTracks(tracks);
     this.addExpectedFramesTracks(tracks);
-    this.addThreadCounterTracks(tracks);
+    this.addActualFramesTracks(tracks);
+    this.addProcessPerfSamplesTracks(tracks);
+    this.addProcessHeapProfileTracks(tracks);
+
+    await this.addThreadGroups(
+      this.engine.getProxy('TrackDecider::addThreadTrackGroups'),
+    );
+
+    this.addThreadPerfSamplesTracks(tracks);
+    this.addThreadCpuSampleTracks(tracks);
     this.addThreadStateTracks(tracks);
     this.addThreadSliceTracks(tracks);
-    this.addThreadCpuSampleTracks(tracks);
+    this.addThreadCounterTracks(tracks);
+
+    await this.addProcessCounterTracks(tracks);
+    this.addProcessAsyncSliceTracks(tracks);
 
     this.addChromeScrollJankTrack(tracks);
 
-    this.addTrackGroupActions.push(
-      Actions.addTracks({tracks: this.tracksToAdd}),
-    );
-
-    // Add the actions to pin any tracks we need to pin
-    for (const trackKey of this.tracksToPin) {
-      this.addTrackGroupActions.push(Actions.toggleTrackPinned({trackKey}));
-    }
-
-    const threadOrderingMetadata = await this.computeThreadOrderingMetadata();
-    this.addTrackGroupActions.push(
-      Actions.setUtidToTrackSortKey({threadOrderingMetadata}),
-    );
-
-    return this.addTrackGroupActions;
-  }
-
-  // Some process counter tracks are tied to specific threads based on their
-  // name.
-  private async resolveTrackSortKeyForProcessCounterTrack(
-    upid: number,
-    threadName?: string,
-  ): Promise<TrackSortKey> {
-    if (threadName !== 'GPU completion') {
-      return PrimaryTrackSortKey.COUNTER_TRACK;
-    }
-    const result = await this.engine.query(`
-      select utid
-      from thread
-      where upid=${upid} and name=${sqliteString(threadName)}
-    `);
-    const it = result.iter({
-      utid: NUM,
+    // Remove any empty groups
+    globals.workspace.children.forEach((n) => {
+      if (n instanceof GroupNode && n.children.length === 0) {
+        globals.workspace.removeChild(n);
+      }
     });
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    for (; it; it.next()) {
-      return {
-        utid: it.utid,
-        priority: InThreadTrackSortKey.THREAD_COUNTER_TRACK,
-      };
-    }
-    return PrimaryTrackSortKey.COUNTER_TRACK;
-  }
 
-  private static getThreadSortKey(
-    threadName?: string | null,
-    tid?: number | null,
-    pid?: number | null,
-  ): PrimaryTrackSortKey {
-    if (pid !== undefined && pid !== null && pid === tid) {
-      return PrimaryTrackSortKey.MAIN_THREAD;
-    }
-    if (threadName === undefined || threadName === null) {
-      return PrimaryTrackSortKey.ORDINARY_THREAD;
-    }
+    // Move groups underneath tracks
+    Array.from(globals.workspace.children)
+      .sort((a, b) => {
+        // Define the desired order
+        const order = [TrackNode, GroupNode];
 
-    // Chrome main threads should always come first within their process.
-    if (
-      threadName === 'CrBrowserMain' ||
-      threadName === 'CrRendererMain' ||
-      threadName === 'CrGpuMain'
-    ) {
-      return PrimaryTrackSortKey.MAIN_THREAD;
-    }
+        // Get the index in the order array
+        const indexA = order.findIndex((type) => a instanceof type);
+        const indexB = order.findIndex((type) => b instanceof type);
 
-    // Chrome IO threads should always come immediately after the main thread.
-    if (
-      threadName === 'Chrome_ChildIOThread' ||
-      threadName === 'Chrome_IOThread'
-    ) {
-      return PrimaryTrackSortKey.CHROME_IO_THREAD;
-    }
+        // Sort based on the index in the order array
+        return indexA - indexB;
+      })
+      .forEach((n) => globals.workspace.addChild(n));
 
-    // A Chrome process can have only one compositor thread, so we want to put
-    // it next to other named processes.
-    if (threadName === 'Compositor' || threadName === 'VizCompositorThread') {
-      return PrimaryTrackSortKey.CHROME_COMPOSITOR_THREAD;
-    }
-
-    switch (true) {
-      case /.*RenderThread.*/.test(threadName):
-        return PrimaryTrackSortKey.RENDER_THREAD;
-      case /.*GPU completion.*/.test(threadName):
-        return PrimaryTrackSortKey.GPU_COMPLETION_THREAD;
-      default:
-        return PrimaryTrackSortKey.ORDINARY_THREAD;
+    // If there is only one group, expand it
+    const groups = globals.workspace.flatGroups;
+    if (groups.length === 1) {
+      groups[0].expand();
     }
   }
 }

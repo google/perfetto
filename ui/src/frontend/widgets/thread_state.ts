@@ -46,25 +46,21 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          let trackKey: string | undefined;
-          for (const track of Object.values(globals.state.tracks)) {
-            const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-            if (
-              trackDesc &&
-              trackDesc.tags?.kind === THREAD_STATE_TRACK_KIND &&
-              trackDesc.tags?.utid === vnode.attrs.utid
-            ) {
-              trackKey = track.key;
-            }
-          }
+          const trackDescriptor = globals.trackManager
+            .getAllTracks()
+            .find(
+              (td) =>
+                td.tags?.kind === THREAD_STATE_TRACK_KIND &&
+                td.tags?.utid === vnode.attrs.utid,
+            );
 
-          if (trackKey === undefined) return;
+          if (trackDescriptor === undefined) return;
 
           globals.setLegacySelection(
             {
               kind: 'THREAD_STATE',
               id: vnode.attrs.id,
-              trackKey,
+              trackUri: trackDescriptor.uri,
             },
             {
               clearSearch: true,
@@ -74,7 +70,7 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
             },
           );
 
-          scrollToTrackAndTs(trackKey, vnode.attrs.ts, true);
+          scrollToTrackAndTs(trackDescriptor.uri, vnode.attrs.ts, true);
         },
       },
       vnode.attrs.name ?? `Thread State ${vnode.attrs.id}`,

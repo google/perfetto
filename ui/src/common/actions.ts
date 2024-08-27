@@ -15,7 +15,7 @@
 import {Draft} from 'immer';
 
 import {SortDirection} from '../base/comparison_utils';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertTrue} from '../base/logging';
 import {duration, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {randomColor} from '../core/colorizer';
@@ -45,6 +45,7 @@ import {
 } from './metatracing';
 import {
   AdbRecordingTarget,
+  Area,
   EngineMode,
   LoadedConfig,
   NewEngineMode,
@@ -52,27 +53,13 @@ import {
   OmniboxState,
   PendingDeeplinkState,
   PivotTableResult,
-  PrimaryTrackSortKey,
   ProfileType,
   RecordingTarget,
-  SCROLLING_TRACK_GROUP,
   State,
   Status,
-  ThreadTrackSortKey,
-  TrackSortKey,
-  UtidToTrackSortKey,
 } from './state';
 
 type StateDraft = Draft<State>;
-
-export interface AddTrackArgs {
-  key?: string;
-  uri: string;
-  name: string;
-  trackSortKey: TrackSortKey;
-  trackGroup?: string;
-  closeable?: boolean;
-}
 
 export interface PostedTrace {
   buffer: ArrayBuffer;
@@ -127,32 +114,6 @@ function generateNextId(draft: StateDraft): string {
   return nextId;
 }
 
-// A helper to clean the state for a given removeable track.
-// This is not exported as action to make it clear that not all
-// tracks are removeable.
-function removeTrack(state: StateDraft, trackKey: string) {
-  const track = state.tracks[trackKey];
-  if (track === undefined) {
-    return;
-  }
-  delete state.tracks[trackKey];
-
-  const removeTrackId = (arr: string[]) => {
-    const index = arr.indexOf(trackKey);
-    if (index !== -1) arr.splice(index, 1);
-  };
-
-  if (track.trackGroup === SCROLLING_TRACK_GROUP) {
-    removeTrackId(state.scrollingTracks);
-  } else if (track.trackGroup !== undefined) {
-    const trackGroup = state.trackGroups[track.trackGroup];
-    if (trackGroup !== undefined) {
-      removeTrackId(trackGroup.tracks);
-    }
-  }
-  state.pinnedTracks = state.pinnedTracks.filter((key) => key !== trackKey);
-}
-
 let statusTraceEvent: TraceEventScope | undefined;
 
 export const StateActions = {
@@ -200,126 +161,6 @@ export const StateActions = {
     state.traceUuid = args.traceUuid;
   },
 
-  addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
-    args.tracks.forEach((track) => {
-      const trackKey =
-        track.key === undefined ? generateNextId(state) : track.key;
-      const name = track.name;
-      state.tracks[trackKey] = {
-        key: trackKey,
-        name,
-        trackSortKey: track.trackSortKey,
-        trackGroup: track.trackGroup,
-        uri: track.uri,
-        closeable: track.closeable,
-      };
-      if (track.trackGroup === SCROLLING_TRACK_GROUP) {
-        state.scrollingTracks.push(trackKey);
-      } else if (track.trackGroup !== undefined) {
-        const group = state.trackGroups[track.trackGroup];
-        if (group !== undefined) {
-          group.tracks.push(trackKey);
-        }
-      }
-    });
-  },
-
-  // Note: While this action has traditionally been omitted, with more and more
-  // dynamic tracks being added and existing ones being moved to plugins, it
-  // makes sense to have a generic "removeTracks" action which is un-opinionated
-  // about what type of tracks we are removing.
-  // E.g. Once debug tracks have been moved to a plugin, it makes no sense to
-  // keep the "removeDebugTrack()" action, as the core should have no concept of
-  // what debug tracks are.
-  removeTracks(state: StateDraft, args: {trackKeys: string[]}) {
-    for (const trackKey of args.trackKeys) {
-      removeTrack(state, trackKey);
-    }
-  },
-
-  setUtidToTrackSortKey(
-    state: StateDraft,
-    args: {threadOrderingMetadata: UtidToTrackSortKey},
-  ) {
-    state.utidToThreadSortKey = args.threadOrderingMetadata;
-  },
-
-  addTrack(state: StateDraft, args: AddTrackArgs): void {
-    this.addTracks(state, {tracks: [args]});
-  },
-
-  addTrackGroup(
-    state: StateDraft,
-    // Define ID in action so a track group can be referred to without running
-    // the reducer.
-    args: {
-      name: string;
-      key: string;
-      summaryTrackKey?: string;
-      collapsed: boolean;
-      fixedOrdering?: boolean;
-    },
-  ): void {
-    state.trackGroups[args.key] = {
-      name: args.name,
-      key: args.key,
-      collapsed: args.collapsed,
-      tracks: [],
-      summaryTrack: args.summaryTrackKey,
-      fixedOrdering: args.fixedOrdering,
-    };
-  },
-
-  maybeExpandOnlyTrackGroup(state: StateDraft, _: {}): void {
-    const trackGroups = Object.values(state.trackGroups);
-    if (trackGroups.length === 1) {
-      trackGroups[0].collapsed = false;
-    }
-  },
-
-  sortThreadTracks(state: StateDraft, _: {}) {
-    const getFullKey = (a: string) => {
-      const track = state.tracks[a];
-      const threadTrackSortKey = track.trackSortKey as ThreadTrackSortKey;
-      if (threadTrackSortKey.utid === undefined) {
-        const sortKey = track.trackSortKey as PrimaryTrackSortKey;
-        return [sortKey, 0, 0, 0];
-      }
-      const threadSortKey = state.utidToThreadSortKey[threadTrackSortKey.utid];
-      return [
-        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-        threadSortKey
-          ? threadSortKey.sortKey
-          : PrimaryTrackSortKey.ORDINARY_THREAD,
-        threadSortKey && threadSortKey.tid !== undefined
-          ? threadSortKey.tid
-          : Number.MAX_VALUE,
-        /* eslint-enable */
-        threadTrackSortKey.utid,
-        threadTrackSortKey.priority,
-      ];
-    };
-
-    // Use a numeric collator so threads are sorted as T1, T2, ..., T10, T11,
-    // rather than T1, T10, T11, ..., T2, T20, T21 .
-    const coll = new Intl.Collator([], {sensitivity: 'base', numeric: true});
-    for (const group of Object.values(state.trackGroups)) {
-      if (group.fixedOrdering) continue;
-
-      group.tracks.sort((a: string, b: string) => {
-        const aRank = getFullKey(a);
-        const bRank = getFullKey(b);
-        for (let i = 0; i < aRank.length; i++) {
-          if (aRank[i] !== bRank[i]) return aRank[i] - bRank[i];
-        }
-
-        const aName = state.tracks[a].name.toLocaleLowerCase();
-        const bName = state.tracks[b].name.toLocaleLowerCase();
-        return coll.compare(aName, bName);
-      });
-    }
-  },
-
   updateAggregateSorting(
     state: StateDraft,
     args: {id: string; column: string},
@@ -347,57 +188,6 @@ export const StateActions = {
       // If direction is currently 'ASC' toggle to no sorting.
       state.aggregatePreferences[args.id].sorting = undefined;
     }
-  },
-
-  moveTrack(
-    state: StateDraft,
-    args: {srcId: string; op: 'before' | 'after'; dstId: string},
-  ): void {
-    const moveWithinTrackList = (trackList: string[]) => {
-      const newList: string[] = [];
-      for (let i = 0; i < trackList.length; i++) {
-        const curTrackId = trackList[i];
-        if (curTrackId === args.dstId && args.op === 'before') {
-          newList.push(args.srcId);
-        }
-        if (curTrackId !== args.srcId) {
-          newList.push(curTrackId);
-        }
-        if (curTrackId === args.dstId && args.op === 'after') {
-          newList.push(args.srcId);
-        }
-      }
-      trackList.splice(0);
-      newList.forEach((x) => {
-        trackList.push(x);
-      });
-    };
-
-    moveWithinTrackList(state.pinnedTracks);
-    moveWithinTrackList(state.scrollingTracks);
-  },
-
-  toggleTrackPinned(state: StateDraft, args: {trackKey: string}): void {
-    const key = args.trackKey;
-    const isPinned = state.pinnedTracks.includes(key);
-    const trackGroup = assertExists(state.tracks[key]).trackGroup;
-
-    if (isPinned) {
-      state.pinnedTracks.splice(state.pinnedTracks.indexOf(key), 1);
-      if (trackGroup === SCROLLING_TRACK_GROUP) {
-        state.scrollingTracks.unshift(key);
-      }
-    } else {
-      if (trackGroup === SCROLLING_TRACK_GROUP) {
-        state.scrollingTracks.splice(state.scrollingTracks.indexOf(key), 1);
-      }
-      state.pinnedTracks.push(key);
-    }
-  },
-
-  toggleTrackGroupCollapsed(state: StateDraft, args: {groupKey: string}): void {
-    const trackGroup = assertExists(state.trackGroups[args.groupKey]);
-    trackGroup.collapsed = !trackGroup.collapsed;
   },
 
   requestTrackReload(state: StateDraft, _: {}) {
@@ -605,14 +395,14 @@ export const StateActions = {
 
   selectSlice(
     state: StateDraft,
-    args: {id: number; trackKey: string; table?: string; scroll?: boolean},
+    args: {id: number; trackUri: string; table?: string; scroll?: boolean},
   ): void {
     state.selection = {
       kind: 'legacy',
       legacySelection: {
         kind: 'SLICE',
         id: args.id,
-        trackKey: args.trackKey,
+        trackUri: args.trackUri,
         table: args.table,
       },
     };
@@ -626,7 +416,7 @@ export const StateActions = {
       sqlTableName: string;
       start: time;
       duration: duration;
-      trackKey: string;
+      trackUri: string;
       detailsPanelConfig: {
         kind: string;
         config: GenericSliceDetailsTabConfigBase;
@@ -646,7 +436,7 @@ export const StateActions = {
         sqlTableName: args.sqlTableName,
         start: args.start,
         duration: args.duration,
-        trackKey: args.trackKey,
+        trackUri: args.trackUri,
         detailsPanelConfig: {
           kind: args.detailsPanelConfig.kind,
           config: detailsPanelConfig,
@@ -665,14 +455,14 @@ export const StateActions = {
 
   selectThreadState(
     state: StateDraft,
-    args: {id: number; trackKey: string},
+    args: {id: number; trackUri: string},
   ): void {
     state.selection = {
       kind: 'legacy',
       legacySelection: {
         kind: 'THREAD_STATE',
         id: args.id,
-        trackKey: args.trackKey,
+        trackUri: args.trackUri,
       },
     };
   },
@@ -719,57 +509,50 @@ export const StateActions = {
     state.omniboxState.mode = args.mode;
   },
 
-  selectArea(
-    state: StateDraft,
-    args: {start: time; end: time; tracks: string[]},
-  ): void {
-    const {start, end, tracks} = args;
+  selectArea(state: StateDraft, args: Area): void {
+    const {start, end} = args;
     assertTrue(start <= end);
     state.selection = {
       kind: 'area',
-      start,
-      end,
-      tracks,
+      ...args,
     };
   },
 
-  toggleTrackSelection(
-    state: StateDraft,
-    args: {key: string; isTrackGroup: boolean},
-  ) {
+  toggleTrackAreaSelection(state: StateDraft, args: {key: string}) {
     const selection = state.selection;
     if (selection.kind !== 'area') {
       return;
     }
 
-    const index = selection.tracks.indexOf(args.key);
-    if (index > -1) {
-      selection.tracks.splice(index, 1);
-      if (args.isTrackGroup) {
-        // Also remove all child tracks.
-        for (const childTrack of state.trackGroups[args.key].tracks) {
-          const childIndex = selection.tracks.indexOf(childTrack);
-          if (childIndex > -1) {
-            selection.tracks.splice(childIndex, 1);
-          }
-        }
-      }
+    if (!selection.trackUris.includes(args.key)) {
+      selection.trackUris.push(args.key);
     } else {
-      selection.tracks.push(args.key);
-      if (args.isTrackGroup) {
-        // Also add all child tracks.
-        for (const childTrack of state.trackGroups[args.key].tracks) {
-          if (!selection.tracks.includes(childTrack)) {
-            selection.tracks.push(childTrack);
-          }
-        }
-      }
+      selection.trackUris = selection.trackUris.filter((t) => t !== args.key);
     }
-    // It's super unexpected that |toggleTrackSelection| does not cause
-    // selection to be updated and this leads to bugs for people who do:
-    // if (oldSelection !== state.selection) etc.
-    // To solve this re-create the selection object here:
-    state.selection = Object.assign({}, state.selection);
+  },
+
+  toggleGroupAreaSelection(state: StateDraft, args: {trackUris: string[]}) {
+    const currentSelection = state.selection;
+    if (currentSelection.kind !== 'area') {
+      return;
+    }
+
+    const allTracksSelected = args.trackUris.every((t) =>
+      currentSelection.trackUris.includes(t),
+    );
+
+    if (allTracksSelected) {
+      // Deselect all tracks in the list
+      currentSelection.trackUris = currentSelection.trackUris.filter(
+        (t) => !args.trackUris.includes(t),
+      );
+    } else {
+      args.trackUris.forEach((t) => {
+        if (!currentSelection.trackUris.includes(t)) {
+          currentSelection.trackUris.push(t);
+        }
+      });
+    }
   },
 
   setChromeCategories(state: StateDraft, args: {categories: string[]}): void {
@@ -868,18 +651,7 @@ export const StateActions = {
     }
   },
 
-  clearAllPinnedTracks(state: StateDraft, _: {}) {
-    const pinnedTracks = state.pinnedTracks.slice();
-    for (let index = pinnedTracks.length - 1; index >= 0; index--) {
-      const trackKey = pinnedTracks[index];
-      this.toggleTrackPinned(state, {trackKey});
-    }
-  },
-
-  togglePivotTable(
-    state: StateDraft,
-    args: {area?: {start: time; end: time; tracks: string[]}},
-  ) {
+  togglePivotTable(state: StateDraft, args: {area?: Area}) {
     state.nonSerializableState.pivotTable.selectionArea = args.area;
     state.nonSerializableState.pivotTable.queryResult = null;
   },

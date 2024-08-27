@@ -65,13 +65,15 @@ export class FlowEventsPanel implements m.ClassComponent {
     }
 
     const flowClickHandler = (sliceId: number, trackId: number) => {
-      const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
-      if (trackKey) {
+      const track = globals.trackManager
+        .getAllTracks()
+        .find((td) => td.tags?.trackIds?.includes(trackId));
+      if (track) {
         globals.setLegacySelection(
           {
             kind: 'SLICE',
             id: sliceId,
-            trackKey,
+            trackUri: track.uri,
             table: 'slice',
           },
           {

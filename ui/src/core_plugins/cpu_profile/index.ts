@@ -72,11 +72,11 @@ class CpuProfile implements PerfettoPlugin {
           utid,
           ...(exists(upid) && {upid}),
         },
-        trackFactory: ({trackKey}) =>
+        trackFactory: ({trackUri}) =>
           new CpuProfileTrack(
             {
               engine: ctx.engine,
-              trackKey,
+              uri: trackUri,
             },
             utid,
           ),

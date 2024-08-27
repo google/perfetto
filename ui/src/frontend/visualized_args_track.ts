@@ -14,17 +14,16 @@
 
 import m from 'mithril';
 
-import {Actions} from '../common/actions';
-import {globals} from './globals';
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 import {ThreadSliceTrack} from './thread_slice_track';
 import {uuidv4Sql} from '../base/uuid';
 import {Engine} from '../trace_processor/engine';
 import {createView} from '../trace_processor/sql_utils';
+import {globals} from './globals';
 
 export interface VisualizedArgsTrackAttrs {
-  readonly trackKey: string;
+  readonly uri: string;
   readonly engine: Engine;
   readonly trackId: number;
   readonly maxDepth: number;
@@ -36,7 +35,7 @@ export class VisualisedArgsTrack extends ThreadSliceTrack {
   private readonly argName: string;
 
   constructor({
-    trackKey,
+    uri,
     engine,
     trackId,
     maxDepth,
@@ -46,7 +45,7 @@ export class VisualisedArgsTrack extends ThreadSliceTrack {
     const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
     const viewName = `__arg_visualisation_helper_${escapedArgName}_${uuid}_slice`;
 
-    super({engine, trackKey}, trackId, maxDepth, viewName);
+    super({engine, uri}, trackId, maxDepth, viewName);
     this.viewName = viewName;
     this.argName = argName;
   }
@@ -84,13 +83,7 @@ export class VisualisedArgsTrack extends ThreadSliceTrack {
   getTrackShellButtons(): m.Children {
     return m(Button, {
       onclick: () => {
-        // This behavior differs to the original behavior a little.
-        // Originally, hitting the close button on a single track removed ALL
-        // tracks with this argName, whereas this one only closes the single
-        // track.
-        // This will be easily fixable once we transition to using dynamic
-        // tracks instead of this "initial state" approach to add these tracks.
-        globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
+        globals.workspace.getTrackByUri(this.uri)?.remove();
       },
       icon: Icons.Close,
       title: 'Close',

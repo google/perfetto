@@ -65,9 +65,7 @@ export class NotesPanel implements Panel {
   private hoveredX: null | number = null;
 
   render(): m.Children {
-    const allCollapsed = Object.values(globals.state.trackGroups).every(
-      (group) => group.collapsed,
-    );
+    const allCollapsed = globals.workspace.flatGroups.every((n) => n.collapsed);
 
     return m(
       '.notes-panel',
@@ -114,7 +112,10 @@ export class NotesPanel implements Panel {
           m(Button, {
             onclick: (e: Event) => {
               e.preventDefault();
-              globals.dispatch(Actions.clearAllPinnedTracks({}));
+              globals.workspace.pinnedTracks.forEach((t) =>
+                globals.workspace.unpinTrack(t),
+              );
+              raf.scheduleFullRedraw();
             },
             title: 'Clear all pinned tracks',
             icon: 'clear_all',

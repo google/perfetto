@@ -47,11 +47,11 @@ class LinuxKernelDevices implements PerfettoPlugin {
       ctx.registerStaticTrack({
         uri: `/kernel_devices/${displayName}`,
         title: displayName,
-        trackFactory: ({trackKey}) => {
+        trackFactory: ({trackUri}) => {
           return new AsyncSliceTrack(
             {
               engine: ctx.engine,
-              trackKey,
+              uri: trackUri,
             },
             0,
             [trackId],
