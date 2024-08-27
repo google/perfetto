@@ -54,13 +54,19 @@ import {
   renderStandardCell,
 } from './render_cell_utils';
 
-type ColumnParams = TableColumnParams & {
+export type ColumnParams = TableColumnParams & {
   title?: string;
 };
 
-type StandardColumnParams = ColumnParams & {
+export type StandardColumnParams = ColumnParams & {
   aggregationType?: 'nominal' | 'quantitative';
 };
+
+export interface IdColumnParams {
+  // Whether the column is guaranteed not to have null values.
+  // (this will allow us to upgrage the joins on this column to more performant INNER JOINs).
+  notNull?: boolean;
+}
 
 export class StandardColumn extends TableColumn {
   constructor(
@@ -154,12 +160,6 @@ function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
   return renderError(
     `Wrong type for ${type} column ${sqlColumnId(name)}: bigint expected, ${typeof value} found`,
   );
-}
-
-interface IdColumnParams {
-  // Whether the column is guaranteed not to have null values.
-  // (this will allow us to upgrage the joins on this column to more performant INNER JOINs).
-  notNull?: boolean;
 }
 
 export class SliceIdColumn extends TableColumn {
