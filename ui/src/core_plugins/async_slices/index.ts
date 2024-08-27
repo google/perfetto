@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {removeFalsyValues} from '../../base/array_utils';
 import {ASYNC_SLICE_TRACK_KIND} from '../../public';
 import {
   PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {getTrackName} from '../../public/utils';
+import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
 import {AsyncSliceTrack} from './async_slice_track';
@@ -27,6 +28,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addGlobalAsyncTracks(ctx);
     await this.addProcessAsyncSliceTracks(ctx);
+    await this.addThreadAsyncSliceTracks(ctx);
     await this.addUserAsyncSliceTracks(ctx);
   }
 
@@ -136,6 +138,73 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           scope: 'process',
           upid,
         },
+        trackFactory: ({trackUri}) => {
+          return new AsyncSliceTrack(
+            {engine: ctx.engine, uri: trackUri},
+            maxDepth,
+            trackIds,
+          );
+        },
+      });
+    }
+  }
+
+  async addThreadAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
+    const result = await ctx.engine.query(`
+      include perfetto module viz.summary.slices;
+      include perfetto module viz.summary.threads;
+      include perfetto module viz.threads;
+
+      select
+        t.utid,
+        thread.upid,
+        t.name as trackName,
+        t.track_ids as trackIds,
+        __max_layout_depth(t.track_count, t.track_ids) as maxDepth,
+        k.is_main_thread as isMainThread,
+        k.is_kernel_thread AS isKernelThread
+      from _thread_track_summary_by_utid_and_name t
+      join _threads_with_kernel_flag k using(utid)
+      join thread using (utid)
+      where t.track_count > 1
+    `);
+
+    const it = result.iter({
+      utid: NUM,
+      upid: NUM_NULL,
+      trackName: STR_NULL,
+      trackIds: STR,
+      maxDepth: NUM,
+      isMainThread: NUM_NULL,
+      isKernelThread: NUM,
+    });
+    for (; it.valid(); it.next()) {
+      const {utid, upid, trackName, isMainThread, isKernelThread, maxDepth} =
+        it;
+      const rawTrackIds = it.trackIds;
+      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+
+      const kind = ASYNC_SLICE_TRACK_KIND;
+      const displayName = getTrackName({
+        name: trackName,
+        utid,
+        upid,
+        kind,
+      });
+
+      ctx.registerTrack({
+        uri: `/${getThreadUriPrefix(upid, utid)}_slice_${rawTrackIds}`,
+        title: displayName,
+        tags: {
+          trackIds,
+          kind: ASYNC_SLICE_TRACK_KIND,
+          scope: 'thread',
+          utid,
+          upid: upid ?? undefined,
+        },
+        chips: removeFalsyValues([
+          isKernelThread === 0 && isMainThread === 1 && 'main thread',
+        ]),
         trackFactory: ({trackUri}) => {
           return new AsyncSliceTrack(
             {engine: ctx.engine, uri: trackUri},
