@@ -87,7 +87,11 @@ class AreaDetailsPanel implements m.ClassComponent {
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTable;
-    if (pivotTableState.selectionArea !== undefined) {
+    const tree = pivotTableState.queryResult?.tree;
+    if (
+      pivotTableState.selectionArea != undefined &&
+      (tree === undefined || tree.children.size > 0 || tree?.rows.length > 0)
+    ) {
       views.push({
         key: 'pivot_table',
         name: 'Pivot Table',
