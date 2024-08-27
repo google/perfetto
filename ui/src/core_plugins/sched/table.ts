@@ -29,8 +29,8 @@ export function getSchedTable(): SqlTableDescription {
       new SchedIdColumn('id'),
       new TimestampColumn('ts'),
       new DurationColumn('dur'),
-      new StandardColumn('cpu'),
-      new StandardColumn('priority'),
+      new StandardColumn('cpu', {aggregationType: 'nominal'}),
+      new StandardColumn('priority', {aggregationType: 'nominal'}),
       new ThreadColumn('utid', {title: 'Thread'}),
       new ProcessColumn(
         {
@@ -45,7 +45,10 @@ export function getSchedTable(): SqlTableDescription {
         {title: 'Process'},
       ),
       new StandardColumn('end_state'),
-      new StandardColumn('ucpu'),
+      new StandardColumn('ucpu', {
+        aggregationType: 'nominal',
+        startsHidden: true,
+      }),
     ],
   };
 }

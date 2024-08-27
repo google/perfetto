@@ -23,13 +23,15 @@ export function getThreadTable(): SqlTableDescription {
   return {
     name: 'thread',
     columns: [
-      new StandardColumn('utid'),
-      new StandardColumn('tid'),
+      new StandardColumn('utid', {aggregationType: 'nominal'}),
+      new StandardColumn('tid', {aggregationType: 'nominal'}),
       new StandardColumn('name'),
       new TimestampColumn('start_ts'),
       new TimestampColumn('end_ts'),
       new ProcessColumn('upid'),
-      new StandardColumn('is_main_thread'),
+      new StandardColumn('is_main_thread', {
+        aggregationType: 'nominal',
+      }),
     ],
   };
 }
