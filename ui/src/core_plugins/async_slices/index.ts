@@ -274,6 +274,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
           scope: 'user',
+          rawName, // Defines grouping
         },
         trackFactory: ({trackUri}) => {
           return new AsyncSliceTrack(

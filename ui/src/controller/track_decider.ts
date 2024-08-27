@@ -340,6 +340,34 @@ class TrackDecider {
       });
   }
 
+  private addUserAsyncSliceTracks(
+    tracks: ReadonlyArray<TrackDescriptor>,
+  ): void {
+    const groupMap = new Map<string, GroupNode>();
+    tracks
+      .filter(
+        ({tags}) =>
+          tags?.kind === ASYNC_SLICE_TRACK_KIND &&
+          tags?.scope === 'user' &&
+          tags?.rawName !== undefined,
+      )
+      .forEach((td) => {
+        const rawName = td.tags?.rawName;
+        if (typeof rawName === 'string') {
+          const track = new TrackNode(td.uri, td.title);
+          const existingGroup = groupMap.get(rawName);
+          if (existingGroup) {
+            existingGroup.addChild(track);
+          } else {
+            const group = new GroupNode(rawName);
+            globals.workspace.addChild(group);
+            groupMap.set(rawName, group);
+            group.addChild(track);
+          }
+        }
+      });
+  }
+
   private addActualFramesTracks(tracks: ReadonlyArray<TrackDescriptor>): void {
     tracks
       .filter(
@@ -880,11 +908,7 @@ class TrackDecider {
     // Add user slice tracks before listing the processes. These tracks will
     // be listed with their user/package name only, and they will be grouped
     // under on their original shared track names. E.g. "GPU Work Period"
-    this.addTracks(
-      tracks,
-      ({tags}) =>
-        tags?.kind === ASYNC_SLICE_TRACK_KIND && tags?.scope === 'user',
-    );
+    this.addUserAsyncSliceTracks(tracks);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
