@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../base/logging';
 import {uuidv4} from '../base/uuid';
-import {Actions, AddTrackArgs} from '../common/actions';
-import {InThreadTrackSortKey} from '../common/state';
+// import {THREAD_SLICE_TRACK_KIND} from '../public';
 import {TrackDescriptor} from '../public/tracks';
 import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
 import {globals} from './globals';
 import {VisualisedArgsTrack} from './visualized_args_track';
+import {TrackNode} from './workspace';
 
 const VISUALISED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualisedArgs';
 
@@ -75,17 +74,10 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
         group by track_id;
     `);
 
-  const tracksToAdd: AddTrackArgs[] = [];
   const it = result.iter({trackId: NUM, maxDepth: NUM});
-  const addedTrackKeys: string[] = [];
   for (; it.valid(); it.next()) {
     const trackId = it.trackId;
     const maxDepth = it.maxDepth;
-    const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
-    const track = globals.state.tracks[assertExists(trackKey)];
-    const utid = (track.trackSortKey as {utid?: number}).utid;
-    const key = uuidv4();
-    addedTrackKeys.push(key);
 
     const uri = `${VISUALISED_ARGS_SLICE_TRACK_URI_PREFIX}#${uuidv4()}`;
     ctx.registerTrack({
@@ -95,7 +87,7 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
       trackFactory: (trackCtx) => {
         return new VisualisedArgsTrack({
           engine: ctx.engine,
-          trackKey: trackCtx.trackKey,
+          uri: trackCtx.trackUri,
           trackId,
           maxDepth,
           argName,
@@ -103,20 +95,23 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
       },
     });
 
-    tracksToAdd.push({
-      key,
-      trackGroup: track.trackGroup,
-      name: argName,
-      trackSortKey:
-        utid === undefined
-          ? track.trackSortKey
-          : {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
-      uri,
+    // Find the thread slice track that corresponds with this trackID and insert
+    // this track before it.
+    const threadSliceTrack = globals.workspace.flatTracks.find((trackNode) => {
+      const trackDescriptor = globals.trackManager.resolveTrackInfo(
+        trackNode.uri,
+      );
+      return (
+        trackDescriptor &&
+        trackDescriptor.tags?.kind === 'ThreadSliceTrack' &&
+        trackDescriptor.tags?.trackIds?.includes(trackId)
+      );
     });
-  }
 
-  globals.dispatchMultiple([
-    Actions.addTracks({tracks: tracksToAdd}),
-    Actions.sortThreadTracks({}),
-  ]);
+    const parentGroup = threadSliceTrack?.parent;
+    if (parentGroup) {
+      const newTrack = new TrackNode(uri, argName);
+      parentGroup.insertBefore(newTrack, threadSliceTrack);
+    }
+  }
 }

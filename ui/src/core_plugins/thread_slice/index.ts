@@ -99,10 +99,10 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        trackFactory: ({trackKey}) => {
+        trackFactory: ({trackUri}) => {
           const newTrackArgs = {
             engine: ctx.engine,
-            trackKey,
+            uri: trackUri,
           };
           return new ThreadSliceTrack(newTrackArgs, trackId, maxDepth);
         },

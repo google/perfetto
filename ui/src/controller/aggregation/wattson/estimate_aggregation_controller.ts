@@ -29,16 +29,13 @@ export class WattsonEstimateAggregationController extends AggregationController 
     if (!(await hasWattsonSupport(engine))) return false;
 
     const estimateTracks: string[] = [];
-    for (const trackKey of area.tracks) {
-      const track = globals.state.tracks[trackKey];
-      if (track?.uri) {
-        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (
-          trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND &&
-          exists(trackInfo.tags?.wattson)
-        ) {
-          estimateTracks.push(`${trackInfo.tags.wattson}`);
-        }
+    for (const trackUri of area.trackUris) {
+      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      if (
+        trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND &&
+        exists(trackInfo.tags?.wattson)
+      ) {
+        estimateTracks.push(`${trackInfo.tags.wattson}`);
       }
     }
     if (estimateTracks.length === 0) return false;

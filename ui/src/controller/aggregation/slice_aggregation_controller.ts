@@ -25,19 +25,15 @@ import {
 
 export function getSelectedTrackKeys(area: Area): number[] {
   const selectedTrackKeys: number[] = [];
-  for (const trackKey of area.tracks) {
-    const track = globals.state.tracks[trackKey];
-    // Track will be undefined for track groups.
-    if (track?.uri !== undefined) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
-        trackInfo.tags.trackIds &&
-          selectedTrackKeys.push(...trackInfo.tags.trackIds);
-      }
-      if (trackInfo?.tags?.kind === ASYNC_SLICE_TRACK_KIND) {
-        trackInfo.tags.trackIds &&
-          selectedTrackKeys.push(...trackInfo.tags.trackIds);
-      }
+  for (const trackUri of area.trackUris) {
+    const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+    if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
+      trackInfo.tags.trackIds &&
+        selectedTrackKeys.push(...trackInfo.tags.trackIds);
+    }
+    if (trackInfo?.tags?.kind === ASYNC_SLICE_TRACK_KIND) {
+      trackInfo.tags.trackIds &&
+        selectedTrackKeys.push(...trackInfo.tags.trackIds);
     }
   }
   return selectedTrackKeys;

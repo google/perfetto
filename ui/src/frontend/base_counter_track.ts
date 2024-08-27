@@ -189,7 +189,7 @@ export type BaseCounterTrackArgs = NewTrackArgs & {
 
 export abstract class BaseCounterTrack implements Track {
   protected engine: Engine;
-  protected trackKey: string;
+  protected uri: string;
   protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
@@ -249,7 +249,7 @@ export abstract class BaseCounterTrack implements Track {
 
   constructor(args: BaseCounterTrackArgs) {
     this.engine = args.engine;
-    this.trackKey = args.trackKey;
+    this.uri = args.uri;
     this.defaultOptions = args.options ?? {};
     this.trash = new AsyncDisposableStack();
   }

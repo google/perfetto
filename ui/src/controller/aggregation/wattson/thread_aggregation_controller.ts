@@ -29,13 +29,10 @@ export class WattsonThreadAggregationController extends AggregationController {
     if (!(await hasWattsonSupport(engine))) return false;
 
     const selectedCpus: number[] = [];
-    for (const trackKey of area.tracks) {
-      const track = globals.state.tracks[trackKey];
-      if (track?.uri) {
-        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-          exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
-        }
+    for (const trackUri of area.trackUris) {
+      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+        exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
       }
     }
     if (selectedCpus.length === 0) return false;

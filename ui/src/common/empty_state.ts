@@ -94,12 +94,7 @@ export function createEmptyState(): State {
     version: STATE_VERSION,
     nextId: '-1',
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
-    tracks: {},
-    utidToThreadSortKey: {},
     aggregatePreferences: {},
-    trackGroups: {},
-    pinnedTracks: [],
-    scrollingTracks: [],
     queries: {},
     notes: {},
 

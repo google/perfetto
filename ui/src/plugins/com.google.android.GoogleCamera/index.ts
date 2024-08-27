@@ -16,7 +16,6 @@ import {
   PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
-  TrackRef,
 } from '../../public';
 
 import * as cameraConstants from './googleCameraConstants';
@@ -58,15 +57,11 @@ class GoogleCamera implements PerfettoPlugin {
     this.pinTracks(cameraConstants.STARTUP_RELATED_TRACKS);
   }
 
-  private pinTracks(trackNames: string[]) {
-    const tracks: TrackRef[] = this.ctx.timeline.tracks;
-    trackNames.forEach((trackName) => {
-      const desiredTracks = tracks.filter((track) => {
-        return track.title.match(trackName);
-      });
-      desiredTracks.forEach((desiredTrack) => {
-        this.ctx.timeline.pinTrack(desiredTrack.key!);
-      });
+  private pinTracks(trackNames: ReadonlyArray<string>) {
+    this.ctx.timeline.workspace.flatTracks.forEach((track) => {
+      if (trackNames.includes(track.displayName)) {
+        track.pin();
+      }
     });
   }
 }

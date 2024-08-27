@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {duration, Time, time} from '../../base/time';
-import {exists} from '../../base/utils';
 import {translateState} from '../../common/thread_state';
 import {Engine} from '../engine';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../query_result';
@@ -129,26 +128,19 @@ export async function getThreadState(
 }
 
 export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
-  let trackId: string | undefined;
-  for (const track of Object.values(globals.state.tracks)) {
-    if (exists(track?.uri)) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-        if (trackInfo?.tags?.cpu === cpu) {
-          trackId = track.key;
-          break;
-        }
-      }
-    }
-  }
-  if (trackId === undefined) {
+  const track = globals.trackManager
+    .getAllTracks()
+    .find(
+      (td) => td.tags?.kind === CPU_SLICE_TRACK_KIND && td.tags.cpu === cpu,
+    );
+  if (track === undefined) {
     return;
   }
   globals.setLegacySelection(
     {
       kind: 'SCHED_SLICE',
       id,
-      trackKey: trackId,
+      trackUri: track.uri,
     },
     {
       clearSearch: true,
@@ -157,5 +149,5 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
     },
   );
 
-  scrollToTrackAndTs(trackId, ts);
+  scrollToTrackAndTs(track.uri, ts);
 }

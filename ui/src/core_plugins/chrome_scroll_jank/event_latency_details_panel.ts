@@ -60,6 +60,7 @@ import {
 } from './scroll_jank_slice';
 import {sliceRef} from '../../frontend/widgets/slice';
 import {SCROLL_JANK_V3_TRACK_KIND} from '../../public';
+import {globals} from '../../frontend/globals';
 
 // Given a node in the slice tree, return a path from root to it.
 function getPath(slice: SliceTreeNode): string[] {
@@ -132,6 +133,8 @@ export class EventLatencySliceDetailsPanel extends BottomTab<GenericSliceDetails
   // Stages tree for the prev EventLatency.
   private prevEventLatencyBreakdown?: SliceTreeNode;
 
+  private tracksByTrackId: Map<number, string>;
+
   static create(
     args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
   ): EventLatencySliceDetailsPanel {
@@ -140,6 +143,13 @@ export class EventLatencySliceDetailsPanel extends BottomTab<GenericSliceDetails
 
   constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
+
+    this.tracksByTrackId = new Map<number, string>();
+    globals.trackManager.getAllTracks().forEach((td) => {
+      td.tags?.trackIds?.forEach((trackId) => {
+        this.tracksByTrackId.set(trackId, td.uri);
+      });
+    });
 
     this.loadData();
   }
@@ -326,7 +336,7 @@ export class EventLatencySliceDetailsPanel extends BottomTab<GenericSliceDetails
 
     const columns: ColumnDescriptor<RelevantThreadRow>[] = [
       widgetColumn<RelevantThreadRow>('Relevant Thread', (x) =>
-        getCauseLink(x.tracks, x.ts, x.dur),
+        getCauseLink(x.tracks, this.tracksByTrackId, x.ts, x.dur),
       ),
       widgetColumn<RelevantThreadRow>('Description', (x) => {
         if (x.description === '') {

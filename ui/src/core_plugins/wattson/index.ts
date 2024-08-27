@@ -40,8 +40,8 @@ class Wattson implements PerfettoPlugin {
       ctx.registerStaticTrack({
         uri: `/wattson/cpu_subsystem_estimate_cpu${cpu}`,
         title: `Cpu${cpu} Estimate`,
-        trackFactory: ({trackKey}) =>
-          new CpuSubsystemEstimateTrack(ctx.engine, trackKey, queryKey),
+        trackFactory: ({trackUri}) =>
+          new CpuSubsystemEstimateTrack(ctx.engine, trackUri, queryKey),
         groupName: `Wattson`,
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
@@ -53,8 +53,8 @@ class Wattson implements PerfettoPlugin {
     ctx.registerStaticTrack({
       uri: `/wattson/cpu_subsystem_estimate_dsu_scu`,
       title: `DSU/SCU Estimate`,
-      trackFactory: ({trackKey}) =>
-        new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `dsu_scu`),
+      trackFactory: ({trackUri}) =>
+        new CpuSubsystemEstimateTrack(ctx.engine, trackUri, `dsu_scu`),
       groupName: `Wattson`,
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
@@ -68,10 +68,10 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   readonly engine: Engine;
   readonly queryKey: string;
 
-  constructor(engine: Engine, trackKey: string, queryKey: string) {
+  constructor(engine: Engine, uri: string, queryKey: string) {
     super({
-      engine: engine,
-      trackKey: trackKey,
+      engine,
+      uri,
     });
     this.engine = engine;
     this.queryKey = queryKey;

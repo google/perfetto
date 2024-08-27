@@ -77,8 +77,8 @@ class FramesPlugin implements PerfettoPlugin {
       ctx.registerTrack({
         uri: `/process_${upid}/expected_frames`,
         title: displayName,
-        trackFactory: ({trackKey}) => {
-          return new ExpectedFramesTrack(engine, maxDepth, trackKey, trackIds);
+        trackFactory: ({trackUri}) => {
+          return new ExpectedFramesTrack(engine, maxDepth, trackUri, trackIds);
         },
         tags: {
           trackIds,
@@ -138,8 +138,8 @@ class FramesPlugin implements PerfettoPlugin {
       ctx.registerTrack({
         uri: `/process_${upid}/actual_frames`,
         title: displayName,
-        trackFactory: ({trackKey}) => {
-          return new ActualFramesTrack(engine, maxDepth, trackKey, trackIds);
+        trackFactory: ({trackUri}) => {
+          return new ActualFramesTrack(engine, maxDepth, trackUri, trackIds);
         },
         tags: {
           upid,

@@ -14,10 +14,8 @@
 
 import {time} from '../base/time';
 import {escapeCSSSelector, exists} from '../base/utils';
-import {Actions} from '../common/actions';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
-import {getContainingGroupKey} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {globals} from './globals';
 
@@ -64,8 +62,8 @@ export function focusHorizontalRange(
 // Given a track id, find a track with that id and scroll it into view. If the
 // track is nested inside a track group, scroll to that track group instead.
 // If |openGroup| then open the track group and scroll to the track.
-export function verticalScrollToTrack(trackKey: string, openGroup = false) {
-  const track = document.querySelector('#track_' + escapeCSSSelector(trackKey));
+export function verticalScrollToTrack(trackUri: string, openGroup = false) {
+  const track = document.querySelector('#track_' + escapeCSSSelector(trackUri));
 
   if (track) {
     // block: 'nearest' means that it will only scroll if the track is not
@@ -74,49 +72,46 @@ export function verticalScrollToTrack(trackKey: string, openGroup = false) {
     return;
   }
 
-  let trackGroup = null;
-  const groupKey = getContainingGroupKey(globals.state, trackKey);
-  if (groupKey) {
-    trackGroup = document.querySelector('#track_' + groupKey);
-  }
+  // If we get here, the element for this track was not present in the DOM, this
+  // might be because it's inside a collapsed group.
+  // Find the track node in the current workspace, and reveal it.
+  const trackNode = globals.workspace.getTrackByUri(trackUri);
+  if (!trackNode) return;
 
-  if (!groupKey || !trackGroup) {
-    console.error(`Can't scroll, track (${trackKey}) not found.`);
-    return;
-  }
-
-  // The requested track is inside a closed track group, either open the track
-  // group and scroll to the track or just scroll to the track group.
   if (openGroup) {
-    // After the track exists in the dom, it will be scrolled to.
-    globals.scrollToTrackKey = trackKey;
-    globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
+    trackNode.reveal();
+    globals.scrollToTrackUri = trackUri;
     return;
-  } else {
-    trackGroup.scrollIntoView({behavior: 'smooth', block: 'nearest'});
   }
+  // Find the first closed ancestor of our target track.
+  const groupNode = trackNode.closestVisibleAncestor;
+  if (groupNode) {
+    document
+      .querySelector('#track_' + groupNode.uri)
+      ?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+  // If we get here, it means this track isn't in the workspace.
+  // TODO(stevegolton): Warn the user about this?
 }
 
-// Scroll vertically and horizontally to reach track (|trackKey|) at |ts|.
+// Scroll vertically and horizontally to reach track |track| at |ts|.
 export function scrollToTrackAndTs(
-  trackKey: string | undefined,
+  trackUri: string,
   ts: time,
   openGroup = false,
 ) {
-  if (trackKey !== undefined) {
-    verticalScrollToTrack(trackKey, openGroup);
-  }
+  verticalScrollToTrack(trackUri, openGroup);
   horizontalScrollToTs(ts);
 }
 
 // Scroll vertically and horizontally to a track and time range
-export function reveal(
-  trackKey: string,
+export function scrollToTrackAndTimeSpan(
+  trackUri: string,
   start: time,
   end: time,
   openGroup = false,
 ) {
-  verticalScrollToTrack(trackKey, openGroup);
+  verticalScrollToTrack(trackUri, openGroup);
   focusHorizontalRange(start, end);
 }
 

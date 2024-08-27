@@ -62,11 +62,11 @@ class AnnotationPlugin implements PerfettoPlugin {
           ...(groupName && {groupName}),
         },
         chips: ['metric'],
-        trackFactory: ({trackKey}) => {
+        trackFactory: ({trackUri}) => {
           return new ThreadSliceTrack(
             {
               engine: ctx.engine,
-              trackKey,
+              uri: trackUri,
             },
             id,
             0,
@@ -111,7 +111,7 @@ class AnnotationPlugin implements PerfettoPlugin {
         trackFactory: (trackCtx) => {
           return new TraceProcessorCounterTrack({
             engine: ctx.engine,
-            trackKey: trackCtx.trackKey,
+            uri: trackCtx.trackUri,
             trackId,
             rootTable: 'annotation_counter',
           });

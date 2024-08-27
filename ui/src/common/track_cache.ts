@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Optional, exists} from '../base/utils';
+import {Optional} from '../base/utils';
 import {Registry} from '../base/registry';
-import {Store} from '../base/store';
 import {Track, TrackContext, TrackDescriptor, TrackRef} from '../public';
 
-import {ObjectByKey, State, TrackState} from './state';
 import {AsyncLimiter} from '../base/async_limiter';
 import {assertFalse} from '../base/logging';
 import {TrackRenderContext} from '../public/tracks';
 
 export interface TrackCacheEntry extends Disposable {
-  readonly trackKey: string;
+  readonly trackUri: string;
   readonly track: Track;
   desc: TrackDescriptor;
   render(ctx: TrackRenderContext): void;
@@ -52,23 +50,10 @@ export interface TrackCacheEntry extends Disposable {
 // Third cycle
 //   flushTracks() <-- 'foo' is destroyed.
 export class TrackManager {
-  private _trackKeyByTrackId = new Map<number, string>();
   private newTracks = new Map<string, TrackCacheEntry>();
   private currentTracks = new Map<string, TrackCacheEntry>();
   private trackRegistry = new Registry<TrackDescriptor>(({uri}) => uri);
   private defaultTracks = new Set<TrackRef>();
-
-  private store: Store<State>;
-  private trackState?: ObjectByKey<TrackState>;
-
-  constructor(store: Store<State>) {
-    this.store = store;
-  }
-
-  get trackKeyByTrackId() {
-    this.updateTrackKeyByTrackIdMap();
-    return this._trackKeyByTrackId;
-  }
 
   registerTrack(trackDesc: TrackDescriptor): Disposable {
     return this.trackRegistry.register(trackDesc);
@@ -115,7 +100,7 @@ export class TrackManager {
     } else {
       // Cached track doesn't exist or is out of date, create a new one.
       const trackContext: TrackContext = {
-        trackKey: key,
+        trackUri: key,
       };
       const track = trackDesc.trackFactory(trackContext);
       const entry = new TrackFSM(key, track, trackDesc, trackContext);
@@ -136,31 +121,6 @@ export class TrackManager {
 
     this.currentTracks = this.newTracks;
     this.newTracks = new Map<string, TrackCacheEntry>();
-  }
-
-  private updateTrackKeyByTrackIdMap() {
-    if (this.trackState === this.store.state.tracks) {
-      return;
-    }
-
-    const trackKeyByTrackId = new Map<number, string>();
-
-    const trackList = Object.entries(this.store.state.tracks);
-    trackList.forEach(([key, {uri}]) => {
-      const desc = this.trackRegistry.get(uri);
-      for (const trackId of desc?.tags?.trackIds ?? []) {
-        const existingKey = trackKeyByTrackId.get(trackId);
-        if (exists(existingKey)) {
-          throw new Error(
-            `Trying to map track id ${trackId} to UI track ${key}, already mapped to ${existingKey}`,
-          );
-        }
-        trackKeyByTrackId.set(trackId, key);
-      }
-    });
-
-    this._trackKeyByTrackId = trackKeyByTrackId;
-    this.trackState = this.store.state.tracks;
   }
 }
 
@@ -201,7 +161,7 @@ async function* trackLifecycle(
  * hooks are called synchronously and in the correct order.
  */
 class TrackFSM implements TrackCacheEntry {
-  public readonly trackKey: string;
+  public readonly trackUri: string;
   public readonly track: Track;
   public readonly desc: TrackDescriptor;
 
@@ -213,12 +173,12 @@ class TrackFSM implements TrackCacheEntry {
   private isDisposed = false;
 
   constructor(
-    trackKey: string,
+    trackUri: string,
     track: Track,
     desc: TrackDescriptor,
     ctx: TrackContext,
   ) {
-    this.trackKey = trackKey;
+    this.trackUri = trackUri;
     this.track = track;
     this.desc = desc;
     this.ctx = ctx;

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
 import {Registry} from '../base/registry';
 import {TimeSpan, time} from '../base/time';
 import {globals} from '../frontend/globals';
@@ -26,18 +24,14 @@ import {
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
-  PrimaryTrackSortKey,
   Store,
   TabDescriptor,
   TrackDescriptor,
-  TrackPredicate,
-  GroupPredicate,
   TrackRef,
   SidebarMenuItem,
 } from '../public';
 import {EngineBase, Engine} from '../trace_processor/engine';
 import {Actions} from './actions';
-import {SCROLLING_TRACK_GROUP} from './state';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Flag, featureFlags} from '../core/feature_flags';
 import {assertExists} from '../base/logging';
@@ -47,6 +41,7 @@ import {PromptOption} from '../frontend/omnibox_manager';
 import {horizontalScrollToTs} from '../frontend/scroll_helper';
 import {DisposableStack} from '../base/disposable_stack';
 import {TraceContext} from '../frontend/trace_context';
+import {Workspace} from '../frontend/workspace';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -182,130 +177,6 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   }
 
   readonly timeline = {
-    // Add a new track to the timeline, returning its key.
-    addTrack(uri: string, displayName: string): string {
-      const trackKey = uuidv4();
-      globals.dispatch(
-        Actions.addTrack({
-          key: trackKey,
-          uri,
-          name: displayName,
-          trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-          trackGroup: SCROLLING_TRACK_GROUP,
-        }),
-      );
-      return trackKey;
-    },
-
-    removeTrack(key: string): void {
-      globals.dispatch(Actions.removeTracks({trackKeys: [key]}));
-    },
-
-    pinTrack(key: string) {
-      if (!isPinned(key)) {
-        globals.dispatch(Actions.toggleTrackPinned({trackKey: key}));
-      }
-    },
-
-    unpinTrack(key: string) {
-      if (isPinned(key)) {
-        globals.dispatch(Actions.toggleTrackPinned({trackKey: key}));
-      }
-    },
-
-    pinTracksByPredicate(predicate: TrackPredicate) {
-      const tracks = Object.values(globals.state.tracks);
-      for (const track of tracks) {
-        const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackDesc && predicate(trackDesc) && !isPinned(track.key)) {
-          globals.dispatch(
-            Actions.toggleTrackPinned({
-              trackKey: track.key,
-            }),
-          );
-        }
-      }
-    },
-
-    unpinTracksByPredicate(predicate: TrackPredicate) {
-      const tracks = Object.values(globals.state.tracks);
-      for (const track of tracks) {
-        const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackDesc && predicate(trackDesc) && isPinned(track.key)) {
-          globals.dispatch(
-            Actions.toggleTrackPinned({
-              trackKey: track.key,
-            }),
-          );
-        }
-      }
-    },
-
-    removeTracksByPredicate(predicate: TrackPredicate) {
-      const trackKeysToRemove = Object.values(globals.state.tracks)
-        .filter((track) => {
-          const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-          return trackDesc && predicate(trackDesc);
-        })
-        .map((trackState) => trackState.key);
-
-      globals.dispatch(Actions.removeTracks({trackKeys: trackKeysToRemove}));
-    },
-
-    expandGroupsByPredicate(predicate: GroupPredicate) {
-      const groups = globals.state.trackGroups;
-      const groupsToExpand = Object.values(groups)
-        .filter((group) => group.collapsed)
-        .filter((group) => {
-          const ref = {
-            displayName: group.name,
-            collapsed: group.collapsed,
-          };
-          return predicate(ref);
-        })
-        .map((group) => group.key);
-
-      for (const groupKey of groupsToExpand) {
-        globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
-      }
-    },
-
-    collapseGroupsByPredicate(predicate: GroupPredicate) {
-      const groups = globals.state.trackGroups;
-      const groupsToCollapse = Object.values(groups)
-        .filter((group) => !group.collapsed)
-        .filter((group) => {
-          const ref = {
-            displayName: group.name,
-            collapsed: group.collapsed,
-          };
-          return predicate(ref);
-        })
-        .map((group) => group.key);
-
-      for (const groupKey of groupsToCollapse) {
-        globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
-      }
-    },
-
-    get tracks(): TrackRef[] {
-      const tracks = Object.values(globals.state.tracks);
-      const pinnedTracks = globals.state.pinnedTracks;
-      const groups = globals.state.trackGroups;
-      return tracks.map((trackState) => {
-        const group = trackState.trackGroup
-          ? groups[trackState.trackGroup]
-          : undefined;
-        return {
-          title: trackState.name,
-          uri: trackState.uri,
-          key: trackState.key,
-          groupName: group?.name,
-          isPinned: pinnedTracks.includes(trackState.key),
-        };
-      });
-    },
-
     panToTimestamp(ts: time): void {
       horizontalScrollToTs(ts);
     },
@@ -316,6 +187,10 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     get viewport(): TimeSpan {
       return globals.timeline.visibleWindow.toTimeSpan();
+    },
+
+    get workspace(): Workspace {
+      return globals.workspace;
     },
   };
 
@@ -346,10 +221,6 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   ): Promise<string> {
     return globals.omnibox.prompt(text, options);
   }
-}
-
-function isPinned(trackId: string): boolean {
-  return globals.state.pinnedTracks.includes(trackId);
 }
 
 // 'Static' registry of all known plugins.

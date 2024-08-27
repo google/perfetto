@@ -14,10 +14,9 @@
 
 import {Duration} from '../base/time';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
-import {createStore, TrackDescriptor} from '../public';
+import {TrackDescriptor} from '../public';
 import {TrackRenderContext} from '../public/tracks';
 
-import {createEmptyState} from './empty_state';
 import {HighPrecisionTime} from './high_precision_time';
 import {HighPrecisionTimeSpan} from './high_precision_time_span';
 import {TrackManager} from './track_cache';
@@ -48,7 +47,7 @@ let td: TrackDescriptor;
 let trackManager: TrackManager;
 const visibleWindow = new HighPrecisionTimeSpan(HighPrecisionTime.ZERO, 0);
 const dummyCtx: TrackRenderContext = {
-  trackKey: 'foo',
+  trackUri: 'foo',
   ctx: new CanvasRenderingContext2D(),
   size: {width: 123, height: 123},
   visibleWindow,
@@ -63,8 +62,7 @@ beforeEach(() => {
     title: 'foo',
     trackFactory: () => mockTrack,
   };
-  const store = createStore(createEmptyState());
-  trackManager = new TrackManager(store);
+  trackManager = new TrackManager();
 });
 
 describe('TrackManager', () => {
