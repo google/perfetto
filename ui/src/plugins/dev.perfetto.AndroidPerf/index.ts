@@ -46,7 +46,7 @@ class AndroidPerf implements PerfettoPlugin {
                       process_name,
                       intent,
                       'slice' AS table_name
-                    FROM _android_app_process_starts
+                    FROM android_app_process_starts
                     WHERE reason = '${reason}'
                  `,
         columns: sliceColumns,
