@@ -765,6 +765,7 @@ class TrackDecider {
     tracks: ReadonlyArray<TrackDescriptor>,
   ): void {
     const group = new GroupNode('Chrome Scroll Jank');
+    group.expand();
     tracks
       .filter(({tags}) => tags?.kind === CHROME_TOPLEVEL_SCROLLS_KIND)
       .forEach((td) => {
@@ -780,6 +781,9 @@ class TrackDecider {
       .forEach((td) => {
         group.addChild(new TrackNode(td.uri, td.title));
       });
+    if (group.children.length) {
+      globals.workspace.addChild(group);
+    }
   }
 
   private addChromeScrollJankTrack(
