@@ -539,8 +539,9 @@ export class TraceController extends Controller<States> {
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
-    // Clear the default workspace, ready for more tracks to be inserted
-    globals.workspace.clear();
+    // Remove all workspaces, and create an empty default workspace, ready for
+    // tracks to be inserted.
+    globals.resetWorkspaces();
 
     if (globals.restoreAppStateAfterTraceLoad) {
       deserializeAppStatePhase1(globals.restoreAppStateAfterTraceLoad);

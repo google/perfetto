@@ -239,10 +239,12 @@ export type Node = TrackNode | GroupNode;
  */
 export class Workspace extends ContainerNode {
   public pinnedTracks: Array<TrackNode>;
+  public readonly uuid: string;
 
   constructor(displayName: string) {
     super(displayName);
     this.pinnedTracks = [];
+    this.uuid = uuidv4();
   }
 
   /**
