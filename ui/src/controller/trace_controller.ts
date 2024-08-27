@@ -69,10 +69,6 @@ import {WattsonPackageAggregationController} from './aggregation/wattson/package
 import {ThreadAggregationController} from './aggregation/thread_aggregation_controller';
 import {Child, Children, Controller} from './controller';
 import {
-  CpuProfileController,
-  CpuProfileControllerArgs,
-} from './cpu_profile_controller';
-import {
   FlowEventsController,
   FlowEventsControllerArgs,
 } from './flow_events_controller';
@@ -273,11 +269,6 @@ export class TraceController extends Controller<States> {
         const flowEventsArgs: FlowEventsControllerArgs = {engine};
         childControllers.push(
           Child('flowEvents', FlowEventsController, flowEventsArgs),
-        );
-
-        const cpuProfileArgs: CpuProfileControllerArgs = {engine};
-        childControllers.push(
-          Child('cpuProfile', CpuProfileController, cpuProfileArgs),
         );
 
         childControllers.push(
@@ -642,12 +633,14 @@ export class TraceController extends Controller<States> {
   }
 
   private async selectPerfSample(traceTime: {start: time; end: time}) {
-    const query = `select upid
-        from perf_sample
-        join thread using (utid)
-        where callsite_id is not null
-        order by ts desc limit 1`;
-    const profile = await assertExists(this.engine).query(query);
+    const profile = await assertExists(this.engine).query(`
+      select upid
+      from perf_sample
+      join thread using (utid)
+      where callsite_id is not null
+      order by ts desc
+      limit 1
+    `);
     if (profile.numRows() !== 1) return;
     const row = profile.firstRow({upid: NUM});
     const upid = row.upid;
