@@ -31,7 +31,7 @@ export function getSchedTable(): SqlTableDescription {
       new DurationColumn('dur'),
       new StandardColumn('cpu', {aggregationType: 'nominal'}),
       new StandardColumn('priority', {aggregationType: 'nominal'}),
-      new ThreadColumn('utid', {title: 'Thread'}),
+      new ThreadColumn('utid', {title: 'Thread', notNull: true}),
       new ProcessColumn(
         {
           column: 'upid',
@@ -40,9 +40,10 @@ export function getSchedTable(): SqlTableDescription {
             joinOn: {
               utid: 'utid',
             },
+            innerJoin: true,
           },
         },
-        {title: 'Process'},
+        {title: 'Process', notNull: true},
       ),
       new StandardColumn('end_state'),
       new StandardColumn('ucpu', {

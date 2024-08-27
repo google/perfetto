@@ -36,6 +36,7 @@ type NormalisedSqlColumn = {
 type NormalisedSourceTable = {
   table: string;
   joinOn: {[key: string]: NormalisedSqlColumn};
+  innerJoin: boolean;
 };
 
 // Checks whether two join constraints are equal.
@@ -95,6 +96,7 @@ class QueryBuilder {
       const table = this.tables[i];
       if (
         table.table === column.source.table &&
+        table.innerJoin === (column.source.innerJoin ?? false) &&
         areJoinConstraintsEqual(table.joinOn, normalisedJoinOn)
       ) {
         return {
@@ -108,6 +110,7 @@ class QueryBuilder {
     this.tables.push({
       table: column.source.table,
       joinOn: normalisedJoinOn,
+      innerJoin: column.source.innerJoin ?? false,
     });
     return {
       column: column.column,
@@ -136,7 +139,7 @@ class QueryBuilder {
       ([key, value]) => `${alias}.${key} = ${this.printColumn(value)}`,
     );
     // Join IDs are 0-indexed, but we want to display them as 1-indexed to reserve 0 for the primary table.
-    return `LEFT JOIN ${join.table} AS ${alias} ON ${clauses.join(' AND ')}`;
+    return `${join.innerJoin ? '' : 'LEFT '}JOIN ${join.table} AS ${alias} ON ${clauses.join(' AND ')}`;
   }
 }
 
