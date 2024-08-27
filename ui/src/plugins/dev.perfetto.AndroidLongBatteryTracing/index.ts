@@ -1468,7 +1468,9 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
 
     const e = ctx.engine;
 
-    if (globals.isInternalUser) {
+    if (
+      globals.extraSqlPackages.find((x) => x.name === 'google3') !== undefined
+    ) {
       await e.query(
         `INCLUDE PERFETTO MODULE
             google3.wireless.android.telemetry.trace_extractor.modules.modem_tea_metrics`,
@@ -1481,7 +1483,7 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
         this.addCounterTrack(
           ctx,
           countersIt.name,
-          `select ts, value from pixel_modem_counters where name = "${countersIt.name}"`,
+          `select ts, value from pixel_modem_counters where name = '${countersIt.name}'`,
           groupName,
         );
       }
@@ -1494,7 +1496,7 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
           ctx,
           it.name,
           `select ts dur, slice_name as name from pixel_modem_counters
-              where track_name = "${slicesIt.track_name}"`,
+              where track_name = '${slicesIt.track_name}'`,
           groupName,
         );
       }
