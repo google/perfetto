@@ -31,7 +31,6 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -39,6 +38,7 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -209,8 +209,8 @@ class TrackEventParser::EventImporter {
 
     if (context_->content_analyzer) {
       PacketAnalyzer::SampleAnnotation annotation;
-      annotation.push_back({parser_->event_category_key_id_, category_id_});
-      annotation.push_back({parser_->event_name_key_id_, name_id_});
+      annotation.emplace_back(parser_->event_category_key_id_, category_id_);
+      annotation.emplace_back(parser_->event_name_key_id_, name_id_);
       PacketAnalyzer::Get(context_)->ProcessPacket(
           event_data_->trace_packet_data.packet, annotation);
     }
@@ -1341,6 +1341,7 @@ class TrackEventParser::EventImporter {
   std::optional<UniqueTid> upid_;
   std::optional<int64_t> thread_timestamp_;
   std::optional<int64_t> thread_instruction_count_;
+
   // All events in legacy JSON require a thread ID, but for some types of
   // events (e.g. async events or process/global-scoped instants), we don't
   // store it in the slice/track model. To pass the utid through to the json

@@ -17,14 +17,22 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_TOKENIZER_H_
 
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/task_state.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
+#include "src/trace_processor/util/trace_type.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -37,7 +45,7 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
   ~FuchsiaTraceTokenizer() override;
 
   // ChunkedTraceReader implementation
-  util::Status Parse(TraceBlobView) override;
+  base::Status Parse(TraceBlobView) override;
   base::Status NotifyEndOfFile() override;
 
  private:
@@ -130,7 +138,6 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
   std::unordered_map<uint64_t, Thread> threads_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_TOKENIZER_H_
