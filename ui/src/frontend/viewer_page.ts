@@ -480,7 +480,7 @@ function renderGroupHeaderPanel(
 function resolveTrack(uri: string, displayName: string): TrackBundle {
   const trackDesc = globals.trackManager.resolveTrackInfo(uri);
   const trackCacheEntry =
-    trackDesc && globals.trackManager.resolveTrack(uri, trackDesc);
+    trackDesc && globals.trackManager.resolveTrack(trackDesc);
   const trackFSM = trackCacheEntry;
   const tags = trackCacheEntry?.desc.tags;
   const subtitle = trackCacheEntry?.desc.subtitle;

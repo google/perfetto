@@ -31,11 +31,10 @@ class SchedPlugin implements PerfettoPlugin {
     ctx.registerTrack({
       uri: runnableThreadCountUri,
       title: 'Runnable thread count',
-      trackFactory: (trackCtx) =>
-        new RunnableThreadCountTrack({
-          engine: ctx.engine,
-          uri: trackCtx.trackUri,
-        }),
+      track: new RunnableThreadCountTrack({
+        engine: ctx.engine,
+        uri: runnableThreadCountUri,
+      }),
     });
     ctx.registerCommand({
       id: 'dev.perfetto.Sched.AddRunnableThreadCountTrackCommand',
@@ -49,7 +48,7 @@ class SchedPlugin implements PerfettoPlugin {
     ctx.registerTrack({
       uri,
       title: title,
-      trackFactory: (trackCtx) => new ActiveCPUCountTrack(trackCtx, ctx.engine),
+      track: new ActiveCPUCountTrack({trackUri: uri}, ctx.engine),
     });
     ctx.registerCommand({
       id: 'dev.perfetto.Sched.AddActiveCPUCountTrackCommand',
@@ -63,8 +62,7 @@ class SchedPlugin implements PerfettoPlugin {
       ctx.registerTrack({
         uri,
         title: title,
-        trackFactory: (trackCtx) =>
-          new ActiveCPUCountTrack(trackCtx, ctx.engine, cpuType),
+        track: new ActiveCPUCountTrack({trackUri: uri}, ctx.engine, cpuType),
       });
 
       ctx.registerCommand({

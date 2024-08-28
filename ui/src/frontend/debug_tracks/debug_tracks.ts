@@ -139,9 +139,7 @@ export async function addDebugSliceTrack(
   ctx.registerTrack({
     uri,
     title: trackName,
-    trackFactory: (trackCtx) => {
-      return new DebugSliceTrack(ctx.engine, trackCtx, tableName);
-    },
+    track: new DebugSliceTrack(ctx.engine, {trackUri: uri}, tableName),
   });
 
   // Create the actions to add this track to the tracklist
@@ -223,9 +221,7 @@ export async function addDebugCounterTrack(
   ctx.registerTrack({
     uri,
     title: trackName,
-    trackFactory: (trackCtx) => {
-      return new DebugCounterTrack(ctx.engine, trackCtx, tableName);
-    },
+    track: new DebugCounterTrack(ctx.engine, {trackUri: uri}, tableName),
   });
 
   // Create the actions to add this track to the tracklist

@@ -65,21 +65,21 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
     `);
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
+      const uri = `/process_${upid}/perf_samples_profile`;
       ctx.registerTrack({
-        uri: `/process_${upid}/perf_samples_profile`,
+        uri,
         title: `Process Callstacks`,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        trackFactory: ({trackUri}) =>
-          new ProcessPerfSamplesProfileTrack(
-            {
-              engine: ctx.engine,
-              uri: trackUri,
-            },
-            upid,
-          ),
+        track: new ProcessPerfSamplesProfileTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          upid,
+        ),
       });
     }
     const tResult = await ctx.engine.query(`
@@ -107,22 +107,22 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
         threadName === null
           ? `Thread Callstacks ${tid}`
           : `${threadName} Callstacks ${tid}`;
+      const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`;
       ctx.registerTrack({
-        uri: `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`,
+        uri,
         title: displayName,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           utid,
           upid: upid ?? undefined,
         },
-        trackFactory: ({trackUri}) =>
-          new ThreadPerfSamplesProfileTrack(
-            {
-              engine: ctx.engine,
-              uri: trackUri,
-            },
-            utid,
-          ),
+        track: new ThreadPerfSamplesProfileTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          utid,
+        ),
       });
     }
     ctx.registerDetailsPanel(new PerfSamplesFlamegraphDetailsPanel(ctx.engine));

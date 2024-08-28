@@ -74,12 +74,11 @@ class FramesPlugin implements PerfettoPlugin {
         kind: 'ExpectedFrames',
       });
 
+      const uri = `/process_${upid}/expected_frames`;
       ctx.registerTrack({
         uri: `/process_${upid}/expected_frames`,
         title: displayName,
-        trackFactory: ({trackUri}) => {
-          return new ExpectedFramesTrack(engine, maxDepth, trackUri, trackIds);
-        },
+        track: new ExpectedFramesTrack(engine, maxDepth, uri, trackIds),
         tags: {
           trackIds,
           upid,
@@ -135,12 +134,11 @@ class FramesPlugin implements PerfettoPlugin {
         kind,
       });
 
+      const uri = `/process_${upid}/actual_frames`;
       ctx.registerTrack({
-        uri: `/process_${upid}/actual_frames`,
+        uri,
         title: displayName,
-        trackFactory: ({trackUri}) => {
-          return new ActualFramesTrack(engine, maxDepth, trackUri, trackIds);
-        },
+        track: new ActualFramesTrack(engine, maxDepth, uri, trackIds),
         tags: {
           upid,
           trackIds,

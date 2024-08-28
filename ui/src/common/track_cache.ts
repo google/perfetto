@@ -14,13 +14,12 @@
 
 import {Optional} from '../base/utils';
 import {Registry} from '../base/registry';
-import {Track, TrackContext, TrackDescriptor, TrackRef} from '../public';
+import {Track, TrackDescriptor, TrackRef} from '../public';
 
 import {AsyncLimiter} from '../base/async_limiter';
-import {assertFalse} from '../base/logging';
 import {TrackRenderContext} from '../public/tracks';
 
-export interface TrackCacheEntry extends Disposable {
+export interface TrackCacheEntry {
   readonly trackUri: string;
   readonly track: Track;
   desc: TrackDescriptor;
@@ -50,10 +49,11 @@ export interface TrackCacheEntry extends Disposable {
 // Third cycle
 //   flushTracks() <-- 'foo' is destroyed.
 export class TrackManager {
-  private newTracks = new Map<string, TrackCacheEntry>();
-  private currentTracks = new Map<string, TrackCacheEntry>();
   private trackRegistry = new Registry<TrackDescriptor>(({uri}) => uri);
   private defaultTracks = new Set<TrackRef>();
+
+  // A cache of all tracks we've ever seen actually rendered
+  private trackCache = new Map<string, TrackFSM>();
 
   registerTrack(trackDesc: TrackDescriptor): Disposable {
     return this.trackRegistry.register(trackDesc);
@@ -82,79 +82,28 @@ export class TrackManager {
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
   // |key| exists in the cache.
-  resolveTrack(key: string, trackDesc: TrackDescriptor): TrackCacheEntry {
+  resolveTrack(trackDesc: TrackDescriptor): TrackCacheEntry {
     // Search for a cached version of this track,
-    const cached = this.currentTracks.get(key);
-
-    // Ensure the cached track has the same factory type as the resolved track.
-    // If this has changed, the track should be re-created.
-    if (cached && trackDesc.trackFactory === cached.desc.trackFactory) {
-      // Keep our cached track descriptor up to date, if anything's changed.
-      cached.desc = trackDesc;
-
-      // Move this track from the recycle bin to the safe cache, which means
-      // it's safe from disposal for this cycle.
-      this.newTracks.set(key, cached);
-
+    const cached = this.trackCache.get(trackDesc.uri);
+    if (cached) {
+      cached.markUsed();
       return cached;
     } else {
-      // Cached track doesn't exist or is out of date, create a new one.
-      const trackContext: TrackContext = {
-        trackUri: key,
-      };
-      const track = trackDesc.trackFactory(trackContext);
-      const entry = new TrackFSM(key, track, trackDesc, trackContext);
-
-      // Push track into the safe cache.
-      this.newTracks.set(key, entry);
-      return entry;
+      const cache = new TrackFSM(trackDesc.uri, trackDesc.track, trackDesc);
+      this.trackCache.set(trackDesc.uri, cache);
+      return cache;
     }
   }
 
   // Destroys all current tracks not present in the new cache.
   flushOldTracks() {
-    for (const [key, entry] of this.currentTracks.entries()) {
-      if (!this.newTracks.has(key)) {
-        entry[Symbol.dispose]();
-      }
+    for (const trackCache of this.trackCache.values()) {
+      trackCache.tick();
     }
-
-    this.currentTracks = this.newTracks;
-    this.newTracks = new Map<string, TrackCacheEntry>();
   }
 }
 
-/**
- * This function describes the asynchronous lifecycle of a track using an async
- * generator. This saves us having to build out the state machine explicitly,
- * using conventional serial programming techniques to describe the lifecycle
- * instead, which is more natural and easier to understand.
- *
- * We expect the params to onUpdate to be passed into the generator via the
- * yield function.
- *
- * @param track The track to run the lifecycle for.
- * @param ctx The trace context, passed to various lifecycle methods.
- */
-async function* trackLifecycle(
-  track: Track,
-  ctx: TrackContext,
-): AsyncGenerator<void, void, TrackRenderContext> {
-  try {
-    // Wait for parameters to be passed in before initializing the track
-    const trackRenderCtx = yield;
-    await Promise.resolve(track.onCreate?.(ctx));
-    await Promise.resolve(track.onUpdate?.(trackRenderCtx));
-
-    // Wait for parameters to be passed in before subsequent calls to onUpdate()
-    while (true) {
-      await Promise.resolve(track.onUpdate?.(yield));
-    }
-  } finally {
-    // Ensure we always clean up, even on throw or early return
-    await Promise.resolve(track.onDestroy?.());
-  }
-}
+const DESTROY_IF_NOT_SEEN_FOR_CYCLE_COUNT = 0;
 
 /**
  * Wrapper that manages lifecycle hooks on behalf of a track, ensuring lifecycle
@@ -166,62 +115,56 @@ class TrackFSM implements TrackCacheEntry {
   public readonly desc: TrackDescriptor;
 
   private readonly limiter = new AsyncLimiter();
-  private readonly ctx: TrackContext;
-  private readonly generator: ReturnType<typeof trackLifecycle>;
-
   private error?: Error;
-  private isDisposed = false;
+  private lastUsed = 0;
+  private created = false;
 
-  constructor(
-    trackUri: string,
-    track: Track,
-    desc: TrackDescriptor,
-    ctx: TrackContext,
-  ) {
+  constructor(trackUri: string, track: Track, desc: TrackDescriptor) {
     this.trackUri = trackUri;
     this.track = track;
     this.desc = desc;
-    this.ctx = ctx;
+  }
 
-    this.generator = trackLifecycle(this.track, this.ctx);
+  markUsed(): void {
+    this.lastUsed = 0;
+  }
 
-    // This just starts the generator, which will pause at the first yield
-    // without doing anything - note that the parameter to the first next() call
-    // is ignored in generators
-    this.generator.next();
+  // Increment the lastUsed counter, and maybe call onDestroy().
+  tick(): void {
+    if (this.lastUsed++ > DESTROY_IF_NOT_SEEN_FOR_CYCLE_COUNT) {
+      // Schedule an onDestroy
+      this.limiter
+        .schedule(async () => {
+          if (this.created) {
+            await Promise.resolve(this.track.onDestroy?.());
+            this.created = false;
+          }
+        })
+        .catch((e) => {
+          // Errors thrown inside lifecycle hooks will bubble up through the
+          // AsyncLimiter to here, where we can swallow and capture the error.
+          this.error = e;
+        });
+    }
   }
 
   render(ctx: TrackRenderContext): void {
-    assertFalse(this.isDisposed);
-
-    // The generator will ensure that track lifecycle calls don't overlap, but
-    // it'll also enqueue every single call to next() which can create a large
-    // backlog of updates assuming render is called faster than updates can
-    // complete (this is usually the case), so we use an AsyncLimiter here to
-    // avoid enqueueing more than one next().
     this.limiter
       .schedule(async () => {
-        // Pass in the parameters to onUpdate() here (i.e. the track size)
-        await this.generator.next(ctx);
+        // Call onCreate() if we have been destroyed or were never created in
+        // the first place.
+        if (!this.created) {
+          await Promise.resolve(this.track.onCreate?.(ctx));
+          this.created = true;
+        }
+        await Promise.resolve(this.track.onUpdate?.(ctx));
       })
       .catch((e) => {
         // Errors thrown inside lifecycle hooks will bubble up through the
-        // generator and AsyncLimiter to here, where we can swallow and capture
-        // the error
+        // AsyncLimiter to here, where we can swallow and capture the error.
         this.error = e;
       });
-
-    // Always call render synchronously
     this.track.render(ctx);
-  }
-
-  [Symbol.dispose](): void {
-    assertFalse(this.isDisposed);
-    this.isDisposed = true;
-
-    // Ask the generator to stop, it'll handle any cleanup and return at the
-    // next yield
-    this.generator.return();
   }
 
   getError(): Optional<Error> {
