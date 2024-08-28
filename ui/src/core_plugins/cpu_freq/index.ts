@@ -451,14 +451,15 @@ class CpuFreq implements PerfettoPlugin {
           idleTrackId,
         };
 
+        const uri = `/cpu_freq_cpu${cpu}`;
         ctx.registerTrack({
-          uri: `/cpu_freq_cpu${cpu}`,
+          uri,
           title: `Cpu ${cpu} Frequency`,
           tags: {
             kind: CPU_FREQ_TRACK_KIND,
             cpu,
           },
-          trackFactory: () => new CpuFreqTrack(config, ctx.engine),
+          track: new CpuFreqTrack(config, ctx.engine),
         });
       }
     }

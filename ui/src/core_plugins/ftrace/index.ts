@@ -71,9 +71,7 @@ class FtraceRawPlugin implements PerfettoPlugin {
         tags: {
           cpu: cpuNum,
         },
-        trackFactory: () => {
-          return new FtraceRawTrack(ctx.engine, cpuNum, filterStore);
-        },
+        track: new FtraceRawTrack(ctx.engine, cpuNum, filterStore),
       });
     }
 

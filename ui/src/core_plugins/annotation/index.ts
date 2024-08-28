@@ -52,8 +52,9 @@ class AnnotationPlugin implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       const {id, name, upid, groupName} = it;
 
+      const uri = `/annotation_${id}`;
       ctx.registerTrack({
-        uri: `/annotation_${id}`,
+        uri,
         title: name,
         tags: {
           kind: THREAD_SLICE_TRACK_KIND,
@@ -62,17 +63,15 @@ class AnnotationPlugin implements PerfettoPlugin {
           ...(groupName && {groupName}),
         },
         chips: ['metric'],
-        trackFactory: ({trackUri}) => {
-          return new ThreadSliceTrack(
-            {
-              engine: ctx.engine,
-              uri: trackUri,
-            },
-            id,
-            0,
-            'annotation_slice',
-          );
-        },
+        track: new ThreadSliceTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          id,
+          0,
+          'annotation_slice',
+        ),
       });
     }
   }
@@ -99,8 +98,9 @@ class AnnotationPlugin implements PerfettoPlugin {
     for (; counterIt.valid(); counterIt.next()) {
       const {id: trackId, name, upid} = counterIt;
 
+      const uri = `/annotation_counter_${trackId}`;
       ctx.registerTrack({
-        uri: `/annotation_counter_${trackId}`,
+        uri,
         title: name,
         tags: {
           kind: COUNTER_TRACK_KIND,
@@ -108,14 +108,12 @@ class AnnotationPlugin implements PerfettoPlugin {
           upid,
         },
         chips: ['metric'],
-        trackFactory: (trackCtx) => {
-          return new TraceProcessorCounterTrack({
-            engine: ctx.engine,
-            uri: trackCtx.trackUri,
-            trackId,
-            rootTable: 'annotation_counter',
-          });
-        },
+        track: new TraceProcessorCounterTrack({
+          engine: ctx.engine,
+          uri,
+          trackId,
+          rootTable: 'annotation_counter',
+        }),
       });
     }
   }

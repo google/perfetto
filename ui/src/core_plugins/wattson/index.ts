@@ -37,11 +37,11 @@ class Wattson implements PerfettoPlugin {
     const cpus = globals.traceContext.cpus;
     for (const cpu of cpus) {
       const queryKey = `cpu${cpu}_curve`;
+      const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
       ctx.registerStaticTrack({
-        uri: `/wattson/cpu_subsystem_estimate_cpu${cpu}`,
+        uri,
         title: `Cpu${cpu} Estimate`,
-        trackFactory: ({trackUri}) =>
-          new CpuSubsystemEstimateTrack(ctx.engine, trackUri, queryKey),
+        track: new CpuSubsystemEstimateTrack(ctx.engine, uri, queryKey),
         groupName: `Wattson`,
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
@@ -50,11 +50,11 @@ class Wattson implements PerfettoPlugin {
       });
     }
 
+    const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
     ctx.registerStaticTrack({
-      uri: `/wattson/cpu_subsystem_estimate_dsu_scu`,
+      uri,
       title: `DSU/SCU Estimate`,
-      trackFactory: ({trackUri}) =>
-        new CpuSubsystemEstimateTrack(ctx.engine, trackUri, `dsu_scu`),
+      track: new CpuSubsystemEstimateTrack(ctx.engine, uri, `dsu_scu`),
       groupName: `Wattson`,
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
