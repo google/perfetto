@@ -59,8 +59,8 @@ class LinuxKernelDevices implements PerfettoPlugin {
         tags: {
           kind: ASYNC_SLICE_TRACK_KIND,
           trackIds: [trackId],
+          groupName: `Linux Kernel Devices`,
         },
-        groupName: `Linux Kernel Devices`,
       });
     }
   }

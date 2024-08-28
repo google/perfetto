@@ -42,10 +42,11 @@ class Wattson implements PerfettoPlugin {
         uri,
         title: `Cpu${cpu} Estimate`,
         track: new CpuSubsystemEstimateTrack(ctx.engine, uri, queryKey),
-        groupName: `Wattson`,
+
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
           wattson: `CPU${cpu}`,
+          groupName: `Wattson`,
         },
       });
     }
@@ -55,10 +56,10 @@ class Wattson implements PerfettoPlugin {
       uri,
       title: `DSU/SCU Estimate`,
       track: new CpuSubsystemEstimateTrack(ctx.engine, uri, `dsu_scu`),
-      groupName: `Wattson`,
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
         wattson: 'Dsu_Scu',
+        groupName: `Wattson`,
       },
     });
   }

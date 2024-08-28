@@ -254,7 +254,7 @@ export interface PluginContextTrace extends PluginContext {
   // These tracks are shown only when the trace is loaded from scratch, not
   // when loading from a permalink, where the existing list of tracks from the
   // shared state is used instead.
-  registerTrackAndShowOnTraceLoad(track: TrackDescriptor & TrackRef): void;
+  registerTrackAndShowOnTraceLoad(track: TrackDescriptor): void;
 
   // Register a new tab for this plugin. Will be unregistered when the plugin
   // is deactivated or when the trace is unloaded.
@@ -305,24 +305,6 @@ export interface PerfettoPlugin {
 export interface PluginClass {
   // Instantiate the plugin.
   new (): PerfettoPlugin;
-}
-
-// Describes a reference to a registered track.
-export interface TrackRef {
-  // URI of the registered track.
-  readonly uri: string;
-
-  // A human readable name for this track - displayed in the track shell.
-  readonly title: string;
-
-  // Optional: Add tracks to a group with this name.
-  readonly groupName?: string;
-
-  // Optional: Track key
-  readonly key?: string;
-
-  // Optional: Whether the track is pinned
-  readonly isPinned?: boolean;
 }
 
 // Plugins can be class refs or concrete plugin implementations.

@@ -66,10 +66,10 @@ class FtraceRawPlugin implements PerfettoPlugin {
 
       ctx.registerTrackAndShowOnTraceLoad({
         uri,
-        groupName: 'Ftrace Events',
         title: `Ftrace Track for CPU ${cpuNum}`,
         tags: {
           cpu: cpuNum,
+          groupName: 'Ftrace Events',
         },
         track: new FtraceRawTrack(ctx.engine, cpuNum, filterStore),
       });
