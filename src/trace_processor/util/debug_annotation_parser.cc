@@ -36,7 +36,7 @@ std::string SanitizeDebugAnnotationName(const std::string& raw_name) {
   return result;
 }
 
-bool IsJsonSupported() {
+constexpr bool IsJsonSupported() {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   return true;
 #else

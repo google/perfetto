@@ -29,14 +29,6 @@ namespace perfetto {
 namespace trace_processor {
 namespace json {
 
-bool IsJsonSupported() {
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  return true;
-#else
-  return false;
-#endif
-}
-
 std::optional<int64_t> CoerceToTs(const Json::Value& value) {
   PERFETTO_DCHECK(IsJsonSupported());
 

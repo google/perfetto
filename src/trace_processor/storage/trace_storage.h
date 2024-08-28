@@ -637,13 +637,6 @@ class TraceStorage {
     return &trace_file_table_;
   }
 
-  const tables::StackSampleTable& stack_sample_table() const {
-    return stack_sample_table_;
-  }
-  tables::StackSampleTable* mutable_stack_sample_table() {
-    return &stack_sample_table_;
-  }
-
   const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
       const {
     return cpu_profile_stack_sample_table_;
@@ -1152,11 +1145,10 @@ class TraceStorage {
   tables::StackProfileFrameTable stack_profile_frame_table_{&string_pool_};
   tables::StackProfileCallsiteTable stack_profile_callsite_table_{
       &string_pool_};
-  tables::StackSampleTable stack_sample_table_{&string_pool_};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
       &string_pool_};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
-      &string_pool_, &stack_sample_table_};
+      &string_pool_};
   tables::PerfSessionTable perf_session_table_{&string_pool_};
   tables::PerfSampleTable perf_sample_table_{&string_pool_};
   tables::PackageListTable package_list_table_{&string_pool_};

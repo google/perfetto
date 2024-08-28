@@ -16,24 +16,24 @@
 
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 
-#include <stdint.h>
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <functional>
 #include <limits>
 #include <optional>
-#include <type_traits>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/util/bump_allocator.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 struct alignas(8) TrackEventDataDescriptor {
@@ -111,7 +111,7 @@ TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData ted) {
   InternedIndex interned_index = GetInternedIndex(alloc_id);
 
   // Compute the interning information for the TrackBlob and the SequenceState.
-  const TracePacketData& tpd = ted.trace_packet_data;
+  TracePacketData& tpd = ted.trace_packet_data;
   desc.intern_blob_offset = InternTraceBlob(interned_index, tpd.packet);
   desc.intern_blob_index =
       static_cast<uint16_t>(interned_blobs_.at(interned_index).size() - 1);
@@ -280,5 +280,4 @@ TraceTokenBuffer::InternedIndex TraceTokenBuffer::GetInternedIndex(
   return static_cast<size_t>(interned_index);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

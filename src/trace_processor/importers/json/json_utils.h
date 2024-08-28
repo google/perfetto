@@ -38,7 +38,13 @@ namespace json {
 
 // Returns whether JSON related functioanlity is supported with the current
 // build flags.
-bool IsJsonSupported();
+constexpr bool IsJsonSupported() {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+  return true;
+#else
+  return false;
+#endif
+}
 
 std::optional<int64_t> CoerceToTs(const Json::Value& value);
 std::optional<int64_t> CoerceToTs(const std::string& value);
