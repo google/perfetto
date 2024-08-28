@@ -125,9 +125,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
           chips,
-          trackFactory: () => {
-            return new ProcessSchedulingTrack(ctx.engine, config, cpuCount);
-          },
+          track: new ProcessSchedulingTrack(ctx.engine, config, cpuCount),
           subtitle,
         });
       } else {
@@ -144,7 +142,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
             kind: PROCESS_SUMMARY_TRACK,
           },
           chips,
-          trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
+          track: new ProcessSummaryTrack(ctx.engine, config),
           subtitle,
         });
       }
@@ -202,7 +200,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
       tags: {
         kind: PROCESS_SUMMARY_TRACK,
       },
-      trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
+      track: new ProcessSummaryTrack(ctx.engine, config),
     });
   }
 }

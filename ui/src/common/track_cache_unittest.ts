@@ -60,28 +60,30 @@ beforeEach(() => {
   td = {
     uri: 'test',
     title: 'foo',
-    trackFactory: () => mockTrack,
+    track: mockTrack,
   };
   trackManager = new TrackManager();
 });
 
 describe('TrackManager', () => {
   it('calls track lifecycle hooks', async () => {
-    const entry = trackManager.resolveTrack('foo', td);
+    const entry = trackManager.resolveTrack(td);
 
     entry.render(dummyCtx);
     await settle();
     expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
     expect(mockTrack.onUpdate).toHaveBeenCalledTimes(1);
 
-    entry[Symbol.dispose]();
+    // Double flush should destroy all tracks
+    trackManager.flushOldTracks();
+    trackManager.flushOldTracks();
     await settle();
     expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
   });
 
   it('calls onCrate lazily', async () => {
     // Check we wait until the first call to render before calling onCreate
-    const entry = trackManager.resolveTrack('foo', td);
+    const entry = trackManager.resolveTrack(td);
     await settle();
     expect(mockTrack.onCreate).not.toHaveBeenCalled();
 
@@ -91,12 +93,12 @@ describe('TrackManager', () => {
   });
 
   it('reuses tracks', async () => {
-    const first = trackManager.resolveTrack('foo', td);
+    const first = trackManager.resolveTrack(td);
     trackManager.flushOldTracks();
     first.render(dummyCtx);
     await settle();
 
-    const second = trackManager.resolveTrack('foo', td);
+    const second = trackManager.resolveTrack(td);
     trackManager.flushOldTracks();
     second.render(dummyCtx);
     await settle();
@@ -107,7 +109,7 @@ describe('TrackManager', () => {
   });
 
   it('destroys tracks when they are not resolved for one cycle', async () => {
-    const entry = trackManager.resolveTrack('foo', td);
+    const entry = trackManager.resolveTrack(td);
     entry.render(dummyCtx);
 
     // Double flush should destroy all tracks
@@ -119,20 +121,8 @@ describe('TrackManager', () => {
     expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
   });
 
-  it('throws on render after destroy', async () => {
-    const entry = trackManager.resolveTrack('foo', td);
-
-    // Double flush should destroy all tracks
-    trackManager.flushOldTracks();
-    trackManager.flushOldTracks();
-
-    await settle();
-
-    expect(() => entry.render(dummyCtx)).toThrow();
-  });
-
   it('contains crash inside onCreate()', async () => {
-    const entry = trackManager.resolveTrack('foo', td);
+    const entry = trackManager.resolveTrack(td);
     const e = new Error();
 
     // Mock crash inside onCreate
@@ -145,12 +135,11 @@ describe('TrackManager', () => {
 
     expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
     expect(mockTrack.onUpdate).not.toHaveBeenCalled();
-    expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
     expect(entry.getError()).toBe(e);
   });
 
   it('contains crash inside onUpdate()', async () => {
-    const entry = trackManager.resolveTrack('foo', td);
+    const entry = trackManager.resolveTrack(td);
     const e = new Error();
 
     // Mock crash inside onUpdate
@@ -162,12 +151,12 @@ describe('TrackManager', () => {
     await settle();
 
     expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
-    expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
+    expect(mockTrack.onUpdate).toHaveBeenCalledTimes(1);
     expect(entry.getError()).toBe(e);
   });
 
   it('handles dispose after crash', async () => {
-    const entry = trackManager.resolveTrack('foo', td);
+    const entry = trackManager.resolveTrack(td);
     const e = new Error();
 
     // Mock crash inside onUpdate
@@ -178,8 +167,8 @@ describe('TrackManager', () => {
     entry.render(dummyCtx);
     await settle();
 
-    // Ensure we don't crash while disposing
-    entry[Symbol.dispose]();
+    // Ensure we don't crash during the next render cycle
+    entry.render(dummyCtx);
     await settle();
   });
 });

@@ -66,8 +66,9 @@ class ThreadState implements PerfettoPlugin {
         kind: THREAD_STATE_TRACK_KIND,
       });
 
+      const uri = `${getThreadUriPrefix(upid, utid)}_state`;
       ctx.registerTrack({
-        uri: `${getThreadUriPrefix(upid, utid)}_state`,
+        uri,
         title: displayName,
         tags: {
           kind: THREAD_STATE_TRACK_KIND,
@@ -77,15 +78,13 @@ class ThreadState implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        trackFactory: ({trackUri}) => {
-          return new ThreadStateTrack(
-            {
-              engine: ctx.engine,
-              uri: trackUri,
-            },
-            utid,
-          );
-        },
+        track: new ThreadStateTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          utid,
+        ),
       });
     }
 

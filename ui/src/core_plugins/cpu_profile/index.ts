@@ -64,22 +64,22 @@ class CpuProfile implements PerfettoPlugin {
       const utid = it.utid;
       const upid = it.upid;
       const threadName = it.threadName;
+      const uri = `${getThreadUriPrefix(upid, utid)}_cpu_samples`;
       ctx.registerTrack({
-        uri: `${getThreadUriPrefix(upid, utid)}_cpu_samples`,
+        uri,
         title: `${threadName} (CPU Stack Samples)`,
         tags: {
           kind: CPU_PROFILE_TRACK_KIND,
           utid,
           ...(exists(upid) && {upid}),
         },
-        trackFactory: ({trackUri}) =>
-          new CpuProfileTrack(
-            {
-              engine: ctx.engine,
-              uri: trackUri,
-            },
-            utid,
-          ),
+        track: new CpuProfileTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          utid,
+        ),
       });
     }
     ctx.registerDetailsPanel(

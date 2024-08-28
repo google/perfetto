@@ -44,12 +44,11 @@ class AndroidStartup implements PerfettoPlugin {
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: [],
     };
+    const uri = `/android_startups`;
     ctx.registerStaticTrack({
-      uri: `/android_startups`,
+      uri,
       title: 'Android App Startups',
-      trackFactory: (trackCtx) => {
-        return new SimpleSliceTrack(ctx.engine, trackCtx, config);
-      },
+      track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
     });
   }
 }

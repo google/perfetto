@@ -302,6 +302,10 @@ class Globals implements AppContext {
     // Alternatively we could decide that we don't want to support switching
     // traces at all, in which case we can ignore tear down entirely.
     this._searchOverviewTrack = await createSearchOverviewTrack(engine, this);
+
+    // Reset the trackManager - this clears out the cache and any registered
+    // tracks
+    this._trackManager = new TrackManager();
   }
 
   // Used for permalink load by trace_controller.ts.

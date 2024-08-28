@@ -104,8 +104,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       const uri = `org.chromium.ChromeTasks#thread.${utid}`;
       ctx.registerStaticTrack({
         uri,
-        trackFactory: ({trackUri}) =>
-          new ChromeTasksThreadTrack(ctx.engine, trackUri, asUtid(utid)),
+        track: new ChromeTasksThreadTrack(ctx.engine, uri, asUtid(utid)),
         groupName: `Chrome Tasks`,
         title: `${it.threadName} ${it.tid}`,
       });
