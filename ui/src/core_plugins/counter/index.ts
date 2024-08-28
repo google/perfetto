@@ -175,24 +175,23 @@ class CounterPlugin implements PerfettoPlugin {
       const trackId = it.id;
       const displayName = it.name;
       const unit = it.unit ?? undefined;
+      const uri = `/counter_${trackId}`;
       ctx.registerStaticTrack({
-        uri: `/counter_${trackId}`,
+        uri,
         title: displayName,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
         },
-        trackFactory: (trackCtx) => {
-          return new TraceProcessorCounterTrack({
-            engine: ctx.engine,
-            uri: trackCtx.trackUri,
-            trackId,
-            options: {
-              ...getDefaultCounterOptions(displayName),
-              unit,
-            },
-          });
-        },
+        track: new TraceProcessorCounterTrack({
+          engine: ctx.engine,
+          uri,
+          trackId,
+          options: {
+            ...getDefaultCounterOptions(displayName),
+            unit,
+          },
+        }),
         detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, displayName),
         getEventBounds: async (id) => {
           return await getCounterEventBounds(ctx.engine, trackId, id);
@@ -244,22 +243,21 @@ class CounterPlugin implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       const name = it.name;
       const trackId = it.id;
+      const uri = `counter.cpu.${trackId}`;
       ctx.registerTrack({
-        uri: `counter.cpu.${trackId}`,
+        uri,
         title: name,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
           scope,
         },
-        trackFactory: (trackCtx) => {
-          return new TraceProcessorCounterTrack({
-            engine: ctx.engine,
-            uri: trackCtx.trackUri,
-            trackId: trackId,
-            options: getDefaultCounterOptions(name),
-          });
-        },
+        track: new TraceProcessorCounterTrack({
+          engine: ctx.engine,
+          uri,
+          trackId: trackId,
+          options: getDefaultCounterOptions(name),
+        }),
         detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
         getEventBounds: async (id) => {
           return await getCounterEventBounds(ctx.engine, trackId, id);
@@ -311,8 +309,9 @@ class CounterPlugin implements PerfettoPlugin {
         threadName,
         threadTrack: true,
       });
+      const uri = `${getThreadUriPrefix(upid, utid)}_counter_${trackId}`;
       ctx.registerTrack({
-        uri: `${getThreadUriPrefix(upid, utid)}_counter_${trackId}`,
+        uri,
         title: name,
         tags: {
           kind,
@@ -321,14 +320,12 @@ class CounterPlugin implements PerfettoPlugin {
           upid: upid ?? undefined,
           scope: 'thread',
         },
-        trackFactory: (trackCtx) => {
-          return new TraceProcessorCounterTrack({
-            engine: ctx.engine,
-            uri: trackCtx.trackUri,
-            trackId: trackId,
-            options: getDefaultCounterOptions(name),
-          });
-        },
+        track: new TraceProcessorCounterTrack({
+          engine: ctx.engine,
+          uri,
+          trackId: trackId,
+          options: getDefaultCounterOptions(name),
+        }),
         detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
         getEventBounds: async (id) => {
           return await getCounterEventBounds(ctx.engine, trackId, id);
@@ -371,8 +368,9 @@ class CounterPlugin implements PerfettoPlugin {
         processName,
         ...(exists(trackName) && {trackName}),
       });
+      const uri = `/process_${upid}/counter_${trackId}`;
       ctx.registerTrack({
-        uri: `/process_${upid}/counter_${trackId}`,
+        uri,
         title: name,
         tags: {
           kind,
@@ -380,14 +378,12 @@ class CounterPlugin implements PerfettoPlugin {
           upid,
           scope: 'process',
         },
-        trackFactory: (trackCtx) => {
-          return new TraceProcessorCounterTrack({
-            engine: ctx.engine,
-            uri: trackCtx.trackUri,
-            trackId: trackId,
-            options: getDefaultCounterOptions(name),
-          });
-        },
+        track: new TraceProcessorCounterTrack({
+          engine: ctx.engine,
+          uri,
+          trackId: trackId,
+          options: getDefaultCounterOptions(name),
+        }),
         detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
         getEventBounds: async (id) => {
           return await getCounterEventBounds(ctx.engine, trackId, id);
@@ -422,14 +418,12 @@ class CounterPlugin implements PerfettoPlugin {
             trackIds: [trackId],
             scope: 'gpuFreq',
           },
-          trackFactory: (trackCtx) => {
-            return new TraceProcessorCounterTrack({
-              engine: ctx.engine,
-              uri: trackCtx.trackUri,
-              trackId: trackId,
-              options: getDefaultCounterOptions(name),
-            });
-          },
+          track: new TraceProcessorCounterTrack({
+            engine: ctx.engine,
+            uri,
+            trackId: trackId,
+            options: getDefaultCounterOptions(name),
+          }),
           detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
           getEventBounds: async (id) => {
             return await getCounterEventBounds(ctx.engine, trackId, id);

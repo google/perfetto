@@ -60,7 +60,7 @@ class AndroidLog implements PerfettoPlugin {
         uri: 'perfetto.AndroidLog',
         title: 'Android logs',
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
-        trackFactory: () => new AndroidLogTrack(ctx.engine),
+        track: new AndroidLogTrack(ctx.engine),
       });
     }
 

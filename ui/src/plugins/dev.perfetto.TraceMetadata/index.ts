@@ -29,11 +29,14 @@ class TraceMetadata implements PerfettoPlugin {
     if (row.cnt === 0) {
       return;
     }
+    const uri = `/clock_snapshots`;
     ctx.registerStaticTrack({
-      uri: `/clock_snapshots`,
+      uri,
       title: 'Clock Snapshots',
-      trackFactory: (trackCtx) => {
-        return new SimpleSliceTrack(ctx.engine, trackCtx, {
+      track: new SimpleSliceTrack(
+        ctx.engine,
+        {trackUri: uri},
+        {
           data: {
             sqlSource: `
               select ts, 0 as dur, 'Snapshot' as name
@@ -43,8 +46,8 @@ class TraceMetadata implements PerfettoPlugin {
           },
           columns: {ts: 'ts', dur: 'dur', name: 'name'},
           argColumns: [],
-        });
-      },
+        },
+      ),
     });
   }
 }

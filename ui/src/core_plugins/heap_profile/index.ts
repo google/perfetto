@@ -68,22 +68,21 @@ class HeapProfilePlugin implements PerfettoPlugin {
     `);
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
+      const uri = `/process_${upid}/heap_profile`;
       ctx.registerTrack({
-        uri: `/process_${upid}/heap_profile`,
+        uri,
         title: 'Heap Profile',
         tags: {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
-        trackFactory: ({trackUri}) => {
-          return new HeapProfileTrack(
-            {
-              engine: ctx.engine,
-              uri: trackUri,
-            },
-            upid,
-          );
-        },
+        track: new HeapProfileTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          upid,
+        ),
       });
     }
     const it = await ctx.engine.query(`

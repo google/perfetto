@@ -47,11 +47,10 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
         kind: CriticalUserInteractionTrack.kind,
       },
       title: 'Chrome Interactions',
-      trackFactory: (trackCtx) =>
-        new CriticalUserInteractionTrack({
-          engine: ctx.engine,
-          uri: trackCtx.trackUri,
-        }),
+      track: new CriticalUserInteractionTrack({
+        engine: ctx.engine,
+        uri: CriticalUserInteractionTrack.kind,
+      }),
     });
 
     ctx.registerDetailsPanel(

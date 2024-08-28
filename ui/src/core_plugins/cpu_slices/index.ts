@@ -42,9 +42,7 @@ class CpuSlices implements PerfettoPlugin {
           kind: CPU_SLICE_TRACK_KIND,
           cpu,
         },
-        trackFactory: ({trackUri}) => {
-          return new CpuSliceTrack(ctx.engine, trackUri, cpu);
-        },
+        track: new CpuSliceTrack(ctx.engine, uri, cpu),
       });
     }
 

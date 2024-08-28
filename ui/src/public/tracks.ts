@@ -69,7 +69,7 @@ export interface TrackDescriptor {
   readonly uri: string;
 
   // A factory function returning a new track instance.
-  readonly trackFactory: (ctx: TrackContext) => Track;
+  readonly track: Track;
 
   // Human readable title. Always displayed.
   readonly title: string;

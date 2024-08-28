@@ -84,15 +84,13 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
       uri,
       title: argName,
       chips: ['metric'],
-      trackFactory: (trackCtx) => {
-        return new VisualisedArgsTrack({
-          engine: ctx.engine,
-          uri: trackCtx.trackUri,
-          trackId,
-          maxDepth,
-          argName,
-        });
-      },
+      track: new VisualisedArgsTrack({
+        engine: ctx.engine,
+        uri,
+        trackId,
+        maxDepth,
+        argName,
+      }),
     });
 
     // Find the thread slice track that corresponds with this trackID and insert

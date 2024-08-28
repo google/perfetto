@@ -87,8 +87,9 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
         kind: 'Slices',
       });
 
+      const uri = `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`;
       ctx.registerTrack({
-        uri: `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`,
+        uri,
         title: displayName,
         tags: {
           trackIds: [trackId],
@@ -100,13 +101,14 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        trackFactory: ({trackUri}) => {
-          const newTrackArgs = {
+        track: new ThreadSliceTrack(
+          {
             engine: ctx.engine,
-            uri: trackUri,
-          };
-          return new ThreadSliceTrack(newTrackArgs, trackId, maxDepth);
-        },
+            uri,
+          },
+          trackId,
+          maxDepth,
+        ),
       });
     }
 
