@@ -12,6 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
+import {
+  AggregationConfig,
+  SourceTable,
+  SqlColumn,
+  TableColumn,
+  TableManager,
+} from '../../frontend/widgets/sql/table/column';
+import {getStandardContextMenuItems} from '../../frontend/widgets/sql/table/render_cell_utils';
 import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
 import {
   ArgSetColumnSet,
@@ -19,12 +29,86 @@ import {
   StandardColumn,
   TimestampColumn,
 } from '../../frontend/widgets/sql/table/well_known_columns';
+import {SqlValue} from '../../trace_processor/sql_utils';
+import {PopupMenu2} from '../../widgets/menu';
+import {Anchor} from '../../widgets/anchor';
+import {showProcessDetailsMenuItem} from '../../frontend/widgets/process';
+import {asUpid} from '../../trace_processor/sql_utils/core_types';
+
+// ProcessIdColumn is a column type for displaying primary key of the `process` table.
+// All other references (foreign keys) should use `ProcessColumn` instead.
+class ProcessIdColumn extends TableColumn {
+  private columns: {pid: SqlColumn};
+
+  constructor(private upid: SqlColumn) {
+    super({});
+
+    const processTable: SourceTable = {
+      table: 'process',
+      joinOn: {id: this.upid},
+      innerJoin: true,
+    };
+
+    this.columns = {
+      pid: {
+        column: 'pid',
+        source: processTable,
+      },
+    };
+  }
+
+  primaryColumn(): SqlColumn {
+    return this.upid;
+  }
+
+  getTitle() {
+    return 'upid';
+  }
+
+  dependentColumns() {
+    return {
+      pid: this.columns.pid,
+    };
+  }
+
+  renderCell(
+    value: SqlValue,
+    manager: TableManager,
+    data: {[key: string]: SqlValue},
+  ): m.Children {
+    const upid = value;
+    const rawPid = data['pid'];
+
+    if (typeof upid !== 'bigint') {
+      throw new Error(
+        `process.upid is expected to be bigint, got ${typeof upid}`,
+      );
+    }
+
+    return m(
+      PopupMenu2,
+      {
+        trigger: m(Anchor, `${upid}`),
+      },
+
+      showProcessDetailsMenuItem(
+        asUpid(Number(upid)),
+        rawPid === null ? undefined : Number(rawPid),
+      ),
+      getStandardContextMenuItems(upid, this.upid, manager),
+    );
+  }
+
+  aggregation(): AggregationConfig {
+    return {dataType: 'nominal'};
+  }
+}
 
 export function getProcessTable(): SqlTableDescription {
   return {
     name: 'process',
     columns: [
-      new StandardColumn('upid', {aggregationType: 'nominal'}),
+      new ProcessIdColumn('upid'),
       new StandardColumn('pid', {aggregationType: 'nominal'}),
       new StandardColumn('name'),
       new TimestampColumn('start_ts'),
