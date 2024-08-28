@@ -19,7 +19,7 @@ import {TrackRenderContext} from '../public/tracks';
 
 import {HighPrecisionTime} from './high_precision_time';
 import {HighPrecisionTimeSpan} from './high_precision_time_span';
-import {TrackManager} from './track_cache';
+import {TrackManager} from './track_manager';
 
 function makeMockTrack() {
   return {
@@ -67,7 +67,7 @@ beforeEach(() => {
 
 describe('TrackManager', () => {
   it('calls track lifecycle hooks', async () => {
-    const entry = trackManager.resolveTrack(td);
+    const entry = trackManager.getTrackRenderer(td);
 
     entry.render(dummyCtx);
     await settle();
@@ -83,7 +83,7 @@ describe('TrackManager', () => {
 
   it('calls onCrate lazily', async () => {
     // Check we wait until the first call to render before calling onCreate
-    const entry = trackManager.resolveTrack(td);
+    const entry = trackManager.getTrackRenderer(td);
     await settle();
     expect(mockTrack.onCreate).not.toHaveBeenCalled();
 
@@ -93,12 +93,12 @@ describe('TrackManager', () => {
   });
 
   it('reuses tracks', async () => {
-    const first = trackManager.resolveTrack(td);
+    const first = trackManager.getTrackRenderer(td);
     trackManager.flushOldTracks();
     first.render(dummyCtx);
     await settle();
 
-    const second = trackManager.resolveTrack(td);
+    const second = trackManager.getTrackRenderer(td);
     trackManager.flushOldTracks();
     second.render(dummyCtx);
     await settle();
@@ -109,7 +109,7 @@ describe('TrackManager', () => {
   });
 
   it('destroys tracks when they are not resolved for one cycle', async () => {
-    const entry = trackManager.resolveTrack(td);
+    const entry = trackManager.getTrackRenderer(td);
     entry.render(dummyCtx);
 
     // Double flush should destroy all tracks
@@ -122,7 +122,7 @@ describe('TrackManager', () => {
   });
 
   it('contains crash inside onCreate()', async () => {
-    const entry = trackManager.resolveTrack(td);
+    const entry = trackManager.getTrackRenderer(td);
     const e = new Error();
 
     // Mock crash inside onCreate
@@ -139,7 +139,7 @@ describe('TrackManager', () => {
   });
 
   it('contains crash inside onUpdate()', async () => {
-    const entry = trackManager.resolveTrack(td);
+    const entry = trackManager.getTrackRenderer(td);
     const e = new Error();
 
     // Mock crash inside onUpdate
@@ -156,7 +156,7 @@ describe('TrackManager', () => {
   });
 
   it('handles dispose after crash', async () => {
-    const entry = trackManager.resolveTrack(td);
+    const entry = trackManager.getTrackRenderer(td);
     const e = new Error();
 
     // Mock crash inside onUpdate

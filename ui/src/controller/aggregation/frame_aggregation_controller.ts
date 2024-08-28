@@ -24,7 +24,7 @@ export class FrameAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     const selectedSqlTrackIds: number[] = [];
     for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      const trackInfo = globals.trackManager.getTrack(trackUri);
       if (trackInfo?.tags?.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
         trackInfo.tags.trackIds &&
           selectedSqlTrackIds.push(...trackInfo.tags.trackIds);

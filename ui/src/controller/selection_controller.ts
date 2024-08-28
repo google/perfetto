@@ -310,7 +310,7 @@ export class SelectionController extends Controller<'main'> {
     // TODO(hjd): If we had a consistent mapping from TP track_id
     // UI track id for slice tracks this would be unnecessary.
     for (const track of globals.workspace.flatTracks) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
+      const trackInfo = globals.trackManager.getTrack(track.uri);
       if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
         const trackIds = trackInfo?.tags?.trackIds;
         if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {

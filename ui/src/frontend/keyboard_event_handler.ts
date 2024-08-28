@@ -98,7 +98,7 @@ export function moveByFocusedFlow(direction: Direction): void {
       const flowPoint = direction === 'Backward' ? flow.begin : flow.end;
       const track = globals.workspace.flatTracks.find((t) => {
         return globals.trackManager
-          .resolveTrackInfo(t.uri)
+          .getTrack(t.uri)
           ?.tags?.trackIds?.includes(flowPoint.trackId);
       });
       if (track) {

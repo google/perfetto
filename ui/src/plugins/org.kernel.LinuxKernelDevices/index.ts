@@ -45,7 +45,7 @@ class LinuxKernelDevices implements PerfettoPlugin {
       const displayName = it.name ?? `${trackId}`;
 
       const uri = `/kernel_devices/${displayName}`;
-      ctx.registerStaticTrack({
+      ctx.registerTrackAndShowOnTraceLoad({
         uri,
         title: displayName,
         track: new AsyncSliceTrack(

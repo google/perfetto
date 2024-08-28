@@ -56,7 +56,7 @@ class AndroidLog implements PerfettoPlugin {
     );
     const logCount = result.firstRow({cnt: NUM}).cnt;
     if (logCount > 0) {
-      ctx.registerStaticTrack({
+      ctx.registerTrackAndShowOnTraceLoad({
         uri: 'perfetto.AndroidLog',
         title: 'Android logs',
         tags: {kind: ANDROID_LOGS_TRACK_KIND},

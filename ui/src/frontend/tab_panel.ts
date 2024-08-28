@@ -151,7 +151,7 @@ export class TabPanel implements m.ClassComponent {
       const uri = currentSelection.trackUri;
 
       if (uri) {
-        const trackDesc = globals.trackManager.resolveTrackInfo(uri);
+        const trackDesc = globals.trackManager.getTrack(uri);
         const panel = trackDesc?.detailsPanel;
         if (panel) {
           return {
