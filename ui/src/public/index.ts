@@ -163,41 +163,6 @@ export interface PluginContext {
   addSidebarMenuItem(menuItem: SidebarMenuItem): void;
 }
 
-export interface SliceTrackColNames {
-  ts: string;
-  name: string;
-  dur: string;
-}
-
-export interface DebugSliceTrackArgs {
-  // Title of the track. If omitted a placeholder name will be chosen instead.
-  trackName?: string;
-
-  // Mapping definitions of the 'ts', 'dur', and 'name' columns.
-  // By default, columns called ts, dur and name will be used.
-  // If dur is assigned the value '0', all slices shall be instant events.
-  columnMapping?: Partial<SliceTrackColNames>;
-
-  // Any extra columns to be used as args.
-  args?: string[];
-
-  // Optional renaming of columns.
-  columns?: string[];
-}
-
-export interface CounterTrackColNames {
-  ts: string;
-  value: string;
-}
-
-export interface DebugCounterTrackArgs {
-  // Title of the track. If omitted a placeholder name will be chosen instead.
-  trackName?: string;
-
-  // Mapping definitions of the ts and value columns.
-  columnMapping?: Partial<CounterTrackColNames>;
-}
-
 export interface Tab {
   render(): m.Children;
   getTitle(): string;
