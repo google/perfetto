@@ -45,17 +45,31 @@ export type SqlColumn =
     };
 
 // A unique identifier for the SQL column.
-export function sqlColumnId(column: SqlColumn) {
+export function sqlColumnId(column: SqlColumn): string {
   if (typeof column === 'string') {
     return column;
   }
-  // If the join is performed on a single column `id`, we can use a simpler representation (i.e. `table[id].column`).
+  // Special case: If the join is performed on a single column `id`, we can use a simpler representation (i.e. `table[id].column`).
   if (arrayEquals(Object.keys(column.source.joinOn), ['id'])) {
-    return `${column.source.table}[${Object.values(column.source.joinOn)[0]}].${column.column}`;
+    return `${column.source.table}[${sqlColumnId(Object.values(column.source.joinOn)[0])}].${column.column}`;
+  }
+  // Special case: args lookup. For it, we can use a simpler representation (i.e. `arg_set_id[key]`).
+  if (
+    column.column === 'display_value' &&
+    column.source.table === 'args' &&
+    arrayEquals(Object.keys(column.source.joinOn).sort(), ['arg_set_id', 'key'])
+  ) {
+    const key = column.source.joinOn['key'];
+    const argSetId = column.source.joinOn['arg_set_id'];
+    return `${sqlColumnId(argSetId)}[${sqlColumnId(key)}]`;
   }
   // Otherwise, we need to list all the join constraints.
   const lookup = Object.entries(column.source.joinOn)
-    .map(([key, value]): string => `${key}=${sqlColumnId(value)}`)
+    .map(([key, value]): string => {
+      const valueStr = sqlColumnId(value);
+      if (key === valueStr) return key;
+      return `${key}=${sqlColumnId(value)}`;
+    })
     .join(', ');
   return `${column.source.table}[${lookup}].${column.column}`;
 }
