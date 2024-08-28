@@ -70,7 +70,6 @@ TraceFileTable::~TraceFileTable() = default;
 StackProfileMappingTable::~StackProfileMappingTable() = default;
 StackProfileFrameTable::~StackProfileFrameTable() = default;
 StackProfileCallsiteTable::~StackProfileCallsiteTable() = default;
-StackSampleTable::~StackSampleTable() = default;
 CpuProfileStackSampleTable::~CpuProfileStackSampleTable() = default;
 PerfSessionTable::~PerfSessionTable() = default;
 PerfSampleTable::~PerfSampleTable() = default;

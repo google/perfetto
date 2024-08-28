@@ -39,7 +39,9 @@ source_set("full") {
     "../../../../gn:default_deps",
     "../../sorter",
     "../../storage",
+    "../../tables",
     "../../types",
+    "../../util:trace_type",
     "../common",
     "../proto:minimal",
   ]

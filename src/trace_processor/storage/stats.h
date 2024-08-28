@@ -17,11 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_STORAGE_STATS_H_
 #define SRC_TRACE_PROCESSOR_STORAGE_STATS_H_
 
-#include <stddef.h>
+#include <cstddef>
 
-namespace perfetto {
-namespace trace_processor {
-namespace stats {
+namespace perfetto::trace_processor::stats {
 
 // Compile time list of parsing and processing stats.
 // clang-format off
@@ -435,8 +433,6 @@ constexpr Source kSources[] = {PERFETTO_TP_STATS(PERFETTO_TP_STATS_SOURCE)};
 constexpr char const* kDescriptions[] = {
     PERFETTO_TP_STATS(PERFETTO_TP_STATS_DESCRIPTION)};
 
-}  // namespace stats
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::stats
 
 #endif  // SRC_TRACE_PROCESSOR_STORAGE_STATS_H_
