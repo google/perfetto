@@ -69,8 +69,8 @@ KernelMemoryMapping& MappingTracker::CreateKernelMemoryMapping(
       new KernelMemoryMapping(context_, std::move(params)));
 
   if (is_module) {
-    kernel_modules_.DeleteOverlapsAndEmplace(mapping->memory_range(),
-                                             mapping.get());
+    kernel_modules_.TrimOverlapsAndEmplace(mapping->memory_range(),
+                                           mapping.get());
   } else {
     kernel_ = mapping.get();
   }
@@ -81,14 +81,11 @@ KernelMemoryMapping& MappingTracker::CreateKernelMemoryMapping(
 UserMemoryMapping& MappingTracker::CreateUserMemoryMapping(
     UniquePid upid,
     CreateMappingParams params) {
-  // TODO(carlscab): Guess build_id if not provided. Some tools like simpleperf
-  // add a mapping file_name ->build_id that we could use here
-
   const AddressRange mapping_range = params.memory_range;
   std::unique_ptr<UserMemoryMapping> mapping(
       new UserMemoryMapping(context_, upid, std::move(params)));
 
-  user_memory_[upid].DeleteOverlapsAndEmplace(mapping_range, mapping.get());
+  user_memory_[upid].TrimOverlapsAndEmplace(mapping_range, mapping.get());
 
   jit_caches_[upid].ForOverlaps(
       mapping_range, [&](std::pair<const AddressRange, JitCache*>& entry) {
@@ -156,12 +153,22 @@ void MappingTracker::AddJitRange(UniquePid upid,
                                  AddressRange jit_range,
                                  JitCache* jit_cache) {
   // TODO(carlscab): Deal with overlaps
-  jit_caches_[upid].DeleteOverlapsAndEmplace(jit_range, jit_cache);
+  jit_caches_[upid].TrimOverlapsAndEmplace(jit_range, jit_cache);
   user_memory_[upid].ForOverlaps(
       jit_range, [&](std::pair<const AddressRange, UserMemoryMapping*>& entry) {
         PERFETTO_CHECK(jit_range.Contains(entry.first));
         entry.second->SetJitCache(jit_cache);
       });
+}
+
+VirtualMemoryMapping* MappingTracker::GetDummyMapping() {
+  if (!dummy_mapping_) {
+    CreateMappingParams params;
+    params.memory_range =
+        AddressRange::FromStartAndSize(0, std::numeric_limits<uint64_t>::max());
+    dummy_mapping_ = &InternMemoryMapping(params);
+  }
+  return dummy_mapping_;
 }
 
 }  // namespace trace_processor

@@ -26,12 +26,16 @@ source_set("functions") {
     "create_function.h",
     "create_view_function.cc",
     "create_view_function.h",
-    "dfs.cc",
-    "dfs.h",
     "dominator_tree.cc",
     "dominator_tree.h",
+    "graph_scan.cc",
+    "graph_scan.h",
+    "graph_traversal.cc",
+    "graph_traversal.h",
     "import.cc",
     "import.h",
+    "interval_intersect.cc",
+    "interval_intersect.h",
     "layout_functions.cc",
     "layout_functions.h",
     "math.cc",
@@ -46,6 +50,8 @@ source_set("functions") {
     "structural_tree_partition.h",
     "to_ftrace.cc",
     "to_ftrace.h",
+    "type_builders.cc",
+    "type_builders.h",
     "utils.h",
     "window_functions.h",
   ]
@@ -77,6 +83,7 @@ source_set("functions") {
     "../../../util:sql_argument",
     "../../../util:stdlib",
     "../../engine",
+    "../types",
   ]
   public_deps = [ ":interface" ]
 }

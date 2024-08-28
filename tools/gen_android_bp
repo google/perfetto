@@ -57,6 +57,7 @@ default_targets = [
     '//:perfetto_integrationtests',
     '//:perfetto_unittests',
     '//protos/perfetto/trace:perfetto_trace_protos',
+    '//protos/perfetto/trace/android:perfetto_winscope_extensions_zero',
     '//src/android_internal:libperfetto_android_internal',
     '//src/base:perfetto_base_default_platform',
     '//src/shared_lib:libperfetto_c',
@@ -105,6 +106,7 @@ target_host_supported = [
     '//:libperfetto',
     '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
+    '//protos/perfetto/trace/android:perfetto_winscope_extensions_zero',
     '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor_shell',
@@ -137,7 +139,7 @@ proto_groups = {
         ]
     },
     'config': {
-        'types': ['lite'],
+        'types': ['filegroup'],
         'targets': [
             '//protos/perfetto/config:source_set',
         ]
@@ -341,6 +343,7 @@ def enable_libunwindstack(module):
     module.static_libs.add('liblzma')
     module.static_libs.add('libdexfile_support')
     module.runtime_libs.add('libdexfile')  # libdexfile_support dependency
+    module.shared_libs.add('libz') # libunwindstack dependency
 
 
 def enable_libunwind(module):

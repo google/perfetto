@@ -24,10 +24,11 @@ import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {PanelSize} from '../../frontend/panel';
 import {Engine, Track} from '../../public';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
+import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
+import {Vector} from '../../base/geom';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -53,26 +54,21 @@ export interface Config {
 }
 
 export class ProcessSchedulingTrack implements Track {
-  private mousePos?: {x: number; y: number};
+  private mousePos?: Vector;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private maxCpu = 0;
+  private cpuCount: number;
   private engine: Engine;
   private trackUuid = uuidv4Sql();
   private config: Config;
 
-  constructor(engine: Engine, config: Config) {
+  constructor(engine: Engine, config: Config, cpuCount: number) {
     this.engine = engine;
     this.config = config;
+    this.cpuCount = cpuCount;
   }
 
   async onCreate(): Promise<void> {
-    const cpus = await this.engine.getCpus();
-
-    // A process scheduling track should only exist in a trace that has cpus.
-    assertTrue(cpus.length > 0);
-    this.maxCpu = Math.max(...cpus) + 1;
-
     if (this.config.upid !== null) {
       await this.engine.query(`
         create virtual table process_scheduling_${this.trackUuid}
@@ -113,17 +109,18 @@ export class ProcessSchedulingTrack implements Track {
     }
   }
 
-  async onUpdate(): Promise<void> {
-    await this.fetcher.requestDataForCurrentTime();
+  async onUpdate({
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): Promise<void> {
+    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 
   async onDestroy(): Promise<void> {
-    this.fetcher.dispose();
-    if (this.engine.isAlive) {
-      await this.engine.query(`
-        drop table process_scheduling_${this.trackUuid}
-      `);
-    }
+    this.fetcher[Symbol.dispose]();
+    await this.engine.tryQuery(`
+      drop table process_scheduling_${this.trackUuid}
+    `);
   }
 
   async onBoundsChange(
@@ -142,7 +139,7 @@ export class ProcessSchedulingTrack implements Track {
       end,
       resolution,
       length: numRows,
-      maxCpu: this.maxCpu,
+      maxCpu: this.cpuCount,
       starts: new BigInt64Array(numRows),
       ends: new BigInt64Array(numRows),
       cpus: new Uint32Array(numRows),
@@ -193,9 +190,8 @@ export class ProcessSchedulingTrack implements Track {
     return TRACK_HEIGHT;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {visibleTimeScale, visibleTimeSpan} = globals.timeline;
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -207,8 +203,8 @@ export class ProcessSchedulingTrack implements Track {
       this.getHeight(),
       0,
       size.width,
-      visibleTimeScale.timeToPx(data.start),
-      visibleTimeScale.timeToPx(data.end),
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
     );
 
     assertTrue(data.starts.length === data.ends.length);
@@ -221,13 +217,13 @@ export class ProcessSchedulingTrack implements Track {
       const tEnd = Time.fromRaw(data.ends[i]);
 
       // Cull slices that lie completely outside the visible window
-      if (!visibleTimeSpan.intersects(tStart, tEnd)) continue;
+      if (!visibleWindow.overlaps(tStart, tEnd)) continue;
 
       const utid = data.utids[i];
       const cpu = data.cpus[i];
 
-      const rectStart = Math.floor(visibleTimeScale.timeToPx(tStart));
-      const rectEnd = Math.floor(visibleTimeScale.timeToPx(tEnd));
+      const rectStart = Math.floor(timescale.timeToPx(tStart));
+      const rectEnd = Math.floor(timescale.timeToPx(tEnd));
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
       const threadInfo = globals.threads.get(utid);
@@ -254,33 +250,31 @@ export class ProcessSchedulingTrack implements Track {
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
-    const height = this.getHeight();
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (hoveredThread.pid) {
         const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        drawTrackHoverTooltip(ctx, this.mousePos, height, pidText, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
       } else {
-        drawTrackHoverTooltip(ctx, this.mousePos, height, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
       }
     }
   }
 
-  onMouseMove(pos: {x: number; y: number}) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
-    this.mousePos = pos;
+    this.mousePos = {x, y};
     if (data === undefined) return;
-    if (pos.y < MARGIN_TOP || pos.y > MARGIN_TOP + RECT_HEIGHT) {
+    if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
       globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
       return;
     }
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
-    const cpu = Math.floor((pos.y - MARGIN_TOP) / (cpuTrackHeight + 1));
-    const {visibleTimeScale} = globals.timeline;
-    const t = visibleTimeScale.pxToHpTime(pos.x).toTime('floor');
+    const cpu = Math.floor((y - MARGIN_TOP) / (cpuTrackHeight + 1));
+    const t = timescale.pxToHpTime(x).toTime('floor');
 
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {

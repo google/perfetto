@@ -29,6 +29,12 @@ message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
 
+  // The SoC model from which trace is collected
+  optional string android_soc_model = 9;
+
+  // The hardware reversion from android device
+  optional string android_hardware_revision = 10;
+
   // The version of traced (the same returned by `traced --version`).
   // This is a human readable string with and its format varies depending on
   // the build system and the repo (standalone vs AOSP).

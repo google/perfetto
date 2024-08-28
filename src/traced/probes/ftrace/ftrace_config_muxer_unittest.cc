@@ -97,6 +97,7 @@ class MockAtraceWrapper : public AtraceWrapper {
  public:
   MOCK_METHOD(bool, RunAtrace, (const std::vector<std::string>&, std::string*));
   MOCK_METHOD(bool, SupportsUserspaceOnly, ());
+  MOCK_METHOD(bool, SupportsPreferSdk, ());
 };
 
 class MockProtoTranslationTable : public ProtoTranslationTable {
@@ -127,7 +128,6 @@ TEST(ComputeCpuBufferSizeInPagesTest, DifferentCases) {
   auto KbToPages = [](uint64_t kb) {
     return kb * 1024 / base::GetSysPageSize();
   };
-  auto kMaxBufSizePages = KbToPages(64 * 1024);
   int64_t kNoRamInfo = 0;
   bool kExactSize = false;
   bool kLowerBoundSize = true;
@@ -153,10 +153,6 @@ TEST(ComputeCpuBufferSizeInPagesTest, DifferentCases) {
   EXPECT_EQ(test(16384, kExactSize, kHighRamPages), KbToPages(16384));
   EXPECT_EQ(test(16384, kLowerBoundSize, kHighRamPages), KbToPages(16384));
 
-  // Buffer size given way too big: good default.
-  EXPECT_EQ(test(10 * (1ULL << 20), kExactSize, kNoRamInfo), kMaxBufSizePages);
-  EXPECT_EQ(test(512 * 1024, kExactSize, kNoRamInfo), kMaxBufSizePages);
-
   // Your size ends up with less than 1 page per cpu -> 1 page.
   EXPECT_EQ(test(3, kExactSize, kNoRamInfo), 1u);
   // You picked a good size -> your size rounded to nearest page.
@@ -174,6 +170,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
   FtraceConfigMuxerTest() {
     ON_CALL(atrace_wrapper_, RunAtrace).WillByDefault(Return(true));
     ON_CALL(atrace_wrapper_, SupportsUserspaceOnly).WillByDefault(Return(true));
+    ON_CALL(atrace_wrapper_, SupportsPreferSdk).WillByDefault(Return(true));
   }
 
   std::unique_ptr<MockProtoTranslationTable> GetMockTable() {
@@ -841,6 +838,100 @@ TEST_F(FtraceConfigMuxerFakeTableTest, AtraceErrorsPropagated) {
   FtraceConfigId id_a = 23;
   ASSERT_TRUE(model_.SetupConfig(id_a, config, &errors));
   EXPECT_EQ(errors.atrace_errors, "foo\nbar\n");
+}
+
+TEST_F(FtraceConfigMuxerFakeTableTest, AtracePreferTrackEvent) {
+  const FtraceConfigId id_a = 3;
+  FtraceConfig config_a = CreateFtraceConfig({});
+  *config_a.add_atrace_categories() = "cat_1";
+  *config_a.add_atrace_categories() = "cat_2";
+  *config_a.add_atrace_categories() = "cat_3";
+  *config_a.add_atrace_categories_prefer_sdk() = "cat_1";
+  *config_a.add_atrace_categories_prefer_sdk() = "cat_2";
+
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+  ON_CALL(ftrace_, ReadFileIntoString("/root/events/enable"))
+      .WillByDefault(Return("0"));
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
+                                  "cat_1", "cat_2", "cat_3"}),
+                _))
+      .WillOnce(Return(true));
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(ElementsAreArray({"atrace", "--prefer_sdk", "cat_1", "cat_2"}),
+                _))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model_.SetupConfig(id_a, config_a));
+
+  const FtraceConfigId id_b = 13;
+  FtraceConfig config_b = CreateFtraceConfig({});
+  *config_b.add_atrace_categories() = "cat_1";
+  *config_b.add_atrace_categories() = "cat_2";
+  *config_b.add_atrace_categories() = "cat_3";
+  *config_b.add_atrace_categories_prefer_sdk() = "cat_2";
+  *config_b.add_atrace_categories_prefer_sdk() = "cat_3";
+
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(ElementsAreArray({"atrace", "--prefer_sdk", "cat_2"}), _))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model_.SetupConfig(id_b, config_b));
+
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(ElementsAreArray({"atrace", "--prefer_sdk", "cat_1", "cat_2"}),
+                _))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model_.RemoveConfig(id_b));
+
+  const FtraceConfigId id_c = 13;
+  FtraceConfig config_c = CreateFtraceConfig({});
+  *config_c.add_atrace_categories() = "cat_1";
+  *config_c.add_atrace_categories() = "cat_2";
+  *config_c.add_atrace_categories() = "cat_3";
+  *config_c.add_atrace_categories() = "cat_4";
+  *config_c.add_atrace_categories_prefer_sdk() = "cat_1";
+  *config_c.add_atrace_categories_prefer_sdk() = "cat_3";
+  *config_c.add_atrace_categories_prefer_sdk() = "cat_4";
+
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
+                                  "cat_1", "cat_2", "cat_3", "cat_4"}),
+                _))
+      .WillOnce(Return(true));
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(ElementsAreArray({"atrace", "--prefer_sdk", "cat_1", "cat_4"}),
+                _))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model_.SetupConfig(id_c, config_c));
+
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
+                                  "cat_1", "cat_2", "cat_3"}),
+                _))
+      .WillOnce(Return(true));
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(ElementsAreArray({"atrace", "--prefer_sdk", "cat_1", "cat_2"}),
+                _))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model_.RemoveConfig(id_c));
+
+  EXPECT_CALL(
+      atrace_wrapper_,
+      RunAtrace(
+          ElementsAreArray({"atrace", "--async_stop", "--only_userspace"}), _))
+      .WillOnce(Return(true));
+  EXPECT_CALL(atrace_wrapper_,
+              RunAtrace(ElementsAreArray({"atrace", "--prefer_sdk"}), _))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model_.RemoveConfig(id_a));
 }
 
 TEST_F(FtraceConfigMuxerFakeTableTest, SetupClockForTesting) {

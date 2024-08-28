@@ -118,7 +118,7 @@ export class AndroidSettings
       atraceCategories = new Map<string, string>();
       for (const atrace of atraces) {
         if (atrace.name) {
-          atraceCategories.set(atrace.name, atrace.description || '');
+          atraceCategories.set(atrace.name, atrace.description ?? '');
         }
       }
     }

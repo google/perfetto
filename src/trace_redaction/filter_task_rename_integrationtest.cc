@@ -16,14 +16,12 @@
 
 #include <cstdint>
 #include <string>
-#include <string_view>
 #include <vector>
 
-#include "perfetto/base/status.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/collect_timeline_events.h"
-#include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/find_package_uid.h"
+#include "src/trace_redaction/redact_process_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "src/trace_redaction/trace_redactor.h"
@@ -36,17 +34,6 @@
 
 namespace perfetto::trace_redaction {
 
-namespace {
-
-using FtraceEvent = protos::pbzero::FtraceEvent;
-
-// Set the package name to "just some package name". If a specific package name
-// is needed, the test it should overwrite this value.
-constexpr std::string_view kPackageName =
-    "com.Unity.com.unity.multiplayer.samples.coop";
-
-}  // namespace
-
 class RenameEventsTraceRedactorIntegrationTest
     : public testing::Test,
       protected TraceRedactionIntegrationFixure {
@@ -54,68 +41,72 @@ class RenameEventsTraceRedactorIntegrationTest
   void SetUp() override {
     // In order for ScrubTaskRename to work, it needs the timeline. All
     // registered primitives are there to generate the timeline.
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+    trace_redactor_.emplace_collect<FindPackageUid>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
 
-    auto scrub_ftrace_events =
-        trace_redactor()->emplace_transform<ScrubFtraceEvents>();
-    scrub_ftrace_events->emplace_back<FilterTaskRename>();
+    // Configure the system to drop every rename event not connected to the
+    // package.
+    auto* redact = trace_redactor_.emplace_transform<RedactProcessEvents>();
+    redact->emplace_filter<ConnectedToPackage>();
+    redact->emplace_modifier<DoNothing>();
 
-    context()->package_name = kPackageName;
+    context_.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
   }
 
-  std::vector<uint32_t> GetAllRenamedPids(
-      protos::pbzero::Trace::Decoder trace) const {
+  void GetRenamedPids(
+      const protos::pbzero::FtraceEventBundle::Decoder& ftrace_events,
+      std::vector<uint32_t>* pids) const {
+    for (auto event_it = ftrace_events.event(); event_it; ++event_it) {
+      protos::pbzero::FtraceEvent::Decoder event(*event_it);
+
+      if (event.has_task_rename()) {
+        pids->push_back(event.pid());
+      }
+    }
+  }
+
+  std::vector<uint32_t> GetRenamedPids(const std::string bytes) const {
     std::vector<uint32_t> renamed_pids;
+
+    protos::pbzero::Trace::Decoder trace(bytes);
 
     for (auto packet_it = trace.packet(); packet_it; ++packet_it) {
       protos::pbzero::TracePacket::Decoder packet_decoder(*packet_it);
 
-      if (!packet_decoder.has_ftrace_events()) {
-        continue;
-      }
-
-      protos::pbzero::FtraceEventBundle::Decoder bundle_decoder(
-          packet_decoder.ftrace_events());
-
-      for (auto event_it = bundle_decoder.event(); event_it; ++event_it) {
-        protos::pbzero::FtraceEvent::Decoder event(*event_it);
-
-        if (event.has_task_rename()) {
-          renamed_pids.push_back(event.pid());
-        }
+      if (packet_decoder.has_ftrace_events()) {
+        protos::pbzero::FtraceEventBundle::Decoder ftrace_events(
+            packet_decoder.ftrace_events());
+        GetRenamedPids(ftrace_events, &renamed_pids);
       }
     }
 
     return renamed_pids;
   }
+
+  Context context_;
+  TraceRedactor trace_redactor_;
 };
 
 TEST_F(RenameEventsTraceRedactorIntegrationTest, RemovesUnwantedRenameTasks) {
-  auto result = Redact();
-  ASSERT_OK(result) << result.c_message();
+  ASSERT_OK(Redact(trace_redactor_, &context_));
 
   auto original = LoadOriginal();
-  ASSERT_OK(original) << original.status().c_message();
+  ASSERT_OK(original);
 
   auto redacted = LoadRedacted();
-  ASSERT_OK(redacted) << redacted.status().c_message();
+  ASSERT_OK(redacted);
 
-  auto original_rename_pids =
-      GetAllRenamedPids(protos::pbzero::Trace::Decoder(*original));
-  std::sort(original_rename_pids.begin(), original_rename_pids.end());
+  auto pids_before = GetRenamedPids(*original);
+  std::sort(pids_before.begin(), pids_before.end());
 
-  // The test trace has found rename events. This assert is just to document
-  // theme.
-  ASSERT_EQ(original_rename_pids.size(), 4u);
-  ASSERT_EQ(original_rename_pids[0], 7971u);
-  ASSERT_EQ(original_rename_pids[1], 7972u);
-  ASSERT_EQ(original_rename_pids[2], 7973u);
-  ASSERT_EQ(original_rename_pids[3], 7974u);
+  ASSERT_EQ(pids_before.size(), 4u);
+  ASSERT_EQ(pids_before[0], 7971u);
+  ASSERT_EQ(pids_before[1], 7972u);
+  ASSERT_EQ(pids_before[2], 7973u);
+  ASSERT_EQ(pids_before[3], 7974u);
 
-  auto redacted_rename_pids =
-      GetAllRenamedPids(protos::pbzero::Trace::Decoder(*redacted));
-  ASSERT_TRUE(redacted_rename_pids.empty());
+  auto pids_after = GetRenamedPids(*redacted);
+  ASSERT_TRUE(pids_after.empty());
 }
 
 }  // namespace perfetto::trace_redaction

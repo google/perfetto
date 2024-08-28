@@ -17,6 +17,7 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_TYPES_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -26,6 +27,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/string_pool.h"
 
 namespace perfetto::trace_processor {
 
@@ -94,7 +96,7 @@ struct Constraint {
 // Represents an order by operation on a column.
 struct Order {
   uint32_t col_idx;
-  bool desc;
+  bool desc = false;
 };
 
 // Structured data used to determine what Trace Processor will query using
@@ -160,6 +162,12 @@ struct Token {
       return a.payload < b.payload;
     }
   };
+};
+
+// Indicates the direction of the sort on a single chain.
+enum class SortDirection {
+  kAscending,
+  kDescending,
 };
 
 }  // namespace perfetto::trace_processor

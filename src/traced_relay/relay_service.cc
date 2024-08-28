@@ -202,6 +202,26 @@ void RelayService::Start(const char* listening_socket_name,
   ConnectRelayClient();
 }
 
+void RelayService::Start(base::ScopedSocketHandle server_socket_handle,
+                         const char* client_socket_name) {
+  // Called when the service is started by Android init, where
+  // |server_socket_handle| is a unix socket.
+  listening_socket_ = base::UnixSocket::Listen(
+      std::move(server_socket_handle), this, task_runner_,
+      base::SockFamily::kUnix, base::SockType::kStream);
+  bool producer_socket_listening =
+      listening_socket_ && listening_socket_->is_listening();
+  if (!producer_socket_listening) {
+    PERFETTO_FATAL("Failed to listen to the server socket");
+  }
+
+  // Save |client_socket_name| for opening new client connection to remote
+  // service when a local producer connects.
+  client_socket_name_ = client_socket_name;
+
+  ConnectRelayClient();
+}
+
 void RelayService::OnNewIncomingConnection(
     base::UnixSocket* listen_socket,
     std::unique_ptr<base::UnixSocket> server_conn) {

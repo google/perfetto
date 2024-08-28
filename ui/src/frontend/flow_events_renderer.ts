@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time} from '../base/time';
+import {Size} from '../base/geom';
 import {exists} from '../base/utils';
 import {TrackState} from '../common/state';
 import {SliceRect} from '../public';
 
-import {TRACK_SHELL_WIDTH} from './css_constants';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, FlowPoint, globals} from './globals';
 import {Panel} from './panel_container';
+import {PxSpan, TimeScale} from './time_scale';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
@@ -51,16 +51,16 @@ interface TrackGroupPanelInfo {
   height: number;
 }
 
-function getTrackIds(track: TrackState): number[] {
+function getTrackIds(track: TrackState): ReadonlyArray<number> {
   const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-  return trackDesc?.trackIds ?? [];
+  return trackDesc?.tags?.trackIds ?? [];
 }
 
 export class FlowEventsRendererArgs {
   trackIdToTrackPanel: Map<number, TrackPanelInfo>;
   groupIdToTrackGroupPanel: Map<string, TrackGroupPanelInfo>;
 
-  constructor(public canvasWidth: number, public canvasHeight: number) {
+  constructor() {
     this.trackIdToTrackPanel = new Map<number, TrackPanelInfo>();
     this.groupIdToTrackGroupPanel = new Map<string, TrackGroupPanelInfo>();
   }
@@ -71,8 +71,8 @@ export class FlowEventsRendererArgs {
       for (const trackId of getTrackIds(track)) {
         this.trackIdToTrackPanel.set(trackId, {panel, yStart});
       }
-    } else if (exists(panel.trackGroupId)) {
-      this.groupIdToTrackGroupPanel.set(panel.trackGroupId, {
+    } else if (exists(panel.groupKey)) {
+      this.groupIdToTrackGroupPanel.set(panel.groupKey, {
         panel,
         yStart,
         height,
@@ -116,6 +116,7 @@ export class FlowEventsRenderer {
   private getYConnection(
     args: FlowEventsRendererArgs,
     trackId: number,
+    yMax: number,
     rect?: SliceRect,
   ): {y: number; connection: ConnectionType} | undefined {
     if (!rect) {
@@ -131,13 +132,9 @@ export class FlowEventsRenderer {
       rect.height * 0.5;
 
     return {
-      y: Math.min(Math.max(0, y), args.canvasHeight),
+      y: Math.min(Math.max(0, y), yMax),
       connection: 'TRACK',
     };
-  }
-
-  private getXCoordinate(ts: time): number {
-    return globals.timeline.visibleTimeScale.timeToPx(ts);
   }
 
   private getSliceRect(
@@ -155,14 +152,25 @@ export class FlowEventsRenderer {
     );
   }
 
-  render(ctx: CanvasRenderingContext2D, args: FlowEventsRendererArgs) {
-    ctx.save();
-    ctx.translate(TRACK_SHELL_WIDTH, 0);
-    ctx.rect(0, 0, args.canvasWidth - TRACK_SHELL_WIDTH, args.canvasHeight);
-    ctx.clip();
+  /**
+   * Render the flows to the canvas.
+   *
+   * @param ctx Canvas rendering context.
+   * @param args Arg, e.g. definitions of where tracks live on the canvas.
+   * @param size The size of the drawable canvas region.
+   */
+  render(
+    ctx: CanvasRenderingContext2D,
+    args: FlowEventsRendererArgs,
+    size: Size,
+  ) {
+    const timescale = new TimeScale(
+      globals.timeline.visibleWindow,
+      new PxSpan(0, size.width),
+    );
 
     globals.connectedFlows.forEach((flow) => {
-      this.drawFlow(ctx, args, flow, CONNECTED_FLOW_HUE);
+      this.drawFlow(ctx, timescale, size, args, flow, CONNECTED_FLOW_HUE);
     });
 
     globals.selectedFlows.forEach((flow) => {
@@ -172,17 +180,17 @@ export class FlowEventsRenderer {
           globals.visibleFlowCategories.get(cat) ||
           globals.visibleFlowCategories.get(ALL_CATEGORIES)
         ) {
-          this.drawFlow(ctx, args, flow, SELECTED_FLOW_HUE);
+          this.drawFlow(ctx, timescale, size, args, flow, SELECTED_FLOW_HUE);
           break;
         }
       }
     });
-
-    ctx.restore();
   }
 
   private drawFlow(
     ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size,
     args: FlowEventsRendererArgs,
     flow: Flow,
     hue: number,
@@ -193,11 +201,13 @@ export class FlowEventsRenderer {
     const beginYConnection = this.getYConnection(
       args,
       flow.begin.trackId,
+      size.height,
       beginSliceRect,
     );
     const endYConnection = this.getYConnection(
       args,
       flow.end.trackId,
+      size.height,
       endSliceRect,
     );
 
@@ -218,7 +228,7 @@ export class FlowEventsRenderer {
       // If the flow goes to a descendant, we want to draw the arrow from the
       // beginning of the slice
       // rather from the end to avoid the flow arrow going backwards.
-      x: this.getXCoordinate(
+      x: timescale.timeToPx(
         flow.flowToDescendant ||
           flow.begin.sliceStartTs >= flow.end.sliceStartTs
           ? flow.begin.sliceStartTs
@@ -228,7 +238,7 @@ export class FlowEventsRenderer {
       dir: beginDir,
     };
     const end = {
-      x: this.getXCoordinate(flow.end.sliceStartTs),
+      x: timescale.timeToPx(flow.end.sliceStartTs),
       y: endYConnection.y,
       dir: endDir,
     };

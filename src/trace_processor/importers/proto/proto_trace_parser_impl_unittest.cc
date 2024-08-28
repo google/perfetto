@@ -23,10 +23,13 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -259,12 +262,16 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
+    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
+    context_.cpu_tracker.reset(new CpuTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
     context_.ftrace_sched_tracker.reset(sched_);
     process_ = new NiceMock<MockProcessTracker>(&context_);
     context_.process_tracker.reset(process_);
+    context_.process_track_translation_table.reset(
+        new ProcessTrackTranslationTable(storage_));
     slice_ = new NiceMock<MockSliceTracker>(&context_);
     context_.slice_tracker.reset(slice_);
     context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
@@ -272,8 +279,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker.reset(new FlowTracker(&context_));
     context_.proto_trace_parser.reset(new ProtoTraceParserImpl(&context_));
-    context_.sorter.reset(new TraceSorter(&context_,
-                                          TraceSorter::SortingMode::kFullSort));
+    context_.sorter.reset(
+        new TraceSorter(&context_, TraceSorter::SortingMode::kFullSort));
     context_.descriptor_pool_.reset(new DescriptorPool());
 
     RegisterDefaultModules(&context_);
@@ -289,8 +296,9 @@ class ProtoTraceParserTest : public ::testing::Test {
     std::vector<uint8_t> trace_bytes = trace_.SerializeAsArray();
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);
     memcpy(raw_trace.get(), trace_bytes.data(), trace_bytes.size());
-    context_.chunk_reader.reset(new ProtoTraceReader(&context_));
-    auto status = context_.chunk_reader->Parse(TraceBlobView(
+    context_.chunk_readers.push_back(
+        std::make_unique<ProtoTraceReader>(&context_));
+    auto status = context_.chunk_readers.back()->Parse(TraceBlobView(
         TraceBlob::TakeOwnership(std::move(raw_trace), trace_bytes.size())));
 
     ResetTraceBuffers();
@@ -389,17 +397,19 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   ASSERT_EQ(raw.row_count(), 2u);
   const auto& args = context_.storage->arg_table();
   ASSERT_EQ(args.row_count(), 6u);
-  // Order is by row and then by StringIds.
-  ASSERT_EQ(args.key()[0], context_.storage->InternString("comm"));
-  ASSERT_EQ(args.key()[1], context_.storage->InternString("pid"));
-  ASSERT_EQ(args.key()[2], context_.storage->InternString("oom_score_adj"));
-  ASSERT_EQ(args.key()[3], context_.storage->InternString("clone_flags"));
-  ASSERT_EQ(args.key()[4], context_.storage->InternString("ip"));
-  ASSERT_EQ(args.key()[5], context_.storage->InternString("buf"));
-  ASSERT_STREQ(args.string_value().GetString(0).c_str(), task_newtask);
-  ASSERT_EQ(args.int_value()[1], 123);
-  ASSERT_EQ(args.int_value()[2], 15);
-  ASSERT_EQ(args.int_value()[3], 12);
+  // Order is by row and then in the same order as encountered in the trace.
+  std::vector<std::string> expected_keys;
+  for (uint32_t i = 0; i < args.row_count(); i++) {
+    expected_keys.push_back(
+        context_.storage->GetString(args.key()[i]).ToStdString());
+  }
+  ASSERT_THAT(expected_keys,
+              testing::ElementsAre("pid", "comm", "clone_flags",
+                                   "oom_score_adj", "ip", "buf"));
+  ASSERT_EQ(args.int_value()[0], 123);
+  ASSERT_STREQ(args.string_value().GetString(1).c_str(), task_newtask);
+  ASSERT_EQ(args.int_value()[2], 12);
+  ASSERT_EQ(args.int_value()[3], 15);
   ASSERT_EQ(args.int_value()[4], 20);
   ASSERT_STREQ(args.string_value().GetString(5).c_str(), buf_value);
 
@@ -610,7 +620,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->cpu_counter_track_table().cpu()[0], 10u);
+  EXPECT_EQ(context_.storage->cpu_counter_track_table().ucpu()[0].value, 10u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
@@ -633,10 +643,10 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
 
   auto row = context_.storage->cpu_counter_track_table().FindById(TrackId(0));
   EXPECT_EQ(context_.storage->GetString(row->name()), "cpufreq");
-  EXPECT_EQ(row->cpu(), 0u);
+  EXPECT_EQ(row->ucpu().value, 0u);
 
   row = context_.storage->cpu_counter_track_table().FindById(TrackId(1));
-  EXPECT_EQ(row->cpu(), 1u);
+  EXPECT_EQ(row->ucpu().value, 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
@@ -669,6 +679,25 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value),
                                    TrackId{1u}));
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+}
+
+TEST_F(ProtoTraceParserTest, LoadThermal) {
+  auto* packet = trace_->add_packet();
+  uint64_t ts = 1000;
+  packet->set_timestamp(ts);
+  auto* bundle = packet->set_sys_stats();
+  auto* thermal_zone = bundle->add_thermal_zone();
+  thermal_zone->set_type("MOCKTYPE");
+  uint64_t temp = 10000;
+  thermal_zone->set_temp(temp);
+
+  EXPECT_CALL(*event_,
+              PushCounter(static_cast<int64_t>(ts),
+                          DoubleEq(static_cast<double>(temp)), TrackId{1u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
@@ -2368,7 +2397,9 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_EQ(raw_table.ts()[0], 1010000);
   EXPECT_EQ(raw_table.name()[0],
             storage_->InternString("track_event.legacy_event"));
-  EXPECT_EQ(raw_table.cpu()[0], 0u);
+  auto ucpu = raw_table.ucpu()[0];
+  const auto& cpu_table = storage_->cpu_table();
+  EXPECT_EQ(cpu_table.cpu()[ucpu.value], 0u);
   EXPECT_EQ(raw_table.utid()[0], 1u);
   EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
 

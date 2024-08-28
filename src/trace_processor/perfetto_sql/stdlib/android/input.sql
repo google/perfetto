@@ -76,17 +76,17 @@ CREATE PERFETTO TABLE android_input_events (
   -- Tid of thread receiving the input event.
   tid INT,
   -- Name of thread receiving the input event.
-  thread_name INT,
+  thread_name STRING,
   -- Pid of process receiving the input event.
   pid INT,
   -- Name of process receiving the input event.
-  process_name INT,
+  process_name STRING,
   -- Input event type. See InputTransport.h: InputMessage#Type
-  event_type INT,
+  event_type STRING,
   -- Input event sequence number, monotonically increasing for an event channel and pid.
-  event_seq INT,
+  event_seq STRING,
   -- Input event channel name.
-  event_channel INT,
+  event_channel STRING,
   -- Thread track id of input event dispatching thread.
   dispatch_track_id INT,
   -- Timestamp input event was dispatched.
@@ -120,7 +120,7 @@ SELECT
   receive.dur AS receive_dur,
   receive.track_id AS receive_track_id
 FROM (SELECT * FROM _input_message_sent WHERE thread_name = 'InputDispatcher') dispatch
-JOIN (SELECT * FROM _input_message_received WHERE event_type != '0x2') receive
+JOIN (SELECT * FROM _input_message_received WHERE event_type NOT IN ('0x2', 'FINISHED')) receive
   ON
     REPLACE(receive.event_channel, '(client)', '(server)') = dispatch.event_channel
     AND dispatch.event_seq = receive.event_seq
@@ -128,5 +128,64 @@ JOIN (SELECT * FROM _input_message_sent WHERE thread_name != 'InputDispatcher') 
   ON
     REPLACE(finish.event_channel, '(client)', '(server)') = dispatch.event_channel
     AND dispatch.event_seq = finish.event_seq
-JOIN (SELECT * FROM _input_message_received WHERE event_type = '0x2') finish_ack
+JOIN (SELECT * FROM _input_message_received WHERE event_type IN ('0x2', 'FINISHED')) finish_ack
   ON finish_ack.event_channel = dispatch.event_channel AND dispatch.event_seq = finish_ack.event_seq;
+
+-- Key events processed by the Android framework (from android.input.inputevent data source).
+CREATE PERFETTO VIEW android_key_events(
+  -- ID of the trace entry
+  id INT,
+  -- The randomly-generated ID associated with each input event processed
+  -- by Android Framework, used to track the event through the input pipeline
+  event_id INT,
+  -- The timestamp of when the input event was processed by the system
+  ts INT,
+  -- Details of the input event parsed from the proto message
+  arg_set_id INT
+) AS
+SELECT
+  id,
+  event_id,
+  ts,
+  arg_set_id
+FROM __intrinsic_android_key_events;
+
+-- Motion events processed by the Android framework (from android.input.inputevent data source).
+CREATE PERFETTO VIEW android_motion_events(
+  -- ID of the trace entry
+  id INT,
+  -- The randomly-generated ID associated with each input event processed
+  -- by Android Framework, used to track the event through the input pipeline
+  event_id INT,
+  -- The timestamp of when the input event was processed by the system
+  ts INT,
+  -- Details of the input event parsed from the proto message
+  arg_set_id INT
+) AS
+SELECT
+  id,
+  event_id,
+  ts,
+  arg_set_id
+FROM __intrinsic_android_motion_events;
+
+-- Input event dispatching information in Android (from android.input.inputevent data source).
+CREATE PERFETTO VIEW android_input_event_dispatch(
+  -- ID of the trace entry
+  id INT,
+  -- Event ID of the input event that was dispatched
+  event_id INT,
+  -- Extra args parsed from the proto message
+  arg_set_id INT,
+  -- Vsync ID that identifies the state of the windows during which the dispatch decision was made
+  vsync_id INT,
+  -- Window ID of the window receiving the event
+  window_id INT
+) AS
+SELECT
+  id,
+  event_id,
+  arg_set_id,
+  vsync_id,
+  window_id
+FROM __intrinsic_android_input_event_dispatch;

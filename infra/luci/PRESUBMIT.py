@@ -18,12 +18,15 @@ USE_PYTHON3 = True
 
 
 def CommonChecks(input_api, output_api):
-  recipes_py = input_api.os_path.join(input_api.PresubmitLocalPath(),
-                                      'recipes.py')
+  presubmit_dir = input_api.PresubmitLocalPath()
+  recipes_py = input_api.os_path.join(presubmit_dir, 'recipes.py')
+  recipes_cfg = input_api.os_path.join(
+      presubmit_dir, '..', 'config', 'recipes.cfg'
+  )
   return input_api.RunTests([
       input_api.Command(
           'Run recipe tests',
-          ['python3', recipes_py, 'test', 'run'],
+          ['python3', recipes_py, '--package', recipes_cfg, 'test', 'run'],
           {},
           output_api.PresubmitError,
       )

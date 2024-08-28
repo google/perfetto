@@ -163,7 +163,7 @@ Supported parameters:
 
 Try the following examples:
 - [visStart & visEnd](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&visStart=261191575272856&visEnd=261191675272856)
-- [ts & dur](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&ts=261192091615668&dur=16229012)
+- [ts & dur](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&ts=261192482777530&dur=1667500)
 - [query](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&query=select%20'Hello%2C%20world!'%20as%20msg)
 
 You must take care to correctly escape strings where needed.

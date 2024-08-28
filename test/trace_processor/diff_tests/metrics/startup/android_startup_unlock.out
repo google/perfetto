@@ -30,8 +30,24 @@ android_startup {
       dex2oat_dur_ns: 0
     }
     slow_start_reason: "Unlock running during launch"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: UNLOCK_RUNNING
       reason: "Unlock running during launch"
+      severity: ERROR
+      expected_value {
+        value: 0
+        unit: TRUE_OR_FALSE
+      }
+      actual_value {
+        value: 1
+      }
+      launch_dur: 100
+      trace_slice_sections {
+        start_timestamp: 130
+        end_timestamp: 133
+        slice_id: 1
+        slice_name: "KeyguardUpdateMonitor#onAuthenticationSucceeded"
+      }
     }
   }
 }

@@ -3,6 +3,7 @@
   "include": [ "src/**/*" ],
   "exclude": [
     "./node_modules/",
+    "./src/test/diff_viewer/",
     "./src/service_worker/",
     "./src/bigtrace/",
     "./src/gen/",
@@ -12,7 +13,7 @@
     "outDir": "./out/tsc",
     "lib": [
       "dom",                               // Need to be explicitly mentioned now since we're overriding default included libs.
-      "es2021",                            // Need this to use Promise.allSettled, replaceAll, etc
+      "es2022",                            // Need this to use Promise.allSettled, replaceAll, etc
     ],
     "paths": {
       "*" : ["*", "./node_modules/@tsundoku/micromodal_types/*"]

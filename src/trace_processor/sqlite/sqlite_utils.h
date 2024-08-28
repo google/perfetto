@@ -34,6 +34,21 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 
+// Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
+#define SQLITE_RETURN_IF_ERROR(vtab, expr)                                  \
+  do {                                                                      \
+    const base::Status& status_macro_internal_status = (expr);              \
+    if (!status_macro_internal_status.ok())                                 \
+      return sqlite::utils::SetError((vtab), status_macro_internal_status); \
+  } while (0)
+
+// Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
+#define SQLITE_ASSIGN_OR_RETURN(vtab, lhs, rhs)                            \
+  PERFETTO_INTERNAL_MACRO_CONCAT(auto status_or, __LINE__) = rhs;          \
+  SQLITE_RETURN_IF_ERROR(                                                  \
+      vtab, PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).status()); \
+  lhs = std::move(PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).value())
+
 namespace perfetto::trace_processor::sqlite::utils {
 
 const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
@@ -144,6 +159,14 @@ inline int SetError(sqlite3_vtab* tab, const char* status) {
   return SQLITE_ERROR;
 }
 
+inline void SetError(sqlite3_context* ctx, const char* status) {
+  sqlite::result::Error(ctx, status);
+}
+
+inline int SetError(sqlite3_vtab* tab, base::Status s) {
+  return SetError(tab, s.c_message());
+}
+
 inline void SetError(sqlite3_context* ctx, const base::Status& status) {
   PERFETTO_CHECK(!status.ok());
   sqlite::result::Error(ctx, status.c_message());
@@ -158,7 +181,7 @@ inline void SetError(sqlite3_context* ctx,
 
 // For a given |sqlite3_index_info| struct received in a BestIndex call, returns
 // whether all |arg_count| arguments (with |is_arg_column| indicating whether a
-// given column is a function argument) have exactly one equaltiy constraint
+// given column is a function argument) have exactly one equality constraint
 // associated with them.
 //
 // If so, the associated constraint is omitted and the argvIndex is mapped to
@@ -204,8 +227,24 @@ inline base::Status ValidateFunctionArguments(
   return base::OkStatus();
 }
 
+inline const char* SqlValueTypeToString(SqlValue::Type type) {
+  switch (type) {
+    case SqlValue::Type::kString:
+      return "STRING";
+    case SqlValue::Type::kDouble:
+      return "DOUBLE";
+    case SqlValue::Type::kLong:
+      return "LONG";
+    case SqlValue::Type::kBytes:
+      return "BYTES";
+    case SqlValue::Type::kNull:
+      return "NULL";
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 // Converts the given SqlValue type to the type string SQLite understands.
-inline std::string SqlValueTypeToString(SqlValue::Type type) {
+inline std::string SqlValueTypeToSqliteTypeName(SqlValue::Type type) {
   switch (type) {
     case SqlValue::Type::kString:
       return "TEXT";
@@ -216,7 +255,10 @@ inline std::string SqlValueTypeToString(SqlValue::Type type) {
     case SqlValue::Type::kBytes:
       return "BLOB";
     case SqlValue::Type::kNull:
-      PERFETTO_FATAL("Cannot map unknown column type");
+      // Default to BIGINT for columns which contains only NULLs - if we don't
+      // specify the type, sqlite will default to BLOB, which is going to trip
+      // a number of various checks.
+      return "BIGINT";
   }
   PERFETTO_FATAL("Not reached");  // For gcc
 }

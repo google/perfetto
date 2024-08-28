@@ -23,7 +23,7 @@ class StdlibCounterIntervals(TestSuite):
 
   def test_intervals_counter_leading(self):
     return DiffTestBlueprint(
-      trace=DataPath('counters.json'),
+        trace=DataPath('counters.json'),
         query="""
         INCLUDE PERFETTO MODULE counters.intervals;
 
@@ -42,9 +42,9 @@ class StdlibCounterIntervals(TestSuite):
         SELECT * FROM counter_leading_intervals !(foo);
         """,
         out=Csv("""
-        "id","ts","track_id","dur","value"
-        0,0,1,20,10
-        4,20,1,19980,30
-        1,0,2,10,10
-        3,10,2,19990,20
+        "id","ts","dur","track_id","value","next_value","delta_value"
+        0,0,20,1,10,30,"[NULL]"
+        4,20,19980,1,30,"[NULL]",20
+        1,0,10,2,10,20,"[NULL]"
+        3,10,19990,2,20,"[NULL]",10
         """))

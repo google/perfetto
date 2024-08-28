@@ -20,7 +20,7 @@ OUT_PATH="out/dist"
 
 export PYTHONUNBUFFERED=1
 
-tools/install-build-deps $INSTALL_BUILD_DEPS_ARGS
+tools/install-build-deps $PERFETTO_INSTALL_BUILD_DEPS_ARGS
 
 # Assumes Linux. Windows should use /win/clang instead.
 if [[ -e buildtools/linux64/clang/bin/llvm-symbolizer ]]; then
@@ -36,3 +36,9 @@ rm -rf out/tmp.protoc
 # Performs checks on SQL files.
 tools/check_sql_modules.py
 tools/check_sql_metrics.py
+
+if !(git diff --name-only HEAD^1 HEAD | egrep -qv '^(ui|docs|infra)/'); then
+export UI_DOCS_INFRA_ONLY_CHANGE=1
+else
+export UI_DOCS_INFRA_ONLY_CHANGE=0
+fi

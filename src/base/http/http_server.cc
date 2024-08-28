@@ -361,8 +361,6 @@ size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
 
   uint8_t h0 = *(rd++);
   uint8_t h1 = *(rd++);
-  const bool fin = !!(h0 & 0x80);  // This bit is set if this frame is the last
-                                   // data to complete this message.
   const uint8_t opcode = h0 & 0x0F;
 
   const bool has_mask = !!(h1 & 0x80);
@@ -406,11 +404,6 @@ size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
     return 0;  // Not enough data to read the masking key.
   memcpy(mask, rd, sizeof(mask));
   rd += sizeof(mask);
-
-  PERFETTO_DLOG(
-      "[HTTP] Websocket fin=%d opcode=%u, payload_len=%zu (avail=%zu), "
-      "mask=%02x%02x%02x%02x",
-      fin, opcode, payload_len, avail(), mask[0], mask[1], mask[2], mask[3]);
 
   if (avail() < payload_len)
     return 0;  // Not enouh data to read the payload.

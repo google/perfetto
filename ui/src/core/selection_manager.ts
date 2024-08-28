@@ -27,32 +27,8 @@ export enum ProfileType {
 }
 
 // LEGACY Selection types:
-export interface AreaSelection {
-  kind: 'AREA';
-  areaId: string;
-  // When an area is marked it will be assigned a unique note id and saved as
-  // an AreaNote for the user to return to later. id = 0 is the special id that
-  // is overwritten when a new area is marked. Any other id is a persistent
-  // marking that will not be overwritten.
-  // When not set, the area selection will be replaced with any
-  // new area selection (i.e. not saved anywhere).
-  noteId?: string;
-}
-
-export interface NoteSelection {
-  kind: 'NOTE';
-  id: string;
-}
-
 export interface SliceSelection {
-  kind: 'SLICE';
-  id: number;
-}
-
-export interface CounterSelection {
-  kind: 'COUNTER';
-  leftTs: time;
-  rightTs: time;
+  kind: 'SCHED_SLICE';
   id: number;
 }
 
@@ -67,7 +43,8 @@ export interface HeapProfileSelection {
 export interface PerfSamplesSelection {
   kind: 'PERF_SAMPLES';
   id: number;
-  upid: number;
+  utid?: number;
+  upid?: number;
   leftTs: time;
   rightTs: time;
   type: ProfileType;
@@ -80,8 +57,8 @@ export interface CpuProfileSampleSelection {
   ts: time;
 }
 
-export interface ChromeSliceSelection {
-  kind: 'CHROME_SLICE';
+export interface ThreadSliceSelection {
+  kind: 'SLICE';
   id: number;
   table?: string;
 }
@@ -108,14 +85,11 @@ export interface GenericSliceSelection {
 }
 
 export type LegacySelection = (
-  | NoteSelection
   | SliceSelection
-  | CounterSelection
   | HeapProfileSelection
   | CpuProfileSampleSelection
-  | ChromeSliceSelection
+  | ThreadSliceSelection
   | ThreadStateSelection
-  | AreaSelection
   | PerfSamplesSelection
   | LogSelection
   | GenericSliceSelection
@@ -131,14 +105,19 @@ export interface LegacySelectionWrapper {
 export interface SingleSelection {
   kind: 'single';
   trackKey: string;
-  eventId: string;
+  eventId: number;
 }
 
-export interface NewAreaSelection {
+export interface AreaSelection {
   kind: 'area';
-  trackKey: string;
+  tracks: string[];
   start: time;
   end: time;
+}
+
+export interface NoteSelection {
+  kind: 'note';
+  id: string;
 }
 
 export interface UnionSelection {
@@ -152,7 +131,8 @@ export interface EmptySelection {
 
 export type Selection =
   | SingleSelection
-  | NewAreaSelection
+  | AreaSelection
+  | NoteSelection
   | UnionSelection
   | EmptySelection
   | LegacySelectionWrapper;
@@ -164,6 +144,7 @@ export function selectionToLegacySelection(
     case 'area':
     case 'single':
     case 'empty':
+    case 'note':
       return null;
     case 'union':
       for (const child of selection.selections) {
@@ -212,6 +193,7 @@ export class SelectionManager {
         case 'single':
         case 'legacy':
         case 'area':
+        case 'note':
           draft.selection = {
             kind: 'union',
             selections: [draft.selection, selection],
@@ -236,7 +218,7 @@ export class SelectionManager {
 
   setEvent(
     trackKey: string,
-    eventId: string,
+    eventId: number,
     legacySelection?: LegacySelection,
   ) {
     this.clear();
@@ -245,7 +227,7 @@ export class SelectionManager {
 
   addEvent(
     trackKey: string,
-    eventId: string,
+    eventId: number,
     legacySelection?: LegacySelection,
   ) {
     this.addSelection({

@@ -19,8 +19,8 @@
 
 #include "protos/perfetto/trace/android/shell_transition.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
-#include "src/trace_processor/importers/proto/winscope/winscope_args_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -49,7 +49,7 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   }
 
   auto inserter = context_->args_tracker->AddArgsTo(row_id);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(/*timestamp=*/0, inserter, *context_->storage.get());
   base::Status status = args_parser_.ParseMessage(
       blob, kShellTransitionsProtoName, nullptr /* parse all fields */, writer);
 

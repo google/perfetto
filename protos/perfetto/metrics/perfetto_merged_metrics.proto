@@ -73,6 +73,10 @@ message AndroidBlockingCall {
     optional int64 max_dur_ns = 7;
     // Minimal duration within the CUJ in nanoseconds
     optional int64 min_dur_ns = 8;
+    // Avg duration within the CUJ
+    optional int64 avg_dur_ms = 9;
+    // Avg duration within the CUJ in nanoseconds
+    optional int64 avg_dur_ns = 10;
 }
 
 // End of protos/perfetto/metrics/android/android_blocking_call.proto
@@ -100,16 +104,10 @@ message AndroidProcessMetadata {
   // match this field is empty.
   optional Package package = 7;
 
-  // All packages using this uid.
-  //
-  // Shared uid documentation:
-  // https://developer.android.com/guide/topics/manifest/manifest-element#uid
-  repeated Package packages_for_uid = 8;
-
   // Pid of the process name.
   optional int64 pid = 9;
 
-  reserved 3, 4, 5, 6;
+  reserved 3, 4, 5, 6, 8;
 }
 
 // End of protos/perfetto/metrics/android/process_metadata.proto
@@ -149,16 +147,15 @@ message AndroidBlockingCallsCujMetric {
 
 // All blocking calls for a trace. Shows count and total duration for each.
 message AndroidBlockingCallsUnagg {
+  repeated ProcessWithBlockingCalls process_with_blocking_calls = 1;
 
-    repeated ProcessWithBlockingCalls process_with_blocking_calls = 1;
+  message ProcessWithBlockingCalls {
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 1;
 
-    message ProcessWithBlockingCalls {
-        // Details about the process (uid, version, etc)
-        optional AndroidProcessMetadata process = 1;
-
-        // List of blocking calls on the process main thread.
-        repeated AndroidBlockingCall blocking_calls = 2;
-    }
+    // List of blocking calls on the process main thread.
+    repeated AndroidBlockingCall blocking_calls = 2;
+  }
 }
 
 // End of protos/perfetto/metrics/android/android_blocking_calls_unagg.proto
@@ -204,7 +201,8 @@ message AndroidBootMetric {
     optional double mb_per_ms_of_gc = 12;
   }
   message OomAdjusterTransitionCounts {
-    // name of the item aggregated by. example: process_name, oom_adjuster_reason.
+    // name of the item aggregated by. example: process_name,
+    // oom_adjuster_reason.
     optional string name = 1;
     // name of previous oom bucket.
     optional string src_bucket = 2;
@@ -214,7 +212,8 @@ message AndroidBootMetric {
     optional int64 count = 4;
   }
   message OomAdjBucketDurationAggregation {
-    // name of the item aggregated by. example: process_name, oom_adjuster_reason
+    // name of the item aggregated by. example: process_name,
+    // oom_adjuster_reason
     optional string name = 1;
     // name of oom bucket.
     optional string bucket = 2;
@@ -228,16 +227,37 @@ message AndroidBootMetric {
     optional int64 oom_adj_event_count = 4;
     optional string oom_adj_reason = 5;
   }
+  message BroadcastCountAggregation {
+    optional string name = 1;
+    optional int64 count = 2;
+  }
+  // Stats for Broadcasts aggregated with duration.
+  message BroadcastDurationAggregation {
+    optional string name = 1;
+    optional double avg_duration = 2;
+    optional int64 max_duration = 3;
+    optional int64 sum_duration = 4;
+}
   optional ProcessStartAggregation full_trace_process_start_aggregation = 6;
   optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
   optional GarbageCollectionAggregation full_trace_gc_aggregation = 8;
   optional GarbageCollectionAggregation post_boot_gc_aggregation = 9;
-  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_global = 10;
-  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_by_process = 11;
-  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_by_oom_adj_reason = 12;
-  repeated OomAdjBucketDurationAggregation post_boot_oom_adj_bucket_duration_agg_global = 13;
-  repeated OomAdjBucketDurationAggregation post_boot_oom_adj_bucket_duration_agg_by_process = 14;
+  repeated OomAdjusterTransitionCounts
+      post_boot_oom_adjuster_transition_counts_global = 10;
+  repeated OomAdjusterTransitionCounts
+      post_boot_oom_adjuster_transition_counts_by_process = 11;
+  repeated OomAdjusterTransitionCounts
+      post_boot_oom_adjuster_transition_counts_by_oom_adj_reason = 12;
+  repeated OomAdjBucketDurationAggregation
+      post_boot_oom_adj_bucket_duration_agg_global = 13;
+  repeated OomAdjBucketDurationAggregation
+      post_boot_oom_adj_bucket_duration_agg_by_process = 14;
   repeated OomAdjDurationAggregation post_boot_oom_adj_duration_agg = 15;
+  repeated BroadcastCountAggregation post_boot_broadcast_process_count_by_intent = 16;
+  repeated BroadcastCountAggregation post_boot_broadcast_count_by_process = 17;
+  repeated BroadcastDurationAggregation post_boot_brodcast_duration_agg_by_intent = 18;
+  repeated BroadcastDurationAggregation post_boot_brodcast_duration_agg_by_process = 19;
+
 }
 
 // End of protos/perfetto/metrics/android/android_boot.proto
@@ -326,6 +346,31 @@ message AndroidBootUnagg {
 
 // End of protos/perfetto/metrics/android/android_boot_unagg.proto
 
+// Begin of protos/perfetto/metrics/android/android_broadcasts_metric.proto
+
+  // Provides aggregated information about broadcasts
+  message AndroidBroadcastsMetric {
+    // Next id: 5
+    // Stats for Broadcasts aggregated with count.
+    message BroadcastCountAggregation {
+      optional string name = 1;
+      optional int64 count = 2;
+    }
+    // Stats for Broadcasts aggregated with duration.
+    message BroadcastDurationAggregation {
+      optional string name = 1;
+      optional double avg_duration = 2;
+      optional int64 max_duration = 3;
+      optional int64 sum_duration = 4;
+    }
+    repeated BroadcastCountAggregation process_count_by_intent = 1;
+    repeated BroadcastCountAggregation broadcast_count_by_process = 2;
+    repeated BroadcastDurationAggregation brodcast_duration_agg_by_intent = 3;
+    repeated BroadcastDurationAggregation brodcast_duration_agg_by_process = 4;
+  }
+
+// End of protos/perfetto/metrics/android/android_broadcasts_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
 message AndroidFrameTimelineMetric {
@@ -400,7 +445,8 @@ message AndroidFrameTimelineMetric {
 
 message AndroidOomAdjusterMetric {
   message OomAdjusterTransitionCounts {
-    // name of the item aggregated by. example: process_name, oom_adjuster_reason.
+    // name of the item aggregated by. example: process_name,
+    // oom_adjuster_reason.
     optional string name = 1;
     // name of previous oom bucket.
     optional string src_bucket = 2;
@@ -410,7 +456,8 @@ message AndroidOomAdjusterMetric {
     optional int64 count = 4;
   }
   message OomAdjBucketDurationAggregation {
-    // name of the item aggregated by. example: process_name, oom_adjuster_reason
+    // name of the item aggregated by. example: process_name,
+    // oom_adjuster_reason
     optional string name = 1;
     // name of oom bucket.
     optional string bucket = 2;
@@ -424,11 +471,16 @@ message AndroidOomAdjusterMetric {
     optional int64 oom_adj_event_count = 4;
     optional string oom_adj_reason = 5;
   }
-  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_global = 1;
-  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_by_process = 2;
-  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_by_oom_adj_reason = 3;
-  repeated OomAdjBucketDurationAggregation oom_adj_bucket_duration_agg_global = 4;
-  repeated OomAdjBucketDurationAggregation oom_adj_bucket_duration_agg_by_process = 5;
+  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_global =
+      1;
+  repeated OomAdjusterTransitionCounts
+      oom_adjuster_transition_counts_by_process = 2;
+  repeated OomAdjusterTransitionCounts
+      oom_adjuster_transition_counts_by_oom_adj_reason = 3;
+  repeated OomAdjBucketDurationAggregation oom_adj_bucket_duration_agg_global =
+      4;
+  repeated OomAdjBucketDurationAggregation
+      oom_adj_bucket_duration_agg_by_process = 5;
   repeated OomAdjDurationAggregation oom_adj_duration_agg = 6;
 }
 // End of protos/perfetto/metrics/android/android_oom_adjuster_metric.proto
@@ -863,6 +915,13 @@ message AndroidDisplayMetrics {
 
 // dma-buf heap memory stats on Android.
 message AndroidDmaHeapMetric {
+  message ProcessStats {
+    // process that either directly or indirectly allocated the buffers
+    optional string process_name = 1;
+    // Bytes allocated but not freed during this trace
+    optional int32 delta_bytes = 2;
+  }
+
     optional double avg_size_bytes = 1;
     optional double min_size_bytes = 2;
     optional double max_size_bytes = 3;
@@ -870,6 +929,10 @@ message AndroidDmaHeapMetric {
     // Total allocation size.
     // Essentially the sum of positive allocs.
     optional double total_alloc_size_bytes = 4;
+
+    // Total delta size (bytes allocated but not freed during the trace)
+    optional int32 total_delta_bytes = 5;
+    repeated ProcessStats process_stats = 6;
 }
 
 // End of protos/perfetto/metrics/android/dma_heap_metric.proto
@@ -1230,8 +1293,8 @@ message AndroidHwuiMetric {
 // Begin of protos/perfetto/metrics/android/io_metric.proto
 
 // Measure Android IO stats in a trace.
-// Note: This is an aggregated metric, for unaggregated metrics look at AndroidIoUnaggregated
-// in io_unagg_metric.proto.
+// Note: This is an aggregated metric, for unaggregated metrics look at
+// AndroidIoUnaggregated in io_unagg_metric.proto.
 message AndroidIo {
   // Next id: 3
   // Stats for Counters in an f2fs file system.
@@ -1480,9 +1543,12 @@ message AndroidJankCujMetric {
 // Begin of protos/perfetto/metrics/android/java_heap_class_stats.proto
 
 message JavaHeapClassStats {
-  // Next id: 11
+  // Next id: 13
   message TypeCount {
+    reserved 11;
     optional string type_name = 1;
+    optional bool is_libcore_or_array = 12;
+
     optional int64 obj_count = 2;
     optional int64 size_bytes = 3;
     optional int64 native_size_bytes = 4;
@@ -2352,6 +2418,7 @@ message AndroidStartupMetric {
   }
 
   // Contains information for slow startup causes.
+  // Next id: 11.
   message SlowStartReason {
     // Points to reason description and solution.
     enum ReasonId {
@@ -2385,6 +2452,15 @@ message AndroidStartupMetric {
 
     // Brief description for human readability.
     optional string reason = 2;
+
+    // Severity level for a reason.
+    enum SeverityLevel {
+      SEVERITY_UNSPECIFIED = 0;
+      ERROR = 1;
+      WARNING = 2;
+      INFO = 3;
+    }
+    optional SeverityLevel severity = 10;
 
     // Expected value (inherited from threshold definition).
     optional ThresholdValue expected_value = 3;
@@ -2421,6 +2497,7 @@ message AndroidStartupMetric {
       NS = 1;
       PERCENTAGE = 2;
       TRUE_OR_FALSE = 3;
+      COUNT = 4;
     }
     optional ThresholdUnit unit = 2;
 
@@ -2447,6 +2524,8 @@ message AndroidStartupMetric {
     optional int64 end_timestamp = 2;
 
     optional uint32 slice_id = 3;
+
+    optional string slice_name = 4;
   }
 
   // Contains information for a section of a thread.
@@ -2456,9 +2535,11 @@ message AndroidStartupMetric {
     optional int64 end_timestamp = 2;
 
     optional uint32 thread_utid = 3;
+
+    optional string thread_name = 4;
   }
 
-  // Next id: 24
+  // Next id: 25
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -2540,8 +2621,16 @@ message AndroidStartupMetric {
     // Optional.
     repeated string slow_start_reason = 17;
 
-    // Same as slow_start_reason, but with more detailed information.
+    // Same as slow_start_reason, but with more detailed information, obsolete.
     repeated SlowStartReasonDetailed slow_start_reason_detailed = 21;
+
+    // Similar to slow_start_reason_detailed, but with much more comprehensive
+    // info. such as expected threshold, actual value and threads/slices to
+    // inspect. slow_start_reason will be obsolete once
+    // slow_start_reason_with_details is completed since
+    // slow_start_reason_with_details contains all the data in slow_start_reason
+    // and more.
+    repeated SlowStartReason slow_start_reason_with_details = 24;
 
     reserved 10;
   }
@@ -2751,6 +2840,27 @@ message UnsymbolizedFrames {
 
 // End of protos/perfetto/metrics/android/unsymbolized_frames.proto
 
+// Begin of protos/perfetto/metrics/android/wattson_app_startup.proto
+
+message AndroidWattsonTimePeriodMetric {
+  optional int32 metric_version = 1;
+  repeated AndroidWattsonEstimateInfo period_info = 2;
+}
+
+message AndroidWattsonEstimateInfo {
+  optional int32 period_id = 1;
+  optional int64 period_dur = 2;
+  repeated AndroidWattsonRailEstimate rail = 3;
+}
+
+message AndroidWattsonRailEstimate {
+  optional string name = 1;
+  optional float estimate_mw = 2;
+  repeated AndroidWattsonRailEstimate rail = 3;
+}
+
+// End of protos/perfetto/metrics/android/wattson_app_startup.proto
+
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
@@ -2798,7 +2908,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 68
+// Next id: 70
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2938,7 +3048,8 @@ message TraceMetrics {
 
   optional AndroidMonitorContentionMetric android_monitor_contention = 50;
 
-  optional AndroidSysUINotificationsBlockingCallsMetric android_sysui_notifications_blocking_calls_metric = 51;
+  optional AndroidSysUINotificationsBlockingCallsMetric
+      android_sysui_notifications_blocking_calls_metric = 51;
 
   // Metrics to track codec framework.
   optional AndroidCodecMetrics codec_metrics = 52;
@@ -2955,16 +3066,19 @@ message TraceMetrics {
   optional AndroidAnrMetric android_anr = 55;
 
   // Aggregated Android Monitor Contention metrics
-  optional AndroidMonitorContentionAggMetric android_monitor_contention_agg = 56;
+  optional AndroidMonitorContentionAggMetric android_monitor_contention_agg =
+      56;
 
   optional AndroidBootMetric android_boot = 57;
 
   // Metric for AdServices module.
   optional AdServicesMetric ad_services_metric = 58;
 
-  optional SysuiNotifShadeListBuilderMetric sysui_notif_shade_list_builder_metric = 59;
+  optional SysuiNotifShadeListBuilderMetric
+      sysui_notif_shade_list_builder_metric = 59;
 
-  optional SysuiUpdateNotifOnUiModeChangedMetric sysui_update_notif_on_ui_mode_changed_metric = 60;
+  optional SysuiUpdateNotifOnUiModeChangedMetric
+      sysui_update_notif_on_ui_mode_changed_metric = 60;
 
   // Metrics for Process starts.
   optional AndroidAppProcessStartsMetric android_app_process_starts = 61;
@@ -2973,7 +3087,8 @@ message TraceMetrics {
   optional AndroidBootUnagg android_boot_unagg = 62;
 
   // Android garbage collection metrics
-  optional AndroidGarbageCollectionUnaggMetric android_garbage_collection_unagg = 63;
+  optional AndroidGarbageCollectionUnaggMetric
+      android_garbage_collection_unagg = 63;
 
   // Multiuser - metrics for switching users.
   // Specific for Android Auto
@@ -2984,6 +3099,12 @@ message TraceMetrics {
 
   // Android OOM unaggregated metrics.
   optional AndroidOomAdjusterMetric android_oom_adjuster = 66;
+
+  // Android Broadcasts aggregated metrics
+  optional AndroidBroadcastsMetric android_broadcasts = 68;
+
+  // Android Wattson app startup metrics.
+  optional AndroidWattsonTimePeriodMetric wattson_app_startup = 69;
 
   // Android
   // Demo extensions.

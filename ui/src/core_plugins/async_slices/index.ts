@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ASYNC_SLICE_TRACK_KIND} from '../../public';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
-import {AsyncSliceTrackV2} from './async_slice_track_v2';
-
-export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
+import {AsyncSliceTrack} from './async_slice_track';
 
 class AsyncSlicePlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -66,12 +65,14 @@ class AsyncSlicePlugin implements Plugin {
       const maxDepth = it.maxDepth;
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
-        displayName,
-        trackIds,
-        kind: ASYNC_SLICE_TRACK_KIND,
+        uri: `/async_slices_${rawName}_${it.parentId}`,
+        title: displayName,
+        tags: {
+          trackIds,
+          kind: ASYNC_SLICE_TRACK_KIND,
+        },
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2({engine, trackKey}, maxDepth, trackIds);
+          return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
         },
       });
     }
@@ -118,12 +119,14 @@ class AsyncSlicePlugin implements Plugin {
       });
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
-        displayName,
-        trackIds,
-        kind: ASYNC_SLICE_TRACK_KIND,
+        uri: `/process_${upid}/async_slices_${rawTrackIds}`,
+        title: displayName,
+        tags: {
+          trackIds,
+          kind: ASYNC_SLICE_TRACK_KIND,
+        },
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2(
+          return new AsyncSliceTrack(
             {engine: ctx.engine, trackKey},
             maxDepth,
             trackIds,
@@ -185,12 +188,14 @@ class AsyncSlicePlugin implements Plugin {
       });
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}.${uid}`,
-        displayName,
-        trackIds,
-        kind: ASYNC_SLICE_TRACK_KIND,
+        uri: `/async_slices_${rawName}_${uid}`,
+        title: displayName,
+        tags: {
+          trackIds,
+          kind: ASYNC_SLICE_TRACK_KIND,
+        },
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2({engine, trackKey}, maxDepth, trackIds);
+          return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
         },
       });
     }

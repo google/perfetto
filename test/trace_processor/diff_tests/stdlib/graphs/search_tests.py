@@ -21,7 +21,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 class GraphSearchTests(TestSuite):
 
-  def test_empty_table(self):
+  def test_dfs_empty_table(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
         query="""
@@ -31,13 +31,16 @@ class GraphSearchTests(TestSuite):
             SELECT 0 as source_node_id, 0 AS dest_node_id
             WHERE FALSE
           )
-          SELECT * FROM graph_reachable_dfs!(foo, NULL)
+          SELECT * FROM graph_reachable_dfs!(
+            foo,
+            (SELECT 0 AS node_id WHERE FALSE)
+          )
         """,
         out=Csv("""
         "node_id","parent_node_id"
         """))
 
-  def test_one_node(self):
+  def test_dfs_one_node(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
         query="""
@@ -48,7 +51,7 @@ class GraphSearchTests(TestSuite):
             UNION ALL
             SELECT 10, 10
           )
-          SELECT * FROM graph_reachable_dfs!(foo, 5);
+          SELECT * FROM graph_reachable_dfs!(foo, (SELECT 5 AS node_id));
         """,
         out=Csv("""
         "node_id","parent_node_id"
@@ -56,7 +59,7 @@ class GraphSearchTests(TestSuite):
         10,5
         """))
 
-  def test_two_nodes(self):
+  def test_dfs_two_nodes(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
         query="""
@@ -69,7 +72,7 @@ class GraphSearchTests(TestSuite):
           UNION ALL
           VALUES (0, 10);
 
-          SELECT * FROM graph_reachable_dfs!(foo, 0);
+          SELECT * FROM graph_reachable_dfs!(foo, (SELECT 0 AS node_id));
         """,
         out=Csv("""
         "node_id","parent_node_id"
@@ -78,7 +81,7 @@ class GraphSearchTests(TestSuite):
         11,10
         """))
 
-  def test_lengauer_tarjan_example(self):
+  def test_dfs_lengauer_tarjan_example(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
         query="""
@@ -112,7 +115,7 @@ class GraphSearchTests(TestSuite):
               NULL,
               char(parent_node_id)
             ) AS parent_node_id
-          FROM graph_reachable_dfs!(bar, unicode('R'))
+          FROM graph_reachable_dfs!(bar, (SELECT unicode('R') AS node_id))
           ORDER BY node_id;
         """,
         out=Csv("""
@@ -126,6 +129,119 @@ class GraphSearchTests(TestSuite):
           "G","C"
           "H","L"
           "I","K"
+          "J","G"
+          "K","H"
+          "L","D"
+          "R","[NULL]"
+        """))
+
+  def test_bfs_empty_table(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 as source_node_id, 0 AS dest_node_id
+            WHERE FALSE
+          )
+          SELECT * FROM graph_reachable_bfs!(
+            foo, (SELECT 0 AS node_id WHERE FALSE)
+          )
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        """))
+
+  def test_bfs_one_node(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 5 AS source_node_id, 10 AS dest_node_id
+            UNION ALL
+            SELECT 10, 10
+          )
+          SELECT * FROM graph_reachable_bfs!(foo, (SELECT 5 AS node_id));
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        5,"[NULL]"
+        10,5
+        """))
+
+  def test_bfs_two_nodes(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          CREATE PERFETTO TABLE foo AS
+          SELECT NULL AS source_node_id, NULL AS dest_node_id WHERE FALSE
+          UNION ALL
+          VALUES (10, 11)
+          UNION ALL
+          VALUES (0, 10);
+
+          SELECT * FROM graph_reachable_bfs!(foo, (SELECT 0 AS node_id));
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        0,"[NULL]"
+        10,0
+        11,10
+        """))
+
+  def test_bfs_lengauer_tarjan_example(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          CREATE PERFETTO TABLE foo AS
+          SELECT NULL AS source, NULL AS dest WHERE FALSE
+          UNION ALL
+          VALUES ('R', 'A'), ('R', 'B'), ('R', 'C'), ('A', 'D')
+          UNION ALL
+          VALUES ('B', 'A'), ('B', 'D'), ('B', 'E'), ('C', 'F')
+          UNION ALL
+          VALUES ('C', 'G'), ('D', 'L'), ('E', 'H'), ('F', 'I')
+          UNION ALL
+          VALUES ('G', 'I'), ('G', 'J'), ('H', 'E'), ('H', 'K')
+          UNION ALL
+          VALUES ('I', 'K'), ('J', 'I'), ('K', 'I'), ('K', 'R')
+          UNION ALL
+          VALUES ('L', 'H');
+
+          WITH bar AS (
+            SELECT
+              unicode(source) AS source_node_id,
+              unicode(dest) AS dest_node_id
+            FROM foo
+          )
+          SELECT
+            char(node_id) AS node_id,
+            IIF(
+              parent_node_id IS NULL,
+              NULL,
+              char(parent_node_id)
+            ) AS parent_node_id
+          FROM graph_reachable_bfs!(bar, (SELECT unicode('R') AS node_id))
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+          "node_id","parent_node_id"
+          "A","R"
+          "B","R"
+          "C","R"
+          "D","A"
+          "E","B"
+          "F","C"
+          "G","C"
+          "H","E"
+          "I","F"
           "J","G"
           "K","H"
           "L","D"

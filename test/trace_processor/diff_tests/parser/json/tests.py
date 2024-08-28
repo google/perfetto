@@ -18,7 +18,7 @@ from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-class JsonTests(TestSuite):
+class JsonParser(TestSuite):
 
   def test_string_pid_tid(self):
     return DiffTestBlueprint(
@@ -50,4 +50,59 @@ class JsonTests(TestSuite):
         out=Csv("""
           "ts","dur","name","process_name","thread_name"
           5100,500100,"name.exec","foo","bar"
+        """))
+
+  def test_args_ordered(self):
+    # This is a regression test for https://github.com/google/perfetto/issues/553.
+    # When importing from JSON, we expect arguments to be ordered.
+    #
+    # The bug was that we have sorted keys using their interned id when grouping
+    # args from different events (e.g. begin / end pair). This was working most
+    # of the time (as the key are processed in sorted order and interned ids are
+    # incremental).
+    #
+    # This test, however, is crafted to trigger the bug by ensuring that some
+    # keys are seens first (due to being seen in a different event, and therefore
+    # being already interned and therefore having a lower interned id.
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "name": "Event1",
+              "cat": "C",
+              "ph": "b",
+              "ts": 40000,
+              "pid": 1,
+              "id": 1,
+              "args": {
+                "02.step2": 2,
+              }
+            },
+            {
+              "name": "Event2",
+              "cat": "C",
+              "ph": "b",
+              "ts": 40000,
+              "pid": 2,
+              "id": 1,
+              "args": {
+                "01.step1": 1,
+                "02.step2": 2,
+              }
+            },
+          ]'''),
+        query='''
+          SELECT
+            slice.name,
+            args.key,
+            args.int_value
+          FROM slice
+          JOIN args ON slice.arg_set_id = args.arg_set_id
+          ORDER BY slice.id, args.id
+        ''',
+        out=Csv("""
+          "name","key","int_value"
+          "Event1","args.02.step2",2
+          "Event2","args.01.step1",1
+          "Event2","args.02.step2",2
         """))

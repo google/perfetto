@@ -697,9 +697,9 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
         }
         last_data_record_ts = timestamp;
         ptr = next;  // jump to next event
-      }  // default case
-    }    // switch (event_header.type_or_length)
-  }      // while (ptr < end)
+      }              // default case
+    }                // switch (event_header.type_or_length)
+  }                  // while (ptr < end)
   if (last_data_record_ts)
     *last_read_event_ts = last_data_record_ts;
   return FtraceParseStatus::FTRACE_STATUS_OK;
@@ -868,6 +868,9 @@ bool CpuReader::ParseField(const Field& field,
       return true;
     case kDevId64ToUint64:
       ReadDevId<uint64_t>(field_start, field_id, message, metadata);
+      return true;
+    case kFtraceSymAddr32ToUint64:
+      ReadSymbolAddr<uint32_t>(field_start, field_id, message, metadata);
       return true;
     case kFtraceSymAddr64ToUint64:
       ReadSymbolAddr<uint64_t>(field_start, field_id, message, metadata);

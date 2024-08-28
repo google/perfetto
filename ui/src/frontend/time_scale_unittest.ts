@@ -14,13 +14,14 @@
 
 import {Time} from '../base/time';
 import {HighPrecisionTime} from '../common/high_precision_time';
-
+import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 import {PxSpan, TimeScale} from './time_scale';
+
+const t = Time.fromRaw;
 
 describe('TimeScale', () => {
   const ts = new TimeScale(
-    new HighPrecisionTime(40n),
-    100,
+    new HighPrecisionTimeSpan(new HighPrecisionTime(t(40n)), 100),
     new PxSpan(200, 1000),
   );
 
@@ -35,24 +36,24 @@ describe('TimeScale', () => {
 
   it('converts pixels to HPTime objects', () => {
     let result = ts.pxToHpTime(200);
-    expect(result.base).toEqual(40n);
-    expect(result.offset).toBeCloseTo(0);
+    expect(result.integral).toEqual(40n);
+    expect(result.fractional).toBeCloseTo(0);
 
     result = ts.pxToHpTime(1000);
-    expect(result.base).toEqual(140n);
-    expect(result.offset).toBeCloseTo(0);
+    expect(result.integral).toEqual(140n);
+    expect(result.fractional).toBeCloseTo(0);
 
     result = ts.pxToHpTime(600);
-    expect(result.base).toEqual(90n);
-    expect(result.offset).toBeCloseTo(0);
+    expect(result.integral).toEqual(90n);
+    expect(result.fractional).toBeCloseTo(0);
 
     result = ts.pxToHpTime(1800);
-    expect(result.base).toEqual(240n);
-    expect(result.offset).toBeCloseTo(0);
+    expect(result.integral).toEqual(240n);
+    expect(result.fractional).toBeCloseTo(0);
 
     result = ts.pxToHpTime(-600);
-    expect(result.base).toEqual(-60n);
-    expect(result.offset).toBeCloseTo(0);
+    expect(result.integral).toEqual(-60n);
+    expect(result.fractional).toBeCloseTo(0);
   });
 
   it('converts durations to pixels', () => {
@@ -62,16 +63,13 @@ describe('TimeScale', () => {
   });
 
   it('converts pxDeltaToDurations to HPTime durations', () => {
-    let result = ts.pxDeltaToDuration(0);
-    expect(result.base).toEqual(0n);
-    expect(result.offset).toBeCloseTo(0);
+    let result = ts.pxToDuration(0);
+    expect(result).toBeCloseTo(0);
 
-    result = ts.pxDeltaToDuration(1);
-    expect(result.base).toEqual(0n);
-    expect(result.offset).toBeCloseTo(0.125);
+    result = ts.pxToDuration(1);
+    expect(result).toBeCloseTo(0.125);
 
-    result = ts.pxDeltaToDuration(100);
-    expect(result.base).toEqual(12n);
-    expect(result.offset).toBeCloseTo(0.5);
+    result = ts.pxToDuration(100);
+    expect(result).toBeCloseTo(12.5);
   });
 });

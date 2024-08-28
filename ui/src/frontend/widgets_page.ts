@@ -55,6 +55,7 @@ import {
   VirtualTableAttrs,
   VirtualTableRow,
 } from '../widgets/virtual_table';
+import {TagInput} from '../widgets/tag_input';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -241,6 +242,14 @@ enum DataExample {
   Empty = 'Empty',
 }
 
+function arg<T>(
+  anyArg: unknown,
+  valueIfTrue: T,
+  valueIfFalse: T | undefined = undefined,
+): T | undefined {
+  return Boolean(anyArg) ? valueIfTrue : valueIfFalse;
+}
+
 function getExampleSpec(example: SpecExample): string {
   switch (example) {
     case SpecExample.BarChart:
@@ -307,9 +316,9 @@ function PortalButton() {
             Portal,
             {
               style: {
-                position: absolute && 'absolute',
-                top: top && '0',
-                zIndex: zIndex ? '10' : '0',
+                position: arg(absolute, 'absolute'),
+                top: arg(top, '0'),
+                zIndex: arg(zIndex, '10', '0'),
                 background: 'white',
               },
             },
@@ -364,7 +373,10 @@ type Options = {
 };
 
 class EnumOption {
-  constructor(public initial: string, public options: string[]) {}
+  constructor(
+    public initial: string,
+    public options: string[],
+  ) {}
 }
 
 interface WidgetTitleAttrs {
@@ -483,7 +495,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       checked: this.optValues[key],
       label: key,
       onchange: () => {
-        this.optValues[key] = !this.optValues[key];
+        this.optValues[key] = !Boolean(this.optValues[key]);
         raf.scheduleFullRedraw();
       },
     });
@@ -590,6 +602,32 @@ let virtualTableData: {offset: number; rows: VirtualTableRow[]} = {
   rows: [],
 };
 
+function TagInputDemo() {
+  const tags: string[] = ['foo', 'bar', 'baz'];
+  let tagInputValue: string = '';
+
+  return {
+    view: () => {
+      return m(TagInput, {
+        tags,
+        value: tagInputValue,
+        onTagAdd: (tag) => {
+          tags.push(tag);
+          tagInputValue = '';
+          raf.scheduleFullRedraw();
+        },
+        onChange: (value) => {
+          tagInputValue = value;
+        },
+        onTagRemove: (index) => {
+          tags.splice(index, 1);
+          raf.scheduleFullRedraw();
+        },
+      });
+    },
+  };
+}
+
 export const WidgetsPage = createPage({
   view() {
     return m(
@@ -599,9 +637,9 @@ export const WidgetsPage = createPage({
         label: 'Button',
         renderWidget: ({label, icon, rightIcon, ...rest}) =>
           m(Button, {
-            icon: icon ? 'send' : undefined,
-            rightIcon: rightIcon ? 'arrow_forward' : undefined,
-            label: label ? 'Button' : '',
+            icon: arg(icon, 'send'),
+            rightIcon: arg(rightIcon, 'arrow_forward'),
+            label: arg(label, 'Button', ''),
             ...rest,
           }),
         initialOpts: {
@@ -626,7 +664,7 @@ export const WidgetsPage = createPage({
         label: 'Switch',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         renderWidget: ({label, ...rest}: any) =>
-          m(Switch, {label: label ? 'Switch' : undefined, ...rest}),
+          m(Switch, {label: arg(label, 'Switch'), ...rest}),
         initialOpts: {
           label: true,
           disabled: false,
@@ -636,7 +674,7 @@ export const WidgetsPage = createPage({
         label: 'Text Input',
         renderWidget: ({placeholder, ...rest}) =>
           m(TextInput, {
-            placeholder: placeholder ? 'Placeholder...' : '',
+            placeholder: arg(placeholder, 'Placeholder...', ''),
             ...rest,
           }),
         initialOpts: {
@@ -670,9 +708,9 @@ export const WidgetsPage = createPage({
           m(
             EmptyState,
             {
-              title: header && 'No search results found...',
+              title: arg(header, 'No search results found...'),
             },
-            content && m(Button, {label: 'Try again'}),
+            arg(content, m(Button, {label: 'Try again'})),
           ),
         initialOpts: {
           header: true,
@@ -685,7 +723,7 @@ export const WidgetsPage = createPage({
           m(
             Anchor,
             {
-              icon: icon && 'open_in_new',
+              icon: arg(icon, 'open_in_new'),
               href: 'https://perfetto.dev/docs/',
               target: '_blank',
             },
@@ -790,7 +828,7 @@ export const WidgetsPage = createPage({
             }),
             popupPosition: PopupPosition.Top,
             label: 'Multi Select',
-            icon: icon ? Icons.LibraryAddCheck : undefined,
+            icon: arg(icon, Icons.LibraryAddCheck),
             onChange: (diffs: MultiSelectDiff[]) => {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
@@ -1204,6 +1242,15 @@ export const WidgetsPage = createPage({
           };
           return m(VirtualTable, attrs);
         },
+      }),
+      m(WidgetShowcase, {
+        label: 'Tag Input',
+        description: `
+          TagInput displays Tag elements inside an input, followed by an
+          interactive text input. The container is styled to look like a
+          TextInput, but the actual editable element appears after the last tag.
+          Clicking anywhere on the container will focus the text input.`,
+        renderWidget: () => m(TagInputDemo),
       }),
     );
   },

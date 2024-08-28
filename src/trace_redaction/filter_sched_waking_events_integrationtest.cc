@@ -22,9 +22,8 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/collect_timeline_events.h"
-#include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/find_package_uid.h"
-#include "src/trace_redaction/scrub_ftrace_events.h"
+#include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "src/trace_redaction/trace_redactor.h"
@@ -47,15 +46,19 @@ class RedactSchedWakingIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+    trace_redactor_.emplace_collect<FindPackageUid>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
 
-    auto* ftrace_filter =
-        trace_redactor()->emplace_transform<ScrubFtraceEvents>();
-    ftrace_filter->emplace_back<FilterSchedWakingEvents>();
+    auto* redact_sched_events =
+        trace_redactor_.emplace_transform<RedactSchedEvents>();
+    redact_sched_events->emplace_modifier<ClearComms>();
+    redact_sched_events->emplace_waking_filter<ConnectedToPackage>();
 
-    context()->package_name = kPackageName;
+    context_.package_name = kPackageName;
   }
+
+  Context context_;
+  TraceRedactor trace_redactor_;
 };
 
 // >>> SELECT uid
@@ -110,7 +113,7 @@ class RedactSchedWakingIntegrationTest
 //     +------+-----------------+
 
 TEST_F(RedactSchedWakingIntegrationTest, OnlyKeepsPackageEvents) {
-  auto result = Redact();
+  auto result = Redact(trace_redactor_, &context_);
   ASSERT_OK(result) << result.c_message();
 
   auto original = LoadOriginal();
@@ -158,22 +161,16 @@ TEST_F(RedactSchedWakingIntegrationTest, OnlyKeepsPackageEvents) {
     protos::pbzero::FtraceEventBundle::Decoder ftrace_events_decoder(
         packet_decoder.ftrace_events());
 
-    for (auto event = ftrace_events_decoder.event(); event; ++event) {
-      protos::pbzero::FtraceEvent::Decoder event_decoder(*event);
+    for (auto it = ftrace_events_decoder.event(); it; ++it) {
+      protos::pbzero::FtraceEvent::Decoder event(*it);
 
-      if (!event_decoder.has_sched_waking()) {
-        continue;
+      if (event.has_sched_waking()) {
+        protos::pbzero::SchedWakingFtraceEvent::Decoder waking(
+            event.sched_waking());
+
+        ASSERT_TRUE(waking.has_pid());
+        ASSERT_TRUE(expected_names.Find(waking.pid()));
       }
-
-      ASSERT_TRUE(event_decoder.has_pid());
-      ASSERT_TRUE(
-          expected_names.Find(static_cast<int32_t>(event_decoder.pid())));
-
-      protos::pbzero::SchedWakingFtraceEvent::Decoder waking_decoder(
-          event_decoder.sched_waking());
-
-      ASSERT_TRUE(waking_decoder.has_pid());
-      ASSERT_TRUE(expected_names.Find(waking_decoder.pid()));
     }
   }
 }

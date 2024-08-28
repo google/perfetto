@@ -40,6 +40,7 @@
 #include "test/gtest_and_gmock.h"
 
 #include "src/shared_lib/reset_for_testing.h"
+#include "src/shared_lib/test/protos/extensions.pzc.h"
 #include "src/shared_lib/test/protos/test_messages.pzc.h"
 #include "src/shared_lib/test/utils.h"
 
@@ -394,6 +395,42 @@ TEST_F(SharedLibProtozeroSerializationTest, NestedMessages) {
               MsgField(ElementsAre(PbField(
                   protozero_test_protos_NestedA_NestedB_NestedC_value_c_field_number,
                   VarIntField(1000)))))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, Extensions) {
+  struct protozero_test_protos_RealFakeEvent base;
+  PerfettoPbMsgInit(&base.msg, &writer);
+
+  {
+    struct protozero_test_protos_SystemA msg_a;
+    protozero_test_protos_BrowserExtension_begin_extension_a(&base, &msg_a);
+    protozero_test_protos_SystemA_set_cstr_string_a(&msg_a, "str_a");
+    protozero_test_protos_BrowserExtension_end_extension_a(&base, &msg_a);
+  }
+  {
+    struct protozero_test_protos_SystemB msg_b;
+    protozero_test_protos_BrowserExtension_begin_extension_b(&base, &msg_b);
+    protozero_test_protos_SystemB_set_cstr_string_b(&msg_b, "str_b");
+    protozero_test_protos_BrowserExtension_end_extension_b(&base, &msg_b);
+  }
+
+  protozero_test_protos_RealFakeEvent_set_cstr_base_string(&base, "str");
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(
+              protozero_test_protos_BrowserExtension_extension_a_field_number,
+              MsgField(ElementsAre(
+                  PbField(protozero_test_protos_SystemA_string_a_field_number,
+                          StringField("str_a"))))),
+          PbField(
+              protozero_test_protos_BrowserExtension_extension_b_field_number,
+              MsgField(ElementsAre(
+                  PbField(protozero_test_protos_SystemB_string_b_field_number,
+                          StringField("str_b"))))),
+          PbField(protozero_test_protos_RealFakeEvent_base_string_field_number,
+                  StringField("str"))));
 }
 
 TEST_F(SharedLibProtozeroSerializationTest, PackedRepeatedMsgVarInt) {
@@ -932,7 +969,7 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
 class SharedLibProducerTest : public testing::Test {
  protected:
   void SetUp() override {
-    struct PerfettoProducerInitArgs args = {0};
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
     args.backends = PERFETTO_BACKEND_IN_PROCESS;
     PerfettoProducerInit(args);
   }
@@ -1005,7 +1042,7 @@ TEST_F(SharedLibProducerTest, ActivateTriggers) {
 class SharedLibTrackEventTest : public testing::Test {
  protected:
   void SetUp() override {
-    struct PerfettoProducerInitArgs args = {0};
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
     args.backends = PERFETTO_BACKEND_IN_PROCESS;
     PerfettoProducerInit(args);
     PerfettoTeInit();
@@ -1519,6 +1556,385 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
                       AllFieldsWithId(
                           perfetto_protos_TrackEvent_track_uuid_field_number,
                           ElementsAre(VarIntField(kExpectedUuid))))))))));
+}
+
+TEST_F(SharedLibTrackEventTest, Scoped) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  {
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice"),
+                       PERFETTO_TE_ARG_UINT64("arg_name", 42));
+    PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"));
+  }
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  auto trace_view = FieldView(data);
+  auto it = trace_view.begin();
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_SLICE_BEGIN)))));
+    IdFieldView name_iid_fields(
+        track_event.front(), perfetto_protos_TrackEvent_name_iid_field_number);
+    ASSERT_THAT(name_iid_fields, ElementsAre(VarIntField(_)));
+    uint64_t name_iid = name_iid_fields.front().value.integer64;
+    IdFieldView debug_annot_fields(
+        track_event.front(),
+        perfetto_protos_TrackEvent_debug_annotations_field_number);
+    ASSERT_THAT(
+        debug_annot_fields,
+        ElementsAre(MsgField(UnorderedElementsAre(
+            PbField(perfetto_protos_DebugAnnotation_name_iid_field_number,
+                    VarIntField(_)),
+            PbField(perfetto_protos_DebugAnnotation_uint_value_field_number,
+                    VarIntField(42))))));
+    uint64_t arg_name_iid =
+        IdFieldView(debug_annot_fields.front(),
+                    perfetto_protos_DebugAnnotation_name_iid_field_number)
+            .front()
+            .value.integer64;
+    EXPECT_THAT(
+        trace_field,
+        AllFieldsWithId(
+            perfetto_protos_TracePacket_interned_data_field_number,
+            ElementsAre(AllOf(
+                AllFieldsWithId(
+                    perfetto_protos_InternedData_event_names_field_number,
+                    ElementsAre(MsgField(UnorderedElementsAre(
+                        PbField(perfetto_protos_EventName_iid_field_number,
+                                VarIntField(name_iid)),
+                        PbField(perfetto_protos_EventName_name_field_number,
+                                StringField("slice")))))),
+                AllFieldsWithId(
+                    perfetto_protos_InternedData_debug_annotation_names_field_number,
+                    ElementsAre(MsgField(UnorderedElementsAre(
+                        PbField(
+                            perfetto_protos_DebugAnnotationName_iid_field_number,
+                            VarIntField(arg_name_iid)),
+                        PbField(
+                            perfetto_protos_DebugAnnotationName_name_field_number,
+                            StringField("arg_name"))))))))));
+    it++;
+    break;
+  }
+  ASSERT_NE(it, trace_view.end());
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_INSTANT)))));
+    IdFieldView name_iid_fields(
+        track_event.front(), perfetto_protos_TrackEvent_name_iid_field_number);
+    ASSERT_THAT(name_iid_fields, ElementsAre(VarIntField(_)));
+    uint64_t name_iid = name_iid_fields.front().value.integer64;
+    EXPECT_THAT(trace_field,
+                AllFieldsWithId(
+                    perfetto_protos_TracePacket_interned_data_field_number,
+                    ElementsAre(AllFieldsWithId(
+                        perfetto_protos_InternedData_event_names_field_number,
+                        ElementsAre(MsgField(UnorderedElementsAre(
+                            PbField(perfetto_protos_EventName_iid_field_number,
+                                    VarIntField(name_iid)),
+                            PbField(perfetto_protos_EventName_name_field_number,
+                                    StringField("event")))))))));
+    it++;
+    break;
+  }
+  ASSERT_NE(it, trace_view.end());
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_SLICE_END)))));
+    IdFieldView debug_annot_fields(
+        track_event.front(),
+        perfetto_protos_TrackEvent_debug_annotations_field_number);
+    ASSERT_THAT(debug_annot_fields, ElementsAre());
+    it++;
+    break;
+  }
+}
+
+TEST_F(SharedLibTrackEventTest, ScopedDisabled) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_disabled_category("cat1")
+                                       .Build();
+  // Check that the PERFETTO_TE_SCOPED macro does not have any effect if the
+  // category is disabled.
+  { PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice")); }
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  auto trace_view = FieldView(data);
+  auto it = trace_view.begin();
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    ASSERT_EQ(track_event.size(), 0u);
+  }
+}
+
+TEST_F(SharedLibTrackEventTest, ScopedSingleLine) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  // Check that the PERFETTO_TE_SCOPED macro is expanded into a single
+  // statement. Emitting the end event should not escape
+  if (false)
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice"));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  auto trace_view = FieldView(data);
+  auto it = trace_view.begin();
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    ASSERT_EQ(track_event.size(), 0u);
+  }
+}
+
+TEST_F(SharedLibTrackEventTest, ScopedCapture) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  // Check that the PERFETTO_TE_SCOPED macro can capture variables.
+  uint64_t value = 42;
+  {
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice"),
+                       PERFETTO_TE_ARG_UINT64("arg_name", value));
+  }
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  auto trace_view = FieldView(data);
+  auto it = trace_view.begin();
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_SLICE_BEGIN)))));
+    IdFieldView name_iid_fields(
+        track_event.front(), perfetto_protos_TrackEvent_name_iid_field_number);
+    ASSERT_THAT(name_iid_fields, ElementsAre(VarIntField(_)));
+    uint64_t name_iid = name_iid_fields.front().value.integer64;
+    IdFieldView debug_annot_fields(
+        track_event.front(),
+        perfetto_protos_TrackEvent_debug_annotations_field_number);
+    ASSERT_THAT(
+        debug_annot_fields,
+        ElementsAre(MsgField(UnorderedElementsAre(
+            PbField(perfetto_protos_DebugAnnotation_name_iid_field_number,
+                    VarIntField(_)),
+            PbField(perfetto_protos_DebugAnnotation_uint_value_field_number,
+                    VarIntField(42))))));
+    uint64_t arg_name_iid =
+        IdFieldView(debug_annot_fields.front(),
+                    perfetto_protos_DebugAnnotation_name_iid_field_number)
+            .front()
+            .value.integer64;
+    EXPECT_THAT(
+        trace_field,
+        AllFieldsWithId(
+            perfetto_protos_TracePacket_interned_data_field_number,
+            ElementsAre(AllOf(
+                AllFieldsWithId(
+                    perfetto_protos_InternedData_event_names_field_number,
+                    ElementsAre(MsgField(UnorderedElementsAre(
+                        PbField(perfetto_protos_EventName_iid_field_number,
+                                VarIntField(name_iid)),
+                        PbField(perfetto_protos_EventName_name_field_number,
+                                StringField("slice")))))),
+                AllFieldsWithId(
+                    perfetto_protos_InternedData_debug_annotation_names_field_number,
+                    ElementsAre(MsgField(UnorderedElementsAre(
+                        PbField(
+                            perfetto_protos_DebugAnnotationName_iid_field_number,
+                            VarIntField(arg_name_iid)),
+                        PbField(
+                            perfetto_protos_DebugAnnotationName_name_field_number,
+                            StringField("arg_name"))))))))));
+    it++;
+    break;
+  }
+  ASSERT_NE(it, trace_view.end());
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_SLICE_END)))));
+    IdFieldView debug_annot_fields(
+        track_event.front(),
+        perfetto_protos_TrackEvent_debug_annotations_field_number);
+    ASSERT_THAT(debug_annot_fields, ElementsAre());
+    it++;
+    break;
+  }
+}
+
+TEST_F(SharedLibTrackEventTest, ScopedFunc) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  // Check that using __func__ works as expected.
+  { PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE(__func__)); }
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  auto trace_view = FieldView(data);
+  auto it = trace_view.begin();
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_SLICE_BEGIN)))));
+    IdFieldView name_iid_fields(
+        track_event.front(), perfetto_protos_TrackEvent_name_iid_field_number);
+    ASSERT_THAT(name_iid_fields, ElementsAre(VarIntField(_)));
+    uint64_t name_iid = name_iid_fields.front().value.integer64;
+    EXPECT_THAT(trace_field,
+                AllFieldsWithId(
+                    perfetto_protos_TracePacket_interned_data_field_number,
+                    ElementsAre(AllFieldsWithId(
+                        perfetto_protos_InternedData_event_names_field_number,
+                        ElementsAre(MsgField(UnorderedElementsAre(
+                            PbField(perfetto_protos_EventName_iid_field_number,
+                                    VarIntField(name_iid)),
+                            PbField(perfetto_protos_EventName_name_field_number,
+                                    StringField(__func__)))))))));
+    it++;
+    break;
+  }
+  ASSERT_NE(it, trace_view.end());
+  for (; it != trace_view.end(); it++) {
+    struct PerfettoPbDecoderField trace_field = *it;
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_SLICE_END)))));
+    IdFieldView debug_annot_fields(
+        track_event.front(),
+        perfetto_protos_TrackEvent_debug_annotations_field_number);
+    ASSERT_THAT(debug_annot_fields, ElementsAre());
+    it++;
+    break;
+  }
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlProtoFieldString) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PERFETTO_TE(
+      cat1, PERFETTO_TE_INSTANT("event"),
+      PERFETTO_TE_PROTO_FIELDS(PERFETTO_TE_PROTO_FIELD_NESTED(
+          perfetto_protos_TrackEvent_debug_annotations_field_number,
+          PERFETTO_TE_PROTO_FIELD_CSTR(
+              perfetto_protos_DebugAnnotation_name_field_number, "name"),
+          PERFETTO_TE_PROTO_FIELD_VARINT(
+              perfetto_protos_DebugAnnotation_uint_value_field_number, 42))));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllFieldsWithId(
+                  perfetto_protos_TrackEvent_debug_annotations_field_number,
+                  ElementsAre(MsgField(UnorderedElementsAre(
+                      PbField(perfetto_protos_DebugAnnotation_name_field_number,
+                              StringField("name")),
+                      PbField(
+                          perfetto_protos_DebugAnnotation_uint_value_field_number,
+                          VarIntField(42)))))))))));
 }
 
 }  // namespace

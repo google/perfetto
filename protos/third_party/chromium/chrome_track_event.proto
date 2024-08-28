@@ -127,7 +127,9 @@ message RenderFrameImplDeletion {
   optional uint64 frame_tree_node_id = 4;
 }
 
-// Matches content::ShouldSwapBrowsingInstance.
+// Corresponds to `content::ShouldSwapBrowsingInstance`.
+// Note that the enum values here are not equivalent to the content enum and
+// must be converted explicitly. See `ShouldSwapBrowsingInstanceToProto`.
 enum ShouldSwapBrowsingInstance {
   // Was used for all "no BrowsingInstance swap" scenarios, now broken down in
   // separate reasons.
@@ -163,6 +165,7 @@ enum ShouldSwapBrowsingInstance {
   SHOULD_SWAP_BROWSING_INSTANCE_NO_UNLOAD_HANDLER_EXISTS_ON_SAME_SITE_NAVIGATION =
       21;
   SHOULD_SWAP_BROWSING_INSTANCE_NO_NOT_PRIMARY_MAIN_FRAME = 22;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_INITIATOR_REQUESTED_NO_PROACTIVE_SWAP = 23;
 }
 
 message ShouldSwapBrowsingInstancesResult {
@@ -669,6 +672,11 @@ message BackForwardCacheCanStoreDocumentResult {
     HTTP_AUTH_REQUIRED = 57;
     COOKIE_FLUSHED = 58;
     BROADCAST_CHANNEL_ON_MESSAGE = 59;
+    WEBVIEW_SETTINGS_CHANGED = 60;
+    WEBVIEW_JAVASCRIPT_OBJECT_CHANGED = 61;
+    WEBVIEW_MESSAGE_LISTENER_INJECTED = 62;
+    WEBVIEW_SAFE_BROWSING_ALLOWLIST_CHANGED = 63;
+    WEBVIEW_DOCUMENT_START_JAVASCRIPT_CHANGED = 64;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -762,6 +770,7 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_NETWORKING_UNFREEZABLE_RENDER_BLOCKING_LOADING = 83;
     TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_LOW_PRIORITY = 84;
     TASK_TYPE_CLIPBOARD = 85;
+    TASK_TYPE_MACHINE_LEARNING = 86;
   }
 
   enum FrameType {
@@ -1550,6 +1559,15 @@ message WebContentInteraction {
   optional int64 total_duration_ms = 2;
 }
 
+message ScrollMetrics {
+  optional int64 frame_count = 1;
+  optional int64 vsync_count = 2;
+  optional int64 missed_vsync_max = 3;
+  optional int64 missed_vsync_sum = 4;
+  optional int64 delayed_frame_count = 5;
+  optional int64 predictor_janky_frame_count = 6;
+}
+
 // The EventForwarder is a subsystem in android that forwards events from Java
 // code to Chromium's native implementation. In this case we register how many
 // events there was, what time this event occurred and the current x & y on the
@@ -1604,7 +1622,7 @@ message ViewClassName {
 //
 // All non-delta-timestamps are absolute CLOCK_MONOTONIC timestamps.
 
-// Next id: 15
+// Next id: 16
 enum ChromeCompositorSchedulerActionV2 {
   CC_SCHEDULER_ACTION_V2_UNSPECIFIED = 0;
   CC_SCHEDULER_ACTION_V2_NONE = 1;
@@ -1615,6 +1633,7 @@ enum ChromeCompositorSchedulerActionV2 {
   CC_SCHEDULER_ACTION_V2_DRAW_IF_POSSIBLE = 5;
   CC_SCHEDULER_ACTION_V2_DRAW_FORCED = 6;
   CC_SCHEDULER_ACTION_V2_DRAW_ABORT = 7;
+  CC_SCHEDULER_ACTION_V2_UPDATE_DISPLAY_TREE = 15;
   CC_SCHEDULER_ACTION_V2_BEGIN_LAYER_TREE_FRAME_SINK_CREATION = 8;
   CC_SCHEDULER_ACTION_V2_PREPARE_TILES = 9;
   CC_SCHEDULER_ACTION_V2_INVALIDATE_LAYER_TREE_FRAME_SINK = 10;
@@ -1694,7 +1713,7 @@ message ChromeCompositorStateMachineV2 {
   }
   optional MajorStateV2 major_state = 1;
 
-  // Next id: 47
+  // Next id: 48
   message MinorStateV2 {
     enum TreePriority {
       TREE_PRIORITY_UNSPECIFIED = 0;
@@ -1752,6 +1771,7 @@ message ChromeCompositorStateMachineV2 {
     optional bool processing_animation_worklets_for_active_tree = 44;
     optional bool processing_animation_worklets_for_pending_tree = 45;
     optional bool processing_paint_worklets_for_pending_tree = 46;
+    optional bool should_warm_up = 47;
 
     reserved 35;
   }
@@ -1883,11 +1903,19 @@ message AnimationFrameScriptTimingInfo {
     PROMISE_REJECT = 6;
   }
   optional InvokerType invoker_type = 9;
+  enum ThirdPartyTechnology {
+    UNSPECIFIED = 0;
+    NONE = 1;
+    WORD_PRESS = 2;
+    GOOGLE_ANALYTICS = 3;
+    GOOGLE_FONT_API = 4;
+  }
+  optional ThirdPartyTechnology third_party_technology = 10;
 }
 
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1066
+  // Next ID: 1067
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -2027,5 +2055,7 @@ message ChromeTrackEvent {
 
     optional AnimationFrameScriptTimingInfo animation_frame_script_timing_info =
         1065;
+
+    optional ScrollMetrics scroll_metrics = 1066;
   }
 }

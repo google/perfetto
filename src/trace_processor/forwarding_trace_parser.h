@@ -17,16 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_
 
+#include <memory>
+
+#include "perfetto/base/status.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/util/trace_type.h"
 
-#include "src/trace_processor/types/trace_processor_context.h"
+namespace perfetto::trace_processor {
 
-namespace perfetto {
-namespace trace_processor {
-
-constexpr size_t kGuessTraceMaxLookahead = 64;
-
-TraceType GuessTraceType(const uint8_t* data, size_t size);
+class TraceProcessorContext;
 
 class ForwardingTraceParser : public ChunkedTraceReader {
  public:
@@ -34,15 +34,19 @@ class ForwardingTraceParser : public ChunkedTraceReader {
   ~ForwardingTraceParser() override;
 
   // ChunkedTraceReader implementation
-  util::Status Parse(TraceBlobView) override;
+  base::Status Parse(TraceBlobView) override;
   void NotifyEndOfFile() override;
 
+  TraceType trace_type() const { return trace_type_; }
+
  private:
+  base::Status Init(const TraceBlobView&);
+  void UpdateSorterForTraceType(TraceType trace_type);
   TraceProcessorContext* const context_;
   std::unique_ptr<ChunkedTraceReader> reader_;
+  TraceType trace_type_ = kUnknownTraceType;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_

@@ -16,18 +16,23 @@
 
 #include "src/trace_processor/util/zip_reader.h"
 
-#include <time.h>
+#include <cstdint>
+#include <cstring>
+#include <ctime>
+#include <string>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_utils.h"
-
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 namespace {
+using base::gtest_matchers::IsError;
 
 // This zip file contains the following:
 // Zip file size: 386 bytes, number of entries: 2
@@ -73,7 +78,7 @@ const uint8_t kTestZip[] = {
     0xc8, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 std::string vec2str(const std::vector<uint8_t>& vec) {
-  return std::string(reinterpret_cast<const char*>(vec.data()), vec.size());
+  return {reinterpret_cast<const char*>(vec.data()), vec.size()};
 }
 
 void ValidateTestZip(ZipReader& zr) {
@@ -105,16 +110,15 @@ void ValidateTestZip(ZipReader& zr) {
 
 TEST(ZipReaderTest, ValidZip_OneShotParse) {
   ZipReader zr;
-  base::Status res = zr.Parse(kTestZip, sizeof(kTestZip));
-  ASSERT_TRUE(res.ok()) << res.message();
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(kTestZip, sizeof(kTestZip)))));
   ValidateTestZip(zr);
 }
 
 TEST(ZipReaderTest, ValidZip_OneByteChunks) {
   ZipReader zr;
-  for (size_t i = 0; i < sizeof(kTestZip); i++) {
-    base::Status res = zr.Parse(&kTestZip[i], 1);
-    ASSERT_TRUE(res.ok()) << res.message();
+  for (auto i : kTestZip) {
+    ASSERT_OK(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(&i, 1))));
   }
   ValidateTestZip(zr);
 }
@@ -124,8 +128,9 @@ TEST(ZipReaderTest, MalformedZip_InvalidSignature) {
   uint8_t content[sizeof(kTestZip)];
   memcpy(content, kTestZip, sizeof(kTestZip));
   content[0] = 0xff;  // Invalid signature
-  base::Status res = zr.Parse(content, sizeof(kTestZip));
-  ASSERT_FALSE(res.ok());
+  ASSERT_THAT(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(kTestZip)))),
+      IsError());
   ASSERT_EQ(zr.files().size(), 0u);
 }
 
@@ -134,21 +139,22 @@ TEST(ZipReaderTest, MalformedZip_VersionTooHigh) {
   uint8_t content[sizeof(kTestZip)];
   memcpy(content, kTestZip, sizeof(kTestZip));
   content[5] = 9;  // Version: 9.0
-  base::Status res = zr.Parse(content, sizeof(kTestZip));
-  ASSERT_FALSE(res.ok());
+  ASSERT_THAT(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(kTestZip)))),
+      IsError());
   ASSERT_EQ(zr.files().size(), 0u);
 }
 
 TEST(ZipReaderTest, TruncatedZip) {
   ZipReader zr;
-  base::Status res = zr.Parse(kTestZip, 40);
+  ASSERT_OK(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(kTestZip, 40))));
   ASSERT_EQ(zr.files().size(), 0u);
 }
 
 TEST(ZipReaderTest, Find) {
   ZipReader zr;
-  base::Status res = zr.Parse(kTestZip, sizeof(kTestZip));
-  ASSERT_TRUE(res.ok()) << res.message();
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(kTestZip, sizeof(kTestZip)))));
   ASSERT_EQ(zr.Find("stored_file")->name(), "stored_file");
   ASSERT_EQ(zr.Find("dir/deflated_file")->name(), "dir/deflated_file");
   ASSERT_EQ(nullptr, zr.Find("stored_f"));
@@ -161,8 +167,8 @@ TEST(ZipReaderTest, Find) {
 
 TEST(ZipReaderTest, ValidZip_DecompressLines) {
   ZipReader zr;
-  base::Status res = zr.Parse(kTestZip, sizeof(kTestZip));
-  ASSERT_TRUE(res.ok()) << res.message();
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(kTestZip, sizeof(kTestZip)))));
   ValidateTestZip(zr);
   int num_callbacks = 0;
   zr.files()[1].DecompressLines(
@@ -187,17 +193,15 @@ TEST(ZipReaderTest, MalformedZip_DecomprError) {
   // bytes later. We start clobbering at offset=150, so the header is intanct
   // but decompression fails.
   memset(&content[150], 0, 40);
-  base::Status res = zr.Parse(content, sizeof(kTestZip));
-  ASSERT_TRUE(res.ok());
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(kTestZip)))));
   ASSERT_EQ(zr.files().size(), 2u);
   std::vector<uint8_t> ignored;
-  ASSERT_TRUE(zr.files()[0].Decompress(&ignored).ok());
-  ASSERT_FALSE(zr.files()[1].Decompress(&ignored).ok());
+  ASSERT_OK(zr.files()[0].Decompress(&ignored));
+  ASSERT_THAT(zr.files()[1].Decompress(&ignored), IsError());
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

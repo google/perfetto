@@ -16,8 +16,11 @@ import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("graphs") {
   sources = [
+    "critical_path.sql",
     "dominator_tree.sql",
+    "hierarchy.sql",
     "partition.sql",
+    "scan.sql",
     "search.sql",
   ]
 }

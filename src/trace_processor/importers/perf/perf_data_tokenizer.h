@@ -18,45 +18,30 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_DATA_TOKENIZER_H_
 
 #include <stdint.h>
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/perf/perf_data_reader.h"
-#include "src/trace_processor/importers/perf/perf_data_tracker.h"
-#include "src/trace_processor/importers/perf/perf_event.h"
-
-#include <limits>
-#include <map>
-#include <string>
+#include <cstdint>
+#include <optional>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/perf/perf_file.h"
+#include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto {
 namespace trace_processor {
+class TraceProcessorContext;
+
 namespace perf_importer {
 
-using Section = PerfDataTracker::PerfFileSection;
+struct Record;
 
 class PerfDataTokenizer : public ChunkedTraceReader {
  public:
-  struct PerfHeader {
-    static constexpr char PERF_MAGIC[] = "PERFILE2";
-
-    char magic[8];
-    uint64_t size;
-    // Size of PerfFileAttr struct and section pointing to ids.
-    uint64_t attr_size;
-    Section attrs;
-    Section data;
-    Section event_types;
-    uint64_t flags;
-    uint64_t flags1[3];
-
-    uint64_t num_attrs() const { return attrs.size / attr_size; }
-  };
-
   explicit PerfDataTokenizer(TraceProcessorContext*);
   ~PerfDataTokenizer() override;
   PerfDataTokenizer(const PerfDataTokenizer&) = delete;
@@ -68,39 +53,46 @@ class PerfDataTokenizer : public ChunkedTraceReader {
 
  private:
   enum class ParsingState {
-    Header = 0,
-    AfterHeaderBuffer = 1,
-    Attrs = 2,
-    AttrIds = 3,
-    AttrIdsFromBuffer = 4,
-    Records = 5
+    kParseHeader,
+    kParseAttrs,
+    kSeekRecords,
+    kParseRecords,
+    kParseFeatureSections,
+    kParseFeatures,
+    kDone,
   };
-  enum class ParsingResult { NoSpace = 0, Success = 1 };
+  enum class ParsingResult { kMoreDataNeeded = 0, kSuccess = 1 };
 
   base::StatusOr<ParsingResult> ParseHeader();
-  base::StatusOr<ParsingResult> ParseAfterHeaderBuffer();
   base::StatusOr<ParsingResult> ParseAttrs();
-  base::StatusOr<ParsingResult> ParseAttrIds();
-  base::StatusOr<ParsingResult> ParseAttrIdsFromBuffer();
+  base::StatusOr<ParsingResult> SeekRecords();
+  base::StatusOr<ParsingResult> ParseRecords();
+  base::StatusOr<ParsingResult> ParseFeatureSections();
+  base::StatusOr<ParsingResult> ParseFeatures();
 
-  base::StatusOr<PerfDataTracker::Mmap2Record> ParseMmap2Record(
-      uint64_t record_size);
+  base::StatusOr<PerfDataTokenizer::ParsingResult> ParseRecord(Record& record);
+  bool PushRecord(Record record);
+  base::Status ParseFeature(uint8_t feature_id, TraceBlobView payload);
 
-  bool ValidateSample(const PerfDataTracker::PerfSample&);
+  base::StatusOr<int64_t> ToTraceTimestamp(std::optional<uint64_t> time);
 
   TraceProcessorContext* context_;
-  PerfDataTracker* tracker_;
 
-  ParsingState parsing_state_ = ParsingState::Header;
+  ParsingState parsing_state_ = ParsingState::kParseHeader;
 
-  PerfHeader header_;
+  PerfFile::Header header_;
+  base::FlatSet<uint8_t> feature_ids_;
+  PerfFile::Section feature_headers_section_;
+  // Sections for the features present in the perf file sorted by descending
+  // section offset. This is done so that we can pop from the back as we process
+  // the sections.
+  std::vector<std::pair<uint8_t, PerfFile::Section>> feature_sections_;
 
-  std::vector<PerfDataTracker::PerfFileAttr> attrs_;
-  uint64_t ids_start_ = std::numeric_limits<uint64_t>::max();
-  uint64_t ids_end_ = 0;
-  std::vector<uint8_t> after_header_buffer_;
+  RefPtr<PerfSession> perf_session_;
 
-  perf_importer::PerfDataReader reader_;
+  util::TraceBlobViewReader buffer_;
+
+  int64_t latest_timestamp_ = 0;
 };
 
 }  // namespace perf_importer

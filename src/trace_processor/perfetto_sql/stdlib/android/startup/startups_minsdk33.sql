@@ -50,7 +50,6 @@ GROUP BY 1, 2, 3;
 
 CREATE PERFETTO TABLE _startups_minsdk33 AS
 SELECT
-  "minsdk33" as sdk,
   startup_id,
   ts,
   ts + dur AS ts_end,
@@ -59,6 +58,3 @@ SELECT
   startup_type
 FROM _startup_async_events
 JOIN _startup_complete_events USING (startup_id);
-
-
-

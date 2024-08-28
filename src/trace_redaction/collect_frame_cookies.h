@@ -18,7 +18,6 @@
 #define SRC_TRACE_REDACTION_COLLECT_FRAME_COOKIES_H_
 
 #include "perfetto/protozero/field.h"
-#include "src/trace_redaction/scrub_trace_packet.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -47,12 +46,13 @@ class ReduceFrameCookies : public BuildPrimitive {
   base::Status Build(Context* context) const override;
 };
 
-// Flags start-frame and end-frame events as keep/drop using
-// Context::package_frame_cookies.
-class FilterFrameEvents : public TracePacketFilter {
+class FilterFrameEvents : public TransformPrimitive {
  public:
-  bool KeepField(const Context& context,
-                 const protozero::Field& field) const override;
+  base::Status Transform(const Context& context,
+                         std::string* packet) const override;
+
+ private:
+  bool KeepField(const Context& context, const protozero::Field& field) const;
 };
 
 }  // namespace perfetto::trace_redaction

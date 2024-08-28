@@ -78,6 +78,7 @@ type Number = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';
 type Special =
   | 'Enter'
   | 'Escape'
+  | 'Delete'
   | '/'
   | '?'
   | '!'
@@ -96,8 +97,8 @@ export type Modifier =
   | 'Ctrl+'
   | 'Alt+'
   | 'Mod+Shift+'
-  | 'Mod+Alt'
-  | 'Mod+Shift+Alt'
+  | 'Mod+Alt+'
+  | 'Mod+Shift+Alt+'
   | 'Ctrl+Shift+'
   | 'Ctrl+Alt'
   | 'Ctrl+Shift+Alt';

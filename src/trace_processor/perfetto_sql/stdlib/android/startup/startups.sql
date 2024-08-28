@@ -17,21 +17,7 @@ INCLUDE PERFETTO MODULE android.process_metadata;
 INCLUDE PERFETTO MODULE android.startup.startups_maxsdk28;
 INCLUDE PERFETTO MODULE android.startup.startups_minsdk29;
 INCLUDE PERFETTO MODULE android.startup.startups_minsdk33;
-
-CREATE PERFETTO FUNCTION _slice_count(
-  -- Name of the slices to counted.
-  slice_glob STRING)
--- Number of slices with the name.
-RETURNS INT AS
-SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob;
-
--- Gather all startup data. Populate by different sdks.
-CREATE PERFETTO TABLE _all_startups AS
-SELECT sdk, startup_id, ts, ts_end, dur, package, startup_type FROM _startups_maxsdk28
-UNION ALL
-SELECT sdk, startup_id, ts, ts_end, dur, package, startup_type FROM _startups_minsdk29
-UNION ALL
-SELECT sdk, startup_id, ts, ts_end, dur, package, startup_type FROM _startups_minsdk33;
+INCLUDE PERFETTO MODULE android.version;
 
 -- All activity startups in the trace by startup id.
 -- Populated by different scripts depending on the platform version/contents.
@@ -48,15 +34,37 @@ CREATE PERFETTO TABLE android_startups(
   package STRING,
   -- Startup type.
   startup_type STRING
-) AS
-SELECT startup_id, ts, ts_end, dur, package, startup_type FROM
-_all_startups WHERE ( CASE
-  WHEN _slice_count('launchingActivity#*:*') > 0
-    THEN sdk = "minsdk33"
-  WHEN _slice_count('MetricsLogger:*') > 0
-    THEN sdk = "minsdk29"
-  ELSE sdk = "maxsdk28"
-  END);
+)
+AS
+WITH version AS (
+  SELECT CASE
+    WHEN _android_sdk_version() >= 33 THEN 33
+    WHEN _android_sdk_version() >= 29 THEN 29
+    WHEN _android_sdk_version() IS NOT NULL THEN 28
+    WHEN (
+      SELECT COUNT()
+      FROM slice
+      WHERE name GLOB 'launchingActivity#*:*'
+    ) > 0 THEN 33
+    WHEN (
+      SELECT COUNT()
+      FROM slice
+      WHERE name GLOB 'MetricsLogger:*'
+    ) > 0 THEN 29
+    ELSE 28
+  END AS v
+)
+SELECT _auto_id as startup_id, ts, ts_end, dur, package, startup_type
+FROM _startups_maxsdk28
+WHERE (SELECT v from version) = 28
+UNION ALL
+SELECT _auto_id as startup_id, ts, ts_end, dur, package, startup_type
+FROM _startups_minsdk29
+WHERE (SELECT v from version) = 29
+UNION ALL
+SELECT startup_id, ts, ts_end, dur, package, startup_type
+FROM _startups_minsdk33
+WHERE (SELECT v from version) = 33;
 
 -- Create a table containing only the slices which are necessary for determining
 -- whether a startup happened.
@@ -89,7 +97,7 @@ CREATE PERFETTO TABLE android_startup_processes(
   -- Upid of process on which activity started.
   upid INT,
   -- Type of the startup.
-  startup_type INT
+  startup_type STRING
 ) AS
 -- This is intentionally a materialized query. For some reason, if we don't
 -- materialize, we end up with a query which is an order of magnitude slower :(
@@ -220,7 +228,9 @@ CREATE PERFETTO FUNCTION android_slices_for_startup_and_slice_name(
   -- Glob of the slice.
   slice_name STRING)
 RETURNS TABLE(
--- Name of the slice.
+  -- Id of the slice.
+  slice_id INT,
+  -- Name of the slice.
   slice_name STRING,
   -- Timestamp of start of the slice.
   slice_ts INT,
@@ -231,7 +241,7 @@ RETURNS TABLE(
   -- Arg set id.
   arg_set_id INT
 ) AS
-SELECT slice_name, slice_ts, slice_dur, thread_name, arg_set_id
+SELECT slice_id, slice_name, slice_ts, slice_dur, thread_name, arg_set_id
 FROM android_thread_slices_for_all_startups
 WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 

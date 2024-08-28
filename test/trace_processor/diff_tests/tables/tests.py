@@ -36,6 +36,8 @@ class Tables(TestSuite):
         0,9223372036854775807,0
         """))
 
+
+
   # Null printing
   def test_nulls(self):
     return DiffTestBlueprint(
@@ -295,8 +297,8 @@ class Tables(TestSuite):
         """,
         out=Csv("""
         "type","cpu"
-        "cpu_track",0
-        "cpu_track",1
+        "__intrinsic_cpu_track",0
+        "__intrinsic_cpu_track",1
         """))
 
   def test_thread_state_flattened_aggregated(self):
@@ -458,14 +460,16 @@ class Tables(TestSuite):
         """),
         query="""
         SELECT
-          type,
-          cpu,
-          machine_id
-        FROM cpu_track
-        ORDER BY type, cpu
+          ct.type,
+          ct.ucpu,
+          c.cpu,
+          ct.machine_id
+        FROM cpu_track AS ct
+        JOIN cpu AS c ON ct.ucpu = c.id
+        ORDER BY ct.type, c.cpu
         """,
         out=Csv("""
-        "type","cpu","machine_id"
-        "cpu_track",0,1
-        "cpu_track",1,1
+        "type","ucpu","cpu","machine_id"
+        "__intrinsic_cpu_track",4096,0,1
+        "__intrinsic_cpu_track",4097,1,1
         """))

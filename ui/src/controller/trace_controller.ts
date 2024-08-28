@@ -12,36 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../base/bigint_math';
+import m from 'mithril';
+
 import {assertExists, assertTrue} from '../base/logging';
-import {Duration, duration, Span, time, Time, TimeSpan} from '../base/time';
+import {Duration, time, Time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
-import {
-  HighPrecisionTime,
-  HighPrecisionTimeSpan,
-} from '../common/high_precision_time';
 import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
-import {EngineMode, PendingDeeplinkState, ProfileType} from '../common/state';
-import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {
-  defaultTraceTime,
-  globals,
-  QuantizedLoad,
-  ThreadDesc,
-  TraceTime,
-} from '../frontend/globals';
+  EngineConfig,
+  EngineMode,
+  PendingDeeplinkState,
+  ProfileType,
+} from '../common/state';
+import {featureFlags, Flag} from '../core/feature_flags';
+import {globals, QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {
   clearOverviewData,
   publishHasFtrace,
   publishMetricError,
   publishOverviewData,
   publishThreads,
-  publishTraceDetails,
 } from '../frontend/publish';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
@@ -67,17 +62,16 @@ import {CpuAggregationController} from './aggregation/cpu_aggregation_controller
 import {CpuByProcessAggregationController} from './aggregation/cpu_by_process_aggregation_controller';
 import {FrameAggregationController} from './aggregation/frame_aggregation_controller';
 import {SliceAggregationController} from './aggregation/slice_aggregation_controller';
+import {WattsonEstimateAggregationController} from './aggregation/wattson/estimate_aggregation_controller';
+import {WattsonThreadAggregationController} from './aggregation/wattson/thread_aggregation_controller';
+import {WattsonProcessAggregationController} from './aggregation/wattson/process_aggregation_controller';
+import {WattsonPackageAggregationController} from './aggregation/wattson/package_aggregation_controller';
 import {ThreadAggregationController} from './aggregation/thread_aggregation_controller';
 import {Child, Children, Controller} from './controller';
 import {
   CpuProfileController,
   CpuProfileControllerArgs,
 } from './cpu_profile_controller';
-import {
-  FlamegraphController,
-  FlamegraphControllerArgs,
-  profileType,
-} from './flamegraph_controller';
 import {
   FlowEventsController,
   FlowEventsControllerArgs,
@@ -100,20 +94,25 @@ import {
   TraceStream,
 } from '../core/trace_stream';
 import {decideTracks} from './track_decider';
+import {profileType} from '../frontend/legacy_flamegraph_panel';
+import {LegacyFlamegraphCache} from '../core/legacy_flamegraph_cache';
+import {
+  deserializeAppStatePhase1,
+  deserializeAppStatePhase2,
+} from '../common/state_serialization';
+import {TraceContext} from '../frontend/trace_context';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
 const METRICS = [
   'android_ion',
   'android_lmk',
-  'android_dma_heap',
   'android_surfaceflinger',
   'android_batt',
   'android_other_traces',
   'chrome_dropped_frames',
   // TODO(289365196): Reenable:
   // 'chrome_long_latency',
-  'trace_metadata',
   'android_trusty_workqueues',
 ];
 const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map((m) => {
@@ -281,10 +280,6 @@ export class TraceController extends Controller<States> {
           Child('cpuProfile', CpuProfileController, cpuProfileArgs),
         );
 
-        const flamegraphArgs: FlamegraphControllerArgs = {engine};
-        childControllers.push(
-          Child('flamegraph', FlamegraphController, flamegraphArgs),
-        );
         childControllers.push(
           Child('cpu_aggregation', CpuAggregationController, {
             engine,
@@ -321,6 +316,46 @@ export class TraceController extends Controller<States> {
           }),
         );
         childControllers.push(
+          Child(
+            'wattson_estimate_aggregation',
+            WattsonEstimateAggregationController,
+            {
+              engine,
+              kind: 'wattson_estimate_aggregation',
+            },
+          ),
+        );
+        childControllers.push(
+          Child(
+            'wattson_thread_aggregation',
+            WattsonThreadAggregationController,
+            {
+              engine,
+              kind: 'wattson_thread_aggregation',
+            },
+          ),
+        );
+        childControllers.push(
+          Child(
+            'wattson_process_aggregation',
+            WattsonProcessAggregationController,
+            {
+              engine,
+              kind: 'wattson_process_aggregation',
+            },
+          ),
+        );
+        childControllers.push(
+          Child(
+            'wattson_package_aggregation',
+            WattsonPackageAggregationController,
+            {
+              engine,
+              kind: 'wattson_package_aggregation',
+            },
+          ),
+        );
+        childControllers.push(
           Child('frame_aggregation', FrameAggregationController, {
             engine,
             kind: 'frame_aggregation',
@@ -351,6 +386,10 @@ export class TraceController extends Controller<States> {
   onDestroy() {
     pluginManager.onTraceClose();
     globals.engines.delete(this.engineId);
+
+    // Invalidate the flamegraph cache.
+    // TODO(stevegolton): migrate this to the new system when it's ready.
+    globals.areaFlamegraphCache = new LegacyFlamegraphCache('area');
   }
 
   private async loadTrace(): Promise<EngineMode> {
@@ -451,8 +490,11 @@ export class TraceController extends Controller<States> {
     // traceUuid will be '' if the trace is not cacheable (URL or RPC).
     const traceUuid = await this.cacheCurrentTrace();
 
-    const traceDetails = await getTraceTimeDetails(this.engine);
-    publishTraceDetails(traceDetails);
+    const traceDetails = await getTraceTimeDetails(this.engine, engineCfg);
+    if (traceDetails.traceTitle) {
+      document.title = `${traceDetails.traceTitle} - Perfetto UI`;
+    }
+    await globals.onTraceLoad(this.engine, traceDetails);
 
     const shownJsonWarning =
       window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
@@ -489,17 +531,8 @@ export class TraceController extends Controller<States> {
       isJsonTrace,
       this.engine,
     );
-    // We don't know the resolution at this point. However this will be
-    // replaced in 50ms so a guess is fine.
-    const resolution = visibleTimeSpan.duration.divide(1000).toTime();
-    actions.push(
-      Actions.setVisibleTraceTime({
-        start: visibleTimeSpan.start.toTime(),
-        end: visibleTimeSpan.end.toTime(),
-        lastUpdate: Date.now() / 1000,
-        resolution: BigintMath.max(resolution, 1n),
-      }),
-    );
+
+    globals.timeline.updateVisibleTime(visibleTimeSpan);
 
     globals.dispatchMultiple(actions);
     Router.navigate(`#!/viewer?local_cache_key=${traceUuid}`);
@@ -509,6 +542,10 @@ export class TraceController extends Controller<States> {
     await this.includeSummaryTables();
 
     await defineMaxLayoutDepthSqlFunction(engine);
+
+    if (globals.restoreAppStateAfterTraceLoad) {
+      deserializeAppStatePhase1(globals.restoreAppStateAfterTraceLoad);
+    }
 
     await pluginManager.onTraceLoad(engine, (id) => {
       this.updateStatus(`Running plugin: ${id}`);
@@ -545,9 +582,7 @@ export class TraceController extends Controller<States> {
     globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
-    if (PERF_SAMPLE_FLAG.get()) {
-      await this.selectPerfSample(traceDetails);
-    }
+    await this.selectPerfSample(traceDetails);
 
     const pendingDeeplink = globals.state.pendingDeeplink;
     if (pendingDeeplink !== undefined) {
@@ -578,13 +613,22 @@ export class TraceController extends Controller<States> {
       const reliableRangeStart = await computeTraceReliableRangeStart(engine);
       if (reliableRangeStart > 0) {
         globals.dispatch(
-          Actions.addAutomaticNote({
+          Actions.addNote({
             timestamp: reliableRangeStart,
             color: '#ff0000',
             text: 'Reliable Range Start',
           }),
         );
       }
+    }
+
+    if (globals.restoreAppStateAfterTraceLoad) {
+      // Wait that plugins have completed their actions and then proceed with
+      // the final phase of app state restore.
+      // TODO(primiano): this can probably be removed once we refactor tracks
+      // to be URI based and can deal with non-existing URIs.
+      deserializeAppStatePhase2(globals.restoreAppStateAfterTraceLoad);
+      globals.restoreAppStateAfterTraceLoad = undefined;
     }
 
     return engineMode;
@@ -677,7 +721,7 @@ export class TraceController extends Controller<States> {
       }
       globals.setLegacySelection(
         {
-          kind: 'CHROME_SLICE',
+          kind: 'SLICE',
           id: row.id,
           trackKey,
           table: 'slice',
@@ -741,7 +785,7 @@ export class TraceController extends Controller<States> {
     publishThreads(threads);
   }
 
-  private async loadTimelineOverview(trace: Span<time, duration>) {
+  private async loadTimelineOverview(trace: TimeSpan) {
     clearOverviewData();
     const engine = assertExists<Engine>(this.engine);
     const stepSize = Duration.max(1n, trace.duration / 100n);
@@ -1025,6 +1069,9 @@ export class TraceController extends Controller<States> {
     this.updateStatus('Creating slice summaries');
     await engine.query(`include perfetto module viz.summary.slices;`);
 
+    this.updateStatus('Creating counter summaries');
+    await engine.query(`include perfetto module viz.summary.counters;`);
+
     this.updateStatus('Creating thread summaries');
     await engine.query(`include perfetto module viz.summary.threads;`);
 
@@ -1047,28 +1094,19 @@ export class TraceController extends Controller<States> {
   private zoomPendingDeeplink(visStart: string, visEnd: string) {
     const visualStart = Time.fromRaw(BigInt(visStart));
     const visualEnd = Time.fromRaw(BigInt(visEnd));
-    const traceTime = globals.stateTraceTimeTP();
+    const traceContext = globals.traceContext;
 
     if (
       !(
         visualStart < visualEnd &&
-        traceTime.start <= visualStart &&
-        visualEnd <= traceTime.end
+        traceContext.start <= visualStart &&
+        visualEnd <= traceContext.end
       )
     ) {
       return;
     }
 
-    const res = (visualEnd - visualStart) / 1000n;
-
-    globals.dispatch(
-      Actions.setVisibleTraceTime({
-        start: visualStart,
-        end: visualEnd,
-        resolution: BigintMath.max(res, 1n),
-        lastUpdate: Date.now() / 1000,
-      }),
-    );
+    globals.timeline.updateVisibleTime(new TimeSpan(visualStart, visualEnd));
   }
 }
 
@@ -1096,33 +1134,13 @@ async function computeVisibleTime(
   traceEnd: time,
   isJsonTrace: boolean,
   engine: Engine,
-): Promise<Span<HighPrecisionTime>> {
-  // if we have non-default visible state, update the visible time to it
-  const previousVisibleState = globals.stateVisibleTime();
-  const defaultTraceSpan = new TimeSpan(
-    defaultTraceTime.start,
-    defaultTraceTime.end,
-  );
-  if (
-    !(
-      previousVisibleState.start === defaultTraceSpan.start &&
-      previousVisibleState.end === defaultTraceSpan.end
-    ) &&
-    previousVisibleState.start >= traceStart &&
-    previousVisibleState.end <= traceEnd
-  ) {
-    return HighPrecisionTimeSpan.fromTime(
-      previousVisibleState.start,
-      previousVisibleState.end,
-    );
-  }
-
+): Promise<TimeSpan> {
   // initialise visible time to the trace time bounds
   let visibleStart = traceStart;
   let visibleEnd = traceEnd;
 
   // compare start and end with metadata computed by the trace processor
-  const mdTime = await engine.getTracingMetadataTimeBounds();
+  const mdTime = await getTracingMetadataTimeBounds(engine);
   // make sure the bounds hold
   if (Time.max(visibleStart, mdTime.start) < Time.min(visibleEnd, mdTime.end)) {
     visibleStart = Time.max(visibleStart, mdTime.start);
@@ -1142,11 +1160,14 @@ async function computeVisibleTime(
     // Avoid moving start of visible window past its end!
     visibleStart = Time.min(ftraceBounds.start, visibleEnd);
   }
-  return HighPrecisionTimeSpan.fromTime(visibleStart, visibleEnd);
+  return new TimeSpan(visibleStart, visibleEnd);
 }
 
-async function getTraceTimeDetails(engine: EngineBase): Promise<TraceTime> {
-  const traceTime = await engine.getTraceTimeBounds();
+async function getTraceTimeDetails(
+  engine: Engine,
+  engineCfg: EngineConfig,
+): Promise<TraceContext> {
+  const traceTime = await getTraceTimeBounds(engine);
 
   // Find the first REALTIME or REALTIME_COARSE clock snapshot.
   // Prioritize REALTIME over REALTIME_COARSE.
@@ -1211,10 +1232,98 @@ async function getTraceTimeDetails(engine: EngineBase): Promise<TraceTime> {
     Time.sub(realtimeOffset, Time.fromSeconds(tzOffMin * 60)),
   );
 
+  let traceTitle = '';
+  let traceUrl = '';
+  switch (engineCfg.source.type) {
+    case 'FILE':
+      // Split on both \ and / (because C:\Windows\paths\are\like\this).
+      traceTitle = engineCfg.source.file.name.split(/[/\\]/).pop()!;
+      const fileSizeMB = Math.ceil(engineCfg.source.file.size / 1e6);
+      traceTitle += ` (${fileSizeMB} MB)`;
+      break;
+    case 'URL':
+      traceUrl = engineCfg.source.url;
+      traceTitle = traceUrl.split('/').pop()!;
+      break;
+    case 'ARRAY_BUFFER':
+      traceTitle = engineCfg.source.title;
+      traceUrl = engineCfg.source.url ?? '';
+      const arrayBufferSizeMB = Math.ceil(
+        engineCfg.source.buffer.byteLength / 1e6,
+      );
+      traceTitle += ` (${arrayBufferSizeMB} MB)`;
+      break;
+    case 'HTTP_RPC':
+      traceTitle = `RPC @ ${HttpRpcEngine.hostAndPort}`;
+      break;
+    default:
+      break;
+  }
+
   return {
     ...traceTime,
+    traceTitle,
+    traceUrl,
     realtimeOffset,
     utcOffset,
     traceTzOffset,
+    cpus: await getCpus(engine),
+    gpuCount: await getNumberOfGpus(engine),
   };
+}
+
+async function getTraceTimeBounds(engine: Engine): Promise<TimeSpan> {
+  const result = await engine.query(
+    `select start_ts as startTs, end_ts as endTs from trace_bounds`,
+  );
+  const bounds = result.firstRow({
+    startTs: LONG,
+    endTs: LONG,
+  });
+  return new TimeSpan(Time.fromRaw(bounds.startTs), Time.fromRaw(bounds.endTs));
+}
+
+// TODO(hjd): When streaming must invalidate this somehow.
+async function getCpus(engine: Engine): Promise<number[]> {
+  const cpus = [];
+  const queryRes = await engine.query(
+    'select distinct(cpu) as cpu from sched order by cpu;',
+  );
+  for (const it = queryRes.iter({cpu: NUM}); it.valid(); it.next()) {
+    cpus.push(it.cpu);
+  }
+  return cpus;
+}
+
+async function getNumberOfGpus(engine: Engine): Promise<number> {
+  const result = await engine.query(`
+    select count(distinct(gpu_id)) as gpuCount
+    from gpu_counter_track
+    where name = 'gpufreq';
+  `);
+  return result.firstRow({gpuCount: NUM}).gpuCount;
+}
+
+async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
+  const queryRes = await engine.query(`select
+       name,
+       int_value as intValue
+       from metadata
+       where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
+       or name = 'all_data_source_started_ns'`);
+  let startBound = Time.MIN;
+  let endBound = Time.MAX;
+  const it = queryRes.iter({name: STR, intValue: LONG_NULL});
+  for (; it.valid(); it.next()) {
+    const columnName = it.name;
+    const timestamp = it.intValue;
+    if (timestamp === null) continue;
+    if (columnName === 'tracing_disabled_ns') {
+      endBound = Time.min(endBound, Time.fromRaw(timestamp));
+    } else {
+      startBound = Time.max(startBound, Time.fromRaw(timestamp));
+    }
+  }
+
+  return new TimeSpan(startBound, endBound);
 }

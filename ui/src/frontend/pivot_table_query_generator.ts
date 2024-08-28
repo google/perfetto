@@ -18,9 +18,8 @@ import {sqliteString} from '../base/string_utils';
 import {Area, PivotTableQuery, PivotTableState} from '../common/state';
 import {getSelectedTrackKeys} from '../controller/aggregation/slice_aggregation_controller';
 
-import {globals} from './globals';
 import {Aggregation, TableColumn} from './pivot_table_types';
-import {SqlTables} from './sql_table/well_known_tables';
+import {SqlTables} from './well_known_sql_tables';
 
 export interface Table {
   name: string;
@@ -153,9 +152,7 @@ export function generateQueryFromState(
   }
 
   const whereClause = state.constrainToArea
-    ? `where ${areaFilters(
-        globals.state.areas[state.selectionArea.areaId],
-      ).join(' and\n')}`
+    ? `where ${areaFilters(state.selectionArea).join(' and\n')}`
     : '';
   const text = `
     INCLUDE PERFETTO MODULE slices.slices;

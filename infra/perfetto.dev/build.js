@@ -21,7 +21,6 @@ const child_process = require('child_process');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const fswatch = require('node-watch');  // Like fs.watch(), but works on Linux.
 const pjoin = path.join;
 
 const ROOT_DIR = path.dirname(path.dirname(__dirname));  // The repo root.
@@ -132,7 +131,7 @@ function watchDir(dir) {
   const absDir = path.isAbsolute(dir) ? dir : pjoin(ROOT_DIR, dir);
   // Add a fs watch if in watch mode.
   if (cfg.watch) {
-    fswatch(absDir, {recursive: true}, (_eventType, filePath) => {
+    fs.watch(absDir, {recursive: true}, (_eventType, filePath) => {
       if (cfg.verbose) {
         console.log('File change detected', _eventType, filePath);
       }

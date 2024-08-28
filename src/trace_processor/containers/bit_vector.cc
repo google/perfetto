@@ -437,6 +437,32 @@ BitVector BitVector::FromSortedIndexVector(
   return {words, counts, size};
 }
 
+BitVector BitVector::FromUnsortedIndexVector(
+    const std::vector<uint32_t>& indices) {
+  // The rest of the algorithm depends on |indices| being non empty.
+  if (indices.empty()) {
+    return {};
+  }
+
+  std::vector<uint64_t> words;
+  uint32_t max_idx = 0;
+  for (const uint32_t i : indices) {
+    auto word_idx = static_cast<uint32_t>(i / kBitsInWord);
+    max_idx = std::max(max_idx, i);
+    if (word_idx >= words.size()) {
+      words.resize(word_idx + 1);
+    }
+    auto in_word_idx = static_cast<uint32_t>(i % kBitsInWord);
+    BitVector::BitWord(&words[word_idx]).Set(in_word_idx);
+  }
+
+  auto block_count = BlockCount(max_idx + 1);
+  words.resize(block_count * Block::kWords);
+  std::vector<uint32_t> counts(block_count);
+  UpdateCounts(words, counts);
+  return {words, counts, max_idx + 1};
+}
+
 BitVector BitVector::IntersectRange(uint32_t range_start,
                                     uint32_t range_end) const {
   // We should skip all bits until the index of first set bit bigger than

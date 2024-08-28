@@ -33,7 +33,7 @@ function setToNext(current: number) {
 
 export function executeSearch(reverse = false) {
   const index = globals.state.searchIndex;
-  const vizWindow = globals.stateVisibleTime();
+  const vizWindow = globals.timeline.visibleWindow.toTimeSpan();
   const startNs = vizWindow.start;
   const endNs = vizWindow.end;
   const currentTs = globals.currentSearchResults.tses[index];
@@ -96,7 +96,7 @@ function selectCurrentSearchResult() {
     case 'cpu':
       globals.setLegacySelection(
         {
-          kind: 'SLICE',
+          kind: 'SCHED_SLICE',
           id: currentId,
           trackKey,
         },
@@ -126,7 +126,7 @@ function selectCurrentSearchResult() {
       // When we include annotations we need to pass the correct table.
       globals.setLegacySelection(
         {
-          kind: 'CHROME_SLICE',
+          kind: 'SLICE',
           id: currentId,
           trackKey,
           table: 'slice',

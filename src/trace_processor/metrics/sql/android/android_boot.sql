@@ -14,10 +14,29 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE android.process_metadata;
 INCLUDE PERFETTO MODULE android.app_process_starts;
+INCLUDE PERFETTO MODULE android.broadcasts;
 INCLUDE PERFETTO MODULE android.garbage_collection;
 INCLUDE PERFETTO MODULE android.oom_adjuster;
+INCLUDE PERFETTO MODULE android.process_metadata;
+
+DROP VIEW IF EXISTS android_oom_adj_intervals_with_detailed_bucket_name;
+CREATE PERFETTO VIEW android_oom_adj_intervals_with_detailed_bucket_name AS
+SELECT
+  ts,
+  dur,
+  score,
+  android_oom_adj_score_to_detailed_bucket_name(score, android_appid) AS bucket,
+  upid,
+  process_name,
+  oom_adj_id,
+  oom_adj_ts,
+  oom_adj_dur,
+  oom_adj_track_id,
+  oom_adj_thread_name,
+  oom_adj_reason,
+  oom_adj_trigger
+FROM _oom_adjuster_intervals;
 
 CREATE OR REPLACE PERFETTO FUNCTION get_durations(process_name STRING)
 RETURNS TABLE(uint_sleep_dur LONG, total_dur LONG) AS
@@ -41,7 +60,7 @@ SELECT
   bucket,
   process_name,
   oom_adj_reason
-FROM android_oom_adj_intervals;
+FROM android_oom_adj_intervals_with_detailed_bucket_name;
 
 DROP VIEW IF EXISTS oom_adj_events_by_process_name;
 CREATE PERFETTO VIEW oom_adj_events_by_process_name AS
@@ -280,7 +299,7 @@ SELECT AndroidBootMetric(
           NULL as name,
           bucket,
           SUM(dur) as total_dur
-        FROM android_oom_adj_intervals
+        FROM android_oom_adj_intervals_with_detailed_bucket_name
           WHERE ts > first_user_unlocked()
         GROUP BY bucket)
     ),
@@ -296,7 +315,7 @@ SELECT AndroidBootMetric(
         process_name as name,
         bucket,
         SUM(dur) as total_dur
-      FROM android_oom_adj_intervals
+      FROM android_oom_adj_intervals_with_detailed_bucket_name
       WHERE ts > first_user_unlocked()
       AND process_name IS NOT NULL
       GROUP BY process_name, bucket)
@@ -318,9 +337,80 @@ SELECT AndroidBootMetric(
         AVG(oom_adj_dur) as avg_oom_adj_dur,
         COUNT(DISTINCT(oom_adj_id)) oom_adj_event_count,
         oom_adj_reason
-      FROM android_oom_adj_intervals
+      FROM android_oom_adj_intervals_with_detailed_bucket_name
       WHERE ts > first_user_unlocked()
       GROUP BY oom_adj_reason
+      )
+    ),
+  'post_boot_broadcast_process_count_by_intent', (
+    SELECT RepeatedField(
+      AndroidBootMetric_BroadcastCountAggregation(
+        'name', intent_action,
+        'count', process_name_counts
+      )
+    )
+    FROM (
+      SELECT
+        intent_action,
+        COUNT(process_name) as process_name_counts
+      FROM _android_broadcasts_minsdk_u
+      WHERE ts > first_user_unlocked()
+      GROUP BY intent_action
+    )
+  ),
+  'post_boot_broadcast_count_by_process', (
+    SELECT RepeatedField(
+      AndroidBootMetric_BroadcastCountAggregation(
+        'name', process_name,
+        'count', broadcast_counts
+      )
+    )
+    FROM (
+      SELECT
+        process_name,
+        COUNT(id) as broadcast_counts
+      FROM _android_broadcasts_minsdk_u
+      WHERE ts > first_user_unlocked()
+      GROUP BY process_name
+    )
+  ),
+  'post_boot_brodcast_duration_agg_by_intent', (
+    SELECT RepeatedField(
+      AndroidBootMetric_BroadcastDurationAggregation(
+        'name', intent_action,
+        'avg_duration', avg_duration,
+        'max_duration', max_duration,
+        'sum_duration', sum_duration
+      )
+    )
+    FROM (
+      SELECT
+        intent_action,
+        AVG(dur) as avg_duration,
+        SUM(dur) as sum_duration,
+        MAX(dur) as max_duration
+      FROM _android_broadcasts_minsdk_u
+      WHERE ts > first_user_unlocked()
+      GROUP BY intent_action
+    )
+  ),  'post_boot_brodcast_duration_agg_by_process', (
+    SELECT RepeatedField(
+      AndroidBootMetric_BroadcastDurationAggregation(
+        'name', process_name,
+        'avg_duration', avg_duration,
+        'max_duration', max_duration,
+        'sum_duration', sum_duration
+      )
+    )
+    FROM (
+      SELECT
+        process_name,
+        AVG(dur) as avg_duration,
+        SUM(dur) as sum_duration,
+        MAX(dur) as max_duration
+      FROM _android_broadcasts_minsdk_u
+      WHERE ts > first_user_unlocked()
+      GROUP BY process_name
     )
   )
 );

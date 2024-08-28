@@ -80,7 +80,7 @@ class HttpHandler(http.server.SimpleHTTPRequestHandler):
     self.send_error(404, "File not found")
 
 
-def main():
+def setup_arguments():
   atexit.register(kill_all_subprocs_on_exit)
   default_out_dir_str = '~/traces/'
   default_out_dir = os.path.expanduser(default_out_dir_str)
@@ -209,6 +209,10 @@ def main():
     parser.print_help()
     sys.exit(1)
 
+  return args
+
+
+def start_trace(args, print_log=True):
   perfetto_cmd = 'perfetto'
   device_dir = '/data/misc/perfetto-traces/'
 
@@ -310,7 +314,8 @@ def main():
     shutil.os.makedirs(host_dir)
 
   with open(on_host_config or os.devnull, 'rb') as f:
-    print('Running ' + ' '.join(cmd))
+    if print_log:
+      print('Running ' + ' '.join(cmd))
     proc = adb('shell', *cmd, stdin=f, stdout=subprocess.PIPE)
     proc_out = proc.communicate()[0].decode().strip()
     if on_device_config is not None:
@@ -333,8 +338,11 @@ def main():
     sys.exit(1)
 
   prt('Trace started. Press CTRL+C to stop', ANSI.BLACK + ANSI.BG_BLUE)
-  logcat = adb('logcat', '-v', 'brief', '-s', 'perfetto', '-b', 'main', '-T',
-               '1')
+  log_level = "-v"
+  if not print_log:
+    log_level = "-e"
+  logcat = adb('logcat', log_level, 'brief', '-s', 'perfetto', '-b', 'main',
+               '-T', '1')
 
   ctrl_c_count = 0
   adb_failure_count = 0
@@ -368,14 +376,16 @@ def main():
     except KeyboardInterrupt:
       sig = 'TERM' if ctrl_c_count == 0 else 'KILL'
       ctrl_c_count += 1
-      prt('Stopping the trace (SIG%s)' % sig, ANSI.BLACK + ANSI.BG_YELLOW)
+      if print_log:
+        prt('Stopping the trace (SIG%s)' % sig, ANSI.BLACK + ANSI.BG_YELLOW)
       adb('shell', 'kill -%s %s' % (sig, bg_pid)).wait()
 
   logcat.kill()
   logcat.wait()
 
   if args.reporter_api:
-    prt('Waiting a few seconds to allow reporter to copy trace')
+    if print_log:
+      prt('Waiting a few seconds to allow reporter to copy trace')
     time.sleep(5)
 
     ret = adb(
@@ -386,16 +396,25 @@ def main():
       prt('Failed to extract reporter trace', ANSI.RED)
       sys.exit(1)
 
-  prt('\n')
-  prt('Pulling into %s' % host_file, ANSI.BOLD)
+  if print_log:
+    prt('\n')
+    prt('Pulling into %s' % host_file, ANSI.BOLD)
   adb('pull', device_file, host_file).wait()
   adb('shell', 'rm -f ' + device_file).wait()
 
   if not args.no_open:
-    prt('\n')
-    prt('Opening the trace (%s) in the browser' % host_file)
+    if print_log:
+      prt('\n')
+      prt('Opening the trace (%s) in the browser' % host_file)
     open_browser = not args.no_open_browser
     open_trace_in_browser(host_file, open_browser, args.origin)
+
+  return host_file
+
+
+def main():
+  args = setup_arguments()
+  start_trace(args)
 
 
 def prt(msg, colors=ANSI.END):
@@ -444,14 +463,15 @@ def open_trace_in_browser(path, open_browser, origin):
       httpd.handle_request()
 
 
-def adb(*args, stdin=devnull, stdout=None):
+def adb(*args, stdin=devnull, stdout=None, stderr=None):
   cmd = [adb_path, *args]
   setpgrp = None
   if os.name != 'nt':
     # On Linux/Mac, start a new process group so all child processes are killed
     # on exit. Unsupported on Windows.
     setpgrp = lambda: os.setpgrp()
-  proc = subprocess.Popen(cmd, stdin=stdin, stdout=stdout, preexec_fn=setpgrp)
+  proc = subprocess.Popen(
+      cmd, stdin=stdin, stdout=stdout, stderr=stderr, preexec_fn=setpgrp)
   procs.append(proc)
   return proc
 

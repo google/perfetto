@@ -39,7 +39,6 @@ namespace {
 
 constexpr uint64_t kDefaultLowRamPerCpuBufferSizeKb = 2 * (1ULL << 10);   // 2mb
 constexpr uint64_t kDefaultHighRamPerCpuBufferSizeKb = 8 * (1ULL << 10);  // 8mb
-constexpr uint64_t kMaxPerCpuBufferSizeKb = 64 * (1ULL << 10);  // 64mb
 
 // Threshold for physical ram size used when deciding on default kernel buffer
 // sizes. We want to detect 8 GB, but the size reported through sysconf is
@@ -111,6 +110,18 @@ void IntersectInPlace(const std::vector<std::string>& unsorted_a,
   std::set_intersection(a.begin(), a.end(), out->begin(), out->end(),
                         std::back_inserter(v));
   *out = std::move(v);
+}
+
+std::vector<std::string> Subtract(const std::vector<std::string>& unsorted_a,
+                                  const std::vector<std::string>& unsorted_b) {
+  std::vector<std::string> a = unsorted_a;
+  std::sort(a.begin(), a.end());
+  std::vector<std::string> b = unsorted_b;
+  std::sort(b.begin(), b.end());
+  std::vector<std::string> v;
+  std::set_difference(a.begin(), a.end(), b.begin(), b.end(),
+                      std::back_inserter(v));
+  return v;
 }
 
 // This is just to reduce binary size and stack frame size of the insertions.
@@ -587,9 +598,8 @@ FtraceConfigMuxer::FtraceConfigMuxer(
     : ftrace_(ftrace),
       atrace_wrapper_(atrace_wrapper),
       table_(table),
-      syscalls_(std::move(syscalls)),
+      syscalls_(syscalls),
       current_state_(),
-      ds_configs_(),
       vendor_events_(std::move(vendor_events)),
       secondary_instance_(secondary_instance) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
@@ -761,13 +771,16 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
 
   std::vector<std::string> apps(request.atrace_apps());
   std::vector<std::string> categories(request.atrace_categories());
+  std::vector<std::string> categories_sdk_optout = Subtract(
+      request.atrace_categories(), request.atrace_categories_prefer_sdk());
   ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
       std::forward_as_tuple(
           std::move(filter), std::move(syscall_filter), compact_sched,
           std::move(ftrace_print_filter), std::move(apps),
-          std::move(categories), request.symbolize_ksyms(),
-          request.drain_buffer_percent(), GetSyscallsReturningFds(syscalls_)));
+          std::move(categories), std::move(categories_sdk_optout),
+          request.symbolize_ksyms(), request.drain_buffer_percent(),
+          GetSyscallsReturningFds(syscalls_)));
   return true;
 }
 
@@ -805,12 +818,18 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   EventFilter expected_ftrace_events;
   std::vector<std::string> expected_apps;
   std::vector<std::string> expected_categories;
+  std::vector<std::string> expected_categories_sdk_optout;
   for (const auto& id_config : ds_configs_) {
     const perfetto::FtraceDataSourceConfig& config = id_config.second;
     expected_ftrace_events.EnableEventsFrom(config.event_filter);
     UnionInPlace(config.atrace_apps, &expected_apps);
     UnionInPlace(config.atrace_categories, &expected_categories);
+    UnionInPlace(config.atrace_categories_sdk_optout,
+                 &expected_categories_sdk_optout);
   }
+  std::vector<std::string> expected_categories_prefer_sdk =
+      Subtract(expected_categories, expected_categories_sdk_optout);
+
   // At this point expected_{apps,categories} contains the union of the
   // leftover configs (if any) that should be still on. However we did not
   // necessarily succeed in turning on atrace for each of those configs
@@ -819,6 +838,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   // for:
   IntersectInPlace(current_state_.atrace_apps, &expected_apps);
   IntersectInPlace(current_state_.atrace_categories, &expected_categories);
+
   // Work out if there is any difference between the current state and the
   // desired state: It's sufficient to compare sizes here (since we know from
   // above that expected_{apps,categories} is now a subset of
@@ -826,6 +846,10 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   bool atrace_changed =
       (current_state_.atrace_apps.size() != expected_apps.size()) ||
       (current_state_.atrace_categories.size() != expected_categories.size());
+
+  bool atrace_prefer_sdk_changed =
+      current_state_.atrace_categories_prefer_sdk !=
+      expected_categories_prefer_sdk;
 
   if (!SetSyscallEventFilter(/*extra_syscalls=*/{})) {
     PERFETTO_ELOG("Failed to set raw_syscall ftrace filter in RemoveConfig");
@@ -884,6 +908,14 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
         current_state_.atrace_apps = expected_apps;
         current_state_.atrace_categories = expected_categories;
       }
+    }
+  }
+
+  if (atrace_prefer_sdk_changed) {
+    if (SetAtracePreferSdk(expected_categories_prefer_sdk,
+                           /*atrace_errors=*/nullptr)) {
+      current_state_.atrace_categories_prefer_sdk =
+          expected_categories_prefer_sdk;
     }
   }
 
@@ -964,9 +996,8 @@ void FtraceConfigMuxer::SetupBufferSize(const FtraceConfig& request) {
 }
 
 // Post-conditions:
-// 1. result >= 1 (should have at least one page per CPU)
-// 2. result < kMaxTotalBufferSizeKb / (page_size / 1024)
-// 3. If input is 0 output is a good default number
+// * result >= 1 (should have at least one page per CPU)
+// * If input is 0 output is a good default number
 size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb,
                                    bool buffer_size_lower_bound,
                                    int64_t sysconf_phys_pages) {
@@ -983,18 +1014,14 @@ size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb,
     actual_size_kb = default_size_kb;
   }
 
-  if (actual_size_kb > kMaxPerCpuBufferSizeKb) {
-    PERFETTO_ELOG(
-        "The requested ftrace buf size (%zu KB) is too big, capping to %" PRIu64
-        " KB",
-        actual_size_kb, kMaxPerCpuBufferSizeKb);
-    actual_size_kb = kMaxPerCpuBufferSizeKb;
-  }
-
   size_t pages = actual_size_kb / (page_sz / 1024);
   return pages ? pages : 1;
 }
 
+// TODO(rsavitski): stop caching the "input" value, as the kernel can and will
+// choose a slightly different buffer size (especially on 6.x kernels). And even
+// then the value might not be exactly page accurate due to scratch pages (more
+// of a concern for the |FtraceController::FlushForInstance| caller).
 size_t FtraceConfigMuxer::GetPerCpuBufferSizePages() {
   return current_state_.cpu_buffer_size_pages;
 }
@@ -1029,16 +1056,37 @@ void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request,
   std::vector<std::string> combined_apps = request.atrace_apps();
   UnionInPlace(current_state_.atrace_apps, &combined_apps);
 
-  if (current_state_.atrace_on &&
-      combined_apps.size() == current_state_.atrace_apps.size() &&
-      combined_categories.size() == current_state_.atrace_categories.size()) {
-    return;
+  // Each data source can list some atrace categories for which the SDK is
+  // preferred (the rest of the categories are considered to opt out of the
+  // SDK). When merging multiple data sources, opting out wins. Therefore this
+  // code does a union of the opt outs for all data sources.
+  std::vector<std::string> combined_categories_sdk_optout = Subtract(
+      request.atrace_categories(), request.atrace_categories_prefer_sdk());
+
+  std::vector<std::string> current_categories_sdk_optout =
+      Subtract(current_state_.atrace_categories,
+               current_state_.atrace_categories_prefer_sdk);
+  UnionInPlace(current_categories_sdk_optout, &combined_categories_sdk_optout);
+
+  std::vector<std::string> combined_categories_prefer_sdk =
+      Subtract(combined_categories, combined_categories_sdk_optout);
+
+  if (combined_categories_prefer_sdk !=
+      current_state_.atrace_categories_prefer_sdk) {
+    if (SetAtracePreferSdk(combined_categories_prefer_sdk, atrace_errors)) {
+      current_state_.atrace_categories_prefer_sdk =
+          combined_categories_prefer_sdk;
+    }
   }
 
-  if (StartAtrace(combined_apps, combined_categories, atrace_errors)) {
-    current_state_.atrace_categories = combined_categories;
-    current_state_.atrace_apps = combined_apps;
-    current_state_.atrace_on = true;
+  if (!current_state_.atrace_on ||
+      combined_apps.size() != current_state_.atrace_apps.size() ||
+      combined_categories.size() != current_state_.atrace_categories.size()) {
+    if (StartAtrace(combined_apps, combined_categories, atrace_errors)) {
+      current_state_.atrace_categories = combined_categories;
+      current_state_.atrace_apps = combined_apps;
+      current_state_.atrace_on = true;
+    }
   }
 }
 
@@ -1066,6 +1114,26 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
     arg.resize(arg.size() - 1);
     args.push_back(arg);
   }
+
+  bool result = atrace_wrapper_->RunAtrace(args, atrace_errors);
+  PERFETTO_DLOG("...done (%s)", result ? "success" : "fail");
+  return result;
+}
+
+bool FtraceConfigMuxer::SetAtracePreferSdk(
+    const std::vector<std::string>& prefer_sdk_categories,
+    std::string* atrace_errors) {
+  if (!atrace_wrapper_->SupportsPreferSdk()) {
+    return false;
+  }
+  PERFETTO_DLOG("Update atrace prefer sdk categories...");
+
+  std::vector<std::string> args;
+  args.push_back("atrace");  // argv0 for exec()
+  args.push_back("--prefer_sdk");
+
+  for (const auto& category : prefer_sdk_categories)
+    args.push_back(category);
 
   bool result = atrace_wrapper_->RunAtrace(args, atrace_errors);
   PERFETTO_DLOG("...done (%s)", result ? "success" : "fail");

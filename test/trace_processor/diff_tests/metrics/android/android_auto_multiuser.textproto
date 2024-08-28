@@ -11,6 +11,16 @@ packet {
       uid: 1000010
       cmdline: "dummy:2"
     }
+    processes {
+      pid: 12
+      uid: 1300010
+      cmdline: "dummy:3"
+    }
+    processes {
+      pid: 20
+      uid: 1000
+      cmdline: "finishUserStopped-10"
+    }
   }
 }
 packet {
@@ -66,6 +76,38 @@ packet {
   }
 }
 packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 5000000001
+      pid: 10
+      sched_switch {
+        prev_comm: "dummy:3"
+        prev_pid: 12
+        prev_state: 2
+        next_comm: "dummy:2"
+        next_pid: 11
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 5010000000
+      pid: 11
+      sched_switch {
+        prev_comm: "dummy:2"
+        prev_pid: 11
+        prev_state: 2
+        next_comm: "dummy:3"
+        next_pid: 13
+      }
+    }
+  }
+}
+packet {
   timestamp: 3000000001
   process_stats {
     processes {
@@ -98,6 +140,15 @@ packet {
     processes {
       pid: 11
       vm_rss_kb: 2000
+    }
+  }
+}
+packet {
+  timestamp: 5000000002
+  process_stats {
+    processes {
+      pid: 11
+      vm_rss_kb: 3000
     }
   }
 }
@@ -121,6 +172,25 @@ packet {
       pid: 1
       print {
         buf: "S|2609|launching: com.android.car.carlauncher|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 5000000000
+      pid: 20
+      print {
+        buf: "B|20|finishUserStopped-10-[stopUser]\n"
+      }
+    }
+    event {
+      timestamp: 5100000000
+      pid: 20
+      print {
+        buf: "E|20\n"
       }
     }
   }

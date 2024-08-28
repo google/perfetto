@@ -108,15 +108,20 @@ TEST(ArrangementOverlay, IndexSearch) {
 }
 
 TEST(ArrangementOverlay, OrderingSearch) {
-  std::vector<uint32_t> arrangement{0, 2, 4, 1, 3};
-  auto fake = FakeStorageChain::SearchSubset(5, BitVector({0, 1, 0, 1, 0}));
+  std::vector<uint32_t> numeric_data{0, 1, 2, 0, 1, 0};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  std::vector<uint32_t> arrangement{0, 3, 5, 1, 4, 2};
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto chain =
-      storage.MakeChain(std::move(fake), DataLayer::ChainCreationArgs(true));
+  auto chain = storage.MakeChain(numeric.MakeChain(),
+                                 DataLayer::ChainCreationArgs(true));
 
   RangeOrBitVector res =
-      chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
+      chain->Search(FilterOp::kGe, SqlValue::Long(1u), Range(0, 5));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
+
+  res = chain->Search(FilterOp::kNe, SqlValue::Long(1u), Range(1, 6));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 5));
 }
 
 TEST(ArrangementOverlay, StableSort) {
@@ -128,14 +133,10 @@ TEST(ArrangementOverlay, StableSort) {
   auto chain = storage.MakeChain(numeric.MakeChain());
 
   std::vector tokens{
-      column::DataLayerChain::SortToken{0, 0},
-      column::DataLayerChain::SortToken{1, 1},
-      column::DataLayerChain::SortToken{2, 2},
-      column::DataLayerChain::SortToken{3, 3},
-      column::DataLayerChain::SortToken{4, 4},
+      Token{0, 0}, Token{1, 1}, Token{2, 2}, Token{3, 3}, Token{4, 4},
   };
   chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                    column::DataLayerChain::SortDirection::kAscending);
+                    SortDirection::kAscending);
   ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
               ElementsAre(0, 3, 1, 4, 2));
 }
@@ -154,6 +155,17 @@ TEST(ArrangementOverlay, Distinct) {
       {0, 1, 3, 3}, Indices::State::kNonmonotonic);
   chain->Distinct(indices);
   ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 2));
+}
+
+TEST(ArrangementOverlay, Flatten) {
+  std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
+  auto fake = FakeStorageChain::SearchAll(10);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(std::move(fake));
+
+  std::vector<uint32_t> indices{0, 2, 4, 6, 8, 1, 3};
+  chain->Flatten(indices);
+  ASSERT_THAT(indices, ElementsAre(1, 2, 3, 4, 1, 1, 2));
 }
 
 }  // namespace

@@ -43,7 +43,6 @@ using testing::ElementsAre;
 using testing::IsEmpty;
 
 using Indices = DataLayerChain::Indices;
-using OrderedIndices = DataLayerChain::OrderedIndices;
 
 TEST(FakeStorage, ValidateSearchConstraints) {
   {
@@ -194,48 +193,6 @@ TEST(FakeStorage, IndexSearchValidated) {
     auto fake = FakeStorageChain::SearchSubset(5, Range(1, 4));
     fake->IndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
     ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 2));
-  }
-}
-
-TEST(FakeStorage, OrderedIndexSearchValidated) {
-  std::vector<uint32_t> table_idx{4, 3, 2, 1};
-  OrderedIndices indices{table_idx.data(), uint32_t(table_idx.size()),
-                         Indices::State::kNonmonotonic};
-  {
-    // All passes
-    auto fake = FakeStorageChain::SearchAll(5);
-    Range ret =
-        fake->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
-    EXPECT_EQ(ret, Range(0, 4));
-  }
-  {
-    // None passes
-    auto fake = FakeStorageChain::SearchNone(5);
-    Range ret =
-        fake->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
-    EXPECT_EQ(ret, Range(0, 0));
-  }
-  {
-    // BitVector
-    auto fake = FakeStorageChain::SearchSubset(5, BitVector{0, 0, 1, 1, 1});
-    Range ret =
-        fake->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
-    EXPECT_EQ(ret, Range(0, 3));
-  }
-  {
-    // Index vector
-    auto fake =
-        FakeStorageChain::SearchSubset(5, std::vector<uint32_t>{1, 2, 3});
-    Range ret =
-        fake->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
-    EXPECT_EQ(ret, Range(1, 4));
-  }
-  {
-    // Range
-    auto fake = FakeStorageChain::SearchSubset(5, Range(1, 4));
-    Range ret =
-        fake->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
-    EXPECT_EQ(ret, Range(1, 4));
   }
 }
 

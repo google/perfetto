@@ -17,7 +17,10 @@ import("../../../../../gn/perfetto_sql.gni")
 perfetto_sql_source_set("android") {
   deps = [
     "auto",
+    "cpu",
     "frames",
+    "gpu",
+    "memory",
     "startup",
     "winscope",
   ]
@@ -47,5 +50,6 @@ perfetto_sql_source_set("android") {
     "statsd.sql",
     "suspend.sql",
     "thread.sql",
+    "version.sql",
   ]
 }

@@ -17,6 +17,7 @@
 #include "src/trace_processor/db/column/dense_null_overlay.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -129,11 +130,12 @@ TEST(DenseNullOverlay, IsNullIndexSearch) {
 }
 
 TEST(DenseNullOverlay, OrderedIndexSearch) {
-  auto fake = FakeStorageChain::SearchSubset(6, BitVector({0, 1, 0, 1, 0, 1}));
+  std::vector<uint32_t> numeric_data{0, 1, 0, 1, 0, 1};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
 
   BitVector bv{0, 1, 0, 1, 0, 1};
   DenseNullOverlay storage(&bv);
-  auto chain = storage.MakeChain(std::move(fake));
+  auto chain = storage.MakeChain(numeric.MakeChain());
 
   std::vector<uint32_t> indices_vec({0, 2, 4, 1, 3, 5});
   OrderedIndices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
@@ -146,25 +148,25 @@ TEST(DenseNullOverlay, OrderedIndexSearch) {
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 6u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(1), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 6u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(0), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 6u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(1), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 6u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 6u);
+  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(1), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 6u);
+  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(0), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
 }
 
 TEST(DenseNullOverlay, SingleSearch) {
@@ -213,26 +215,21 @@ TEST(DenseNullOverlay, StableSort) {
 
   auto make_tokens = []() {
     return std::vector{
-        column::DataLayerChain::SortToken{0, 0},
-        column::DataLayerChain::SortToken{1, 1},
-        column::DataLayerChain::SortToken{2, 2},
-        column::DataLayerChain::SortToken{3, 3},
-        column::DataLayerChain::SortToken{4, 4},
-        column::DataLayerChain::SortToken{5, 5},
-        column::DataLayerChain::SortToken{6, 6},
+        Token{0, 0}, Token{1, 1}, Token{2, 2}, Token{3, 3},
+        Token{4, 4}, Token{5, 5}, Token{6, 6},
     };
   };
   {
     auto tokens = make_tokens();
     chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                      column::DataLayerChain::SortDirection::kAscending);
+                      SortDirection::kAscending);
     ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
                 ElementsAre(0, 2, 4, 3, 5, 1, 6));
   }
   {
     auto tokens = make_tokens();
     chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                      column::DataLayerChain::SortDirection::kDescending);
+                      SortDirection::kDescending);
     ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
                 ElementsAre(6, 1, 5, 3, 4, 0, 2));
   }
@@ -253,6 +250,16 @@ TEST(DenseNullOverlay, Distinct) {
   chain->Distinct(indices);
   ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
               UnorderedElementsAre(0, 1, 2));
+}
+
+TEST(DenseNullOverlay, Flatten) {
+  BitVector bv{0, 1, 0, 1, 1, 1};
+  DenseNullOverlay storage(&bv);
+  auto chain = storage.MakeChain(FakeStorageChain::SearchAll(6));
+  std::vector<uint32_t> indices{0, 1, 2, 3, 1};
+  chain->Flatten(indices);
+  ASSERT_THAT(indices, ElementsAre(std::numeric_limits<uint32_t>::max(), 1,
+                                   std::numeric_limits<uint32_t>::max(), 3, 1));
 }
 
 }  // namespace

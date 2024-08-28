@@ -79,6 +79,15 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
+# GN target: //python:common
+perfetto_py_library(
+    name = "common",
+    srcs = [
+        "perfetto/common/exceptions.py",
+        "perfetto/common/query_result_iterator.py",
+    ],
+)
+
 # GN target: //python:experimental_slice_breakdown_lib
 perfetto_py_library(
     name = "experimental_slice_breakdown_lib",
@@ -122,6 +131,7 @@ perfetto_py_library(
         "perfetto/trace_processor/trace_processor.descriptor",
     ],
     deps = [
+               ":common",
                ":trace_uri_resolver",
            ] + PERFETTO_CONFIG.deps.pandas_py +
            PERFETTO_CONFIG.deps.protobuf_py +

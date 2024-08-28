@@ -26,8 +26,6 @@ WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 -- activity starts.
 CREATE PERFETTO TABLE _activity_intent_recv_spans AS
 SELECT
-  ROW_NUMBER()
-  OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS startup_id,
   ts,
   LEAD(ts, 1, trace_end()) OVER(ORDER BY ts) - ts AS dur
 FROM _activity_intent_received
@@ -52,8 +50,6 @@ WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 -- is not reliable in the case of failed startups.
 CREATE PERFETTO TABLE _startups_minsdk29 AS
 SELECT
-  "minsdk29" as sdk,
-  lpart.startup_id,
   lpart.ts,
   le.ts_end,
   le.ts_end - lpart.ts AS dur,
@@ -67,4 +63,5 @@ WHERE (
   SELECT COUNT(1)
   FROM _activity_intent_startup_successful AS successful
   WHERE successful.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
-) > 0;
+) > 0
+ORDER BY lpart.ts;

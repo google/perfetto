@@ -30,8 +30,18 @@ android_startup {
       dex2oat_dur_ns: 0
     }
     slow_start_reason: "App in debuggable mode"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+    severity: ERROR
+      reason_id: APP_IN_DEBUGGABLE_MODE
       reason: "App in debuggable mode"
+      expected_value {
+        value: 0
+        unit: TRUE_OR_FALSE
+      }
+      actual_value {
+        value: 1
+      }
+      launch_dur: 100
     }
   }
   startup {
@@ -65,11 +75,6 @@ android_startup {
         apk_version_code: 123
         debuggable: true
       }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: true
-      }
       pid: 3
     }
     event_timestamps {
@@ -86,8 +91,18 @@ android_startup {
     }
     startup_type: "hot"
     slow_start_reason: "App in debuggable mode"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: APP_IN_DEBUGGABLE_MODE
       reason: "App in debuggable mode"
+      severity: ERROR
+      expected_value {
+        value: 0
+        unit: TRUE_OR_FALSE
+      }
+      actual_value {
+        value: 1
+      }
+      launch_dur: 10
     }
   }
 }

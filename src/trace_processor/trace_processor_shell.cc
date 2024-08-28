@@ -273,9 +273,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
     return base::ErrStatus("%s", status.c_message());
 
   // Export real and virtual tables.
-  auto tables_it = g_tp->ExecuteQuery(
-      "SELECT name FROM perfetto_tables UNION "
-      "SELECT name FROM sqlite_master WHERE type='table'");
+  auto tables_it = g_tp->ExecuteQuery("SELECT name FROM perfetto_tables");
   while (tables_it.Next()) {
     std::string table_name = tables_it.Get(0).string_value;
     PERFETTO_CHECK(!base::Contains(table_name, '\''));
@@ -666,6 +664,7 @@ metatrace::MetatraceCategories ParseMetatraceCategories(std::string s) {
 struct CommandLineOptions {
   std::string perf_file_path;
   std::string query_file_path;
+  std::string query_string;
   std::string pre_metrics_path;
   std::string sqlite_file_path;
   std::string sql_module_path;
@@ -711,6 +710,10 @@ Options:
                                       the file will only be written if the
                                       execution is successful.
  -q, --query-file FILE                Read and execute an SQL query from a file.
+                                      If used with --run-metrics, the query is
+                                      executed after the selected metrics and
+                                      the metrics output is suppressed.
+ -Q, --query-string QUERY             Execute the SQL query QUERY.
                                       If used with --run-metrics, the query is
                                       executed after the selected metrics and
                                       the metrics output is suppressed.
@@ -816,6 +819,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"wide", no_argument, nullptr, 'W'},
       {"perf-file", required_argument, nullptr, 'p'},
       {"query-file", required_argument, nullptr, 'q'},
+      {"query-string", required_argument, nullptr, 'Q'},
       {"httpd", no_argument, nullptr, 'D'},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
       {"stdiod", no_argument, nullptr, OPT_STDIOD},
@@ -846,7 +850,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   bool explicit_interactive = false;
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvWiDdm:p:q:e:", long_options, nullptr);
+        getopt_long(argc, argv, "hvWiDdm:p:q:Q:e:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -870,6 +874,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == 'q') {
       command_line_options.query_file_path = optarg;
+      continue;
+    }
+
+    if (option == 'Q') {
+      command_line_options.query_string = optarg;
       continue;
     }
 
@@ -992,6 +1001,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       explicit_interactive || (command_line_options.pre_metrics_path.empty() &&
                                command_line_options.metric_names.empty() &&
                                command_line_options.query_file_path.empty() &&
+                               command_line_options.query_string.empty() &&
                                command_line_options.sqlite_file_path.empty());
 
   // Only allow non-interactive queries to emit perf data.
@@ -1078,13 +1088,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
   return base::OkStatus();
 }
 
-base::Status RunQueries(const std::string& query_file_path,
-                        bool expect_output) {
-  std::string queries;
-  if (!base::ReadFile(query_file_path.c_str(), &queries)) {
-    return base::ErrStatus("Unable to read file %s", query_file_path.c_str());
-  }
-
+base::Status RunQueries(const std::string& queries, bool expect_output) {
   base::Status status;
   if (expect_output) {
     status = RunQueriesAndPrintResult(queries, stdout);
@@ -1095,6 +1099,16 @@ base::Status RunQueries(const std::string& query_file_path,
     return base::ErrStatus("%s", status.c_message());
   }
   return base::OkStatus();
+}
+
+base::Status RunQueriesFromFile(const std::string& query_file_path,
+                                bool expect_output) {
+  std::string queries;
+  if (!base::ReadFile(query_file_path.c_str(), &queries)) {
+    return base::ErrStatus("Unable to read file %s", query_file_path.c_str());
+  }
+
+  return RunQueries(queries, expect_output);
 }
 
 base::Status ParseSingleMetricExtensionPath(bool dev,
@@ -1460,7 +1474,7 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
       } else if (strcmp(command, "reset") == 0) {
         g_tp->RestoreInitialTables();
       } else if (strcmp(command, "read") == 0 && strlen(arg)) {
-        base::Status status = RunQueries(arg, true);
+        base::Status status = RunQueriesFromFile(arg, true);
         if (!status.ok()) {
           PERFETTO_ELOG("%s", status.c_message());
         }
@@ -1639,7 +1653,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
   if (!options.pre_metrics_path.empty()) {
-    RETURN_IF_ERROR(RunQueries(options.pre_metrics_path, false));
+    RETURN_IF_ERROR(RunQueriesFromFile(options.pre_metrics_path, false));
   }
 
   std::vector<MetricNameAndPath> metrics;
@@ -1653,13 +1667,23 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (!options.query_file_path.empty()) {
-    base::Status status = RunQueries(options.query_file_path, true);
+    base::Status status = RunQueriesFromFile(options.query_file_path, true);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
       RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
       return status;
     }
   }
+
+  if (!options.query_string.empty()) {
+    base::Status status = RunQueries(options.query_string, true);
+    if (!status.ok()) {
+      // Write metatrace if needed before exiting.
+      RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
+      return status;
+    }
+  }
+
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
   if (!options.sqlite_file_path.empty()) {

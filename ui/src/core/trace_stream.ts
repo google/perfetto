@@ -14,6 +14,7 @@
 
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
+import {exists} from '../base/utils';
 
 const SLICE_SIZE = 32 * 1024 * 1024;
 
@@ -115,7 +116,7 @@ export class TraceHttpStream implements TraceStream {
         throw new Error(`HTTP ${response.status} - ${response.statusText}`);
       }
       const len = response.headers.get('Content-Length');
-      this.bytesTotal = len ? Number.parseInt(len, 10) : 0;
+      this.bytesTotal = exists(len) ? Number.parseInt(len, 10) : 0;
       this.httpStream = response.body!.getReader();
     }
 

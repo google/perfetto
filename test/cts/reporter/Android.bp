@@ -9,6 +9,7 @@ package {
 
 cc_test {
   name: "CtsPerfettoReporterTestCases",
+  team: "trendy_team_perfetto",
   srcs: [
     "reporter_test_cts.cc",
     ":perfetto_protos_perfetto_config_cpp_gen",

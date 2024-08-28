@@ -19,17 +19,19 @@ import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {VegaView} from '../../widgets/vega_view';
 
-const USER_CATEGORY = 'User';
-const APPLIED_CATEGORY = 'Applied';
+const INPUT_CATEGORY = 'Input';
+const PRESENTED_CATEGORY = 'Presented';
+const PRESENTED_JANKY_CATEGORY = 'Presented with Predictor Jank';
 
 interface ScrollDeltaPlotDatum {
-  // What type of data this is - user scroll or applied scroll. This is used
+  // What type of data this is - input scroll or presented scroll. This is used
   // to denote the color of the data point.
   category: string;
   offset: number;
   scrollUpdateId: number;
   ts: number;
   delta: number;
+  predictorJank: string;
 }
 
 export interface ScrollDeltaDetails {
@@ -37,6 +39,7 @@ export interface ScrollDeltaDetails {
   scrollUpdateId: number;
   scrollDelta: number;
   scrollOffset: number;
+  predictorJank: number;
 }
 
 export interface JankIntervalPlotDetails {
@@ -44,10 +47,9 @@ export interface JankIntervalPlotDetails {
   end_ts: number;
 }
 
-export async function getUserScrollDeltas(
+export async function getInputScrollDeltas(
   engine: Engine,
-  startTs: time,
-  dur: duration,
+  scrollId: number,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
@@ -58,7 +60,7 @@ export async function getUserScrollDeltas(
       delta_y AS deltaY,
       relative_offset_y AS offsetY
     FROM chrome_scroll_input_offsets
-    WHERE ts >= ${startTs} AND ts <= ${startTs + dur};
+    WHERE scroll_id = ${scrollId};
   `);
 
   const it = queryResult.iter({
@@ -75,16 +77,16 @@ export async function getUserScrollDeltas(
       scrollUpdateId: it.scrollUpdateId,
       scrollOffset: it.offsetY,
       scrollDelta: it.deltaY,
+      predictorJank: 0,
     });
   }
 
   return deltas;
 }
 
-export async function getAppliedScrollDeltas(
+export async function getPresentedScrollDeltas(
   engine: Engine,
-  startTs: time,
-  dur: duration,
+  scrollId: number,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
@@ -95,7 +97,7 @@ export async function getAppliedScrollDeltas(
       delta_y AS deltaY,
       relative_offset_y AS offsetY
     FROM chrome_presented_scroll_offsets
-    WHERE ts >= ${startTs} AND ts <= ${startTs + dur}
+    WHERE scroll_id = ${scrollId}
       AND delta_y IS NOT NULL;
   `);
 
@@ -116,6 +118,50 @@ export async function getAppliedScrollDeltas(
       scrollUpdateId: it.scrollUpdateId,
       scrollOffset: offset,
       scrollDelta: it.deltaY,
+      predictorJank: 0,
+    });
+  }
+
+  return deltas;
+}
+
+export async function getPredictorJankDeltas(
+  engine: Engine,
+  scrollId: number,
+): Promise<ScrollDeltaDetails[]> {
+  const queryResult = await engine.query(`
+    INCLUDE PERFETTO MODULE chrome.scroll_jank.predictor_error;
+
+    SELECT
+      present_ts AS ts,
+      IFNULL(scroll_update_id, 0) AS scrollUpdateId,
+      delta_y AS deltaY,
+      relative_offset_y AS offsetY,
+      predictor_jank AS predictorJank
+    FROM chrome_predictor_error
+    WHERE scroll_id = ${scrollId}
+      AND predictor_jank != 0 AND predictor_jank IS NOT NULL;
+  `);
+
+  const it = queryResult.iter({
+    ts: LONG,
+    scrollUpdateId: NUM,
+    deltaY: NUM,
+    offsetY: NUM,
+    predictorJank: NUM,
+  });
+  const deltas: ScrollDeltaDetails[] = [];
+  let offset = 0;
+
+  for (; it.valid(); it.next()) {
+    offset = it.offsetY;
+
+    deltas.push({
+      ts: Time.fromRaw(it.ts),
+      scrollUpdateId: it.scrollUpdateId,
+      scrollOffset: offset,
+      scrollDelta: it.deltaY,
+      predictorJank: it.predictorJank,
     });
   }
 
@@ -154,20 +200,45 @@ export async function getJankIntervals(
   return details;
 }
 
+// TODO(b/352038635): Show the error margin on the graph - what the pixel offset
+// should have been if there were no predictor jank.
 export function buildScrollOffsetsGraph(
-  userDeltas: ScrollDeltaDetails[],
-  appliedDeltas: ScrollDeltaDetails[],
+  inputDeltas: ScrollDeltaDetails[],
+  presentedDeltas: ScrollDeltaDetails[],
+  predictorDeltas: ScrollDeltaDetails[],
   jankIntervals: JankIntervalPlotDetails[],
 ): m.Child {
-  const userData = buildOffsetData(userDeltas, USER_CATEGORY);
-  const appliedData = buildOffsetData(appliedDeltas, APPLIED_CATEGORY);
+  const inputData = buildOffsetData(inputDeltas, INPUT_CATEGORY);
+  // Filter out the predictor deltas from the presented deltas, as these will be
+  // rendered in a new layer, with new tooltip/color/etc.
+  const filteredPresentedDeltas = presentedDeltas.filter((item) => {
+    for (let i = 0; i < predictorDeltas.length; i++) {
+      const predictorDelta: ScrollDeltaDetails = predictorDeltas[i];
+      if (
+        predictorDelta.ts == item.ts &&
+        predictorDelta.scrollUpdateId == item.scrollUpdateId
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const presentedData = buildOffsetData(
+    filteredPresentedDeltas,
+    PRESENTED_CATEGORY,
+  );
+  const predictorData = buildOffsetData(
+    predictorDeltas,
+    PRESENTED_JANKY_CATEGORY,
+  );
   const jankData = buildJankLayerData(jankIntervals);
 
   return m(VegaView, {
     spec: `
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-  "description": "Scatter plot showcasing the pixel offset deltas between user scrolling and applied scrolling.",
+  "description": "Scatter plot showcasing the pixel offset deltas between input frames and presented frames.",
   "width": "container",
   "height": 200,
   "padding": 5,
@@ -224,19 +295,33 @@ export function buildScrollOffsetsGraph(
           "field": "category",
           "type": "nominal",
           "scale": {
-            "domain": ["${USER_CATEGORY}", "${APPLIED_CATEGORY}"],
-            "range": ["blue", "red"]
+            "domain": [
+              "${INPUT_CATEGORY}",
+              "${PRESENTED_CATEGORY}",
+              "${PRESENTED_JANKY_CATEGORY}"
+            ],
+            "range": ["blue", "red", "orange"]
           },
           "legend": {
             "title":null
           }
         },
         "tooltip": [
-          {"field": "delta", "type": "quantitative", "title": "Delta"},
+          {
+            "field": "delta",
+            "type": "quantitative",
+            "title": "Delta",
+            "format": ".2f"
+          },
           {
             "field": "scrollUpdateId",
             "type": "quantititive",
             "title": "Trace Id"
+          },
+          {
+            "field": "predictorJank",
+            "type": "nominal",
+            "title": "Predictor Jank"
           }
         ]
       }
@@ -244,7 +329,7 @@ export function buildScrollOffsetsGraph(
   ]
 }
 `,
-    data: {table: userData.concat(appliedData)},
+    data: {table: inputData.concat(presentedData).concat(predictorData)},
   });
 }
 
@@ -254,12 +339,19 @@ function buildOffsetData(
 ): ScrollDeltaPlotDatum[] {
   const plotData: ScrollDeltaPlotDatum[] = [];
   for (const delta of deltas) {
+    let predictorJank = 'N/A';
+    if (delta.predictorJank > 0) {
+      predictorJank = parseFloat(delta.predictorJank.toString()).toFixed(2);
+      predictorJank +=
+        " (times delta compared to the next/previous frame's delta)";
+    }
     plotData.push({
       category: category,
       ts: Number(delta.ts) / 10e8,
       scrollUpdateId: delta.scrollUpdateId,
       offset: delta.scrollOffset,
       delta: delta.scrollDelta,
+      predictorJank: predictorJank,
     });
   }
 

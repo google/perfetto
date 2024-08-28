@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -148,6 +149,9 @@ SearchValidationResult NullOverlay::ChainImpl::ValidateSearchConstraints(
   if (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull) {
     return SearchValidationResult::kOk;
   }
+  if (sql_val.is_null()) {
+    return SearchValidationResult::kNoData;
+  }
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
 
@@ -256,65 +260,15 @@ void NullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-Range NullOverlay::ChainImpl::OrderedIndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    const OrderedIndices& indices) const {
-  // For NOT EQUAL the translation or results from EQUAL needs to be done by the
-  // caller.
-  PERFETTO_CHECK(op != FilterOp::kNe);
-
-  PERFETTO_TP_TRACE(metatrace::Category::DB,
-                    "NullOverlay::ChainImpl::OrderedIndexSearch");
-
-  // We assume all NULLs are ordered to be in the front. We are looking for the
-  // first index that points to non NULL value.
-  const uint32_t* first_non_null =
-      std::partition_point(indices.data, indices.data + indices.size,
-                           [this](uint32_t i) { return !non_null_->IsSet(i); });
-  auto non_null_offset =
-      static_cast<uint32_t>(std::distance(indices.data, first_non_null));
-  auto non_null_size = static_cast<uint32_t>(
-      std::distance(first_non_null, indices.data + indices.size));
-
-  if (op == FilterOp::kIsNull) {
-    return {0, non_null_offset};
-  }
-
-  if (op == FilterOp::kIsNotNull) {
-    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
-      case SearchValidationResult::kNoData:
-        return {};
-      case SearchValidationResult::kAllData:
-        return {non_null_offset, indices.size};
-      case SearchValidationResult::kOk:
-        break;
-    }
-  }
-
-  std::vector<uint32_t> storage_iv;
-  storage_iv.reserve(non_null_size);
-  for (const uint32_t* it = first_non_null;
-       it != first_non_null + non_null_size; it++) {
-    storage_iv.push_back(non_null_->CountSetBits(*it));
-  }
-
-  Range inner_range = inner_->OrderedIndexSearchValidated(
-      op, sql_val,
-      OrderedIndices{storage_iv.data(), non_null_size, indices.state});
-  return {inner_range.start + non_null_offset,
-          inner_range.end + non_null_offset};
-}
-
-void NullOverlay::ChainImpl::StableSort(SortToken* start,
-                                        SortToken* end,
+void NullOverlay::ChainImpl::StableSort(Token* start,
+                                        Token* end,
                                         SortDirection direction) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "NullOverlay::ChainImpl::StableSort");
-  SortToken* middle = std::stable_partition(
-      start, end,
-      [this](const SortToken& idx) { return !non_null_->IsSet(idx.index); });
-  for (SortToken* it = middle; it != end; ++it) {
+  Token* middle = std::stable_partition(start, end, [this](const Token& idx) {
+    return !non_null_->IsSet(idx.index);
+  });
+  for (Token* it = middle; it != end; ++it) {
     it->index = non_null_->CountSetBits(it->index);
   }
   inner_->StableSort(middle, end, direction);
@@ -367,6 +321,25 @@ std::optional<Token> NullOverlay::ChainImpl::MinElement(
   }
 
   return inner_->MinElement(indices);
+}
+
+std::unique_ptr<DataLayer> NullOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    if (non_null_->IsSet(i)) {
+      i = non_null_->CountSetBits(i);
+    } else {
+      i = std::numeric_limits<uint32_t>::max();
+    }
+  }
+  return inner_->Flatten(indices);
+}
+
+SqlValue NullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
+    uint32_t index) const {
+  return non_null_->IsSet(index)
+             ? inner_->Get_AvoidUsingBecauseSlow(non_null_->CountSetBits(index))
+             : SqlValue();
 }
 
 void NullOverlay::ChainImpl::Serialize(StorageProto* storage) const {

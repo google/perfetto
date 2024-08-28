@@ -51,10 +51,10 @@ class PrunePackageListIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    context()->package_name = kPackageName;
+    context_.package_name = kPackageName;
 
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_transform<PrunePackageList>();
+    trace_redactor_.emplace_collect<FindPackageUid>();
+    trace_redactor_.emplace_transform<PrunePackageList>();
   }
 
   std::vector<protos::gen::PackagesList::PackageInfo> GetPackageInfo(
@@ -91,6 +91,9 @@ class PrunePackageListIntegrationTest
 
     return names;
   }
+
+  Context context_;
+  TraceRedactor trace_redactor_;
 };
 
 // It is possible for two packages_list to appear in the trace. The
@@ -99,15 +102,14 @@ class PrunePackageListIntegrationTest
 // packages_list to contain copies of each other - for example
 // "com.Unity.com.unity.multiplayer.samples.coop" appears in both packages_list.
 TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
-  auto result = Redact();
+  auto result = Redact(trace_redactor_, &context_);
   ASSERT_OK(result) << result.message();
 
   auto after_raw_trace = LoadRedacted();
   ASSERT_OK(after_raw_trace) << after_raw_trace.status().message();
 
-  ASSERT_TRUE(context()->package_uid.has_value());
-  ASSERT_EQ(NormalizeUid(context()->package_uid.value()),
-            NormalizeUid(kPackageUid));
+  ASSERT_TRUE(context_.package_uid.has_value());
+  ASSERT_EQ(*context_.package_uid, kPackageUid);
 
   protos::pbzero::Trace::Decoder redacted_trace(after_raw_trace.value());
   auto packages = GetPackageInfo(redacted_trace);
@@ -119,7 +121,7 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
     ASSERT_EQ(package.name(), kPackageName);
 
     ASSERT_TRUE(package.has_uid());
-    ASSERT_EQ(NormalizeUid(package.uid()), NormalizeUid(kPackageUid));
+    ASSERT_EQ(NormalizeUid(package.uid()), kPackageUid);
   }
 }
 
@@ -128,9 +130,9 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
 // the package list, so there is no way to differentiate these packages (only
 // the uid is used later), so each entry should remain.
 TEST_F(PrunePackageListIntegrationTest, RetainsAllInstancesOfUid) {
-  context()->package_name = "com.google.android.networkstack.tethering";
+  context_.package_name = "com.google.android.networkstack.tethering";
 
-  auto result = Redact();
+  auto result = Redact(trace_redactor_, &context_);
   ASSERT_OK(result) << result.message();
 
   auto after_raw_trace = LoadRedacted();

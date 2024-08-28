@@ -42,6 +42,7 @@ export function isTrustedOrigin(origin: string): boolean {
     'https://android-build.googleplex.com',
   ];
   if (origin === window.origin) return true;
+  if (origin === 'null') return false;
   if (TRUSTED_ORIGINS.includes(origin)) return true;
   if (isUserTrustedOrigin(origin)) return true;
 
@@ -76,7 +77,7 @@ function saveUserTrustedOrigin(hostname: string) {
   const s = window.localStorage.getItem(TRUSTED_ORIGINS_KEY);
   let origins: string[];
   try {
-    origins = JSON.parse(s || '[]');
+    origins = JSON.parse(s ?? '[]');
     if (origins.includes(hostname)) return;
     origins.push(hostname);
     window.localStorage.setItem(TRUSTED_ORIGINS_KEY, JSON.stringify(origins));
@@ -142,7 +143,12 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     // it still needs to be of the correct type to be able to invoke the
     // correct version of postMessage(...).
     const windowSource = messageEvent.source as Window;
-    windowSource.postMessage('PONG', messageEvent.origin);
+
+    // Use '*' for the reply because in cases of cross-domain isolation, we
+    // see the messageEvent.origin as 'null'. PONG doen't disclose any
+    // interesting information, so there is no harm sending that to the wrong
+    // origin in the worst case.
+    windowSource.postMessage('PONG', '*');
     return;
   }
 
@@ -215,18 +221,27 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   }
 
   // If not ask the user if they expect this and trust the origin.
+  let originTxt = messageEvent.origin;
+  let originUnknown = false;
+  if (originTxt === 'null') {
+    originTxt = 'An unknown origin';
+    originUnknown = true;
+  }
   showModal({
     title: 'Open trace?',
     content: m(
       'div',
-      m('div', `${messageEvent.origin} is trying to open a trace file.`),
+      m('div', `${originTxt} is trying to open a trace file.`),
       m('div', 'Do you trust the origin and want to proceed?'),
     ),
     buttons: [
       {text: 'No', primary: true},
       {text: 'Yes', primary: false, action: openTrace},
-      {text: 'Always trust', primary: false, action: trustAndOpenTrace},
-    ],
+    ].concat(
+      originUnknown
+        ? []
+        : {text: 'Always trust', primary: false, action: trustAndOpenTrace},
+    ),
   });
 }
 
@@ -239,6 +254,7 @@ function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
   if (postedTrace.url !== undefined) {
     result.url = sanitizeString(postedTrace.url);
   }
+  result.pluginArgs = postedTrace.pluginArgs;
   return result;
 }
 

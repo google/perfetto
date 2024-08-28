@@ -74,6 +74,9 @@
 
     .pf-visible-on-hover {
       visibility: hidden;
+      &.pf-active {
+        visibility: visible;
+      }
     }
 
     &:hover .pf-visible-on-hover {
@@ -101,6 +104,7 @@
       font-size: smaller;
       padding: 0 0.1rem;
       margin-left: 1ch;
+      white-space: nowrap;
     }
 
     h1 {
@@ -189,10 +193,11 @@
 
     .chip {
       background-color: #bed6ff;
-      border-radius: 3px;
+      border-radius: $pf-border-radius;
       font-size: smaller;
       padding: 0 0.1rem;
       margin-left: 1ch;
+      white-space: nowrap;
     }
 
     .title-wrapper {
@@ -234,6 +239,10 @@
       align-self: center;
     }
   }
+}
+
+.pf-track-details-dropdown {
+  max-width: 400px;
 }
 
 .pf-panel-group {

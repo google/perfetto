@@ -169,6 +169,17 @@ bool ExecvAtrace(const std::vector<std::string>& args,
 }
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+bool IsSdkGreaterOrEqualThan(uint32_t val) {
+  std::string str_value = base::GetAndroidProp("ro.build.version.sdk");
+  if (str_value.empty())
+    return true;
+  auto opt_value = base::CStringToUInt32(str_value.c_str());
+  return !opt_value.has_value() || *opt_value >= val;
+}
+#endif
+
 }  // namespace
 
 AtraceWrapper::~AtraceWrapper() = default;
@@ -191,11 +202,18 @@ bool AtraceWrapperImpl::SupportsUserspaceOnly() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
     !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   // Sideloaded case. We could be sideloaded on a modern device or an older one.
-  std::string str_value = base::GetAndroidProp("ro.build.version.sdk");
-  if (str_value.empty())
-    return true;
-  auto opt_value = base::CStringToUInt32(str_value.c_str());
-  return !opt_value.has_value() || *opt_value >= 28;  // 28 == Android P.
+  return IsSdkGreaterOrEqualThan(28);  // 28 == Android P.
+#else
+  // In in-tree builds we know that atrace is current, no runtime checks needed.
+  return true;
+#endif
+}
+
+bool AtraceWrapperImpl::SupportsPreferSdk() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  // Sideloaded case. We could be sideloaded on a modern device or an older one.
+  return IsSdkGreaterOrEqualThan(36);  // 35 == Android V.
 #else
   // In in-tree builds we know that atrace is current, no runtime checks needed.
   return true;

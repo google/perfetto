@@ -14,11 +14,11 @@
 """Contains tables for relevant for Android."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
-from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
@@ -156,9 +156,100 @@ ANDROID_DUMPSTATE_TABLE = Table(
                 '''
         }))
 
+ANDROID_MOTION_EVENTS_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidMotionEventsTable',
+    sql_name='__intrinsic_android_motion_events',
+    columns=[
+        C('event_id', CppUint32()),
+        C('ts', CppInt64()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='Contains Android MotionEvents processed by the system',
+        group='Android',
+        columns={
+            'event_id':
+                '''
+                    The randomly-generated ID associated with each input event processed
+                    by Android Framework, used to track the event through the input pipeline.
+                ''',
+            'ts':
+                '''The timestamp of when the input event was processed by the system.''',
+            'arg_set_id':
+                ColumnDoc(
+                    doc='Details of the motion event parsed from the proto message.',
+                    joinable='args.arg_set_id'),
+        }))
+
+ANDROID_KEY_EVENTS_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidKeyEventsTable',
+    sql_name='__intrinsic_android_key_events',
+    columns=[
+        C('event_id', CppUint32()),
+        C('ts', CppInt64()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='Contains Android KeyEvents processed by the system',
+        group='Android',
+        columns={
+            'event_id':
+                '''
+                    The randomly-generated ID associated with each input event processed
+                    by Android Framework, used to track the event through the input pipeline.
+                ''',
+            'ts':
+                '''The timestamp of when the input event was processed by the system.''',
+            'arg_set_id':
+                ColumnDoc(
+                    doc='Details of the key event parsed from the proto message.',
+                    joinable='args.arg_set_id'),
+        }))
+
+ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidInputEventDispatchTable',
+    sql_name='__intrinsic_android_input_event_dispatch',
+    columns=[
+        C('event_id', CppUint32()),
+        C('arg_set_id', CppUint32()),
+        C('vsync_id', CppInt64()),
+        C('window_id', CppInt32()),
+    ],
+    tabledoc=TableDoc(
+        doc=
+            '''
+                Contains records of Android input events being dispatched to input windows
+                by the Android Framework.
+            ''',
+        group='Android',
+        columns={
+            'event_id':
+                ColumnDoc(
+                    doc='The id of the input event that was dispatched.',
+                    joinable='__intrinsic_android_motion_events.event_id'),
+            'arg_set_id':
+                ColumnDoc(
+                    doc='Details of the dispatched event parsed from the proto message.',
+                    joinable='args.arg_set_id'),
+            'vsync_id':
+                '''
+                    The id of the vsync during which the Framework made the decision to
+                    dispatch this input event, used to identify the state of the input windows
+                    when the dispatching decision was made.
+                ''',
+            'window_id':
+                'The id of the window to which the event was dispatched.',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANDROID_LOG_TABLE,
     ANDROID_DUMPSTATE_TABLE,
     ANDROID_GAME_INTERVENTION_LIST_TABLE,
+    ANDROID_KEY_EVENTS_TABLE,
+    ANDROID_MOTION_EVENTS_TABLE,
+    ANDROID_INPUT_EVENT_DISPATCH_TABLE,
 ]

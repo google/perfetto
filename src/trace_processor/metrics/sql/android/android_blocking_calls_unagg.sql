@@ -36,6 +36,7 @@ SELECT
   MAX(dur) AS max_dur_ns,
   MIN(dur) AS min_dur_ns,
   SUM(dur) AS total_dur_ns,
+  AVG(dur) AS avg_dur_ns,
   upid,
   process_name
 FROM
@@ -71,9 +72,11 @@ SELECT AndroidBlockingCallsUnagg(
               AndroidBlockingCall(
                 'name', d.name,
                 'cnt', d.occurrences,
+                'avg_dur_ms', CAST(avg_dur_ns / 1e6 AS INT),
                 'total_dur_ms', CAST(total_dur_ns / 1e6 AS INT),
                 'max_dur_ms', CAST(max_dur_ns / 1e6 AS INT),
                 'min_dur_ms', CAST(min_dur_ns / 1e6 AS INT),
+                'avg_dur_ns', CAST(d.avg_dur_ns AS INT),
                 'total_dur_ns', d.total_dur_ns,
                 'max_dur_ns', d.max_dur_ns,
                 'min_dur_ns', d.min_dur_ns
@@ -81,6 +84,7 @@ SELECT AndroidBlockingCallsUnagg(
             ) FROM (
             SELECT b.name,
               b.occurrences,
+              b.avg_dur_ns,
               b.total_dur_ns,
               b.max_dur_ns,
               b.min_dur_ns

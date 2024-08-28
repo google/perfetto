@@ -60,12 +60,6 @@ SearchValidationResult IdStorage::ChainImpl::ValidateSearchConstraints(
     if (op == FilterOp::kIsNotNull) {
       return SearchValidationResult::kAllData;
     }
-    if (op == FilterOp::kIsNull) {
-      return SearchValidationResult::kNoData;
-    }
-    PERFETTO_DFATAL(
-        "Invalid filter operation. NULL should only be compared with 'IS NULL' "
-        "and 'IS NOT NULL'");
     return SearchValidationResult::kNoData;
   }
 
@@ -246,47 +240,6 @@ void IdStorage::ChainImpl::IndexSearchValidated(FilterOp op,
   PERFETTO_FATAL("FilterOp not matched");
 }
 
-Range IdStorage::ChainImpl::OrderedIndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    const OrderedIndices& indices) const {
-  PERFETTO_DCHECK(op != FilterOp::kNe);
-
-  PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "IdStorage::ChainImpl::OrderedIndexSearch",
-      [indices, op](metatrace::Record* r) {
-        r->AddArg("Count", std::to_string(indices.size));
-        r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
-      });
-
-  // It's a valid filter operation if |sql_val| is a double, although it
-  // requires special logic.
-  if (sql_val.type == SqlValue::kDouble) {
-    switch (utils::CompareIntColumnWithDouble(op, &sql_val)) {
-      case SearchValidationResult::kOk:
-        break;
-      case SearchValidationResult::kAllData:
-        return {0, indices.size};
-      case SearchValidationResult::kNoData:
-        return {};
-    }
-  }
-  auto val = static_cast<uint32_t>(sql_val.AsLong());
-
-  // OrderedIndices are monotonic non contiguous values if OrderedIndexSearch
-  // was called. Look for the first and last index and find the result of
-  // looking for this range in IdStorage.
-  Range indices_range(indices.data[0], indices.data[indices.size - 1] + 1);
-  Range bin_search_ret = BinarySearchIntrinsic(op, val, indices_range);
-
-  const auto* start_ptr = std::lower_bound(
-      indices.data, indices.data + indices.size, bin_search_ret.start);
-  const auto* end_ptr = std::lower_bound(start_ptr, indices.data + indices.size,
-                                         bin_search_ret.end);
-  return {static_cast<uint32_t>(std::distance(indices.data, start_ptr)),
-          static_cast<uint32_t>(std::distance(indices.data, end_ptr))};
-}
-
 Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
                                                   Id val,
                                                   Range range) {
@@ -311,19 +264,19 @@ Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
   PERFETTO_FATAL("FilterOp not matched");
 }
 
-void IdStorage::ChainImpl::StableSort(SortToken* start,
-                                      SortToken* end,
+void IdStorage::ChainImpl::StableSort(Token* start,
+                                      Token* end,
                                       SortDirection direction) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "IdStorage::ChainImpl::StableSort");
   switch (direction) {
     case SortDirection::kAscending:
-      std::stable_sort(start, end, [](const SortToken& a, const SortToken& b) {
+      std::stable_sort(start, end, [](const Token& a, const Token& b) {
         return a.index < b.index;
       });
       return;
     case SortDirection::kDescending:
-      std::stable_sort(start, end, [](const SortToken& a, const SortToken& b) {
+      std::stable_sort(start, end, [](const Token& a, const Token& b) {
         return a.index > b.index;
       });
       return;
@@ -361,6 +314,10 @@ std::optional<Token> IdStorage::ChainImpl::MinElement(Indices& indices) const {
     return std::nullopt;
   }
   return *tok;
+}
+
+SqlValue IdStorage::ChainImpl::Get_AvoidUsingBecauseSlow(uint32_t index) const {
+  return SqlValue::Long(index);
 }
 
 void IdStorage::ChainImpl::Serialize(StorageProto* storage) const {

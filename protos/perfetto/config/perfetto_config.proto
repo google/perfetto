@@ -367,99 +367,113 @@ message AndroidGameInterventionListConfig {
 //
 // Next ID: 5
 message AndroidInputEventConfig {
+  // Trace modes are tracing presets that are included in the system.
+  enum TraceMode {
+    // Preset mode for maximal tracing.
+    // WARNING: This will bypass all privacy measures on debuggable builds, and
+    // will record all
+    //          input events processed by the system, regardless of the context
+    //          in which they were processed. It should only be used for tracing
+    //          on a local device or for tests. It should NEVER be used for
+    //          field tracing.
+    TRACE_MODE_TRACE_ALL = 0;
+    // Use the tracing rules defined in this config to specify what events to
+    // trace.
+    TRACE_MODE_USE_RULES = 1;
+  }
 
-    // Trace modes are tracing presets that are included in the system.
-    enum TraceMode {
-        // Preset mode for maximal tracing.
-        // WARNING: This will bypass all privacy measures on debuggable builds, and will record all
-        //          input events processed by the system, regardless of the context in which they
-        //          were processed. It should only be used for tracing on a local device or for
-        //          tests. It should NEVER be used for field tracing.
-        TRACE_MODE_TRACE_ALL = 0;
-        // Use the tracing rules defined in this config to specify what events to trace.
-        TRACE_MODE_USE_RULES = 1;
-    }
+  // The tracing mode to use. If unspecified, it will default to
+  // TRACE_MODE_USE_RULES.
+  optional TraceMode mode = 1;
 
-    // The tracing mode to use. If unspecified, it will default to TRACE_MODE_USE_RULES.
-    optional TraceMode mode = 1;
+  // The level of tracing that should be applied to an event.
+  enum TraceLevel {
+    // Do not trace the input event.
+    TRACE_LEVEL_NONE = 0;
+    // Trace the event as a redacted event, where certain sensitive fields are
+    // omitted from the trace, including the coordinates of pointer events and
+    // the key/scan codes of key events.
+    TRACE_LEVEL_REDACTED = 1;
+    // Trace the complete event.
+    TRACE_LEVEL_COMPLETE = 2;
+  }
 
-    // The level of tracing that should be applied to an event.
-    enum TraceLevel {
-        // Do not trace the input event.
-        TRACE_LEVEL_NONE = 0;
-        // Trace the event as a redacted event, where certain sensitive fields are omitted from
-        // the trace, including the coordinates of pointer events and the key/scan codes of key
-        // events.
-        TRACE_LEVEL_REDACTED = 1;
-        // Trace the complete event.
-        TRACE_LEVEL_COMPLETE = 2;
-    }
+  // A rule that specifies the TraceLevel for an event based on matching
+  // conditions. All matchers in the rule are optional. To trigger this rule, an
+  // event must match all of its specified matchers (i.e. the matchers function
+  // like a series of conditions connected by a logical 'AND' operator). A rule
+  // with no specified matchers will match all events. Next ID: 6
+  message TraceRule {
+    // The trace level to be used for events that trigger this rule.
+    // If unspecified, TRACE_LEVEL_NONE will be used by default.
+    optional TraceLevel trace_level = 1;
 
-    // A rule that specifies the TraceLevel for an event based on matching conditions.
-    // All matchers in the rule are optional. To trigger this rule, an event must match all
-    // of its specified matchers (i.e. the matchers function like a series of conditions connected
-    // by a logical 'AND' operator). A rule with no specified matchers will match all events.
-    // Next ID: 6
-    message TraceRule {
-        // The trace level to be used for events that trigger this rule.
-        // If unspecified, TRACE_LEVEL_NONE will be used by default.
-        optional TraceLevel trace_level = 1;
+    // --- Optional Matchers ---
 
-        // --- Optional Matchers ---
+    // Package matchers
+    //
+    // Respectively matches if all or any of the target apps for this event are
+    // contained in the specified list of package names.
+    //
+    // Intended usage:
+    //   - Use match_all_packages to selectively allow tracing for the listed
+    //   packages.
+    //   - Use match_any_packages to selectively deny tracing for certain
+    //   packages.
+    //
+    // WARNING: Great care must be taken when designing rules for field tracing!
+    //          This is because each event is almost always sent to more than
+    //          one app.
+    //              For example, when allowing tracing for a package that has a
+    //              spy window
+    //          over the display (e.g. SystemUI) using match_any_packages,
+    //          essentially all input will be recorded on that display. This is
+    //          because the events will be sent to the spy as well as the
+    //          foreground app, and regardless of what the foreground app is,
+    //          the event will end up being traced.
+    //              Alternatively, when attempting to block tracing for specific
+    //              packages using
+    //          match_all_packages, no events will likely be blocked. This is
+    //          because the event will also be sent to other apps (such as, but
+    //          not limited to, ones with spy windows), so the matcher will not
+    //          match unless all other targets are also listed under the
+    //          match_all_packages list.
+    repeated string match_all_packages = 2;
+    repeated string match_any_packages = 3;
 
-        // Package matchers
-        //
-        // Respectively matches if all or any of the target apps for this event are contained in
-        // the specified list of package names.
-        //
-        // Intended usage:
-        //   - Use match_all_packages to selectively allow tracing for the listed packages.
-        //   - Use match_any_packages to selectively deny tracing for certain packages.
-        //
-        // WARNING: Great care must be taken when designing rules for field tracing!
-        //          This is because each event is almost always sent to more than one app.
-        //              For example, when allowing tracing for a package that has a spy window
-        //          over the display (e.g. SystemUI) using match_any_packages, essentially all
-        //          input will be recorded on that display. This is because the events will be sent
-        //          to the spy as well as the foreground app, and regardless of what the foreground
-        //          app is, the event will end up being traced.
-        //              Alternatively, when attempting to block tracing for specific packages using
-        //          match_all_packages, no events will likely be blocked. This is because the event
-        //          will also be sent to other apps (such as, but not limited to, ones with spy
-        //          windows), so the matcher will not match unless all other targets are also
-        //          listed under the match_all_packages list.
-        repeated string match_all_packages = 2;
-        repeated string match_any_packages = 3;
+    // Matches if the event is secure, which means that at least one of the
+    // targets of this event is using the window flag FLAG_SECURE.
+    optional bool match_secure = 4;
 
-        // Matches if the event is secure, which means that at least one of the targets of
-        // this event is using the window flag FLAG_SECURE.
-        optional bool match_secure = 4;
+    // Matches if there was an active IME connection while this event was being
+    // processed.
+    optional bool match_ime_connection_active = 5;
+  }
 
-        // Matches if there was an active IME connection while this event was being processed.
-        optional bool match_ime_connection_active = 5;
-    }
+  // The list of rules to use to determine the trace level of events.
+  // Each event will be traced using the TraceLevel of the first rule that it
+  // triggers from this list. The rules are evaluated in the order in which they
+  // are specified. If an event does not match any of the rules,
+  // TRACE_LEVEL_NONE will be used by default.
+  repeated TraceRule rules = 2;
 
-    // The list of rules to use to determine the trace level of events.
-    // Each event will be traced using the TraceLevel of the first rule that it triggers
-    // from this list. The rules are evaluated in the order in which they are specified.
-    // If an event does not match any of the rules, TRACE_LEVEL_NONE will be used by default.
-    repeated TraceRule rules = 2;
+  // --- Control flags ---
 
-    // --- Control flags ---
+  // Trace input events processed by the system as they are being dispatched
+  // to application windows. All trace rules will apply.
+  //   - If this flag is used without enabling trace_dispatcher_window_dispatch,
+  //   it will
+  //     trace InputDispatcher's inbound events (which does not include events
+  //     synthesized within InputDispatcher) that match the rules.
+  //   - If used with trace_dispatcher_window_dispatch, all inbound and outbound
+  //   events
+  //     matching the rules, including all events synthesized within
+  //     InputDispatcher, will be traced.
+  optional bool trace_dispatcher_input_events = 3;
 
-    // Trace input events processed by the system as they are being dispatched
-    // to application windows. All trace rules will apply.
-    //   - If this flag is used without enabling trace_dispatcher_window_dispatch, it will
-    //     trace InputDispatcher's inbound events (which does not include events synthesized
-    //     within InputDispatcher) that match the rules.
-    //   - If used with trace_dispatcher_window_dispatch, all inbound and outbound events
-    //     matching the rules, including all events synthesized within InputDispatcher,
-    //     will be traced.
-    optional bool trace_dispatcher_input_events = 3;
-
-    // Trace details about which windows the system is sending each input event to.
-    // All trace rules will apply.
-    optional bool trace_dispatcher_window_dispatch = 4;
+  // Trace details about which windows the system is sending each input event
+  // to. All trace rules will apply.
+  optional bool trace_dispatcher_window_dispatch = 4;
 }
 
 // End of protos/perfetto/config/android/android_input_event_config.proto
@@ -801,6 +815,39 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/windowmanager_config.proto
+
+// Custom configuration for the "android.windowmanager" data source.
+message WindowManagerConfig {
+  enum LogFrequency {
+    LOG_FREQUENCY_UNSPECIFIED = 0;
+
+    // Trace state snapshots when a frame is committed.
+    LOG_FREQUENCY_FRAME = 1;
+
+    // Trace state snapshots every time a transaction is committed.
+    LOG_FREQUENCY_TRANSACTION = 2;
+  }
+  optional LogFrequency log_frequency = 1;
+
+  enum LogLevel {
+    LOG_LEVEL_UNSPECIFIED = 0;
+
+    // Logs all elements with maximum amount of information.
+    LOG_LEVEL_VERBOSE = 1;
+
+    // Logs all elements but doesn't write all configuration data.
+    LOG_LEVEL_DEBUG = 2;
+
+    // Logs only visible elements, with the minimum amount of performance
+    // overhead
+    LOG_LEVEL_CRITICAL = 3;
+  }
+  optional LogLevel log_level = 2;
+}
+
+// End of protos/perfetto/config/android/windowmanager_config.proto
+
 // Begin of protos/perfetto/config/chrome/chrome_config.proto
 
 message ChromeConfig {
@@ -873,13 +920,17 @@ message EtwConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 28
+// Next id: 29
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
   // Android-specific event categories:
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
+  // Some processes can emit data through atrace or through the perfetto SDK via
+  // the "track_event" data source. For these categories, the SDK will be
+  // preferred, if possible, for this config.
+  repeated string atrace_categories_prefer_sdk = 28;
 
   // Size of each per-cpu kernel ftrace ring buffer.
   // Not guaranteed if there are multiple concurrent tracing sessions, as the
@@ -2845,6 +2896,11 @@ enum MeminfoCounters {
   MEMINFO_VMALLOC_CHUNK = 31;
   MEMINFO_CMA_TOTAL = 32;
   MEMINFO_CMA_FREE = 33;
+  MEMINFO_GPU = 34;
+  MEMINFO_ZRAM = 35;
+  MEMINFO_MISC = 36;
+  MEMINFO_ION_HEAP = 37;
+  MEMINFO_ION_HEAP_POOL = 38;
 }
 
 // Counter definitions for Linux's /proc/vmstat.
@@ -3103,6 +3159,10 @@ message SysStatsConfig {
   // Polls /proc/pressure/* every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 psi_period_ms = 11;
+
+  // Polls /sys/class/thermal/* every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 thermal_period_ms = 12;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -3257,7 +3317,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 130
+// Next id: 131
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3403,10 +3463,14 @@ message DataSourceConfig {
   optional ProtoLogConfig protolog_config = 126 [lazy = true];
 
   // Data source name: android.input.inputevent
-  optional AndroidInputEventConfig android_input_event_config = 128 [lazy = true];
+  optional AndroidInputEventConfig android_input_event_config = 128
+      [lazy = true];
 
   // Data source name: android.pixel.modem
   optional PixelModemConfig pixel_modem_config = 129 [lazy = true];
+
+  // Data source name: android.windowmanager
+  optional WindowManagerConfig windowmanager_config = 130 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -3433,7 +3497,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 39.
+// Next id: 40.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4099,6 +4163,51 @@ message TraceConfig {
     optional uint32 max_delay_ms = 2;
   }
   optional CmdTraceStartDelay cmd_trace_start_delay = 35;
+
+  // When non-empty, ensures that for a each semaphore named `name at most
+  // `max_other_session_count`` *other* sessions (whose value is taken of the
+  // minimum of all values specified by this config or any already-running
+  // session) can be be running.
+  //
+  // If a semaphore "acquisition" fails, EnableTracing will return an error
+  // and the tracing session will not be started (or elgible to start in
+  // the case of deferred sessions).
+  //
+  // This is easiest to explain with an example. Suppose the tracing service has
+  // the following active tracing sessions:
+  //   S1 = [{name=foo, max_other_session_count=2},
+  //         {name=bar, max_other_session_count=0}]
+  //   S2 = [{name=foo, max_other_session_count=1},
+  //         {name=baz, max_other_session_count=1}]
+  //
+  // Then, for a new session, the following would be the expected behaviour of
+  // EnableSession given the state of `session_semaphores`.
+  //   Q: session_semaphores = []
+  //   A: Allowed because it does not specify any semaphores. Will be allowed
+  //      no matter the state of any other tracing session.
+  //   Q: session_semaphores = [{name=baz, max_other_session_count=1}]
+  //   A: Allowed because both S2 and this config specify
+  //      max_other_session_count=1 for baz.
+  //   Q: session_semaphores = [{name=foo, max_other_session_count=3}]
+  //   A: Denied because S2 specified max_other_session_count=1 for foo and S1
+  //      takes that slot.
+  //   Q: session_semaphores = [{name=bar, max_other_session_count=0}]
+  //   A: Denied because S1 takes the the slot specified by both S1 and
+  //      this config.
+  //
+  // Introduced in 24Q3 (Android V).
+  message SessionSemaphore {
+    // The name of the semaphore. Acts as a unique identifier across all
+    // tracing sessions (including the one being started).
+    optional string name = 1;
+
+    // The maximum number of *other* sesssions which specify the same semaphore
+    // which can be active. The minimum of this value across all tracing
+    // sessions and the value specified by the config is used when deciding
+    // whether the tracing session can be started.
+    optional uint64 max_other_session_count = 2;
+  }
+  repeated SessionSemaphore session_semaphores = 39;
 }
 
 // End of protos/perfetto/config/trace_config.proto

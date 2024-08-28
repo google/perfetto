@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {_TextDecoder} from 'custom_utils';
-
 import {defer, Deferred} from '../../base/deferred';
 import {assertFalse} from '../../base/logging';
 import {ArrayBufferBuilder} from '../../base/array_buffer_builder';
-
 import {RecordingError} from './recording_error_handling';
 import {ByteStream} from './recording_interfaces_v2';
 import {
   BINARY_PUSH_FAILURE,
   BINARY_PUSH_UNKNOWN_RESPONSE,
 } from './recording_utils';
+import {utf8Decode} from '../../base/string_utils';
 
 // https://cs.android.com/android/platform/superproject/+/main:packages/
 // modules/adb/file_sync_protocol.h;l=144
@@ -34,8 +32,6 @@ const MAX_SYNC_SEND_CHUNK_SIZE = 64 * 1024;
 // explicitly sets permissions, such as:
 // 'shell:chmod ${permissions} ${path}'
 const FILE_PERMISSIONS = 2 ** 15 + 0o644;
-
-const textDecoder = new _TextDecoder();
 
 // For details about the protocol, see:
 // https://cs.android.com/android/platform/superproject/+/main:packages/modules/adb/SYNC.TXT
@@ -78,7 +74,7 @@ export class AdbFileHandler {
 
   private onStreamData(data: Uint8Array, transferFinished: Deferred<void>) {
     this.sentByteCount = 0;
-    const response = textDecoder.decode(data);
+    const response = utf8Decode(data);
     if (response.split('\n')[0].includes('FAIL')) {
       // Sample failure response (when the file is transferred successfully
       // but the date is not formatted correctly):
@@ -86,7 +82,7 @@ export class AdbFileHandler {
       transferFinished.reject(
         new RecordingError(`${BINARY_PUSH_FAILURE}: ${response}`),
       );
-    } else if (textDecoder.decode(data).substring(0, 4) === 'OKAY') {
+    } else if (utf8Decode(data).substring(0, 4) === 'OKAY') {
       // In case of success, the server responds to the last request with
       // 'OKAY'.
       transferFinished.resolve();

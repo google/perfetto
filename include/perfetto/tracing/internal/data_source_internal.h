@@ -112,6 +112,10 @@ struct DataSourceState {
   // second time.
   bool async_stop_in_progress = false;
 
+  // Whether this data source instance should call NotifyDataSourceStopped()
+  // when it's stopped.
+  bool will_notify_on_stop = false;
+
   // This lock is not held to implement Trace() and it's used only if the trace
   // code wants to access its own data source state.
   // This is to prevent that accessing the data source on an arbitrary embedder

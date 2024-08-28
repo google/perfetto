@@ -76,21 +76,22 @@ export async function breakDownIntervalByThreadState(
   const query = await engine.query(`
     INCLUDE PERFETTO MODULE sched.time_in_state;
     INCLUDE PERFETTO MODULE sched.states;
-    INCLUDE PERFETTO MODULE cpu.size;
+    INCLUDE PERFETTO MODULE android.cpu.cluster_type;
 
     SELECT
       sched_state_io_to_human_readable_string(state, io_wait) as state,
       state AS rawState,
-      cpu_guess_core_type(cpu) AS cpuType,
+      cluster_type AS clusterType,
       cpu,
       blocked_function AS blockedFunction,
       dur
-    FROM sched_time_in_state_and_cpu_for_thread_in_interval(${range.start}, ${range.duration}, ${utid});
+    FROM sched_time_in_state_and_cpu_for_thread_in_interval(${range.start}, ${range.duration}, ${utid})
+    LEFT JOIN android_cpu_cluster_mapping USING(cpu);
   `);
   const it = query.iter({
     state: STR,
     rawState: STR,
-    cpuType: STR_NULL,
+    clusterType: STR_NULL,
     cpu: NUM_NULL,
     blockedFunction: STR_NULL,
     dur: LONG,
@@ -100,8 +101,8 @@ export async function breakDownIntervalByThreadState(
     let currentNode = root;
     currentNode = currentNode.getOrCreateChild(it.state);
     // If the CPU time is not null, add it to the breakdown.
-    if (it.cpuType !== null) {
-      currentNode = currentNode.getOrCreateChild(it.cpuType);
+    if (it.clusterType !== null) {
+      currentNode = currentNode.getOrCreateChild(it.clusterType);
     }
     if (it.cpu !== null) {
       currentNode = currentNode.getOrCreateChild(`CPU ${it.cpu}`);

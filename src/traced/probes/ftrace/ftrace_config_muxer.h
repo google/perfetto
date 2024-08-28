@@ -42,21 +42,25 @@ struct FtraceSetupErrors;
 // State held by the muxer per data source, used to parse ftrace according to
 // that data source's config.
 struct FtraceDataSourceConfig {
-  FtraceDataSourceConfig(EventFilter event_filter_in,
-                         EventFilter syscall_filter_in,
-                         CompactSchedConfig compact_sched_in,
-                         std::optional<FtracePrintFilterConfig> print_filter_in,
-                         std::vector<std::string> atrace_apps_in,
-                         std::vector<std::string> atrace_categories_in,
-                         bool symbolize_ksyms_in,
-                         uint32_t buffer_percent_in,
-                         base::FlatSet<int64_t> syscalls_returning_fd_in)
+  FtraceDataSourceConfig(
+      EventFilter event_filter_in,
+      EventFilter syscall_filter_in,
+      CompactSchedConfig compact_sched_in,
+      std::optional<FtracePrintFilterConfig> print_filter_in,
+      std::vector<std::string> atrace_apps_in,
+      std::vector<std::string> atrace_categories_in,
+      std::vector<std::string> atrace_categories_sdk_optout_in,
+      bool symbolize_ksyms_in,
+      uint32_t buffer_percent_in,
+      base::FlatSet<int64_t> syscalls_returning_fd_in)
       : event_filter(std::move(event_filter_in)),
         syscall_filter(std::move(syscall_filter_in)),
         compact_sched(compact_sched_in),
         print_filter(std::move(print_filter_in)),
         atrace_apps(std::move(atrace_apps_in)),
         atrace_categories(std::move(atrace_categories_in)),
+        atrace_categories_sdk_optout(
+            std::move(atrace_categories_sdk_optout_in)),
         symbolize_ksyms(symbolize_ksyms_in),
         buffer_percent(buffer_percent_in),
         syscalls_returning_fd(std::move(syscalls_returning_fd_in)) {}
@@ -78,6 +82,7 @@ struct FtraceDataSourceConfig {
   // Used only in Android for ATRACE_EVENT/os.Trace() userspace annotations.
   std::vector<std::string> atrace_apps;
   std::vector<std::string> atrace_categories;
+  std::vector<std::string> atrace_categories_sdk_optout;
 
   // When enabled will turn on the kallsyms symbolizer in CpuReader.
   const bool symbolize_ksyms;
@@ -184,8 +189,14 @@ class FtraceConfigMuxer {
     protos::pbzero::FtraceClock ftrace_clock{};
     // Used only in Android for ATRACE_EVENT/os.Trace() userspace:
     bool atrace_on = false;
+    // Apps that should have the app tag enabled. This is a union of all the
+    // active configs.
     std::vector<std::string> atrace_apps;
+    // Categories that should be enabled. This is a union of all the active
+    // configs.
     std::vector<std::string> atrace_categories;
+    // Categories for which the perfetto SDK track_event should be enabled.
+    std::vector<std::string> atrace_categories_prefer_sdk;
     bool saved_tracing_on;  // Backup for the original tracing_on.
   };
 
@@ -199,6 +210,8 @@ class FtraceConfigMuxer {
   bool StartAtrace(const std::vector<std::string>& apps,
                    const std::vector<std::string>& categories,
                    std::string* atrace_errors);
+  bool SetAtracePreferSdk(const std::vector<std::string>& prefer_sdk_categories,
+                          std::string* atrace_errors);
   void DisableAtrace();
 
   // This processes the config to get the exact events.

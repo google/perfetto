@@ -360,16 +360,8 @@ class RowMap {
     return SelectRowsSlow(selector);
   }
 
-  // Intersects the range [start_index, end_index) with |this| writing the
-  // result into |this|. By "intersect", we mean to keep only the indices
-  // present in both this RowMap and in the Range [start_index, end_index). The
-  // order of the preserved indices will be the same as |this|.
-  //
-  // Conceptually, we are performing the following algorithm:
-  // for (idx : this)
-  //   if (start_index <= idx && idx < end_index)
-  //     continue;
-  //   Remove(idx)
+  // Intersects |this| with |second| independent of underlying structure of both
+  // RowMaps. Modifies |this| to only contain indices present in |second|.
   void Intersect(const RowMap& second);
 
   // Intersects this RowMap with |index|. If this RowMap contained |index|, then

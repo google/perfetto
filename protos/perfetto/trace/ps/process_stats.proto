@@ -83,6 +83,7 @@ message ProcessStats {
     optional uint64 smr_pss_anon_kb = 18;
     optional uint64 smr_pss_file_kb = 19;
     optional uint64 smr_pss_shmem_kb = 20;
+    optional uint64 smr_swap_pss_kb = 23;
 
     // Time spent scheduled in user mode in nanoseconds. Parsed from utime in
     // /proc/pid/stat. Recorded if record_process_runtime config option is set.

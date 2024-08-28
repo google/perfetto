@@ -32,7 +32,7 @@
  * using the "floating" canvas technique described above.
  */
 
-import {Disposable, Trash} from '../base/disposable';
+import {DisposableStack} from '../base/disposable_stack';
 import {
   Rect,
   Size,
@@ -66,7 +66,7 @@ export interface VirtualCanvasOpts {
 }
 
 export class VirtualCanvas implements Disposable {
-  private readonly _trash = new Trash();
+  private readonly _trash = new DisposableStack();
   private readonly _canvasElement: HTMLCanvasElement;
   private readonly _targetElement: HTMLElement;
 
@@ -153,7 +153,7 @@ export class VirtualCanvas implements Disposable {
     containerElement.addEventListener('scroll', updateCanvas, {
       passive: true,
     });
-    this._trash.addCallback(() =>
+    this._trash.defer(() =>
       containerElement.removeEventListener('scroll', updateCanvas),
     );
 
@@ -164,7 +164,7 @@ export class VirtualCanvas implements Disposable {
 
     resizeObserver.observe(containerElement);
     resizeObserver.observe(targetElement);
-    this._trash.addCallback(() => {
+    this._trash.defer(() => {
       resizeObserver.disconnect();
     });
 
@@ -174,7 +174,7 @@ export class VirtualCanvas implements Disposable {
     const canvas = document.createElement('canvas');
     canvas.style.position = 'absolute';
     targetElement.appendChild(canvas);
-    this._trash.addCallback(() => {
+    this._trash.defer(() => {
       targetElement.removeChild(canvas);
     });
 
@@ -251,7 +251,7 @@ export class VirtualCanvas implements Disposable {
   /**
    * Stop listening to DOM events.
    */
-  dispose(): void {
+  [Symbol.dispose]() {
     this._trash.dispose();
   }
 

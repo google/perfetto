@@ -7,7 +7,8 @@ VALUES
 ('SPLASHSCREEN_AVD', 'll.splashscreen'),
 ('ONE_HANDED_ENTER_TRANSITION::*', 'wmshell.main'),
 ('ONE_HANDED_EXIT_TRANSITION::*', 'wmshell.main'),
-('PIP_TRANSITION::*', 'wmshell.main');
+('PIP_TRANSITION::*', 'wmshell.main'),
+('BACK_PANEL_ARROW', 'BackPanelUiThre');
 
 
 -- Matches each CUJ with the right set of parameters.

@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {_TextDecoder, _TextEncoder} from 'custom_utils';
-
 import {defer, Deferred} from '../../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../../base/logging';
 import {isString} from '../../base/object_utils';
+import {utf8Decode, utf8Encode} from '../../base/string_utils';
 import {CmdType} from '../../controller/adb_interfaces';
-
 import {AdbConnectionImpl} from './adb_connection_impl';
 import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
 import {RecordingError, wrapRecordingError} from './recording_error_handling';
@@ -28,9 +26,6 @@ import {
   OnStreamDataCallback,
 } from './recording_interfaces_v2';
 import {ALLOW_USB_DEBUGGING, findInterfaceAndEndpoint} from './recording_utils';
-
-const textEncoder = new _TextEncoder();
-const textDecoder = new _TextDecoder();
 
 export const VERSION_WITH_CHECKSUM = 0x01000000;
 export const VERSION_NO_CHECKSUM = 0x01000001;
@@ -93,7 +88,10 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
   // Once we've sent the public key, for future recordings we only need to
   // sign with the private key, so the user doesn't need to give permissions
   // again.
-  constructor(private device: USBDevice, private keyManager: AdbKeyManager) {
+  constructor(
+    private device: USBDevice,
+    private keyManager: AdbKeyManager,
+  ) {
     super();
   }
 
@@ -196,7 +194,7 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
   }
 
   streamWrite(msg: string | Uint8Array, stream: AdbOverWebusbStream): void {
-    const raw = isString(msg) ? textEncoder.encode(msg) : msg;
+    const raw = isString(msg) ? utf8Encode(msg) : msg;
     if (this.writeInProgress) {
       this.writeQueue.push({message: raw, localStreamId: stream.localStreamId});
       return;
@@ -620,7 +618,7 @@ class AdbMsg {
   }
 
   get dataStr() {
-    return textDecoder.decode(this.data);
+    return utf8Decode(this.data);
   }
 
   toString() {
@@ -640,7 +638,7 @@ class AdbMsg {
   // };
   static decodeHeader(dv: DataView): AdbMsg {
     assertTrue(dv.byteLength === ADB_MSG_SIZE);
-    const cmd = textDecoder.decode(dv.buffer.slice(0, 4)) as CmdType;
+    const cmd = utf8Decode(dv.buffer.slice(0, 4)) as CmdType;
     const cmdNum = dv.getUint32(0, true);
     const arg0 = dv.getUint32(4, true);
     const arg1 = dv.getUint32(8, true);
@@ -654,7 +652,7 @@ class AdbMsg {
   encodeHeader(): Uint8Array {
     const buf = new Uint8Array(ADB_MSG_SIZE);
     const dv = new DataView(buf.buffer);
-    const cmdBytes: Uint8Array = textEncoder.encode(this.cmd);
+    const cmdBytes: Uint8Array = utf8Encode(this.cmd);
     const rawMsg = AdbMsg.encodeData(this.data);
     const checksum = this.useChecksum ? generateChecksum(rawMsg) : 0;
     for (let i = 0; i < 4; i++) dv.setUint8(i, cmdBytes[i]);
@@ -670,7 +668,7 @@ class AdbMsg {
 
   static encodeData(data?: Uint8Array | string): Uint8Array {
     if (data === undefined) return new Uint8Array([]);
-    if (isString(data)) return textEncoder.encode(data + '\0');
+    if (isString(data)) return utf8Encode(data + '\0');
     return data;
   }
 }

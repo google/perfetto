@@ -16,6 +16,8 @@
 
 #include "src/traced/probes/system_info/system_info_data_source.h"
 
+#include <optional>
+
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -75,8 +77,19 @@ void SystemInfoDataSource::Start() {
     line_start = line_end + 1;
     if (line.empty() && !cpu_index.empty()) {
       PERFETTO_DCHECK(cpu_index == std::to_string(next_cpu_index));
+
       auto* cpu = cpu_info->add_cpus();
       cpu->set_processor(default_processor);
+
+      std::optional<uint32_t> cpu_capacity = base::StringToUInt32(
+          base::StripSuffix(ReadFile("/sys/devices/system/cpu/cpu" + cpu_index +
+                                     "/cpu_capacity"),
+                            "\n"));
+
+      if (cpu_capacity.has_value()) {
+        cpu->set_capacity(cpu_capacity.value());
+      }
+
       auto freqs_range = cpu_freq_info_->GetFreqs(next_cpu_index);
       for (auto it = freqs_range.first; it != freqs_range.second; it++) {
         cpu->add_frequencies(*it);

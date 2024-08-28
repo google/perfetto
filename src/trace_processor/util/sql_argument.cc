@@ -31,31 +31,31 @@ bool IsValidName(base::StringView str) {
 }
 
 std::optional<Type> ParseType(base::StringView str) {
-  if (str == "BOOL") {
+  if (str.CaseInsensitiveEq("bool")) {
     return Type::kBool;
   }
-  if (str == "INT") {
+  if (str.CaseInsensitiveEq("int")) {
     return Type::kInt;
   }
-  if (str == "UINT") {
+  if (str.CaseInsensitiveEq("uint")) {
     return Type::kUint;
   }
-  if (str == "LONG") {
+  if (str.CaseInsensitiveEq("long")) {
     return Type::kLong;
   }
-  if (str == "FLOAT") {
+  if (str.CaseInsensitiveEq("float")) {
     return Type::kFloat;
   }
-  if (str == "DOUBLE") {
+  if (str.CaseInsensitiveEq("double")) {
     return Type::kDouble;
   }
-  if (str == "STRING") {
+  if (str.CaseInsensitiveEq("string")) {
     return Type::kString;
   }
-  if (str == "PROTO") {
+  if (str.CaseInsensitiveEq("proto")) {
     return Type::kProto;
   }
-  if (str == "BYTES") {
+  if (str.CaseInsensitiveEq("bytes")) {
     return Type::kBytes;
   }
   return std::nullopt;

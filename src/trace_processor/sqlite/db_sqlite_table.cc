@@ -118,7 +118,7 @@ std::string CreateTableStatementFromSchema(const Table::Schema& schema,
   std::string stmt = "CREATE TABLE x(";
   for (const auto& col : schema.columns) {
     std::string c =
-        col.name + " " + sqlite::utils::SqlValueTypeToString(col.type);
+        col.name + " " + sqlite::utils::SqlValueTypeToSqliteTypeName(col.type);
     if (col.is_hidden) {
       c += " HIDDEN";
     }
@@ -413,15 +413,24 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   auto* t = GetVtab(vtab);
   auto* s = sqlite::ModuleStateManager<DbSqliteModule>::GetState(t->state);
 
+  const Table* table = nullptr;
+  switch (s->computation) {
+    case TableComputation::kStatic:
+      table = s->static_table;
+      break;
+    case TableComputation::kRuntime:
+      table = s->runtime_table.get();
+      break;
+    case TableComputation::kTableFunction:
+      break;
+  }
+
   uint32_t row_count;
   int argv_index;
   switch (s->computation) {
     case TableComputation::kStatic:
-      row_count = s->static_table->row_count();
-      argv_index = 1;
-      break;
     case TableComputation::kRuntime:
-      row_count = s->runtime_table->row_count();
+      row_count = table->row_count();
       argv_index = 1;
       break;
     case TableComputation::kTableFunction:
@@ -447,6 +456,7 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   // constraints and only add them to `idx_str` later.
   int limit = -1;
   int offset = -1;
+  bool has_unknown_constraint = false;
 
   cs_idxes.reserve(static_cast<uint32_t>(info->nConstraint));
   for (int i = 0; i < info->nConstraint; ++i) {
@@ -459,6 +469,8 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
         limit = i;
       } else if (c.op == SQLITE_INDEX_CONSTRAINT_OFFSET) {
         offset = i;
+      } else {
+        has_unknown_constraint = true;
       }
       continue;
     }
@@ -471,30 +483,47 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   // Reorder constraints to consider the constraints on columns which are
   // cheaper to filter first.
   {
-    std::sort(cs_idxes.begin(), cs_idxes.end(), [s, info](int a, int b) {
-      auto a_idx = static_cast<uint32_t>(info->aConstraint[a].iColumn);
-      auto b_idx = static_cast<uint32_t>(info->aConstraint[b].iColumn);
-      const auto& a_col = s->schema.columns[a_idx];
-      const auto& b_col = s->schema.columns[b_idx];
+    std::sort(
+        cs_idxes.begin(), cs_idxes.end(), [s, info, &table](int a, int b) {
+          auto a_idx = static_cast<uint32_t>(info->aConstraint[a].iColumn);
+          auto b_idx = static_cast<uint32_t>(info->aConstraint[b].iColumn);
+          const auto& a_col = s->schema.columns[a_idx];
+          const auto& b_col = s->schema.columns[b_idx];
 
-      // Id columns are always very cheap to filter on so try and get them
-      // first.
-      if (a_col.is_id || b_col.is_id)
-        return a_col.is_id && !b_col.is_id;
+          // Id columns are the most efficient to filter, as they don't have a
+          // support in real data.
+          if (a_col.is_id || b_col.is_id)
+            return a_col.is_id && !b_col.is_id;
 
-      // Set id columns are always very cheap to filter on so try and get them
-      // second.
-      if (a_col.is_set_id || b_col.is_set_id)
-        return a_col.is_set_id && !b_col.is_set_id;
+          // Set id columns are inherently sorted and have fast filtering
+          // operations.
+          if (a_col.is_set_id || b_col.is_set_id)
+            return a_col.is_set_id && !b_col.is_set_id;
 
-      // Sorted columns are also quite cheap to filter so order them after
-      // any id/set id columns.
-      if (a_col.is_sorted || b_col.is_sorted)
-        return a_col.is_sorted && !b_col.is_sorted;
+          // Intrinsically sorted column is more efficient to sort than
+          // extrinsically sorted column.
+          if (a_col.is_sorted || b_col.is_sorted)
+            return a_col.is_sorted && !b_col.is_sorted;
 
-      // TODO(lalitm): introduce more orderings here based on empirical data.
-      return false;
-    });
+          // Extrinsically sorted column is more efficient to sort than unsorted
+          // column.
+          if (table) {
+            auto a_has_idx = table->GetIndex({a_idx});
+            auto b_has_idx = table->GetIndex({b_idx});
+            if (a_has_idx || b_has_idx)
+              return a_has_idx && !b_has_idx;
+          }
+
+          bool a_is_eq = sqlite::utils::IsOpEq(info->aConstraint[a].op);
+          bool b_is_eq = sqlite::utils::IsOpEq(info->aConstraint[a].op);
+          if (a_is_eq || b_is_eq) {
+            return a_is_eq && !b_is_eq;
+          }
+
+          // TODO(lalitm): introduce more orderings here based on empirical
+          // data.
+          return false;
+        });
   }
 
   // Remove any order by constraints which also have an equality constraint.
@@ -571,7 +600,7 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
 
   // Distinct:
   idx_str += "D";
-  if (ob_idxes.size() == 1) {
+  if (ob_idxes.size() == 1 && PERFETTO_POPCOUNT(info->colUsed) == 1) {
     switch (sqlite3_vtab_distinct(info)) {
       case 0:
       case 1:
@@ -597,7 +626,7 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
 
   // LIMIT. Save as "L1" if limit is present and "L0" if not.
   idx_str += "L";
-  if (limit == -1) {
+  if (limit == -1 || has_unknown_constraint) {
     idx_str += "0";
   } else {
     auto& o = info->aConstraintUsage[limit];
@@ -609,7 +638,7 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
 
   // OFFSET. Save as "O1" if offset is present and "O0" if not.
   idx_str += "O";
-  if (offset == -1) {
+  if (offset == -1 || has_unknown_constraint) {
     idx_str += "0";
   } else {
     auto& o = info->aConstraintUsage[offset];
@@ -896,7 +925,7 @@ DbSqliteModule::QueryCost DbSqliteModule::EstimateCost(
   return QueryCost{final_cost, current_row_count};
 }
 
-DbSqliteModule::State::State(const Table* _table, Table::Schema _schema)
+DbSqliteModule::State::State(Table* _table, Table::Schema _schema)
     : State(TableComputation::kStatic, std::move(_schema)) {
   static_table = _table;
 }

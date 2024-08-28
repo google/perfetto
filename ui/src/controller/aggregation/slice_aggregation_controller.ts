@@ -16,10 +16,12 @@ import {ColumnDef} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
-import {ASYNC_SLICE_TRACK_KIND} from '../../core_plugins/async_slices';
-import {SLICE_TRACK_KIND} from '../../core_plugins/chrome_slices/chrome_slice_track';
 
 import {AggregationController} from './aggregation_controller';
+import {
+  ASYNC_SLICE_TRACK_KIND,
+  THREAD_SLICE_TRACK_KIND,
+} from '../../core/track_kinds';
 
 export function getSelectedTrackKeys(area: Area): number[] {
   const selectedTrackKeys: number[] = [];
@@ -28,11 +30,13 @@ export function getSelectedTrackKeys(area: Area): number[] {
     // Track will be undefined for track groups.
     if (track?.uri !== undefined) {
       const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.kind === SLICE_TRACK_KIND) {
-        trackInfo.trackIds && selectedTrackKeys.push(...trackInfo.trackIds);
+      if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
+        trackInfo.tags.trackIds &&
+          selectedTrackKeys.push(...trackInfo.tags.trackIds);
       }
-      if (trackInfo?.kind === ASYNC_SLICE_TRACK_KIND) {
-        trackInfo.trackIds && selectedTrackKeys.push(...trackInfo.trackIds);
+      if (trackInfo?.tags?.kind === ASYNC_SLICE_TRACK_KIND) {
+        trackInfo.tags.trackIds &&
+          selectedTrackKeys.push(...trackInfo.tags.trackIds);
       }
     }
   }

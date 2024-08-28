@@ -94,6 +94,17 @@ class MemoryMetrics(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
+          timestamp: 1
+          process_tree {
+            processes {
+              pid: 1
+              ppid: 1
+              uid: 0
+              cmdline: "myprocess"
+            }
+          }
+        }
+        packet {
           ftrace_events {
             cpu: 0
             event {
@@ -105,18 +116,22 @@ class MemoryMetrics(TestSuite):
                 total_allocated: 2048
               }
             }
-          }
-        }
-        packet {
-          ftrace_events {
-            cpu: 0
+            event {
+              timestamp: 150
+              pid: 1
+              dma_heap_stat {
+                inode: 124
+                len: 2048
+                total_allocated: 4096
+              }
+            }
             event {
               timestamp: 200
               pid: 1
               dma_heap_stat {
                 inode: 123
                 len: -1024
-                total_allocated: 1024
+                total_allocated: 3072
               }
             }
           }
@@ -125,10 +140,15 @@ class MemoryMetrics(TestSuite):
         query=Metric('android_dma_heap'),
         out=TextProto(r"""
         android_dma_heap {
-            avg_size_bytes: 2048.0
-            min_size_bytes: 1024.0
-            max_size_bytes: 2048.0
-            total_alloc_size_bytes: 1024.0
+            avg_size_bytes: 3072.0
+            min_size_bytes: 2048.0
+            max_size_bytes: 4096.0
+            total_alloc_size_bytes: 3072.0
+            total_delta_bytes: 2048
+            process_stats {
+              process_name: "myprocess"
+              delta_bytes: 2048
+            }
         }
         """))
 
@@ -248,6 +268,17 @@ class MemoryMetrics(TestSuite):
         }
         """))
 
+  def test_android_lmk_reason(self):
+    return DiffTestBlueprint(
+        trace=DataPath('lmk_userspace.pb'),
+        query=Metric('android_lmk_reason'),
+        # TODO(mayzner): Find a trace that returns results. This is still
+        # beneficial though, as at least this metric is run.
+        out=TextProto(r"""
+        android_lmk_reason {
+        }
+        """))
+
   def test_android_mem_delta(self):
     return DiffTestBlueprint(
         trace=Path('android_mem_delta.py'),
@@ -359,4 +390,54 @@ class MemoryMetrics(TestSuite):
         out=Csv("""
         "name","ts","dur","name"
         "mem.dma_buffer",100,100,"1 kB"
+        """))
+
+  def test_android_dma_heap_inode(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100
+              pid: 1
+              dma_heap_stat {
+                inode: 123
+                len: 1024
+                total_allocated: 2048
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 200
+              pid: 1
+              dma_heap_stat {
+                inode: 123
+                len: -1024
+                total_allocated: 1024
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          tt.name,
+          tt.utid,
+          c.ts,
+          CAST(c.value AS INT) AS value,
+          args.int_value AS inode
+        FROM thread_counter_track tt
+          JOIN counter c ON c.track_id = tt.id
+          JOIN args USING (arg_set_id)
+        WHERE tt.name = 'mem.dma_heap_change' AND args.key = 'inode';
+        """,
+        out=Csv("""
+        "name","utid","ts","value","inode"
+        "mem.dma_heap_change",1,100,1024,123
+        "mem.dma_heap_change",1,200,-1024,123
         """))

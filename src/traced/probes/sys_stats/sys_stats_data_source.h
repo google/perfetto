@@ -67,8 +67,16 @@ class SysStatsDataSource : public ProbesDataSource {
   uint32_t tick_for_testing() const { return tick_; }
 
   // Virtual for testing
-  virtual base::ScopedDir OpenDevfreqDir();
+  virtual base::ScopedDir OpenDirAndLogOnErrorOnce(const std::string& dir_path,
+                                                   bool* already_logged);
   virtual const char* ReadDevfreqCurFreq(const std::string& name);
+  virtual std::optional<uint64_t> ReadThermalZoneTemp(const std::string& name);
+  virtual std::optional<std::string> ReadThermalZoneType(
+      const std::string& name);
+
+ protected:
+  bool thermal_error_logged_ = false;
+  bool devfreq_error_logged_ = false;
 
  private:
   struct CStrCmp {
@@ -90,6 +98,7 @@ class SysStatsDataSource : public ProbesDataSource {
   void ReadBuddyInfo(protos::pbzero::SysStats* sys_stats);
   void ReadDiskStat(protos::pbzero::SysStats* sys_stats);
   void ReadPsi(protos::pbzero::SysStats* sys_stats);
+  void ReadThermalZones(protos::pbzero::SysStats* sys_stats);
   size_t ReadFile(base::ScopedFile*, const char* path);
 
   base::TaskRunner* const task_runner_;
@@ -118,7 +127,7 @@ class SysStatsDataSource : public ProbesDataSource {
   uint32_t buddyinfo_ticks_ = 0;
   uint32_t diskstat_ticks_ = 0;
   uint32_t psi_ticks_ = 0;
-  bool devfreq_error_logged_ = false;
+  uint32_t thermal_ticks_ = 0;
 
   std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
 

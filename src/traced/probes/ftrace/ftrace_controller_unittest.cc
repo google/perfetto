@@ -206,6 +206,7 @@ class MockAtraceWrapper : public AtraceWrapper {
  public:
   MOCK_METHOD(bool, RunAtrace, (const std::vector<std::string>&, std::string*));
   MOCK_METHOD(bool, SupportsUserspaceOnly, ());
+  MOCK_METHOD(bool, SupportsPreferSdk, ());
 };
 
 }  // namespace
@@ -298,7 +299,7 @@ std::unique_ptr<TestFtraceController> CreateTestController(
         new MockFtraceProcfs("/root/", cpu_count));
   }
 
-  std::unique_ptr<AtraceWrapper> atrace_wrapper;
+  auto atrace_wrapper = std::make_unique<NiceMock<MockAtraceWrapper>>();
 
   auto table = FakeTable(ftrace_procfs.get());
 
@@ -497,27 +498,6 @@ TEST(FtraceControllerTest, BufferSize) {
         *controller->procfs(),
         WriteToFile("/root/buffer_size_kb", testing::AnyOf("2048", "8192")));
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
-    auto data_source = controller->AddFakeDataSource(config);
-    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
-  }
-
-  {
-    // Way too big buffer size -> max size.
-    EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "65536"));
-    FtraceConfig config = CreateFtraceConfig({"group/foo"});
-    config.set_buffer_size_kb(10 * 1024 * 1024);
-    auto data_source = controller->AddFakeDataSource(config);
-    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
-  }
-
-  {
-    // The limit is 64mb, 65mb is too much.
-    EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "65536"));
-    FtraceConfig config = CreateFtraceConfig({"group/foo"});
-    ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
-    config.set_buffer_size_kb(65 * 1024);
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }

@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import produce, {Draft} from 'immer';
+import {produce, Draft} from 'immer';
 
-import {Disposable} from './disposable';
 import {getPath, Path, setPath} from './object_utils';
 
 export type Migrate<T> = (init: unknown) => T;
@@ -26,7 +25,7 @@ export type Callback<T> = (store: Store<T>, previous: T) => void;
  *
  * @template T The type of this store's state.
  * @param {T} initialState Initial state of the store.
- * @return {Store<T>} The newly created store.
+ * @returns {Store<T>} The newly created store.
  */
 export function createStore<T>(initialState: T): Store<T> {
   return new RootStore<T>(initialState);
@@ -41,7 +40,7 @@ export interface Store<T> extends Disposable {
   /**
    * Mutate the store's state.
    *
-   * @param {Edit<T> | Edit<T>[]} edits The edit (or edits) to the store.
+   * @param edits The edit (or edits) to the store.
    */
   edit(edits: Edit<T> | Edit<T>[]): void;
 
@@ -88,7 +87,7 @@ export interface Store<T> extends Disposable {
    * const migrate = (init: unknown) => (init ?? {foo: 'bar'}) as SubState;
    * const subStore = store.createSubStore(store, ['dict', 'foo'], migrate);
    * // |dict['foo']| will be created the first time we edit our sub-store.
-   * @warning Migration functions should properly validate the incoming state.
+   * Warning: Migration functions should properly validate the incoming state.
    * Blindly using type assertions can lead to instability.
    * @returns {Store<U>} The newly created sub-store.
    */
@@ -98,7 +97,7 @@ export interface Store<T> extends Disposable {
    * Subscribe for notifications when any edits are made to this store.
    *
    * @param callback The function to be called.
-   * @returns {Disposable} When this is disposed, the subscription is removed.
+   * @returns When this is disposed, the subscription is removed.
    */
   subscribe(callback: Callback<T>): Disposable;
 }
@@ -136,14 +135,12 @@ class RootStore<T> implements Store<T> {
       return produce(state, edit);
     }, originalState);
 
-    if (originalState !== newState) {
-      this.internalState = newState;
+    this.internalState = newState;
 
-      // Notify subscribers
-      this.subscriptions.forEach((sub) => {
-        sub(this, originalState);
-      });
-    }
+    // Notify subscribers
+    this.subscriptions.forEach((sub) => {
+      sub(this, originalState);
+    });
   }
 
   createSubStore<U>(path: Path, migrate: Migrate<U>): Store<U> {
@@ -153,13 +150,13 @@ class RootStore<T> implements Store<T> {
   subscribe(callback: Callback<T>): Disposable {
     this.subscriptions.add(callback);
     return {
-      dispose: () => {
+      [Symbol.dispose]: () => {
         this.subscriptions.delete(callback);
       },
     };
   }
 
-  dispose(): void {
+  [Symbol.dispose]() {
     // No-op
   }
 }
@@ -231,26 +228,24 @@ class SubStore<T, ParentT> implements Store<T> {
       return produce(state, edit);
     }, originalState);
 
-    if (originalState !== newState) {
-      this.parentState = newState;
-      try {
-        this.parentStore.edit((draft) => {
-          setPath(draft, this.path, newState);
-        });
-      } catch (error) {
-        if (error instanceof TypeError) {
-          console.warn('Failed to update parent store at ', this.path);
-        } else {
-          throw error;
-        }
-      }
-
-      this.cachedState = newState;
-
-      this.subscriptions.forEach((sub) => {
-        sub(this, originalState);
+    this.parentState = newState;
+    try {
+      this.parentStore.edit((draft) => {
+        setPath(draft, this.path, newState);
       });
+    } catch (error) {
+      if (error instanceof TypeError) {
+        console.warn('Failed to update parent store at ', this.path);
+      } else {
+        throw error;
+      }
     }
+
+    this.cachedState = newState;
+
+    this.subscriptions.forEach((sub) => {
+      sub(this, originalState);
+    });
   }
 
   createSubStore<SubtreeState>(
@@ -263,13 +258,13 @@ class SubStore<T, ParentT> implements Store<T> {
   subscribe(callback: Callback<T>): Disposable {
     this.subscriptions.add(callback);
     return {
-      dispose: () => {
+      [Symbol.dispose]: () => {
         this.subscriptions.delete(callback);
       },
     };
   }
 
-  dispose(): void {
-    this.parentStoreSubscription.dispose();
+  [Symbol.dispose]() {
+    this.parentStoreSubscription[Symbol.dispose]();
   }
 }

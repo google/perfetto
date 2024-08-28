@@ -117,12 +117,12 @@ TEST(RangeOverlay, StableSort) {
   auto chain = storage.MakeChain(numeric.MakeChain());
 
   std::vector tokens{
-      column::DataLayerChain::SortToken{0, 0},
-      column::DataLayerChain::SortToken{1, 1},
-      column::DataLayerChain::SortToken{2, 2},
+      Token{0, 0},
+      Token{1, 1},
+      Token{2, 2},
   };
   chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                    column::DataLayerChain::SortDirection::kAscending);
+                    SortDirection::kAscending);
   ASSERT_THAT(utils::ExtractPayloadForTesting(tokens), ElementsAre(1, 2, 0));
 }
 
@@ -139,6 +139,17 @@ TEST(RangeOverlay, Distinct) {
       {0, 0, 0}, Indices::State::kNonmonotonic);
   chain->Distinct(indices);
   ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0));
+}
+
+TEST(RangeOverlay, Flatten) {
+  Range range(3, 8);
+  RangeOverlay storage(&range);
+  auto fake = FakeStorageChain::SearchAll(10);
+  auto chain = storage.MakeChain(FakeStorageChain::SearchAll(10));
+
+  std::vector<uint32_t> indices{0, 1, 3, 5};
+  chain->Flatten(indices);
+  ASSERT_THAT(indices, ElementsAre(3, 4, 6, 8));
 }
 
 }  // namespace

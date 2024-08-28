@@ -367,99 +367,113 @@ message AndroidGameInterventionListConfig {
 //
 // Next ID: 5
 message AndroidInputEventConfig {
+  // Trace modes are tracing presets that are included in the system.
+  enum TraceMode {
+    // Preset mode for maximal tracing.
+    // WARNING: This will bypass all privacy measures on debuggable builds, and
+    // will record all
+    //          input events processed by the system, regardless of the context
+    //          in which they were processed. It should only be used for tracing
+    //          on a local device or for tests. It should NEVER be used for
+    //          field tracing.
+    TRACE_MODE_TRACE_ALL = 0;
+    // Use the tracing rules defined in this config to specify what events to
+    // trace.
+    TRACE_MODE_USE_RULES = 1;
+  }
 
-    // Trace modes are tracing presets that are included in the system.
-    enum TraceMode {
-        // Preset mode for maximal tracing.
-        // WARNING: This will bypass all privacy measures on debuggable builds, and will record all
-        //          input events processed by the system, regardless of the context in which they
-        //          were processed. It should only be used for tracing on a local device or for
-        //          tests. It should NEVER be used for field tracing.
-        TRACE_MODE_TRACE_ALL = 0;
-        // Use the tracing rules defined in this config to specify what events to trace.
-        TRACE_MODE_USE_RULES = 1;
-    }
+  // The tracing mode to use. If unspecified, it will default to
+  // TRACE_MODE_USE_RULES.
+  optional TraceMode mode = 1;
 
-    // The tracing mode to use. If unspecified, it will default to TRACE_MODE_USE_RULES.
-    optional TraceMode mode = 1;
+  // The level of tracing that should be applied to an event.
+  enum TraceLevel {
+    // Do not trace the input event.
+    TRACE_LEVEL_NONE = 0;
+    // Trace the event as a redacted event, where certain sensitive fields are
+    // omitted from the trace, including the coordinates of pointer events and
+    // the key/scan codes of key events.
+    TRACE_LEVEL_REDACTED = 1;
+    // Trace the complete event.
+    TRACE_LEVEL_COMPLETE = 2;
+  }
 
-    // The level of tracing that should be applied to an event.
-    enum TraceLevel {
-        // Do not trace the input event.
-        TRACE_LEVEL_NONE = 0;
-        // Trace the event as a redacted event, where certain sensitive fields are omitted from
-        // the trace, including the coordinates of pointer events and the key/scan codes of key
-        // events.
-        TRACE_LEVEL_REDACTED = 1;
-        // Trace the complete event.
-        TRACE_LEVEL_COMPLETE = 2;
-    }
+  // A rule that specifies the TraceLevel for an event based on matching
+  // conditions. All matchers in the rule are optional. To trigger this rule, an
+  // event must match all of its specified matchers (i.e. the matchers function
+  // like a series of conditions connected by a logical 'AND' operator). A rule
+  // with no specified matchers will match all events. Next ID: 6
+  message TraceRule {
+    // The trace level to be used for events that trigger this rule.
+    // If unspecified, TRACE_LEVEL_NONE will be used by default.
+    optional TraceLevel trace_level = 1;
 
-    // A rule that specifies the TraceLevel for an event based on matching conditions.
-    // All matchers in the rule are optional. To trigger this rule, an event must match all
-    // of its specified matchers (i.e. the matchers function like a series of conditions connected
-    // by a logical 'AND' operator). A rule with no specified matchers will match all events.
-    // Next ID: 6
-    message TraceRule {
-        // The trace level to be used for events that trigger this rule.
-        // If unspecified, TRACE_LEVEL_NONE will be used by default.
-        optional TraceLevel trace_level = 1;
+    // --- Optional Matchers ---
 
-        // --- Optional Matchers ---
+    // Package matchers
+    //
+    // Respectively matches if all or any of the target apps for this event are
+    // contained in the specified list of package names.
+    //
+    // Intended usage:
+    //   - Use match_all_packages to selectively allow tracing for the listed
+    //   packages.
+    //   - Use match_any_packages to selectively deny tracing for certain
+    //   packages.
+    //
+    // WARNING: Great care must be taken when designing rules for field tracing!
+    //          This is because each event is almost always sent to more than
+    //          one app.
+    //              For example, when allowing tracing for a package that has a
+    //              spy window
+    //          over the display (e.g. SystemUI) using match_any_packages,
+    //          essentially all input will be recorded on that display. This is
+    //          because the events will be sent to the spy as well as the
+    //          foreground app, and regardless of what the foreground app is,
+    //          the event will end up being traced.
+    //              Alternatively, when attempting to block tracing for specific
+    //              packages using
+    //          match_all_packages, no events will likely be blocked. This is
+    //          because the event will also be sent to other apps (such as, but
+    //          not limited to, ones with spy windows), so the matcher will not
+    //          match unless all other targets are also listed under the
+    //          match_all_packages list.
+    repeated string match_all_packages = 2;
+    repeated string match_any_packages = 3;
 
-        // Package matchers
-        //
-        // Respectively matches if all or any of the target apps for this event are contained in
-        // the specified list of package names.
-        //
-        // Intended usage:
-        //   - Use match_all_packages to selectively allow tracing for the listed packages.
-        //   - Use match_any_packages to selectively deny tracing for certain packages.
-        //
-        // WARNING: Great care must be taken when designing rules for field tracing!
-        //          This is because each event is almost always sent to more than one app.
-        //              For example, when allowing tracing for a package that has a spy window
-        //          over the display (e.g. SystemUI) using match_any_packages, essentially all
-        //          input will be recorded on that display. This is because the events will be sent
-        //          to the spy as well as the foreground app, and regardless of what the foreground
-        //          app is, the event will end up being traced.
-        //              Alternatively, when attempting to block tracing for specific packages using
-        //          match_all_packages, no events will likely be blocked. This is because the event
-        //          will also be sent to other apps (such as, but not limited to, ones with spy
-        //          windows), so the matcher will not match unless all other targets are also
-        //          listed under the match_all_packages list.
-        repeated string match_all_packages = 2;
-        repeated string match_any_packages = 3;
+    // Matches if the event is secure, which means that at least one of the
+    // targets of this event is using the window flag FLAG_SECURE.
+    optional bool match_secure = 4;
 
-        // Matches if the event is secure, which means that at least one of the targets of
-        // this event is using the window flag FLAG_SECURE.
-        optional bool match_secure = 4;
+    // Matches if there was an active IME connection while this event was being
+    // processed.
+    optional bool match_ime_connection_active = 5;
+  }
 
-        // Matches if there was an active IME connection while this event was being processed.
-        optional bool match_ime_connection_active = 5;
-    }
+  // The list of rules to use to determine the trace level of events.
+  // Each event will be traced using the TraceLevel of the first rule that it
+  // triggers from this list. The rules are evaluated in the order in which they
+  // are specified. If an event does not match any of the rules,
+  // TRACE_LEVEL_NONE will be used by default.
+  repeated TraceRule rules = 2;
 
-    // The list of rules to use to determine the trace level of events.
-    // Each event will be traced using the TraceLevel of the first rule that it triggers
-    // from this list. The rules are evaluated in the order in which they are specified.
-    // If an event does not match any of the rules, TRACE_LEVEL_NONE will be used by default.
-    repeated TraceRule rules = 2;
+  // --- Control flags ---
 
-    // --- Control flags ---
+  // Trace input events processed by the system as they are being dispatched
+  // to application windows. All trace rules will apply.
+  //   - If this flag is used without enabling trace_dispatcher_window_dispatch,
+  //   it will
+  //     trace InputDispatcher's inbound events (which does not include events
+  //     synthesized within InputDispatcher) that match the rules.
+  //   - If used with trace_dispatcher_window_dispatch, all inbound and outbound
+  //   events
+  //     matching the rules, including all events synthesized within
+  //     InputDispatcher, will be traced.
+  optional bool trace_dispatcher_input_events = 3;
 
-    // Trace input events processed by the system as they are being dispatched
-    // to application windows. All trace rules will apply.
-    //   - If this flag is used without enabling trace_dispatcher_window_dispatch, it will
-    //     trace InputDispatcher's inbound events (which does not include events synthesized
-    //     within InputDispatcher) that match the rules.
-    //   - If used with trace_dispatcher_window_dispatch, all inbound and outbound events
-    //     matching the rules, including all events synthesized within InputDispatcher,
-    //     will be traced.
-    optional bool trace_dispatcher_input_events = 3;
-
-    // Trace details about which windows the system is sending each input event to.
-    // All trace rules will apply.
-    optional bool trace_dispatcher_window_dispatch = 4;
+  // Trace details about which windows the system is sending each input event
+  // to. All trace rules will apply.
+  optional bool trace_dispatcher_window_dispatch = 4;
 }
 
 // End of protos/perfetto/config/android/android_input_event_config.proto
@@ -801,6 +815,39 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/windowmanager_config.proto
+
+// Custom configuration for the "android.windowmanager" data source.
+message WindowManagerConfig {
+  enum LogFrequency {
+    LOG_FREQUENCY_UNSPECIFIED = 0;
+
+    // Trace state snapshots when a frame is committed.
+    LOG_FREQUENCY_FRAME = 1;
+
+    // Trace state snapshots every time a transaction is committed.
+    LOG_FREQUENCY_TRANSACTION = 2;
+  }
+  optional LogFrequency log_frequency = 1;
+
+  enum LogLevel {
+    LOG_LEVEL_UNSPECIFIED = 0;
+
+    // Logs all elements with maximum amount of information.
+    LOG_LEVEL_VERBOSE = 1;
+
+    // Logs all elements but doesn't write all configuration data.
+    LOG_LEVEL_DEBUG = 2;
+
+    // Logs only visible elements, with the minimum amount of performance
+    // overhead
+    LOG_LEVEL_CRITICAL = 3;
+  }
+  optional LogLevel log_level = 2;
+}
+
+// End of protos/perfetto/config/android/windowmanager_config.proto
+
 // Begin of protos/perfetto/config/chrome/chrome_config.proto
 
 message ChromeConfig {
@@ -873,13 +920,17 @@ message EtwConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 28
+// Next id: 29
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
   // Android-specific event categories:
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
+  // Some processes can emit data through atrace or through the perfetto SDK via
+  // the "track_event" data source. For these categories, the SDK will be
+  // preferred, if possible, for this config.
+  repeated string atrace_categories_prefer_sdk = 28;
 
   // Size of each per-cpu kernel ftrace ring buffer.
   // Not guaranteed if there are multiple concurrent tracing sessions, as the
@@ -2845,6 +2896,11 @@ enum MeminfoCounters {
   MEMINFO_VMALLOC_CHUNK = 31;
   MEMINFO_CMA_TOTAL = 32;
   MEMINFO_CMA_FREE = 33;
+  MEMINFO_GPU = 34;
+  MEMINFO_ZRAM = 35;
+  MEMINFO_MISC = 36;
+  MEMINFO_ION_HEAP = 37;
+  MEMINFO_ION_HEAP_POOL = 38;
 }
 
 // Counter definitions for Linux's /proc/vmstat.
@@ -3103,6 +3159,10 @@ message SysStatsConfig {
   // Polls /proc/pressure/* every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 psi_period_ms = 11;
+
+  // Polls /sys/class/thermal/* every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 thermal_period_ms = 12;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -3257,7 +3317,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 130
+// Next id: 131
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3403,10 +3463,14 @@ message DataSourceConfig {
   optional ProtoLogConfig protolog_config = 126 [lazy = true];
 
   // Data source name: android.input.inputevent
-  optional AndroidInputEventConfig android_input_event_config = 128 [lazy = true];
+  optional AndroidInputEventConfig android_input_event_config = 128
+      [lazy = true];
 
   // Data source name: android.pixel.modem
   optional PixelModemConfig pixel_modem_config = 129 [lazy = true];
+
+  // Data source name: android.windowmanager
+  optional WindowManagerConfig windowmanager_config = 130 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -3433,7 +3497,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 39.
+// Next id: 40.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4099,6 +4163,51 @@ message TraceConfig {
     optional uint32 max_delay_ms = 2;
   }
   optional CmdTraceStartDelay cmd_trace_start_delay = 35;
+
+  // When non-empty, ensures that for a each semaphore named `name at most
+  // `max_other_session_count`` *other* sessions (whose value is taken of the
+  // minimum of all values specified by this config or any already-running
+  // session) can be be running.
+  //
+  // If a semaphore "acquisition" fails, EnableTracing will return an error
+  // and the tracing session will not be started (or elgible to start in
+  // the case of deferred sessions).
+  //
+  // This is easiest to explain with an example. Suppose the tracing service has
+  // the following active tracing sessions:
+  //   S1 = [{name=foo, max_other_session_count=2},
+  //         {name=bar, max_other_session_count=0}]
+  //   S2 = [{name=foo, max_other_session_count=1},
+  //         {name=baz, max_other_session_count=1}]
+  //
+  // Then, for a new session, the following would be the expected behaviour of
+  // EnableSession given the state of `session_semaphores`.
+  //   Q: session_semaphores = []
+  //   A: Allowed because it does not specify any semaphores. Will be allowed
+  //      no matter the state of any other tracing session.
+  //   Q: session_semaphores = [{name=baz, max_other_session_count=1}]
+  //   A: Allowed because both S2 and this config specify
+  //      max_other_session_count=1 for baz.
+  //   Q: session_semaphores = [{name=foo, max_other_session_count=3}]
+  //   A: Denied because S2 specified max_other_session_count=1 for foo and S1
+  //      takes that slot.
+  //   Q: session_semaphores = [{name=bar, max_other_session_count=0}]
+  //   A: Denied because S1 takes the the slot specified by both S1 and
+  //      this config.
+  //
+  // Introduced in 24Q3 (Android V).
+  message SessionSemaphore {
+    // The name of the semaphore. Acts as a unique identifier across all
+    // tracing sessions (including the one being started).
+    optional string name = 1;
+
+    // The maximum number of *other* sesssions which specify the same semaphore
+    // which can be active. The minimum of this value across all tracing
+    // sessions and the value specified by the config is used when deciding
+    // whether the tracing session can be started.
+    optional uint64 max_other_session_count = 2;
+  }
+  repeated SessionSemaphore session_semaphores = 39;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -4342,125 +4451,6 @@ message AndroidGameInterventionList {
 }
 
 // End of protos/perfetto/trace/android/android_game_intervention_list.proto
-
-// Begin of protos/perfetto/trace/android/android_input_event.proto
-
-// A representation of an Android MotionEvent.
-// See: https://developer.android.com/reference/android/view/MotionEvent
-message AndroidMotionEvent {
-  // A representation of one pointer inside a MotionEvent.
-  // Each Pointer contains the values present in its corresponding
-  // MotionEvent.PointerCoords and MotionEvent.PointerProperties.
-  message Pointer {
-     message AxisValue {
-      optional int32 axis = 1;
-      optional float value = 2;
-    }
-    repeated AxisValue axis_value = 1;
-    optional int32 pointer_id = 2;
-    optional int32 tool_type = 3;
-  }
-
-  // The randomly-generated ID used to track the event through the pipeline.
-  optional fixed32 event_id = 1;
-  // The event's timestamp - generated by the kernel.
-  optional int64 event_time_nanos = 2;
-  optional uint32 source = 3;
-  optional int32 action = 4;
-  optional int32 device_id = 5;
-  // Use a signed int for display_id, because -1 (DISPLAY_IS_NONE) is a common value.
-  optional sint32 display_id = 6;
-  optional int32 classification = 7;
-  optional uint32 flags = 8;
-  repeated Pointer pointer = 9;
-
-  // Field numbers 10-15 are reserved for commonly used fields.
-
-  // If this event was synthesized as a result of one or more different
-  // event, original_event_ids are the event_ids associated with the original events.
-  // For example, if this is an ACTION_HOVER_ENTER event that is synthesized
-  // due to an ACTION_HOVER_MOVE event entering the bounds of a window, the
-  // id of the original hover move event will be listed here.
-  repeated fixed32 original_event_id = 16 [packed = true];
-  // The timestamp of the ACTION_DOWN event associated with this gesture.
-  optional int64 down_time_nanos = 17;
-  optional float cursor_position_x = 18;
-  optional float cursor_position_y = 19;
-  optional int32 action_button = 20;
-  optional uint32 button_state = 21;
-  optional uint32 meta_state = 22;
-  optional uint32 policy_flags = 23;
-  optional float precision_x = 24;
-  optional float precision_y = 25;
-}
-
-// A representation of an Android KeyEvent.
-// See: https://developer.android.com/reference/android/view/KeyEvent
-message AndroidKeyEvent {
-  // The randomly-generated ID used to track the event through the pipeline.
-  optional fixed32 event_id = 1;
-  // The event's timestamp - generated by the kernel.
-  optional int64 event_time_nanos = 2;
-  // The timestamp of the ACTION_DOWN event associated with this gesture.
-  optional int64 down_time_nanos = 3;
-  optional uint32 source = 4;
-  optional int32 action = 5;
-  optional int32 device_id = 6;
-  // Use a signed int for display_id, because -1 (DISPLAY_IS_NONE) is a common value.
-  optional sint32 display_id = 7;
-  optional int32 key_code = 8;
-  optional uint32 scan_code = 9;
-  optional uint32 meta_state = 10;
-  optional int32 repeat_count = 11;
-  optional uint32 flags = 12;
-  optional uint32 policy_flags = 13;
-}
-
-// An event that traces an input event being dispatched by the system to one window.
-message AndroidWindowInputDispatchEvent {
-  // Stores x/y values for each pointer sent to the window for events
-  // that are dispatched to a certain location on the screen. This is not relevant
-  // for KeyEvents and MotionEvents that are dispatched to focused windows.
-  message DispatchedPointer {
-    optional int32 pointer_id = 1;
-    // The coordinates of the pointer in the logical display space, AKA "raw coordinates".
-    optional float x_in_display = 2;
-    optional float y_in_display = 3;
-    // The axis values for this pointer that were modified by the window transform.
-    repeated AndroidMotionEvent.Pointer.AxisValue axis_value_in_window = 4;
-  }
-
-  // The event_id of the event that was dispatched to the window.
-  optional fixed32 event_id = 1;
-  // The vsync_id of the frame in which the decision was made to dispatch the event to
-  // the window.
-  optional int64 vsync_id = 2;
-  // The id of the window to which the event was dispatched.
-  optional int32 window_id = 3;
-  // Only relevant for MotionEvents that are dispatched to a screen location.
-  // Each DispatchedPointer has a 1:1 correspondence with the Pointers in the AndroidMotionEvent.
-  repeated DispatchedPointer dispatched_pointer = 4;
-  // The event flags that were used when dispatching the event to this window.
-  // If the same event is dispatched to more than one window, it is possible that they
-  // were dispatched using different flag values for each window.
-  optional uint32 resolved_flags = 5;
-}
-
-message AndroidInputEvent {
-  oneof event {
-    // Traces input events received by or generated by InputDispatcher
-    AndroidMotionEvent dispatcher_motion_event = 1;
-    AndroidMotionEvent dispatcher_motion_event_redacted = 2;
-    AndroidKeyEvent dispatcher_key_event = 3;
-    AndroidKeyEvent dispatcher_key_event_redacted = 4;
-
-    // Traces an event being dispatched to a window.
-    AndroidWindowInputDispatchEvent dispatcher_window_dispatch_event = 5;
-    AndroidWindowInputDispatchEvent dispatcher_window_dispatch_event_redacted = 6;
-  }
-}
-
-// End of protos/perfetto/trace/android/android_input_event.proto
 
 // Begin of protos/perfetto/trace/android/android_log.proto
 
@@ -5269,6 +5259,11 @@ message ColorTransformProto {
   repeated float val = 1 [packed = true];
 }
 
+enum TrustedOverlay {
+  UNSET = 0;
+  DISABLED = 1;
+  ENABLED = 2;
+};
 // End of protos/perfetto/trace/android/surfaceflinger_common.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -5485,6 +5480,8 @@ message LayerProto {
   optional RectProto destination_frame = 57;
 
   optional uint32 original_id = 58;
+
+  optional TrustedOverlay trusted_overlay = 59;
 }
 
 message PositionProto {
@@ -5782,6 +5779,7 @@ message LayerState {
   optional uint32 fixed_transform_hint = 36;
   optional uint64 frame_number = 37;
   optional bool auto_refresh = 38;
+  // unused
   optional bool is_trusted_overlay = 39;
   optional RectProto buffer_crop = 40;
   optional RectProto destination_frame = 41;
@@ -5792,6 +5790,8 @@ message LayerState {
     OBSCURED = 2;
   };
   optional DropInputMode drop_input_mode = 42;
+
+  optional TrustedOverlay trusted_overlay = 43;
 }
 
 message DisplayState {
@@ -5819,7 +5819,7 @@ message DisplayState {
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
 message WinscopeExtensions {
-  extensions 1 to 3;
+  extensions 1 to 6;
 }
 
 // End of protos/perfetto/trace/android/winscope_extensions.proto
@@ -6863,6 +6863,22 @@ message AndroidFsFsyncStartFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/android_fs.proto
 
+// Begin of protos/perfetto/trace/ftrace/bcl_exynos.proto
+
+message BclIrqTriggerFtraceEvent {
+  optional int32 id = 1;
+  optional int32 throttle = 2;
+  optional int32 cpu0_limit = 3;
+  optional int32 cpu1_limit = 4;
+  optional int32 cpu2_limit = 5;
+  optional int32 tpu_limit = 6;
+  optional int32 gpu_limit = 7;
+  optional int32 voltage = 8;
+  optional int32 capacity = 9;
+}
+
+// End of protos/perfetto/trace/ftrace/bcl_exynos.proto
+
 // Begin of protos/perfetto/trace/ftrace/binder.proto
 
 message BinderTransactionFtraceEvent {
@@ -7289,6 +7305,15 @@ message CrosEcSensorhubDataFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/cros_ec.proto
+
+// Begin of protos/perfetto/trace/ftrace/dcvsh.proto
+
+message DcvshFreqFtraceEvent {
+  optional uint64 cpu = 1;
+  optional uint64 freq = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/dcvsh.proto
 
 // Begin of protos/perfetto/trace/ftrace/dma_fence.proto
 
@@ -8713,6 +8738,15 @@ message IrqHandlerExitFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/irq.proto
 
+// Begin of protos/perfetto/trace/ftrace/kgsl.proto
+
+message KgslGpuFrequencyFtraceEvent {
+  optional uint32 gpu_freq = 1;
+  optional uint32 gpu_id = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/kgsl.proto
+
 // Begin of protos/perfetto/trace/ftrace/kmem.proto
 
 message AllocPagesIommuEndFtraceEvent {
@@ -9200,6 +9234,121 @@ message MaliMaliCSFINTERRUPTSTARTFtraceEvent {
   optional uint64 info_val = 3;
 }
 message MaliMaliCSFINTERRUPTENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLCORESDOWNSCALENOTIFYPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLCORESNOTIFYPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLCOREINACTIVEPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLMCUONRECHECKFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLSHADERSCOREOFFPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLSHADERSPENDOFFFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLSHADERSPENDONFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLSHADERSREADYOFFFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUINSLEEPFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUOFFFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONCOREATTRUPDATEPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONGLBREINITPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONHALTFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONHWCNTDISABLEFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONHWCNTENABLEFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONPENDHALTFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONPENDSLEEPFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONSLEEPINITIATEFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUPENDOFFFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUPENDONRELOADFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUPOWERDOWNFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCURESETWAITFtraceEvent {
   optional int32 kctx_tgid = 1;
   optional uint32 kctx_id = 2;
   optional uint64 info_val = 3;
@@ -10841,6 +10990,45 @@ message FtraceEvent {
     ThermalExynosAcpmBulkFtraceEvent thermal_exynos_acpm_bulk = 506;
     ThermalExynosAcpmHighOverheadFtraceEvent thermal_exynos_acpm_high_overhead =
         507;
+    DcvshFreqFtraceEvent dcvsh_freq = 508;
+    KgslGpuFrequencyFtraceEvent kgsl_gpu_frequency = 509;
+    MaliMaliPMMCUHCTLCORESDOWNSCALENOTIFYPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORES_DOWN_SCALE_NOTIFY_PEND = 510;
+    MaliMaliPMMCUHCTLCORESNOTIFYPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORES_NOTIFY_PEND = 511;
+    MaliMaliPMMCUHCTLCOREINACTIVEPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORE_INACTIVE_PEND = 512;
+    MaliMaliPMMCUHCTLMCUONRECHECKFtraceEvent
+        mali_mali_PM_MCU_HCTL_MCU_ON_RECHECK = 513;
+    MaliMaliPMMCUHCTLSHADERSCOREOFFPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_CORE_OFF_PEND = 514;
+    MaliMaliPMMCUHCTLSHADERSPENDOFFFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_PEND_OFF = 515;
+    MaliMaliPMMCUHCTLSHADERSPENDONFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_PEND_ON = 516;
+    MaliMaliPMMCUHCTLSHADERSREADYOFFFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_READY_OFF = 517;
+    MaliMaliPMMCUINSLEEPFtraceEvent mali_mali_PM_MCU_IN_SLEEP = 518;
+    MaliMaliPMMCUOFFFtraceEvent mali_mali_PM_MCU_OFF = 519;
+    MaliMaliPMMCUONFtraceEvent mali_mali_PM_MCU_ON = 520;
+    MaliMaliPMMCUONCOREATTRUPDATEPENDFtraceEvent
+        mali_mali_PM_MCU_ON_CORE_ATTR_UPDATE_PEND = 521;
+    MaliMaliPMMCUONGLBREINITPENDFtraceEvent
+        mali_mali_PM_MCU_ON_GLB_REINIT_PEND = 522;
+    MaliMaliPMMCUONHALTFtraceEvent mali_mali_PM_MCU_ON_HALT = 523;
+    MaliMaliPMMCUONHWCNTDISABLEFtraceEvent mali_mali_PM_MCU_ON_HWCNT_DISABLE =
+        524;
+    MaliMaliPMMCUONHWCNTENABLEFtraceEvent mali_mali_PM_MCU_ON_HWCNT_ENABLE =
+        525;
+    MaliMaliPMMCUONPENDHALTFtraceEvent mali_mali_PM_MCU_ON_PEND_HALT = 526;
+    MaliMaliPMMCUONPENDSLEEPFtraceEvent mali_mali_PM_MCU_ON_PEND_SLEEP = 527;
+    MaliMaliPMMCUONSLEEPINITIATEFtraceEvent mali_mali_PM_MCU_ON_SLEEP_INITIATE =
+        528;
+    MaliMaliPMMCUPENDOFFFtraceEvent mali_mali_PM_MCU_PEND_OFF = 529;
+    MaliMaliPMMCUPENDONRELOADFtraceEvent mali_mali_PM_MCU_PEND_ON_RELOAD = 530;
+    MaliMaliPMMCUPOWERDOWNFtraceEvent mali_mali_PM_MCU_POWER_DOWN = 531;
+    MaliMaliPMMCURESETWAITFtraceEvent mali_mali_PM_MCU_RESET_WAIT = 532;
+    BclIrqTriggerFtraceEvent bcl_irq_trigger = 533;
   }
 }
 
@@ -12093,7 +12281,10 @@ message ChromeFrameReporter {
   optional bool has_smooth_input_main = 9;
 
   // Whether the frame contained any missing content (i.e. whether there was
-  // checkerboarding in the frame).
+  // checkerboarding in the frame).  If has_missing_content,
+  // checkerboarded_needs_raster and checkerboarded_needs_record all have
+  // values, has_missing_content should equal checkerboarded_needs_raster ||
+  // checkerboarded_needs_record.
   optional bool has_missing_content = 10;
 
   // The id of layer_tree_host that the frame has been produced for.
@@ -12115,6 +12306,12 @@ message ChromeFrameReporter {
   // The breakdown stage of PipelineReporter that is most likely accountable for
   // high latency.
   repeated string high_latency_contribution_stage = 14;
+
+  // Whether the frame contained any content that is not fully rastered.
+  optional bool checkerboarded_needs_raster = 15;
+
+  // Whether the frame contained any content that is not fully recorded.
+  optional bool checkerboarded_needs_record = 16;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
@@ -12644,8 +12841,11 @@ message TrackEvent {
   extensions 1000 to 1999;
   // Extension range reserved for https://b.corp.google.com/issues/301227627.
   extensions 2000 to 2000;
+  // Extension range reserved for android:
+  // protos/perfetto/trace/android/android_track_event.proto
+  extensions 2001 to 2999;
   // Extension range for future use.
-  extensions 2001 to 9899;
+  extensions 3000 to 9899;
   // Reserved for Perfetto unit and integration tests.
   extensions 9900 to 10000;
 
@@ -12820,7 +13020,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 36.
+// Next id: 42.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -12902,6 +13102,12 @@ message InternedData {
   repeated InternedString protolog_string_args = 36;
   // Interned protolog stacktraces.
   repeated InternedString protolog_stacktrace = 37;
+
+  // viewcapture
+  repeated InternedString viewcapture_package_name = 38;
+  repeated InternedString viewcapture_window_name = 39;
+  repeated InternedString viewcapture_view_id = 40;
+  repeated InternedString viewcapture_class_name = 41;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -13895,6 +14101,7 @@ message ProcessStats {
     optional uint64 smr_pss_anon_kb = 18;
     optional uint64 smr_pss_file_kb = 19;
     optional uint64 smr_pss_shmem_kb = 20;
+    optional uint64 smr_swap_pss_kb = 23;
 
     // Time spent scheduled in user mode in nanoseconds. Parsed from utime in
     // /proc/pid/stat. Recorded if record_process_runtime config option is set.
@@ -14172,6 +14379,14 @@ message SysStats {
   }
   // One entry per PsiResource type.
   repeated PsiSample psi = 14;
+
+  // Reading from /sys/class/thermal/*.
+  message ThermalZone {
+    optional string name = 1;
+    optional uint64 temp = 2;
+    optional string type = 3;
+  }
+  repeated ThermalZone thermal_zone = 15;
 }
 
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto
@@ -14188,6 +14403,12 @@ message Utsname {
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
+
+  // The SoC model from which trace is collected
+  optional string android_soc_model = 9;
+
+  // The hardware reversion from android device
+  optional string android_hardware_revision = 10;
 
   // The version of traced (the same returned by `traced --version`).
   // This is a human readable string with and its format varies depending on
@@ -14232,6 +14453,10 @@ message CpuInfo {
     // /sys/devices/system/cpu/cpuX/cpufreq/scaling_available_frequencies
     // where X is the index of this CPU.
     repeated uint32 frequencies = 2;
+
+    // Cpu capacity from /sys/devices/system/cpu/cpuX/cpu_capacity where X is
+    // the index of this CPU.
+    optional uint32 capacity = 3;
   }
 
   // Describes available CPUs, one entry per CPU.
@@ -14748,6 +14973,7 @@ message TranslationTable {
     ChromeUserEventTranslationTable chrome_user_event = 2;
     ChromePerformanceMarkTranslationTable chrome_performance_mark = 3;
     SliceNameTranslationTable slice_name = 4;
+    ProcessTrackNameTranslationTable process_track_name = 5;
   }
 }
 
@@ -14769,6 +14995,11 @@ message ChromePerformanceMarkTranslationTable {
 
 // Raw -> deobfuscated slice name translation rules.
 message SliceNameTranslationTable {
+  map<string, string> raw_to_deobfuscated_name = 1;
+};
+
+// Raw -> deobfuscated process track name translation rules.
+message ProcessTrackNameTranslationTable {
   map<string, string> raw_to_deobfuscated_name = 1;
 };
 
@@ -14986,10 +15217,6 @@ message TracePacket {
     V8WasmCode v8_wasm_code = 101;
     V8RegExpCode v8_reg_exp_code = 102;
     V8CodeMove v8_code_move = 103;
-
-    // InputFlinger traces
-    AndroidInputEvent android_input_event = 106;
-
     // Clock synchronization with remote machines.
     RemoteClockSync remote_clock_sync = 107;
 
@@ -15005,12 +15232,17 @@ message TracePacket {
     TestEvent for_testing = 900;
   }
 
+  // AndroidInputEvent android_input_event (moved to winscope_extensions)
+  reserved 106;
+
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.
   //
   // TODO(eseckler): Emit this field in a PacketSequenceDescriptor message
   // instead.
-  oneof optional_trusted_uid { int32 trusted_uid = 3; };
+  oneof optional_trusted_uid {
+    int32 trusted_uid = 3;
+  };
 
   // Service-assigned identifier of the packet sequence this packet belongs to.
   // Uniquely identifies a producer + writer pair within the tracing session. A

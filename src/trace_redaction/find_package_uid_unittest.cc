@@ -196,7 +196,9 @@ TEST(FindPackageUidTest, FindsUidInPackageList) {
   ASSERT_OK(status) << status.message();
 
   ASSERT_TRUE(context.package_uid.has_value());
-  ASSERT_EQ(NormalizeUid(context.package_uid.value()), NormalizeUid(10205));
+
+  // context.package_uid should have been normalized already.
+  ASSERT_EQ(context.package_uid.value(), NormalizeUid(10205));
 }
 
 TEST(FindPackageUidTest, ContinuesOverNonPackageList) {

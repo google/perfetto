@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {arrayEquals} from './array_utils';
 import {
   base64Decode,
   base64Encode,
   binaryDecode,
   binaryEncode,
+  cropText,
   sqliteString,
   utf8Decode,
   utf8Encode,
@@ -40,12 +42,11 @@ test('string_utils.bufferToBase64', () => {
 test('string_utils.utf8EncodeAndDecode', () => {
   const testString = '¡HéllØ wörld!';
   const buffer = utf8Encode(testString);
-  expect(buffer).toEqual(
-    new Uint8Array([
-      194, 161, 72, 195, 169, 108, 108, 195, 152, 32, 119, 195, 182, 114, 108,
-      100, 33,
-    ]),
-  );
+  const expectedUtf8 = [
+    194, 161, 72, 195, 169, 108, 108, 195, 152, 32, 119, 195, 182, 114, 108,
+    100, 33,
+  ];
+  expect(arrayEquals(buffer, expectedUtf8)).toBe(true);
   expect(utf8Decode(buffer)).toEqual(testString);
 });
 
@@ -66,4 +67,30 @@ test('string_utils.sqliteString', () => {
   expect(sqliteString("that's it")).toEqual("'that''s it'");
   expect(sqliteString('no quotes')).toEqual("'no quotes'");
   expect(sqliteString(`foo ' bar '`)).toEqual(`'foo '' bar '''`);
+});
+
+test('cropHelper regular text', () => {
+  const tripleDot = '\u2026';
+  const emoji = '\uD83D\uDE00';
+  expect(
+    cropText(
+      'com.android.camera [4096]',
+      /* charWidth=*/ 5,
+      /* rectWidth=*/ 2 * 5,
+    ),
+  ).toBe('c');
+  expect(cropText('com.android.camera [4096]', 5, 4 * 5 + 2)).toBe(
+    'co' + tripleDot,
+  );
+  expect(cropText('com.android.camera [4096]', 5, 5 * 5 + 2)).toBe(
+    'com' + tripleDot,
+  );
+  expect(cropText('com.android.camera [4096]', 5, 13 * 5 + 2)).toBe(
+    'com.android' + tripleDot,
+  );
+  expect(cropText('com.android.camera [4096]', 5, 26 * 5 + 2)).toBe(
+    'com.android.camera [4096]',
+  );
+  expect(cropText(emoji + 'abc', 5, 2 * 5)).toBe(emoji);
+  expect(cropText(emoji + 'abc', 5, 5 * 5)).toBe(emoji + 'a' + tripleDot);
 });

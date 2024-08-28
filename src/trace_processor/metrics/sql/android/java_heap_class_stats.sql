@@ -16,54 +16,7 @@
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 
-INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
-INCLUDE PERFETTO MODULE graphs.partition;
-
-DROP TABLE IF EXISTS _heap_graph_dominator_tree_for_partition;
-CREATE PERFETTO TABLE _heap_graph_dominator_tree_for_partition AS
-SELECT
-  tree.id,
-  tree.idom_id as parent_id,
-  obj.type_id as group_key
-FROM memory_heap_graph_dominator_tree tree
-JOIN heap_graph_object obj USING(id)
-UNION ALL
--- provide a single root required by tree partition if heap graph exists.
-SELECT
-  memory_heap_graph_super_root_fn() AS id,
-  NULL AS parent_id,
-  (SELECT MAX(id) + 1 FROM heap_graph_class) AS group_key
-WHERE memory_heap_graph_super_root_fn() IS NOT NULL;
-
-DROP TABLE IF EXISTS _heap_object_marked_for_dominated_stats;
-CREATE PERFETTO TABLE _heap_object_marked_for_dominated_stats AS
-SELECT
-  id,
-  IIF(parent_id IS NULL, 1, 0) as marked
-FROM tree_structural_partition_by_group!(_heap_graph_dominator_tree_for_partition)
-ORDER BY id;
-
-DROP TABLE IF EXISTS _heap_class_stats;
-CREATE PERFETTO TABLE _heap_class_stats AS
-SELECT
-  obj.upid,
-  obj.graph_sample_ts,
-  obj.type_id,
-  COUNT(1) AS obj_count,
-  SUM(self_size) AS size_bytes,
-  SUM(native_size) AS native_size_bytes,
-  SUM(IIF(obj.reachable, 1, 0)) AS reachable_obj_count,
-  SUM(IIF(obj.reachable, self_size, 0)) AS reachable_size_bytes,
-  SUM(IIF(obj.reachable, native_size, 0)) AS reachable_native_size_bytes,
-  SUM(IIF(marked, dominated_obj_count, 0)) AS dominated_obj_count,
-  SUM(IIF(marked, dominated_size_bytes, 0)) AS dominated_size_bytes,
-  SUM(IIF(marked, dominated_native_size_bytes, 0)) AS dominated_native_size_bytes
-FROM heap_graph_object obj
--- Left joins to preserve unreachable objects.
-LEFT JOIN _heap_object_marked_for_dominated_stats USING(id)
-LEFT JOIN memory_heap_graph_dominator_tree USING(id)
-GROUP BY 1, 2, 3
-ORDER BY 1, 2, 3;
+INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
 
 DROP VIEW IF EXISTS java_heap_class_stats_output;
 CREATE PERFETTO VIEW java_heap_class_stats_output AS
@@ -74,7 +27,8 @@ heap_class_stats_count_protos AS (
     upid,
     graph_sample_ts,
     RepeatedField(JavaHeapClassStats_TypeCount(
-      'type_name', IFNULL(c.deobfuscated_name, c.name),
+      'type_name', type_name,
+      'is_libcore_or_array', is_libcore_or_array,
       'obj_count', obj_count,
       'size_bytes', size_bytes,
       'native_size_bytes', native_size_bytes,
@@ -85,8 +39,7 @@ heap_class_stats_count_protos AS (
       'dominated_size_bytes', dominated_size_bytes,
       'dominated_native_size_bytes', dominated_native_size_bytes
     )) AS count_protos
-  FROM _heap_class_stats s
-  JOIN heap_graph_class c ON s.type_id = c.id
+  FROM android_heap_graph_class_aggregation s
   GROUP BY 1, 2
 ),
 -- Group by to build the repeated field by upid

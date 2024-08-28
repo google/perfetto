@@ -44,9 +44,9 @@ export async function waitForPerfettoIdle(page: Page, minIdleMs?: number) {
     await new Promise((r) => setTimeout(r, tickMs));
     const isShowingMsg = !!(await page.$('.omnibox.message-mode'));
     const isShowingAnim = !!(await page.$('.progress.progress-anim'));
-    const hasPendingRedraws = await (
-      await page.evaluateHandle('raf.hasPendingRedraws')
-    ).jsonValue();
+    const hasPendingRedraws = Boolean(
+      await (await page.evaluateHandle('raf.hasPendingRedraws')).jsonValue(),
+    );
 
     if (isShowingAnim || isShowingMsg || hasPendingRedraws) {
       consecutiveIdleTicks = 0;
@@ -113,7 +113,7 @@ export async function compareScreenshots(
       reportPath,
       `${path.basename(actualFilename)};${path.basename(diffFilename)}\n`,
     );
-    fail(`Diff test failed on ${diffFilename}, delta: ${diff} pixels`);
+    throw new Error(`Diff test failed ${diffFilename}, delta: ${diff} pixels`);
   }
   return diff;
 }

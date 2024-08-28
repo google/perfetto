@@ -17,39 +17,11 @@ import {
   encode as b64Encode,
   length as b64Len,
 } from '@protobufjs/base64';
-import {
-  length as utf8Len,
-  read as utf8Read,
-  write as utf8Write,
-} from '@protobufjs/utf8';
-
 import {assertTrue} from './logging';
 
-// TextDecoder/Decoder requires the full DOM and isn't available in all types
-// of tests. Use fallback implementation from protbufjs.
-let Utf8Decoder: {decode: (buf: Uint8Array) => string};
-let Utf8Encoder: {encode: (str: string) => Uint8Array};
-try {
-  Utf8Decoder = new TextDecoder('utf-8');
-  Utf8Encoder = new TextEncoder();
-} catch (_) {
-  if (typeof process === 'undefined') {
-    // Silence the warning when we know we are running under NodeJS.
-    console.warn(
-      'Using fallback UTF8 Encoder/Decoder, This should happen only in ' +
-        'tests and NodeJS-based environments, not in browsers.',
-    );
-  }
-  Utf8Decoder = {decode: (buf: Uint8Array) => utf8Read(buf, 0, buf.length)};
-  Utf8Encoder = {
-    encode: (str: string) => {
-      const arr = new Uint8Array(utf8Len(str));
-      const written = utf8Write(str, arr, 0);
-      assertTrue(written === arr.length);
-      return arr;
-    },
-  };
-}
+// Lazy initialize at first use.
+let textDecoder: TextDecoder | undefined = undefined;
+let textEncoder: TextEncoder | undefined = undefined;
 
 export function base64Encode(buffer: Uint8Array): string {
   return b64Encode(buffer, 0, buffer.length);
@@ -73,13 +45,15 @@ export function hexEncode(bytes: Uint8Array): string {
 }
 
 export function utf8Encode(str: string): Uint8Array {
-  return Utf8Encoder.encode(str);
+  textEncoder = textEncoder ?? new TextEncoder();
+  return textEncoder.encode(str);
 }
 
 // Note: not all byte sequences can be converted to<>from UTF8. This can be
 // used only with valid unicode strings, not arbitrary byte buffers.
-export function utf8Decode(buffer: Uint8Array): string {
-  return Utf8Decoder.decode(buffer);
+export function utf8Decode(buffer: Uint8Array | ArrayBuffer): string {
+  textDecoder = textDecoder ?? new TextDecoder();
+  return textDecoder.decode(buffer);
 }
 
 // The binaryEncode/Decode functions below allow to encode an arbitrary binary
@@ -125,4 +99,26 @@ export function sqliteString(str: string): string {
 export function undoCommonChatAppReplacements(str: string): string {
   // Replace non-breaking spaces with normal spaces.
   return str.replaceAll('\u00A0', ' ');
+}
+
+export function cropText(str: string, charWidth: number, rectWidth: number) {
+  let displayText = '';
+  const maxLength = Math.floor(rectWidth / charWidth) - 1;
+  if (str.length <= maxLength) {
+    displayText = str;
+  } else {
+    let limit = maxLength;
+    let maybeTripleDot = '';
+    if (maxLength > 1) {
+      limit = maxLength - 1;
+      maybeTripleDot = '\u2026';
+    }
+    // Javascript strings are UTF-16. |limit| could point in the middle of a
+    // 32-bit double-wchar codepoint (e.g., an emoji). Here we detect if the
+    // |limit|-th wchar is a leading surrogate and attach the trailing one.
+    const lastCharCode = str.charCodeAt(limit - 1);
+    limit += lastCharCode >= 55296 && lastCharCode < 56320 ? 1 : 0;
+    displayText = str.substring(0, limit) + maybeTripleDot;
+  }
+  return displayText;
 }

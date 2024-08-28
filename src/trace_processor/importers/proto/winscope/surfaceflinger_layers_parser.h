@@ -39,7 +39,8 @@ class SurfaceFlingerLayersParser {
       ".perfetto.protos.LayersSnapshotProto";
   static constexpr auto* kLayerProtoName = ".perfetto.protos.LayerProto";
 
-  void ParseLayer(protozero::ConstBytes blob,
+  void ParseLayer(int64_t timestamp,
+                  protozero::ConstBytes blob,
                   tables::SurfaceFlingerLayersSnapshotTable::Id);
 
   TraceProcessorContext* const context_;

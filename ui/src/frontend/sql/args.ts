@@ -58,7 +58,7 @@ export async function getArgs(
       display_value as displayValue
     FROM args
     WHERE arg_set_id = ${argSetId}
-    ORDER BY key`);
+    ORDER BY id`);
   const it = query.iter({
     id: NUM,
     type: STR,

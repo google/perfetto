@@ -16,6 +16,7 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 INCLUDE PERFETTO MODULE android.suspend;
+INCLUDE PERFETTO MODULE slices.flow;
 
 -- Count Binder transactions per process.
 CREATE PERFETTO VIEW android_binder_metrics_by_process(
@@ -55,11 +56,9 @@ WITH maybe_broken_binder_txn AS (
       ON ancestor.id = slice.parent_id
     WHERE ancestor.name = 'binder transaction'
     GROUP BY ancestor.id
-), nested_binder_txn AS (
-  -- Detect the non-broken cases which are just nested binder txns
-    SELECT slice_out AS id
-    FROM maybe_broken_binder_txn
-    JOIN following_flow(maybe_broken_binder_txn.id)
+  ), nested_binder_txn AS (
+    -- Detect the non-broken cases which are just nested binder txns
+    SELECT DISTINCT root_node_id AS id FROM _slice_following_flow!(maybe_broken_binder_txn)
   ), broken_binder_txn AS (
   -- Exclude the nested txns from the 'maybe broken' set
     SELECT * FROM maybe_broken_binder_txn
@@ -158,7 +157,7 @@ GROUP BY
   binder_txn_id,
   binder_reply_id;
 
-CREATE TABLE _oom_score AS
+CREATE PERFETTO TABLE _oom_score AS
   SELECT
     process.upid,
     CAST(c.value AS INT) AS value,
@@ -169,7 +168,7 @@ CREATE TABLE _oom_score AS
          JOIN process USING (upid)
    WHERE t.name = 'oom_score_adj';
 
-CREATE INDEX _oom_score_idx ON _oom_score(upid, ts);
+CREATE PERFETTO INDEX _oom_score_idx ON _oom_score(upid, ts);
 
 -- Breakdown synchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction.
@@ -477,7 +476,7 @@ FROM all_binder
 LEFT JOIN android_process_metadata client_process_metadata
   ON all_binder.client_upid = client_process_metadata.upid
 LEFT JOIN android_process_metadata server_process_metadata
-  ON all_binder.server_upid = client_process_metadata.upid;
+  ON all_binder.server_upid = server_process_metadata.upid;
 
 -- Returns a DAG of all outgoing binder txns from a process.
 -- The roots of the graph are the threads making the txns and the graph flows from:

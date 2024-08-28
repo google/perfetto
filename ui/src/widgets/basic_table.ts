@@ -26,7 +26,6 @@ export interface TableAttrs<T> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class BasicTable implements m.ClassComponent<TableAttrs<any>> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   renderColumnHeader(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     _vnode: m.Vnode<TableAttrs<any>>,

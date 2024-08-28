@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {duration, Span, time, Time} from '../base/time';
-
-import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
-import {globals} from './globals';
-import {TimeScale} from './time_scale';
+import {duration, time, Time, TimeSpan} from '../base/time';
 
 const micros = 1000n;
 const millis = 1000n * micros;
@@ -132,84 +128,35 @@ export function getMaxMajorTicks(width: number) {
   return Math.max(1, Math.floor(width / MIN_PX_PER_STEP));
 }
 
-// An iterable which generates a series of ticks for a given timescale.
-export class TickGenerator implements Iterable<Tick> {
-  private _tickPattern: TickType[];
-  private _patternSize: duration;
-  private _timeSpan: Span<time, duration>;
-  private _offset: time;
+export function* generateTicks(
+  timeSpan: TimeSpan,
+  maxMajorTicks: number,
+  offset: time = Time.ZERO,
+): Generator<Tick> {
+  assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
+  assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
 
-  constructor(
-    timeSpan: Span<time, duration>,
-    maxMajorTicks: number,
-    offset: time = Time.ZERO,
+  timeSpan = timeSpan.translate(-offset);
+  const minStepSize = BigInt(
+    Math.floor(Number(timeSpan.duration) / maxMajorTicks),
+  );
+  const [patternSize, pattern] = getPattern(minStepSize);
+  const tickPattern = tickPatternToArray(pattern);
+
+  const stepSize = patternSize / BigInt(tickPattern.length);
+  const start = Time.quantFloor(timeSpan.start, patternSize);
+  const end = timeSpan.end;
+  let patternIndex = 0;
+
+  for (
+    let time = start;
+    time < end;
+    time = Time.add(time, stepSize), patternIndex++
   ) {
-    assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
-    assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
-
-    this._timeSpan = timeSpan.add(-offset);
-    this._offset = offset;
-    const minStepSize = BigInt(
-      Math.floor(Number(timeSpan.duration) / maxMajorTicks),
-    );
-    const [size, pattern] = getPattern(minStepSize);
-    this._patternSize = size;
-    this._tickPattern = tickPatternToArray(pattern);
-  }
-
-  // Returns an iterable, so this object can be iterated over directly using the
-  // `for x of y` notation. The use of a generator here is just to make things
-  // more elegant compared to creating an array of ticks and building an
-  // iterator for it.
-  *[Symbol.iterator](): Generator<Tick> {
-    const stepSize = this._patternSize / BigInt(this._tickPattern.length);
-    const start = Time.quantFloor(this._timeSpan.start, this._patternSize);
-    const end = this._timeSpan.end;
-    let patternIndex = 0;
-
-    for (
-      let time = start;
-      time < end;
-      time = Time.add(time, stepSize), patternIndex++
-    ) {
-      if (time >= this._timeSpan.start) {
-        patternIndex = patternIndex % this._tickPattern.length;
-        const type = this._tickPattern[patternIndex];
-        yield {type, time: Time.add(time, this._offset)};
-      }
-    }
-  }
-}
-
-// Gets the timescale associated with the current visible window.
-export function timeScaleForVisibleWindow(
-  startPx: number,
-  endPx: number,
-): TimeScale {
-  return globals.timeline.getTimeScale(startPx, endPx);
-}
-
-export function drawGridLines(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-): void {
-  ctx.strokeStyle = TRACK_BORDER_COLOR;
-  ctx.lineWidth = 1;
-
-  const span = globals.timeline.visibleTimeSpan;
-  if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
-    const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
-    const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
-    const offset = globals.timestampOffset();
-    for (const {type, time} of new TickGenerator(span, maxMajorTicks, offset)) {
-      const px = Math.floor(map.timeToPx(time));
-      if (type === TickType.MAJOR) {
-        ctx.beginPath();
-        ctx.moveTo(px + 0.5, 0);
-        ctx.lineTo(px + 0.5, height);
-        ctx.stroke();
-      }
+    if (time >= timeSpan.start) {
+      patternIndex = patternIndex % tickPattern.length;
+      const type = tickPattern[patternIndex];
+      yield {type, time: Time.add(time, offset)};
     }
   }
 }

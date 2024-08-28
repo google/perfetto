@@ -15,20 +15,29 @@
  */
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
 #include <memory>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/sorter/trace_token_buffer.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 TraceSorter::TraceSorter(TraceProcessorContext* context,
                          SortingMode sorting_mode)
@@ -116,10 +125,12 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
         auto& queue = sorter_data.queues[i];
         if (queue.events_.empty())
           continue;
-        all_queues_empty = false;
-
         PERFETTO_DCHECK(queue.max_ts_ <= append_max_ts_);
-        if (queue.min_ts_ < min_queue_ts[0]) {
+
+        // Checking for |all_queues_empty| is necessary here as in fuzzer cases
+        // we can end up with |int64::max()| as the value here.
+        // See https://crbug.com/oss-fuzz/69164 for an example.
+        if (all_queues_empty || queue.min_ts_ < min_queue_ts[0]) {
           min_queue_ts[1] = min_queue_ts[0];
           min_queue_ts[0] = queue.min_ts_;
           min_queue_idx = i;
@@ -127,6 +138,7 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
         } else if (queue.min_ts_ < min_queue_ts[1]) {
           min_queue_ts[1] = queue.min_ts_;
         }
+        all_queues_empty = false;
       }
     }
     if (all_queues_empty)
@@ -188,7 +200,7 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
     case TimestampedEvent::Type::kPerfRecord:
       context.perf_record_parser->ParsePerfRecord(
-          event.ts, token_buffer_.Extract<TraceBlobView>(id));
+          event.ts, token_buffer_.Extract<perf_importer::Record>(id));
       return;
     case TimestampedEvent::Type::kTracePacket:
       context.proto_trace_parser->ParseTracePacket(
@@ -209,6 +221,10 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kSystraceLine:
       context.json_trace_parser->ParseSystraceLine(
           event.ts, token_buffer_.Extract<SystraceLine>(id));
+      return;
+    case TimestampedEvent::Type::kAndroidLogEvent:
+      context.android_log_event_parser->ParseAndroidLogEvent(
+          event.ts, token_buffer_.Extract<AndroidLogEvent>(id));
       return;
     case TimestampedEvent::Type::kInlineSchedSwitch:
     case TimestampedEvent::Type::kInlineSchedWaking:
@@ -237,6 +253,7 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kPerfRecord:
     case TimestampedEvent::Type::kJsonValue:
     case TimestampedEvent::Type::kFuchsiaRecord:
+    case TimestampedEvent::Type::kAndroidLogEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -266,6 +283,7 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kPerfRecord:
     case TimestampedEvent::Type::kJsonValue:
     case TimestampedEvent::Type::kFuchsiaRecord:
+    case TimestampedEvent::Type::kAndroidLogEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -275,10 +293,9 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
     const TimestampedEvent& event) {
   TraceTokenBuffer::Id id = GetTokenBufferId(event);
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
-    case TimestampedEvent::Type::kPerfRecord:
-      base::ignore_result(token_buffer_.Extract<TraceBlobView>(id));
-      return;
     case TimestampedEvent::Type::kTracePacket:
+    case TimestampedEvent::Type::kFtraceEvent:
+    case TimestampedEvent::Type::kEtwEvent:
       base::ignore_result(token_buffer_.Extract<TracePacketData>(id));
       return;
     case TimestampedEvent::Type::kTrackEvent:
@@ -299,11 +316,11 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
     case TimestampedEvent::Type::kInlineSchedWaking:
       base::ignore_result(token_buffer_.Extract<InlineSchedWaking>(id));
       return;
-    case TimestampedEvent::Type::kFtraceEvent:
-      base::ignore_result(token_buffer_.Extract<TracePacketData>(id));
+    case TimestampedEvent::Type::kPerfRecord:
+      base::ignore_result(token_buffer_.Extract<perf_importer::Record>(id));
       return;
-    case TimestampedEvent::Type::kEtwEvent:
-      base::ignore_result(token_buffer_.Extract<TracePacketData>(id));
+    case TimestampedEvent::Type::kAndroidLogEvent:
+      base::ignore_result(token_buffer_.Extract<AndroidLogEvent>(id));
       return;
   }
   PERFETTO_FATAL("For GCC");
@@ -342,5 +359,4 @@ void TraceSorter::MaybeExtractEvent(size_t min_machine_idx,
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

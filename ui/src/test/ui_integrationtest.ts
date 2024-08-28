@@ -37,10 +37,11 @@ async function getPage(): Promise<Page> {
   return pages[pages.length - 1];
 }
 
+jest.setTimeout(60000);
+
 // Executed once at the beginning of the test. Navigates to the UI.
 beforeAll(async () => {
   await failIfTraceProcessorHttpdIsActive();
-  jest.setTimeout(60000);
   const page = await getPage();
   await page.setViewport({width: 1920, height: 1080});
 
@@ -52,7 +53,7 @@ beforeAll(async () => {
 // test('') name and compare the screenshot with the expected one in
 // /test/data/ui-screenshots.
 afterEach(async () => {
-  let testName = expect.getState().currentTestName;
+  let testName = assertExists(expect.getState().currentTestName);
   testName = testName.replace(/[^a-z0-9-]/gim, '_').toLowerCase();
   const page = await getPage();
 
@@ -326,6 +327,30 @@ describe('modal_dialog', () => {
 
   test('dismiss_2', async () => {
     await page.keyboard.press('Escape');
+    await waitForPerfettoIdle(page);
+  });
+});
+
+describe('features', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    page = await getPage();
+    await page.goto('http://localhost:10000/?testing=1');
+    await waitForPerfettoIdle(page);
+  });
+
+  // Test that we show a (debuggable) chip next to tracks for debuggable apps.
+  // Regression test for aosp/3106008 .
+  test('track_debuggable_chip', async () => {
+    const page = await getPage();
+    await page.goto(
+      'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/api32_startup_warm.perfetto-trace',
+    );
+    await waitForPerfettoIdle(page);
+    await page.hover(
+      'h1[title="androidx.benchmark.integration.macrobenchmark.test 7527"]',
+    );
     await waitForPerfettoIdle(page);
   });
 });

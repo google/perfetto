@@ -13,8 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-INSTALL_BUILD_DEPS_ARGS="--android"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
+
+# Save CI time by skipping runs on {UI,docs,infra}-only changes
+if [[ $UI_DOCS_INFRA_ONLY_CHANGE == 1 ]]; then
+echo "Detected non-code change, probably a UI-only change."
+echo "skipping build + test runs"
+exit 0
+fi
 
 # Run the emulator earlier so by the time we build it's booted.
 # tools/run_android_test will perform a wait-for-device. This is just an

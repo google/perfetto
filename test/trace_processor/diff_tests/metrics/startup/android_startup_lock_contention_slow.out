@@ -50,11 +50,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
       pid: 3
     }
     event_timestamps {
@@ -72,14 +67,55 @@ android_startup {
     slow_start_reason: "Time spent in bindApplication"
     slow_start_reason: "Main Thread - Lock contention"
     slow_start_reason: "Main Thread - Monitor contention"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: TIME_SPENT_IN_BIND_APPLICATION
       reason: "Time spent in bindApplication"
+      severity: WARNING
+      expected_value {
+        value: 1250000000
+        unit: NS
+        higher_expected: false
+      }
+      actual_value {
+        value: 3000000000
+      }
+      launch_dur: 100000000000
+      trace_slice_sections {
+        start_timestamp: 112000000000
+        end_timestamp: 115000000000
+        slice_id: 1
+        slice_name: "bindApplication"
+      }
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: MAIN_THREAD_LOCK_CONTENTION
       reason: "Main Thread - Lock contention"
+      severity: WARNING
+      expected_value {
+        value: 20
+        unit: PERCENTAGE
+        higher_expected: false
+      }
+      actual_value {
+        value: 27
+        dur: 27000000000
+      }
+      launch_dur: 100000000000
     }
-    slow_start_reason_detailed {
-      reason: "Main Thread - Monitor contention"
+    slow_start_reason_with_details {
+     reason_id: MAIN_THREAD_MONITOR_CONTENTION
+     reason: "Main Thread - Monitor contention"
+     severity: WARNING
+     expected_value {
+       value: 15
+       unit: PERCENTAGE
+       higher_expected: false
+     }
+     actual_value {
+       value: 17
+       dur: 17000000000
+     }
+     launch_dur: 100000000000
     }
     startup_type: "cold"
   }

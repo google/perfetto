@@ -13,29 +13,27 @@
 // limitations under the License.
 
 import {time} from '../base/time';
+import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
-import {
-  HighPrecisionTime,
-  HighPrecisionTimeSpan,
-} from '../common/high_precision_time';
-import {getContainingTrackId} from '../common/state';
-
+import {HighPrecisionTime} from '../common/high_precision_time';
+import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
+import {getContainingGroupKey} from '../common/state';
+import {raf} from '../core/raf_scheduler';
 import {globals} from './globals';
 
 // Given a timestamp, if |ts| is not currently in view move the view to
 // center |ts|, keeping the same zoom level.
 export function horizontalScrollToTs(ts: time) {
-  const time = HighPrecisionTime.fromTime(ts);
-  const visibleWindow = globals.timeline.visibleWindowTime;
-  if (!visibleWindow.contains(time)) {
+  const visibleWindow = globals.timeline.visibleWindow;
+  if (!visibleWindow.contains(ts)) {
     // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
-    const halfDuration = visibleWindow.duration.divide(2);
-    const newStart = time.sub(halfDuration);
+    const halfDuration = visibleWindow.duration / 2;
+    const newStart = new HighPrecisionTime(ts).subNumber(halfDuration);
     const newWindow = new HighPrecisionTimeSpan(
       newStart,
-      newStart.add(visibleWindow.duration),
+      visibleWindow.duration,
     );
-    globals.timeline.updateVisibleTime(newWindow);
+    globals.timeline.updateVisibleTimeHP(newWindow);
   }
 }
 
@@ -55,57 +53,11 @@ export function focusHorizontalRange(
   start: time,
   end: time,
   viewPercentage?: number,
-) {
-  const visible = globals.timeline.visibleWindowTime;
-  const trace = globals.stateTraceTime();
-  const select = HighPrecisionTimeSpan.fromTime(start, end);
-
-  if (viewPercentage !== undefined) {
-    if (viewPercentage <= 0.0 || viewPercentage > 1.0) {
-      console.warn(
-        'Invalid value for [viewPercentage]. ' +
-          'Value must be between 0.0 (exclusive) and 1.0 (inclusive).',
-      );
-      // Default to 50%.
-      viewPercentage = 0.5;
-    }
-    const paddingPercentage = 1.0 - viewPercentage;
-    const paddingTime = select.duration.multiply(paddingPercentage);
-    const halfPaddingTime = paddingTime.divide(2);
-    globals.timeline.updateVisibleTime(select.pad(halfPaddingTime));
-    return;
-  }
-  // If the range is too large to fit on the current zoom level, resize.
-  if (select.duration.gt(visible.duration.multiply(0.5))) {
-    const paddedRange = select.pad(select.duration.multiply(2));
-    globals.timeline.updateVisibleTime(paddedRange);
-    return;
-  }
-  // Calculate the new visible window preserving the zoom level.
-  let newStart = select.midpoint.sub(visible.duration.divide(2));
-  let newEnd = select.midpoint.add(visible.duration.divide(2));
-
-  // Adjust the new visible window if it intersects with the trace boundaries.
-  // It's needed to make the "update the zoom level if visible window doesn't
-  // change" logic reliable.
-  if (newEnd.gt(trace.end)) {
-    newStart = trace.end.sub(visible.duration);
-    newEnd = trace.end;
-  }
-  if (newStart.lt(trace.start)) {
-    newStart = trace.start;
-    newEnd = trace.start.add(visible.duration);
-  }
-
-  const view = new HighPrecisionTimeSpan(newStart, newEnd);
-
-  // If preserving the zoom doesn't change the visible window, update the zoom
-  // level.
-  if (view.start.eq(visible.start) && view.end.eq(visible.end)) {
-    const padded = select.pad(select.duration.multiply(2));
-    globals.timeline.updateVisibleTime(padded);
+): void {
+  if (exists(viewPercentage)) {
+    focusHorizontalRangePercentage(start, end, viewPercentage);
   } else {
-    globals.timeline.updateVisibleTime(view);
+    focusHorizontalRangeImpl(start, end);
   }
 }
 
@@ -127,12 +79,12 @@ export function verticalScrollToTrack(
   }
 
   let trackGroup = null;
-  const trackGroupId = getContainingTrackId(globals.state, trackKeyString);
-  if (trackGroupId) {
-    trackGroup = document.querySelector('#track_' + trackGroupId);
+  const groupKey = getContainingGroupKey(globals.state, trackKeyString);
+  if (groupKey) {
+    trackGroup = document.querySelector('#track_' + groupKey);
   }
 
-  if (!trackGroupId || !trackGroup) {
+  if (!groupKey || !trackGroup) {
     console.error(`Can't scroll, track (${trackKeyString}) not found.`);
     return;
   }
@@ -142,7 +94,7 @@ export function verticalScrollToTrack(
   if (openGroup) {
     // After the track exists in the dom, it will be scrolled to.
     globals.scrollToTrackKey = trackKey;
-    globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+    globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
     return;
   } else {
     trackGroup.scrollIntoView({behavior: 'smooth', block: 'nearest'});
@@ -170,4 +122,63 @@ export function reveal(
 ) {
   verticalScrollToTrack(trackKey, openGroup);
   focusHorizontalRange(start, end);
+}
+
+function focusHorizontalRangePercentage(
+  start: time,
+  end: time,
+  viewPercentage: number,
+): void {
+  const aoi = HighPrecisionTimeSpan.fromTime(start, end);
+
+  if (viewPercentage <= 0.0 || viewPercentage > 1.0) {
+    console.warn(
+      'Invalid value for [viewPercentage]. ' +
+        'Value must be between 0.0 (exclusive) and 1.0 (inclusive).',
+    );
+    // Default to 50%.
+    viewPercentage = 0.5;
+  }
+  const paddingPercentage = 1.0 - viewPercentage;
+  const halfPaddingTime = (aoi.duration * paddingPercentage) / 2;
+  globals.timeline.updateVisibleTimeHP(aoi.pad(halfPaddingTime));
+
+  raf.scheduleRedraw();
+}
+
+function focusHorizontalRangeImpl(start: time, end: time): void {
+  const visible = globals.timeline.visibleWindow;
+  const aoi = HighPrecisionTimeSpan.fromTime(start, end);
+  const fillRatio = 5; // Default amount to make the AOI fill the viewport
+  const padRatio = (fillRatio - 1) / 2;
+
+  // If the area of interest already fills more than half the viewport, zoom out
+  // so that the AOI fills 20% of the viewport
+  if (aoi.duration * 2 > visible.duration) {
+    const padded = aoi.pad(aoi.duration * padRatio);
+    globals.timeline.updateVisibleTimeHP(padded);
+  } else {
+    // Center visible window on the middle of the AOI, preserving the zoom level
+    const newStart = aoi.midpoint.subNumber(visible.duration / 2);
+
+    // Adjust the new visible window if it intersects with the trace boundaries.
+    // It's needed to make the "update the zoom level if visible window doesn't
+    // change" logic reliable.
+    const newVisibleWindow = new HighPrecisionTimeSpan(
+      newStart,
+      visible.duration,
+    ).fitWithin(globals.traceContext.start, globals.traceContext.end);
+
+    // If preserving the zoom doesn't change the visible window, consider this
+    // to be the "second" hotkey press, so just make the AOI fill 20% of the
+    // viewport
+    if (newVisibleWindow.equals(visible)) {
+      const padded = aoi.pad(aoi.duration * padRatio);
+      globals.timeline.updateVisibleTimeHP(padded);
+    } else {
+      globals.timeline.updateVisibleTimeHP(newVisibleWindow);
+    }
+  }
+
+  raf.scheduleRedraw();
 }

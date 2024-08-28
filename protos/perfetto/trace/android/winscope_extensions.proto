@@ -19,5 +19,5 @@ syntax = "proto2";
 package perfetto.protos;
 
 message WinscopeExtensions {
-  extensions 1 to 3;
+  extensions 1 to 6;
 }

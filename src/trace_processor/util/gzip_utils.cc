@@ -16,19 +16,21 @@
 
 #include "src/trace_processor/util/gzip_utils.h"
 
-// For bazel build.
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <vector>
+
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include <zconf.h>
 #include <zlib.h>
 #else
 struct z_stream_s {};
 #endif
 
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace perfetto::trace_processor::util {
 
 bool IsGzipSupported() {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -40,7 +42,8 @@ bool IsGzipSupported() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)  // Real Implementation
 
-GzipDecompressor::GzipDecompressor(InputMode mode) : z_stream_(new z_stream()) {
+GzipDecompressor::GzipDecompressor(InputMode mode)
+    : z_stream_(new z_stream_s()) {
   z_stream_->zalloc = nullptr;
   z_stream_->zfree = nullptr;
   z_stream_->opaque = nullptr;
@@ -48,10 +51,6 @@ GzipDecompressor::GzipDecompressor(InputMode mode) : z_stream_(new z_stream()) {
   // (i.e. there's no zlib or gzip header).
   int wbits = (mode == InputMode::kRawDeflate) ? -15 : 32 + MAX_WBITS;
   inflateInit2(z_stream_.get(), wbits);
-}
-
-GzipDecompressor::~GzipDecompressor() {
-  inflateEnd(z_stream_.get());
 }
 
 void GzipDecompressor::Reset() {
@@ -91,15 +90,27 @@ GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
   }
 }
 
+size_t GzipDecompressor::AvailIn() const {
+  return z_stream_->avail_in;
+}
+
+void GzipDecompressor::Deleter::operator()(z_stream_s* stream) const {
+  inflateEnd(stream);
+  delete stream;
+}
+
 #else  // Dummy Implementation
 
 GzipDecompressor::GzipDecompressor(InputMode) {}
-GzipDecompressor::~GzipDecompressor() = default;
 void GzipDecompressor::Reset() {}
 void GzipDecompressor::Feed(const uint8_t*, size_t) {}
 GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t*, size_t) {
   return Result{ResultCode::kError, 0};
 }
+size_t GzipDecompressor::AvailIn() const {
+  return 0;
+}
+void GzipDecompressor::Deleter::operator()(z_stream_s*) const {}
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
@@ -115,6 +126,4 @@ std::vector<uint8_t> GzipDecompressor::DecompressFully(const uint8_t* data,
   return whole_data;
 }
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util

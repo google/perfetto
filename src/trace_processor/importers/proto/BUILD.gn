@@ -18,6 +18,8 @@ source_set("minimal") {
   sources = [
     "active_chrome_processes_tracker.cc",
     "active_chrome_processes_tracker.h",
+    "args_parser.cc",
+    "args_parser.h",
     "chrome_string_lookup.cc",
     "chrome_string_lookup.h",
     "chrome_system_probes_module.cc",
@@ -98,6 +100,7 @@ source_set("minimal") {
     "../../util:build_id",
     "../../util:gzip",
     "../../util:profiler_util",
+    "../../util:trace_blob_view_reader",
     "../common",
     "../common:parser_types",
     "../etw:minimal",
@@ -135,6 +138,12 @@ source_set("full") {
     "heap_graph_tracker.h",
     "metadata_module.cc",
     "metadata_module.h",
+    "pigweed_detokenizer.cc",
+    "pigweed_detokenizer.h",
+    "pixel_modem_module.cc",
+    "pixel_modem_module.h",
+    "pixel_modem_parser.cc",
+    "pixel_modem_parser.h",
     "statsd_module.cc",
     "statsd_module.h",
     "string_encoding_utils.cc",
@@ -246,6 +255,12 @@ perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
   descriptor_target = "../../../../protos/third_party/chromium:descriptor"
 }
 
+perfetto_cc_proto_descriptor("gen_cc_android_track_event_descriptor") {
+  descriptor_name = "android_track_event.descriptor"
+  descriptor_target =
+      "../../../../protos/perfetto/trace/android:android_track_event_descriptor"
+}
+
 perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
   descriptor_name = "config.descriptor"
   descriptor_target = "../../../../protos/perfetto/config:descriptor"
@@ -261,6 +276,8 @@ source_set("unittests") {
     "perf_sample_tracker_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
     "proto_trace_parser_impl_unittest.cc",
+    "proto_trace_reader_unittest.cc",
+    "proto_trace_tokenizer_unittest.cc",
     "string_encoding_utils_unittests.cc",
   ]
   deps = [

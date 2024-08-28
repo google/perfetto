@@ -63,6 +63,9 @@ message ObservableEvents {
     // consumer has no idea of what is the TSID of its own tracing session and
     // there is no other good way to plumb it.
     optional int64 tracing_session_id = 1;
+
+    // The trigger name of the CLONE_SNAPSHOT trigger which was hit.
+    optional string trigger_name = 2;
   }
 
   repeated DataSourceInstanceStateChange instance_state_changes = 1;

@@ -59,7 +59,7 @@ class RestorePinnedTrack implements Plugin {
     );
     const tracksToSave: SavedPinnedTrack[] = pinnedTracks.map((trackRef) => ({
       groupName: trackRef.groupName,
-      trackName: trackRef.displayName,
+      trackName: trackRef.title,
     }));
     window.localStorage.setItem(SAVED_TRACKS_KEY, JSON.stringify(tracksToSave));
   }
@@ -77,7 +77,7 @@ class RestorePinnedTrack implements Plugin {
       const exactMatch = tracks.find((track) => {
         return (
           track.key &&
-          trackToRestore.trackName === track.displayName &&
+          trackToRestore.trackName === track.title &&
           trackToRestore.groupName === track.groupName
         );
       });
@@ -98,7 +98,7 @@ class RestorePinnedTrack implements Plugin {
           return (
             track.key &&
             this.removeNumbers(trackToRestore.trackName) ===
-              this.removeNumbers(track.displayName) &&
+              this.removeNumbers(track.title) &&
             this.removeNumbers(trackToRestore.groupName) ===
               this.removeNumbers(track.groupName)
           );

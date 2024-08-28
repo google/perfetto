@@ -338,7 +338,7 @@ class Parsing(TestSuite):
         SELECT ts, cpu, dur, ts_end, utid, end_state, priority, upid, name, tid
         FROM sched
         JOIN thread USING(utid)
-        ORDER BY ts;
+        ORDER BY ts, sched.id;
         """,
         out=Path('systrace_html.out'))
 
@@ -735,13 +735,13 @@ class Parsing(TestSuite):
         trace=Path('cpu_info.textproto'),
         query="""
         SELECT
-          id,
+          cpu,
           cluster_id,
           processor
         FROM cpu;
         """,
         out=Csv("""
-        "id","cluster_id","processor"
+        "cpu","cluster_id","processor"
         0,0,"AArch64 Processor rev 13 (aarch64)"
         1,0,"AArch64 Processor rev 13 (aarch64)"
         2,0,"AArch64 Processor rev 13 (aarch64)"
@@ -758,8 +758,8 @@ class Parsing(TestSuite):
         query="""
         SELECT
           freq,
-          GROUP_CONCAT(cpu_id) AS cpus
-        FROM cpu_freq
+          GROUP_CONCAT(cpu) AS cpus
+        FROM cpu_available_frequencies
         GROUP BY freq
         ORDER BY freq;
         """,
@@ -846,10 +846,10 @@ class Parsing(TestSuite):
         }
         """),
         query="""
-        SELECT RUN_METRIC('android/process_metadata.sql');
+        INCLUDE PERFETTO MODULE android.process_metadata;
 
         SELECT upid, process_name, uid, shared_uid, package_name, version_code
-        FROM process_metadata_table
+        FROM android_process_metadata
         WHERE upid != 0;
         """,
         out=Csv("""
@@ -1369,14 +1369,14 @@ class Parsing(TestSuite):
         trace_modifier=TraceInjector(['cpu_info'], {'machine_id': 1001}),
         query="""
         SELECT
-          id,
+          cpu,
           cluster_id,
           processor
         FROM cpu
         WHERE machine_id is not NULL;
         """,
         out=Csv("""
-        "id","cluster_id","processor"
+        "cpu","cluster_id","processor"
         0,0,"AArch64 Processor rev 13 (aarch64)"
         1,0,"AArch64 Processor rev 13 (aarch64)"
         2,0,"AArch64 Processor rev 13 (aarch64)"
@@ -1394,8 +1394,9 @@ class Parsing(TestSuite):
         query="""
         SELECT
           freq,
-          GROUP_CONCAT(cpu_id) AS cpus
-        FROM cpu_freq
+          GROUP_CONCAT(cpu.cpu) AS cpus
+        FROM cpu_available_frequencies
+        JOIN cpu using (ucpu)
         WHERE machine_id is not NULL
         GROUP BY freq
         ORDER BY freq;
@@ -1412,7 +1413,143 @@ class Parsing(TestSuite):
         SELECT ts, thread.name, thread.tid
         FROM thread_state
         JOIN thread USING (utid)
-        WHERE state = 'R' AND thread_state.machine_id is not NULL
+        WHERE state = 'R' AND thread.machine_id is not NULL
         ORDER BY ts;
         """,
         out=Path('sched_waking_instants_compact_sched.out'))
+
+  def test_cpu_capacity_present(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+      packet {
+        cpu_info {
+          cpus {
+            processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 150000
+            frequencies: 300000
+            capacity: 256
+          }
+          cpus {
+            processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 300000
+            frequencies: 576000
+            capacity: 1024
+          }
+        }
+      }
+      """),
+        query="""
+      SELECT
+        cpu,
+        cluster_id,
+        capacity,
+        processor
+      FROM cpu
+      ORDER BY cpu
+      """,
+        out=Csv("""
+      "cpu","cluster_id","capacity","processor"
+      0,0,256,"AArch64 Processor rev 13 (aarch64)"
+      1,1,1024,"AArch64 Processor rev 13 (aarch64)"
+      """))
+
+  def test_cpu_capacity_not_present(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+      packet {
+        cpu_info {
+          cpus {
+            processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 150000
+            frequencies: 300000
+          }
+          cpus {
+            processor: "AArch64 Processor rev 13 (aarch64)"
+            frequencies: 300000
+            frequencies: 576000
+          }
+        }
+      }
+      """),
+        query="""
+      SELECT
+        cpu,
+        cluster_id,
+        capacity,
+        processor
+      FROM cpu
+      ORDER BY cpu
+      """,
+        out=Csv("""
+      "cpu","cluster_id","capacity","processor"
+      0,0,"[NULL]","AArch64 Processor rev 13 (aarch64)"
+      1,1,"[NULL]","AArch64 Processor rev 13 (aarch64)"
+      """))
+
+  # Test that the sched slices of a VM guest is ingested and not filtered
+  # because timestamp is far before the tracing session.
+  def test_sched_remote_clock_sync(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_machine_trace.pb'),
+        query="""
+        SELECT ts, cpu.cpu, thread.name, thread.tid
+        FROM sched JOIN cpu USING(ucpu) JOIN thread USING(utid)
+        WHERE cpu.machine_id IS NOT NULL LIMIT 10
+        """,
+        out=Csv("""
+        "ts","cpu","name","tid"
+        5230310112669,5,"kworker/5:7",32536
+        5230310132355,5,"swapper",0
+        5230310284063,4,"traced_probes",550
+        5230310421518,1,"swapper",0
+        5230310428373,3,"swapper",0
+        5230310587630,1,"rcuog/4",49
+        5230310590258,3,"logd.klogd",246
+        5230310592868,1,"swapper",0
+        5230310659357,3,"swapper",0
+        5230310671279,5,"traced_relay",25171
+        """))
+
+  # A query that selects the sched slices of a host vcpu thread and the guest
+  # sched slices. If remote clock sync works, guest sched slices should not be
+  # far off from host vcpu slices, and the query should return both host and
+  # guest slices.
+  def test_sched_remote_clock_sync_vcpu0(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_machine_trace.pb'),
+        query="""
+        SELECT ts, cpu.cpu, utid, machine_id
+        FROM sched JOIN cpu USING (ucpu)
+        WHERE ucpu = 4096
+        UNION
+        SELECT ts, cpu.cpu, utid, machine_id
+        FROM sched JOIN cpu USING (ucpu)
+        WHERE utid = (
+          SELECT utid
+          FROM thread
+          WHERE name = 'crosvm_vcpu0')
+        LIMIT 20
+        """,
+        out=Csv("""
+        "ts","cpu","utid","machine_id"
+        5230311628979,0,1,1
+        5230315517287,0,11,1
+        5230315524649,0,1,1
+        5230315676788,0,10,1
+        5230315684911,0,1,1
+        5230319663217,0,10,1
+        5230319684310,0,1,1
+        5230323692459,0,10,1
+        5230323726976,0,11,1
+        5230323764556,0,1,1
+        5230327702466,0,10,1
+        5230327736100,0,1,1
+        5230331761483,0,10,1
+        5230331800905,0,11,1
+        5230331837332,0,1,1
+        5230421799455,0,10,1
+        5230421810047,0,1,1
+        5230422048874,0,1306,"[NULL]"
+        5230422153284,0,1306,"[NULL]"
+        5230425693562,0,10,1
+        """))

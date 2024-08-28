@@ -45,19 +45,27 @@ CREATE PERFETTO MACRO counter_leading_intervals(
   -- This table must have the columns "id" and "ts" and "track_id" and "value" corresponding
   -- to an id, timestamp, counter track_id and associated counter value.
   counter_table TableOrSubquery)
--- Table with the schema (id UINT32, ts UINT64, track_id UINT64, value DOUBLE, dur INT).
+-- Table with the schema (id UINT32, ts UINT64, dur UINT64, track_id UINT64,
+-- value DOUBLE, next_value DOUBLE, delta_value DOUBLE).
 RETURNS TableOrSubquery AS
 (
   WITH base AS (
-    SELECT id, ts, track_id, value, LAG(value) OVER (PARTITION BY track_id ORDER BY ts) AS lag_value
+    SELECT
+      id,
+      ts,
+      track_id,
+      value,
+      LAG(value) OVER (PARTITION BY track_id ORDER BY ts) AS lag_value
     FROM $counter_table
   )
   SELECT
     id,
     ts,
-    track_id,
     LEAD(ts, 1, trace_end()) OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
-    CAST(value AS INT) AS value
+    track_id,
+    value,
+    LEAD(value) OVER(PARTITION BY track_id ORDER BY ts) AS next_value,
+    value - lag_value AS delta_value
   FROM base
   WHERE value != lag_value OR lag_value IS NULL
 );

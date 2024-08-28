@@ -200,15 +200,15 @@ TEST(NullOverlay, IndexSearchIsNotNullOp) {
 }
 
 TEST(NullOverlay, OrderedIndexSearch) {
+  std::vector<uint32_t> numeric_data{1, 0, 1, 0};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
   BitVector bv{0, 1, 1, 1, 0, 1};
-  // Passing values in final storage (on normal operations)
-  // 0, 1, 0, 1, 0, 0
-  auto fake = FakeStorageChain::SearchSubset(4, BitVector{1, 0, 1, 0});
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(std::move(fake));
+  auto chain = storage.MakeChain(numeric.MakeChain());
 
   // Passing values on final data
-  // NULL, NULL, 0, 1, 1
+  // NULL, NULL, 0, 0, 1, 1
   std::vector<uint32_t> table_idx{0, 4, 5, 1, 3};
   OrderedIndices indices{table_idx.data(), uint32_t(table_idx.size()),
                          Indices::State::kNonmonotonic};
@@ -218,28 +218,28 @@ TEST(NullOverlay, OrderedIndexSearch) {
   ASSERT_EQ(res.end, 2u);
 
   res = chain->OrderedIndexSearch(FilterOp::kIsNotNull, SqlValue(), indices);
+  ASSERT_EQ(res.start, 2u);
+  ASSERT_EQ(res.end, 5u);
+
+  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(1), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 5u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(0), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 5u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(1), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 5u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
+  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(1), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
-
-  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
+  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(0), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
 }
 
 TEST(NullOverlay, StableSort) {
@@ -252,26 +252,21 @@ TEST(NullOverlay, StableSort) {
 
   auto make_tokens = []() {
     return std::vector{
-        column::DataLayerChain::SortToken{0, 0},
-        column::DataLayerChain::SortToken{1, 1},
-        column::DataLayerChain::SortToken{2, 2},
-        column::DataLayerChain::SortToken{3, 3},
-        column::DataLayerChain::SortToken{4, 4},
-        column::DataLayerChain::SortToken{5, 5},
-        column::DataLayerChain::SortToken{6, 6},
+        Token{0, 0}, Token{1, 1}, Token{2, 2}, Token{3, 3},
+        Token{4, 4}, Token{5, 5}, Token{6, 6},
     };
   };
   {
     auto tokens = make_tokens();
     chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                      column::DataLayerChain::SortDirection::kAscending);
+                      SortDirection::kAscending);
     ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
                 ElementsAre(0, 2, 4, 3, 5, 1, 6));
   }
   {
     auto tokens = make_tokens();
     chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                      column::DataLayerChain::SortDirection::kDescending);
+                      SortDirection::kDescending);
     ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
                 ElementsAre(6, 1, 5, 3, 4, 0, 2));
   }
@@ -292,6 +287,18 @@ TEST(NullOverlay, Distinct) {
   chain->Distinct(indices);
   ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
               UnorderedElementsAre(0, 1, 2, 4));
+}
+
+TEST(NullOverlay, Flatten) {
+  BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(FakeStorageChain::SearchAll(4u));
+
+  std::vector<uint32_t> indices{0, 1, 3, 6, 0};
+  chain->Flatten(indices);
+  ASSERT_THAT(indices, ElementsAre(std::numeric_limits<uint32_t>::max(), 0,
+                                   std::numeric_limits<uint32_t>::max(), 3,
+                                   std::numeric_limits<uint32_t>::max()));
 }
 
 }  // namespace

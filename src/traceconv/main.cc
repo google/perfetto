@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/version.h"
 #include "src/traceconv/deobfuscate_profile.h"
 #include "src/traceconv/symbolize_profile.h"
+#include "src/traceconv/trace_to_firefox.h"
 #include "src/traceconv/trace_to_hprof.h"
 #include "src/traceconv/trace_to_json.h"
 #include "src/traceconv/trace_to_profile.h"
@@ -45,22 +46,23 @@ namespace trace_to_text {
 namespace {
 
 int Usage(const char* argv0) {
-  fprintf(stderr,
-          "Usage: %s MODE [OPTIONS] [input file] [output file]\n"
-          "modes:\n"
-          "  systrace|json|ctrace|text|profile|hprof|symbolize|deobfuscate"
-          "|decompress_packets\n"
-          "options:\n"
-          "  [--truncate start|end]\n"
-          "  [--full-sort]\n"
-          "\"profile\" mode options:\n"
-          "  [--perf] generate a perf profile instead of a heap profile\n"
-          "  [--no-annotations] do not suffix frame names with derived "
-          "annotations\n"
-          "  [--timestamps TIMESTAMP1,TIMESTAMP2,...] generate profiles "
-          "only for these *specific* timestamps\n"
-          "  [--pid PID] generate profiles only for this process id\n",
-          argv0);
+  fprintf(
+      stderr,
+      "Usage: %s MODE [OPTIONS] [input file] [output file]\n"
+      "modes:\n"
+      "  systrace|json|ctrace|text|profile|hprof|symbolize|deobfuscate|firefox"
+      "|java_heap_profile|decompress_packets\n"
+      "options:\n"
+      "  [--truncate start|end]\n"
+      "  [--full-sort]\n"
+      "\"profile\" mode options:\n"
+      "  [--perf] generate a perf profile instead of a heap profile\n"
+      "  [--no-annotations] do not suffix frame names with derived "
+      "annotations\n"
+      "  [--timestamps TIMESTAMP1,TIMESTAMP2,...] generate profiles "
+      "only for these *specific* timestamps\n"
+      "  [--pid PID] generate profiles only for this process id\n",
+      argv0);
   return 1;
 }
 
@@ -212,6 +214,11 @@ int Main(int argc, char** argv) {
                                     timestamps, !profile_no_annotations);
   }
 
+  if (format == "java_heap_profile") {
+    return TraceToJavaHeapProfile(input_stream, output_stream, pid, timestamps,
+                                  !profile_no_annotations);
+  }
+
   if (format == "hprof")
     return TraceToHprof(input_stream, output_stream, pid, timestamps);
 
@@ -220,6 +227,9 @@ int Main(int argc, char** argv) {
 
   if (format == "deobfuscate")
     return DeobfuscateProfile(input_stream, output_stream);
+
+  if (format == "firefox")
+    return TraceToFirefoxProfile(input_stream, output_stream);
 
   if (format == "decompress_packets")
     return UnpackCompressedPackets(input_stream, output_stream);

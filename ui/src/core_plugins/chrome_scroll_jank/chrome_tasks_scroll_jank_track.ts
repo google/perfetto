@@ -14,31 +14,42 @@
 
 import {InThreadTrackSortKey} from '../../common/state';
 import {
+  NAMED_ROW,
+  NamedRow,
   NamedSliceTrack,
-  NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
+import {Slice} from '../../public';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 import {DecideTracksResult, ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './common';
 
-interface ChromeTasksScrollJankTrackConfig {}
-
-interface ChromeTasksScrollJankTrackTypes extends NamedSliceTrackTypes {
-  config: ChromeTasksScrollJankTrackConfig;
-}
-
-export class ChromeTasksScrollJankTrack extends NamedSliceTrack<ChromeTasksScrollJankTrackTypes> {
+export class ChromeTasksScrollJankTrack extends NamedSliceTrack {
   static readonly kind = 'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
 
   constructor(args: NewTrackArgs) {
     super(args);
   }
 
+  getRowSpec(): NamedRow {
+    return NAMED_ROW;
+  }
+
+  rowToSlice(row: NamedRow): Slice {
+    return this.rowToSliceBase(row);
+  }
+
   getSqlSource(): string {
-    return `select s2.ts as ts, s2.dur as dur, s2.id as id, 0 as depth, s1.full_name as name
-from chrome_tasks_delaying_input_processing s1
-join slice s2 on s2.id=s1.slice_id`;
+    return `
+      select
+        s2.ts as ts,
+        s2.dur as dur,
+        s2.id as id,
+        0 as depth,
+        s1.full_name as name
+      from chrome_tasks_delaying_input_processing s1
+      join slice s2 on s2.id=s1.slice_id
+    `;
   }
 }
 export type GetTrackGroupUuidFn = (utid: number, upid: number | null) => string;
@@ -55,10 +66,12 @@ export async function decideTracks(
   }
 
   const queryResult = await engine.query(`
-    select utid, upid
+    select
+      utid,
+      upid
     from thread
     where name='CrBrowserMain'
-    `);
+  `);
 
   const it = queryResult.iter({
     utid: NUM,

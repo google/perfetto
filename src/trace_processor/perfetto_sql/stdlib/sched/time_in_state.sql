@@ -122,7 +122,7 @@ JOIN
     $ts, $dur,
     (SELECT id, ts, dur
     FROM thread_state
-    WHERE utid = $utid))) ii USING (id)
+    WHERE utid = $utid AND dur > 0))) ii USING (id)
 GROUP BY 1, 2, 3
 ORDER BY 4 DESC;
 
@@ -142,7 +142,6 @@ RETURNS TABLE(
   -- sleep, if it was an IO sleep.
   io_wait BOOL,
   -- Id of the CPU.
-  -- Use `cpu_guess_core_type` to get the CPU size (little/mid/big).
   cpu INT,
   -- Some states can specify the blocked function. Usually NULL.
   blocked_function INT,
@@ -160,7 +159,7 @@ JOIN
     $ts, $dur,
     (SELECT id, ts, dur
     FROM thread_state
-    WHERE utid = $utid))) ii USING (id)
+    WHERE utid = $utid AND dur > 0))) ii USING (id)
 GROUP BY 1, 2, 3, 4
 ORDER BY 5 DESC;
 

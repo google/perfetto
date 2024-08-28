@@ -12,15 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DisposableCallback, Trash} from './disposable';
+import {AsyncDisposableStack, DisposableStack} from './disposable_stack';
 
-test('trash', () => {
+test('DisposableStack', () => {
   const order: number[] = [];
-  const trash = new Trash();
-  trash.add(DisposableCallback.from(() => order.push(3)));
-  trash.add(DisposableCallback.from(() => order.push(2)));
-  trash.add(DisposableCallback.from(() => order.push(1)));
+  const trash = new DisposableStack();
+  trash.use({[Symbol.dispose]: () => order.push(3)});
+  trash.use({[Symbol.dispose]: () => order.push(2)});
+  trash.defer(() => order.push(1));
   expect(order).toEqual([]);
-  trash.dispose();
+  trash[Symbol.dispose]();
   expect(order).toEqual([1, 2, 3]);
+});
+
+test('AsyncDisposableStack', async () => {
+  const order: number[] = [];
+  const trash = new AsyncDisposableStack();
+  trash.use({
+    [Symbol.asyncDispose]: async () => {
+      order.push(3);
+    },
+  });
+  trash.use({
+    [Symbol.asyncDispose]: async () => {
+      order.push(2);
+    },
+  });
+  trash.defer(async () => {
+    order.push(1);
+  });
+  expect(order).toEqual([]);
+  await trash[Symbol.asyncDispose]();
+  expect(order).toEqual([1, 2, 3]);
+});
+
+test('AsyncDisposableStackWithDisposable', async () => {
+  const trash = new AsyncDisposableStack();
+  trash.use({
+    [Symbol.dispose]: () => {
+      console.log('Disposing...');
+    },
+  });
+  await trash[Symbol.asyncDispose]();
 });

@@ -64,11 +64,23 @@ class ProtoTraceReader : public ChunkedTraceReader {
   util::Status Parse(TraceBlobView) override;
   void NotifyEndOfFile() override;
 
+  using SyncClockSnapshots = base::FlatHashMap<
+      int64_t,
+      std::pair</*host ts*/ uint64_t, /*client ts*/ uint64_t>>;
+  base::FlatHashMap<int64_t /*Clock Id*/, int64_t /*Offset*/>
+  CalculateClockOffsetsForTesting(
+      std::vector<SyncClockSnapshots>& sync_clock_snapshots) {
+    return CalculateClockOffsets(sync_clock_snapshots);
+  }
+
+  std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id);
+
  private:
   using ConstBytes = protozero::ConstBytes;
   util::Status ParsePacket(TraceBlobView);
   util::Status ParseServiceEvent(int64_t ts, ConstBytes);
   util::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
+  util::Status ParseRemoteClockSync(ConstBytes blob);
   void HandleIncrementalStateCleared(
       const protos::pbzero::TracePacket_Decoder&);
   void HandleFirstPacketOnSequence(uint32_t packet_sequence_id);
@@ -78,8 +90,10 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
                          TraceBlobView interned_data);
   void ParseTraceConfig(ConstBytes);
+  void ParseTraceStats(ConstBytes);
 
-  std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id);
+  base::FlatHashMap<int64_t /*Clock Id*/, int64_t /*Offset*/>
+  CalculateClockOffsets(std::vector<SyncClockSnapshots>&);
 
   PacketSequenceStateBuilder* GetIncrementalStateForPacketSequence(
       uint32_t sequence_id) {
@@ -103,6 +117,8 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   base::FlatHashMap<uint32_t, PacketSequenceStateBuilder>
       packet_sequence_state_builders_;
+
+  base::FlatHashMap<uint32_t, size_t> packet_sequence_data_loss_;
 
   StringId skipped_packet_key_id_;
   StringId invalid_incremental_state_key_id_;

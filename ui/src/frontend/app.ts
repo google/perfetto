@@ -15,15 +15,12 @@
 import m from 'mithril';
 
 import {copyToClipboard} from '../base/clipboard';
-import {Trash} from '../base/disposable';
+
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
-import {assertExists} from '../base/logging';
+import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {duration, Span, time, TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
-import {getLegacySelection} from '../common/state';
-import {runQuery} from '../common/queries';
 import {
   DurationPrecision,
   setDurationPrecision,
@@ -31,43 +28,41 @@ import {
   TimestampFormat,
 } from '../core/timestamp_format';
 import {raf} from '../core/raf_scheduler';
-import {Command} from '../public';
-import {Engine} from '../trace_processor/engine';
-import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
+import {Command, Engine, addDebugSliceTrack} from '../public';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 
 import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
-import {globals} from './globals';
+import {getTimeSpanOfSelectionOrVisibleWindow, globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {Notes} from './notes';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {addQueryResultsTab} from './query_result_tab';
-import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';
 import {Sidebar} from './sidebar';
-import {Utid} from './sql_types';
-import {getThreadInfo} from './thread_and_process_info';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
-import {addDebugSliceTrack} from './debug_tracks';
 import {AggregationsTabs} from './aggregation_tab';
-import {addSqlTableTab} from './sql_table/tab';
-import {SqlTables} from './sql_table/well_known_tables';
 import {
   findCurrentSelection,
   focusOtherFlow,
-  lockSliceSpan,
   moveByFocusedFlow,
 } from './keyboard_event_handler';
-import {exists} from '../base/utils';
+import {publishPermalinkHash} from './publish';
+import {OmniboxMode, PromptOption} from './omnibox_manager';
+import {Utid} from './sql_types';
+import {getThreadInfo} from './thread_and_process_info';
+import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
+import {DisposableStack} from '../base/disposable_stack';
+import {addSqlTableTab} from './sql_table_tab';
+import {SqlTables} from './well_known_sql_tables';
 
 function renderPermalink(): m.Children {
-  const permalink = globals.state.permalink;
-  if (!permalink.requestId || !permalink.hash) return null;
-  const url = `${self.location.origin}/#!/?s=${permalink.hash}`;
+  const hash = globals.permalinkHash;
+  if (!hash) return null;
+  const url = `${self.location.origin}/#!/?s=${hash}`;
   const linkProps = {title: 'Click to copy the URL', onclick: onClickCopy(url)};
 
   return m('.alert-permalink', [
@@ -75,7 +70,7 @@ function renderPermalink(): m.Children {
     m(
       'button',
       {
-        onclick: () => globals.dispatch(Actions.clearPermalink({})),
+        onclick: () => publishPermalinkHash(undefined),
       },
       m('i.material-icons.disallow-selection', 'close'),
     ),
@@ -86,25 +81,6 @@ class Alerts implements m.ClassComponent {
   view() {
     return m('.alerts', renderPermalink());
   }
-}
-
-interface PromptOption {
-  key: string;
-  displayName: string;
-}
-
-interface Prompt {
-  text: string;
-  options?: PromptOption[];
-  resolve(result: string): void;
-  reject(): void;
-}
-
-enum OmniboxMode {
-  Search,
-  Query,
-  Command,
-  Prompt,
 }
 
 const criticalPathSliceColumns = {
@@ -137,22 +113,14 @@ const criticalPathsliceLiteColumnNames = [
 ];
 
 export class App implements m.ClassComponent {
-  private trash = new Trash();
-
-  private omniboxMode: OmniboxMode = OmniboxMode.Search;
-  private omniboxText = '';
-  private queryText = '';
-  private omniboxSelectionIndex = 0;
-  private focusOmniboxNextRender = false;
-  private pendingCursorPlacement = -1;
-  private pendingPrompt?: Prompt;
+  private trash = new DisposableStack();
   static readonly OMNIBOX_INPUT_REF = 'omnibox';
   private omniboxInputEl?: HTMLInputElement;
   private recentCommands: string[] = [];
 
   constructor() {
-    this.trash.add(new Notes());
-    this.trash.add(new AggregationsTabs());
+    this.trash.use(new Notes());
+    this.trash.use(new AggregationsTabs());
   }
 
   private getEngine(): Engine | undefined {
@@ -164,85 +132,10 @@ export class App implements m.ClassComponent {
     return engine;
   }
 
-  private enterCommandMode(): void {
-    this.omniboxMode = OmniboxMode.Command;
-    this.resetOmnibox();
-    this.rejectPendingPrompt();
-    this.focusOmniboxNextRender = true;
-
-    raf.scheduleFullRedraw();
-  }
-
-  private enterQueryMode(): void {
-    this.omniboxMode = OmniboxMode.Query;
-    this.resetOmnibox();
-    this.rejectPendingPrompt();
-    this.focusOmniboxNextRender = true;
-
-    raf.scheduleFullRedraw();
-  }
-
-  private enterSearchMode(focusOmnibox: boolean): void {
-    this.omniboxMode = OmniboxMode.Search;
-    this.resetOmnibox();
-    this.rejectPendingPrompt();
-
-    if (focusOmnibox) {
-      this.focusOmniboxNextRender = true;
-    }
-
-    globals.dispatch(Actions.setOmniboxMode({mode: 'SEARCH'}));
-
-    raf.scheduleFullRedraw();
-  }
-
-  // Start a prompt. If options are supplied, the user must pick one from the
-  // list, otherwise the input is free-form text.
-  private prompt(text: string, options?: PromptOption[]): Promise<string> {
-    this.omniboxMode = OmniboxMode.Prompt;
-    this.resetOmnibox();
-    this.rejectPendingPrompt();
-
-    const promise = new Promise<string>((resolve, reject) => {
-      this.pendingPrompt = {
-        text,
-        options,
-        resolve,
-        reject,
-      };
-    });
-
-    this.focusOmniboxNextRender = true;
-    raf.scheduleFullRedraw();
-
-    return promise;
-  }
-
-  // Resolve the pending prompt with a value to return to the prompter.
-  private resolvePrompt(value: string): void {
-    if (this.pendingPrompt) {
-      this.pendingPrompt.resolve(value);
-      this.pendingPrompt = undefined;
-    }
-    this.enterSearchMode(false);
-  }
-
-  // Reject the prompt outright. Doing this will force the owner of the prompt
-  // promise to catch, so only do this when things go seriously wrong.
-  // Use |resolvePrompt(null)| to indicate cancellation.
-  private rejectPrompt(): void {
-    if (this.pendingPrompt) {
-      this.pendingPrompt.reject();
-      this.pendingPrompt = undefined;
-    }
-    this.enterSearchMode(false);
-  }
-
   private getFirstUtidOfSelectionOrVisibleWindow(): number {
-    const selection = getLegacySelection(globals.state);
-    if (selection && selection.kind === 'AREA') {
-      const selectedArea = globals.state.areas[selection.areaId];
-      const firstThreadStateTrack = selectedArea.tracks.find((trackId) => {
+    const selection = globals.state.selection;
+    if (selection.kind === 'area') {
+      const firstThreadStateTrack = selection.tracks.find((trackId) => {
         return globals.state.tracks[trackId];
       });
 
@@ -250,10 +143,10 @@ export class App implements m.ClassComponent {
         const trackInfo = globals.state.tracks[firstThreadStateTrack];
         const trackDesc = globals.trackManager.resolveTrackInfo(trackInfo.uri);
         if (
-          trackDesc?.kind === THREAD_STATE_TRACK_KIND &&
-          trackDesc?.utid !== undefined
+          trackDesc?.tags?.kind === THREAD_STATE_TRACK_KIND &&
+          trackDesc?.tags?.utid !== undefined
         ) {
-          return trackDesc?.utid;
+          return trackDesc.tags.utid;
         }
       }
     }
@@ -283,7 +176,7 @@ export class App implements m.ClassComponent {
         const promptText = 'Select format...';
 
         try {
-          const result = await this.prompt(promptText, options);
+          const result = await globals.omnibox.prompt(promptText, options);
           setTimestampFormat(result as TimestampFormat);
           raf.scheduleFullRedraw();
         } catch {
@@ -305,7 +198,7 @@ export class App implements m.ClassComponent {
         const promptText = 'Select duration precision mode...';
 
         try {
-          const result = await this.prompt(promptText, options);
+          const result = await globals.omnibox.prompt(promptText, options);
           setDurationPrecision(result as DurationPrecision);
           raf.scheduleFullRedraw();
         } catch {
@@ -318,16 +211,21 @@ export class App implements m.ClassComponent {
       name: `Critical path lite`,
       callback: async () => {
         const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
-        const window = getTimeSpanOfSelectionOrVisibleWindow();
+        const window = await getTimeSpanOfSelectionOrVisibleWindow();
         const engine = this.getEngine();
 
         if (engine !== undefined && trackUtid != 0) {
-          await runQuery(
+          await engine.query(
             `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
-            engine,
           );
           await addDebugSliceTrack(
-            engine,
+            // NOTE(stevegolton): This is a temporary patch, this menu should
+            // become part of a critical path plugin, at which point we can just
+            // use the plugin's context object.
+            {
+              engine,
+              registerTrack: (x) => globals.trackManager.registerTrack(x),
+            },
             {
               sqlSource: `
                    SELECT
@@ -361,16 +259,21 @@ export class App implements m.ClassComponent {
       name: `Critical path`,
       callback: async () => {
         const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
-        const window = getTimeSpanOfSelectionOrVisibleWindow();
+        const window = await getTimeSpanOfSelectionOrVisibleWindow();
         const engine = this.getEngine();
 
         if (engine !== undefined && trackUtid != 0) {
-          await runQuery(
+          await engine.query(
             `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
-            engine,
           );
           await addDebugSliceTrack(
-            engine,
+            // NOTE(stevegolton): This is a temporary patch, this menu should
+            // become part of a critical path plugin, at which point we can just
+            // use the plugin's context object.
+            {
+              engine,
+              registerTrack: (x) => globals.trackManager.registerTrack(x),
+            },
             {
               sqlSource: `
                         SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
@@ -393,9 +296,9 @@ export class App implements m.ClassComponent {
     {
       id: 'perfetto.CriticalPathPprof',
       name: `Critical path pprof`,
-      callback: () => {
+      callback: async () => {
         const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
-        const window = getTimeSpanOfSelectionOrVisibleWindow();
+        const window = await getTimeSpanOfSelectionOrVisibleWindow();
         const engine = this.getEngine();
 
         if (engine !== undefined && trackUtid != 0) {
@@ -454,19 +357,19 @@ export class App implements m.ClassComponent {
     {
       id: 'perfetto.OpenCommandPalette',
       name: 'Open command palette',
-      callback: () => this.enterCommandMode(),
+      callback: () => globals.omnibox.setMode(OmniboxMode.Command),
       defaultHotkey: '!Mod+Shift+P',
     },
     {
       id: 'perfetto.RunQuery',
       name: 'Run query',
-      callback: () => this.enterQueryMode(),
+      callback: () => globals.omnibox.setMode(OmniboxMode.Query),
       defaultHotkey: '!Mod+O',
     },
     {
       id: 'perfetto.Search',
       name: 'Search',
-      callback: () => this.enterSearchMode(true),
+      callback: () => globals.omnibox.setMode(OmniboxMode.Search),
       defaultHotkey: '/',
     },
     {
@@ -476,72 +379,12 @@ export class App implements m.ClassComponent {
       defaultHotkey: '?',
     },
     {
-      id: 'perfetto.RunQueryInSelectedTimeWindow',
-      name: `Run query in selected time window`,
-      callback: () => {
-        const window = getTimeSpanOfSelectionOrVisibleWindow();
-        this.enterQueryMode();
-        this.queryText = `select  where ts >= ${window.start} and ts < ${window.end}`;
-        this.pendingCursorPlacement = 7;
-      },
-    },
-    {
       id: 'perfetto.CopyTimeWindow',
       name: `Copy selected time window to clipboard`,
-      callback: () => {
-        const window = getTimeSpanOfSelectionOrVisibleWindow();
+      callback: async () => {
+        const window = await getTimeSpanOfSelectionOrVisibleWindow();
         const query = `ts >= ${window.start} and ts < ${window.end}`;
         copyToClipboard(query);
-      },
-    },
-    {
-      // Selects & reveals the first track on the timeline with a given URI.
-      id: 'perfetto.FindTrack',
-      name: 'Find track by URI',
-      callback: async () => {
-        const tracks = globals.trackManager.getAllTracks();
-        const options = tracks.map(({uri}): PromptOption => {
-          return {key: uri, displayName: uri};
-        });
-
-        // Sort tracks in a natural sort order
-        const collator = new Intl.Collator('en', {
-          numeric: true,
-          sensitivity: 'base',
-        });
-        const sortedOptions = options.sort((a, b) => {
-          return collator.compare(a.displayName, b.displayName);
-        });
-
-        try {
-          const selectedUri = await this.prompt(
-            'Choose a track...',
-            sortedOptions,
-          );
-
-          // Find the first track with this URI
-          const firstTrack = Object.values(globals.state.tracks).find(
-            ({uri}) => uri === selectedUri,
-          );
-          if (firstTrack) {
-            console.log(firstTrack);
-            verticalScrollToTrack(firstTrack.key, true);
-            const traceTime = globals.stateTraceTimeTP();
-            globals.makeSelection(
-              Actions.selectArea({
-                area: {
-                  start: traceTime.start,
-                  end: traceTime.end,
-                  tracks: [firstTrack.key],
-                },
-              }),
-            );
-          } else {
-            alert(`No tracks with uri ${selectedUri} on the timeline`);
-          }
-        } catch {
-          // Prompt was probably cancelled - do nothing.
-        }
       },
     },
     {
@@ -561,30 +404,49 @@ export class App implements m.ClassComponent {
       defaultHotkey: 'Escape',
     },
     {
-      id: 'perfetto.MarkArea',
-      name: 'Mark area',
-      callback: () => {
-        const selection = getLegacySelection(globals.state);
-        if (selection && selection.kind === 'AREA') {
-          globals.dispatch(Actions.toggleMarkCurrentArea({persistent: false}));
-        } else if (selection) {
-          lockSliceSpan(false);
+      id: 'perfetto.SetTemporarySpanNote',
+      name: 'Set the temporary span note based on the current selection',
+      callback: async () => {
+        const range = await globals.findTimeRangeOfSelection();
+        if (range) {
+          globals.dispatch(
+            Actions.addSpanNote({
+              start: range.start,
+              end: range.end,
+              id: '__temp__',
+            }),
+          );
         }
       },
       defaultHotkey: 'M',
     },
     {
-      id: 'perfetto.MarkAreaPersistent',
-      name: 'Mark area (persistent)',
-      callback: () => {
-        const selection = getLegacySelection(globals.state);
-        if (selection && selection.kind === 'AREA') {
-          globals.dispatch(Actions.toggleMarkCurrentArea({persistent: true}));
-        } else if (selection) {
-          lockSliceSpan(true);
+      id: 'perfetto.AddSpanNote',
+      name: 'Add a new span note based on the current selection',
+      callback: async () => {
+        const range = await globals.findTimeRangeOfSelection();
+        if (range) {
+          globals.dispatch(
+            Actions.addSpanNote({start: range.start, end: range.end}),
+          );
         }
       },
       defaultHotkey: 'Shift+M',
+    },
+    {
+      id: 'perfetto.RemoveSelectedNote',
+      name: 'Remove selected note',
+      callback: () => {
+        const selection = globals.state.selection;
+        if (selection.kind === 'note') {
+          globals.dispatch(
+            Actions.removeNote({
+              id: selection.id,
+            }),
+          );
+        }
+      },
+      defaultHotkey: 'Delete',
     },
     {
       id: 'perfetto.NextFlow',
@@ -614,19 +476,26 @@ export class App implements m.ClassComponent {
       id: 'perfetto.SelectAll',
       name: 'Select all',
       callback: () => {
+        // This is a dual state command:
+        // - If one ore more tracks are already area selected, expand the time
+        //   range to include the entire trace, but keep the selection on just
+        //   these tracks.
+        // - If nothing is selected, or all selected tracks are entirely
+        //   selected, then select the entire trace. This allows double tapping
+        //   Ctrl+A to select the entire track, then select the entire trace.
         let tracksToSelect: string[] = [];
-
-        const selection = getLegacySelection(globals.state);
-        if (selection !== null && selection.kind === 'AREA') {
-          const area = globals.state.areas[selection.areaId];
+        const selection = globals.state.selection;
+        if (selection.kind === 'area') {
+          // Something is already selected, let's see if it covers the entire
+          // span of the trace or not
           const coversEntireTimeRange =
-            globals.traceTime.start === area.start &&
-            globals.traceTime.end === area.end;
+            globals.traceContext.start === selection.start &&
+            globals.traceContext.end === selection.end;
           if (!coversEntireTimeRange) {
             // If the current selection is an area which does not cover the
             // entire time range, preserve the list of selected tracks and
             // expand the time range.
-            tracksToSelect = area.tracks;
+            tracksToSelect = selection.tracks;
           } else {
             // If the entire time range is already covered, update the selection
             // to cover all tracks.
@@ -636,14 +505,12 @@ export class App implements m.ClassComponent {
           // If the current selection is not an area, select all.
           tracksToSelect = Object.keys(globals.state.tracks);
         }
-        const {start, end} = globals.traceTime;
+        const {start, end} = globals.traceContext;
         globals.dispatch(
           Actions.selectArea({
-            area: {
-              start,
-              end,
-              tracks: tracksToSelect,
-            },
+            start,
+            end,
+            tracks: tracksToSelect,
           }),
         );
       },
@@ -653,18 +520,6 @@ export class App implements m.ClassComponent {
 
   commands() {
     return this.cmds;
-  }
-
-  private rejectPendingPrompt() {
-    if (this.pendingPrompt) {
-      this.pendingPrompt.reject();
-      this.pendingPrompt = undefined;
-    }
-  }
-
-  private resetOmnibox() {
-    this.omniboxText = '';
-    this.omniboxSelectionIndex = 0;
   }
 
   private renderOmnibox(): m.Children {
@@ -683,22 +538,23 @@ export class App implements m.ClassComponent {
       );
     }
 
-    if (this.omniboxMode === OmniboxMode.Command) {
+    const omniboxMode = globals.omnibox.omniboxMode;
+
+    if (omniboxMode === OmniboxMode.Command) {
       return this.renderCommandOmnibox();
-    } else if (this.omniboxMode === OmniboxMode.Prompt) {
+    } else if (omniboxMode === OmniboxMode.Prompt) {
       return this.renderPromptOmnibox();
-    } else if (this.omniboxMode === OmniboxMode.Query) {
+    } else if (omniboxMode === OmniboxMode.Query) {
       return this.renderQueryOmnibox();
-    } else if (this.omniboxMode === OmniboxMode.Search) {
+    } else if (omniboxMode === OmniboxMode.Search) {
       return this.renderSearchOmnibox();
     } else {
-      const x: never = this.omniboxMode;
-      throw new Error(`Unhandled omnibox mode ${x}`);
+      assertUnreachable(omniboxMode);
     }
   }
 
   renderPromptOmnibox(): m.Children {
-    const prompt = assertExists(this.pendingPrompt);
+    const prompt = assertExists(globals.omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
 
@@ -707,7 +563,7 @@ export class App implements m.ClassComponent {
         prompt.options,
         ({displayName}) => displayName,
       );
-      const result = fuzzy.find(this.omniboxText);
+      const result = fuzzy.find(globals.omnibox.text);
       options = result.map((result) => {
         return {
           key: result.item.key,
@@ -717,27 +573,27 @@ export class App implements m.ClassComponent {
     }
 
     return m(Omnibox, {
-      value: this.omniboxText,
+      value: globals.omnibox.text,
       placeholder: prompt.text,
       inputRef: App.OMNIBOX_INPUT_REF,
       extraClasses: 'prompt-mode',
       closeOnOutsideClick: true,
       options,
-      selectedOptionIndex: this.omniboxSelectionIndex,
+      selectedOptionIndex: globals.omnibox.omniboxSelectionIndex,
       onSelectedOptionChanged: (index) => {
-        this.omniboxSelectionIndex = index;
+        globals.omnibox.setOmniboxSelectionIndex(index);
         raf.scheduleFullRedraw();
       },
       onInput: (value) => {
-        this.omniboxText = value;
-        this.omniboxSelectionIndex = 0;
+        globals.omnibox.setText(value);
+        globals.omnibox.setOmniboxSelectionIndex(0);
         raf.scheduleFullRedraw();
       },
       onSubmit: (value, _alt) => {
-        this.resolvePrompt(value);
+        globals.omnibox.resolvePrompt(value);
       },
       onClose: () => {
-        this.rejectPrompt();
+        globals.omnibox.rejectPrompt();
       },
     });
   }
@@ -746,7 +602,7 @@ export class App implements m.ClassComponent {
     const cmdMgr = globals.commandManager;
 
     // Fuzzy-filter commands by the filter string.
-    const filteredCmds = cmdMgr.fuzzyFilterCommands(this.omniboxText);
+    const filteredCmds = cmdMgr.fuzzyFilterCommands(globals.omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent
     // command register.
@@ -777,36 +633,35 @@ export class App implements m.ClassComponent {
     });
 
     return m(Omnibox, {
-      value: this.omniboxText,
+      value: globals.omnibox.text,
       placeholder: 'Filter commands...',
       inputRef: App.OMNIBOX_INPUT_REF,
       extraClasses: 'command-mode',
       options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
-      selectedOptionIndex: this.omniboxSelectionIndex,
+      selectedOptionIndex: globals.omnibox.omniboxSelectionIndex,
       onSelectedOptionChanged: (index) => {
-        this.omniboxSelectionIndex = index;
+        globals.omnibox.setOmniboxSelectionIndex(index);
         raf.scheduleFullRedraw();
       },
       onInput: (value) => {
-        this.omniboxText = value;
-        this.omniboxSelectionIndex = 0;
+        globals.omnibox.setText(value);
+        globals.omnibox.setOmniboxSelectionIndex(0);
         raf.scheduleFullRedraw();
       },
       onClose: () => {
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
-        this.enterSearchMode(false);
-        raf.scheduleFullRedraw();
+        globals.omnibox.reset();
       },
       onSubmit: (key: string) => {
         this.addRecentCommand(key);
         cmdMgr.runCommand(key);
       },
       onGoBack: () => {
-        this.enterSearchMode(false);
+        globals.omnibox.reset();
       },
     });
   }
@@ -822,13 +677,13 @@ export class App implements m.ClassComponent {
   renderQueryOmnibox(): m.Children {
     const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
     return m(Omnibox, {
-      value: this.queryText,
+      value: globals.omnibox.text,
       placeholder: ph,
       inputRef: App.OMNIBOX_INPUT_REF,
       extraClasses: 'query-mode',
 
       onInput: (value) => {
-        this.queryText = value;
+        globals.omnibox.setText(value);
         raf.scheduleFullRedraw();
       },
       onSubmit: (query, alt) => {
@@ -840,15 +695,15 @@ export class App implements m.ClassComponent {
         addQueryResultsTab(config, tag);
       },
       onClose: () => {
-        this.queryText = '';
+        globals.omnibox.setText('');
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
-        this.enterSearchMode(false);
+        globals.omnibox.reset();
         raf.scheduleFullRedraw();
       },
       onGoBack: () => {
-        this.enterSearchMode(false);
+        globals.omnibox.reset();
       },
     });
   }
@@ -865,10 +720,10 @@ export class App implements m.ClassComponent {
       onInput: (value, prev) => {
         if (prev === '') {
           if (value === '>') {
-            this.enterCommandMode();
+            globals.omnibox.setMode(OmniboxMode.Command);
             return;
           } else if (value === ':') {
-            this.enterQueryMode();
+            globals.omnibox.setMode(OmniboxMode.Query);
             return;
           }
         }
@@ -965,7 +820,7 @@ export class App implements m.ClassComponent {
     // Register each command with the command manager
     this.cmds.forEach((cmd) => {
       const dispose = globals.commandManager.registerCommand(cmd);
-      this.trash.add(dispose);
+      this.trash.use(dispose);
     });
   }
 
@@ -987,32 +842,20 @@ export class App implements m.ClassComponent {
   }
 
   private maybeFocusOmnibar() {
-    if (this.focusOmniboxNextRender) {
+    if (globals.omnibox.focusOmniboxNextRender) {
       const omniboxEl = this.omniboxInputEl;
       if (omniboxEl) {
         omniboxEl.focus();
-        if (this.pendingCursorPlacement === -1) {
+        if (globals.omnibox.pendingCursorPlacement === undefined) {
           omniboxEl.select();
         } else {
           omniboxEl.setSelectionRange(
-            this.pendingCursorPlacement,
-            this.pendingCursorPlacement,
+            globals.omnibox.pendingCursorPlacement,
+            globals.omnibox.pendingCursorPlacement,
           );
-          this.pendingCursorPlacement = -1;
         }
       }
-      this.focusOmniboxNextRender = false;
+      globals.omnibox.clearOmniboxFocusFlag();
     }
-  }
-}
-
-// Returns the time span of the current selection, or the visible window if
-// there is no current selection.
-function getTimeSpanOfSelectionOrVisibleWindow(): Span<time, duration> {
-  const range = globals.findTimeRangeOfSelection();
-  if (exists(range)) {
-    return new TimeSpan(range.start, range.end);
-  } else {
-    return globals.stateVisibleTime();
   }
 }

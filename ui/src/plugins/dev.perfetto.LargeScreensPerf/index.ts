@@ -20,18 +20,18 @@ class LargeScreensPerf implements Plugin {
       id: 'dev.perfetto.LargeScreensPerf#PinUnfoldLatencyTracks',
       name: 'Pin: Unfold latency tracks',
       callback: () => {
-        ctx.timeline.pinTracksByPredicate((tags) => {
+        ctx.timeline.pinTracksByPredicate((track) => {
           return (
-            !!tags.name?.includes('UnfoldTransition') ||
-            tags.name?.includes('Screen on blocked') ||
-            tags.name?.includes('hingeAngle') ||
-            tags.name?.includes('UnfoldLightRevealOverlayAnimation') ||
-            tags.name?.startsWith('waitForAllWindowsDrawn') ||
-            tags.name?.endsWith('UNFOLD_ANIM>') ||
-            tags.name?.endsWith('UNFOLD>') ||
-            tags.name == 'Waiting for KeyguardDrawnCallback#onDrawn' ||
-            tags.name == 'FoldedState' ||
-            tags.name == 'FoldUpdate'
+            !!track.title.includes('UnfoldTransition') ||
+            track.title.includes('Screen on blocked') ||
+            track.title.includes('hingeAngle') ||
+            track.title.includes('UnfoldLightRevealOverlayAnimation') ||
+            track.title.startsWith('waitForAllWindowsDrawn') ||
+            track.title.endsWith('UNFOLD_ANIM>') ||
+            track.title.endsWith('UNFOLD>') ||
+            track.title == 'Waiting for KeyguardDrawnCallback#onDrawn' ||
+            track.title == 'FoldedState' ||
+            track.title == 'FoldUpdate'
           );
         });
       },

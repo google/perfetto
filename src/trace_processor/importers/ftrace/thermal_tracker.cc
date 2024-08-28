@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/importers/ftrace/thermal_tracker.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/ftrace/thermal_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -84,7 +84,8 @@ void ThermalTracker::ParseThermalExynosAcpmBulk(protozero::ConstBytes blob) {
 }
 
 void ThermalTracker::ParseThermalExynosAcpmHighOverhead(
-    int64_t timestamp, protozero::ConstBytes blob) {
+    int64_t timestamp,
+    protozero::ConstBytes blob) {
   protos::pbzero::ThermalExynosAcpmHighOverheadFtraceEvent::Decoder event(blob);
   auto tz_id = static_cast<size_t>(event.tz_id());
   if (tz_id >= kAcpmThermalZones) {
@@ -100,7 +101,8 @@ void ThermalTracker::ParseThermalExynosAcpmHighOverhead(
               static_cast<double>(event.cdev_state()));
 }
 
-void ThermalTracker::PushCounter(int64_t timestamp, StringId counter_id,
+void ThermalTracker::PushCounter(int64_t timestamp,
+                                 StringId counter_id,
                                  double value) {
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(
       TrackTracker::Group::kThermals, counter_id);

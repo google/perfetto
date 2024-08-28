@@ -21,7 +21,7 @@ workspace(name = "perfetto")
 new_local_repository(
     name = "perfetto_cfg",
     path = "bazel/standalone",
-    build_file_content = ""
+    build_file_content = "",
 )
 
 load("@perfetto//bazel:deps.bzl", "perfetto_deps")

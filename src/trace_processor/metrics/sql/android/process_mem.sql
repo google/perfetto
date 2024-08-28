@@ -14,75 +14,52 @@
 -- limitations under the License.
 --
 
--- Create all the views used to generate the Android Memory metrics proto.
--- Anon RSS
-SELECT RUN_METRIC('android/process_counter_span_view.sql',
-  'table_name', 'anon_rss',
-  'counter_name', 'mem.rss.anon');
+INCLUDE PERFETTO MODULE android.memory.process;
+INCLUDE PERFETTO MODULE linux.memory.process;
 
--- File RSS
-SELECT RUN_METRIC('android/process_counter_span_view.sql',
-  'table_name', 'file_rss',
-  'counter_name', 'mem.rss.file');
-
-SELECT RUN_METRIC('android/process_counter_span_view.sql',
-  'table_name', 'shmem_rss',
-  'counter_name', 'mem.rss.shmem');
-
--- Swap
-SELECT RUN_METRIC('android/process_counter_span_view.sql',
-  'table_name', 'swap',
-  'counter_name', 'mem.swap');
-
--- OOM score
 SELECT RUN_METRIC('android/process_oom_score.sql');
 
--- Anon RSS + Swap
-DROP TABLE IF EXISTS anon_and_swap_join;
-CREATE VIRTUAL TABLE anon_and_swap_join
-USING SPAN_OUTER_JOIN(anon_rss_span PARTITIONED upid, swap_span PARTITIONED upid);
+DROP VIEW IF EXISTS anon_rss_span;
+CREATE PERFETTO VIEW anon_rss_span AS
+SELECT * FROM _anon_rss;
+
+DROP VIEW IF EXISTS file_rss_span;
+CREATE PERFETTO VIEW file_rss_span AS
+SELECT * FROM _file_rss;
+
+DROP VIEW IF EXISTS shmem_rss_span;
+CREATE PERFETTO VIEW shmem_rss_span AS
+SELECT * FROM _shmem_rss;
+
+DROP VIEW IF EXISTS swap_span;
+CREATE PERFETTO VIEW swap_span AS
+SELECT * FROM _swap;
 
 DROP VIEW IF EXISTS anon_and_swap_span;
 CREATE PERFETTO VIEW anon_and_swap_span AS
 SELECT
   ts, dur, upid,
   IFNULL(anon_rss_val, 0) + IFNULL(swap_val, 0) AS anon_and_swap_val
-FROM anon_and_swap_join;
-
--- Anon RSS + file RSS + Swap
-DROP TABLE IF EXISTS anon_and_file_and_swap_join;
-CREATE VIRTUAL TABLE anon_and_file_and_swap_join
-USING SPAN_OUTER_JOIN(
-  anon_and_swap_join PARTITIONED upid,
-  file_rss_span PARTITIONED upid
-);
-
--- RSS + Swap
-DROP TABLE IF EXISTS rss_and_swap_join;
-CREATE VIRTUAL TABLE rss_and_swap_join
-USING SPAN_OUTER_JOIN(
-  anon_and_file_and_swap_join PARTITIONED upid,
-  shmem_rss_span PARTITIONED upid
-);
+FROM _anon_swap_sj;
 
 DROP VIEW IF EXISTS rss_and_swap_span;
 CREATE PERFETTO VIEW rss_and_swap_span AS
 SELECT
-  ts, dur, upid,
-  CAST(IFNULL(file_rss_val, 0) AS INT) AS file_rss_val,
-  CAST(IFNULL(anon_rss_val, 0) AS INT) AS anon_rss_val,
-  CAST(IFNULL(shmem_rss_val, 0) AS INT) AS shmem_rss_val,
-  CAST(IFNULL(swap_val, 0) AS INT) AS swap_val,
-  CAST(
-    IFNULL(anon_rss_val, 0)
-    + IFNULL(file_rss_val, 0)
-    + IFNULL(shmem_rss_val, 0) AS int) AS rss_val,
-  CAST(
-    IFNULL(anon_rss_val, 0)
-    + IFNULL(swap_val, 0)
-    + IFNULL(file_rss_val, 0)
-    + IFNULL(shmem_rss_val, 0) AS int) AS rss_and_swap_val
-FROM rss_and_swap_join;
+  ts,
+  dur,
+  upid,
+  file_rss AS file_rss_val,
+  anon_rss AS anon_rss_val,
+  shmem_rss AS shmem_rss_val,
+  swap AS swap_val,
+  COALESCE(file_rss, 0)
+    + COALESCE(anon_rss, 0)
+    + COALESCE(shmem_rss, 0) AS rss_val,
+  COALESCE(file_rss, 0)
+    + COALESCE(anon_rss, 0)
+    + COALESCE(shmem_rss, 0)
+    + COALESCE(swap, 0) AS rss_and_swap_val
+FROM _memory_rss_and_swap_per_process_table;
 
 -- If we have dalvik events enabled (for ART trace points) we can construct the java heap timeline.
 SELECT RUN_METRIC('android/process_counter_span_view.sql',
@@ -94,22 +71,22 @@ CREATE PERFETTO VIEW java_heap_span AS
 SELECT ts, dur, upid, java_heap_kb_val * 1024 AS java_heap_val
 FROM java_heap_kb_span;
 
+DROP TABLE IF EXISTS java_heap_by_oom_span;
+CREATE VIRTUAL TABLE java_heap_by_oom_span
+USING SPAN_JOIN(java_heap_span PARTITIONED upid, oom_score_span PARTITIONED upid);
+
 DROP TABLE IF EXISTS anon_rss_by_oom_span;
 CREATE VIRTUAL TABLE anon_rss_by_oom_span
-USING SPAN_JOIN(anon_rss_span PARTITIONED upid, oom_score_span PARTITIONED upid);
+USING SPAN_JOIN(_anon_rss PARTITIONED upid, oom_score_span PARTITIONED upid);
 
 DROP TABLE IF EXISTS file_rss_by_oom_span;
 CREATE VIRTUAL TABLE file_rss_by_oom_span
-USING SPAN_JOIN(file_rss_span PARTITIONED upid, oom_score_span PARTITIONED upid);
+USING SPAN_JOIN(_file_rss PARTITIONED upid, oom_score_span PARTITIONED upid);
 
 DROP TABLE IF EXISTS swap_by_oom_span;
 CREATE VIRTUAL TABLE swap_by_oom_span
-USING SPAN_JOIN(swap_span PARTITIONED upid, oom_score_span PARTITIONED upid);
+USING SPAN_JOIN(_swap PARTITIONED upid, oom_score_span PARTITIONED upid);
 
 DROP TABLE IF EXISTS anon_and_swap_by_oom_span;
 CREATE VIRTUAL TABLE anon_and_swap_by_oom_span
 USING SPAN_JOIN(anon_and_swap_span PARTITIONED upid, oom_score_span PARTITIONED upid);
-
-DROP TABLE IF EXISTS java_heap_by_oom_span;
-CREATE VIRTUAL TABLE java_heap_by_oom_span
-USING SPAN_JOIN(java_heap_span PARTITIONED upid, oom_score_span PARTITIONED upid);

@@ -76,7 +76,8 @@ template <>
 struct TraceTimestampTraits<uint64_t> {
   static inline TraceTimestamp ConvertTimestampToTraceTimeNs(
       const uint64_t& timestamp) {
-    return {static_cast<uint32_t>(internal::TrackEventInternal::GetClockId()), timestamp};
+    return {static_cast<uint32_t>(internal::TrackEventInternal::GetClockId()),
+            timestamp};
   }
 };
 
@@ -108,14 +109,15 @@ static constexpr bool IsValidNormalTrack() {
 // Because the user can use arbitrary timestamp types, we can't compare against
 // any known base type here. Instead, we check that a track or a trace lambda
 // isn't being interpreted as a timestamp.
-template <typename T,
-          typename CanBeConvertedToNsCheck = decltype(
-              ::perfetto::TraceTimestampTraits<typename base::remove_cvref_t<
-                  T>>::ConvertTimestampToTraceTimeNs(std::declval<T>())),
-          typename NotTrackCheck =
-              typename std::enable_if<!IsValidNormalTrack<T>()>::type,
-          typename NotLambdaCheck =
-              typename std::enable_if<!IsValidTraceLambda<T>()>::type>
+template <
+    typename T,
+    typename CanBeConvertedToNsCheck =
+        decltype(::perfetto::TraceTimestampTraits<typename base::remove_cvref_t<
+                     T>>::ConvertTimestampToTraceTimeNs(std::declval<T>())),
+    typename NotTrackCheck =
+        typename std::enable_if<!IsValidNormalTrack<T>()>::type,
+    typename NotLambdaCheck =
+        typename std::enable_if<!IsValidTraceLambda<T>()>::type>
 static constexpr bool IsValidTimestamp() {
   return true;
 }
@@ -328,14 +330,13 @@ class TrackEventDataSource
   }
 
   static void Flush() {
-    Base::template Trace([](typename Base::TraceContext ctx) { ctx.Flush(); });
+    Base::Trace([](typename Base::TraceContext ctx) { ctx.Flush(); });
   }
 
   // Determine if *any* tracing category is enabled.
   static bool IsEnabled() {
     bool enabled = false;
-    Base::template CallIfEnabled(
-        [&](uint32_t /*instances*/) { enabled = true; });
+    Base::CallIfEnabled([&](uint32_t /*instances*/) { enabled = true; });
     return enabled;
   }
 
@@ -349,7 +350,7 @@ class TrackEventDataSource
   static bool IsDynamicCategoryEnabled(
       const DynamicCategory& dynamic_category) {
     bool enabled = false;
-    Base::template Trace([&](typename Base::TraceContext ctx) {
+    Base::Trace([&](typename Base::TraceContext ctx) {
       enabled = enabled || IsDynamicCategoryEnabled(&ctx, dynamic_category);
     });
     return enabled;
@@ -496,7 +497,7 @@ class TrackEventDataSource
                                  const protos::gen::TrackDescriptor& desc) {
     PERFETTO_DCHECK(track.uuid == desc.uuid());
     TrackRegistry::Get()->UpdateTrack(track, desc.SerializeAsString());
-    Base::template Trace([&](typename Base::TraceContext ctx) {
+    Base::Trace([&](typename Base::TraceContext ctx) {
       TrackEventInternal::WriteTrackDescriptor(
           track, ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
           *ctx.GetCustomTlsState(), TrackEventInternal::GetTraceTime());
@@ -1026,7 +1027,7 @@ class TrackEventDataSource
                                  Lambda lambda) PERFETTO_ALWAYS_INLINE {
     using CatTraits = CategoryTraits<CategoryType>;
     if (CatTraits::kIsDynamic) {
-      Base::template TraceWithInstances(instances, std::move(lambda));
+      Base::TraceWithInstances(instances, std::move(lambda));
     } else {
       Base::template TraceWithInstances<CategoryTracePointTraits>(
           instances, std::move(lambda), {CatTraits::GetStaticIndex(category)});

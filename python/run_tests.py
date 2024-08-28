@@ -18,8 +18,9 @@ import os
 import sys
 import unittest
 
-from test import api_unittest
 from test import api_integrationtest
+from test import bigtrace_api_integrationtest
+from test import query_result_iterator_unittest
 from test import resolver_unittest
 from test import stdlib_unittest
 
@@ -38,18 +39,23 @@ def main():
   # Set paths to trace_processor_shell and root directory as environment
   # variables
   parser = argparse.ArgumentParser()
-  parser.add_argument("shell", type=str)
-  os.environ["SHELL_PATH"] = parser.parse_args().shell
+  parser.add_argument("host_out_path", type=str)
+  host_out_path = parser.parse_args().host_out_path
+  os.environ["SHELL_PATH"] = f"{host_out_path}/trace_processor_shell"
+  os.environ["ORCHESTRATOR_PATH"] = f"{host_out_path}/orchestrator_main"
+  os.environ["WORKER_PATH"] = f"{host_out_path}/worker_main"
   os.environ["ROOT_DIR"] = ROOT_DIR
 
   loader = unittest.TestLoader()
   suite = unittest.TestSuite()
 
   # Add all relevant tests to test suite
-  suite.addTests(loader.loadTestsFromModule(api_unittest))
+  suite.addTests(loader.loadTestsFromModule(query_result_iterator_unittest))
   suite.addTests(loader.loadTestsFromModule(resolver_unittest))
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))
   suite.addTests(loader.loadTestsFromModule(stdlib_unittest))
+  if os.path.exists(os.environ["WORKER_PATH"]):
+    suite.addTests(loader.loadTestsFromModule(bigtrace_api_integrationtest))
 
   # Initialise runner to run all tests in suite
   runner = unittest.TextTestRunner(verbosity=3)

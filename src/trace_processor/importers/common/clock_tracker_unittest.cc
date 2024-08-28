@@ -19,6 +19,7 @@
 #include <optional>
 #include <random>
 
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -301,6 +302,119 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResults) {
       ASSERT_EQ(not_cached.value(), cached.value());
     }
   }
+}
+
+// Test clock conversion with offset to the host.
+TEST_F(ClockTrackerTest, ClockOffset) {
+  EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
+
+  context_.machine_tracker =
+      std::make_unique<MachineTracker>(&context_, 0x1001);
+
+  // Client-to-host BOOTTIME offset is -10000 ns.
+  ct_.SetClockOffset(BOOTTIME, -10000);
+
+  ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
+  ct_.AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
+  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+
+  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
+  auto seq_clock_2 = ct_.SequenceToGlobalClock(2, 64);
+  ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
+  ct_.AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
+
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 0), 20000);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 1), 20001);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 20009);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 10), 20010);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 11), 20011);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 19), 20019);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 20), 30220);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 21), 30221);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 29), 30229);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 30), 40030);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 40), 40040);
+
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 0), 100000 - 1000 + 10000);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 999), 100000 - 1 + 10000);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1000), 100000 + 10000);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1e6),
+            static_cast<int64_t>(100000 - 1000 + 1e6 + 10000));
+
+  // seq_clock_1 -> MONOTONIC -> BOOTTIME -> apply offset.
+  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000 + 10000);
+  // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME -> apply offset.
+  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_2, 2100),
+            100 * 10 + 100 + 1000 + 100000 + 10000);
+}
+
+// Test conversion of remote machine timestamps without offset. This can happen
+// if timestamp conversion for remote machines is done by trace data
+// post-processing.
+TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
+  context_.machine_tracker =
+      std::make_unique<MachineTracker>(&context_, 0x1001);
+
+  ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
+  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+
+  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
+  auto seq_clock_2 = ct_.SequenceToGlobalClock(2, 64);
+  ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
+  ct_.AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
+
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 0), 10000);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 10009);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 11), 10011);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 19), 10019);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 20), 20220);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 21), 20221);
+
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 0), 100000 - 1000);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 999), 100000 - 1);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1000), 100000);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1e6),
+            static_cast<int64_t>(100000 - 1000 + 1e6));
+
+  // seq_clock_1 -> MONOTONIC -> BOOTTIME.
+  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000);
+  // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME.
+  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_2, 2100),
+            100 * 10 + 100 + 1000 + 100000);
+}
+
+// Test clock offset of non-defualt trace time clock domain.
+TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
+  context_.machine_tracker =
+      std::make_unique<MachineTracker>(&context_, 0x1001);
+
+  ct_.SetTraceTimeClock(MONOTONIC);
+  ct_.SetClockOffset(MONOTONIC, -2000);
+  ct_.SetClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
+
+  ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+
+  auto seq_clock_1 = ct_.SequenceToGlobalClock(1, 64);
+  ct_.AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
+
+  int64_t realtime_to_trace_time_delta = -10 + 10010 - 100000 + 1000 - (-2000);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 9), 9 + realtime_to_trace_time_delta);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 10), 10 + realtime_to_trace_time_delta);
+  EXPECT_EQ(*ct_.ToTraceTime(REALTIME, 20), 20 + realtime_to_trace_time_delta);
+
+  int64_t mono_to_trace_time_delta = -2000;
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 0), 0 - mono_to_trace_time_delta);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 999), 999 - mono_to_trace_time_delta);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1000), 1000 - mono_to_trace_time_delta);
+  EXPECT_EQ(*ct_.ToTraceTime(MONOTONIC, 1e6),
+            static_cast<int64_t>(1e6) - mono_to_trace_time_delta);
+
+  // seq_clock_1 -> MONOTONIC.
+  EXPECT_EQ(*ct_.ToTraceTime(seq_clock_1, 1100), 1100 - 1200 + 2000 - (-2000));
 }
 
 }  // namespace

@@ -95,3 +95,4 @@ def perfetto_deps():
 def _add_repo_if_not_existing(repo_rule, name, **kwargs):
     if name not in native.existing_rules():
         repo_rule(name = name, **kwargs)
+

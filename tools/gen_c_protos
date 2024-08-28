@@ -30,6 +30,8 @@ SOURCE_FILES = [
       'protos/perfetto/config/data_source_config.proto',
       'protos/perfetto/config/trace_config.proto',
       'protos/perfetto/config/track_event/track_event_config.proto',
+      'protos/perfetto/trace/android/android_track_event.proto',
+      'protos/perfetto/trace/clock_snapshot.proto',
       'protos/perfetto/trace/interned_data/interned_data.proto',
       'protos/perfetto/trace/test_event.proto',
       'protos/perfetto/trace/trace.proto',
@@ -47,6 +49,7 @@ SOURCE_FILES = [
   },
   {
     'files': [
+      'src/protozero/test/example_proto/extensions.proto',
       'src/protozero/test/example_proto/library.proto',
       'src/protozero/test/example_proto/library_internals/galaxies.proto',
       'src/protozero/test/example_proto/other_package/test_messages.proto',

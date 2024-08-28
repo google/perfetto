@@ -28,6 +28,8 @@ using ::testing::Return;
 namespace perfetto {
 namespace {
 
+static const uint32_t CPU_COUNT = 8;
+
 const char kMockCpuInfoAndroid[] = R"(
 Processor	: AArch64 Processor rev 13 (aarch64)
 processor	: 0
@@ -106,6 +108,9 @@ Hardware	: Qualcomm Technologies, Inc SDM670
 
 )";
 
+const char* kMockCpuCapacityInfoAndroid[8] = {
+    "200\n", "200\n", "200\n", "600\n", "600\n", "600\n", "1024\n", "1024\n"};
+
 class TestSystemInfoDataSource : public SystemInfoDataSource {
  public:
   TestSystemInfoDataSource(std::unique_ptr<TraceWriter> writer,
@@ -138,6 +143,14 @@ TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   auto data_source = GetSystemInfoDataSource();
   EXPECT_CALL(*data_source, ReadFile("/proc/cpuinfo"))
       .WillOnce(Return(kMockCpuInfoAndroid));
+
+  for (uint32_t cpu_index = 0; cpu_index < CPU_COUNT; cpu_index++) {
+    EXPECT_CALL(*data_source,
+                ReadFile("/sys/devices/system/cpu/cpu" +
+                         std::to_string(cpu_index) + "/cpu_capacity"))
+        .WillOnce(Return(kMockCpuCapacityInfoAndroid[cpu_index]));
+  }
+
   data_source->Start();
 
   protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
@@ -149,11 +162,14 @@ TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   ASSERT_THAT(cpu.frequencies(),
               ElementsAre(300000, 576000, 748800, 998400, 1209600, 1324800,
                           1516800, 1612800, 1708800));
+  ASSERT_EQ(cpu.capacity(), static_cast<uint32_t>(200));
   cpu = cpu_info.cpus()[1];
   ASSERT_EQ(cpu.processor(), "AArch64 Processor rev 13 (aarch64)");
   ASSERT_THAT(cpu.frequencies(),
               ElementsAre(300000, 652800, 825600, 979200, 1132800, 1363200,
                           1536000, 1747200, 1843200, 1996800, 2803200));
+  cpu = cpu_info.cpus()[7];
+  ASSERT_EQ(cpu.capacity(), static_cast<uint32_t>(1024));
 }
 
 }  // namespace

@@ -13,20 +13,15 @@
 // limitations under the License.
 
 import {sqliteString} from '../base/string_utils';
-import {Duration, duration, Span, time, Time, TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
-import {
-  CurrentSearchResults,
-  SearchSource,
-  SearchSummary,
-} from '../common/search_data';
+import {CurrentSearchResults, SearchSource} from '../common/search_data';
 import {OmniboxState} from '../common/state';
+import {CPU_SLICE_TRACK_KIND} from '../core/track_kinds';
 import {globals} from '../frontend/globals';
-import {publishSearch, publishSearchResult} from '../frontend/publish';
+import {publishSearchResult} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
-import {CPU_SLICE_TRACK_KIND} from '../core_plugins/cpu_slices';
 
 import {Controller} from './controller';
 
@@ -36,73 +31,35 @@ export interface SearchControllerArgs {
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
-  private previousSpan: Span<time, duration>;
-  private previousResolution: duration;
   private previousOmniboxState?: OmniboxState;
   private updateInProgress: boolean;
-  private setupInProgress: boolean;
 
   constructor(args: SearchControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.previousSpan = new TimeSpan(Time.fromRaw(0n), Time.fromRaw(1n));
     this.updateInProgress = false;
-    this.setupInProgress = true;
-    this.previousResolution = 1n;
-    this.setup().finally(() => {
-      this.setupInProgress = false;
-      this.run();
-    });
-  }
-
-  private async setup() {
-    await this.query(`create virtual table search_summary_window
-      using window;`);
-    await this.query(`create virtual table search_summary_sched_span using
-      span_join(sched PARTITIONED cpu, search_summary_window);`);
-    await this.query(`create virtual table search_summary_slice_span using
-      span_join(slice PARTITIONED track_id, search_summary_window);`);
   }
 
   run() {
-    if (this.setupInProgress || this.updateInProgress) {
+    if (this.updateInProgress) {
       return;
     }
 
-    const visibleState = globals.state.frontendLocalState.visibleState;
     const omniboxState = globals.state.omniboxState;
-    if (
-      visibleState === undefined ||
-      omniboxState === undefined ||
-      omniboxState.mode === 'COMMAND'
-    ) {
+    if (omniboxState === undefined || omniboxState.mode === 'COMMAND') {
       return;
     }
-    const newSpan = globals.stateVisibleTime();
     const newOmniboxState = omniboxState;
-    const newResolution = visibleState.resolution;
-    if (
-      this.previousSpan.contains(newSpan) &&
-      this.previousResolution === newResolution &&
-      this.previousOmniboxState === newOmniboxState
-    ) {
+    if (this.previousOmniboxState === newOmniboxState) {
       return;
     }
 
     // TODO(hjd): We should restrict this to the start of the trace but
     // that is not easily available here.
     // N.B. Timestamps can be negative.
-    const {start, end} = newSpan.pad(newSpan.duration);
-    this.previousSpan = new TimeSpan(start, end);
-    this.previousResolution = newResolution;
     this.previousOmniboxState = newOmniboxState;
     const search = newOmniboxState.omnibox;
     if (search === '' || (search.length < 4 && !newOmniboxState.force)) {
-      publishSearch({
-        tsStarts: new BigInt64Array(0),
-        tsEnds: new BigInt64Array(0),
-        count: new Uint8Array(0),
-      });
       publishSearchResult({
         eventIds: new Float64Array(0),
         tses: new BigInt64Array(0),
@@ -114,92 +71,17 @@ export class SearchController extends Controller<'main'> {
       return;
     }
 
-    this.updateInProgress = true;
-    const computeSummary = this.update(
-      search,
-      newSpan.start,
-      newSpan.end,
-      newResolution,
-    ).then((summary) => {
-      publishSearch(summary);
-    });
-
     const computeResults = this.specificSearch(search).then((searchResults) => {
       publishSearchResult(searchResults);
     });
 
-    Promise.all([computeSummary, computeResults]).finally(() => {
+    Promise.all([computeResults]).finally(() => {
       this.updateInProgress = false;
       this.run();
     });
   }
 
   onDestroy() {}
-
-  private async update(
-    search: string,
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<SearchSummary> {
-    const searchLiteral = escapeSearchQuery(search);
-
-    const quantum = resolution * 10n;
-    start = Time.quantFloor(start, quantum);
-
-    const windowDur = Duration.max(Time.diff(end, start), 1n);
-    await this.query(`update search_summary_window set
-      window_start=${start},
-      window_dur=${windowDur},
-      quantum=${quantum}
-      where rowid = 0;`);
-
-    const utidRes = await this.query(`select utid from thread join process
-      using(upid) where thread.name glob ${searchLiteral}
-      or process.name glob ${searchLiteral}`);
-
-    const utids = [];
-    for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
-      utids.push(it.utid);
-    }
-
-    const cpus = await this.engine.getCpus();
-    const maxCpu = Math.max(...cpus, -1);
-
-    const res = await this.query(`
-        select
-          (quantum_ts * ${quantum} + ${start}) as tsStart,
-          ((quantum_ts+1) * ${quantum} + ${start}) as tsEnd,
-          min(count(*), 255) as count
-          from (
-              select
-              quantum_ts
-              from search_summary_sched_span
-              where utid in (${utids.join(',')}) and cpu <= ${maxCpu}
-            union all
-              select
-              quantum_ts
-              from search_summary_slice_span
-              where name glob ${searchLiteral}
-          )
-          group by quantum_ts
-          order by quantum_ts;`);
-
-    const numRows = res.numRows();
-    const summary: SearchSummary = {
-      tsStarts: new BigInt64Array(numRows),
-      tsEnds: new BigInt64Array(numRows),
-      count: new Uint8Array(numRows),
-    };
-
-    const it = res.iter({tsStart: LONG, tsEnd: LONG, count: NUM});
-    for (let row = 0; it.valid(); it.next(), ++row) {
-      summary.tsStarts[row] = it.tsStart;
-      summary.tsEnds[row] = it.tsEnd;
-      summary.count[row] = it.count;
-    }
-    return summary;
-  }
 
   private async specificSearch(search: string) {
     const searchLiteral = escapeSearchQuery(search);
@@ -208,8 +90,9 @@ export class SearchController extends Controller<'main'> {
     const cpuToTrackId = new Map();
     for (const track of Object.values(globals.state.tracks)) {
       const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
-        exists(trackInfo.cpu) && cpuToTrackId.set(trackInfo.cpu, track.key);
+      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+        exists(trackInfo.tags.cpu) &&
+          cpuToTrackId.set(trackInfo.tags.cpu, track.key);
       }
     }
 
@@ -315,7 +198,7 @@ export class SearchController extends Controller<'main'> {
         const logTracks = Object.values(globals.state.tracks).filter(
           (track) => {
             const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-            return trackDesc && trackDesc.kind === 'AndroidLogTrack';
+            return trackDesc && trackDesc.tags?.kind === 'AndroidLogTrack';
           },
         );
         if (logTracks.length > 0) {

@@ -12,6 +12,8 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+INCLUDE PERFETTO MODULE slices.with_context;
+INCLUDE PERFETTO MODULE intervals.overlap;
 
 -- The concept of a "flat slice" is to take the data in the slice table and
 -- remove all notion of nesting; we do this by projecting every slice in a stack to
@@ -51,60 +53,41 @@
 -- @column upid               Alias for `process.upid`.
 -- @column pid                Alias for `process.pid`.
 -- @column process_name       Alias for `process.name`.
-CREATE TABLE _slice_flattened AS
--- The algorithm proceeds as follows:
--- 1. Find the start and end timestamps of all slices.
--- 2. Iterate the generated timestamps within a stack in chronoligical order.
--- 3. Generate a slice for each timestamp pair (regardless of if it was a start or end)  .
--- 4. If the first timestamp in the pair was originally a start, the slice is the 'current' slice,
--- otherwise, the slice is the parent slice.
+CREATE PERFETTO TABLE _slice_flattened
+AS
 WITH
-  begins AS (
-    SELECT id AS slice_id, ts, name, track_id, depth
+  root_slices AS (
+    SELECT * FROM slice WHERE parent_id IS NULL
+  ),
+  child_slices AS (
+    SELECT anc.id AS root_id, slice.*
     FROM slice
-    WHERE dur > 0
+    JOIN ancestor_slice(slice.id) anc
+    WHERE slice.parent_id IS NOT NULL
   ),
-  ends AS (
-    SELECT
-      parent.id AS slice_id,
-      current.ts + current.dur AS ts,
-      parent.name as name,
-      current.track_id,
-      current.depth - 1 AS depth
-    FROM slice current
-    LEFT JOIN slice parent
-      ON current.parent_id = parent.id
-    WHERE current.dur > 0
-  ),
-  events AS (
-    SELECT * FROM begins
-    UNION ALL
-    SELECT * FROM ends
-  ),
-  data AS (
-    SELECT
-      events.slice_id,
-      events.ts,
-      LEAD(events.ts) OVER (
-         PARTITION BY events.track_id
-         ORDER BY events.ts) - events.ts AS dur,
-      events.depth,
-      events.name,
-      events.track_id
-    FROM events
+  flat_slices AS (
+    SELECT id, ts, dur
+    FROM _intervals_flatten !(_intervals_merge_root_and_children!(root_slices, child_slices))
   )
-SELECT data.slice_id, data.ts, data.dur, data.depth,
- data.name, data.track_id, thread.utid, thread.tid, thread.name as thread_name,
- process.upid, process.pid, process.name as process_name
- FROM data JOIN thread_track ON data.track_id = thread_track.id
-JOIN thread USING(utid)
-JOIN process USING(upid)
-WHERE depth != -1;
+SELECT
+  id AS slice_id,
+  flat_slices.ts,
+  flat_slices.dur,
+  depth,
+  name,
+  track_id,
+  utid,
+  tid,
+  thread_name,
+  upid,
+  pid,
+  process_name
+FROM flat_slices
+JOIN thread_slice
+  USING (id);
 
-CREATE
-  INDEX _slice_flattened_id_idx
+CREATE PERFETTO INDEX _slice_flattened_id_idx
 ON _slice_flattened(slice_id);
 
-CREATE
-  INDEX _slice_flattened_ts_idx
+CREATE PERFETTO INDEX _slice_flattened_ts_idx
 ON _slice_flattened(ts);

@@ -15,11 +15,13 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [ "../../common:@TYPE@", ":winscope_regular_@TYPE@" ]
+  deps = [
+    ":winscope_regular_@TYPE@",
+    "../../common:@TYPE@",
+  ]
 
   sources = [
     "android_game_intervention_list.proto",
-    "android_input_event.proto",
     "android_log.proto",
     "android_system_property.proto",
     "camera_event.proto",
@@ -44,8 +46,8 @@ perfetto_proto_library("winscope_common_@TYPE@") {
 # Winscope messages added to TracePacket directly
 perfetto_proto_library("winscope_regular_@TYPE@") {
   deps = [
-    "../../common:@TYPE@",
     ":winscope_common_@TYPE@",
+    "../../common:@TYPE@",
   ]
   sources = [
     "protolog.proto",
@@ -64,40 +66,76 @@ perfetto_proto_library("winscope_extensions_@TYPE@") {
   ]
   public_deps = [ ":winscope_common_@TYPE@" ]
   sources = [
-    "inputmethodeditor.proto",
+    "android_input_event.proto",
     "graphics/pixelformat.proto",
+    "inputmethodeditor.proto",
     "inputmethodservice/inputmethodservice.proto",
     "inputmethodservice/softinputwindow.proto",
     "server/inputmethod/inputmethodmanagerservice.proto",
     "typedef.proto",
+    "app/statusbarmanager.proto",
+    "app/window_configuration.proto",
+    "content/activityinfo.proto",
+    "content/configuration.proto",
+    "content/locale.proto",
+    "privacy.proto",
+    "server/animationadapter.proto",
+    "server/surfaceanimator.proto",
+    "server/windowcontainerthumbnail.proto",
+    "server/windowmanagerservice.proto",
+    "view/display.proto",
+    "view/displaycutout.proto",
+    "view/displayinfo.proto",
+    "view/enums.proto",
+    "view/imefocuscontroller.proto",
+    "view/imeinsetssourceconsumer.proto",
     "view/inputmethod/editorinfo.proto",
     "view/inputmethod/inputconnection.proto",
     "view/inputmethod/inputmethodmanager.proto",
-    "view/display.proto",
-    "view/displaycutout.proto",
-    "view/imefocuscontroller.proto",
-    "view/imeinsetssourceconsumer.proto",
     "view/insetsanimationcontrolimpl.proto",
     "view/insetscontroller.proto",
     "view/insetssource.proto",
     "view/insetssourceconsumer.proto",
     "view/insetssourcecontrol.proto",
     "view/insetsstate.proto",
+    "view/remote_animation_target.proto",
+    "view/surface.proto",
     "view/surfacecontrol.proto",
     "view/viewrootimpl.proto",
     "view/windowlayoutparams.proto",
+    "viewcapture.proto",
+    "windowmanager.proto",
     "winscope_extensions_impl.proto",
   ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+}
+
+static_library("perfetto_winscope_extensions_zero") {
+  complete_static_lib = true
+  deps = [ ":winscope_extensions_zero" ]
 }
 
 perfetto_proto_library("winscope_descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "winscope.descriptor"
   deps = [
-    ":winscope_regular_source_set",
     ":winscope_extensions_source_set",
+    ":winscope_regular_source_set",
   ]
   sources = [ "winscope.proto" ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+}
+
+# Android track_event extensions
+perfetto_proto_library("android_track_event_@TYPE@") {
+  proto_generators = [ "source_set" ]
+  public_deps = [ "../track_event:@TYPE@" ]
+  sources = [ "android_track_event.proto" ]
+}
+
+perfetto_proto_library("android_track_event_@TYPE@") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "android_track_event.descriptor"
+  sources = [ "android_track_event.proto" ]
+  deps = [ ":android_track_event_source_set" ]
 }

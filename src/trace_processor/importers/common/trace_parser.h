@@ -20,9 +20,12 @@
 #include <stdint.h>
 #include <string>
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+namespace perf_importer {
+struct Record;
+}
 
+struct AndroidLogEvent;
 class PacketSequenceStateGeneration;
 class TraceBlobView;
 struct InlineSchedSwitch;
@@ -59,10 +62,15 @@ class FuchsiaRecordParser {
 class PerfRecordParser {
  public:
   virtual ~PerfRecordParser();
-  virtual void ParsePerfRecord(int64_t, TraceBlobView) = 0;
+  virtual void ParsePerfRecord(int64_t, perf_importer::Record) = 0;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+class AndroidLogEventParser {
+ public:
+  virtual ~AndroidLogEventParser();
+  virtual void ParseAndroidLogEvent(int64_t, AndroidLogEvent) = 0;
+};
+
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_PARSER_H_

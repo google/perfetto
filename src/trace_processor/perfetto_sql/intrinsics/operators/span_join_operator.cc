@@ -229,8 +229,10 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
       if (col.first != SqlValue::Type::kLong &&
           col.first != SqlValue::Type::kNull) {
         return base::ErrStatus(
-            "SPAN_JOIN: Invalid type for column '%s' in table %s",
-            col.second.c_str(), desc.name.c_str());
+            "SPAN_JOIN: Invalid type for column '%s' in table %s: expect LONG "
+            "or NULL, but %s found",
+            col.second.c_str(), desc.name.c_str(),
+            sqlite::utils::SqlValueTypeToString(col.first));
       }
     }
     if (base::Contains(col.second, ",")) {
@@ -280,7 +282,7 @@ SpanJoinOperatorModule::TableDefinition::CreateVtabCreateTableSection() const {
       cols += col.second + ",";
     } else {
       cols += col.second + " " +
-              sqlite::utils::SqlValueTypeToString(col.first) + ",";
+              sqlite::utils::SqlValueTypeToSqliteTypeName(col.first) + ",";
     }
   }
   return cols;
@@ -594,7 +596,6 @@ std::string SpanJoinOperatorModule::TableDefinition::CreateSqlQuery(
   sql += IsPartitioned() ? base::Join({"`" + partition_col() + "`", "ts"}, ", ")
                          : "ts";
   sql += ";";
-  PERFETTO_DLOG("%s", sql.c_str());
   return sql;
 }
 
@@ -726,8 +727,6 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   base::StackString<1024> create_table_str(
       kStmt, partition.c_str(), t1_section.c_str(), t2_section.c_str(),
       primary_key.c_str());
-  PERFETTO_DLOG("SPAN_JOIN: create table statement: %s",
-                create_table_str.c_str());
   state->create_table_stmt = create_table_str.ToStdString();
   if (int ret = sqlite3_declare_vtab(db, create_table_str.c_str());
       ret != SQLITE_OK) {
@@ -837,10 +836,9 @@ int SpanJoinOperatorModule::Close(sqlite3_vtab_cursor* cursor) {
 int SpanJoinOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
                                    int,
                                    const char* idxStr,
-                                   int argc,
+                                   int,
                                    sqlite3_value** argv) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "SPAN_JOIN_XFILTER");
-  PERFETTO_DLOG("SpanJoin::Filter: argc=%d, idxStr=%s", argc, idxStr);
 
   Cursor* c = GetCursor(cursor);
   Vtab* table = GetVtab(cursor->pVtab);

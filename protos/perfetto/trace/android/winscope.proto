@@ -18,10 +18,12 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/trace/android/android_input_event.proto";
 import "protos/perfetto/trace/android/protolog.proto";
 import "protos/perfetto/trace/android/shell_transition.proto";
 import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
 import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
+import "protos/perfetto/trace/android/viewcapture.proto";
 import "protos/perfetto/trace/android/winscope_extensions_impl.proto";
 
 // This file is used to generated descriptors for all the winscope protos.
@@ -32,4 +34,6 @@ message WinscopeTraceData {
   optional ShellTransition shell_transition = 3;
   optional ProtoLogMessage protolog_message = 4;
   optional WinscopeExtensionsImpl winscope_extensions = 5;
+  optional ViewCapture viewcapture = 6;
+  optional AndroidInputEvent android_input_event = 7;
 }

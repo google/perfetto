@@ -44,23 +44,24 @@ def parse_comment(comment: str) -> str:
   return ' '.join(line.strip().lstrip('--').lstrip()
                   for line in comment.strip().split('\n'))
 
+
 def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
   """Returns error message if the name is not correct, None otherwise."""
-  prefix = name.lower().split('_')[0]
   if module in ["common", "prelude", "deprecated"]:
-    if prefix == module:
+    if name.startswith(module):
       return (f'Names of tables/views/functions in the "{module}" module '
               f'should not start with {module}')
     return None
-  if prefix == module:
+  if name.startswith(module):
     # Module prefix is always allowed.
     return None
   allowed_prefixes = [module]
-  for (path_prefix, allowed_name_prefix) in ALLOWED_PREFIXES.items():
+  for (path_prefix, allowed_name_prefixes) in ALLOWED_PREFIXES.items():
     if path.startswith(path_prefix):
-      if prefix == allowed_name_prefix:
-        return None
-      allowed_prefixes.append(allowed_name_prefix)
+      for prefix in allowed_name_prefixes:
+        if name.startswith(prefix):
+          return None
+      allowed_prefixes.extend(allowed_name_prefixes)
     if path in OBJECT_NAME_ALLOWLIST and name in OBJECT_NAME_ALLOWLIST[path]:
       return None
   return (

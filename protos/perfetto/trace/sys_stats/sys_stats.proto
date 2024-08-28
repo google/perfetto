@@ -159,4 +159,12 @@ message SysStats {
   }
   // One entry per PsiResource type.
   repeated PsiSample psi = 14;
+
+  // Reading from /sys/class/thermal/*.
+  message ThermalZone {
+    optional string name = 1;
+    optional uint64 temp = 2;
+    optional string type = 3;
+  }
+  repeated ThermalZone thermal_zone = 15;
 }

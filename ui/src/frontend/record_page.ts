@@ -57,6 +57,7 @@ import {PowerSettings} from './recording/power_settings';
 import {RecordingSectionAttrs} from './recording/recording_sections';
 import {RecordingSettings} from './recording/recording_settings';
 import {EtwSettings} from './recording/etw_settings';
+import {createPermalink} from './permalink';
 
 export const PERSIST_CONFIG_FLAG = featureFlags.register({
   id: 'persistConfigsUI',
@@ -175,11 +176,7 @@ function Instructions(cssClass: string) {
       ? m(
           'button.permalinkconfig',
           {
-            onclick: () => {
-              globals.dispatch(
-                Actions.createPermalink({isRecordingConfig: true}),
-              );
-            },
+            onclick: () => createPermalink({mode: 'RECORDING_OPTS'}),
           },
           'Share recording settings',
         )
@@ -229,8 +226,7 @@ export function displayRecordConfigs() {
       ]),
     );
   }
-  for (const validated of recordConfigStore.recordConfigs) {
-    const item = validated.result;
+  for (const item of recordConfigStore.recordConfigs) {
     configs.push(
       m('.config', [
         m('span.title-config', item.title),
@@ -276,27 +272,6 @@ export function displayRecordConfigs() {
         ),
       ]),
     );
-
-    const errorItems = [];
-    for (const extraKey of validated.extraKeys) {
-      errorItems.push(m('li', `${extraKey} is unrecognised`));
-    }
-    for (const invalidKey of validated.invalidKeys) {
-      errorItems.push(m('li', `${invalidKey} contained an invalid value`));
-    }
-
-    if (errorItems.length > 0) {
-      configs.push(
-        m(
-          '.parsing-errors',
-          'One or more errors have been found while loading configuration "' +
-            item.title +
-            '". Loading is possible, but make sure to check ' +
-            'the settings afterwards.',
-          m('ul', errorItems),
-        ),
-      );
-    }
   }
   return configs;
 }
@@ -437,6 +412,14 @@ function RecordingNotes() {
     '.note',
     `To trace Chrome from the Perfetto UI, you need to install our `,
     m('a', {href: extensionURL, target: '_blank'}, 'Chrome extension'),
+    ' and then reload this page. ',
+  );
+
+  const msgWinEtw = m(
+    '.note',
+    `To trace with Etw on Windows from the Perfetto UI, you to run chrome with`,
+    `administrator permission and you need to install our `,
+    m('a', {href: extensionURL, target: '_blank'}, 'Chrome extension'),
     ' and then reload this page.',
   );
 
@@ -488,6 +471,9 @@ function RecordingNotes() {
       break;
     case 'CrOS':
       if (!globals.state.extensionInstalled) notes.push(msgChrome);
+      break;
+    case 'Win':
+      if (!globals.state.extensionInstalled) notes.push(msgWinEtw);
       break;
     default:
   }
@@ -576,7 +562,10 @@ function recordingButtons() {
     ) {
       buttons.push(start);
     }
-  } else if (isChromeTarget(target) && state.extensionInstalled) {
+  } else if (
+    (isWindowsTarget(target) || isChromeTarget(target)) &&
+    state.extensionInstalled
+  ) {
     buttons.push(start);
   }
   return m('.button', buttons);
@@ -606,7 +595,11 @@ function onStartRecordingPressed() {
   autosaveConfigStore.save(globals.state.recordConfig);
 
   const target = globals.state.recordingTarget;
-  if (isAndroidTarget(target) || isChromeTarget(target)) {
+  if (
+    isAndroidTarget(target) ||
+    isChromeTarget(target) ||
+    isWindowsTarget(target)
+  ) {
     globals.logging.logEvent('Record Trace', `Record trace (${target.os})`);
     globals.dispatch(Actions.startRecording({}));
   }
@@ -822,9 +815,9 @@ function recordMenu(routePage: string) {
   const recInProgress = globals.state.recordingInProgress;
 
   const probes = [];
-  if (isCrOSTarget(target) || isLinuxTarget(target)) {
+  if (isLinuxTarget(target)) {
     probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
-  } else if (isChromeTarget(target)) {
+  } else if (isChromeTarget(target) && !isCrOSTarget(target)) {
     probes.push(chromeProbe);
   } else if (isWindowsTarget(target)) {
     probes.push(chromeProbe, etwProbe);

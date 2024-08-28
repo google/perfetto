@@ -12,265 +12,241 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {searchSegment} from '../../base/binary_search';
-import {duration, Time, time} from '../../base/time';
-import {Actions} from '../../common/actions';
-import {ProfileType, getLegacySelection} from '../../common/state';
+import m from 'mithril';
+
 import {TrackData} from '../../common/track_data';
-import {TimelineFetcher} from '../../common/track_helper';
-import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
-import {FlamegraphDetailsPanel} from '../../frontend/flamegraph_panel';
-import {globals} from '../../frontend/globals';
-import {PanelSize} from '../../frontend/panel';
-import {TimeScale} from '../../frontend/time_scale';
 import {
   Engine,
-  Plugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  Track,
+  LegacyDetailsPanel,
+  PERF_SAMPLES_PROFILE_TRACK_KIND,
 } from '../../public';
-import {LONG, NUM} from '../../trace_processor/query_result';
-
-export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
+import {LegacyFlamegraphCache} from '../../core/legacy_flamegraph_cache';
+import {
+  LegacyFlamegraphDetailsPanel,
+  profileType,
+} from '../../frontend/legacy_flamegraph_panel';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LegacySelection,
+  PerfSamplesSelection,
+} from '../../core/selection_manager';
+import {
+  QueryFlamegraph,
+  QueryFlamegraphAttrs,
+  USE_NEW_FLAMEGRAPH_IMPL,
+  metricsFromTableOrSubquery,
+} from '../../core/query_flamegraph';
+import {Monitor} from '../../base/monitor';
+import {DetailsShell} from '../../widgets/details_shell';
+import {assertExists} from '../../base/logging';
+import {Timestamp} from '../../frontend/widgets/timestamp';
+import {
+  ProcessPerfSamplesProfileTrack,
+  ThreadPerfSamplesProfileTrack,
+} from './perf_samples_profile_track';
+import {getThreadUriPrefix} from '../../public/utils';
 
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;
 }
 
-const PERP_SAMPLE_COLOR = 'hsl(224, 45%, 70%)';
-
-// 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 4.5;
-const RECT_HEIGHT = 30.5;
-
-class PerfSamplesProfileTrack implements Track {
-  private centerY = this.getHeight() / 2;
-  private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
-  private hoveredTs: time | undefined = undefined;
-  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private upid: number;
-  private engine: Engine;
-
-  constructor(engine: Engine, upid: number) {
-    this.upid = upid;
-    this.engine = engine;
-  }
-
-  async onUpdate(): Promise<void> {
-    await this.fetcher.requestDataForCurrentTime();
-  }
-
-  async onDestroy(): Promise<void> {
-    this.fetcher.dispose();
-  }
-
-  async onBoundsChange(
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<Data> {
-    if (this.upid === undefined) {
-      return {
-        start,
-        end,
-        resolution,
-        length: 0,
-        tsStarts: new BigInt64Array(),
-      };
-    }
-    const queryRes = await this.engine.query(`
-      select ts, upid from perf_sample
+class PerfSamplesProfilePlugin implements Plugin {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const pResult = await ctx.engine.query(`
+      select distinct upid
+      from perf_sample
       join thread using (utid)
-      where upid = ${this.upid}
-      and callsite_id is not null
-      order by ts`);
-    const numRows = queryRes.numRows();
-    const data: Data = {
-      start,
-      end,
-      resolution,
-      length: numRows,
-      tsStarts: new BigInt64Array(numRows),
-    };
-
-    const it = queryRes.iter({ts: LONG});
-    for (let row = 0; it.valid(); it.next(), row++) {
-      data.tsStarts[row] = it.ts;
+      where callsite_id is not null and upid is not null
+    `);
+    for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
+      const upid = it.upid;
+      ctx.registerTrack({
+        uri: `/process_${upid}/perf_samples_profile`,
+        title: `Process Callstacks`,
+        tags: {
+          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          upid,
+        },
+        trackFactory: ({trackKey}) =>
+          new ProcessPerfSamplesProfileTrack(
+            {
+              engine: ctx.engine,
+              trackKey,
+            },
+            upid,
+          ),
+      });
     }
-    return data;
-  }
-
-  getHeight() {
-    return MARGIN_TOP + RECT_HEIGHT - 1;
-  }
-
-  render(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
-    const {visibleTimeScale} = globals.timeline;
-    const data = this.fetcher.data;
-
-    if (data === undefined) return;
-
-    for (let i = 0; i < data.tsStarts.length; i++) {
-      const centerX = Time.fromRaw(data.tsStarts[i]);
-      const selection = getLegacySelection(globals.state);
-      const isHovered = this.hoveredTs === centerX;
-      const isSelected =
-        selection !== null &&
-        selection.kind === 'PERF_SAMPLES' &&
-        selection.leftTs <= centerX &&
-        selection.rightTs >= centerX;
-      const strokeWidth = isSelected ? 3 : 0;
-      this.drawMarker(
-        ctx,
-        visibleTimeScale.timeToPx(centerX),
-        this.centerY,
-        isHovered,
-        strokeWidth,
-      );
+    const tResult = await ctx.engine.query(`
+      select distinct
+        utid,
+        tid,
+        thread.name as threadName,
+        upid
+      from perf_sample
+      join thread using (utid)
+      where callsite_id is not null
+    `);
+    for (
+      const it = tResult.iter({
+        utid: NUM,
+        tid: NUM,
+        threadName: STR_NULL,
+        upid: NUM_NULL,
+      });
+      it.valid();
+      it.next()
+    ) {
+      const {threadName, utid, tid, upid} = it;
+      const displayName =
+        threadName === null
+          ? `Thread Callstacks ${tid}`
+          : `${threadName} Callstacks ${tid}`;
+      ctx.registerTrack({
+        uri: `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`,
+        title: displayName,
+        tags: {
+          kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+          utid,
+        },
+        trackFactory: ({trackKey}) =>
+          new ThreadPerfSamplesProfileTrack(
+            {
+              engine: ctx.engine,
+              trackKey,
+            },
+            utid,
+          ),
+      });
     }
-  }
-
-  drawMarker(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    isHovered: boolean,
-    strokeWidth: number,
-  ): void {
-    ctx.beginPath();
-    ctx.moveTo(x, y - this.markerWidth);
-    ctx.lineTo(x - this.markerWidth, y);
-    ctx.lineTo(x, y + this.markerWidth);
-    ctx.lineTo(x + this.markerWidth, y);
-    ctx.lineTo(x, y - this.markerWidth);
-    ctx.closePath();
-    ctx.fillStyle = isHovered ? FLAMEGRAPH_HOVERED_COLOR : PERP_SAMPLE_COLOR;
-    ctx.fill();
-    if (strokeWidth > 0) {
-      ctx.strokeStyle = FLAMEGRAPH_HOVERED_COLOR;
-      ctx.lineWidth = strokeWidth;
-      ctx.stroke();
-    }
-  }
-
-  onMouseMove({x, y}: {x: number; y: number}) {
-    const data = this.fetcher.data;
-    if (data === undefined) return;
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTime());
-    const index = this.findTimestampIndex(
-      left,
-      visibleTimeScale,
-      data,
-      x,
-      y,
-      right,
-    );
-    this.hoveredTs =
-      index === -1 ? undefined : Time.fromRaw(data.tsStarts[index]);
-  }
-
-  onMouseOut() {
-    this.hoveredTs = undefined;
-  }
-
-  onMouseClick({x, y}: {x: number; y: number}) {
-    const data = this.fetcher.data;
-    if (data === undefined) return false;
-    const {visibleTimeScale} = globals.timeline;
-
-    const time = visibleTimeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTime());
-
-    const index = this.findTimestampIndex(
-      left,
-      visibleTimeScale,
-      data,
-      x,
-      y,
-      right,
-    );
-
-    if (index !== -1) {
-      const ts = Time.fromRaw(data.tsStarts[index]);
-      globals.makeSelection(
-        Actions.selectPerfSamples({
-          id: index,
-          upid: this.upid,
-          leftTs: ts,
-          rightTs: ts,
-          type: ProfileType.PERF_SAMPLE,
-        }),
-      );
-      return true;
-    }
-    return false;
-  }
-
-  // If the markers overlap the rightmost one will be selected.
-  findTimestampIndex(
-    left: number,
-    timeScale: TimeScale,
-    data: Data,
-    x: number,
-    y: number,
-    right: number,
-  ): number {
-    let index = -1;
-    if (left !== -1) {
-      const start = Time.fromRaw(data.tsStarts[left]);
-      const centerX = timeScale.timeToPx(start);
-      if (this.isInMarker(x, y, centerX)) {
-        index = left;
-      }
-    }
-    if (right !== -1) {
-      const start = Time.fromRaw(data.tsStarts[right]);
-      const centerX = timeScale.timeToPx(start);
-      if (this.isInMarker(x, y, centerX)) {
-        index = right;
-      }
-    }
-    return index;
-  }
-
-  isInMarker(x: number, y: number, centerX: number) {
-    return (
-      Math.abs(x - centerX) + Math.abs(y - this.centerY) <= this.markerWidth
-    );
+    ctx.registerDetailsPanel(new PerfSamplesFlamegraphDetailsPanel(ctx.engine));
   }
 }
 
-class PerfSamplesProfilePlugin implements Plugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    const result = await ctx.engine.query(`
-      select distinct upid, pid
-      from perf_sample join thread using (utid) join process using (upid)
-      where callsite_id is not null
-    `);
-    for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
-      const upid = it.upid;
-      const pid = it.pid;
-      ctx.registerTrack({
-        uri: `perfetto.PerfSamplesProfile#${upid}`,
-        displayName: `Callstacks ${pid}`,
-        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
-        upid,
-        trackFactory: () => new PerfSamplesProfileTrack(ctx.engine, upid),
+class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
+  private sel?: PerfSamplesSelection;
+  private selMonitor = new Monitor([
+    () => this.sel?.leftTs,
+    () => this.sel?.rightTs,
+    () => this.sel?.upid,
+    () => this.sel?.type,
+  ]);
+  private flamegraphAttrs?: QueryFlamegraphAttrs;
+  private cache = new LegacyFlamegraphCache('perf_samples');
+
+  constructor(private engine: Engine) {}
+
+  render(sel: LegacySelection) {
+    if (sel.kind !== 'PERF_SAMPLES') {
+      this.sel = undefined;
+      return undefined;
+    }
+    if (!USE_NEW_FLAMEGRAPH_IMPL.get() && sel.upid !== undefined) {
+      this.sel = undefined;
+      return m(LegacyFlamegraphDetailsPanel, {
+        cache: this.cache,
+        selection: {
+          profileType: profileType(sel.type),
+          start: sel.leftTs,
+          end: sel.rightTs,
+          upids: [sel.upid],
+        },
       });
     }
 
-    ctx.registerDetailsPanel({
-      render: (sel) => {
-        if (sel.kind === 'PERF_SAMPLES') {
-          return m(FlamegraphDetailsPanel);
-        } else {
-          return undefined;
-        }
-      },
-    });
+    const {leftTs, rightTs, upid, utid} = sel;
+    this.sel = sel;
+    if (this.selMonitor.ifStateChanged()) {
+      this.flamegraphAttrs = {
+        engine: this.engine,
+        metrics: [
+          ...metricsFromTableOrSubquery(
+            upid === undefined
+              ? `
+                (
+                  select
+                    id,
+                    parent_id as parentId,
+                    name,
+                    mapping_name,
+                    source_file,
+                    cast(line_number AS text) as line_number,
+                    self_count
+                  from _linux_perf_callstacks_for_samples!((
+                    select p.callsite_id
+                    from perf_sample p
+                    where p.ts >= ${leftTs}
+                      and p.ts <= ${rightTs}
+                      and p.utid = ${utid}
+                  ))
+                )
+              `
+              : `
+                  (
+                    select
+                      id,
+                      parent_id as parentId,
+                      name,
+                      mapping_name,
+                      source_file,
+                      cast(line_number AS text) as line_number,
+                      self_count
+                    from _linux_perf_callstacks_for_samples!((
+                      select p.callsite_id
+                      from perf_sample p
+                      join thread t using (utid)
+                      where p.ts >= ${leftTs}
+                        and p.ts <= ${rightTs}
+                        and t.upid = ${upid}
+                    ))
+                  )
+                `,
+            [
+              {
+                name: 'Perf Samples',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module linux.perf.samples',
+            [{name: 'mapping_name', displayName: 'Mapping'}],
+            [
+              {name: 'source_file', displayName: 'Source File'},
+              {name: 'line_number', displayName: 'Line Number'},
+            ],
+          ),
+        ],
+      };
+    }
+    return m(
+      '.flamegraph-profile',
+      m(
+        DetailsShell,
+        {
+          fillParent: true,
+          title: m('.title', 'Perf Samples'),
+          description: [],
+          buttons: [
+            m(
+              'div.time',
+              `First timestamp: `,
+              m(Timestamp, {
+                ts: this.sel.leftTs,
+              }),
+            ),
+            m(
+              'div.time',
+              `Last timestamp: `,
+              m(Timestamp, {
+                ts: this.sel.rightTs,
+              }),
+            ),
+          ],
+        },
+        m(QueryFlamegraph, assertExists(this.flamegraphAttrs)),
+      ),
+    );
   }
 }
 

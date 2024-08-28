@@ -16,6 +16,7 @@ import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("summary") {
   sources = [
+    "counters.sql",
     "processes.sql",
     "slices.sql",
     "threads.sql",

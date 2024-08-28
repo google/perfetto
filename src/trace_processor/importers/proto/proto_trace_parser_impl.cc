@@ -29,8 +29,8 @@
 #include "perfetto/ext/base/uuid.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -44,7 +44,6 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
-#include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
@@ -84,9 +83,6 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
       return;
     }
   }
-
-  if (packet.has_trace_stats())
-    ParseTraceStats(packet.trace_stats());
 
   if (packet.has_chrome_events()) {
     ParseChromeEvents(ts, packet.chrome_events());
@@ -160,116 +156,14 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
   context_->args_tracker->Flush();
 }
 
-void ProtoTraceParserImpl::ParseTraceStats(ConstBytes blob) {
-  protos::pbzero::TraceStats::Decoder evt(blob.data, blob.size);
-  auto* storage = context_->storage.get();
-  storage->SetStats(stats::traced_producers_connected,
-                    static_cast<int64_t>(evt.producers_connected()));
-  storage->SetStats(stats::traced_producers_seen,
-                    static_cast<int64_t>(evt.producers_seen()));
-  storage->SetStats(stats::traced_data_sources_registered,
-                    static_cast<int64_t>(evt.data_sources_registered()));
-  storage->SetStats(stats::traced_data_sources_seen,
-                    static_cast<int64_t>(evt.data_sources_seen()));
-  storage->SetStats(stats::traced_tracing_sessions,
-                    static_cast<int64_t>(evt.tracing_sessions()));
-  storage->SetStats(stats::traced_total_buffers,
-                    static_cast<int64_t>(evt.total_buffers()));
-  storage->SetStats(stats::traced_chunks_discarded,
-                    static_cast<int64_t>(evt.chunks_discarded()));
-  storage->SetStats(stats::traced_patches_discarded,
-                    static_cast<int64_t>(evt.patches_discarded()));
-  storage->SetStats(stats::traced_flushes_requested,
-                    static_cast<int64_t>(evt.flushes_requested()));
-  storage->SetStats(stats::traced_flushes_succeeded,
-                    static_cast<int64_t>(evt.flushes_succeeded()));
-  storage->SetStats(stats::traced_flushes_failed,
-                    static_cast<int64_t>(evt.flushes_failed()));
-
-  if (evt.has_filter_stats()) {
-    protos::pbzero::TraceStats::FilterStats::Decoder fstat(evt.filter_stats());
-    storage->SetStats(stats::filter_errors,
-                      static_cast<int64_t>(fstat.errors()));
-    storage->SetStats(stats::filter_input_bytes,
-                      static_cast<int64_t>(fstat.input_bytes()));
-    storage->SetStats(stats::filter_input_packets,
-                      static_cast<int64_t>(fstat.input_packets()));
-    storage->SetStats(stats::filter_output_bytes,
-                      static_cast<int64_t>(fstat.output_bytes()));
-    storage->SetStats(stats::filter_time_taken_ns,
-                      static_cast<int64_t>(fstat.time_taken_ns()));
-    for (auto [i, it] = std::tuple{0, fstat.bytes_discarded_per_buffer()}; it;
-         ++it, ++i) {
-      storage->SetIndexedStats(stats::traced_buf_bytes_filtered_out, i,
-                               static_cast<int64_t>(*it));
-    }
-  }
-
-  switch (evt.final_flush_outcome()) {
-    case protos::pbzero::TraceStats::FINAL_FLUSH_SUCCEEDED:
-      storage->IncrementStats(stats::traced_final_flush_succeeded, 1);
-      break;
-    case protos::pbzero::TraceStats::FINAL_FLUSH_FAILED:
-      storage->IncrementStats(stats::traced_final_flush_failed, 1);
-      break;
-    case protos::pbzero::TraceStats::FINAL_FLUSH_UNSPECIFIED:
-      break;
-  }
-
-  int buf_num = 0;
-  for (auto it = evt.buffer_stats(); it; ++it, ++buf_num) {
-    protos::pbzero::TraceStats::BufferStats::Decoder buf(*it);
-    storage->SetIndexedStats(stats::traced_buf_buffer_size, buf_num,
-                             static_cast<int64_t>(buf.buffer_size()));
-    storage->SetIndexedStats(stats::traced_buf_bytes_written, buf_num,
-                             static_cast<int64_t>(buf.bytes_written()));
-    storage->SetIndexedStats(stats::traced_buf_bytes_overwritten, buf_num,
-                             static_cast<int64_t>(buf.bytes_overwritten()));
-    storage->SetIndexedStats(stats::traced_buf_bytes_read, buf_num,
-                             static_cast<int64_t>(buf.bytes_read()));
-    storage->SetIndexedStats(stats::traced_buf_padding_bytes_written, buf_num,
-                             static_cast<int64_t>(buf.padding_bytes_written()));
-    storage->SetIndexedStats(stats::traced_buf_padding_bytes_cleared, buf_num,
-                             static_cast<int64_t>(buf.padding_bytes_cleared()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_written, buf_num,
-                             static_cast<int64_t>(buf.chunks_written()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_rewritten, buf_num,
-                             static_cast<int64_t>(buf.chunks_rewritten()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_overwritten, buf_num,
-                             static_cast<int64_t>(buf.chunks_overwritten()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_discarded, buf_num,
-                             static_cast<int64_t>(buf.chunks_discarded()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_read, buf_num,
-                             static_cast<int64_t>(buf.chunks_read()));
-    storage->SetIndexedStats(
-        stats::traced_buf_chunks_committed_out_of_order, buf_num,
-        static_cast<int64_t>(buf.chunks_committed_out_of_order()));
-    storage->SetIndexedStats(stats::traced_buf_write_wrap_count, buf_num,
-                             static_cast<int64_t>(buf.write_wrap_count()));
-    storage->SetIndexedStats(stats::traced_buf_patches_succeeded, buf_num,
-                             static_cast<int64_t>(buf.patches_succeeded()));
-    storage->SetIndexedStats(stats::traced_buf_patches_failed, buf_num,
-                             static_cast<int64_t>(buf.patches_failed()));
-    storage->SetIndexedStats(stats::traced_buf_readaheads_succeeded, buf_num,
-                             static_cast<int64_t>(buf.readaheads_succeeded()));
-    storage->SetIndexedStats(stats::traced_buf_readaheads_failed, buf_num,
-                             static_cast<int64_t>(buf.readaheads_failed()));
-    storage->SetIndexedStats(stats::traced_buf_abi_violations, buf_num,
-                             static_cast<int64_t>(buf.abi_violations()));
-    storage->SetIndexedStats(
-        stats::traced_buf_trace_writer_packet_loss, buf_num,
-        static_cast<int64_t>(buf.trace_writer_packet_loss()));
-  }
-}
-
 void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
+    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
     RawId id = storage->mutable_raw_table()
-                   ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0, 0, 0,
-                             context_->machine_id()})
+                   ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0, 0, ucpu})
                    .id;
     auto inserter = args.AddArgsTo(id);
 
@@ -315,9 +209,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   }
 
   if (bundle.has_legacy_ftrace_output()) {
+    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
     RawId id = storage->mutable_raw_table()
                    ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0,
-                             0, 0, context_->machine_id()})
+                             0, ucpu})
                    .id;
 
     std::string data;
@@ -336,9 +231,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
           protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE) {
         continue;
       }
+      auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
       RawId id = storage->mutable_raw_table()
                      ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0,
-                               0, 0, context_->machine_id()})
+                               0, ucpu})
                      .id;
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));

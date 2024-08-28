@@ -211,11 +211,9 @@ export function getCauseLink(
 
             globals.dispatch(
               Actions.selectArea({
-                area: {
-                  start: ts,
-                  end: Time.fromRaw(ts + dur),
-                  tracks: trackKeys,
-                },
+                start: ts,
+                end: Time.fromRaw(ts + dur),
+                tracks: trackKeys,
               }),
             );
           }

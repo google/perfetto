@@ -14,7 +14,19 @@
 !/data/chrome/*.sha256
 !/data/chrome/README.md
 
+!/data/heap_graph
+/data/heap_graph/*
+!/data/heap_graph/*.sha256
+
 !/data/parser
 /data/parser/*
 !/data/parser/*.sha256
 !/data/parser/README.md
+
+!/data/simpleperf
+/data/simpleperf/*
+!/data/simpleperf/*.sha256
+
+!/data/zip
+/data/zip/*
+!/data/zip/*.sha256

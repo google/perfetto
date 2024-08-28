@@ -15,36 +15,64 @@
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/test.gni")
 
-source_set("android_bugreport") {
+source_set("android_log_event") {
   sources = [
-    "android_bugreport_parser.cc",
-    "android_bugreport_parser.h",
-    "android_log_parser.cc",
-    "android_log_parser.h",
+    "android_log_event.cc",
+    "android_log_event.h",
   ]
   deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
+    "../../containers",
+  ]
+}
+
+source_set("android_bugreport") {
+  sources = [
+    "android_bugreport_reader.cc",
+    "android_bugreport_reader.h",
+    "android_dumpstate_reader.cc",
+    "android_dumpstate_reader.h",
+    "android_log_event_parser_impl.cc",
+    "android_log_event_parser_impl.h",
+    "android_log_reader.cc",
+    "android_log_reader.h",
+    "chunked_line_reader.cc",
+    "chunked_line_reader.h",
+  ]
+  deps = [
+    ":android_log_event",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../base",
+    "../../sorter:sorter",
     "../../storage",
+    "../../tables:tables_python",
     "../../types",
+    "../../util:trace_type",
     "../../util:zip_reader",
     "../common",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
-  sources = [ "android_log_parser_unittest.cc" ]
+  sources = [ "android_log_unittest.cc" ]
   testonly = true
   deps = [
     ":android_bugreport",
+    ":android_log_event",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/trace_processor:storage",
     "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace:zero",
     "../../../base",
+    "../../sorter",
     "../../storage",
+    "../../types",
+    "../common",
   ]
 }

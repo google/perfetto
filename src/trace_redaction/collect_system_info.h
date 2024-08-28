@@ -29,6 +29,10 @@ class CollectSystemInfo : public CollectPrimitive {
 
   base::Status Collect(const protos::pbzero::TracePacket::Decoder&,
                        Context*) const override;
+
+ private:
+  base::Status OnFtraceEvents(protozero::ConstBytes bytes,
+                              Context* context) const;
 };
 
 // Condenses system info into a query-focuesed structure, making it possible to

@@ -137,7 +137,24 @@ TEST_F(PerfettoSqlEngineTest, Table_Schema) {
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema) {
+TEST_F(PerfettoSqlEngineTest, Table_Schema_EmptyTable) {
+  // This test checks that the type checks correctly work on empty tables (and
+  // that columns with no data do not default to "int").
+  auto res = engine_.Execute(
+      SqlSource::FromExecuteQuery("CREATE PERFETTO TABLE foo(bar STRING) AS "
+                                  "SELECT 'bar' as bar WHERE bar = 'foo'"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+}
+
+TEST_F(PerfettoSqlEngineTest, Table_Schema_NullColumn) {
+  // This test checks that the type checks correctly work on columns without
+  // data (and that columns with no non-NULL data do not default to "int").
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo(bar STRING) AS SELECT NULL as bar"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+}
+
+TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_MissingColumn) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(x INT) AS SELECT 1 as y"));
   ASSERT_FALSE(res.ok());
@@ -146,6 +163,15 @@ TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema) {
       testing::EndsWith("CREATE PERFETTO TABLE: the following columns are "
                         "declared in the schema, but do not exist: x; and the "
                         "folowing columns exist, but are not declared: y"));
+}
+
+TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_IncorrectType) {
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo(x INT) AS SELECT '1' as x"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_THAT(res.status().c_message(),
+              testing::EndsWith("CREATE PERFETTO TABLE: column 'x' declared as "
+                                "INT (LONG) in the schema, but STRING found"));
 }
 
 TEST_F(PerfettoSqlEngineTest, Table_Drop) {
@@ -299,10 +325,10 @@ TEST_F(PerfettoSqlEngineTest, MismatchedRange) {
   tables::SliceTable parent(&pool_);
   tables::ExpectedFrameTimelineSliceTable child(&pool_, &parent);
 
-  engine_.RegisterStaticTable(parent, "parent",
+  engine_.RegisterStaticTable(&parent, "parent",
                               tables::SliceTable::ComputeStaticSchema());
   engine_.RegisterStaticTable(
-      child, "child",
+      &child, "child",
       tables::ExpectedFrameTimelineSliceTable::ComputeStaticSchema());
 
   for (uint32_t i = 0; i < 5; i++) {

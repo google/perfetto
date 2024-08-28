@@ -22,7 +22,6 @@ import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {PanelSize} from '../../frontend/panel';
 import {
   Engine,
   Plugin,
@@ -32,6 +31,8 @@ import {
 } from '../../public';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
+import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
+import {Vector} from '../../base/geom';
 
 export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 
@@ -55,7 +56,7 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 20;
 
 class CpuFreqTrack implements Track {
-  private mousePos = {x: 0, y: 0};
+  private mousePos: Vector = {x: 0, y: 0};
   private hoveredValue: number | undefined = undefined;
   private hoveredTs: time | undefined = undefined;
   private hoveredTsEnd: time | undefined = undefined;
@@ -73,14 +74,14 @@ class CpuFreqTrack implements Track {
 
   async onCreate() {
     if (this.config.idleTrackId === undefined) {
-      await this.engine.execute(`
+      await this.engine.query(`
         create view raw_freq_idle_${this.trackUuid} as
         select ts, dur, value as freqValue, -1 as idleValue
         from experimental_counter_dur c
         where track_id = ${this.config.freqTrackId}
       `);
     } else {
-      await this.engine.execute(`
+      await this.engine.query(`
         create view raw_freq_${this.trackUuid} as
         select ts, dur, value as freqValue
         from experimental_counter_dur c
@@ -99,7 +100,7 @@ class CpuFreqTrack implements Track {
       `);
     }
 
-    await this.engine.execute(`
+    await this.engine.query(`
       create virtual table cpu_freq_${this.trackUuid}
       using __intrinsic_counter_mipmap((
         select ts, freqValue as value
@@ -114,18 +115,23 @@ class CpuFreqTrack implements Track {
     `);
   }
 
-  async onUpdate() {
-    await this.fetcher.requestDataForCurrentTime();
+  async onUpdate({
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): Promise<void> {
+    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 
   async onDestroy(): Promise<void> {
-    if (this.engine.isAlive) {
-      await this.engine.query(`drop table cpu_freq_${this.trackUuid}`);
-      await this.engine.query(`drop table cpu_idle_${this.trackUuid}`);
-      await this.engine.query(`drop table raw_freq_idle_${this.trackUuid}`);
-      await this.engine.query(`drop view if exists raw_freq_${this.trackUuid}`);
-      await this.engine.query(`drop view if exists raw_idle_${this.trackUuid}`);
-    }
+    await this.engine.tryQuery(`drop table cpu_freq_${this.trackUuid}`);
+    await this.engine.tryQuery(`drop table cpu_idle_${this.trackUuid}`);
+    await this.engine.tryQuery(`drop table raw_freq_idle_${this.trackUuid}`);
+    await this.engine.tryQuery(
+      `drop view if exists raw_freq_${this.trackUuid}`,
+    );
+    await this.engine.tryQuery(
+      `drop view if exists raw_idle_${this.trackUuid}`,
+    );
   }
 
   async onBoundsChange(
@@ -197,9 +203,8 @@ class CpuFreqTrack implements Track {
     return MARGIN_TOP + RECT_HEIGHT;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {visibleTimeScale, visibleWindowTime} = globals.timeline;
     const data = this.fetcher.data;
 
     if (data === undefined || data.timestamps.length === 0) {
@@ -236,19 +241,20 @@ class CpuFreqTrack implements Track {
     ctx.strokeStyle = color.setHSL({s: saturation, l: 55}).cssString;
 
     const calculateX = (timestamp: time) => {
-      return Math.floor(visibleTimeScale.timeToPx(timestamp));
+      return Math.floor(timescale.timeToPx(timestamp));
     };
     const calculateY = (value: number) => {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
     };
 
-    const start = visibleWindowTime.start;
-    const end = visibleWindowTime.end;
+    const timespan = visibleWindow.toTimeSpan();
+    const start = timespan.start;
+    const end = timespan.end;
 
-    const [rawStartIdx] = searchSegment(data.timestamps, start.toTime());
+    const [rawStartIdx] = searchSegment(data.timestamps, start);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.timestamps, end.toTime());
+    const [, rawEndIdx] = searchSegment(data.timestamps, end);
     const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
 
     // Draw the CPU frequency graph.
@@ -296,11 +302,11 @@ class CpuFreqTrack implements Track {
         // we pan and zoom; this relies on the browser anti-aliasing pixels
         // correctly.
         const timestamp = Time.fromRaw(data.timestamps[i]);
-        const x = visibleTimeScale.timeToPx(timestamp);
+        const x = timescale.timeToPx(timestamp);
         const xEnd =
           i === data.lastIdleValues.length - 1
             ? endPx
-            : visibleTimeScale.timeToPx(Time.fromRaw(data.timestamps[i + 1]));
+            : timescale.timeToPx(Time.fromRaw(data.timestamps[i + 1]));
 
         const width = xEnd - x;
         const height = calculateY(data.lastFreqKHz[i]) - zeroY;
@@ -317,11 +323,11 @@ class CpuFreqTrack implements Track {
       ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
       ctx.strokeStyle = color.setHSL({s: 45, l: 45}).cssString;
 
-      const xStart = Math.floor(visibleTimeScale.timeToPx(this.hoveredTs));
+      const xStart = Math.floor(timescale.timeToPx(this.hoveredTs));
       const xEnd =
         this.hoveredTsEnd === undefined
           ? endPx
-          : Math.floor(visibleTimeScale.timeToPx(this.hoveredTsEnd));
+          : Math.floor(timescale.timeToPx(this.hoveredTsEnd));
       const y = zeroY - Math.round((this.hoveredValue / yMax) * RECT_HEIGHT);
 
       // Highlight line.
@@ -351,7 +357,7 @@ class CpuFreqTrack implements Track {
       }
 
       // Draw the tooltip.
-      drawTrackHoverTooltip(ctx, this.mousePos, this.getHeight(), text);
+      drawTrackHoverTooltip(ctx, this.mousePos, size, text);
     }
 
     // Write the Y scale on the top left corner.
@@ -369,17 +375,16 @@ class CpuFreqTrack implements Track {
       this.getHeight(),
       0,
       size.width,
-      visibleTimeScale.timeToPx(data.start),
-      visibleTimeScale.timeToPx(data.end),
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
     );
   }
 
-  onMouseMove(pos: {x: number; y: number}) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
     if (data === undefined) return;
-    this.mousePos = pos;
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(pos.x);
+    this.mousePos = {x, y};
+    const time = timescale.pxToHpTime(x);
 
     const [left, right] = searchSegment(data.timestamps, time.toTime());
 
@@ -403,12 +408,13 @@ class CpuFreq implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
 
-    const cpus = await engine.getCpus();
+    const cpus = ctx.trace.cpus;
 
     const maxCpuFreqResult = await engine.query(`
       select ifnull(max(value), 0) as freq
       from counter c
       join cpu_counter_track t on c.track_id = t.id
+      join _counter_track_summary s on t.id = s.id
       where name = 'cpufreq';
     `);
     const maxCpuFreq = maxCpuFreqResult.firstRow({freq: NUM}).freq;
@@ -426,6 +432,7 @@ class CpuFreq implements Plugin {
             limit 1
           ) as cpuIdleId
         from cpu_counter_track
+        join _counter_track_summary using (id)
         where name = 'cpufreq' and cpu = ${cpu}
         limit 1;
       `);
@@ -446,10 +453,12 @@ class CpuFreq implements Plugin {
         };
 
         ctx.registerTrack({
-          uri: `perfetto.CpuFreq#${cpu}`,
-          displayName: `Cpu ${cpu} Frequency`,
-          kind: CPU_FREQ_TRACK_KIND,
-          cpu,
+          uri: `/cpu_freq_cpu${cpu}`,
+          title: `Cpu ${cpu} Frequency`,
+          tags: {
+            kind: CPU_FREQ_TRACK_KIND,
+            cpu,
+          },
           trackFactory: () => new CpuFreqTrack(config, ctx.engine),
         });
       }

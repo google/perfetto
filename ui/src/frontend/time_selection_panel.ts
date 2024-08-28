@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {duration, Span, time, Time, TimeSpan} from '../base/time';
+import {time, Time} from '../base/time';
 import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
 
 import {
@@ -23,16 +23,12 @@ import {
   TRACK_SHELL_WIDTH,
 } from './css_constants';
 import {globals} from './globals';
-import {
-  getMaxMajorTicks,
-  TickGenerator,
-  TickType,
-  timeScaleForVisibleWindow,
-} from './gridline_helper';
-import {PanelSize} from './panel';
+import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
+import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
-import {getLegacySelection} from '../common/state';
+import {canvasClip} from '../common/canvas_utils';
+import {PxSpan, TimeScale} from './time_scale';
 
 export interface BBox {
   x: number;
@@ -140,32 +136,35 @@ function drawIBar(
 export class TimeSelectionPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = false;
-  readonly trackKey = undefined;
-
-  constructor(readonly key: string) {}
 
   render(): m.Children {
     return m('.time-selection-panel');
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
+    const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
+
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
-    ctx.clip();
+    ctx.translate(TRACK_SHELL_WIDTH, 0);
+    canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
+    this.renderPanel(ctx, trackSize);
+    ctx.restore();
+  }
 
-    const span = globals.timeline.visibleTimeSpan;
-    if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
-      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
-      const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+  private renderPanel(ctx: CanvasRenderingContext2D, size: Size): void {
+    const visibleWindow = globals.timeline.visibleWindow;
+    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timespan = visibleWindow.toTimeSpan();
 
+    if (size.width > 0 && timespan.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width);
       const offset = globals.timestampOffset();
-      const tickGen = new TickGenerator(span, maxMajorTicks, offset);
+      const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
-        const px = Math.floor(map.timeToPx(time));
+        const px = Math.floor(timescale.timeToPx(time));
         if (type === TickType.MAJOR) {
           ctx.fillRect(px, 0, 1, size.height);
         }
@@ -173,75 +172,77 @@ export class TimeSelectionPanel implements Panel {
     }
 
     const localArea = globals.timeline.selectedArea;
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.state.selection;
     if (localArea !== undefined) {
       const start = Time.min(localArea.start, localArea.end);
       const end = Time.max(localArea.start, localArea.end);
-      this.renderSpan(ctx, size, new TimeSpan(start, end));
-    } else if (selection !== null && selection.kind === 'AREA') {
-      const selectedArea = globals.state.areas[selection.areaId];
-      const start = Time.min(selectedArea.start, selectedArea.end);
-      const end = Time.max(selectedArea.start, selectedArea.end);
-      this.renderSpan(ctx, size, new TimeSpan(start, end));
+      this.renderSpan(ctx, timescale, size, start, end);
+    } else if (selection.kind === 'area') {
+      const start = Time.min(selection.start, selection.end);
+      const end = Time.max(selection.start, selection.end);
+      this.renderSpan(ctx, timescale, size, start, end);
     }
 
     if (globals.state.hoverCursorTimestamp !== -1n) {
-      this.renderHover(ctx, size, globals.state.hoverCursorTimestamp);
+      this.renderHover(
+        ctx,
+        timescale,
+        size,
+        globals.state.hoverCursorTimestamp,
+      );
     }
 
     for (const note of Object.values(globals.state.notes)) {
       const noteIsSelected =
-        selection !== null &&
-        selection.kind === 'AREA' &&
-        selection.noteId === note.id;
-      if (note.noteType === 'AREA' && !noteIsSelected) {
-        const selectedArea = globals.state.areas[note.areaId];
-        this.renderSpan(
-          ctx,
-          size,
-          new TimeSpan(selectedArea.start, selectedArea.end),
-        );
+        selection.kind === 'note' && selection.id === note.id;
+      if (note.noteType === 'SPAN' && !noteIsSelected) {
+        this.renderSpan(ctx, timescale, size, note.start, note.end);
       }
     }
 
     ctx.restore();
   }
 
-  renderHover(ctx: CanvasRenderingContext2D, size: PanelSize, ts: time) {
-    const {visibleTimeScale} = globals.timeline;
-    const xPos = TRACK_SHELL_WIDTH + Math.floor(visibleTimeScale.timeToPx(ts));
+  renderHover(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size,
+    ts: time,
+  ) {
+    const xPos = Math.floor(timescale.timeToPx(ts));
     const domainTime = globals.toDomainTime(ts);
     const label = stringifyTimestamp(domainTime);
-    drawIBar(ctx, xPos, this.bounds(size), label);
+    drawIBar(ctx, xPos, this.getBBoxFromSize(size), label);
   }
 
   renderSpan(
     ctx: CanvasRenderingContext2D,
-    size: PanelSize,
-    span: Span<time, duration>,
+    timescale: TimeScale,
+    trackSize: Size,
+    start: time,
+    end: time,
   ) {
-    const {visibleTimeScale} = globals.timeline;
-    const xLeft = visibleTimeScale.timeToPx(span.start);
-    const xRight = visibleTimeScale.timeToPx(span.end);
-    const label = renderDuration(span.duration);
+    const xLeft = timescale.timeToPx(start);
+    const xRight = timescale.timeToPx(end);
+    const label = renderDuration(end - start);
     drawHBar(
       ctx,
       {
-        x: TRACK_SHELL_WIDTH + xLeft,
+        x: xLeft,
         y: 0,
         width: xRight - xLeft,
-        height: size.height,
+        height: trackSize.height,
       },
-      this.bounds(size),
+      this.getBBoxFromSize(trackSize),
       label,
     );
   }
 
-  private bounds(size: PanelSize): BBox {
+  private getBBoxFromSize(size: Size): BBox {
     return {
-      x: TRACK_SHELL_WIDTH,
+      x: 0,
       y: 0,
-      width: size.width - TRACK_SHELL_WIDTH,
+      width: size.width,
       height: size.height,
     };
   }

@@ -1,0 +1,83 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  #                 A[0x1]         java.lang.String[0x4]
+  #                /       \
+  #           A[0x2]    B[0x3]
+  #              /
+  #     java.lang.String[0x5]
+  heap_graph {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x1
+      object_ids: 0x4
+    }
+    objects {
+      id: 0x01
+      type_id: 1
+      reference_object_id: 0x2
+      reference_object_id: 0x3
+    }
+    objects {
+      id: 0x02
+      type_id: 1
+      reference_object_id: 0x5
+    }
+    objects {
+      id: 0x03
+      type_id: 2
+    }
+    objects {
+      id: 0x04
+      type_id: 3
+      self_size: 666
+    }
+    objects {
+      id: 0x05
+      type_id: 3
+      self_size: 10000
+    }
+    continued: true
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  heap_graph {
+    pid: 2
+    types {
+      id: 1
+      class_name: "A"
+      object_size: 100
+    }
+    types {
+      id: 2
+      class_name: "B"
+      object_size: 1000
+    }
+    types {
+      id: 3
+      class_name: "java.lang.String"
+    }
+    continued: false
+    index: 1
+  }
+}

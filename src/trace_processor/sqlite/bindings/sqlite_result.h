@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_RESULT_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_RESULT_H_
 
-#include <sqlite3.h>
+#include <sqlite3.h>  // IWYU pragma: export
 #include <cstdint>
+#include <memory>
 
 namespace perfetto::trace_processor::sqlite::result {
 
@@ -88,6 +89,14 @@ inline void RawPointer(sqlite3_context* ctx,
 }
 inline void StaticPointer(sqlite3_context* ctx, void* ptr, const char* name) {
   RawPointer(ctx, ptr, name, nullptr);
+}
+template <typename T>
+inline void UniquePointer(sqlite3_context* ctx,
+                          std::unique_ptr<T> ptr,
+                          const char* name) {
+  sqlite::result::RawPointer(ctx, ptr.release(), name, [](void* ptr) {
+    std::unique_ptr<T>(static_cast<T*>(ptr));
+  });
 }
 
 }  // namespace perfetto::trace_processor::sqlite::result

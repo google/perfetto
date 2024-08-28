@@ -1,6 +1,6 @@
 android_startup {
   startup {
-    startup_id: 1
+    startup_id: 0
     package_name: "com.some.app"
     process_name: "com.some.app"
     zygote_new_process: false
@@ -67,11 +67,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.some.app"
-        apk_version_code: 123
-        debuggable: false
-      }
       pid: 3
     }
     event_timestamps {
@@ -134,14 +129,70 @@ android_startup {
     slow_start_reason: "GC Activity"
     slow_start_reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
     slow_start_reason: "Main Thread - Binder transactions blocked"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: GC_ACTIVITY
       reason: "GC Activity"
+      severity: ERROR
+      expected_value {
+        value: 0
+        unit: TRUE_OR_FALSE
+      }
+      actual_value {
+        value: 1
+      }
+      launch_dur: 999999900
+      trace_slice_sections {
+        start_timestamp: 340
+        end_timestamp: 390
+        slice_id: 18
+        slice_name: "CollectorTransition mark sweep GC"
+      }
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: MAIN_THREAD_TIME_SPENT_IN_OPEN_DEX_FILES_FROM_OAT
       reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
+      severity: WARNING
+      expected_value {
+        value: 20
+        unit: PERCENTAGE
+        higher_expected: false
+      }
+      actual_value {
+        value: 49
+        dur: 499999845
+      }
+      launch_dur: 999999900
+      trace_slice_sections {
+        start_timestamp: 170
+        end_timestamp: 500000000
+        slice_id: 9
+        slice_name: "OpenDexFilesFromOat(something else)"
+      }
+      trace_slice_sections {
+        start_timestamp: 150
+        end_timestamp: 165
+        slice_id: 5
+        slice_name: "OpenDexFilesFromOat(something)"
+      }
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED
       reason: "Main Thread - Binder transactions blocked"
+      severity: WARNING
+      expected_value {
+        value: 0
+        unit: TRUE_OR_FALSE
+      }
+      actual_value {
+        value: 1
+      }
+      launch_dur: 999999900
+      trace_slice_sections {
+        start_timestamp: 10000000
+        end_timestamp: 50000000
+        slice_id: 19
+        slice_name: "binder transaction"
+      }
     }
   }
 }

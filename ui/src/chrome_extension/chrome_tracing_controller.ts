@@ -31,6 +31,7 @@ import {
 import {ITraceStats, TraceConfig} from '../protos';
 
 import {DevToolsSocket} from './devtools_socket';
+import {exists} from '../base/utils';
 
 const CHUNK_SIZE: number = 1024 * 1024 * 16; // 16Mb
 
@@ -135,7 +136,7 @@ export class ChromeTracingController extends RpcConsumerPort {
     // in the TraceConfig.
     const convertedConfig = this.convertDictKeys(config);
     // recordMode is specified as an enum with camelCase values.
-    if (convertedConfig.recordMode) {
+    if (convertedConfig.recordMode as string) {
       convertedConfig.recordMode = this.toCamelCase(
         convertedConfig.recordMode as string,
         '-',
@@ -152,8 +153,8 @@ export class ChromeTracingController extends RpcConsumerPort {
       if (
         ds.config &&
         ds.config.name === 'org.chromium.trace_event' &&
-        ds.config.chromeConfig &&
-        ds.config.chromeConfig.traceConfig
+        exists(ds.config.chromeConfig) &&
+        exists(ds.config.chromeConfig.traceConfig)
       ) {
         const chromeConfigJsonString = ds.config.chromeConfig.traceConfig;
         const config = JSON.parse(chromeConfigJsonString);

@@ -135,6 +135,7 @@ GPU_SLICE_TABLE = Table(
         C('frame_id', CppOptional(CppUint32())),
         C('submission_id', CppOptional(CppUint32())),
         C('hw_queue_id', CppOptional(CppInt64())),
+        C('upid', CppOptional(CppUint32())),
         C('render_subpasses', CppString()),
     ],
     parent=SLICE_TABLE,
@@ -142,17 +143,33 @@ GPU_SLICE_TABLE = Table(
         doc='''''',
         group='Slice',
         columns={
-            'context_id': '''''',
-            'render_target': '''''',
-            'render_target_name': '''''',
-            'render_pass': '''''',
-            'render_pass_name': '''''',
-            'command_buffer': '''''',
-            'command_buffer_name': '''''',
-            'frame_id': '''''',
-            'submission_id': '''''',
-            'hw_queue_id': '''''',
-            'render_subpasses': ''''''
+            'context_id':
+                '''''',
+            'render_target':
+                '''''',
+            'render_target_name':
+                '''''',
+            'render_pass':
+                '''''',
+            'render_pass_name':
+                '''''',
+            'command_buffer':
+                '''''',
+            'command_buffer_name':
+                '''''',
+            'frame_id':
+                '''''',
+            'submission_id':
+                '''''',
+            'hw_queue_id':
+                '''''',
+            'upid':
+                '''
+                  Unique process id of the app that generates this gpu render
+                  stage event.
+                ''',
+            'render_subpasses':
+                ''''''
         }))
 
 GRAPHICS_FRAME_SLICE_TABLE = Table(
@@ -314,9 +331,61 @@ EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
                 'The id of the slice which this row originated from.',
         }))
 
+ANDROID_NETWORK_PACKETS_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidNetworkPacketsTable',
+    sql_name='__intrinsic_android_network_packets',
+    columns=[
+        C('iface', CppString()),
+        C('direction', CppString()),
+        C('packet_transport', CppString()),
+        C('packet_length', CppInt64()),
+        C('packet_count', CppInt64()),
+        C('socket_tag', CppUint32()),
+        C('socket_tag_str', CppString()),
+        C('socket_uid', CppUint32()),
+        C('local_port', CppOptional(CppUint32())),
+        C('remote_port', CppOptional(CppUint32())),
+        C('packet_icmp_type', CppOptional(CppUint32())),
+        C('packet_icmp_code', CppOptional(CppUint32())),
+        C('packet_tcp_flags', CppOptional(CppUint32())),
+        C('packet_tcp_flags_str', CppOptional(CppString())),
+    ],
+    parent=SLICE_TABLE,
+    tabledoc=TableDoc(
+        doc="""
+        This table contains details on Android Network activity.
+        """,
+        group='Slice',
+        columns={
+            'iface': 'The name of the network interface used',
+            'direction': 'The direction of traffic (Received or Transmitted)',
+            'packet_transport':
+                'The transport protocol of packets in this event',
+            'packet_length': 'The length (in bytes) of packets in this event',
+            'packet_count': 'The number of packets contained in this event',
+            'socket_tag': 'The Android network tag of the socket',
+            'socket_tag_str': 'The socket tag formatted as a hex string',
+            'socket_uid': 'The Linux user id of the socket',
+            'local_port': 'The local udp/tcp port',
+            'remote_port': 'The remote udp/tcp port',
+            'packet_icmp_type': 'The 1-byte ICMP type identifier',
+            'packet_icmp_code': 'The 1-byte ICMP code identifier',
+            'packet_tcp_flags':
+                'The TCP flags as an integer bitmask (FIN=0x1, SYN=0x2, etc)',
+            'packet_tcp_flags_str':
+                '''
+                The TCP flags formatted as a string bitmask (e.g. "f...a..." for
+                FIN & ACK)
+                ''',
+        },
+    ),
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ACTUAL_FRAME_TIMELINE_SLICE_TABLE,
+    ANDROID_NETWORK_PACKETS_TABLE,
     EXPECTED_FRAME_TIMELINE_SLICE_TABLE,
     EXPERIMENTAL_FLAT_SLICE_TABLE,
     GPU_SLICE_TABLE,

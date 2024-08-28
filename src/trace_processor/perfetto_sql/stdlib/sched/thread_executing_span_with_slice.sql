@@ -17,14 +17,93 @@
 INCLUDE PERFETTO MODULE slices.flat_slices;
 INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
-CREATE PERFETTO TABLE _critical_path_all AS
-SELECT * FROM  _thread_executing_span_critical_path_all();
+CREATE PERFETTO TABLE _critical_path_userspace
+AS
+SELECT *
+FROM
+  _critical_path_intervals
+    !(_wakeup_userspace_edges,
+      (SELECT id AS root_node_id, id - COALESCE(prev_id, id) AS capacity FROM _wakeup_graph),
+      _wakeup_intervals);
+
+CREATE PERFETTO TABLE _critical_path_kernel
+AS
+WITH _kernel_nodes AS (
+  SELECT id, root_id FROM _critical_path_userspace
+  JOIN _wakeup_graph USING (id) WHERE is_idle_reason_self = 1
+)
+SELECT _kernel_nodes.root_id, cr.root_id AS parent_id, cr.id, cr.ts, cr.dur
+FROM
+  _critical_path_intervals
+    !(_wakeup_kernel_edges,
+      (
+        SELECT graph.id AS root_node_id, graph.id - COALESCE(graph.prev_id, graph.id) AS capacity
+        FROM _kernel_nodes
+        JOIN _wakeup_graph graph USING(id)
+      ),
+      _wakeup_intervals) cr
+JOIN _kernel_nodes
+  ON _kernel_nodes.id = cr.root_id;
+
+CREATE PERFETTO TABLE _critical_path_userspace_adjusted AS
+SELECT DISTINCT * FROM _critical_path_userspace_adjusted!(_critical_path_userspace, _wakeup_graph);
+
+CREATE PERFETTO TABLE _critical_path_kernel_adjusted AS
+SELECT DISTINCT * FROM _critical_path_kernel_adjusted!(_critical_path_userspace_adjusted, _critical_path_kernel, _wakeup_graph);
+
+CREATE PERFETTO TABLE _critical_path_merged_adjusted AS
+  SELECT root_id, parent_id, id, ts, dur FROM _critical_path_userspace_adjusted
+  UNION ALL
+  SELECT root_id, parent_id, id, ts, dur FROM _critical_path_kernel_adjusted WHERE id != parent_id;
+
+CREATE PERFETTO TABLE _critical_path_roots AS
+  SELECT root_id, min(ts) AS root_ts, max(ts + dur) - min(ts) AS root_dur
+  FROM _critical_path_userspace_adjusted
+  GROUP BY root_id;
+
+CREATE PERFETTO TABLE _critical_path_roots_and_merged AS
+  WITH roots_and_merged_critical_path AS (
+      SELECT
+        root_id,
+        root_ts,
+        root_dur,
+        parent_id,
+        id,
+        ts,
+        dur
+      FROM _critical_path_merged_adjusted
+      JOIN _critical_path_roots USING(root_id)
+    )
+    SELECT
+      flat.root_id,
+      flat.id,
+      flat.ts,
+      flat.dur
+    FROM
+    _intervals_flatten!(roots_and_merged_critical_path) flat
+    WHERE flat.dur > 0
+    GROUP BY flat.root_id, flat.ts;
+
+CREATE PERFETTO TABLE _critical_path_all
+AS
+SELECT
+  ROW_NUMBER() OVER(ORDER BY cr.ts) AS id,
+  cr.ts,
+  cr.dur,
+  cr.ts + cr.dur AS ts_end,
+  id_graph.utid,
+  root_id_graph.utid AS root_utid
+  FROM _critical_path_roots_and_merged cr
+  JOIN _wakeup_graph id_graph ON cr.id = id_graph.id
+  JOIN _wakeup_graph root_id_graph ON cr.root_id = root_id_graph.id ORDER BY cr.ts;
 
 -- Limited thread_state view that will later be span joined with the |_thread_executing_span_graph|.
 CREATE PERFETTO VIEW _span_thread_state_view
-AS SELECT id AS thread_state_id, ts, dur, utid, state, blocked_function as function, io_wait, cpu FROM thread_state;
+AS
+SELECT id AS thread_state_id, ts, dur, utid, state, blocked_function AS function, io_wait, cpu
+FROM thread_state;
 
--- Limited slice_view that will later be span joined with the |_thread_executing_span_graph|.
+-- Limited slice_view that will later be span joined with the critical path.
 CREATE PERFETTO VIEW _span_slice_view
 AS
 SELECT
@@ -36,50 +115,47 @@ SELECT
   utid
 FROM _slice_flattened;
 
-CREATE VIRTUAL TABLE _span_thread_state_slice_view
+-- thread state span joined with slice.
+CREATE VIRTUAL TABLE _span_thread_state_slice_sp
 USING
   SPAN_LEFT_JOIN(
     _span_thread_state_view PARTITIONED utid,
     _span_slice_view PARTITIONED utid);
 
--- |_thread_executing_span_graph| span joined with thread_state information.
-CREATE VIRTUAL TABLE _span_critical_path_thread_state_slice_sp
-USING
-  SPAN_JOIN(
-    _critical_path_all PARTITIONED utid,
-    _span_thread_state_slice_view PARTITIONED utid);
-
--- |_thread_executing_span_graph| + thread_state view joined with critical_path information.
-CREATE PERFETTO TABLE _critical_path_thread_state_slice AS
-WITH span_starts AS (
-    SELECT
-      span.id,
-      span.utid,
-      span.critical_path_id,
-      span.critical_path_blocked_dur,
-      span.critical_path_blocked_state,
-      span.critical_path_blocked_function,
-      span.critical_path_utid,
-      thread_state_id,
-      MAX(thread_state.ts, span.ts) AS ts,
-      span.ts + span.dur AS span_end_ts,
-      thread_state.ts + thread_state.dur AS thread_state_end_ts,
-      thread_state.state,
-      thread_state.function,
-      thread_state.cpu,
-      thread_state.io_wait,
-      thread_state.slice_id,
-      thread_state.slice_name,
-      thread_state.slice_depth
-    FROM _critical_path_all span
-    JOIN _span_critical_path_thread_state_slice_sp thread_state USING(id)
-  )
+CREATE PERFETTO TABLE _span_thread_state_slice
+AS
 SELECT
-  id,
-  thread_state_id,
+  ROW_NUMBER() OVER(ORDER BY ts) AS id,
   ts,
-  MIN(span_end_ts, thread_state_end_ts) - ts AS dur,
+  dur,
+  ts + dur AS ts_end,
   utid,
+  thread_state_id,
+  state,
+  function,
+  cpu,
+  io_wait,
+  slice_id,
+  slice_name,
+  slice_depth
+  FROM _span_thread_state_slice_sp WHERE dur > 0 ORDER BY ts;
+
+CREATE PERFETTO TABLE _critical_path_thread_state_slice_raw
+AS
+SELECT
+  id_0 AS cr_id,
+  id_1 AS th_id,
+  ts,
+  dur
+FROM _interval_intersect!((_critical_path_all, _span_thread_state_slice), (utid));
+
+CREATE PERFETTO TABLE _critical_path_thread_state_slice
+AS
+SELECT
+  raw.ts,
+  raw.dur,
+  cr.utid,
+  thread_state_id,
   state,
   function,
   cpu,
@@ -87,13 +163,12 @@ SELECT
   slice_id,
   slice_name,
   slice_depth,
-  critical_path_id,
-  critical_path_blocked_dur,
-  critical_path_blocked_state,
-  critical_path_blocked_function,
-  critical_path_utid
-FROM span_starts
-WHERE MIN(span_end_ts, thread_state_end_ts) - ts > 0;
+  root_utid
+FROM _critical_path_thread_state_slice_raw raw
+JOIN _critical_path_all cr
+  ON cr.id = raw.cr_id
+JOIN _span_thread_state_slice th
+  ON th.id = raw.th_id;
 
 -- Flattened slices span joined with their thread_states. This contains the 'self' information
 -- without 'critical_path' (blocking) information.
@@ -108,7 +183,7 @@ CREATE PERFETTO VIEW _self_view
     slice_id AS self_slice_id,
     ts,
     dur,
-    utid AS critical_path_utid,
+    utid AS root_utid,
     state AS self_state,
     blocked_function AS self_function,
     cpu AS self_cpu,
@@ -123,8 +198,8 @@ CREATE PERFETTO VIEW _self_view
 CREATE VIRTUAL TABLE _self_and_critical_path_sp
 USING
   SPAN_JOIN(
-    _self_view PARTITIONED critical_path_utid,
-    _critical_path_thread_state_slice PARTITIONED critical_path_utid);
+    _self_view PARTITIONED root_utid,
+    _critical_path_thread_state_slice PARTITIONED root_utid);
 
 -- Returns a view of |_self_and_critical_path_sp| unpivoted over the following columns:
 -- self thread_state.
@@ -138,7 +213,7 @@ USING
 -- critical_path slice_stack (enabled with |enable_critical_path_slice|).
 -- running cpu (if one exists).
 -- A 'stack' is the group of resulting unpivoted rows sharing the same timestamp.
-CREATE PERFETTO FUNCTION _critical_path_stack(critical_path_utid INT, ts LONG, dur LONG, enable_process_name INT, enable_thread_name INT, enable_self_slice INT, enable_critical_path_slice INT)
+CREATE PERFETTO FUNCTION _critical_path_stack(root_utid INT, ts LONG, dur LONG, enable_process_name INT, enable_thread_name INT, enable_self_slice INT, enable_critical_path_slice INT)
 RETURNS
   TABLE(
     id INT,
@@ -148,8 +223,8 @@ RETURNS
     stack_depth INT,
     name STRING,
     table_name STRING,
-    critical_path_utid INT) AS
-  -- Spans filtered to the query time window and critical_path_utid.
+    root_utid INT) AS
+  -- Spans filtered to the query time window and root_utid.
   -- This is a preliminary step that gets the start and end ts of all the rows
   -- so that we can chop the ends of each interval correctly if it overlaps with the query time interval.
   WITH relevant_spans_starts AS (
@@ -172,9 +247,9 @@ RETURNS
       utid,
       MAX(ts, $ts) AS ts,
       MIN(ts + dur, $ts + $dur) AS end_ts,
-      critical_path_utid
+      root_utid
     FROM _self_and_critical_path_sp
-    WHERE dur > 0 AND critical_path_utid = $critical_path_utid
+    WHERE dur > 0 AND root_utid = $root_utid
   ),
   -- This is the final step that gets the |dur| of each span from the start and
   -- and end ts of the previous step.
@@ -201,7 +276,7 @@ RETURNS
       utid,
       ts,
       end_ts - ts AS dur,
-      critical_path_utid,
+      root_utid,
       utid
     FROM relevant_spans_starts
     WHERE dur > 0
@@ -213,11 +288,11 @@ RETURNS
       self_thread_state_id AS id,
       ts,
       dur,
-      utid,
+      root_utid AS utid,
       0 AS stack_depth,
       'thread_state: ' || self_state AS name,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM relevant_spans
     UNION ALL
     -- Builds the self kernel blocked_function
@@ -225,11 +300,11 @@ RETURNS
       self_thread_state_id AS id,
       ts,
       dur,
-      utid,
+      root_utid AS utid,
       1 AS stack_depth,
       IIF(self_state GLOB 'R*', NULL, 'kernel function: ' || self_function) AS name,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM relevant_spans
     UNION ALL
     -- Builds the self kernel io_wait
@@ -237,11 +312,11 @@ RETURNS
       self_thread_state_id AS id,
       ts,
       dur,
-      utid,
+      root_utid AS utid,
       2 AS stack_depth,
       IIF(self_state GLOB 'R*', NULL, 'io_wait: ' || self_io_wait) AS name,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM relevant_spans
     UNION ALL
     -- Builds the self process_name
@@ -253,10 +328,10 @@ RETURNS
       3 AS stack_depth,
       IIF($enable_process_name, 'process_name: ' || process.name, NULL) AS name,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM relevant_spans
     LEFT JOIN thread
-      ON thread.utid = critical_path_utid
+      ON thread.utid = root_utid
     LEFT JOIN process
       USING (upid)
     -- Builds the self thread_name
@@ -269,10 +344,10 @@ RETURNS
       4 AS stack_depth,
       IIF($enable_thread_name, 'thread_name: ' || thread.name, NULL) AS name,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM relevant_spans
     LEFT JOIN thread
-      ON thread.utid = critical_path_utid
+      ON thread.utid = root_utid
     JOIN process
       USING (upid)
     UNION ALL
@@ -281,11 +356,11 @@ RETURNS
       anc.id,
       slice.ts,
       slice.dur,
-      slice.utid,
+      root_utid AS utid,
       anc.depth + 5 AS stack_depth,
       IIF($enable_self_slice, anc.name, NULL) AS name,
       'slice' AS table_name,
-      critical_path_utid
+      root_utid
     FROM relevant_spans slice
     JOIN ancestor_slice(self_slice_id) anc WHERE anc.dur != -1
     UNION ALL
@@ -294,11 +369,11 @@ RETURNS
       self_slice_id AS id,
       ts,
       dur,
-      utid,
+      root_utid AS utid,
       self_slice_depth + 5 AS stack_depth,
       IIF($enable_self_slice, self_slice_name, NULL) AS name,
       'slice' AS table_name,
-      critical_path_utid
+      root_utid
     FROM relevant_spans slice
     -- Ordering by stack depth is important to ensure the items can
     -- be renedered in the UI as a debug track in the order in which
@@ -310,9 +385,9 @@ RETURNS
   -- each self slice stack has variable depth and the depth in each stack
   -- most be contiguous in order to efficiently generate a pprof in the future.
   critical_path_start_depth AS MATERIALIZED (
-    SELECT critical_path_utid, ts, MAX(stack_depth) + 1 AS start_depth
+    SELECT root_utid, ts, MAX(stack_depth) + 1 AS start_depth
     FROM self_stack
-    GROUP BY critical_path_utid, ts
+    GROUP BY root_utid, ts
   ),
   critical_path_span AS MATERIALIZED (
     SELECT
@@ -325,15 +400,15 @@ RETURNS
       slice_depth,
       spans.ts,
       spans.dur,
-      spans.critical_path_utid,
+      spans.root_utid,
       utid,
       start_depth
     FROM relevant_spans spans
     JOIN critical_path_start_depth
       ON
-        critical_path_start_depth.critical_path_utid = spans.critical_path_utid
+        critical_path_start_depth.root_utid = spans.root_utid
         AND critical_path_start_depth.ts = spans.ts
-    WHERE critical_path_start_depth.critical_path_utid = $critical_path_utid AND spans.critical_path_utid != spans.utid
+    WHERE critical_path_start_depth.root_utid = $root_utid AND spans.root_utid != spans.utid
   ),
   -- 2. Builds the 'critical_path' stack of items as an ordered UNION ALL
   critical_path_stack AS MATERIALIZED (
@@ -346,7 +421,7 @@ RETURNS
       start_depth AS stack_depth,
       'blocking thread_state: ' || state AS name,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM critical_path_span
     UNION ALL
     -- Builds the critical_path process_name
@@ -358,7 +433,7 @@ RETURNS
       start_depth + 1 AS stack_depth,
       'blocking process_name: ' || process.name,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM critical_path_span
     JOIN thread USING (utid)
     LEFT JOIN process USING (upid)
@@ -372,7 +447,7 @@ RETURNS
       start_depth + 2 AS stack_depth,
       'blocking thread_name: ' || thread.name,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM critical_path_span
     JOIN thread USING (utid)
     UNION ALL
@@ -385,7 +460,7 @@ RETURNS
       start_depth + 3 AS stack_depth,
       'blocking kernel_function: ' || function,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM critical_path_span
     JOIN thread USING (utid)
     UNION ALL
@@ -398,7 +473,7 @@ RETURNS
       start_depth + 4 AS stack_depth,
       'blocking io_wait: ' || io_wait,
       'thread_state' AS table_name,
-      critical_path_utid
+      root_utid
     FROM critical_path_span
     JOIN thread USING (utid)
     UNION ALL
@@ -411,7 +486,7 @@ RETURNS
       anc.depth + start_depth + 5 AS stack_depth,
       IIF($enable_critical_path_slice, anc.name, NULL) AS name,
       'slice' AS table_name,
-      critical_path_utid
+      root_utid
     FROM critical_path_span slice
     JOIN ancestor_slice(slice_id) anc WHERE anc.dur != -1
     UNION ALL
@@ -424,7 +499,7 @@ RETURNS
       slice_depth + start_depth + 5 AS stack_depth,
       IIF($enable_critical_path_slice, slice_name, NULL) AS name,
       'slice' AS table_name,
-      critical_path_utid
+      root_utid
     FROM critical_path_span slice
     -- Ordering is also important as in the 'self' step above.
     ORDER BY stack_depth
@@ -434,16 +509,16 @@ RETURNS
   -- the critical_path stack and self stack. The self stack depth is
   -- already computed and materialized in |critical_path_start_depth|.
   cpu_start_depth_raw AS (
-    SELECT critical_path_utid, ts, MAX(stack_depth) + 1 AS start_depth
+    SELECT root_utid, ts, MAX(stack_depth) + 1 AS start_depth
     FROM critical_path_stack
-    GROUP BY critical_path_utid, ts
+    GROUP BY root_utid, ts
     UNION ALL
     SELECT * FROM critical_path_start_depth
   ),
   cpu_start_depth AS (
-    SELECT critical_path_utid, ts, MAX(start_depth) AS start_depth
+    SELECT root_utid, ts, MAX(start_depth) AS start_depth
     FROM cpu_start_depth_raw
-    GROUP BY critical_path_utid, ts
+    GROUP BY root_utid, ts
   ),
   -- 3. Builds the 'CPU' stack for 'Running' states in either the self or critical path stack.
   cpu_stack AS (
@@ -455,13 +530,13 @@ RETURNS
       start_depth AS stack_depth,
       'cpu: ' || cpu AS name,
       'thread_state' AS table_name,
-      spans.critical_path_utid
+      spans.root_utid
     FROM relevant_spans spans
     JOIN cpu_start_depth
       ON
-        cpu_start_depth.critical_path_utid = spans.critical_path_utid
+        cpu_start_depth.root_utid = spans.root_utid
         AND cpu_start_depth.ts = spans.ts
-    WHERE cpu_start_depth.critical_path_utid = $critical_path_utid AND state = 'Running' OR self_state = 'Running'
+    WHERE cpu_start_depth.root_utid = $root_utid AND state = 'Running' OR self_state = 'Running'
   ),
   merged AS (
     SELECT * FROM self_stack
@@ -478,7 +553,7 @@ SELECT * FROM merged WHERE id IS NOT NULL;
 -- critical_path thread_name, critical_path slice_stack, running_cpu.
 CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_stack(
   -- Thread utid to filter critical paths to.
-  critical_path_utid INT,
+  root_utid INT,
   -- Timestamp of start of time range to filter critical paths to.
   ts LONG,
   -- Duration of time range to filter critical paths to.
@@ -500,25 +575,25 @@ RETURNS
     -- Table name of entity in the critical path (could be either slice or thread_state).
     table_name STRING,
     -- Utid of the thread the critical path was filtered to.
-    critical_path_utid INT
+    root_utid INT
 ) AS
-SELECT * FROM _critical_path_stack($critical_path_utid, $ts, $dur, 1, 1, 1, 1);
+SELECT * FROM _critical_path_stack($root_utid, $ts, $dur, 1, 1, 1, 1);
 
 -- Returns a pprof aggregation of the stacks in |_critical_path_stack|.
-CREATE PERFETTO FUNCTION _critical_path_graph(graph_title STRING, critical_path_utid INT, ts LONG, dur LONG, enable_process_name INT, enable_thread_name INT, enable_self_slice INT, enable_critical_path_slice INT)
+CREATE PERFETTO FUNCTION _critical_path_graph(graph_title STRING, root_utid INT, ts LONG, dur LONG, enable_process_name INT, enable_thread_name INT, enable_self_slice INT, enable_critical_path_slice INT)
 RETURNS TABLE(pprof BYTES)
 AS
 WITH
   stack AS MATERIALIZED (
     SELECT
       ts,
-      dur - IFNULL(LEAD(dur) OVER (PARTITION BY critical_path_utid, ts ORDER BY stack_depth), 0) AS dur,
+      dur - IFNULL(LEAD(dur) OVER (PARTITION BY root_utid, ts ORDER BY stack_depth), 0) AS dur,
       name,
       utid,
-      critical_path_utid,
+      root_utid,
       stack_depth
     FROM
-      _critical_path_stack($critical_path_utid, $ts, $dur, $enable_process_name, $enable_thread_name, $enable_self_slice, $enable_critical_path_slice)
+      _critical_path_stack($root_utid, $ts, $dur, $enable_process_name, $enable_thread_name, $enable_self_slice, $enable_critical_path_slice)
   ),
   graph AS (
     SELECT CAT_STACKS($graph_title) AS stack
@@ -531,7 +606,7 @@ WITH
       cr.utid,
       cr.stack_depth,
       CAT_STACKS(graph.stack, cr.name) AS stack,
-      cr.critical_path_utid
+      cr.root_utid
     FROM stack cr, graph
     WHERE stack_depth = 0
     UNION ALL
@@ -542,11 +617,11 @@ WITH
       child.utid,
       child.stack_depth,
       CAT_STACKS(stack, child.name) AS stack,
-      child.critical_path_utid
+      child.root_utid
     FROM stack child
     JOIN parent
       ON
-        parent.critical_path_utid = child.critical_path_utid
+        parent.root_utid = child.root_utid
         AND parent.ts = child.ts
         AND child.stack_depth = parent.stack_depth + 1
   ),
@@ -560,7 +635,7 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_graph(
   -- Descriptive name for the graph.
   graph_title STRING,
   -- Thread utid to filter critical paths to.
-  critical_path_utid INT,
+  root_utid INT,
   -- Timestamp of start of time range to filter critical paths to.
   ts INT,
   -- Duration of time range to filter critical paths to.
@@ -570,4 +645,4 @@ RETURNS TABLE(
   pprof BYTES
 )
 AS
-SELECT * FROM _critical_path_graph($graph_title, $critical_path_utid, $ts, $dur, 1, 1, 1, 1);
+SELECT * FROM _critical_path_graph($graph_title, $root_utid, $ts, $dur, 1, 1, 1, 1);

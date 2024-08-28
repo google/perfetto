@@ -90,7 +90,7 @@ class UnixTaskRunner : public TaskRunner {
   void RunFileDescriptorWatch(PlatformHandle);
 
   ThreadChecker thread_checker_;
-  PlatformThreadId created_thread_id_ = GetThreadId();
+  std::atomic<PlatformThreadId> created_thread_id_ = GetThreadId();
 
   EventFd event_;
 

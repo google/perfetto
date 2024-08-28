@@ -21,7 +21,12 @@
 #include <cstring>
 #include <optional>
 
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -90,11 +95,41 @@ std::optional<size_t> IdOffsetFromEndOfNonSampleRecord(
 }
 }  // namespace
 
-PerfEventAttr::PerfEventAttr(perf_event_attr attr)
-    : attr_(std::move(attr)),
+PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
+                             tables::PerfSessionTable::Id perf_session_id,
+                             perf_event_attr attr)
+    : context_(context),
+      perf_session_id_(perf_session_id),
+      attr_(attr),
       time_offset_from_start_(TimeOffsetFromStartOfSampleRecord(attr_)),
       time_offset_from_end_(TimeOffsetFromEndOfNonSampleRecord(attr_)),
       id_offset_from_start_(IdOffsetFromStartOfSampleRecord(attr_)),
       id_offset_from_end_(IdOffsetFromEndOfNonSampleRecord(attr_)) {}
+
+PerfEventAttr::~PerfEventAttr() = default;
+
+PerfCounter& PerfEventAttr::GetOrCreateCounter(uint32_t cpu) {
+  auto it = counters_.find(cpu);
+  if (it == counters_.end()) {
+    it = counters_.emplace(cpu, CreateCounter(cpu)).first;
+  }
+  return it->second;
+}
+
+PerfCounter PerfEventAttr::CreateCounter(uint32_t cpu) const {
+  tables::PerfCounterTrackTable::Row row;
+  row.name = context_->storage->InternString(base::StringView(event_name_));
+  row.unit = context_->storage->InternString(base::StringView(""));
+  row.description = context_->storage->InternString(base::StringView(""));
+  row.perf_session_id = perf_session_id_;
+  row.cpu = cpu;
+  row.is_timebase = is_timebase();
+  const auto counter_track_ref =
+      context_->storage->mutable_perf_counter_track_table()
+          ->Insert(row)
+          .row_reference;
+  return PerfCounter(context_->storage->mutable_counter_table(),
+                     counter_track_ref);
+}
 
 }  // namespace perfetto::trace_processor::perf_importer

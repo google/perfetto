@@ -32,23 +32,6 @@ from python.generators.sql_processing.utils import check_banned_create_view_as
 from python.generators.sql_processing.utils import check_banned_words
 from python.generators.sql_processing.utils import check_banned_include_all
 
-# Allowlist path are relative to the stdlib root.
-CREATE_TABLE_ALLOWLIST = {
-    '/prelude/trace_bounds.sql': ['trace_bounds'],
-    '/android/binder.sql': ['_oom_score'],
-    '/android/monitor_contention.sql': [
-        '_isolated', 'android_monitor_contention_chain',
-        'android_monitor_contention'
-    ],
-    '/chrome/tasks.sql': [
-        '_chrome_mojo_slices', '_chrome_java_views', '_chrome_scheduler_tasks',
-        '_chrome_tasks'
-    ],
-    '/sched/thread_executing_span.sql': ['_wakeup_graph', '_thread_executing_span_graph',
-        '_critical_path'],
-    '/slices/flat_slices.sql': ['_slice_flattened']
-}
-
 
 def main():
   parser = argparse.ArgumentParser()
@@ -122,7 +105,7 @@ def main():
     errors += check_banned_create_table_as(
         sql,
         path.split(ROOT_DIR)[1],
-        args.stdlib_sources.split(ROOT_DIR)[1], CREATE_TABLE_ALLOWLIST)
+        args.stdlib_sources.split(ROOT_DIR)[1])
     errors += check_banned_create_view_as(sql, path.split(ROOT_DIR)[1])
     errors += check_banned_include_all(sql, path.split(ROOT_DIR)[1])
 

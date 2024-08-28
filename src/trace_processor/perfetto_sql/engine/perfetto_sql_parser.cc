@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -40,15 +41,17 @@ using Token = SqliteTokenizer::Token;
 using Statement = PerfettoSqlParser::Statement;
 
 enum class State {
-  kStmtStart,
+  kDrop,
+  kDropPerfetto,
   kCreate,
-  kInclude,
-  kIncludePerfetto,
   kCreateOr,
   kCreateOrReplace,
   kCreateOrReplacePerfetto,
   kCreatePerfetto,
+  kInclude,
+  kIncludePerfetto,
   kPassthrough,
+  kStmtStart,
 };
 
 bool KeywordEqual(std::string_view expected, std::string_view actual) {
@@ -153,6 +156,8 @@ bool PerfettoSqlParser::Next() {
           state = State::kCreate;
         } else if (TokenIsCustomKeyword("include", token)) {
           state = State::kInclude;
+        } else if (TokenIsSqliteKeyword("drop", token)) {
+          state = State::kDrop;
         } else {
           state = State::kPassthrough;
         }
@@ -171,6 +176,19 @@ bool PerfettoSqlParser::Next() {
         } else {
           return ErrorAtToken(token,
                               "Use 'INCLUDE PERFETTO MODULE {include_key}'.");
+        }
+      case State::kDrop:
+        if (TokenIsCustomKeyword("perfetto", token)) {
+          state = State::kDropPerfetto;
+        } else {
+          state = State::kPassthrough;
+        }
+        break;
+      case State::kDropPerfetto:
+        if (TokenIsSqliteKeyword("index", token)) {
+          return ParseDropPerfettoIndex(*first_non_space_token);
+        } else {
+          return ErrorAtToken(token, "Only Perfetto index can be dropped");
         }
       case State::kCreate:
         if (TokenIsSqliteKeyword("trigger", token)) {
@@ -213,9 +231,12 @@ bool PerfettoSqlParser::Next() {
         if (TokenIsCustomKeyword("macro", token)) {
           return ParseCreatePerfettoMacro(replace);
         }
+        if (TokenIsSqliteKeyword("index", token)) {
+          return ParseCreatePerfettoIndex(replace, *first_non_space_token);
+        }
         base::StackString<1024> err(
-            "Expected 'FUNCTION', 'TABLE' or 'MACRO' after 'CREATE PERFETTO', "
-            "received '%*s'.",
+            "Expected 'FUNCTION', 'TABLE', 'MACRO' OR 'INDEX' after 'CREATE "
+            "PERFETTO', received '%*s'.",
             static_cast<int>(token.str.size()), token.str.data());
         return ErrorAtToken(token, err.c_str());
     }
@@ -295,6 +316,101 @@ bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
       break;
   }
   statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
+  return true;
+}
+
+bool PerfettoSqlParser::ParseCreatePerfettoIndex(bool replace,
+                                                 Token first_non_space_token) {
+  Token index_name_tok = tokenizer_.NextNonWhitespace();
+  if (index_name_tok.token_type != SqliteTokenType::TK_ID) {
+    base::StackString<1024> err("Invalid index name %.*s",
+                                static_cast<int>(index_name_tok.str.size()),
+                                index_name_tok.str.data());
+    return ErrorAtToken(index_name_tok, err.c_str());
+  }
+  std::string index_name(index_name_tok.str);
+
+  auto token = tokenizer_.NextNonWhitespace();
+  if (!TokenIsSqliteKeyword("on", token)) {
+    base::StackString<1024> err("Expected 'ON' after index name, received %*s.",
+                                static_cast<int>(token.str.size()),
+                                token.str.data());
+    return ErrorAtToken(token, err.c_str());
+  }
+
+  Token table_name_tok = tokenizer_.NextNonWhitespace();
+  if (table_name_tok.token_type != SqliteTokenType::TK_ID) {
+    base::StackString<1024> err("Invalid table name %.*s",
+                                static_cast<int>(table_name_tok.str.size()),
+                                table_name_tok.str.data());
+    return ErrorAtToken(table_name_tok, err.c_str());
+  }
+  std::string table_name(table_name_tok.str);
+
+  token = tokenizer_.NextNonWhitespace();
+  if (token.token_type != SqliteTokenType::TK_LP) {
+    base::StackString<1024> err(
+        "Expected parenthesis after table name, received '%*s'.",
+        static_cast<int>(token.str.size()), token.str.data());
+    return ErrorAtToken(token, err.c_str());
+  }
+
+  std::vector<std::string> cols;
+
+  do {
+    Token col_name_tok = tokenizer_.NextNonWhitespace();
+    cols.push_back(std::string(col_name_tok.str));
+    token = tokenizer_.NextNonWhitespace();
+  } while (token.token_type == SqliteTokenType::TK_COMMA);
+
+  if (token.token_type != SqliteTokenType::TK_RP) {
+    base::StackString<1024> err("Expected closed parenthesis, received '%*s'.",
+                                static_cast<int>(token.str.size()),
+                                token.str.data());
+    return ErrorAtToken(token, err.c_str());
+  }
+
+  Token terminal = tokenizer_.NextTerminal();
+  statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
+  statement_ = CreateIndex{replace, index_name, table_name, cols};
+  return true;
+}
+
+bool PerfettoSqlParser::ParseDropPerfettoIndex(
+    SqliteTokenizer::Token first_non_space_token) {
+  Token index_name_tok = tokenizer_.NextNonWhitespace();
+  if (index_name_tok.token_type != SqliteTokenType::TK_ID) {
+    base::StackString<1024> err("Invalid index name %.*s",
+                                static_cast<int>(index_name_tok.str.size()),
+                                index_name_tok.str.data());
+    return ErrorAtToken(index_name_tok, err.c_str());
+  }
+  std::string index_name(index_name_tok.str);
+
+  auto token = tokenizer_.NextNonWhitespace();
+  if (!TokenIsSqliteKeyword("on", token)) {
+    base::StackString<1024> err("Expected 'ON' after index name, received %*s.",
+                                static_cast<int>(token.str.size()),
+                                token.str.data());
+    return ErrorAtToken(token, err.c_str());
+  }
+
+  Token table_name_tok = tokenizer_.NextNonWhitespace();
+  if (table_name_tok.token_type != SqliteTokenType::TK_ID) {
+    base::StackString<1024> err("Invalid table name %.*s",
+                                static_cast<int>(table_name_tok.str.size()),
+                                table_name_tok.str.data());
+    return ErrorAtToken(table_name_tok, err.c_str());
+  }
+  std::string table_name(table_name_tok.str);
+
+  token = tokenizer_.NextNonWhitespace();
+  if (!token.IsTerminal()) {
+    return ErrorAtToken(
+        token, "Nothing is allowed after table name in DROP PERFETTO INDEX");
+  }
+  statement_sql_ = tokenizer_.Substr(first_non_space_token, token);
+  statement_ = DropIndex{index_name, table_name};
   return true;
 }
 

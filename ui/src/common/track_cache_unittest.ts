@@ -12,12 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createStore, Track, TrackDescriptor} from '../public';
+import {Duration} from '../base/time';
+import {PxSpan, TimeScale} from '../frontend/time_scale';
+import {createStore, TrackDescriptor} from '../public';
+import {TrackRenderContext} from '../public/tracks';
 
 import {createEmptyState} from './empty_state';
+import {HighPrecisionTime} from './high_precision_time';
+import {HighPrecisionTimeSpan} from './high_precision_time_span';
 import {TrackManager} from './track_cache';
 
-function makeMockTrack(): Track {
+function makeMockTrack() {
   return {
     onCreate: jest.fn(),
     onUpdate: jest.fn(),
@@ -38,73 +43,145 @@ async function settle() {
   await new Promise((r) => setTimeout(r, 0));
 }
 
-let track: Track;
+let mockTrack: ReturnType<typeof makeMockTrack>;
 let td: TrackDescriptor;
-let trackCache: TrackManager;
+let trackManager: TrackManager;
+const visibleWindow = new HighPrecisionTimeSpan(HighPrecisionTime.ZERO, 0);
+const dummyCtx: TrackRenderContext = {
+  trackKey: 'foo',
+  ctx: new CanvasRenderingContext2D(),
+  size: {width: 123, height: 123},
+  visibleWindow,
+  resolution: Duration.ZERO,
+  timescale: new TimeScale(visibleWindow, new PxSpan(0, 0)),
+};
 
 beforeEach(() => {
-  track = makeMockTrack();
+  mockTrack = makeMockTrack();
   td = {
     uri: 'test',
-    trackFactory: () => track,
+    title: 'foo',
+    trackFactory: () => mockTrack,
   };
   const store = createStore(createEmptyState());
-  trackCache = new TrackManager(store);
+  trackManager = new TrackManager(store);
 });
 
-describe('TrackCache', () => {
+describe('TrackManager', () => {
   it('calls track lifecycle hooks', async () => {
-    const entry = trackCache.resolveTrack('foo', td);
-    entry.update();
+    const entry = trackManager.resolveTrack('foo', td);
+
+    entry.render(dummyCtx);
     await settle();
-    expect(track.onUpdate).toHaveBeenCalledTimes(1);
+    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
+    expect(mockTrack.onUpdate).toHaveBeenCalledTimes(1);
+
+    entry[Symbol.dispose]();
+    await settle();
+    expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onCrate lazily', async () => {
+    // Check we wait until the first call to render before calling onCreate
+    const entry = trackManager.resolveTrack('foo', td);
+    await settle();
+    expect(mockTrack.onCreate).not.toHaveBeenCalled();
+
+    entry.render(dummyCtx);
+    await settle();
+    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
   });
 
   it('reuses tracks', async () => {
-    const first = trackCache.resolveTrack('foo', td);
-    trackCache.flushOldTracks();
-    first.update();
-    const second = trackCache.resolveTrack('foo', td);
-    trackCache.flushOldTracks();
-    second.update();
+    const first = trackManager.resolveTrack('foo', td);
+    trackManager.flushOldTracks();
+    first.render(dummyCtx);
+    await settle();
 
-    // Ensure onCreate only called once
-    expect(track.onCreate).toHaveBeenCalledTimes(1);
+    const second = trackManager.resolveTrack('foo', td);
+    trackManager.flushOldTracks();
+    second.render(dummyCtx);
+    await settle();
+
     expect(first).toBe(second);
+    // Ensure onCreate called only once
+    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('destroys tracks', async () => {
-    const t = trackCache.resolveTrack('foo', td);
-    t.update();
+  it('destroys tracks when they are not resolved for one cycle', async () => {
+    const entry = trackManager.resolveTrack('foo', td);
+    entry.render(dummyCtx);
 
     // Double flush should destroy all tracks
-    trackCache.flushOldTracks();
-    trackCache.flushOldTracks();
+    trackManager.flushOldTracks();
+    trackManager.flushOldTracks();
 
     await settle();
 
-    // Ensure onCreate only called once
-    expect(track.onDestroy).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('TrackCacheEntry', () => {
-  it('updates', async () => {
-    const entry = trackCache.resolveTrack('foo', td);
-    entry.update();
-    await settle();
-    expect(track.onUpdate).toHaveBeenCalledTimes(1);
+    expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
   });
 
-  it('throws if updated when destroyed', async () => {
-    const entry = trackCache.resolveTrack('foo', td);
+  it('throws on render after destroy', async () => {
+    const entry = trackManager.resolveTrack('foo', td);
 
     // Double flush should destroy all tracks
-    trackCache.flushOldTracks();
-    trackCache.flushOldTracks();
+    trackManager.flushOldTracks();
+    trackManager.flushOldTracks();
 
     await settle();
 
-    expect(() => entry.update()).toThrow();
+    expect(() => entry.render(dummyCtx)).toThrow();
+  });
+
+  it('contains crash inside onCreate()', async () => {
+    const entry = trackManager.resolveTrack('foo', td);
+    const e = new Error();
+
+    // Mock crash inside onCreate
+    mockTrack.onCreate.mockImplementationOnce(() => {
+      throw e;
+    });
+
+    entry.render(dummyCtx);
+    await settle();
+
+    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
+    expect(mockTrack.onUpdate).not.toHaveBeenCalled();
+    expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
+    expect(entry.getError()).toBe(e);
+  });
+
+  it('contains crash inside onUpdate()', async () => {
+    const entry = trackManager.resolveTrack('foo', td);
+    const e = new Error();
+
+    // Mock crash inside onUpdate
+    mockTrack.onUpdate.mockImplementationOnce(() => {
+      throw e;
+    });
+
+    entry.render(dummyCtx);
+    await settle();
+
+    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
+    expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
+    expect(entry.getError()).toBe(e);
+  });
+
+  it('handles dispose after crash', async () => {
+    const entry = trackManager.resolveTrack('foo', td);
+    const e = new Error();
+
+    // Mock crash inside onUpdate
+    mockTrack.onUpdate.mockImplementationOnce(() => {
+      throw e;
+    });
+
+    entry.render(dummyCtx);
+    await settle();
+
+    // Ensure we don't crash while disposing
+    entry[Symbol.dispose]();
+    await settle();
   });
 });

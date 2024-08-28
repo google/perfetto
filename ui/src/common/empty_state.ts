@@ -20,7 +20,7 @@ import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
-import {SqlTables} from '../frontend/sql_table/well_known_tables';
+import {SqlTables} from '../frontend/well_known_sql_tables';
 
 import {NonSerializableState, State, STATE_VERSION} from './state';
 
@@ -93,9 +93,7 @@ export function createEmptyState(): State {
     trackGroups: {},
     pinnedTracks: [],
     scrollingTracks: [],
-    areas: {},
     queries: {},
-    permalink: {},
     notes: {},
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()
@@ -103,15 +101,6 @@ export function createEmptyState(): State {
       : createEmptyRecordConfig(),
     displayConfigAsPbtxt: false,
     lastLoadedConfig: {type: 'NONE'},
-
-    frontendLocalState: {
-      visibleState: {
-        start: Time.ZERO,
-        end: Time.ZERO,
-        lastUpdate: 0,
-        resolution: 0n,
-      },
-    },
 
     omniboxState: {
       omnibox: '',
@@ -122,7 +111,6 @@ export function createEmptyState(): State {
     selection: {
       kind: 'empty',
     },
-    currentFlamegraphState: null,
     traceConversionInProgress: false,
 
     perfDebug: false,

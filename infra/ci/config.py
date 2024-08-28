@@ -18,7 +18,8 @@ This file is either imported from other python scripts or executed to generate
 makefile dumps of the variables. This is so all vars can live in one place.
 '''
 
-from __future__ import print_function
+import os
+import sys
 
 # Gerrit config
 GERRIT_HOST = 'android-review.googlesource.com'
@@ -26,32 +27,32 @@ GERRIT_PROJECT = 'platform/external/perfetto'
 GERRIT_REVIEW_URL = ('https://android-review.googlesource.com/c/' +
                      GERRIT_PROJECT)
 REPO_URL = 'https://android.googlesource.com/' + GERRIT_PROJECT
-GERRIT_POLL_SEC = 15
 GERRIT_VOTING_ENABLED = True
 LOGLEVEL = 'info'
 
 # Cloud config (GCE = Google Compute Engine, GAE = Google App Engine)
 PROJECT = 'perfetto-ci'
+
 GAE_VERSION = 'prod'
 DB_ROOT = 'https://%s.firebaseio.com' % PROJECT
 DB = DB_ROOT + '/ci'
-SANDBOX_IMG = 'eu.gcr.io/%s/sandbox' % PROJECT
-WORKER_IMG = 'eu.gcr.io/%s/worker' % PROJECT
+SANDBOX_IMG = 'us-docker.pkg.dev/%s/containers/sandbox' % PROJECT
+WORKER_IMG = 'us-docker.pkg.dev/%s/containers/worker' % PROJECT
 CI_SITE = 'https://ci.perfetto.dev'
 GCS_ARTIFACTS = 'perfetto-ci-artifacts'
 
-JOB_TIMEOUT_SEC = 45 * 60
-CL_TIMEOUT_SEC = 60 * 60 * 3
+JOB_TIMEOUT_SEC = 45 * 60  # 45 min
+CL_TIMEOUT_SEC = 60 * 60 * 3  # 3 hours
 LOGS_TTL_DAYS = 15
 TRUSTED_EMAILS = '^.*@google.com$'
 
-GCE_ZONES = 'us-central1-b us-east1-b us-west1-b'
+GCE_REGIONS = 'us-west1'
 GCE_VM_NAME = 'ci-worker'
-GCE_VM_TYPE = 'c2-standard-8'
+GCE_VM_TYPE = 'c2d-standard-32'
 GCE_TEMPLATE = 'ci-worker-template'
 GCE_GROUP_NAME = 'ci'
-NUM_VMS = 3
-NUM_WORKERS_PER_VM = 2
+MAX_VMS_PER_REGION = 8
+NUM_WORKERS_PER_VM = 4
 
 GCE_SCOPES = [
     'https://www.googleapis.com/auth/cloud-platform',
@@ -70,46 +71,58 @@ JOB_CONFIGS = {
                                  'non_hermetic_clang_stdlib="libc++" '
                                  'enable_perfetto_merged_protos_check=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86_64-tsan': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_tsan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86_64-msan': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_msan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86_64-asan_lsan': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_asan=true is_lsan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86-asan_lsan': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_asan=true is_lsan=true '
                                  'target_cpu="x86"',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
-    'linux-gcc7-x86_64-release': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_clang=false '
-                                 'cc="gcc-7" cxx="g++-7"',
+    'linux-gcc8-x86_64-release': {
+        'PERFETTO_TEST_GN_ARGS':
+            'is_debug=false is_clang=false enable_perfetto_grpc=true '
+            'cc="gcc-8" cxx="g++-8"',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--grpc',
     },
     'android-clang-arm-release': {
         'PERFETTO_TEST_GN_ARGS':
             'is_debug=false target_os="android" target_cpu="arm"',
         'PERFETTO_TEST_SCRIPT':
             'test/ci/android_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS':
+            '--android',
     },
     'linux-clang-x86_64-libfuzzer': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_fuzzer=true is_asan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/fuzzer_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86_64-bazel': {
         'PERFETTO_TEST_GN_ARGS': '',
         'PERFETTO_TEST_SCRIPT': 'test/ci/bazel_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'ui-clang-x86_64-release': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false',
         'PERFETTO_TEST_SCRIPT': 'test/ci/ui_tests.sh',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--ui',
     },
 }
 

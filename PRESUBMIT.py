@@ -24,7 +24,7 @@ def RunAndReportIfLong(func, *args, **kargs):
   start = time.time()
   results = func(*args, **kargs)
   end = time.time()
-  limit = 0.5  # seconds
+  limit = 3.0  # seconds
   name = func.__name__
   runtime = end - start
   if runtime > limit:
@@ -52,6 +52,7 @@ def CheckChange(input, output):
             '/perfetto_build_flags.h$',
             "infra/luci/.*",
             "^ui/.*\.[jt]s$",  # TS/JS handled by eslint
+            "^ui/pnpm-lock.yaml$",
         ])
 
   results = []

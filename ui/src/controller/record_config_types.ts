@@ -12,123 +12,116 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  oneOf,
-  num,
-  bool,
-  arrayOf,
-  str,
-  requiredStr,
-  record,
-  runValidator,
-  ValidatedType,
-} from '../base/validators';
+import {z} from 'zod';
 
 const recordModes = ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'] as const;
-export const recordConfigValidator = record({
-  mode: oneOf(recordModes, 'STOP_WHEN_FULL'),
-  durationMs: num(10000.0),
-  maxFileSizeMb: num(100),
-  fileWritePeriodMs: num(2500),
-  bufferSizeMb: num(64.0),
+export const RECORD_CONFIG_SCHEMA = z
+  .object({
+    mode: z.enum(recordModes).default('STOP_WHEN_FULL'),
+    durationMs: z.number().default(10000.0),
+    maxFileSizeMb: z.number().default(100),
+    fileWritePeriodMs: z.number().default(2500),
+    bufferSizeMb: z.number().default(64.0),
 
-  cpuSched: bool(),
-  cpuFreq: bool(),
-  cpuFreqPollMs: num(1000),
-  cpuSyscall: bool(),
+    cpuSched: z.boolean().default(false),
+    cpuFreq: z.boolean().default(false),
+    cpuFreqPollMs: z.number().default(1000),
+    cpuSyscall: z.boolean().default(false),
 
-  gpuFreq: bool(),
-  gpuMemTotal: bool(),
-  gpuWorkPeriod: bool(),
+    gpuFreq: z.boolean().default(false),
+    gpuMemTotal: z.boolean().default(false),
+    gpuWorkPeriod: z.boolean().default(false),
 
-  ftrace: bool(),
-  atrace: bool(),
-  ftraceEvents: arrayOf(str()),
-  ftraceExtraEvents: str(),
-  atraceCats: arrayOf(str()),
-  allAtraceApps: bool(true),
-  atraceApps: str(),
-  ftraceBufferSizeKb: num(0),
-  ftraceDrainPeriodMs: num(0),
-  androidLogs: bool(),
-  androidLogBuffers: arrayOf(str()),
-  androidFrameTimeline: bool(),
-  androidGameInterventionList: bool(),
-  androidNetworkTracing: bool(),
-  androidNetworkTracingPollMs: num(250),
+    ftrace: z.boolean().default(false),
+    atrace: z.boolean().default(false),
+    ftraceEvents: z.array(z.string()).default([]),
+    ftraceExtraEvents: z.string().default(''),
+    atraceCats: z.array(z.string()).default([]),
+    allAtraceApps: z.boolean().default(true),
+    atraceApps: z.string().default(''),
+    ftraceBufferSizeKb: z.number().default(0),
+    ftraceDrainPeriodMs: z.number().default(0),
+    androidLogs: z.boolean().default(false),
+    androidLogBuffers: z.array(z.string()).default([]),
+    androidFrameTimeline: z.boolean().default(false),
+    androidGameInterventionList: z.boolean().default(false),
+    androidNetworkTracing: z.boolean().default(false),
+    androidNetworkTracingPollMs: z.number().default(250),
 
-  cpuCoarse: bool(),
-  cpuCoarsePollMs: num(1000),
+    cpuCoarse: z.boolean().default(false),
+    cpuCoarsePollMs: z.number().default(1000),
 
-  batteryDrain: bool(),
-  batteryDrainPollMs: num(1000),
+    batteryDrain: z.boolean().default(false),
+    batteryDrainPollMs: z.number().default(1000),
 
-  boardSensors: bool(),
+    boardSensors: z.boolean().default(false),
 
-  memHiFreq: bool(),
-  meminfo: bool(),
-  meminfoPeriodMs: num(1000),
-  meminfoCounters: arrayOf(str()),
+    memHiFreq: z.boolean().default(false),
+    meminfo: z.boolean().default(false),
+    meminfoPeriodMs: z.number().default(1000),
+    meminfoCounters: z.array(z.string()).default([]),
 
-  vmstat: bool(),
-  vmstatPeriodMs: num(1000),
-  vmstatCounters: arrayOf(str()),
+    vmstat: z.boolean().default(false),
+    vmstatPeriodMs: z.number().default(1000),
+    vmstatCounters: z.array(z.string()).default([]),
 
-  heapProfiling: bool(),
-  hpSamplingIntervalBytes: num(4096),
-  hpProcesses: str(),
-  hpContinuousDumpsPhase: num(),
-  hpContinuousDumpsInterval: num(),
-  hpSharedMemoryBuffer: num(8 * 1048576),
-  hpBlockClient: bool(true),
-  hpAllHeaps: bool(),
+    heapProfiling: z.boolean().default(false),
+    hpSamplingIntervalBytes: z.number().default(4096),
+    hpProcesses: z.string().default(''),
+    hpContinuousDumpsPhase: z.number().default(0),
+    hpContinuousDumpsInterval: z.number().default(0),
+    hpSharedMemoryBuffer: z.number().default(8 * 1048576),
+    hpBlockClient: z.boolean().default(true),
+    hpAllHeaps: z.boolean().default(false),
 
-  javaHeapDump: bool(),
-  jpProcesses: str(),
-  jpContinuousDumpsPhase: num(),
-  jpContinuousDumpsInterval: num(),
+    javaHeapDump: z.boolean().default(false),
+    jpProcesses: z.string().default(''),
+    jpContinuousDumpsPhase: z.number().default(0),
+    jpContinuousDumpsInterval: z.number().default(0),
 
-  memLmk: bool(),
-  procStats: bool(),
-  procStatsPeriodMs: num(1000),
+    memLmk: z.boolean().default(false),
+    procStats: z.boolean().default(false),
+    procStatsPeriodMs: z.number().default(1000),
 
-  chromeCategoriesSelected: arrayOf(str()),
-  chromeHighOverheadCategoriesSelected: arrayOf(str()),
-  chromePrivacyFiltering: bool(),
+    chromeCategoriesSelected: z.array(z.string()).default([]),
+    chromeHighOverheadCategoriesSelected: z.array(z.string()).default([]),
+    chromePrivacyFiltering: z.boolean().default(false),
 
-  chromeLogs: bool(),
-  taskScheduling: bool(),
-  ipcFlows: bool(),
-  jsExecution: bool(),
-  webContentRendering: bool(),
-  uiRendering: bool(),
-  inputEvents: bool(),
-  navigationAndLoading: bool(),
-  audio: bool(),
-  video: bool(),
+    chromeLogs: z.boolean().default(false),
+    taskScheduling: z.boolean().default(false),
+    ipcFlows: z.boolean().default(false),
+    jsExecution: z.boolean().default(false),
+    webContentRendering: z.boolean().default(false),
+    uiRendering: z.boolean().default(false),
+    inputEvents: z.boolean().default(false),
+    navigationAndLoading: z.boolean().default(false),
+    audio: z.boolean().default(false),
+    video: z.boolean().default(false),
 
-  etwCSwitch: bool(),
-  etwThreadState: bool(),
+    etwCSwitch: z.boolean().default(false),
+    etwThreadState: z.boolean().default(false),
 
-  symbolizeKsyms: bool(),
+    symbolizeKsyms: z.boolean().default(false),
 
-  // Enabling stack sampling
-  tracePerf: bool(),
-  timebaseFrequency: num(100),
-  targetCmdLine: arrayOf(str()),
+    // Enabling stack sampling
+    tracePerf: z.boolean().default(false),
+    timebaseFrequency: z.number().default(100),
+    targetCmdLine: z.array(z.string()).default([]),
 
-  linuxDeviceRpm: bool(),
+    linuxDeviceRpm: z.boolean().default(false),
+  })
+  // .default({}) ensures that we can always default-construct a config and
+  // spots accidental missing .default(...)
+  .default({});
+
+export const NAMED_RECORD_CONFIG_SCHEMA = z.object({
+  title: z.string(),
+  key: z.string(),
+  config: RECORD_CONFIG_SCHEMA,
 });
-export const namedRecordConfigValidator = record({
-  title: requiredStr,
-  key: requiredStr,
-  config: recordConfigValidator,
-});
-export type NamedRecordConfig = ValidatedType<
-  typeof namedRecordConfigValidator
->;
-export type RecordConfig = ValidatedType<typeof recordConfigValidator>;
+export type NamedRecordConfig = z.infer<typeof NAMED_RECORD_CONFIG_SCHEMA>;
+export type RecordConfig = z.infer<typeof RECORD_CONFIG_SCHEMA>;
 
 export function createEmptyRecordConfig(): RecordConfig {
-  return runValidator(recordConfigValidator, {}).result;
+  return RECORD_CONFIG_SCHEMA.parse({});
 }

@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {Engine, TrackContext} from '../public';
 import {BaseCounterTrack, CounterOptions} from './base_counter_track';
-import {CounterColumns, SqlDataSource} from './debug_tracks';
-import {Disposable, DisposableCallback} from '../base/disposable';
+import {CounterColumns, SqlDataSource} from './debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
+import {createPerfettoTable} from '../trace_processor/sql_utils';
 
 export type SimpleCounterTrackConfig = {
   data: SqlDataSource;
@@ -43,26 +42,11 @@ export class SimpleCounterTrack extends BaseCounterTrack {
     this.sqlTableName = `__simple_counter_${uuidv4Sql()}`;
   }
 
-  async onInit(): Promise<Disposable> {
-    const trash = await super.onInit();
-    await this.createTrackTable();
-    return new DisposableCallback(() => {
-      trash.dispose();
-      this.dropTrackTable();
-    });
-  }
-
-  getTrackShellButtons(): m.Children {
-    return this.getCounterContextMenu();
-  }
-
-  getSqlSource(): string {
-    return `select * from ${this.sqlTableName}`;
-  }
-
-  private async createTrackTable(): Promise<void> {
-    await this.engine.query(`
-        create table ${this.sqlTableName} as
+  async onInit() {
+    return await createPerfettoTable(
+      this.engine,
+      this.sqlTableName,
+      `
         with data as (
           ${this.config.data.sqlSource}
         )
@@ -70,12 +54,12 @@ export class SimpleCounterTrack extends BaseCounterTrack {
           ${this.config.columns.ts} as ts,
           ${this.config.columns.value} as value
         from data
-        order by ts;`);
+        order by ts
+      `,
+    );
   }
 
-  private async dropTrackTable(): Promise<void> {
-    if (this.engine.isAlive) {
-      await this.engine.query(`drop table if exists ${this.sqlTableName}`);
-    }
+  getSqlSource(): string {
+    return `select * from ${this.sqlTableName}`;
   }
 }

@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -94,6 +95,9 @@ SearchValidationResult DenseNullOverlay::ChainImpl::ValidateSearchConstraints(
     SqlValue sql_val) const {
   if (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull) {
     return SearchValidationResult::kOk;
+  }
+  if (sql_val.is_null()) {
+    return SearchValidationResult::kNoData;
   }
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
@@ -219,56 +223,12 @@ void DenseNullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-Range DenseNullOverlay::ChainImpl::OrderedIndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    const OrderedIndices& indices) const {
-  // For NOT EQUAL the further analysis needs to be done by the caller.
-  PERFETTO_CHECK(op != FilterOp::kNe);
-
-  PERFETTO_TP_TRACE(metatrace::Category::DB,
-                    "DenseNullOverlay::ChainImpl::OrderedIndexSearch");
-
-  // We assume all NULLs are ordered to be in the front. We are looking for the
-  // first index that points to non NULL value.
-  const uint32_t* first_non_null =
-      std::partition_point(indices.data, indices.data + indices.size,
-                           [this](uint32_t i) { return !non_null_->IsSet(i); });
-
-  auto non_null_offset =
-      static_cast<uint32_t>(std::distance(indices.data, first_non_null));
-  auto non_null_size = static_cast<uint32_t>(
-      std::distance(first_non_null, indices.data + indices.size));
-
-  if (op == FilterOp::kIsNull) {
-    return {0, non_null_offset};
-  }
-
-  if (op == FilterOp::kIsNotNull) {
-    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
-      case SearchValidationResult::kNoData:
-        return {};
-      case SearchValidationResult::kAllData:
-        return {non_null_offset, indices.size};
-      case SearchValidationResult::kOk:
-        break;
-    }
-  }
-
-  Range inner_range = inner_->OrderedIndexSearchValidated(
-      op, sql_val,
-      OrderedIndices{first_non_null, non_null_size,
-                     Indices::State::kNonmonotonic});
-  return {inner_range.start + non_null_offset,
-          inner_range.end + non_null_offset};
-}
-
-void DenseNullOverlay::ChainImpl::StableSort(SortToken* start,
-                                             SortToken* end,
+void DenseNullOverlay::ChainImpl::StableSort(Token* start,
+                                             Token* end,
                                              SortDirection direction) const {
-  SortToken* it = std::stable_partition(
-      start, end,
-      [this](const SortToken& idx) { return !non_null_->IsSet(idx.index); });
+  Token* it = std::stable_partition(start, end, [this](const Token& idx) {
+    return !non_null_->IsSet(idx.index);
+  });
   inner_->StableSort(it, end, direction);
   if (direction == SortDirection::kDescending) {
     std::rotate(start, it, end);
@@ -312,6 +272,22 @@ std::optional<Token> DenseNullOverlay::ChainImpl::MinElement(
 
   return (first_null_it == indices.tokens.end()) ? inner_->MinElement(indices)
                                                  : *first_null_it;
+}
+
+std::unique_ptr<DataLayer> DenseNullOverlay::ChainImpl::Flatten(
+    std::vector<uint32_t>& indices) const {
+  for (auto& i : indices) {
+    if (!non_null_->IsSet(i)) {
+      i = std::numeric_limits<uint32_t>::max();
+    }
+  }
+  return inner_->Flatten(indices);
+}
+
+SqlValue DenseNullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
+    uint32_t index) const {
+  return non_null_->IsSet(index) ? inner_->Get_AvoidUsingBecauseSlow(index)
+                                 : SqlValue();
 }
 
 void DenseNullOverlay::ChainImpl::Serialize(StorageProto* storage) const {

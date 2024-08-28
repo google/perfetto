@@ -385,12 +385,13 @@ class GnParser(object):
           (type(self).__name__, type(other).__name__))
 
     def __repr__(self):
-      return json.dumps({
-          k: (list(sorted(v)) if isinstance(v, set) else v)
-          for (k, v) in iteritems(self.__dict__)
-      },
-                        indent=4,
-                        sort_keys=True)
+      return json.dumps(
+          {
+              k: (list(sorted(v)) if isinstance(v, set) else v)
+              for (k, v) in iteritems(self.__dict__)
+          },
+          indent=4,
+          sort_keys=True)
 
     def update(self, other):
       for key in ('cflags', 'data', 'defines', 'deps', 'include_dirs',
@@ -532,8 +533,8 @@ class GnParser(object):
     metadata = proto_desc.get('metadata', {})
     return metadata.get('proto_import_dirs', [])
 
-  def get_proto_target_type(self, target: Target
-                           ) -> Tuple[Optional[str], Optional[Dict]]:
+  def get_proto_target_type(
+      self, target: Target) -> Tuple[Optional[str], Optional[Dict]]:
     """ Checks if the target is a proto library and return the plugin.
 
         Returns:

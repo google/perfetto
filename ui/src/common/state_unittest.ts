@@ -15,8 +15,7 @@
 import {PrimaryTrackSortKey} from '../public';
 
 import {createEmptyState} from './empty_state';
-import {getContainingTrackId, State} from './state';
-import {deserializeStateObject, serializeStateObject} from './upload_utils';
+import {getContainingGroupKey, State} from './state';
 
 test('createEmptyState', () => {
   const state: State = createEmptyState();
@@ -40,32 +39,7 @@ test('getContainingTrackId', () => {
     trackGroup: 'containsB',
   };
 
-  expect(getContainingTrackId(state, 'z')).toEqual(null);
-  expect(getContainingTrackId(state, 'a')).toEqual(null);
-  expect(getContainingTrackId(state, 'b')).toEqual('containsB');
-});
-
-test('state is serializable', () => {
-  const state = createEmptyState();
-  const json = serializeStateObject(state);
-  const restored = deserializeStateObject<State>(json);
-
-  // Remove non-serialized fields from the original state object, so it may be
-  // compared fairly with the restored version.
-  // This is a legitimate use of 'any'. We are comparing this object against
-  // one that's taken a round trip through JSON, which has therefore lost any
-  // type information. Attempting to ask TS for help here would serve no
-  // purpose.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const serializableState: any = state;
-  serializableState.nonSerializableState = undefined;
-
-  // Remove any undefined values from original as JSON doesn't serialize them
-  for (const key in serializableState) {
-    if (serializableState[key] === undefined) {
-      delete serializableState[key];
-    }
-  }
-
-  expect(serializableState).toEqual(restored);
+  expect(getContainingGroupKey(state, 'z')).toEqual(null);
+  expect(getContainingGroupKey(state, 'a')).toEqual(null);
+  expect(getContainingGroupKey(state, 'b')).toEqual('containsB');
 });

@@ -140,16 +140,16 @@ class AndroidMetrics(TestSuite):
         out=Path('android_sysui_notifications_blocking_calls_metric.out'))
 
   def test_sysui_notif_shade_list_builder(self):
-      return DiffTestBlueprint(
-          trace=Path('android_sysui_notif_shade_list_builder_metric.py'),
-          query=Metric('sysui_notif_shade_list_builder_metric'),
-          out=Path('sysui_notif_shade_list_builder_metric.out'))
+    return DiffTestBlueprint(
+        trace=Path('android_sysui_notif_shade_list_builder_metric.py'),
+        query=Metric('sysui_notif_shade_list_builder_metric'),
+        out=Path('sysui_notif_shade_list_builder_metric.out'))
 
   def test_sysui_update_notif_on_ui_mode_changed(self):
-      return DiffTestBlueprint(
-          trace=Path('sysui_update_notif_on_ui_mode_changed_metric.py'),
-          query=Metric('sysui_update_notif_on_ui_mode_changed_metric'),
-          out=Path('sysui_update_notif_on_ui_mode_changed_metric.out'))
+    return DiffTestBlueprint(
+        trace=Path('sysui_update_notif_on_ui_mode_changed_metric.py'),
+        query=Metric('sysui_update_notif_on_ui_mode_changed_metric'),
+        out=Path('sysui_update_notif_on_ui_mode_changed_metric.out'))
 
   def test_monitor_contention_metric(self):
     return DiffTestBlueprint(
@@ -225,17 +225,15 @@ class AndroidMetrics(TestSuite):
 
   def test_android_boot_unagg(self):
     return DiffTestBlueprint(
-      trace=DataPath('android_postboot_unlock.pftrace'),
-      query=Metric("android_boot_unagg"),
-      out=Path('android_boot_unagg.out')
-    )
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_boot_unagg"),
+        out=Path('android_boot_unagg.out'))
 
   def test_android_app_process_starts(self):
     return DiffTestBlueprint(
-      trace=DataPath('android_postboot_unlock.pftrace'),
-      query=Metric("android_app_process_starts"),
-      out=Path('android_app_process_starts.out')
-    )
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_app_process_starts"),
+        out=Path('android_app_process_starts.out'))
 
   def test_android_garbage_collection(self):
     return DiffTestBlueprint(
@@ -295,8 +293,8 @@ class AndroidMetrics(TestSuite):
           }
         }
         """),
-       query=Metric('android_auto_multiuser'),
-       out=TextProto(r"""
+        query=Metric('android_auto_multiuser'),
+        out=TextProto(r"""
        android_auto_multiuser {
          user_switch {
             user_id: 11
@@ -311,9 +309,9 @@ class AndroidMetrics(TestSuite):
 
   def test_android_auto_multiuser_switch_with_previous_user_data(self):
     return DiffTestBlueprint(
-       trace=Path("android_auto_multiuser.textproto"),
-       query=Metric('android_auto_multiuser'),
-       out=TextProto(r"""
+        trace=Path("android_auto_multiuser.textproto"),
+        query=Metric('android_auto_multiuser'),
+        out=TextProto(r"""
        android_auto_multiuser {
          user_switch {
             user_id: 11
@@ -326,12 +324,107 @@ class AndroidMetrics(TestSuite):
                 total_memory_usage_kb: 2048
             }
          }
+          user_switch {
+             user_id: 11
+             start_event: "UserController.startUser-11-fg-start-mode-1"
+             end_event: "finishUserStopped-10-[stopUser]"
+             duration_ms: 2100
+             previous_user_info {
+                 user_id: 10
+                 total_cpu_time_ms: 19
+                 total_memory_usage_kb: 3072
+             }
+          }
        }
        """))
 
+  def test_android_auto_multiuser_timing_table(self):
+    return DiffTestBlueprint(
+        trace=Path("android_auto_multiuser.textproto"),
+        query="""
+        INCLUDE PERFETTO MODULE android.auto.multiuser;
+        SELECT * FROM android_auto_multiuser_timing;
+        """,
+        out=Csv("""
+        "event_start_user_id","event_start_time","event_end_time","event_end_name","event_start_name","duration"
+        "11",3000000000,3999999999,"com.android.car.carlauncher","UserController.startUser-11-fg-start-mode-1",999999999
+        "11",3000000000,5100000000,"finishUserStopped-10-[stopUser]","UserController.startUser-11-fg-start-mode-1",2100000000
+        """))
+
   def test_android_oom_adjuster(self):
     return DiffTestBlueprint(
-      trace=DataPath('android_postboot_unlock.pftrace'),
-      query=Metric("android_oom_adjuster"),
-      out=Path('android_oom_adjuster.out')
-    )
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_oom_adjuster"),
+        out=Path('android_oom_adjuster.out'))
+
+  def test_android_broadcasts(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_broadcasts"),
+        out=Path('android_broadcasts.out'))
+
+  def test_wattson_app_startup_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_calculator_startup.pb'),
+        query=Metric("wattson_app_startup"),
+        out=Csv("""
+        wattson_app_startup {
+          metric_version: 1
+          period_info {
+            period_id: 1
+            period_dur: 385136434
+            rail {
+              name: "cpu_subsystem"
+              estimate_mw: 4568.159180
+              rail {
+                name: "DSU_SCU"
+                estimate_mw: 1142.600708
+              }
+              rail {
+                name: "policy0"
+                estimate_mw: 578.353088
+                rail {
+                  name: "cpu0"
+                  estimate_mw: 149.026062
+                }
+                rail {
+                  name: "cpu1"
+                  estimate_mw: 130.140015
+                }
+                rail {
+                  name: "cpu2"
+                  estimate_mw: 127.601807
+                }
+                rail {
+                  name: "cpu3"
+                  estimate_mw: 171.585205
+                }
+              }
+              rail {
+                name: "policy4"
+                estimate_mw: 684.187256
+                rail {
+                  name: "cpu4"
+                  estimate_mw: 344.394531
+                }
+                rail {
+                  name: "cpu5"
+                  estimate_mw: 339.792725
+                }
+              }
+              rail {
+                name: "policy6"
+                estimate_mw: 2163.018066
+                rail {
+                  name: "cpu6"
+                  estimate_mw: 1080.465820
+                }
+                rail {
+                  name: "cpu7"
+                  estimate_mw: 1082.552246
+                }
+              }
+            }
+          }
+        }
+        """))

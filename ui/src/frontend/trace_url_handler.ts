@@ -18,6 +18,7 @@ import {Actions} from '../common/actions';
 import {tryGetTrace} from '../common/cache_manager';
 import {showModal} from '../widgets/modal';
 
+import {loadPermalink} from './permalink';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {globals} from './globals';
 import {Route, Router} from './router';
@@ -34,7 +35,7 @@ function getCurrentTraceUrl(): undefined | string {
 export function maybeOpenTraceFromRoute(route: Route) {
   if (route.args.s) {
     // /?s=xxxx for permalinks.
-    globals.dispatch(Actions.loadPermalink({hash: route.args.s}));
+    loadPermalink(route.args.s);
     return;
   }
 
@@ -131,7 +132,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
 
   const navigateToOldTraceUuid = () => {
     Router.navigate(
-      `#!/viewer?local_cache_key=${globals.state.traceUuid || ''}`,
+      `#!/viewer?local_cache_key=${globals.state.traceUuid ?? ''}`,
     );
   };
 
@@ -225,7 +226,7 @@ function loadTraceFromUrl(url: string) {
     // traces from a local webserver and killing it immediately after having
     // seen the HTTP GET request. In those cases store the trace as a file, so
     // when users click on share we don't fail the re-fetch().
-    const fileName = url.split('/').pop() || 'local_trace.pftrace';
+    const fileName = url.split('/').pop() ?? 'local_trace.pftrace';
     const request = fetch(url)
       .then((response) => response.blob())
       .then((blob) => {

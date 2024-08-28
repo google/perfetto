@@ -13,11 +13,10 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-import {Disposable} from '../base/disposable';
+
 import {duration, Time, time, TimeSpan} from '../base/time';
 export {Store} from '../base/store';
 import {raf} from '../core/raf_scheduler';
-import {globals} from '../frontend/globals';
 
 type FetchTimeline<Data> = (
   start: time,
@@ -44,17 +43,12 @@ export class TimelineFetcher<Data> implements Disposable {
     this.latestResolution = 0n;
   }
 
-  async requestDataForCurrentTime(): Promise<void> {
-    const currentTimeSpan = globals.timeline.visibleTimeSpan;
-    const currentResolution = globals.getCurResolution();
-    await this.requestData(currentTimeSpan, currentResolution);
-  }
-
   async requestData(timespan: TimeSpan, resolution: duration): Promise<void> {
     if (this.shouldLoadNewData(timespan, resolution)) {
       // Over request data, one page worth to the left and right.
-      const start = timespan.start - timespan.duration;
-      const end = timespan.end + timespan.duration;
+      const padded = timespan.pad(timespan.duration);
+      const start = padded.start;
+      const end = padded.end;
 
       // Quantize up and down to the bounds of |resolution|.
       const startQ = Time.fromRaw(BigintMath.quantFloor(start, resolution));
@@ -74,7 +68,7 @@ export class TimelineFetcher<Data> implements Disposable {
     this.data_ = undefined;
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this.data_ = undefined;
   }
 

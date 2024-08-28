@@ -91,6 +91,10 @@ class MappingTracker {
   // Jitted ranges will only be applied to UserMemoryMappings
   void AddJitRange(UniquePid upid, AddressRange range, JitCache* jit_cache);
 
+  // Sometimes we just need a mapping and we are lacking trace data to create a
+  // proper one. Use this mapping in those cases.
+  VirtualMemoryMapping* GetDummyMapping();
+
  private:
   template <typename MappingImpl>
   MappingImpl& AddMapping(std::unique_ptr<MappingImpl> mapping);
@@ -136,6 +140,8 @@ class MappingTracker {
   KernelMemoryMapping* kernel_ = nullptr;
 
   base::FlatHashMap<UniquePid, AddressRangeMap<JitCache*>> jit_caches_;
+
+  VirtualMemoryMapping* dummy_mapping_ = nullptr;
 };
 
 }  // namespace trace_processor

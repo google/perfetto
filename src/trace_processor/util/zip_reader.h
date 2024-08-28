@@ -17,15 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_ZIP_READER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_ZIP_READER_H_
 
-#include <stdint.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <functional>
-#include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/trace_blob_view_reader.h"
 
 // ZipReader allows to read Zip files in a streaming fashion.
 // Key features:
@@ -48,9 +53,8 @@
 //   interesting files (e.g. *.txt) and skip the appending of the other entries.
 //   This would avoid completely the cost of keeping in memory the compressed
 //   payload of unwanted files (e.g. dumpstate.bin in BRs).
-namespace perfetto {
-namespace trace_processor {
-namespace util {
+
+namespace perfetto::trace_processor::util {
 
 class ZipReader;
 
@@ -123,7 +127,7 @@ class ZipFile {
   };
 
   Header hdr_{};
-  std::unique_ptr<uint8_t[]> compressed_data_;
+  TraceBlobView compressed_data_;
   // If adding new fields here, remember to update the move operators.
 };
 
@@ -144,7 +148,7 @@ class ZipReader {
   // has been processed. You don't need to get to the end of the zip file to
   // see all files. The final "central directory" at the end of the file is
   // actually ignored.
-  base::Status Parse(const void* data, size_t len);
+  base::Status Parse(TraceBlobView);
 
   // Returns a list of all the files discovered so far.
   const std::vector<ZipFile>& files() const { return files_; }
@@ -161,19 +165,32 @@ class ZipReader {
   // When a compressed file is completely parsed, a ZipFile instance is
   // constructed and appended to `files_`.
   struct FileParseState {
-    uint8_t raw_hdr[kZipFileHdrSize]{};
-    size_t raw_hdr_size = 0;  // Actual bytes seen for `hdr_`.
-    std::unique_ptr<uint8_t[]> compressed_data;
-    size_t compressed_data_written = 0;
+    enum {
+      kHeader,
+      kFilename,
+      kSkipBytes,
+      kCompressedData,
+    } parse_state = kHeader;
     size_t ignore_bytes_after_fname = 0;
+    // Used to track the number of bytes fed into the decompressor when we don't
+    // know the compressed size upfront.
+    size_t decompressor_bytes_fed = 0;
+    GzipDecompressor decompressor{GzipDecompressor::InputMode::kRawDeflate};
+    std::optional<TraceBlobView> compressed;
     ZipFile::Header hdr{};
   };
+
+  base::Status TryParseHeader();
+  base::Status TryParseFilename();
+  base::Status TrySkipBytes();
+  base::Status TryParseCompressedData();
+  base::StatusOr<std::optional<TraceBlobView>> TryParseUnsizedCompressedData();
+
   FileParseState cur_;
   std::vector<ZipFile> files_;
+  util::TraceBlobViewReader reader_;
 };
 
-}  // namespace util
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::util
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_ZIP_READER_H_

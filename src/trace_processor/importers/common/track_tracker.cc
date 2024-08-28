@@ -19,7 +19,11 @@
 #include <optional>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -44,6 +48,8 @@ const char* GetNameForGroup(TrackTracker::Group group) {
       return "Thermals";
     case TrackTracker::Group::kClockFrequency:
       return "Clock Freqeuncy";
+    case TrackTracker::Group::kBatteryMitigation:
+      return "Battery Mitigation";
     case TrackTracker::Group::kSizeSentinel:
       PERFETTO_FATAL("Unexpected size passed as group");
   }
@@ -103,7 +109,7 @@ TrackId TrackTracker::InternCpuTrack(StringId name, uint32_t cpu) {
   }
 
   tables::CpuTrackTable::Row row(name);
-  row.cpu = cpu;
+  row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
   row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_cpu_track_table()->Insert(row).id;
   cpu_tracks_[std::make_pair(name, cpu)] = id;
@@ -140,7 +146,7 @@ TrackId TrackTracker::InternGpuWorkPeriodTrack(
 }
 
 TrackId TrackTracker::InternLegacyChromeAsyncTrack(
-    StringId name,
+    StringId raw_name,
     uint32_t upid,
     int64_t trace_id,
     bool trace_id_is_process_scoped,
@@ -151,6 +157,8 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   tuple.trace_id = trace_id;
   tuple.source_scope = source_scope;
 
+  const StringId name =
+      context_->process_track_translation_table->TranslateName(raw_name);
   auto it = chrome_tracks_.find(tuple);
   if (it != chrome_tracks_.end()) {
     if (name != kNullStringId) {
@@ -194,9 +202,11 @@ TrackId TrackTracker::CreateGlobalAsyncTrack(StringId name, StringId source) {
   return id;
 }
 
-TrackId TrackTracker::CreateProcessAsyncTrack(StringId name,
+TrackId TrackTracker::CreateProcessAsyncTrack(StringId raw_name,
                                               UniquePid upid,
                                               StringId source) {
+  const StringId name =
+      context_->process_track_translation_table->TranslateName(raw_name);
   tables::ProcessTrackTable::Row row(name);
   row.upid = upid;
   row.machine_id = context_->machine_id();
@@ -293,7 +303,7 @@ TrackId TrackTracker::InternCpuCounterTrack(StringId name, uint32_t cpu) {
   }
 
   tables::CpuCounterTrackTable::Row row(name);
-  row.cpu = cpu;
+  row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
   row.machine_id = context_->machine_id();
 
   TrackId track =
@@ -318,10 +328,12 @@ TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
   return track;
 }
 
-TrackId TrackTracker::InternProcessCounterTrack(StringId name,
+TrackId TrackTracker::InternProcessCounterTrack(StringId raw_name,
                                                 UniquePid upid,
                                                 StringId unit,
                                                 StringId description) {
+  const StringId name =
+      context_->process_track_translation_table->TranslateName(raw_name);
   auto it = upid_counter_tracks_.find(std::make_pair(name, upid));
   if (it != upid_counter_tracks_.end()) {
     return it->second;
@@ -447,10 +459,11 @@ TrackId TrackTracker::CreateGpuCounterTrack(StringId name,
   return context_->storage->mutable_gpu_counter_track_table()->Insert(row).id;
 }
 
-TrackId TrackTracker::CreatePerfCounterTrack(StringId name,
-                                             uint32_t perf_session_id,
-                                             uint32_t cpu,
-                                             bool is_timebase) {
+TrackId TrackTracker::CreatePerfCounterTrack(
+    StringId name,
+    tables::PerfSessionTable::Id perf_session_id,
+    uint32_t cpu,
+    bool is_timebase) {
   tables::PerfCounterTrackTable::Row row(name);
   row.perf_session_id = perf_session_id;
   row.cpu = cpu;

@@ -18,6 +18,7 @@
 #define SRC_TRACING_TEST_MOCK_CONSUMER_H_
 
 #include <memory>
+#include <string_view>
 
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -52,10 +53,17 @@ class MockConsumer : public Consumer {
   void ForceDisconnect();
   void EnableTracing(const TraceConfig&, base::ScopedFile = base::ScopedFile());
   void StartTracing();
+  void Detach(std::string key);
+  void Attach(std::string key);
   void ChangeTraceConfig(const TraceConfig&);
   void DisableTracing();
   void FreeBuffers();
-  void WaitForTracingDisabled(uint32_t timeout_ms = 3000);
+  void WaitForTracingDisabled(uint32_t timeout_ms = 3000) {
+    return WaitForTracingDisabledWithError(testing::_, timeout_ms);
+  }
+  void WaitForTracingDisabledWithError(
+      const testing::Matcher<const std::string&>& error_matcher,
+      uint32_t timeout_ms = 3000);
   FlushRequest Flush(
       uint32_t timeout_ms = 10000,
       FlushFlags = FlushFlags(FlushFlags::Initiator::kConsumerSdk,

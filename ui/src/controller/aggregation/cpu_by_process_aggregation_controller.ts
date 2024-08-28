@@ -17,7 +17,7 @@ import {ColumnDef} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
-import {CPU_SLICE_TRACK_KIND} from '../../core_plugins/cpu_slices';
+import {CPU_SLICE_TRACK_KIND} from '../../core/track_kinds';
 
 import {AggregationController} from './aggregation_controller';
 
@@ -30,8 +30,8 @@ export class CpuByProcessAggregationController extends AggregationController {
       const track = globals.state.tracks[trackKey];
       if (track?.uri) {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
-          exists(trackInfo.cpu) && selectedCpus.push(trackInfo.cpu);
+        if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+          exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
         }
       }
     }

@@ -17,7 +17,8 @@ import m from 'mithril';
 import {LegacySelection} from '../common/state';
 import {BottomTab} from '../frontend/bottom_tab';
 
-import {DetailsPanel, Tab} from '.';
+import {LegacyDetailsPanel, Tab} from '.';
+import {exists} from '../base/utils';
 
 export function getTrackName(
   args: Partial<{
@@ -114,7 +115,7 @@ export interface BottomTabAdapterAttrs {
  * @example
  * new BottomTabAdapter({
       tabFactory: (sel) => {
-        if (sel.kind !== 'CHROME_SLICE') {
+        if (sel.kind !== 'SLICE') {
           return undefined;
         }
         return new ChromeSliceDetailsTab({
@@ -128,7 +129,7 @@ export interface BottomTabAdapterAttrs {
       },
     })
  */
-export class BottomTabToSCSAdapter implements DetailsPanel {
+export class BottomTabToSCSAdapter implements LegacyDetailsPanel {
   private oldSelection?: LegacySelection;
   private bottomTab?: BottomTab;
   private attrs: BottomTabAdapterAttrs;
@@ -165,5 +166,26 @@ export class BottomTabToTabAdapter implements Tab {
 
   render(): m.Children {
     return this.bottomTab.viewTab();
+  }
+}
+
+export function getThreadOrProcUri(
+  upid: number | null,
+  utid: number | null,
+): string {
+  if (exists(upid)) {
+    return `/process_${upid}`;
+  } else if (exists(utid)) {
+    return `/thread_${utid}`;
+  } else {
+    throw new Error('No upid or utid defined...');
+  }
+}
+
+export function getThreadUriPrefix(upid: number | null, utid: number): string {
+  if (exists(upid)) {
+    return `/process_${upid}/thread_${utid}`;
+  } else {
+    return `/thread_${utid}`;
   }
 }

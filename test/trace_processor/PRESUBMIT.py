@@ -25,7 +25,7 @@ def RunAndReportIfLong(func, *args, **kargs):
   start = time.time()
   results = func(*args, **kargs)
   end = time.time()
-  limit = 0.5  # seconds
+  limit = 3.0  # seconds
   name = func.__name__
   runtime = end - start
   if runtime > limit:

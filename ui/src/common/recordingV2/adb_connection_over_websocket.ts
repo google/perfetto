@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {_TextDecoder} from 'custom_utils';
-
 import {defer, Deferred} from '../../base/deferred';
-
+import {utf8Decode} from '../../base/string_utils';
 import {AdbConnectionImpl} from './adb_connection_impl';
 import {RecordingError} from './recording_error_handling';
 import {
@@ -29,8 +27,6 @@ import {
   buildAbdWebsocketCommand,
   WEBSOCKET_UNABLE_TO_CONNECT,
 } from './recording_utils';
-
-const textDecoder = new _TextDecoder();
 
 export class AdbConnectionOverWebsocket extends AdbConnectionImpl {
   private streams = new Set<AdbOverWebsocketStream>();
@@ -91,10 +87,12 @@ export class AdbConnectionOverWebsocket extends AdbConnectionImpl {
 // It exposes an API to write commands to this websocket and read its output.
 export class AdbOverWebsocketStream implements ByteStream {
   private websocket: WebSocket;
+
   // commandSentSignal gets resolved if we successfully connect to the device
   // and send the command this socket wraps. commandSentSignal gets rejected if
   // we fail to connect to the device.
   private commandSentSignal = defer<AdbOverWebsocketStream>();
+
   // We store a promise for each messge while the message is processed.
   // This way, if the websocket server closes the connection, we first process
   // all previously received messages and only afterwards disconnect.
@@ -189,8 +187,8 @@ export class AdbOverWebsocketStream implements ByteStream {
     this.messageProcessedSignals.add(messageProcessed);
     try {
       if (!this._isConnected) {
-        const txt = await evt.data.text();
-        const prefix = txt.substr(0, 4);
+        const txt = (await evt.data.text()) as string;
+        const prefix = txt.substring(0, 4);
         if (prefix === 'OKAY') {
           this._isConnected = true;
           this.websocket.send(buildAbdWebsocketCommand(destination));
@@ -210,7 +208,7 @@ export class AdbOverWebsocketStream implements ByteStream {
         // Upon a successful connection we first receive an 'OKAY' message.
         // After that, we receive messages with traced binary payloads.
         const arrayBufferResponse = await evt.data.arrayBuffer();
-        if (textDecoder.decode(arrayBufferResponse) !== 'OKAY') {
+        if (utf8Decode(arrayBufferResponse) !== 'OKAY') {
           this.signalStreamData(new Uint8Array(arrayBufferResponse));
         }
       }

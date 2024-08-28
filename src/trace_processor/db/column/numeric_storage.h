@@ -23,6 +23,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <type_traits>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -49,13 +50,13 @@ class NumericStorageBase : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    Range OrderedIndexSearchValidated(FilterOp,
-                                      SqlValue,
-                                      const OrderedIndices&) const override;
-
     void Serialize(StorageProto*) const override;
 
     std::string DebugString() const override { return "NumericStorage"; }
+
+    bool is_sorted() const { return is_sorted_; }
+
+    ColumnType column_type() const { return storage_type_; }
 
    protected:
     ChainImpl(const void* vector_ptr, ColumnType type, bool is_sorted);
@@ -145,22 +146,32 @@ class NumericStorage final : public NumericStorageBase {
       return *tok;
     }
 
-    void StableSort(SortToken* start,
-                    SortToken* end,
+    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override {
+      return std::unique_ptr<DataLayer>(
+          new NumericStorage<T>(vector_, column_type(), is_sorted()));
+    }
+
+    SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override {
+      if constexpr (std::is_same_v<T, double>) {
+        return SqlValue::Double((*vector_)[index]);
+      }
+      return SqlValue::Long((*vector_)[index]);
+    }
+
+    void StableSort(Token* start,
+                    Token* end,
                     SortDirection direction) const override {
       const T* base = vector_->data();
       switch (direction) {
         case SortDirection::kAscending:
-          std::stable_sort(start, end,
-                           [base](const SortToken& a, const SortToken& b) {
-                             return base[a.index] < base[b.index];
-                           });
+          std::stable_sort(start, end, [base](const Token& a, const Token& b) {
+            return base[a.index] < base[b.index];
+          });
           break;
         case SortDirection::kDescending:
-          std::stable_sort(start, end,
-                           [base](const SortToken& a, const SortToken& b) {
-                             return base[a.index] > base[b.index];
-                           });
+          std::stable_sort(start, end, [base](const Token& a, const Token& b) {
+            return base[a.index] > base[b.index];
+          });
           break;
       }
     }

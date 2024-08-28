@@ -13,6 +13,7 @@
 // limitations under the License.
 
 // Keep this import first.
+import '../base/disposable_polyfill';
 import '../base/static_initializers';
 import '../gen/all_plugins';
 import '../gen/all_core_plugins';
@@ -30,7 +31,7 @@ import {State} from '../common/state';
 import {initController, runControllers} from '../controller';
 import {isGetCategoriesResponse} from '../controller/chrome_proxy_record_controller';
 import {RECORDING_V2_FLAG, featureFlags} from '../core/feature_flags';
-import {initLiveReloadIfLocalhost} from '../core/live_reload';
+import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
 import {setScheduleFullRedraw} from '../widgets/raf';
@@ -71,52 +72,6 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
     'https://ui.perfetto.dev/#!/?rpc_port=1234',
   defaultValue: false,
 });
-
-class FrontendApi {
-  constructor() {
-    globals.store.subscribe(this.handleStoreUpdate);
-  }
-
-  private handleStoreUpdate = (store: Store<State>, oldState: State) => {
-    const newState = store.state;
-
-    // If the visible time in the global state has been updated more
-    // recently than the visible time handled by the frontend @ 60fps,
-    // update it. This typically happens when restoring the state from a
-    // permalink.
-    globals.timeline.mergeState(newState.frontendLocalState);
-
-    // Only redraw if something other than the frontendLocalState changed.
-    let key: keyof State;
-    for (key in store.state) {
-      if (key !== 'frontendLocalState' && oldState[key] !== newState[key]) {
-        raf.scheduleFullRedraw();
-        break;
-      }
-    }
-
-    // Run in microtask to avoid avoid reentry
-    setTimeout(runControllers, 0);
-  };
-
-  dispatchMultiple(actions: DeferredAction[]) {
-    const edits = actions.map((action) => {
-      return traceEvent(
-        `action.${action.type}`,
-        () => {
-          return (draft: Draft<State>) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (StateActions as any)[action.type](draft, action.args);
-          };
-        },
-        {
-          args: flattenArgs(action.args),
-        },
-      );
-    });
-    globals.store.edit(edits);
-  }
-}
 
 function setExtensionAvailability(available: boolean) {
   globals.dispatch(
@@ -248,35 +203,16 @@ function main() {
   initWasm(globals.root);
   initController(extensionLocalChannel.port1);
 
-  const dispatch = (action: DeferredAction) => {
-    frontendApi.dispatchMultiple([action]);
-  };
-
-  const router = new Router({
-    '/': HomePage,
-    '/viewer': ViewerPage,
-    '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
-    '/query': QueryPage,
-    '/insights': InsightsPage,
-    '/flags': FlagsPage,
-    '/metrics': MetricsPage,
-    '/info': TraceInfoPage,
-    '/widgets': WidgetsPage,
-    '/viz': VizPage,
-    '/plugins': PluginsPage,
-  });
-  router.onRouteChanged = routeChange;
-
   // These need to be set before globals.initialize.
   const route = Router.parseUrl(window.location.href);
   globals.embeddedMode = route.args.mode === 'embedded';
   globals.hideSidebar = route.args.hideSidebar === true;
 
-  globals.initialize(dispatch, router);
+  globals.initialize(stateActionDispatcher);
 
   globals.serviceWorkerController.install();
 
-  const frontendApi = new FrontendApi();
+  globals.store.subscribe(scheduleRafAndRunControllersOnStateChange);
   globals.publishRedraw = () => raf.scheduleFullRedraw();
 
   // We proxy messages between the extension and the controller because the
@@ -338,11 +274,33 @@ function onCssLoaded() {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
+  const router = new Router({
+    '/': HomePage,
+    '/viewer': ViewerPage,
+    '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
+    '/query': QueryPage,
+    '/insights': InsightsPage,
+    '/flags': FlagsPage,
+    '/metrics': MetricsPage,
+    '/info': TraceInfoPage,
+    '/widgets': WidgetsPage,
+    '/viz': VizPage,
+    '/plugins': PluginsPage,
+  });
+  router.onRouteChanged = routeChange;
+
   raf.domRedraw = () => {
-    m.render(document.body, m(App, globals.router.resolve()));
+    m.render(document.body, m(App, router.resolve()));
   };
 
-  initLiveReloadIfLocalhost(globals.embeddedMode);
+  if (
+    (location.origin.startsWith('http://localhost:') ||
+      location.origin.startsWith('http://127.0.0.1:')) &&
+    !globals.embeddedMode &&
+    !globals.testing
+  ) {
+    initLiveReload();
+  }
 
   if (!RECORDING_V2_FLAG.get()) {
     updateAvailableAdbDevices();
@@ -429,6 +387,36 @@ function maybeChangeRpcPortFromFragment() {
       HttpRpcEngine.rpcPort = route.args.rpc_port;
     }
   }
+}
+
+function stateActionDispatcher(actions: DeferredAction[]) {
+  const edits = actions.map((action) => {
+    return traceEvent(
+      `action.${action.type}`,
+      () => {
+        return (draft: Draft<State>) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (StateActions as any)[action.type](draft, action.args);
+        };
+      },
+      {
+        args: flattenArgs(action.args),
+      },
+    );
+  });
+  globals.store.edit(edits);
+}
+
+function scheduleRafAndRunControllersOnStateChange(
+  store: Store<State>,
+  oldState: State,
+) {
+  // Only redraw if something actually changed
+  if (oldState !== store.state) {
+    raf.scheduleFullRedraw();
+  }
+  // Run in a separate task to avoid avoid reentry.
+  setTimeout(runControllers, 0);
 }
 
 main();

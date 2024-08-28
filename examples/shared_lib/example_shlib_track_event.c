@@ -16,6 +16,7 @@
 
 #include "perfetto/public/abi/track_event_abi.h"
 #include "perfetto/public/producer.h"
+#include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 #include "perfetto/public/te_category_macros.h"
 #include "perfetto/public/te_macros.h"
 #include "perfetto/public/track_event.h"
@@ -51,7 +52,7 @@ static void EnabledCb(struct PerfettoTeCategoryImpl* c,
 
 int main(void) {
   uint64_t flow_counter = 0;
-  struct PerfettoProducerInitArgs args = {0};
+  struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
   args.backends = PERFETTO_BACKEND_SYSTEM;
   PerfettoProducerInit(args);
   PerfettoTeInit();
@@ -87,6 +88,11 @@ int main(void) {
                 PERFETTO_TE_NAMED_TRACK("dynamictrack", 2,
                                         PerfettoTeProcessTrackUuid()),
                 PERFETTO_TE_TIMESTAMP(PerfettoTeGetTimestamp()));
+    PERFETTO_TE(physics, PERFETTO_TE_INSTANT("name9"),
+                PERFETTO_TE_PROTO_FIELDS(PERFETTO_TE_PROTO_FIELD_NESTED(
+                    perfetto_protos_TrackEvent_source_location_field_number,
+                    PERFETTO_TE_PROTO_FIELD_CSTR(2, __FILE__),
+                    PERFETTO_TE_PROTO_FIELD_VARINT(4, __LINE__))));
     PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_COUNTER(),
                 PERFETTO_TE_DOUBLE_COUNTER(3.14),
                 PERFETTO_TE_REGISTERED_TRACK(&mycounter),

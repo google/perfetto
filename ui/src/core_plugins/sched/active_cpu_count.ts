@@ -14,58 +14,29 @@
 
 import m from 'mithril';
 
-import {NullDisposable} from '../../base/disposable';
 import {sqliteString} from '../../base/string_utils';
-import {uuidv4} from '../../base/uuid';
-import {Actions} from '../../common/actions';
-import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
 import {CloseTrackButton} from '../../frontend/close_track_button';
-import {globals} from '../../frontend/globals';
-import {Engine, PrimaryTrackSortKey, TrackContext} from '../../public';
+import {Engine, TrackContext} from '../../public';
 
-export function addActiveCPUCountTrack(cpuType?: string) {
-  const cpuTypeName = cpuType === undefined ? '' : ` ${cpuType} `;
-
-  const key = uuidv4();
-
-  globals.dispatchMultiple([
-    Actions.addTrack({
-      key,
-      uri: ActiveCPUCountTrack.kind,
-      name: `Active ${cpuTypeName}CPU count`,
-      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
-      trackGroup: SCROLLING_TRACK_GROUP,
-      params: {
-        cpuType,
-      },
-    }),
-    Actions.toggleTrackPinned({trackKey: key}),
-  ]);
-}
-
-export interface ActiveCPUCountTrackConfig {
-  cpuType?: string;
+export enum CPUType {
+  Big = 'big',
+  Mid = 'mid',
+  Little = 'little',
 }
 
 export class ActiveCPUCountTrack extends BaseCounterTrack {
-  private config: ActiveCPUCountTrackConfig;
+  private readonly cpuType?: CPUType;
 
-  static readonly kind = 'dev.perfetto.Sched.ActiveCPUCount';
-
-  constructor(ctx: TrackContext, engine: Engine) {
+  constructor(ctx: TrackContext, engine: Engine, cpuType?: CPUType) {
     super({
       engine,
       trackKey: ctx.trackKey,
     });
-
-    // TODO(stevegolton): Validate params before type asserting.
-    // TODO(stevegolton): Avoid just pushing this config up for some base
-    // class to use. Be more explicit.
-    this.config = ctx.params as ActiveCPUCountTrackConfig;
+    this.cpuType = cpuType;
   }
 
   getTrackShellButtons(): m.Children {
@@ -82,24 +53,22 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
   }
 
   async onInit() {
-    await this.engine.query(
-      `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
-    );
-    return new NullDisposable();
+    await this.engine.query(`
+      INCLUDE PERFETTO MODULE sched.thread_level_parallelism;
+      INCLUDE PERFETTO MODULE android.cpu.cluster_type;
+    `);
   }
 
   getSqlSource() {
     const sourceTable =
-      this.config!.cpuType === undefined
+      this.cpuType === undefined
         ? 'sched_active_cpu_count'
-        : `sched_active_cpu_count_for_core_type(${sqliteString(
-            this.config!.cpuType,
-          )})`;
+        : `_active_cpu_count_for_cluster_type(${sqliteString(this.cpuType)})`;
     return `
-    select
-      ts,
-      active_cpu_count as value
-    from ${sourceTable}
+      select
+        ts,
+        active_cpu_count as value
+      from ${sourceTable}
     `;
   }
 }

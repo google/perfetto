@@ -52,7 +52,7 @@ class Chaos implements Plugin {
       name: 'Chaos: add crashing debug track',
       callback: () => {
         addDebugSliceTrack(
-          ctx.engine,
+          ctx,
           {
             sqlSource: `
             syntactically

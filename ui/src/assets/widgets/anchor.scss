@@ -23,7 +23,9 @@
   color: $pf-primary-background;
   cursor: pointer;
   border-bottom: dotted 1px $pf-primary-background;
-  transition: box-shadow $pf-anim-timing, background $pf-anim-timing;
+  transition:
+    box-shadow $pf-anim-timing,
+    background $pf-anim-timing;
 
   & > .material-icons {
     // For some reason, floating this icon results in the most pleasing vertical

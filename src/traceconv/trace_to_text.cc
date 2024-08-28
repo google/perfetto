@@ -21,15 +21,16 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "src/traceconv/trace.descriptor.h"
+#include "src/traceconv/winscope.descriptor.h"
 #include "src/traceconv/utils.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-#include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/protozero_to_text.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto {
 namespace trace_to_text {
@@ -53,6 +54,8 @@ class OnlineTraceToText {
   OnlineTraceToText(std::ostream* output) : output_(output) {
     pool_.AddFromFileDescriptorSet(kTraceDescriptor.data(),
                                    kTraceDescriptor.size());
+    pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
+                                   kWinscopeDescriptor.size());
   }
   OnlineTraceToText(const OnlineTraceToText&) = delete;
   OnlineTraceToText& operator=(const OnlineTraceToText&) = delete;

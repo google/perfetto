@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import {globals} from '../../frontend/globals';
-import {NamedRow, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {PrimaryTrackSortKey, Slice} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../custom_sql_table_slices';
+} from '../../frontend/tracks/custom_sql_table_slice_track';
 
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {JANK_COLOR} from './jank_colors';
@@ -34,12 +34,11 @@ import {
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
-export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
-  config: {baseTable: string};
-}
-
-export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
-  constructor(args: NewTrackArgs, private baseTable: string) {
+export class EventLatencyTrack extends CustomSqlTableSliceTrack {
+  constructor(
+    args: NewTrackArgs,
+    private baseTable: string,
+  ) {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: CHROME_EVENT_LATENCY_TRACK_KIND,
@@ -82,7 +81,7 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrac
     }
   }
 
-  onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
+  onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
       const currentSelection = getLegacySelection(globals.state);
       const isSelected =

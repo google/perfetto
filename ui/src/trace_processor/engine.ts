@@ -14,7 +14,6 @@
 
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
-import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {
   ComputeMetricArgs,
   ComputeMetricResult,
@@ -31,17 +30,14 @@ import {
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
-  LONG,
-  LONG_NULL,
-  NUM,
   QueryError,
   QueryResult,
-  STR,
   WritableQueryResult,
 } from './query_result';
 
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
-import {Disposable} from '../base/disposable';
+
+import {Result} from '../base/utils';
 
 export interface LoadingTracker {
   beginLoading(): void;
@@ -67,16 +63,43 @@ export interface TraceProcessorConfig {
 }
 
 export interface Engine {
-  execute(sqlQuery: string, tag?: string): Promise<QueryResult> & QueryResult;
-  query(sqlQuery: string, tag?: string): Promise<QueryResult>;
-  getCpus(): Promise<number[]>;
-  getNumberOfGpus(): Promise<number>;
-  getTracingMetadataTimeBounds(): Promise<Span<time, duration>>;
+  /**
+   * Execute a query against the database, returning a promise that resolves
+   * when the query has completed but rejected when the query fails for whatever
+   * reason. On success, the promise will only resolve once all the resulting
+   * rows have been received.
+   *
+   * The promise will be rejected if the query fails.
+   *
+   * @param sql The query to execute.
+   * @param tag An optional tag used to trace the origin of the query.
+   */
+  query(sql: string, tag?: string): Promise<QueryResult>;
+
+  /**
+   * Execute a query against the database, returning a promise that resolves
+   * when the query has completed or failed. The promise will never get
+   * rejected, it will always successfully resolve. Use the returned wrapper
+   * object to determine whether the query completed successfully.
+   *
+   * The promise will only resolve once all the resulting rows have been
+   * received.
+   *
+   * @param sql The query to execute.
+   * @param tag An optional tag used to trace the origin of the query.
+   */
+  tryQuery(sql: string, tag?: string): Promise<Result<QueryResult, Error>>;
+
+  /**
+   * Execute one or more metric and get the result.
+   *
+   * @param metrics The metrics to run.
+   * @param format The format of the response.
+   */
   computeMetric(
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array>;
-  readonly isAlive: boolean;
 }
 
 // Abstract interface of a trace proccessor.
@@ -92,8 +115,6 @@ export interface Engine {
 // 2. Call onRpcResponseBytes() when response data is received.
 export abstract class EngineBase implements Engine {
   abstract readonly id: string;
-  private _cpus?: number[];
-  private _numGpus?: number;
   private loadingTracker: LoadingTracker;
   private txSeqId = 0;
   private rxSeqId = 0;
@@ -106,7 +127,6 @@ export abstract class EngineBase implements Engine {
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
   private _isMetatracingEnabled = false;
-  readonly isAlive = false;
 
   constructor(tracker?: LoadingTracker) {
     this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
@@ -227,9 +247,9 @@ export abstract class EngineBase implements Engine {
           pendingComputeMetric.reject(error);
         } else {
           const result =
-            metricRes.metricsAsPrototext ||
-            metricRes.metricsAsJson ||
-            metricRes.metrics ||
+            metricRes.metricsAsPrototext ??
+            metricRes.metricsAsJson ??
+            metricRes.metrics ??
             '';
           pendingComputeMetric.resolve(result);
         }
@@ -360,7 +380,10 @@ export abstract class EngineBase implements Engine {
   //
   // Optional |tag| (usually a component name) can be provided to allow
   // attributing trace processor workload to different UI components.
-  execute(sqlQuery: string, tag?: string): Promise<QueryResult> & QueryResult {
+  private streamingQuery(
+    sqlQuery: string,
+    tag?: string,
+  ): Promise<QueryResult> & QueryResult {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new QueryArgs();
@@ -376,13 +399,13 @@ export abstract class EngineBase implements Engine {
     return result;
   }
 
-  // Wraps .execute(), captures errors and re-throws with current stack.
+  // Wraps .streamingQuery(), captures errors and re-throws with current stack.
   //
-  // Note: This function is less flexible that .execute() as it only returns a
+  // Note: This function is less flexible than .execute() as it only returns a
   // promise which must be unwrapped before the QueryResult may be accessed.
   async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
     try {
-      return await this.execute(sqlQuery, tag);
+      return await this.streamingQuery(sqlQuery, tag);
     } catch (e) {
       // Replace the error's stack trace with the one from here
       // Note: It seems only V8 can trace the stack up the promise chain, so its
@@ -394,6 +417,19 @@ export abstract class EngineBase implements Engine {
     }
   }
 
+  async tryQuery(
+    sql: string,
+    tag?: string,
+  ): Promise<Result<QueryResult, Error>> {
+    try {
+      const result = await this.query(sql, tag);
+      return {success: true, result};
+    } catch (error: unknown) {
+      // We know we only throw Error type objects so we can type assert safely
+      return {success: false, error: error as Error};
+    }
+  }
+
   isMetatracingEnabled(): boolean {
     return this._isMetatracingEnabled;
   }
@@ -401,7 +437,7 @@ export abstract class EngineBase implements Engine {
   enableMetatrace(categories?: MetatraceCategories) {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_ENABLE_METATRACE;
-    if (categories) {
+    if (categories !== undefined && categories !== MetatraceCategories.NONE) {
       rpc.enableMetatraceArgs = new EnableMetatraceArgs();
       rpc.enableMetatraceArgs.categories = categories;
     }
@@ -438,79 +474,6 @@ export abstract class EngineBase implements Engine {
     this.rpcSendRequestBytes(buf);
   }
 
-  // TODO(hjd): When streaming must invalidate this somehow.
-  async getCpus(): Promise<number[]> {
-    if (!this._cpus) {
-      const cpus = [];
-      const queryRes = await this.query(
-        'select distinct(cpu) as cpu from sched order by cpu;',
-      );
-      for (const it = queryRes.iter({cpu: NUM}); it.valid(); it.next()) {
-        cpus.push(it.cpu);
-      }
-      this._cpus = cpus;
-    }
-    return this._cpus;
-  }
-
-  async getNumberOfGpus(): Promise<number> {
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (!this._numGpus) {
-      const result = await this.query(`
-        select count(distinct(gpu_id)) as gpuCount
-        from gpu_counter_track
-        where name = 'gpufreq';
-      `);
-      this._numGpus = result.firstRow({gpuCount: NUM}).gpuCount;
-    }
-    return this._numGpus;
-  }
-
-  // TODO: This should live in code that's more specific to chrome, instead of
-  // in engine.
-  async getNumberOfProcesses(): Promise<number> {
-    const result = await this.query('select count(*) as cnt from process;');
-    return result.firstRow({cnt: NUM}).cnt;
-  }
-
-  async getTraceTimeBounds(): Promise<Span<time, duration>> {
-    const result = await this.query(
-      `select start_ts as startTs, end_ts as endTs from trace_bounds`,
-    );
-    const bounds = result.firstRow({
-      startTs: LONG,
-      endTs: LONG,
-    });
-    return new TimeSpan(
-      Time.fromRaw(bounds.startTs),
-      Time.fromRaw(bounds.endTs),
-    );
-  }
-
-  async getTracingMetadataTimeBounds(): Promise<Span<time, duration>> {
-    const queryRes = await this.query(`select
-         name,
-         int_value as intValue
-         from metadata
-         where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
-         or name = 'all_data_source_started_ns'`);
-    let startBound = Time.MIN;
-    let endBound = Time.MAX;
-    const it = queryRes.iter({name: STR, intValue: LONG_NULL});
-    for (; it.valid(); it.next()) {
-      const columnName = it.name;
-      const timestamp = it.intValue;
-      if (timestamp === null) continue;
-      if (columnName === 'tracing_disabled_ns') {
-        endBound = Time.min(endBound, Time.fromRaw(timestamp));
-      } else {
-        startBound = Time.max(startBound, Time.fromRaw(timestamp));
-      }
-    }
-
-    return new TimeSpan(startBound, endBound);
-  }
-
   getProxy(tag: string): EngineProxy {
     return new EngineProxy(this, tag);
   }
@@ -522,63 +485,47 @@ export class EngineProxy implements Engine, Disposable {
   private tag: string;
   private _isAlive: boolean;
 
-  get isAlive(): boolean {
-    return this._isAlive;
-  }
-
   constructor(engine: EngineBase, tag: string) {
     this.engine = engine;
     this.tag = tag;
     this._isAlive = true;
   }
 
-  execute(query: string, tag?: string): Promise<QueryResult> & QueryResult {
-    if (!this.isAlive) {
-      throw new Error(`EngineProxy ${this.tag} was disposed.`);
-    }
-    return this.engine.execute(query, tag || this.tag);
-  }
-
   async query(query: string, tag?: string): Promise<QueryResult> {
-    if (!this.isAlive) {
+    if (!this._isAlive) {
       throw new Error(`EngineProxy ${this.tag} was disposed.`);
     }
     return await this.engine.query(query, tag);
+  }
+
+  async tryQuery(
+    query: string,
+    tag?: string,
+  ): Promise<Result<QueryResult, Error>> {
+    if (!this._isAlive) {
+      return {
+        success: false,
+        error: new Error(`EngineProxy ${this.tag} was disposed.`),
+      };
+    }
+    return await this.engine.tryQuery(query, tag);
   }
 
   async computeMetric(
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array> {
-    if (!this.isAlive) {
+    if (!this._isAlive) {
       return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
     }
     return this.engine.computeMetric(metrics, format);
-  }
-
-  async getCpus(): Promise<number[]> {
-    if (!this.isAlive) {
-      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
-    }
-    return this.engine.getCpus();
-  }
-
-  async getNumberOfGpus(): Promise<number> {
-    if (!this.isAlive) {
-      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
-    }
-    return this.engine.getNumberOfGpus();
-  }
-
-  async getTracingMetadataTimeBounds(): Promise<Span<time, bigint>> {
-    return this.engine.getTracingMetadataTimeBounds();
   }
 
   get engineId(): string {
     return this.engine.id;
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this._isAlive = false;
   }
 }
