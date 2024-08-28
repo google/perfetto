@@ -196,7 +196,7 @@ export async function createPerfettoTable(
  *
  * @param engine - The database engine to execute the query.
  * @param viewName - The name of the view to be created.
- * @param expression - The SQL expression to define the table.
+ * @param as - The SQL expression to define the table.
  * @returns An AsyncDisposable which drops the created table when disposed.
  *
  * @example
@@ -214,9 +214,9 @@ export async function createPerfettoTable(
 export async function createView(
   engine: Engine,
   viewName: string,
-  expression: string,
+  as: string,
 ): Promise<AsyncDisposable> {
-  await engine.query(`CREATE VIEW ${viewName} AS ${expression}`);
+  await engine.query(`CREATE VIEW ${viewName} AS ${as}`);
   return {
     [Symbol.asyncDispose]: async () => {
       await engine.tryQuery(`DROP VIEW IF EXISTS ${viewName}`);

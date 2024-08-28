@@ -34,6 +34,8 @@ import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
 import {Vector} from '../../base/geom';
+import {createView, createVirtualTable} from '../../trace_processor/sql_utils';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;
@@ -66,52 +68,89 @@ class CpuFreqTrack implements Track {
   private config: Config;
   private trackUuid = uuidv4Sql();
 
+  private trash!: AsyncDisposableStack;
+
   constructor(config: Config, engine: Engine) {
     this.config = config;
     this.engine = engine;
   }
 
   async onCreate() {
+    this.trash = new AsyncDisposableStack();
     if (this.config.idleTrackId === undefined) {
-      await this.engine.query(`
-        create view raw_freq_idle_${this.trackUuid} as
-        select ts, dur, value as freqValue, -1 as idleValue
-        from experimental_counter_dur c
-        where track_id = ${this.config.freqTrackId}
-      `);
+      this.trash.use(
+        await createView(
+          this.engine,
+          `raw_freq_idle_${this.trackUuid}`,
+          `
+            select ts, dur, value as freqValue, -1 as idleValue
+            from experimental_counter_dur c
+            where track_id = ${this.config.freqTrackId}
+          `,
+        ),
+      );
     } else {
-      await this.engine.query(`
-        create view raw_freq_${this.trackUuid} as
-        select ts, dur, value as freqValue
-        from experimental_counter_dur c
-        where track_id = ${this.config.freqTrackId};
+      this.trash.use(
+        await createView(
+          this.engine,
+          `raw_freq_${this.trackUuid}`,
+          `
+            select ts, dur, value as freqValue
+            from experimental_counter_dur c
+            where track_id = ${this.config.freqTrackId}
+          `,
+        ),
+      );
 
-        create view raw_idle_${this.trackUuid} as
-        select
-          ts,
-          dur,
-          iif(value = 4294967295, -1, cast(value as int)) as idleValue
-        from experimental_counter_dur c
-        where track_id = ${this.config.idleTrackId};
+      this.trash.use(
+        await createView(
+          this.engine,
+          `raw_idle_${this.trackUuid}`,
+          `
+            select
+              ts,
+              dur,
+              iif(value = 4294967295, -1, cast(value as int)) as idleValue
+            from experimental_counter_dur c
+            where track_id = ${this.config.idleTrackId}
+          `,
+        ),
+      );
 
-        create virtual table raw_freq_idle_${this.trackUuid}
-        using span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid});
-      `);
+      this.trash.use(
+        await createVirtualTable(
+          this.engine,
+          `raw_freq_idle_${this.trackUuid}`,
+          `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`,
+        ),
+      );
     }
 
-    await this.engine.query(`
-      create virtual table cpu_freq_${this.trackUuid}
-      using __intrinsic_counter_mipmap((
-        select ts, freqValue as value
-        from raw_freq_idle_${this.trackUuid}
-      ));
+    this.trash.use(
+      await createVirtualTable(
+        this.engine,
+        `cpu_freq_${this.trackUuid}`,
+        `
+          __intrinsic_counter_mipmap((
+            select ts, freqValue as value
+            from raw_freq_idle_${this.trackUuid}
+          ))
+        `,
+      ),
+    );
 
-      create virtual table cpu_idle_${this.trackUuid}
-      using __intrinsic_counter_mipmap((
-        select ts, idleValue as value
-        from raw_freq_idle_${this.trackUuid}
-      ));
-    `);
+    this.trash.use(
+      await createVirtualTable(
+        this.engine,
+        `cpu_idle_${this.trackUuid}`,
+        `
+          __intrinsic_counter_mipmap((
+            select ts, idleValue as value
+            from raw_freq_idle_${this.trackUuid}
+          ))
+        `,
+      ),
+    );
   }
 
   async onUpdate({
@@ -122,15 +161,7 @@ class CpuFreqTrack implements Track {
   }
 
   async onDestroy(): Promise<void> {
-    await this.engine.tryQuery(`drop table cpu_freq_${this.trackUuid}`);
-    await this.engine.tryQuery(`drop table cpu_idle_${this.trackUuid}`);
-    await this.engine.tryQuery(`drop table raw_freq_idle_${this.trackUuid}`);
-    await this.engine.tryQuery(
-      `drop view if exists raw_freq_${this.trackUuid}`,
-    );
-    await this.engine.tryQuery(
-      `drop view if exists raw_idle_${this.trackUuid}`,
-    );
+    await this.trash.asyncDispose();
   }
 
   async onBoundsChange(
