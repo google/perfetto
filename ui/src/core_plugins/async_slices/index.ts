@@ -153,6 +153,8 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         t.utid,
         thread.upid,
         t.name as trackName,
+        thread.name as threadName,
+        thread.tid as tid,
         t.track_ids as trackIds,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth,
         k.is_main_thread as isMainThread,
@@ -171,19 +173,28 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       maxDepth: NUM,
       isMainThread: NUM_NULL,
       isKernelThread: NUM,
+      threadName: STR_NULL,
+      tid: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
-      const {utid, upid, trackName, isMainThread, isKernelThread, maxDepth} =
-        it;
+      const {
+        utid,
+        upid,
+        trackName,
+        isMainThread,
+        isKernelThread,
+        maxDepth,
+        threadName,
+        tid,
+      } = it;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-
-      const kind = ASYNC_SLICE_TRACK_KIND;
       const displayName = getTrackName({
         name: trackName,
         utid,
-        upid,
-        kind,
+        tid,
+        threadName,
+        kind: 'Slices',
       });
 
       const uri = `/${getThreadUriPrefix(upid, utid)}_slice_${rawTrackIds}`;
