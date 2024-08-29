@@ -51,7 +51,7 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          const track = globals.trackManager.getAllTracks().find((td) => {
+          const track = globals.trackManager.findTrack((td) => {
             return td.tags?.trackIds?.includes(vnode.attrs.sqlTrackId);
           });
           if (track === undefined) return;

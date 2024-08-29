@@ -149,9 +149,9 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const sliceStart = Time.fromRaw(BigInt(row.ts));
     // row.dur can be negative. Clamp to 1ns.
     const sliceDur = BigintMath.max(BigInt(row.dur), 1n);
-    const trackUri = globals.trackManager
-      .getAllTracks()
-      .find((td) => td.tags?.trackIds?.includes(trackId))?.uri;
+    const trackUri = globals.trackManager.findTrack((td) =>
+      td.tags?.trackIds?.includes(trackId),
+    )?.uri;
     if (trackUri !== undefined) {
       scrollToTrackAndTimeSpan(
         trackUri,

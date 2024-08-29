@@ -50,7 +50,7 @@ export interface TrackRenderer {
  *   flushTracks() <-- 'foo' is destroyed.
  */
 export class TrackManager {
-  private tracks = new Registry<TrackDescriptor>(({uri}) => uri);
+  private tracks = new Registry<TrackFSM>((x) => x.desc.uri);
 
   // This contains the tracks refs that plugins want to get auto-added on trace
   // load, rather than bothering manually adding them to the workspace. They
@@ -58,11 +58,8 @@ export class TrackManager {
   // TODO(primiano): this is going away soon.
   private autoShowTracks = new Set<TrackDescriptor>();
 
-  // A cache of all tracks we've ever seen actually rendered
-  private trackCache = new Map<string, TrackFSM>();
-
   registerTrack(trackDesc: TrackDescriptor): Disposable {
-    return this.tracks.register(trackDesc);
+    return this.tracks.register(new TrackFSM(trackDesc));
   }
 
   // TODO(primiano): this is going away soon.
@@ -77,45 +74,46 @@ export class TrackManager {
     return Array.from(this.autoShowTracks);
   }
 
+  findTrack(
+    predicate: (desc: TrackDescriptor) => boolean | undefined,
+  ): TrackDescriptor | undefined {
+    for (const t of this.tracks.values()) {
+      if (predicate(t.desc)) return t.desc;
+    }
+    return undefined;
+  }
+
   getAllTracks(): TrackDescriptor[] {
-    return Array.from(this.tracks.values());
+    return Array.from(this.tracks.valuesAsArray().map((t) => t.desc));
   }
 
   // Look up track into for a given track's URI.
   // Returns |undefined| if no track can be found.
   getTrack(uri: string): TrackDescriptor | undefined {
-    return this.tracks.tryGet(uri);
+    return this.tracks.tryGet(uri)?.desc;
   }
 
-  // Creates a new track using |uri| and |params| or retrieves a cached track if
-  // |key| exists in the cache.
   // This is only called by the viewer_page.ts.
-  getTrackRenderer(trackDesc: TrackDescriptor): TrackRenderer {
+  getTrackRenderer(uri: string): TrackRenderer | undefined {
     // Search for a cached version of this track,
-    const cached = this.trackCache.get(trackDesc.uri);
-    if (cached) {
-      cached.markUsed();
-      return cached;
-    } else {
-      const cache = new TrackFSM(trackDesc);
-      this.trackCache.set(trackDesc.uri, cache);
-      return cache;
-    }
+    const trackFsm = this.tracks.tryGet(uri);
+    trackFsm?.markUsed();
+    return trackFsm;
   }
 
-  // Destroys all current tracks not present in the new cache.
+  // Destroys all tracks that didn't recently get a getTrackRenderer() call.
   flushOldTracks() {
-    for (const trackCache of this.trackCache.values()) {
-      trackCache.tick();
+    for (const trackFsm of this.tracks.values()) {
+      trackFsm.tick();
     }
   }
 }
 
-const DESTROY_IF_NOT_SEEN_FOR_CYCLE_COUNT = 0;
+const DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT = 0;
 
 /**
- * Wrapper that manages lifecycle hooks on behalf of a track, ensuring lifecycle
- * hooks are called synchronously and in the correct order.
+ * Owns all runtime information about a track and manages its lifecycle,
+ * ensuring lifecycle hooks are called synchronously and in the correct order.
  *
  * There are quite some subtle properties that this class guarantees:
  * - It make sure that lifecycle methods don't overlap with each other.
@@ -147,7 +145,7 @@ class TrackFSM implements TrackRenderer {
 
   // Increment the lastUsed counter, and maybe call onDestroy().
   tick(): void {
-    if (this.tickSinceLastUsed++ > DESTROY_IF_NOT_SEEN_FOR_CYCLE_COUNT) {
+    if (this.tickSinceLastUsed++ > DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT) {
       // Schedule an onDestroy
       this.limiter
         .schedule(async () => {
