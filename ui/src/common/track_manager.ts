@@ -14,7 +14,7 @@
 
 import {Optional} from '../base/utils';
 import {Registry} from '../base/registry';
-import {Track, TrackDescriptor, TrackRef} from '../public';
+import {Track, TrackDescriptor} from '../public';
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/tracks';
@@ -55,7 +55,7 @@ export class TrackManager {
   // load, rather than bothering manually adding them to the workspace. They
   // come from plugins calling registerTrackAndShowOnTraceLoad().
   // TODO(primiano): this is going away soon.
-  private autoShowTracks = new Set<TrackRef>();
+  private autoShowTracks = new Set<TrackDescriptor>();
 
   // A cache of all tracks we've ever seen actually rendered
   private trackCache = new Map<string, TrackFSM>();
@@ -65,14 +65,14 @@ export class TrackManager {
   }
 
   // TODO(primiano): this is going away soon.
-  autoShowOnTraceLoad(track: TrackRef): Disposable {
+  autoShowOnTraceLoad(track: TrackDescriptor): Disposable {
     this.autoShowTracks.add(track);
     return {
       [Symbol.dispose]: () => this.autoShowTracks.delete(track),
     };
   }
 
-  getAutoShowTracks(): TrackRef[] {
+  getAutoShowTracks(): TrackDescriptor[] {
     return Array.from(this.autoShowTracks);
   }
 
