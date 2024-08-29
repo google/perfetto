@@ -20,8 +20,6 @@ source_set("operators") {
   sources = [
     "counter_mipmap_operator.cc",
     "counter_mipmap_operator.h",
-    "interval_intersect_operator.cc",
-    "interval_intersect_operator.h",
     "slice_mipmap_operator.cc",
     "slice_mipmap_operator.h",
     "span_join_operator.cc",

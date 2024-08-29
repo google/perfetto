@@ -16,9 +16,9 @@
 INCLUDE PERFETTO MODULE time.conversion;
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
--- The amount by which each frame missed of hit its deadline. Positive if the
+-- The amount by which each frame missed of hit its deadline. Negative if the
 -- deadline was not missed. Frames are considered janky if `overrun` is
--- negative.
+-- positive.
 -- Calculated as the difference between the end of the
 -- `expected_frame_timeline_slice` and `actual_frame_timeline_slice` for the
 -- frame.
@@ -27,13 +27,13 @@ INCLUDE PERFETTO MODULE android.frames.timeline;
 CREATE PERFETTO TABLE android_frames_overrun(
     -- Frame id.
     frame_id INT,
-    -- Difference between `expected` and `actual` frame ends. Positive if frame
+    -- Difference between `expected` and `actual` frame ends. Negative if frame
     -- didn't miss deadline.
     overrun INT
 ) AS
 SELECT
     frame_id,
-    (exp_slice.ts + exp_slice.dur) - (act_slice.ts + act_slice.dur) AS overrun
+    (act_slice.ts + act_slice.dur) - (exp_slice.ts + exp_slice.dur) AS overrun
 FROM _distinct_from_actual_timeline_slice act
 JOIN _distinct_from_expected_timeline_slice exp USING (frame_id)
 JOIN slice act_slice ON (act.id = act_slice.id)
@@ -57,8 +57,6 @@ JOIN slice USING (id);
 -- Calculated as time difference between the actual frame start (from
 -- `actual_frame_timeline_slice`) and start of the `Choreographer#doFrame`
 -- slice.
--- NOTE: Sometimes because of data losses `app_vsync_delay` can be negative.
--- The frames where it happens are filtered out.
 -- For Googlers: more details in go/android-performance-metrics-glossary.
 CREATE PERFETTO TABLE android_app_vsync_delay_per_frame(
     -- Frame id
@@ -74,17 +72,17 @@ WITH distinct_frames AS (
     SELECT
         frame_id,
         do_frame_id,
-        actual_frame_timeline_id
+        actual_frame_timeline_id,
+        expected_frame_timeline_id
     FROM android_frames
     GROUP BY 1
 )
 SELECT
     frame_id,
-    act.ts - do_frame.ts AS app_vsync_delay
+    act.ts - exp.ts AS app_vsync_delay
 FROM distinct_frames f
-JOIN slice act ON (f.actual_frame_timeline_id = act.id)
-JOIN slice do_frame ON (f.do_frame_id = do_frame.id)
-WHERE act.ts >= do_frame.ts;
+JOIN slice exp ON (f.expected_frame_timeline_id = exp.id)
+JOIN slice act ON (f.actual_frame_timeline_id = act.id);
 
 -- How much time did the frame take across the UI Thread + RenderThread.
 -- Calculated as sum of `app VSYNC delay` `Choreographer#doFrame` slice
@@ -184,7 +182,7 @@ SELECT
     overrun,
     cpu_time,
     ui_time,
-    IIF(overrun < 0, 1, NULL) AS was_jank,
+    IIF(overrun > 0, 1, NULL) AS was_jank,
     IIF(cpu_time > time_from_ms(20), 1, NULL) AS was_slow_frame,
     IIF(cpu_time > time_from_ms(50), 1, NULL) AS was_big_jank,
     IIF(cpu_time > time_from_ms(200), 1, NULL) AS was_huge_jank

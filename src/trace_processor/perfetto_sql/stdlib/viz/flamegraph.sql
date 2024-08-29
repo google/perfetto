@@ -206,9 +206,7 @@ AS (
     FROM $filtered f
     JOIN $source s USING (id)
     JOIN $accumulated a USING (id)
-    WHERE f.parentId IS NULL
-      AND f.unpivotedParentId IS NOT NULL
-      AND a.cumulativeValue > 0
+    WHERE s.isPivot AND a.cumulativeValue > 0
   )
   SELECT
     g.id,
@@ -246,7 +244,8 @@ CREATE PERFETTO MACRO _viz_flamegraph_downwards_hash(
   filtered TableOrSubquery,
   accumulated TableOrSubquery,
   grouping _ColumnNameList,
-  grouped _ColumnNameList
+  grouped _ColumnNameList,
+  showDownward Expr
 )
 RETURNS TableOrSubquery
 AS (
@@ -264,7 +263,7 @@ AS (
         1 AS depth
       FROM $filtered f
       JOIN $source s USING (id)
-      WHERE f.parentId IS NULL
+      WHERE f.parentId IS NULL AND $showDownward
     )
   SELECT
     g.id,
@@ -373,7 +372,7 @@ AS (
     WHERE parentId IS NOT NULL
   ),
   inits AS (
-    SELECT h.id, l.xStart, l.xEnd
+    SELECT h.id, 1 AS rootDistance, l.xStart, l.xEnd
     FROM $merged h
     JOIN $layout l USING (id)
     WHERE h.parentId IS NULL
@@ -386,16 +385,18 @@ AS (
     _metasql_map_join_column_list!($grouped, _viz_flamegraph_s_prefix),
     s.value AS selfValue,
     s.cumulativeValue,
+    p.cumulativeValue AS parentCumulativeValue,
     s.depth,
     g.xStart,
     g.xEnd
   FROM _graph_scan!(
     edges,
     inits,
-    (xStart, xEnd),
+    (rootDistance, xStart, xEnd),
     (
       SELECT
         t.id,
+        t.rootDistance + 1 as rootDistance,
         t.xStart + w.xStart AS xStart,
         t.xStart + w.xEnd AS xEnd
       FROM $table t
@@ -403,5 +404,6 @@ AS (
     )
   ) g
   JOIN $merged s USING (id)
-  ORDER BY depth, xStart
+  LEFT JOIN $merged p ON s.parentId = p.id
+  ORDER BY rootDistance, xStart
 );

@@ -43,7 +43,7 @@ class ZipTraceReader : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
-  void NotifyEndOfFile() override;
+  base::Status NotifyEndOfFile() override;
 
  private:
   // Represents a file in the ZIP file. Used to sort them before sending the
@@ -63,7 +63,6 @@ class ZipTraceReader : public ChunkedTraceReader {
     bool operator<(const Entry& rhs) const;
   };
 
-  base::Status NotifyEndOfFileImpl();
   static base::StatusOr<std::vector<Entry>> ExtractEntries(
       std::vector<util::ZipFile> files);
   base::Status ParseEntry(Entry entry);

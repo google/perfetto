@@ -25,6 +25,7 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
@@ -32,11 +33,13 @@ namespace perfetto::trace_processor::column {
 // Storage responsible for rearranging the elements of another Storage. It deals
 // with duplicates, permutations and selection; for selection only, it's more
 // efficient to use `SelectorOverlay`.
-class ArrangementOverlay final : public DataLayer {
+class ArrangementOverlay final : public OverlayLayer {
  public:
   ArrangementOverlay(const std::vector<uint32_t>* arrangement,
                      DataLayerChain::Indices::State arrangement_state);
   ~ArrangementOverlay() override;
+
+  void Flatten(uint32_t* start, const uint32_t* end, uint32_t stride) override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,
@@ -69,11 +72,7 @@ class ArrangementOverlay final : public DataLayer {
 
     std::optional<Token> MinElement(Indices&) const override;
 
-    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override;
-
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
-
-    void Serialize(StorageProto*) const override;
 
     uint32_t size() const override {
       return static_cast<uint32_t>(arrangement_->size());

@@ -79,6 +79,7 @@ from diff_tests.parser.parsing.tests import Parsing
 from diff_tests.parser.parsing.tests_debug_annotation import ParsingDebugAnnotation
 from diff_tests.parser.parsing.tests_memory_counters import ParsingMemoryCounters
 from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
+from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -122,6 +123,7 @@ from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
+from diff_tests.stdlib.linux.tests import LinuxTests
 from diff_tests.stdlib.metasql.column_list import ColumnListTests
 from diff_tests.stdlib.metasql.table_list import TableListTests
 from diff_tests.stdlib.pkvm.tests import Pkvm
@@ -227,6 +229,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ParsingDebugAnnotation(index_path, 'parser/parsing',
                               'ParsingDebugAnnotation').fetch(),
       *ParsingRssStats(index_path, 'parser/parsing', 'ParsingRssStats').fetch(),
+      *ParsingSysStats(index_path, 'parser/parsing', 'ParsingSysStats').fetch(),
       *ParsingMemoryCounters(index_path, 'parser/parsing',
                              'ParsingMemoryCounters').fetch(),
       *FtraceCrop(index_path, 'parser/ftrace', 'FtraceCrop').fetch(),
@@ -282,6 +285,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
       *CpuClusters(index_path, 'stdlib/android', 'CpuClusters').fetch(),
       *LinuxCpu(index_path, 'stdlib/linux/cpu', 'LinuxCpu').fetch(),
+      *LinuxTests(index_path, 'stdlib/linux', 'LinuxTests').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
       *CriticalPathTests(index_path, 'stdlib/graphs', 'CriticalPath').fetch(),
       *GraphScanTests(index_path, 'stdlib/graphs', 'GraphScan').fetch(),

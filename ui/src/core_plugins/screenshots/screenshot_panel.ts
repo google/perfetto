@@ -18,8 +18,8 @@ import {assertTrue} from '../../base/logging';
 import {exists} from '../../base/utils';
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {getSlice, SliceDetails} from '../../frontend/sql/slice';
-import {asSliceSqlId} from '../../frontend/sql_types';
+import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
+import {asSliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
 
 async function getSliceDetails(

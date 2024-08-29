@@ -29,8 +29,9 @@ import {
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {
   Engine,
+  HEAP_PROFILE_TRACK_KIND,
   LegacyDetailsPanel,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -58,9 +59,7 @@ import {Router} from '../../frontend/router';
 import {Actions} from '../../common/actions';
 import {SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG} from '../../common/legacy_flamegraph_util';
 
-export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
-
-class HeapProfilePlugin implements Plugin {
+class HeapProfilePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       select distinct upid from heap_profile_allocation
@@ -69,22 +68,21 @@ class HeapProfilePlugin implements Plugin {
     `);
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
+      const uri = `/process_${upid}/heap_profile`;
       ctx.registerTrack({
-        uri: `/process_${upid}/heap_profile`,
+        uri,
         title: 'Heap Profile',
         tags: {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
-        trackFactory: ({trackKey}) => {
-          return new HeapProfileTrack(
-            {
-              engine: ctx.engine,
-              trackKey,
-            },
-            upid,
-          );
-        },
+        track: new HeapProfileTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          upid,
+        ),
       });
     }
     const it = await ctx.engine.query(`

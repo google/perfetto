@@ -74,3 +74,27 @@ class Zip(TestSuite):
         2,"__intrinsic_trace_file",0,"b.simpleperf.data",554911,"perf"
         3,"__intrinsic_trace_file",0,"a.symbols.pb",186149,"symbols"
         '''))
+
+  # Make sure the logcat timestamps are correctly converted to trace ts. All
+  # logcat events in the trace were emitted while a perfetto trace collection
+  # was active. Thus their timestamps should be between the min and max ts of
+  # all track events.
+  # The device where the trace was collected had a timezone setting of UTC+1
+  def test_logcat_and_proto(self):
+    return DiffTestBlueprint(
+        trace=DataPath('zip/logcat_and_proto.zip'),
+        query='''
+        WITH
+          INTERVAL AS (
+            SELECT
+              (SELECT MIN(ts) FROM slice) AS min_ts,
+              (SELECT MAX(ts) FROM slice) AS max_ts
+          )
+        SELECT COUNT(*) AS count
+        FROM android_logs, INTERVAL
+        WHERE ts BETWEEN min_ts AND max_ts;
+        ''',
+        out=Csv('''
+        "count"
+        58
+        '''))

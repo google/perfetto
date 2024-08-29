@@ -85,4 +85,17 @@ message ChromeLatencyInfo {
   optional bool is_coalesced = 5;
   optional int64 gesture_scroll_id = 6;
   optional int64 touch_id = 7;
+
+  enum InputType {
+    UNSPECIFIED_OR_OTHER = 0;
+    TOUCH_MOVED = 1;
+    GESTURE_SCROLL_BEGIN = 2;
+    GESTURE_SCROLL_UPDATE = 3;
+    GESTURE_SCROLL_END = 4;
+    GESTURE_TAP = 5;
+    GESTURE_TAP_CANCEL = 6;
+  }
+
+  // The type of input corresponding to this `ChromeLatencyInfo`.
+  optional InputType input_type = 8;
 }

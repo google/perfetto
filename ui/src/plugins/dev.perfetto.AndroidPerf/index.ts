@@ -14,12 +14,12 @@
 
 import {
   addDebugSliceTrack,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 
-class AndroidPerf implements Plugin {
+class AndroidPerf implements PerfettoPlugin {
   async addAppProcessStartsDebugTrack(
     ctx: PluginContextTrace,
     reason: string,
@@ -46,7 +46,7 @@ class AndroidPerf implements Plugin {
                       process_name,
                       intent,
                       'slice' AS table_name
-                    FROM _android_app_process_starts
+                    FROM android_app_process_starts
                     WHERE reason = '${reason}'
                  `,
         columns: sliceColumns,

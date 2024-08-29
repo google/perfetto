@@ -143,9 +143,9 @@ export function publishThreads(data: ThreadDesc[]) {
   globals.publishRedraw();
 }
 
-export function publishSliceDetails(click: SliceDetails) {
-  globals.sliceDetails = click;
-  const id = click.id;
+export function publishSliceDetails(sliceDetails: SliceDetails) {
+  globals.sliceDetails = sliceDetails;
+  const id = sliceDetails.id;
   if (id !== undefined && id === globals.state.pendingScrollId) {
     findCurrentSelection();
     globals.dispatch(Actions.clearPendingScrollId({id: undefined}));

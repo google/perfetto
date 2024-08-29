@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Size} from '../base/geom';
-import {exists} from '../base/utils';
-import {TrackState} from '../common/state';
-import {SliceRect} from '../public';
+import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
+import {Size, Vector} from '../base/geom';
+import {Optional} from '../base/utils';
 
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
-import {Flow, FlowPoint, globals} from './globals';
-import {Panel} from './panel_container';
+import {Flow, globals} from './globals';
+import {RenderedPanelInfo} from './panel_container';
 import {PxSpan, TimeScale} from './time_scale';
+import {TrackNode} from './workspace';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
@@ -37,211 +37,71 @@ const HIGHLIGHTED_FLOW_INTENSITY = 45;
 const FOCUSED_FLOW_INTENSITY = 55;
 const DEFAULT_FLOW_INTENSITY = 70;
 
-type LineDirection = 'LEFT' | 'RIGHT' | 'UP' | 'DOWN';
-type ConnectionType = 'TRACK' | 'TRACK_GROUP';
+type VerticalEdgeOrPoint =
+  | ({kind: 'vertical_edge'} & Vector)
+  | ({kind: 'point'} & Vector);
 
-interface TrackPanelInfo {
-  panel: Panel;
-  yStart: number;
-}
+/**
+ * Renders the flows overlay on top of the timeline, given the set of panels and
+ * a canvas to draw on.
+ *
+ * Note: the actual flow data is retrieved from globals, which are produced by
+ * the flow events controller.
+ *
+ * @param ctx - The canvas to draw on.
+ * @param size - The size of the canvas.
+ * @param panels - A list of panels and their locations on the canvas.
+ */
+export function renderFlows(
+  ctx: CanvasRenderingContext2D,
+  size: Size,
+  panels: ReadonlyArray<RenderedPanelInfo>,
+): void {
+  const timescale = new TimeScale(
+    globals.timeline.visibleWindow,
+    new PxSpan(0, size.width),
+  );
 
-interface TrackGroupPanelInfo {
-  panel: Panel;
-  yStart: number;
-  height: number;
-}
+  // Create indexes for the tracks and groups by key for quick access
+  const trackPanelsByKey = new Map(
+    panels.map((panel) => [panel.panel.trackUri, panel]),
+  );
+  const groupPanelsByKey = new Map(
+    panels.map((panel) => [panel.panel.groupUri, panel]),
+  );
 
-function getTrackIds(track: TrackState): ReadonlyArray<number> {
-  const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-  return trackDesc?.tags?.trackIds ?? [];
-}
+  // Build a track index on trackIds. Note: We need to find the track nodes
+  // specifically here (not just the URIs) because we might need to navigate up
+  // the tree to find containing groups.
 
-export class FlowEventsRendererArgs {
-  trackIdToTrackPanel: Map<number, TrackPanelInfo>;
-  groupIdToTrackGroupPanel: Map<string, TrackGroupPanelInfo>;
+  const trackIdToTrack = new Map<number, TrackNode>();
+  globals.workspace.flatTracks.forEach((track) =>
+    globals.trackManager
+      .getTrack(track.uri)
+      ?.tags?.trackIds?.forEach((trackId) =>
+        trackIdToTrack.set(trackId, track),
+      ),
+  );
 
-  constructor() {
-    this.trackIdToTrackPanel = new Map<number, TrackPanelInfo>();
-    this.groupIdToTrackGroupPanel = new Map<string, TrackGroupPanelInfo>();
-  }
+  const drawFlow = (flow: Flow, hue: number) => {
+    const flowStartTs =
+      flow.flowToDescendant || flow.begin.sliceStartTs >= flow.end.sliceStartTs
+        ? flow.begin.sliceStartTs
+        : flow.begin.sliceEndTs;
 
-  registerPanel(panel: Panel, yStart: number, height: number) {
-    if (exists(panel.trackKey)) {
-      const track = globals.state.tracks[panel.trackKey];
-      for (const trackId of getTrackIds(track)) {
-        this.trackIdToTrackPanel.set(trackId, {panel, yStart});
-      }
-    } else if (exists(panel.groupKey)) {
-      this.groupIdToTrackGroupPanel.set(panel.groupKey, {
-        panel,
-        yStart,
-        height,
-      });
-    }
-  }
-}
+    const flowEndTs = flow.end.sliceStartTs;
 
-export class FlowEventsRenderer {
-  private getTrackGroupIdByTrackId(trackId: number): string | undefined {
-    const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
-    return trackKey ? globals.state.tracks[trackKey].trackGroup : undefined;
-  }
+    const startX = timescale.timeToPx(flowStartTs);
+    const endX = timescale.timeToPx(flowEndTs);
 
-  private getTrackGroupYCoordinate(
-    args: FlowEventsRendererArgs,
-    trackId: number,
-  ): number | undefined {
-    const trackGroupId = this.getTrackGroupIdByTrackId(trackId);
-    if (!trackGroupId) {
-      return undefined;
-    }
-    const trackGroupInfo = args.groupIdToTrackGroupPanel.get(trackGroupId);
-    if (!trackGroupInfo) {
-      return undefined;
-    }
-    return (
-      trackGroupInfo.yStart +
-      trackGroupInfo.height -
-      TRACK_GROUP_CONNECTION_OFFSET
-    );
-  }
-
-  private getTrackYCoordinate(
-    args: FlowEventsRendererArgs,
-    trackId: number,
-  ): number | undefined {
-    return args.trackIdToTrackPanel.get(trackId)?.yStart;
-  }
-
-  private getYConnection(
-    args: FlowEventsRendererArgs,
-    trackId: number,
-    yMax: number,
-    rect?: SliceRect,
-  ): {y: number; connection: ConnectionType} | undefined {
-    if (!rect) {
-      const y = this.getTrackGroupYCoordinate(args, trackId);
-      if (y === undefined) {
-        return undefined;
-      }
-      return {y, connection: 'TRACK_GROUP'};
-    }
-    const y =
-      (this.getTrackYCoordinate(args, trackId) ?? 0) +
-      rect.top +
-      rect.height * 0.5;
-
-    return {
-      y: Math.min(Math.max(0, y), yMax),
-      connection: 'TRACK',
-    };
-  }
-
-  private getSliceRect(
-    args: FlowEventsRendererArgs,
-    point: FlowPoint,
-  ): SliceRect | undefined {
-    const trackPanel = args.trackIdToTrackPanel.get(point.trackId)?.panel;
-    if (!trackPanel) {
-      return undefined;
-    }
-    return trackPanel.getSliceRect?.(
-      point.sliceStartTs,
-      point.sliceEndTs,
-      point.depth,
-    );
-  }
-
-  /**
-   * Render the flows to the canvas.
-   *
-   * @param ctx Canvas rendering context.
-   * @param args Arg, e.g. definitions of where tracks live on the canvas.
-   * @param size The size of the drawable canvas region.
-   */
-  render(
-    ctx: CanvasRenderingContext2D,
-    args: FlowEventsRendererArgs,
-    size: Size,
-  ) {
-    const timescale = new TimeScale(
-      globals.timeline.visibleWindow,
-      new PxSpan(0, size.width),
-    );
-
-    globals.connectedFlows.forEach((flow) => {
-      this.drawFlow(ctx, timescale, size, args, flow, CONNECTED_FLOW_HUE);
-    });
-
-    globals.selectedFlows.forEach((flow) => {
-      const categories = getFlowCategories(flow);
-      for (const cat of categories) {
-        if (
-          globals.visibleFlowCategories.get(cat) ||
-          globals.visibleFlowCategories.get(ALL_CATEGORIES)
-        ) {
-          this.drawFlow(ctx, timescale, size, args, flow, SELECTED_FLOW_HUE);
-          break;
-        }
-      }
-    });
-  }
-
-  private drawFlow(
-    ctx: CanvasRenderingContext2D,
-    timescale: TimeScale,
-    size: Size,
-    args: FlowEventsRendererArgs,
-    flow: Flow,
-    hue: number,
-  ) {
-    const beginSliceRect = this.getSliceRect(args, flow.begin);
-    const endSliceRect = this.getSliceRect(args, flow.end);
-
-    const beginYConnection = this.getYConnection(
-      args,
-      flow.begin.trackId,
-      size.height,
-      beginSliceRect,
-    );
-    const endYConnection = this.getYConnection(
-      args,
-      flow.end.trackId,
-      size.height,
-      endSliceRect,
-    );
-
-    if (!beginYConnection || !endYConnection) {
+    // If the flow is entirely outside the visible viewport don't render anything
+    if (
+      (startX < 0 || startX > size.width) &&
+      (endX < 0 || startX > size.width)
+    ) {
       return;
     }
 
-    let beginDir: LineDirection = 'LEFT';
-    let endDir: LineDirection = 'RIGHT';
-    if (beginYConnection.connection === 'TRACK_GROUP') {
-      beginDir = beginYConnection.y > endYConnection.y ? 'DOWN' : 'UP';
-    }
-    if (endYConnection.connection === 'TRACK_GROUP') {
-      endDir = endYConnection.y > beginYConnection.y ? 'DOWN' : 'UP';
-    }
-
-    const begin = {
-      // If the flow goes to a descendant, we want to draw the arrow from the
-      // beginning of the slice
-      // rather from the end to avoid the flow arrow going backwards.
-      x: timescale.timeToPx(
-        flow.flowToDescendant ||
-          flow.begin.sliceStartTs >= flow.end.sliceStartTs
-          ? flow.begin.sliceStartTs
-          : flow.begin.sliceEndTs,
-      ),
-      y: beginYConnection.y,
-      dir: beginDir,
-    };
-    const end = {
-      x: timescale.timeToPx(flow.end.sliceStartTs),
-      y: endYConnection.y,
-      dir: endDir,
-    };
     const highlighted =
       flow.end.sliceId === globals.state.highlightedSliceId ||
       flow.begin.sliceId === globals.state.highlightedSliceId;
@@ -258,106 +118,131 @@ export class FlowEventsRenderer {
     if (highlighted) {
       intensity = HIGHLIGHTED_FLOW_INTENSITY;
     }
-    this.drawFlowArrow(ctx, begin, end, hue, intensity, width);
-  }
 
-  private getDeltaX(dir: LineDirection, offset: number): number {
-    switch (dir) {
-      case 'LEFT':
-        return -offset;
-      case 'RIGHT':
-        return offset;
-      case 'UP':
-        return 0;
-      case 'DOWN':
-        return 0;
-      default:
-        return 0;
-    }
-  }
-
-  private getDeltaY(dir: LineDirection, offset: number): number {
-    switch (dir) {
-      case 'LEFT':
-        return 0;
-      case 'RIGHT':
-        return 0;
-      case 'UP':
-        return -offset;
-      case 'DOWN':
-        return offset;
-      default:
-        return 0;
-    }
-  }
-
-  private drawFlowArrow(
-    ctx: CanvasRenderingContext2D,
-    begin: {x: number; y: number; dir: LineDirection},
-    end: {x: number; y: number; dir: LineDirection},
-    hue: number,
-    intensity: number,
-    width: number,
-  ) {
-    const hasArrowHead = Math.abs(begin.x - end.x) > 3 * TRIANGLE_SIZE;
-    const END_OFFSET =
-      (end.dir === 'RIGHT' || end.dir === 'LEFT') && hasArrowHead
-        ? TRIANGLE_SIZE
-        : 0;
-    const color = `hsl(${hue}, 50%, ${intensity}%)`;
-    // draw curved line from begin to end (bezier curve)
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    ctx.moveTo(begin.x, begin.y);
-    ctx.bezierCurveTo(
-      begin.x - this.getDeltaX(begin.dir, BEZIER_OFFSET),
-      begin.y - this.getDeltaY(begin.dir, BEZIER_OFFSET),
-      end.x - this.getDeltaX(end.dir, BEZIER_OFFSET + END_OFFSET),
-      end.y - this.getDeltaY(end.dir, BEZIER_OFFSET + END_OFFSET),
-      end.x - this.getDeltaX(end.dir, END_OFFSET),
-      end.y - this.getDeltaY(end.dir, END_OFFSET),
+    const start = getConnectionTarget(
+      flow.begin.trackId,
+      flow.begin.depth,
+      startX,
     );
-    ctx.stroke();
+    const end = getConnectionTarget(flow.end.trackId, flow.end.depth, endX);
 
-    // TODO (andrewbb): probably we should add a parameter 'MarkerType' to be
-    // able to choose what marker we want to draw _before_ the function call.
-    // e.g. triangle, circle, square?
-    if (begin.dir !== 'RIGHT' && begin.dir !== 'LEFT') {
-      // draw a circle if we the line has a vertical connection
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(begin.x, begin.y, 3, 0, 2 * Math.PI);
-      ctx.closePath();
-      ctx.fill();
+    if (start && end) {
+      drawArrow(ctx, start, end, intensity, hue, width);
+    }
+  };
+
+  const getConnectionTarget = (
+    trackId: number,
+    depth: number,
+    x: number,
+  ): Optional<VerticalEdgeOrPoint> => {
+    const track = trackIdToTrack.get(trackId);
+    if (!track) {
+      return undefined;
     }
 
-    if (end.dir !== 'RIGHT' && end.dir !== 'LEFT') {
-      // draw a circle if we the line has a vertical connection
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(end.x, end.y, CIRCLE_RADIUS, 0, 2 * Math.PI);
-      ctx.closePath();
-      ctx.fill();
-    } else if (hasArrowHead) {
-      this.drawArrowHead(end, ctx, color);
+    const trackPanel = trackPanelsByKey.get(track.uri);
+    if (trackPanel) {
+      const trackRect = trackPanel.rect;
+      const sliceRectRaw = trackPanel.panel.getSliceVerticalBounds?.(depth);
+      if (sliceRectRaw) {
+        const sliceRect = {
+          top: sliceRectRaw.top + trackRect.top,
+          bottom: sliceRectRaw.bottom + trackRect.top,
+        };
+        return {
+          kind: 'vertical_edge',
+          x,
+          y: (sliceRect.top + sliceRect.bottom) / 2,
+        };
+      } else {
+        // Slice bounds are not available for this track, so just put the target
+        // in the middle of the track
+        return {
+          kind: 'vertical_edge',
+          x,
+          y: (trackRect.top + trackRect.bottom) / 2,
+        };
+      }
+    } else {
+      // If we didn't find a track, it might inside a group, so check for the group
+      const group = track.closestVisibleAncestor;
+      const groupPanel = group && groupPanelsByKey.get(group.uri);
+      if (groupPanel) {
+        return {
+          kind: 'point',
+          x,
+          y: groupPanel.rect.bottom - TRACK_GROUP_CONNECTION_OFFSET,
+        };
+      }
     }
+
+    return undefined;
+  };
+
+  // Render the connected flows
+  globals.connectedFlows.forEach((flow) => {
+    drawFlow(flow, CONNECTED_FLOW_HUE);
+  });
+
+  // Render the selected flows
+  globals.selectedFlows.forEach((flow) => {
+    const categories = getFlowCategories(flow);
+    for (const cat of categories) {
+      if (
+        globals.visibleFlowCategories.get(cat) ||
+        globals.visibleFlowCategories.get(ALL_CATEGORIES)
+      ) {
+        drawFlow(flow, SELECTED_FLOW_HUE);
+        break;
+      }
+    }
+  });
+}
+
+function drawArrow(
+  ctx: CanvasRenderingContext2D,
+  start: VerticalEdgeOrPoint,
+  end: VerticalEdgeOrPoint,
+  intensity: number,
+  hue: number,
+  width: number,
+): void {
+  ctx.strokeStyle = `hsl(${hue}, 50%, ${intensity}%)`;
+  ctx.fillStyle = `hsl(${hue}, 50%, ${intensity}%)`;
+  ctx.lineWidth = width;
+
+  // TODO(stevegolton): Consider vertical distance too
+  const roomForArrowHead = Math.abs(start.x - end.x) > 3 * TRIANGLE_SIZE;
+
+  let startStyle: ArrowHeadStyle;
+  if (start.kind === 'vertical_edge') {
+    startStyle = {
+      orientation: 'east',
+      shape: 'none',
+    };
+  } else {
+    startStyle = {
+      orientation: 'auto_vertical',
+      shape: 'circle',
+      size: CIRCLE_RADIUS,
+    };
   }
 
-  private drawArrowHead(
-    end: {x: number; y: number; dir: LineDirection},
-    ctx: CanvasRenderingContext2D,
-    color: string,
-  ) {
-    const dx = this.getDeltaX(end.dir, TRIANGLE_SIZE);
-    const dy = this.getDeltaY(end.dir, TRIANGLE_SIZE);
-    // draw small triangle
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(end.x, end.y);
-    ctx.lineTo(end.x - dx - dy, end.y + dx - dy);
-    ctx.lineTo(end.x - dx + dy, end.y - dx - dy);
-    ctx.closePath();
-    ctx.fill();
+  let endStyle: ArrowHeadStyle;
+  if (end.kind === 'vertical_edge') {
+    endStyle = {
+      orientation: 'west',
+      shape: roomForArrowHead ? 'triangle' : 'none',
+      size: TRIANGLE_SIZE,
+    };
+  } else {
+    endStyle = {
+      orientation: 'auto_vertical',
+      shape: 'circle',
+      size: CIRCLE_RADIUS,
+    };
   }
+
+  drawBezierArrow(ctx, start, end, BEZIER_OFFSET, startStyle, endStyle);
 }

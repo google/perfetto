@@ -19,7 +19,7 @@ import {
 } from '../../frontend/debug_tracks/debug_tracks';
 import {
   BottomTabToSCSAdapter,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -28,7 +28,7 @@ import {DebugSliceDetailsTab} from '../../frontend/debug_tracks/details_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {Optional, exists} from '../../base/utils';
 
-class DebugTracksPlugin implements Plugin {
+class DebugTracksPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'perfetto.DebugTracks#addDebugSliceTrack',

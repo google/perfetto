@@ -22,22 +22,24 @@
 #include <vector>
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/interval_tree.h"
+#include "src/trace_processor/containers/interval_intersector.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 
-using PartitionToIntervalsMap =
-    base::FlatHashMap<uint64_t,
-                      std::vector<IntervalTree::Interval>,
-                      base::AlreadyHashed<uint64_t>>;
+struct Partition {
+  std::vector<Interval> intervals;
+  std::vector<SqlValue> sql_values;
+  bool is_nonoverlapping = true;
 
-using PartitionToValuesMap = base::
-    FlatHashMap<uint64_t, std::vector<SqlValue>, base::AlreadyHashed<uint64_t>>;
+  uint64_t last_interval = 0;
+};
+
+using Partitions =
+    base::FlatHashMap<uint64_t, Partition, base::AlreadyHashed<uint64_t>>;
 
 struct PartitionedTable {
   static constexpr char kName[] = "INTERVAL_TREE_PARTITIONS";
-  PartitionToIntervalsMap intervals;
-  PartitionToValuesMap partition_values;
+  Partitions partitions_map;
 
   std::vector<std::string> partition_column_names;
 };

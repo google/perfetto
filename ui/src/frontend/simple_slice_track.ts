@@ -40,11 +40,11 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack {
   ) {
     super({
       engine,
-      trackKey: ctx.trackKey,
+      uri: ctx.trackUri,
     });
 
     this.config = config;
-    this.sqlTableName = `__simple_slice_${uuidv4Sql(ctx.trackKey)}`;
+    this.sqlTableName = `__simple_slice_${uuidv4Sql(ctx.trackUri)}`;
   }
 
   async getSqlDataSource(): Promise<CustomSqlTableDefConfig> {

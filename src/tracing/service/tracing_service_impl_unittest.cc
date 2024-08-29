@@ -35,6 +35,7 @@
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -89,6 +90,7 @@ using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::DoAll;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::ExplainMatchResult;
@@ -102,6 +104,7 @@ using ::testing::Ne;
 using ::testing::Not;
 using ::testing::Pointee;
 using ::testing::Property;
+using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::StrictMock;
 using ::testing::StringMatchResultListener;
@@ -1108,13 +1111,6 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerTimeout) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
-  std::unique_ptr<MockProducer> producer = CreateMockProducer();
-  producer->Connect(svc.get(), "mock_producer");
-
-  // Create two data sources but enable only one of them.
-  producer->RegisterDataSource("ds_1");
-  producer->RegisterDataSource("ds_2");
-
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
   trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
@@ -1122,29 +1118,19 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerTimeout) {
   trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
   auto* trigger = trigger_config->add_triggers();
   trigger->set_name("trigger_name");
-  trigger->set_stop_delay_ms(8.64e+7);
 
   trigger_config->set_trigger_timeout_ms(1);
 
-  // Make sure we don't get unexpected DataSourceStart() notifications yet.
-  EXPECT_CALL(*producer, StartDataSource(_, _)).Times(0);
-
   consumer->EnableTracing(trace_config);
-  producer->WaitForTracingSetup();
 
-  producer->WaitForDataSourceSetup("ds_1");
-  producer->WaitForDataSourceStart("ds_1");
-
-  // The trace won't return data until unless we send a trigger at this point.
+  // The trace won't return data because there has been no trigger
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
-
-  auto writer = producer->CreateTraceWriter("ds_1");
-  producer->ExpectFlush(writer.get());
 
   ASSERT_EQ(0u, tracing_session()->received_triggers.size());
 
-  producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
+
+  // The trace won't return data because there has been no trigger
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
 }
 
@@ -2528,6 +2514,14 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
     tp->set_for_testing()->set_str("payload");
   }
 
+  FlushRequestID third_flush_id;
+  auto checkpoint = task_runner.CreateCheckpoint("all_flushes_received");
+  EXPECT_CALL(*producer, Flush)
+      .WillOnce(Return())
+      .WillOnce(Return())
+      .WillOnce(SaveArg<0>(&third_flush_id))
+      .WillOnce(InvokeWithoutArgs([checkpoint] { checkpoint(); }));
+
   auto flush_req_1 = consumer->Flush();
   auto flush_req_2 = consumer->Flush();
   auto flush_req_3 = consumer->Flush();
@@ -2535,14 +2529,13 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
   // We'll deliberately let the 4th flush request timeout. Use a lower timeout
   // to keep test time short.
   auto flush_req_4 = consumer->Flush(/*timeout_ms=*/10);
+
+  task_runner.RunUntilCheckpoint("all_flushes_received");
   ASSERT_EQ(4u, GetNumPendingFlushes());
 
-  // Make the producer reply only to the 3rd flush request.
-  InSequence seq;
-  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 1.
-  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 2.
-  producer->ExpectFlush(writer.get());              // Reply only to flush 3.
-  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 4.
+  writer->Flush();
+  // Reply only to flush 3. Do not reply to 1,2 and 4.
+  producer->endpoint()->NotifyFlushComplete(third_flush_id);
 
   // Even if the producer explicily replied only to flush ID == 3, all the
   // previous flushed < 3 should be implicitly acked.
@@ -2762,14 +2755,14 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
 
   consumer->EnableTracing(trace_config);
 
+  producer->WaitForTracingSetup();
+
   EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
             DataSourceInstanceState::CONFIGURED);
   EXPECT_EQ(GetDataSourceInstanceState("ds_wont_ack"),
             DataSourceInstanceState::CONFIGURED);
   EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_2"),
             DataSourceInstanceState::CONFIGURED);
-
-  producer->WaitForTracingSetup();
 
   producer->WaitForDataSourceSetup("ds_will_ack_1");
   producer->WaitForDataSourceSetup("ds_wont_ack");
@@ -2780,16 +2773,16 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
 
   consumer->StartTracing();
 
+  producer->WaitForDataSourceStart("ds_will_ack_1");
+  producer->WaitForDataSourceStart("ds_wont_ack");
+  producer->WaitForDataSourceStart("ds_will_ack_2");
+
   EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_1"),
             DataSourceInstanceState::STARTING);
   EXPECT_EQ(GetDataSourceInstanceState("ds_wont_ack"),
             DataSourceInstanceState::STARTED);
   EXPECT_EQ(GetDataSourceInstanceState("ds_will_ack_2"),
             DataSourceInstanceState::STARTED);
-
-  producer->WaitForDataSourceStart("ds_will_ack_1");
-  producer->WaitForDataSourceStart("ds_wont_ack");
-  producer->WaitForDataSourceStart("ds_will_ack_2");
 
   producer->endpoint()->NotifyDataSourceStarted(id1);
 
@@ -3202,14 +3195,6 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   ds_config23->set_target_buffer(2);  // same buffer as data_source2.2.
   consumer->EnableTracing(trace_config);
 
-  ASSERT_EQ(3u, tracing_session()->num_buffers());
-  std::set<BufferID> expected_buffers_producer1 = {
-      tracing_session()->buffers_index[0]};
-  std::set<BufferID> expected_buffers_producer2 = {
-      tracing_session()->buffers_index[1], tracing_session()->buffers_index[2]};
-  EXPECT_EQ(expected_buffers_producer1, GetAllowedTargetBuffers(producer1_id));
-  EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
-
   producer1->WaitForTracingSetup();
   producer1->WaitForDataSourceSetup("data_source1");
 
@@ -3217,6 +3202,14 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   producer2->WaitForDataSourceSetup("data_source2.1");
   producer2->WaitForDataSourceSetup("data_source2.2");
   producer2->WaitForDataSourceSetup("data_source2.3");
+
+  ASSERT_EQ(3u, tracing_session()->num_buffers());
+  std::set<BufferID> expected_buffers_producer1 = {
+      tracing_session()->buffers_index[0]};
+  std::set<BufferID> expected_buffers_producer2 = {
+      tracing_session()->buffers_index[1], tracing_session()->buffers_index[2]};
+  EXPECT_EQ(expected_buffers_producer1, GetAllowedTargetBuffers(producer1_id));
+  EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
 
   producer1->WaitForDataSourceStart("data_source1");
   producer2->WaitForDataSourceStart("data_source2.1");
@@ -3237,6 +3230,7 @@ TEST_F(TracingServiceImplTest, AllowedBuffers) {
   consumer->WaitForTracingDisabled();
 
   consumer->FreeBuffers();
+  task_runner.RunUntilIdle();
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer1_id));
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer2_id));
 }
@@ -3990,69 +3984,76 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   producer->WaitForDataSourceStart("data_source");
 
   // Calling ObserveEvents should cause an event for the initial instance state.
-  consumer->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
-  {
-    auto events = consumer->WaitForObservableEvents();
+  auto on_observable_events =
+      task_runner.CreateCheckpoint("on_observable_events");
+  EXPECT_CALL(*consumer, OnObservableEvents)
+      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+        ObservableEvents::DataSourceInstanceStateChange change;
+        change.set_producer_name("mock_producer");
+        change.set_data_source_name("data_source");
+        change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
+        EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
+        on_observable_events();
+      }));
 
-    ObservableEvents::DataSourceInstanceStateChange change;
-    change.set_producer_name("mock_producer");
-    change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
-    EXPECT_EQ(events.instance_state_changes_size(), 1);
-    EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
-  }
+  consumer->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
+
+  task_runner.RunUntilCheckpoint("on_observable_events");
 
   // Disabling should cause an instance state change to STOPPED.
+  on_observable_events = task_runner.CreateCheckpoint("on_observable_events_2");
+  EXPECT_CALL(*consumer, OnObservableEvents)
+      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+        ObservableEvents::DataSourceInstanceStateChange change;
+        change.set_producer_name("mock_producer");
+        change.set_data_source_name("data_source");
+        change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
+        EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
+        on_observable_events();
+      }));
   consumer->DisableTracing();
 
-  {
-    auto events = consumer->WaitForObservableEvents();
-
-    ObservableEvents::DataSourceInstanceStateChange change;
-    change.set_producer_name("mock_producer");
-    change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
-    EXPECT_EQ(events.instance_state_changes_size(), 1);
-    EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
-  }
-
   producer->WaitForDataSourceStop("data_source");
+
   consumer->WaitForTracingDisabled();
+  task_runner.RunUntilCheckpoint("on_observable_events_2");
+
   consumer->FreeBuffers();
 
   // Enable again, this should cause a state change for a new instance to
   // its initial state STOPPED.
+  on_observable_events = task_runner.CreateCheckpoint("on_observable_events_3");
+  EXPECT_CALL(*consumer, OnObservableEvents)
+      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+        ObservableEvents::DataSourceInstanceStateChange change;
+        change.set_producer_name("mock_producer");
+        change.set_data_source_name("data_source");
+        change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
+        EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
+        on_observable_events();
+      }));
+
   trace_config.set_deferred_start(true);
   consumer->EnableTracing(trace_config);
 
-  {
-    auto events = consumer->WaitForObservableEvents();
-
-    ObservableEvents::DataSourceInstanceStateChange change;
-    change.set_producer_name("mock_producer");
-    change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
-    EXPECT_EQ(events.instance_state_changes_size(), 1);
-    EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
-  }
-
   producer->WaitForDataSourceSetup("data_source");
+  task_runner.RunUntilCheckpoint("on_observable_events_3");
 
   // Should move the instance into STARTED state and thus cause an event.
+  on_observable_events = task_runner.CreateCheckpoint("on_observable_events_4");
+  EXPECT_CALL(*consumer, OnObservableEvents)
+      .WillOnce(Invoke([on_observable_events](const ObservableEvents& events) {
+        ObservableEvents::DataSourceInstanceStateChange change;
+        change.set_producer_name("mock_producer");
+        change.set_data_source_name("data_source");
+        change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
+        EXPECT_THAT(events.instance_state_changes(), ElementsAre(change));
+        on_observable_events();
+      }));
   consumer->StartTracing();
 
-  {
-    auto events = consumer->WaitForObservableEvents();
-
-    ObservableEvents::DataSourceInstanceStateChange change;
-    change.set_producer_name("mock_producer");
-    change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
-    EXPECT_EQ(events.instance_state_changes_size(), 1);
-    EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
-  }
-
   producer->WaitForDataSourceStart("data_source");
+  task_runner.RunUntilCheckpoint("on_observable_events_4");
 
   // Stop observing events.
   consumer->ObserveEvents(0);
@@ -6034,6 +6035,48 @@ TEST_F(TracingServiceImplTest, DetachAttach) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   Eq("payload-2")))));
+}
+
+TEST_F(TracingServiceImplTest, DetachDurationTimeoutFreeBuffers) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  trace_config.set_duration_ms(1);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(100000);
+  auto pipe_pair = base::Pipe::Create();
+  consumer->EnableTracing(trace_config, std::move(pipe_pair.wr));
+
+  std::string on_detach_name = "on_detach";
+  auto on_detach = task_runner.CreateCheckpoint(on_detach_name);
+  EXPECT_CALL(*consumer, OnDetach(Eq(true))).WillOnce(Invoke(on_detach));
+
+  consumer->Detach("mykey");
+
+  task_runner.RunUntilCheckpoint(on_detach_name);
+
+  std::string file_closed_name = "file_closed";
+  auto file_closed = task_runner.CreateCheckpoint(file_closed_name);
+  task_runner.AddFileDescriptorWatch(*pipe_pair.rd, [&] {
+    char buf[1024];
+    if (base::Read(*pipe_pair.rd, buf, sizeof(buf)) <= 0) {
+      file_closed();
+    }
+  });
+  task_runner.RunUntilCheckpoint(file_closed_name);
+
+  // Disabled and detached tracing sessions are automatically deleted:
+  // reattaching fails.
+  std::string on_attach_name = "on_attach";
+  auto on_attach = task_runner.CreateCheckpoint(on_attach_name);
+  EXPECT_CALL(*consumer, OnAttach(Eq(false), _))
+      .WillOnce(InvokeWithoutArgs(on_attach));
+  consumer->Attach("mykey");
+  task_runner.RunUntilCheckpoint(on_attach_name);
 }
 
 }  // namespace perfetto

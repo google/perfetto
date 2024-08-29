@@ -16,16 +16,31 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
 
-#include "perfetto/base/compiler.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <functional>
+#include <optional>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/string_writer.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/gfp_flags.h"
 #include "src/trace_processor/types/softirq_action.h"
 #include "src/trace_processor/types/task_state.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
@@ -43,9 +58,9 @@
 #include "protos/perfetto/trace/ftrace/samsung.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
+#include "src/trace_processor/types/version_number.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -56,6 +71,12 @@ struct FtraceTime {
   const int64_t secs;
   const int64_t micros;
 };
+
+Query GetArgQuery(const tables::ArgTable& table, uint32_t arg_set_id) {
+  Query q;
+  q.constraints = {table.arg_set_id().eq(arg_set_id)};
+  return q;
+}
 
 class ArgsSerializer {
  public:
@@ -72,7 +93,7 @@ class ArgsSerializer {
   using SerializerValueWriter = void (ArgsSerializer::*)(const Variadic&);
 
   // Arg writing functions.
-  void WriteArgForField(uint32_t field_id, ValueWriter writer) {
+  void WriteArgForField(uint32_t field_id, const ValueWriter& writer) {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
@@ -80,21 +101,23 @@ class ArgsSerializer {
   }
   void WriteArgForField(uint32_t field_id,
                         base::StringView key,
-                        ValueWriter writer) {
+                        const ValueWriter& writer) {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
     WriteArg(key, storage_->GetArgValue(*row), writer);
   }
-  void WriteArgAtRow(uint32_t arg_row, ValueWriter writer) {
+  void WriteArgAtRow(uint32_t arg_row, const ValueWriter& writer) {
     const auto& args = storage_->arg_table();
     const auto& key = storage_->GetString(args.key()[arg_row]);
     WriteArg(key, storage_->GetArgValue(arg_row), writer);
   }
-  void WriteArg(base::StringView key, Variadic value, ValueWriter writer);
+  void WriteArg(base::StringView key,
+                Variadic value,
+                const ValueWriter& writer);
 
   // Value writing functions.
-  void WriteValueForField(uint32_t field_id, ValueWriter writer) {
+  void WriteValueForField(uint32_t field_id, const ValueWriter& writer) {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
@@ -109,7 +132,7 @@ class ArgsSerializer {
       PERFETTO_DFATAL("Invalid field type %d", static_cast<int>(value.type));
     }
   }
-  void WriteValue(const Variadic& variadic);
+  void WriteValue(const Variadic&);
 
   // The default value writer which uses the |WriteValue| function.
   ValueWriter DVW() { return Wrap(&ArgsSerializer::WriteValue); }
@@ -130,11 +153,10 @@ class ArgsSerializer {
 
   const TraceStorage* storage_ = nullptr;
   TraceProcessorContext* context_ = nullptr;
-  ArgSetId arg_set_id_ = kInvalidArgSetId;
   NullTermStringView event_name_;
   std::vector<std::optional<uint32_t>>* field_id_to_arg_index_;
 
-  RowMap row_map_;
+  tables::ArgTable::ConstIterator it_;
   uint32_t start_row_ = 0;
 
   base::StringWriter* writer_ = nullptr;
@@ -146,21 +168,16 @@ ArgsSerializer::ArgsSerializer(
     NullTermStringView event_name,
     std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
     base::StringWriter* writer)
-    : context_(context),
-      arg_set_id_(arg_set_id),
+    : storage_(context->storage.get()),
+      context_(context),
       event_name_(event_name),
       field_id_to_arg_index_(field_id_to_arg_index),
+      it_(context->storage->arg_table().FilterToIterator(
+          GetArgQuery(context->storage->arg_table(), arg_set_id))),
       writer_(writer) {
-  storage_ = context_->storage.get();
-  const auto& args = storage_->arg_table();
-  const auto& set_ids = args.arg_set_id();
-
   // We assume that the row map is a contiguous range (which is always the case
   // because arg_set_ids are contiguous by definition).
-  Query q;
-  q.constraints = {set_ids.eq(arg_set_id_)};
-  row_map_ = args.QueryToRowMap(q);
-  start_row_ = row_map_.empty() ? 0 : row_map_.Get(0);
+  start_row_ = it_ ? it_.row_number().row_number() : 0;
 
   // If the vector already has entries, we've previously cached the mapping
   // from field id to arg index.
@@ -185,11 +202,13 @@ ArgsSerializer::ArgsSerializer(
   field_id_to_arg_index_->resize(max + 1);
 
   // Go through each field id and find the entry in the args table for that
-  for (uint32_t i = 1; i <= max; ++i) {
-    for (auto it = row_map_.IterateRows(); it; it.Next()) {
-      base::StringView key = args.key().GetString(it.index());
+  auto it = storage_->arg_table().FilterToIterator(
+      GetArgQuery(context->storage->arg_table(), arg_set_id));
+  for (uint32_t r = 0; it; ++it, ++r) {
+    for (uint32_t i = 1; i <= max; ++i) {
+      base::StringView key = context->storage->GetString(it.key());
       if (key == descriptor->fields[i].name) {
-        (*field_id_to_arg_index)[i] = it.row();
+        (*field_id_to_arg_index)[i] = r;
         break;
       }
     }
@@ -197,7 +216,7 @@ ArgsSerializer::ArgsSerializer(
 }
 
 void ArgsSerializer::SerializeArgs() {
-  if (row_map_.empty())
+  if (!it_)
     return;
 
   if (event_name_ == "sched_switch") {
@@ -513,14 +532,14 @@ void ArgsSerializer::SerializeArgs() {
     WriteArgForField(CAT::kCommFieldNumber, DVW());
     return;
   }
-  for (auto it = row_map_.IterateRows(); it; it.Next()) {
-    WriteArgAtRow(it.index(), DVW());
+  for (; it_; ++it_) {
+    WriteArgAtRow(it_.row_number().row_number(), DVW());
   }
 }
 
 void ArgsSerializer::WriteArg(base::StringView key,
                               Variadic value,
-                              ValueWriter writer) {
+                              const ValueWriter& writer) {
   writer_->AppendChar(' ');
   writer_->AppendString(key.data(), key.size());
   writer_->AppendChar('=');
@@ -574,7 +593,7 @@ base::Status ToFtrace::Run(Context* context,
                            sqlite3_value** argv,
                            SqlValue& out,
                            Destructors& destructors) {
-  if (argc != 1 || sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
+  if (argc != 1 || sqlite::value::Type(argv[0]) != sqlite::Type::kInteger) {
     return base::ErrStatus("Usage: to_ftrace(id)");
   }
   uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
@@ -624,7 +643,7 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
                             &writer);
   serializer.SerializeArgs();
 
-  return ScopedCString(writer.CreateStringCopy(), free);
+  return {writer.CreateStringCopy(), free};
 }
 
 void SystraceSerializer::SerializePrefix(uint32_t raw_row,
@@ -686,5 +705,4 @@ void SystraceSerializer::SerializePrefix(uint32_t raw_row,
   writer->AppendChar(':');
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

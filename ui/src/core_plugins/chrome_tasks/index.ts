@@ -14,13 +14,13 @@
 
 import {uuidv4} from '../../base/uuid';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {addSqlTableTab} from '../../frontend/sql_table_tab';
-import {asUtid} from '../../frontend/sql_types';
+import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
+import {asUtid} from '../../trace_processor/sql_utils/core_types';
 import {
   BottomTabToSCSAdapter,
   NUM,
   NUM_NULL,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
   STR_NULL,
@@ -30,7 +30,7 @@ import {ChromeTasksDetailsTab} from './details';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 
-class ChromeTasksPlugin implements Plugin {
+class ChromeTasksPlugin implements PerfettoPlugin {
   onActivate() {}
 
   async onTraceLoad(ctx: PluginContextTrace) {
@@ -102,11 +102,10 @@ class ChromeTasksPlugin implements Plugin {
     for (; it.valid(); it.next()) {
       const utid = it.utid;
       const uri = `org.chromium.ChromeTasks#thread.${utid}`;
-      ctx.registerStaticTrack({
+      ctx.registerTrackAndShowOnTraceLoad({
         uri,
-        trackFactory: ({trackKey}) =>
-          new ChromeTasksThreadTrack(ctx.engine, trackKey, asUtid(utid)),
-        groupName: `Chrome Tasks`,
+        track: new ChromeTasksThreadTrack(ctx.engine, uri, asUtid(utid)),
+        tags: {groupName: `Chrome Tasks`},
         title: `${it.threadName} ${it.tid}`,
       });
     }

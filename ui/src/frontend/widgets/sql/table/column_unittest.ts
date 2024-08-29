@@ -1,4 +1,4 @@
-// Copyright (C) 2022 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,84 +12,127 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  argColumn,
-  Column,
-  columnFromSqlTableColumn,
-  formatSqlProjection,
-  sqlProjectionsForColumn,
-} from './column';
-import {
-  ArgSetIdColumn,
-  SqlTableColumn,
-  SqlTableDescription,
-} from './table_description';
+import {sqlColumnId} from './column';
+import {argSqlColumn} from './well_known_columns';
 
-const table: SqlTableDescription = {
-  name: 'table',
-  displayName: 'Table',
-  columns: [
-    {
-      name: 'id',
-    },
-    {
-      name: 'name',
-      title: 'Name',
-    },
-    {
-      name: 'ts',
-      display: {
-        type: 'timestamp',
-      },
-    },
-    {
-      name: 'arg_set_id',
-      type: 'arg_set_id',
-      title: 'Arg',
-    },
-  ],
-};
-
-test('fromSqlTableColumn', () => {
-  expect(columnFromSqlTableColumn(table.columns[0])).toEqual({
-    expression: 'id',
-    alias: 'id',
-    title: 'id',
-  });
-
-  expect(columnFromSqlTableColumn(table.columns[1])).toEqual({
-    expression: 'name',
-    alias: 'name',
-    title: 'Name',
-  });
-
-  expect(columnFromSqlTableColumn(table.columns[2])).toEqual({
-    expression: 'ts',
-    alias: 'ts',
-    title: 'ts',
-    display: {
-      type: 'timestamp',
-    },
-  });
-
-  expect(
-    argColumn('slice', table.columns[3] as ArgSetIdColumn, 'foo.bar'),
-  ).toEqual({
-    expression: "extract_arg(slice.arg_set_id, 'foo.bar')",
-    alias: '_arg_arg_set_id_foo_bar',
-    title: 'Arg foo.bar',
-  });
+test('sql_column_id.basic', () => {
+  // Straightforward case: just a column selection.
+  expect(sqlColumnId('utid')).toBe('utid');
 });
 
-function formatSqlProjectionsForColumn(c: Column): string {
-  return sqlProjectionsForColumn(c).map(formatSqlProjection).join(', ');
-}
+test('sql_column_id.single_join', () => {
+  expect(
+    sqlColumnId({
+      column: 'bar',
+      source: {
+        table: 'foo',
+        joinOn: {
+          foo_id: 'id',
+        },
+      },
+    }),
+  ).toBe('foo[foo_id=id].bar');
+});
 
-test('sqlProjections', () => {
-  const format = (c: SqlTableColumn) =>
-    formatSqlProjectionsForColumn(columnFromSqlTableColumn(c));
+test('sql_column_id.double_join', () => {
+  expect(
+    sqlColumnId({
+      column: 'abc',
+      source: {
+        table: 'alphabet',
+        joinOn: {
+          abc_id: {
+            column: 'bar',
+            source: {
+              table: 'foo',
+              joinOn: {
+                foo_id: 'id',
+              },
+            },
+          },
+        },
+      },
+    }),
+  ).toBe('alphabet[abc_id=foo[foo_id=id].bar].abc');
+});
 
-  expect(format(table.columns[0])).toEqual('id as id');
-  expect(format(table.columns[1])).toEqual('name as name');
-  expect(format(table.columns[2])).toEqual('ts as ts');
+test('sql_column_id.join_on_id', () => {
+  // Special case: joins on `id` should be simplified.
+  expect(
+    sqlColumnId({
+      column: 'name',
+      source: {
+        table: 'foo',
+        joinOn: {
+          id: 'foo_id',
+        },
+      },
+    }),
+  ).toBe('foo[foo_id].name');
+});
+
+test('sql_column_id.nested_join_on_id', () => {
+  // Special case: joins on `id` should be simplified in nested joins.
+  expect(
+    sqlColumnId({
+      column: 'name',
+      source: {
+        table: 'foo',
+        joinOn: {
+          id: {
+            column: 'foo_id',
+            source: {
+              table: 'bar',
+              joinOn: {
+                x: 'y',
+              },
+            },
+          },
+        },
+      },
+    }),
+  ).toBe('foo[bar[x=y].foo_id].name');
+});
+
+test('sql_column_id.simplied_join', () => {
+  // Special case: if both sides of the join are the same, only one can be shown.
+  expect(
+    sqlColumnId({
+      column: 'name',
+      source: {
+        table: 'foo',
+        joinOn: {
+          x: 'y',
+          z: 'z',
+        },
+      },
+    }),
+  ).toBe('foo[x=y, z].name');
+});
+
+test('sql_column_id.arg_set_id', () => {
+  // Special case: arg_set_id.
+  expect(sqlColumnId(argSqlColumn('arg_set_id', 'arg1'))).toBe(
+    "arg_set_id['arg1']",
+  );
+});
+
+test('sql_column_id.arg_set_id_with_join', () => {
+  // Special case: arg_set_id.
+  expect(
+    sqlColumnId(
+      argSqlColumn(
+        {
+          column: 'arg_set_id',
+          source: {
+            table: 'foo',
+            joinOn: {
+              x: 'y',
+            },
+          },
+        },
+        'arg1',
+      ),
+    ),
+  ).toBe("foo[x=y].arg_set_id['arg1']");
 });

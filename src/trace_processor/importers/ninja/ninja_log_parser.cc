@@ -16,23 +16,31 @@
 
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 
+#include <stdio.h>
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using base::StringSplitter;
 
 NinjaLogParser::NinjaLogParser(TraceProcessorContext* ctx) : ctx_(ctx) {}
 NinjaLogParser::~NinjaLogParser() = default;
 
-util::Status NinjaLogParser::Parse(TraceBlobView blob) {
+base::Status NinjaLogParser::Parse(TraceBlobView blob) {
   // A trace is read in chunks of arbitrary size (for http fetch() pipeliniing),
   // not necessarily aligned on a line boundary.
   // Here we push everything into a vector and, on each call, consume only
@@ -49,11 +57,11 @@ util::Status NinjaLogParser::Parse(TraceBlobView blob) {
     static const char kHeader[] = "# ninja log v";
     if (!header_parsed_) {
       if (!base::StartsWith(line.cur_token(), kHeader))
-        return util::ErrStatus("Failed to parse ninja log header");
+        return base::ErrStatus("Failed to parse ninja log header");
       header_parsed_ = true;
       auto version = base::CStringToUInt32(line.cur_token() + strlen(kHeader));
       if (!version || *version != 5)
-        return util::ErrStatus("Unsupported ninja log version");
+        return base::ErrStatus("Unsupported ninja log version");
       continue;
     }
 
@@ -107,12 +115,12 @@ util::Status NinjaLogParser::Parse(TraceBlobView blob) {
     jobs_.emplace_back(*t_start, *t_end, *cmdhash, name);
   }
   log_.erase(log_.begin(), log_.begin() + static_cast<ssize_t>(valid_size));
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 // This is called after the last Parse() call. At this point all |jobs_| have
 // been populated.
-void NinjaLogParser::NotifyEndOfFile() {
+base::Status NinjaLogParser::NotifyEndOfFile() {
   std::sort(jobs_.begin(), jobs_.end(),
             [](const Job& x, const Job& y) { return x.start_ms < y.start_ms; });
 
@@ -168,14 +176,14 @@ void NinjaLogParser::NotifyEndOfFile() {
       worker = &workers.back();
     }
 
-    static constexpr int64_t kMsToNs = 1000 * 1000;
+    static constexpr int64_t kMsToNs = 1000ul * 1000;
     const int64_t start_ns = job.start_ms * kMsToNs;
     const int64_t dur_ns = (job.end_ms - job.start_ms) * kMsToNs;
     StringId name_id = ctx_->storage->InternString(base::StringView(job.names));
     ctx_->slice_tracker->Scoped(start_ns, worker->track_id, StringId::Null(),
                                 name_id, dur_ns);
   }
+  return base::OkStatus();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

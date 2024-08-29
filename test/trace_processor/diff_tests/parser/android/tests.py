@@ -106,11 +106,15 @@ class AndroidParser(TestSuite):
         }
         """),
         query="""
-        SELECT t.type, t.name, s.id, s.ts, s.dur, s.type, s.name
+        SELECT t.name, s.id, s.ts, s.dur, s.type, s.name
         FROM track t JOIN slice s ON s.track_id = t.id
         WHERE t.name = 'DeviceStateChanged';
         """,
-        out=Path('android_system_property_slice.out'))
+        out=Csv("""
+        "name","id","ts","dur","type","name"
+        "DeviceStateChanged",0,1000,0,"__intrinsic_slice","some_state_from_sysprops"
+        "DeviceStateChanged",1,3000,0,"__intrinsic_slice","some_state_from_atrace"
+        """))
 
   def test_binder_txn_sync_good(self):
     return DiffTestBlueprint(

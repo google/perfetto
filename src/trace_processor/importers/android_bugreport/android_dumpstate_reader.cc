@@ -16,7 +16,15 @@
 
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <utility>
+#include <vector>
+
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -26,12 +34,11 @@ AndroidDumpstateReader::AndroidDumpstateReader(
     TraceProcessorContext* context,
     int32_t year,
     std::vector<TimestampedAndroidLogEvent> logcat_events)
-    : context_(context),
-      log_reader_(context, std::move(year), std::move(logcat_events)) {}
+    : context_(context), log_reader_(context, year, std::move(logcat_events)) {}
 
 AndroidDumpstateReader::~AndroidDumpstateReader() = default;
 
-util::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
+base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
   // Dumpstate is organized in a two level hierarchy, beautifully flattened into
   // one text file with load bearing ----- markers:
   // 1. Various dumpstate sections, examples:

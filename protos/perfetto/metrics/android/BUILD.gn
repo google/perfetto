@@ -21,6 +21,7 @@ perfetto_proto_library("@TYPE@") {
   ]
   sources = [
     "ad_services_metric.proto",
+    "android_anomaly_metric.proto",
     "android_blocking_call.proto",
     "android_blocking_calls_cuj_metric.proto",
     "android_blocking_calls_unagg.proto",
@@ -81,6 +82,7 @@ perfetto_proto_library("@TYPE@") {
     "thread_time_in_state_metric.proto",
     "trace_quality.proto",
     "unsymbolized_frames.proto",
-    "wattson_app_startup.proto",
+    "wattson_in_time_period.proto",
+    "wattson_tasks_attribution.proto",
   ]
 }

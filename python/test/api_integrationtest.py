@@ -15,6 +15,7 @@
 
 import io
 import os
+import tempfile
 import unittest
 from typing import Optional
 
@@ -143,7 +144,7 @@ class TestApi(unittest.TestCase):
     ]
 
     for num, row in enumerate(qr_iterator):
-      self.assertEqual(row.type, 'internal_slice')
+      self.assertEqual(row.type, '__intrinsic_slice')
       self.assertEqual(row.dur, dur_result[num])
 
     # Test the batching logic by issuing a large query and ensuring we receive
@@ -280,3 +281,18 @@ class TestApi(unittest.TestCase):
     with self.assertRaisesRegex(
         TraceProcessorException, expected_regex='.*source.*generator.*'):
       _ = btp.query('select * from sl')
+
+  def test_extra_flags(self):
+    with tempfile.TemporaryDirectory() as temp_dir:
+      test_module_dir = os.path.join(temp_dir, 'ext')
+      os.makedirs(test_module_dir)
+      test_module = os.path.join(test_module_dir, 'module.sql')
+      with open(test_module, 'w') as f:
+        f.write('CREATE TABLE test_table AS SELECT 123 AS test_value\n')
+      config = TraceProcessorConfig(
+          bin_path=os.environ["SHELL_PATH"],
+          extra_flags=['--add-sql-module', test_module_dir])
+      with TraceProcessor(trace=io.BytesIO(b''), config=config) as tp:
+        qr_iterator = tp.query(
+            'SELECT IMPORT("ext.module"); SELECT test_value FROM test_table')
+        self.assertEqual(next(qr_iterator).test_value, 123)

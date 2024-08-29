@@ -168,6 +168,18 @@ export class HighPrecisionTimeSpan {
   }
 
   /**
+   * Clamp duration to some minimum value. The start remains the same, just the
+   * duration is changed.
+   */
+  clampDuration(minDuration: number): HighPrecisionTimeSpan {
+    if (this.duration < minDuration) {
+      return new HighPrecisionTimeSpan(this.start, minDuration);
+    } else {
+      return this;
+    }
+  }
+
+  /**
    * Checks whether this span completely contains a time instant.
    */
   contains(t: time): boolean {

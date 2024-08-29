@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cd $PROJECT_ROOT/src/bigtrace
+set -e
+
+cd src/bigtrace
 
 minikube start
 eval $(minikube docker-env)

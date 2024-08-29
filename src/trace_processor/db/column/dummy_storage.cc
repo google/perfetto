@@ -71,16 +71,7 @@ std::optional<Token> DummyStorage::ChainImpl::MinElement(Indices&) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-std::unique_ptr<DataLayer> DummyStorage::ChainImpl::Flatten(
-    std::vector<uint32_t>&) const {
-  PERFETTO_FATAL("Shouldn't be called");
-}
-
 SqlValue DummyStorage::ChainImpl::Get_AvoidUsingBecauseSlow(uint32_t) const {
-  PERFETTO_FATAL("Shouldn't be called");
-}
-
-void DummyStorage::ChainImpl::Serialize(StorageProto*) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 

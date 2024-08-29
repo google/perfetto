@@ -13,22 +13,15 @@
 // limitations under the License.
 
 import {NewTrackArgs} from '../../frontend/track';
-import {PrimaryTrackSortKey} from '../../public';
+import {CHROME_TOPLEVEL_SCROLLS_KIND} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {
-  DecideTracksResult,
-  SCROLL_JANK_GROUP_ID,
-  ScrollJankPluginState,
-} from './common';
+import {ScrollJankPluginState} from './common';
 
 import {ScrollDetailsPanel} from './scroll_details_panel';
-
-export const CHROME_TOPLEVEL_SCROLLS_KIND =
-  'org.chromium.TopLevelScrolls.scrolls';
 
 export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {
   public static kind = CHROME_TOPLEVEL_SCROLLS_KIND;
@@ -55,7 +48,7 @@ export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {
 
     ScrollJankPluginState.getInstance().registerTrack({
       kind: TopLevelScrollTrack.kind,
-      trackKey: this.trackKey,
+      trackUri: this.uri,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });
@@ -67,19 +60,4 @@ export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {
       TopLevelScrollTrack.kind,
     );
   }
-}
-
-export async function addTopLevelScrollTrack(): Promise<DecideTracksResult> {
-  const result: DecideTracksResult = {
-    tracksToAdd: [],
-  };
-
-  result.tracksToAdd.push({
-    uri: 'perfetto.ChromeScrollJank#toplevelScrolls',
-    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    name: 'Chrome Scrolls',
-    trackGroup: SCROLL_JANK_GROUP_ID,
-  });
-
-  return result;
 }

@@ -32,9 +32,16 @@
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
+
+void ArrangementOverlay::Flatten(uint32_t* start,
+                                 const uint32_t* end,
+                                 uint32_t stride) {
+  for (uint32_t* it = start; it < end; it += stride) {
+    *it = (*arrangement_)[*it];
+  }
+}
 
 ArrangementOverlay::ChainImpl::ChainImpl(
     std::unique_ptr<DataLayerChain> inner,
@@ -205,25 +212,9 @@ std::optional<Token> ArrangementOverlay::ChainImpl::MinElement(
   return inner_->MinElement(indices);
 }
 
-std::unique_ptr<DataLayer> ArrangementOverlay::ChainImpl::Flatten(
-    std::vector<uint32_t>& indices) const {
-  for (auto& i : indices) {
-    i = (*arrangement_)[i];
-  }
-  return inner_->Flatten(indices);
-}
-
 SqlValue ArrangementOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
     uint32_t index) const {
   return inner_->Get_AvoidUsingBecauseSlow((*arrangement_)[index]);
-}
-
-void ArrangementOverlay::ChainImpl::Serialize(StorageProto* storage) const {
-  auto* arrangement_overlay = storage->set_arrangement_overlay();
-  arrangement_overlay->set_values(
-      reinterpret_cast<const uint8_t*>(arrangement_->data()),
-      sizeof(uint32_t) * arrangement_->size());
-  inner_->Serialize(arrangement_overlay->set_storage());
 }
 
 }  // namespace perfetto::trace_processor::column

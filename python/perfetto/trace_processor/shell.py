@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 import time
+from typing import List, Optional
 from urllib import request, error
 
 from perfetto.trace_processor.platform import PlatformDelegate
@@ -25,9 +26,13 @@ from perfetto.trace_processor.platform import PlatformDelegate
 TP_PORT = 9001
 
 
-def load_shell(bin_path: str, unique_port: bool, verbose: bool,
-               ingest_ftrace_in_raw: bool, enable_dev_features: bool,
-               platform_delegate: PlatformDelegate):
+def load_shell(bin_path: str,
+               unique_port: bool,
+               verbose: bool,
+               ingest_ftrace_in_raw: bool,
+               enable_dev_features: bool,
+               platform_delegate: PlatformDelegate,
+               extra_flags: Optional[List[str]] = None):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
   url = f'{addr}:{str(port)}'
@@ -44,6 +49,9 @@ def load_shell(bin_path: str, unique_port: bool, verbose: bool,
 
   if enable_dev_features:
     args.append('--dev')
+
+  if extra_flags:
+    args.extend(extra_flags)
 
   p = subprocess.Popen(
       tp_exec + args,

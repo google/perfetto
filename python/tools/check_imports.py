@@ -456,11 +456,12 @@ def write_dot(graph, f):
 
 
 def do_check(options, graph):
+  result = 0
   for rule in RULES:
     for failure in rule.check(graph):
       print(failure)
-      return 1
-  return 0
+      result = 1
+  return result
 
 
 def do_desc(options, graph):

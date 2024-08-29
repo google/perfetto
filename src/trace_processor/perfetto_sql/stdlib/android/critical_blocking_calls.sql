@@ -55,7 +55,7 @@ RETURNS BOOL AS SELECT
   );
 
 
---Extract all slice data on main thread for all processes.
+--Extract critical blocking calls from all processes.
 CREATE PERFETTO TABLE _android_critical_blocking_calls AS
 SELECT
   android_standardize_slice_name(s.name) AS name,
@@ -68,7 +68,7 @@ SELECT
 FROM thread_slice s JOIN
 thread USING (utid)
 WHERE
-  thread.is_main_thread AND _is_relevant_blocking_call(s.name, s.depth)
+  _is_relevant_blocking_call(s.name, s.depth)
 UNION ALL
 -- As binder names are not included in slice table, extract these directly from the
 -- android_binder_txns table.
@@ -81,4 +81,4 @@ SELECT
   tx.client_utid as utid,
   tx.client_upid as upid
 FROM android_binder_txns AS tx
-WHERE is_main_thread AND aidl_name IS NOT NULL AND is_sync = 1;
+WHERE aidl_name IS NOT NULL AND is_sync = 1;

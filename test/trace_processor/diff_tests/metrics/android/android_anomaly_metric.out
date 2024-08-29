@@ -1,0 +1,184 @@
+android_anomaly {
+  binder {
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/servicemanager"
+      pid: 243
+      unit: COUNT_PER_SECOND
+      value: 257
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/hwservicemanager"
+      pid: 247
+      unit: COUNT_PER_SECOND
+      value: 6
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/vold"
+      pid: 255
+      unit: COUNT_PER_SECOND
+      value: 2
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/apexd"
+      pid: 317
+      unit: COUNT_PER_SECOND
+      value: 1
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/apex/com.android.os.statsd/bin/statsd"
+      pid: 415
+      unit: COUNT_PER_SECOND
+      value: 2
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/vendor/bin/hw/android.hardware.health-service.cuttlefish"
+      pid: 431
+      unit: COUNT_PER_SECOND
+      value: 2
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/vendor/bin/hw/android.hardware.graphics.composer3-service.ranchu"
+      pid: 446
+      unit: COUNT_PER_SECOND
+      value: 46
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/vendor/bin/hw/android.hardware.input.processor-service.example"
+      pid: 447
+      unit: COUNT_PER_SECOND
+      value: 9
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/vendor/bin/hw/android.hardware.lights-service.example"
+      pid: 448
+      unit: COUNT_PER_SECOND
+      value: 1
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/vendor/bin/hw/android.hardware.sensors-service.example"
+      pid: 458
+      unit: COUNT_PER_SECOND
+      value: 4
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/apex/com.android.hardware.vibrator/bin/hw/android.hardware.vibrator-service.example"
+      pid: 481
+      unit: COUNT_PER_SECOND
+      value: 29
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/surfaceflinger"
+      pid: 496
+      unit: COUNT_PER_SECOND
+      value: 122
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/cameraserver"
+      pid: 537
+      unit: COUNT_PER_SECOND
+      value: 3
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/idmap2d"
+      pid: 541
+      unit: COUNT_PER_SECOND
+      value: 53
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/installd"
+      pid: 548
+      unit: COUNT_PER_SECOND
+      value: 107
+    }
+    max_incoming_process_count_per_second {
+      process_name: "media.metrics"
+      pid: 550
+      unit: COUNT_PER_SECOND
+      value: 2
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/storaged"
+      pid: 555
+      unit: COUNT_PER_SECOND
+      value: 1
+    }
+    max_incoming_process_count_per_second {
+      process_name: "/system/bin/bootanimation"
+      pid: 581
+      unit: COUNT_PER_SECOND
+      value: 13
+    }
+    max_incoming_process_count_per_second {
+      process_name: "system_server"
+      pid: 641
+      unit: COUNT_PER_SECOND
+      value: 18
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/system/bin/servicemanager"
+      pid: 243
+      unit: COUNT_PER_SECOND
+      value: 1
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/apex/com.android.os.statsd/bin/statsd"
+      pid: 415
+      unit: COUNT_PER_SECOND
+      value: 7
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/vendor/bin/hw/android.hardware.health-service.cuttlefish"
+      pid: 431
+      unit: COUNT_PER_SECOND
+      value: 4
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/vendor/bin/hw/android.hardware.graphics.composer3-service.ranchu"
+      pid: 446
+      unit: COUNT_PER_SECOND
+      value: 43
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/vendor/bin/hw/android.hardware.sensors-service.example"
+      pid: 458
+      unit: COUNT_PER_SECOND
+      value: 1
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/system/bin/audioserver"
+      pid: 492
+      unit: COUNT_PER_SECOND
+      value: 47
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/system/bin/surfaceflinger"
+      pid: 496
+      unit: COUNT_PER_SECOND
+      value: 60
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/system/bin/cameraserver"
+      pid: 537
+      unit: COUNT_PER_SECOND
+      value: 52
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/system/bin/storaged"
+      pid: 555
+      unit: COUNT_PER_SECOND
+      value: 11
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "/system/bin/bootanimation"
+      pid: 581
+      unit: COUNT_PER_SECOND
+      value: 12
+    }
+    max_outgoing_process_count_per_second {
+      process_name: "system_server"
+      pid: 641
+      unit: COUNT_PER_SECOND
+      value: 417
+    }
+  }
+}

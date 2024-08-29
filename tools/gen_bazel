@@ -46,17 +46,31 @@ ALLOWLIST_PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
 
 # Arguments for the GN output directory.
 # host_os="linux" is to generate the right build files from Mac OS.
-gn_args = ' '.join([
-    'host_os="linux"',
-    'is_debug=false',
-    'is_perfetto_build_generator=true',
-    'monolithic_binaries=true',
-    'target_os="linux"',
-    'enable_perfetto_heapprofd=false',
-    'enable_perfetto_traced_perf=false',
-    'perfetto_force_dcheck="off"',
-    'enable_perfetto_llvm_demangle=true',
-])
+gn_args_base = {
+    'host_os': '"linux"',
+    'is_debug': 'false',
+    'is_perfetto_build_generator': 'true',
+    'monolithic_binaries': 'true',
+    'target_os': '"linux"',
+    'enable_perfetto_heapprofd': 'false',
+    'enable_perfetto_traced_perf': 'false',
+    'perfetto_force_dcheck': '"off"',
+    'enable_perfetto_llvm_demangle': 'true',
+}
+gn_args = ' '.join((map(lambda x:'='.join(x), gn_args_base.items())))
+
+# We generate a second set of build rules for Windows, in order to
+# conditionally filter out targets which are gated behind !is_win
+# in the GN build files.
+gn_args_win_base = {
+    **gn_args_base,
+    'host_os': '"win"',
+    'host_cpu': '"x86"',
+    'target_os': '"win"',
+    'target_cpu': '"x64"',
+    'is_cross_compiling': 'false',
+}
+gn_args_win = ' '.join((map(lambda x:'='.join(x), gn_args_win_base.items())))
 
 # Default targets to translate to the blueprint file.
 
@@ -341,6 +355,7 @@ class BazelLabel(object):
     self.type = type
     self.visibility: Union[List[str], str] = []
     self.srcs: Union[List[str], str] = []
+    self.win_srcs: Union[List[str], str] = None
     self.hdrs = []
     self.defines = []
     self.data = []
@@ -377,7 +392,7 @@ class BazelLabel(object):
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
     for k, v in sorted(iteritems(self.__dict__), key=key_sorter):
       if k in ('type', 'comment',
-               'external_deps') or v is None or (v == [] and
+               'external_deps', 'win_srcs') or v is None or (v == [] and
                                                  (k != 'deps' or not any_deps)):
         continue
       res += '    %s = ' % k
@@ -394,23 +409,39 @@ class BazelLabel(object):
           indent = '           '
         else:
           indent = '    '
+
+        non_win_srcs = {}
+        if k == "srcs" and self.win_srcs is not None:
+          non_win_srcs = sorted(set(self.srcs) - set(self.win_srcs))
+
         for entry in sorted(v):
+          if entry in non_win_srcs:
+            continue
           if entry.startswith('PERFETTO_CONFIG.'):
             res += '%s    %s,\n' % (indent, entry)
           else:
             res += '%s    "%s",\n' % (indent, entry)
-        res += '%s]' % indent
-        if k == 'deps' and self.external_deps:
-          res += ' + %s' % self.external_deps[0]
-          for edep in self.external_deps[1:]:
-            if isinstance(edep, list):
-              res += ' + [\n'
-              for inner_dep in edep:
-                res += '        "%s",\n' % inner_dep
-              res += '    ]'
-            else:
-              res += ' +\n%s%s' % (indent, edep)
-        res += ',\n'
+        if non_win_srcs:
+          res += '    ] + select({\n'
+          res += '        "@platforms//os:windows": [],\n'
+          res += '        "//conditions:default": [\n'
+          for win_src in non_win_srcs:
+            res += '            "%s",\n' % win_src
+          res += '        ],\n'
+          res += '    }),\n'
+        else:
+          res += '%s]' % indent
+          if k == 'deps' and self.external_deps:
+            res += ' + %s' % self.external_deps[0]
+            for edep in self.external_deps[1:]:
+              if isinstance(edep, list):
+                res += ' + [\n'
+                for inner_dep in edep:
+                  res += '        "%s",\n' % inner_dep
+                res += '    ]'
+              else:
+                res += ' +\n%s%s' % (indent, edep)
+          res += ',\n'
       else:
         raise Error('Unsupported value %s', type(v))
     res += ')\n\n'
@@ -626,7 +657,7 @@ def gen_cc_tp_tables(target: GnParser.Target):
   return [label]
 
 
-def gen_target_helper(gn_target: GnParser.Target):
+def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = None):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
@@ -674,7 +705,7 @@ def gen_target_helper(gn_target: GnParser.Target):
     label.srcs += [x for x in raw_srcs if not x.startswith('include')]
     label.hdrs += [x for x in raw_srcs if x.startswith('include')]
 
-    # Most Perfetto libraries cannot by dynamically linked as they would
+    # Most Perfetto libraries cannot be dynamically linked as they would
     # cause ODR violations.
     label.__dict__['linkstatic'] = True
   else:
@@ -682,6 +713,9 @@ def gen_target_helper(gn_target: GnParser.Target):
 
   if gn_target.name in public_targets:
     label.visibility = ['//visibility:public']
+
+  if win_target:
+    label.win_srcs = list(set(label.srcs) & {s[2:] for s in win_target.sources | win_target.inputs})
 
   if gn_target.type in gn_utils.LINKER_UNIT_TYPES:
     # |source_sets| contains the transitive set of source_set deps.
@@ -691,6 +725,11 @@ def gen_target_helper(gn_target: GnParser.Target):
           ':include_perfetto_') and gn_target.type != 'executable':
         label.hdrs += [name]
       else:
+        if win_target:
+          win_target_names = [target.name for target in win_target.transitive_source_set_deps()]
+          if trans_dep.name in win_target_names:
+            label.win_srcs += [name]
+
         label.srcs += [name]
 
       # Add defines from all transitive dependencies.
@@ -701,10 +740,14 @@ def gen_target_helper(gn_target: GnParser.Target):
       if dep_name.startswith('//gn:'):
         assert (dep_name in external_deps), dep
 
-      # tp_tables produces a filegroup not a cc_lbirary so should end up srcs
+      # tp_tables produces a filegroup not a cc_library so should end up srcs
       # not deps.
       if dep.custom_action_type == 'tp_tables':
-        label.srcs += [':' + get_bazel_label_name(dep_name)]
+        label_name = ':' + get_bazel_label_name(dep_name)
+        win_target_names = [target.name for target in win_target.non_proto_or_source_set_deps()]
+        if win_target and dep_name in win_target_names:
+          label.win_srcs += [label_name]
+        label.srcs += [label_name]
       elif dep_name in external_deps:
         assert (isinstance(external_deps[dep_name], list))
         label.external_deps += external_deps[dep_name]
@@ -722,6 +765,8 @@ def gen_target_helper(gn_target: GnParser.Target):
   # As | > all other normal ASCII characters, this will lead to all : targets
   # starting with : to be sorted to the end.
   label.srcs = sorted(label.srcs, key=lambda x: x.replace(':', '|'))
+  if win_target:
+    label.win_srcs = sorted(label.win_srcs, key=lambda x: x.replace(':', '|'))
 
   label.deps = sorted(label.deps)
   label.hdrs = sorted(label.hdrs)
@@ -729,8 +774,8 @@ def gen_target_helper(gn_target: GnParser.Target):
   return [label]
 
 
-def gen_target(gn_target: GnParser.Target):
-  targets = gen_target_helper(gn_target)
+def gen_target(gn_target: GnParser.Target, win_target: GnParser.Target = None):
+  targets = gen_target_helper(gn_target, win_target)
   if gn_target.name not in target_overrides:
     return targets
   for target in targets:
@@ -739,12 +784,13 @@ def gen_target(gn_target: GnParser.Target):
   return targets
 
 
-def gen_target_str(gn_target):
-  return ''.join(str(x) for x in gen_target(gn_target))
+def gen_target_str(gn_target, win_target: GnParser.Target = None):
+  return ''.join(str(x) for x in gen_target(gn_target, win_target))
 
 
-def generate_build(gn_desc, targets, extras):
+def generate_build(gn_desc, gn_desc_win, targets, extras):
   gn = gn_utils.GnParser(gn_desc)
+  gn_win = gn_utils.GnParser(gn_desc_win)
   project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
   tool_name = os.path.relpath(os.path.abspath(__file__), project_root)
   tool_name = tool_name.replace('\\', '/')
@@ -803,9 +849,10 @@ exports_files(["NOTICE"])
   # intermediate deps) but printed at the end (because declaration order matters
   # in Bazel).
   public_str = ''
+
   for target_name in sorted(public_targets):
     target = gn.get_target(target_name)
-    public_str += gen_target_str(target)
+    public_str += gen_target_str(target, gn_win.get_target(target_name))
 
   res += '''
 # ##############################################################################
@@ -815,14 +862,17 @@ exports_files(["NOTICE"])
 '''.lstrip()
   # Generate the other non-public targets.
   for target_name in sorted(set(default_targets) - set(public_targets)):
+    gn_win.get_target(target_name)
+
+  for target_name in sorted(set(default_targets) - set(public_targets)):
     target = gn.get_target(target_name)
-    res += gen_target_str(target)
+    res += gen_target_str(target, gn_win.get_target(target_name))
 
   # Generate all the intermediate targets.
   for target in sorted(itervalues(gn.all_targets)):
     if target.name in default_targets or target.name in gn.proto_libs:
       continue
-    res += gen_target_str(target)
+    res += gen_target_str(target, gn_win.get_target(target.name))
 
   res += '''
 # ##############################################################################
@@ -909,13 +959,14 @@ def main():
   else:
     desc = gn_utils.create_build_description(gn_args, args.repo_root)
 
+  desc_win = gn_utils.create_build_description(gn_args_win, args.repo_root)
   out_files = []
 
   # Generate the main BUILD file.
   with open(args.extras, 'r') as extra_f:
     extras = extra_f.read()
 
-  contents = generate_build(desc, args.targets or default_targets, extras)
+  contents = generate_build(desc, desc_win, args.targets or default_targets, extras)
   out_files.append(args.output + '.swp')
   with open(out_files[-1], 'w', newline='\n') as out_f:
     out_f.write(contents)

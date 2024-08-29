@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_
 #define SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -24,10 +25,8 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
-#include "src/trace_processor/util/trace_type.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class AndroidLogEventParser;
 class ArgsTracker;
@@ -79,13 +78,15 @@ class TraceProcessorContext {
     std::shared_ptr<TraceStorage> storage;
     uint32_t raw_machine_id = 0;
   };
+
   explicit TraceProcessorContext(const InitArgs&);
+
   // The default constructor is used in testing.
   TraceProcessorContext();
   ~TraceProcessorContext();
 
-  TraceProcessorContext(TraceProcessorContext&&) = default;
-  TraceProcessorContext& operator=(TraceProcessorContext&&) = default;
+  TraceProcessorContext(TraceProcessorContext&&);
+  TraceProcessorContext& operator=(TraceProcessorContext&&);
 
   Config config;
 
@@ -192,7 +193,6 @@ class TraceProcessorContext {
   std::unique_ptr<MultiMachineTraceManager> multi_machine_trace_manager;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_

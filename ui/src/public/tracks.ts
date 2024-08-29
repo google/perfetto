@@ -17,13 +17,13 @@ import {duration, time} from '../base/time';
 import {Optional} from '../base/utils';
 import {UntypedEventSet} from '../core/event_set';
 import {LegacySelection, Selection} from '../core/selection_manager';
-import {Size} from '../base/geom';
+import {Size, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../frontend/time_scale';
 import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 
 export interface TrackContext {
-  // This track's key, used for making selections et al.
-  readonly trackKey: string;
+  // This track's URI, used for making selections et al.
+  readonly trackUri: string;
 }
 
 /**
@@ -69,7 +69,7 @@ export interface TrackDescriptor {
   readonly uri: string;
 
   // A factory function returning a new track instance.
-  readonly trackFactory: (ctx: TrackContext) => Track;
+  readonly track: Track;
 
   // Human readable title. Always displayed.
   readonly title: string;
@@ -106,14 +106,6 @@ export interface DetailsPanel {
 export interface TrackSelectionDetailsPanel {
   render(id: number): m.Children;
   isLoading?(): boolean;
-}
-
-export interface SliceRect {
-  left: number;
-  width: number;
-  top: number;
-  height: number;
-  visible: boolean;
 }
 
 /**
@@ -175,12 +167,13 @@ export interface Track {
    */
   render(ctx: TrackRenderContext): void;
   onFullRedraw?(): void;
-  getSliceRect?(
-    ctx: TrackRenderContext,
-    tStart: time,
-    tEnd: time,
-    depth: number,
-  ): Optional<SliceRect>;
+
+  /**
+   * Return the vertical bounds (top & bottom) of a slice were it to be rendered
+   * at a specific depth, given the slice height and padding/spacing that this
+   * track uses.
+   */
+  getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
   getHeight(): number;
   getTrackShellButtons?(): m.Children;
   onMouseMove?(event: TrackMouseEvent): void;
@@ -230,4 +223,10 @@ interface WellKnownTrackTags {
 
   // Optional: The UPID associated with this track.
   upid: number;
+
+  // Used for sorting and grouping
+  scope: string;
+
+  // Group name, used as a hint to ask track decider to put this in a group
+  groupName: string;
 }

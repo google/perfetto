@@ -13,53 +13,19 @@
 // limitations under the License.
 
 import {uuidv4} from '../../base/uuid';
-import {AddTrackArgs} from '../../common/actions';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
   BottomTabToSCSAdapter,
   NUM,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
-  PrimaryTrackSortKey,
 } from '../../public';
-import {Engine} from '../../trace_processor/engine';
 
 import {ScreenshotTab} from './screenshot_panel';
 import {ScreenshotsTrack} from './screenshots_track';
 
-export type DecideTracksResult = {
-  tracksToAdd: AddTrackArgs[];
-};
-
-// TODO(stevegolton): Use suggestTrack().
-export async function decideTracks(
-  engine: Engine,
-): Promise<DecideTracksResult> {
-  const result: DecideTracksResult = {
-    tracksToAdd: [],
-  };
-
-  const res = await engine.query(`
-    INCLUDE PERFETTO MODULE android.screenshots;
-    select
-      count() as count
-    from android_screenshots
-  `);
-  const {count} = res.firstRow({count: NUM});
-
-  if (count > 0) {
-    result.tracksToAdd.push({
-      uri: '/screenshots',
-      name: 'Screenshots',
-      trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    });
-  }
-
-  return result;
-}
-
-class ScreenshotsPlugin implements Plugin {
+class ScreenshotsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const res = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.screenshots;
@@ -75,12 +41,10 @@ class ScreenshotsPlugin implements Plugin {
       ctx.registerTrack({
         uri,
         title: displayName,
-        trackFactory: ({trackKey}) => {
-          return new ScreenshotsTrack({
-            engine: ctx.engine,
-            trackKey,
-          });
-        },
+        track: new ScreenshotsTrack({
+          engine: ctx.engine,
+          uri,
+        }),
         tags: {
           kind: ScreenshotsTrack.kind,
         },

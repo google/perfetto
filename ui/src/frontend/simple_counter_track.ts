@@ -35,7 +35,7 @@ export class SimpleCounterTrack extends BaseCounterTrack {
   ) {
     super({
       engine,
-      trackKey: ctx.trackKey,
+      uri: ctx.trackUri,
       options: config.options,
     });
     this.config = config;

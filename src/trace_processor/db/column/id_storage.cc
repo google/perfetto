@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
-#include <iterator>
 #include <limits>
 #include <optional>
 #include <string>
@@ -31,12 +30,12 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
 namespace {
@@ -51,6 +50,10 @@ void IndexSearchWithComparator(uint32_t val, DataLayerChain::Indices& indices) {
 }
 
 }  // namespace
+
+StorageLayer::StoragePtr IdStorage::GetStoragePtr() {
+  return Id{};
+}
 
 SearchValidationResult IdStorage::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
@@ -318,10 +321,6 @@ std::optional<Token> IdStorage::ChainImpl::MinElement(Indices& indices) const {
 
 SqlValue IdStorage::ChainImpl::Get_AvoidUsingBecauseSlow(uint32_t index) const {
   return SqlValue::Long(index);
-}
-
-void IdStorage::ChainImpl::Serialize(StorageProto* storage) const {
-  storage->set_id_storage();
 }
 
 }  // namespace perfetto::trace_processor::column

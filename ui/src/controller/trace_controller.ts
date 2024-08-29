@@ -69,10 +69,6 @@ import {WattsonPackageAggregationController} from './aggregation/wattson/package
 import {ThreadAggregationController} from './aggregation/thread_aggregation_controller';
 import {Child, Children, Controller} from './controller';
 import {
-  CpuProfileController,
-  CpuProfileControllerArgs,
-} from './cpu_profile_controller';
-import {
   FlowEventsController,
   FlowEventsControllerArgs,
 } from './flow_events_controller';
@@ -275,11 +271,6 @@ export class TraceController extends Controller<States> {
           Child('flowEvents', FlowEventsController, flowEventsArgs),
         );
 
-        const cpuProfileArgs: CpuProfileControllerArgs = {engine};
-        childControllers.push(
-          Child('cpuProfile', CpuProfileController, cpuProfileArgs),
-        );
-
         childControllers.push(
           Child('cpu_aggregation', CpuAggregationController, {
             engine,
@@ -315,46 +306,48 @@ export class TraceController extends Controller<States> {
             kind: 'counter_aggregation',
           }),
         );
-        childControllers.push(
-          Child(
-            'wattson_estimate_aggregation',
-            WattsonEstimateAggregationController,
-            {
-              engine,
-              kind: 'wattson_estimate_aggregation',
-            },
-          ),
-        );
-        childControllers.push(
-          Child(
-            'wattson_thread_aggregation',
-            WattsonThreadAggregationController,
-            {
-              engine,
-              kind: 'wattson_thread_aggregation',
-            },
-          ),
-        );
-        childControllers.push(
-          Child(
-            'wattson_process_aggregation',
-            WattsonProcessAggregationController,
-            {
-              engine,
-              kind: 'wattson_process_aggregation',
-            },
-          ),
-        );
-        childControllers.push(
-          Child(
-            'wattson_package_aggregation',
-            WattsonPackageAggregationController,
-            {
-              engine,
-              kind: 'wattson_package_aggregation',
-            },
-          ),
-        );
+        if (pluginManager.isActive('org.kernel.Wattson')) {
+          childControllers.push(
+            Child(
+              'wattson_estimate_aggregation',
+              WattsonEstimateAggregationController,
+              {
+                engine,
+                kind: 'wattson_estimate_aggregation',
+              },
+            ),
+          );
+          childControllers.push(
+            Child(
+              'wattson_thread_aggregation',
+              WattsonThreadAggregationController,
+              {
+                engine,
+                kind: 'wattson_thread_aggregation',
+              },
+            ),
+          );
+          childControllers.push(
+            Child(
+              'wattson_process_aggregation',
+              WattsonProcessAggregationController,
+              {
+                engine,
+                kind: 'wattson_process_aggregation',
+              },
+            ),
+          );
+          childControllers.push(
+            Child(
+              'wattson_package_aggregation',
+              WattsonPackageAggregationController,
+              {
+                engine,
+                kind: 'wattson_package_aggregation',
+              },
+            ),
+          );
+        }
         childControllers.push(
           Child('frame_aggregation', FrameAggregationController, {
             engine,
@@ -486,6 +479,9 @@ export class TraceController extends Controller<States> {
       assertTrue(this.engine instanceof HttpRpcEngine);
       await this.engine.restoreInitialTables();
     }
+    for (const p of globals.extraSqlPackages) {
+      await this.engine.registerSqlModules(p);
+    }
 
     // traceUuid will be '' if the trace is not cacheable (URL or RPC).
     const traceUuid = await this.cacheCurrentTrace();
@@ -543,6 +539,10 @@ export class TraceController extends Controller<States> {
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
+    // Remove all workspaces, and create an empty default workspace, ready for
+    // tracks to be inserted.
+    globals.resetWorkspaces();
+
     if (globals.restoreAppStateAfterTraceLoad) {
       deserializeAppStatePhase1(globals.restoreAppStateAfterTraceLoad);
     }
@@ -552,9 +552,10 @@ export class TraceController extends Controller<States> {
     });
 
     {
-      // When we reload from a permalink don't create extra tracks:
-      const {pinnedTracks, tracks} = globals.state;
-      if (!pinnedTracks.length && !Object.keys(tracks).length) {
+      // When we reload from a permalink don't create extra tracks.
+      // TODO(stevegolton): This is a terrible way of telling whether we have
+      // loaded from a permalink or not.
+      if (globals.workspace.flatTracks.length === 0) {
         await this.listTracks();
       }
     }
@@ -577,9 +578,6 @@ export class TraceController extends Controller<States> {
       const res = await engine.query(query);
       publishHasFtrace(res.numRows() > 0);
     }
-
-    globals.dispatch(Actions.sortThreadTracks({}));
-    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
     await this.selectPerfSample(traceDetails);
@@ -605,8 +603,6 @@ export class TraceController extends Controller<States> {
       }
     }
 
-    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
-
     // Trace Processor doesn't support the reliable range feature for JSON
     // traces.
     if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
@@ -631,16 +627,20 @@ export class TraceController extends Controller<States> {
       globals.restoreAppStateAfterTraceLoad = undefined;
     }
 
+    await pluginManager.onTraceReady();
+
     return engineMode;
   }
 
   private async selectPerfSample(traceTime: {start: time; end: time}) {
-    const query = `select upid
-        from perf_sample
-        join thread using (utid)
-        where callsite_id is not null
-        order by ts desc limit 1`;
-    const profile = await assertExists(this.engine).query(query);
+    const profile = await assertExists(this.engine).query(`
+      select upid
+      from perf_sample
+      join thread using (utid)
+      where callsite_id is not null
+      order by ts desc
+      limit 1
+    `);
     if (profile.numRows() !== 1) return;
     const row = profile.firstRow({upid: NUM});
     const upid = row.upid;
@@ -715,15 +715,17 @@ export class TraceController extends Controller<States> {
       });
 
       const id = row.traceProcessorTrackId;
-      const trackKey = globals.trackManager.trackKeyByTrackId.get(id);
-      if (trackKey === undefined) {
+      const track = globals.workspace.flatTracks.find((t) =>
+        globals.trackManager.getTrack(t.uri)?.tags?.trackIds?.includes(id),
+      );
+      if (track === undefined) {
         return;
       }
       globals.setLegacySelection(
         {
           kind: 'SLICE',
           id: row.id,
-          trackKey,
+          trackUri: track.uri,
           table: 'slice',
         },
         {
@@ -738,8 +740,7 @@ export class TraceController extends Controller<States> {
   private async listTracks() {
     this.updateStatus('Loading tracks');
     const engine = assertExists(this.engine);
-    const actions = await decideTracks(engine);
-    globals.dispatchMultiple(actions);
+    await decideTracks(engine);
   }
 
   // Show the list of default tabs, but don't make them active!

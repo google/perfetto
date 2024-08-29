@@ -25,7 +25,11 @@ import {
   LegacyFlamegraphDetailsPanel,
   profileType,
 } from '../../frontend/legacy_flamegraph_panel';
-import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {
   LegacySelection,
@@ -51,7 +55,7 @@ export interface Data extends TrackData {
   tsStarts: BigInt64Array;
 }
 
-class PerfSamplesProfilePlugin implements Plugin {
+class PerfSamplesProfilePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const pResult = await ctx.engine.query(`
       select distinct upid
@@ -61,21 +65,21 @@ class PerfSamplesProfilePlugin implements Plugin {
     `);
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
+      const uri = `/process_${upid}/perf_samples_profile`;
       ctx.registerTrack({
-        uri: `/process_${upid}/perf_samples_profile`,
+        uri,
         title: `Process Callstacks`,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        trackFactory: ({trackKey}) =>
-          new ProcessPerfSamplesProfileTrack(
-            {
-              engine: ctx.engine,
-              trackKey,
-            },
-            upid,
-          ),
+        track: new ProcessPerfSamplesProfileTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          upid,
+        ),
       });
     }
     const tResult = await ctx.engine.query(`
@@ -103,21 +107,22 @@ class PerfSamplesProfilePlugin implements Plugin {
         threadName === null
           ? `Thread Callstacks ${tid}`
           : `${threadName} Callstacks ${tid}`;
+      const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`;
       ctx.registerTrack({
-        uri: `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`,
+        uri,
         title: displayName,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           utid,
+          upid: upid ?? undefined,
         },
-        trackFactory: ({trackKey}) =>
-          new ThreadPerfSamplesProfileTrack(
-            {
-              engine: ctx.engine,
-              trackKey,
-            },
-            utid,
-          ),
+        track: new ThreadPerfSamplesProfileTrack(
+          {
+            engine: ctx.engine,
+            uri,
+          },
+          utid,
+        ),
       });
     }
     ctx.registerDetailsPanel(new PerfSamplesFlamegraphDetailsPanel(ctx.engine));
@@ -130,6 +135,7 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
     () => this.sel?.leftTs,
     () => this.sel?.rightTs,
     () => this.sel?.upid,
+    () => this.sel?.utid,
     () => this.sel?.type,
   ]);
   private flamegraphAttrs?: QueryFlamegraphAttrs;
@@ -142,7 +148,11 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
       this.sel = undefined;
       return undefined;
     }
-    if (!USE_NEW_FLAMEGRAPH_IMPL.get() && sel.upid !== undefined) {
+    if (
+      !USE_NEW_FLAMEGRAPH_IMPL.get() &&
+      sel.utid === undefined &&
+      sel.upid !== undefined
+    ) {
       this.sel = undefined;
       return m(LegacyFlamegraphDetailsPanel, {
         cache: this.cache,
@@ -162,7 +172,7 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
         engine: this.engine,
         metrics: [
           ...metricsFromTableOrSubquery(
-            upid === undefined
+            utid !== undefined
               ? `
                 (
                   select
@@ -198,7 +208,7 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
                       join thread t using (utid)
                       where p.ts >= ${leftTs}
                         and p.ts <= ${rightTs}
-                        and t.upid = ${upid}
+                        and t.upid = ${assertExists(upid)}
                     ))
                   )
                 `,

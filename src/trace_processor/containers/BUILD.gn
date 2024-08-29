@@ -23,6 +23,7 @@ perfetto_component("containers") {
   public = [
     "bit_vector.h",
     "implicit_segment_forest.h",
+    "interval_intersector.h",
     "interval_tree.h",
     "null_term_string_view.h",
     "row_map.h",
@@ -47,6 +48,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "bit_vector_unittest.cc",
     "implicit_segment_forest_unittest.cc",
+    "interval_intersector_unittest.cc",
     "interval_tree_unittest.cc",
     "null_term_string_view_unittest.cc",
     "row_map_unittest.cc",

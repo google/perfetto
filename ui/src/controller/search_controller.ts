@@ -13,10 +13,13 @@
 // limitations under the License.
 
 import {sqliteString} from '../base/string_utils';
-import {exists} from '../base/utils';
+import {exists, Optional} from '../base/utils';
 import {CurrentSearchResults, SearchSource} from '../common/search_data';
 import {OmniboxState} from '../common/state';
-import {CPU_SLICE_TRACK_KIND} from '../core/track_kinds';
+import {
+  ANDROID_LOGS_TRACK_KIND,
+  CPU_SLICE_TRACK_KIND,
+} from '../core/track_kinds';
 import {globals} from '../frontend/globals';
 import {publishSearchResult} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
@@ -65,7 +68,7 @@ export class SearchController extends Controller<'main'> {
         tses: new BigInt64Array(0),
         utids: new Float64Array(0),
         sources: [],
-        trackKeys: [],
+        trackUris: [],
         totalResults: 0,
       });
       return;
@@ -85,16 +88,24 @@ export class SearchController extends Controller<'main'> {
 
   private async specificSearch(search: string) {
     const searchLiteral = escapeSearchQuery(search);
-    // TODO(hjd): we should avoid recomputing this every time. This will be
-    // easier once the track table has entries for all the tracks.
-    const cpuToTrackId = new Map();
-    for (const track of Object.values(globals.state.tracks)) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-        exists(trackInfo.tags.cpu) &&
-          cpuToTrackId.set(trackInfo.tags.cpu, track.key);
-      }
-    }
+
+    // TODO(stevegolton): Avoid recomputing these indexes each time.
+    const trackUrisByCpu = new Map<number, string>();
+    globals.trackManager.getAllTracks().forEach((td) => {
+      const tags = td?.tags;
+      const cpu = tags?.cpu;
+      const kind = tags?.kind;
+      exists(cpu) &&
+        kind === CPU_SLICE_TRACK_KIND &&
+        trackUrisByCpu.set(cpu, td.uri);
+    });
+
+    const trackUrisByTrackId = new Map<number, string>();
+    globals.trackManager.getAllTracks().forEach((td) => {
+      const trackIds = td?.tags?.trackIds;
+      trackIds &&
+        trackIds.forEach((trackId) => trackUrisByTrackId.set(trackId, td.uri));
+    });
 
     const utidRes = await this.query(`select utid from thread join process
     using(upid) where
@@ -155,18 +166,18 @@ export class SearchController extends Controller<'main'> {
       tses: new BigInt64Array(0),
       utids: new Float64Array(0),
       sources: [],
-      trackKeys: [],
+      trackUris: [],
       totalResults: 0,
     };
 
     const lowerSearch = search.toLowerCase();
-    for (const track of Object.values(globals.state.tracks)) {
-      if (track.name.toLowerCase().indexOf(lowerSearch) === -1) {
+    for (const track of globals.workspace.flatTracks) {
+      if (track.displayName.toLowerCase().indexOf(lowerSearch) === -1) {
         continue;
       }
       searchResults.totalResults++;
       searchResults.sources.push('track');
-      searchResults.trackKeys.push(track.key);
+      searchResults.trackUris.push(track.uri);
     }
 
     const rows = res.numRows();
@@ -189,30 +200,24 @@ export class SearchController extends Controller<'main'> {
       utid: NUM,
     });
     for (; it.valid(); it.next()) {
-      let trackId = undefined;
+      let track: Optional<string> = undefined;
       if (it.source === 'cpu') {
-        trackId = cpuToTrackId.get(it.sourceId);
+        track = trackUrisByCpu.get(it.sourceId);
       } else if (it.source === 'slice') {
-        trackId = globals.trackManager.trackKeyByTrackId.get(it.sourceId);
+        track = trackUrisByTrackId.get(it.sourceId);
       } else if (it.source === 'log') {
-        const logTracks = Object.values(globals.state.tracks).filter(
-          (track) => {
-            const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-            return trackDesc && trackDesc.tags?.kind === 'AndroidLogTrack';
-          },
-        );
-        if (logTracks.length > 0) {
-          trackId = logTracks[0].key;
-        }
+        track = globals.trackManager
+          .getAllTracks()
+          .find((td) => td.tags?.kind === ANDROID_LOGS_TRACK_KIND)?.uri;
       }
 
       // The .get() calls above could return undefined, this isn't just an else.
-      if (trackId === undefined) {
+      if (track === undefined) {
         continue;
       }
 
       const i = searchResults.totalResults++;
-      searchResults.trackKeys.push(trackId);
+      searchResults.trackUris.push(track);
       searchResults.sources.push(it.source as SearchSource);
       searchResults.eventIds[i] = it.sliceId;
       searchResults.tses[i] = it.ts;

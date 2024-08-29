@@ -109,6 +109,7 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
     Mode mode = Mode::kSingleRow;
 
     int last_idx_num = -1;
+
     Query query;
 
     std::vector<SqlValue> table_function_arguments;

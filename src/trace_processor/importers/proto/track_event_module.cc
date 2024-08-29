@@ -15,20 +15,21 @@
  */
 #include "src/trace_processor/importers/proto/track_event_module.h"
 
-#include "perfetto/base/build_config.h"
+#include <cstdint>
+#include <utility>
+
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/config/data_source_config.pbzero.h"
-#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
@@ -59,22 +60,14 @@ ModuleResult TrackEventModule::TokenizePacket(
       return tokenizer_.TokenizeTrackDescriptorPacket(std::move(state), decoder,
                                                       packet_timestamp);
     case TracePacket::kTrackEventFieldNumber:
-      tokenizer_.TokenizeTrackEventPacket(std::move(state), decoder, packet,
-                                          packet_timestamp);
-      return ModuleResult::Handled();
+      return tokenizer_.TokenizeTrackEventPacket(std::move(state), decoder,
+                                                 packet, packet_timestamp);
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
       return tokenizer_.TokenizeThreadDescriptorPacket(std::move(state),
                                                        decoder);
   }
   return ModuleResult::Ignored();
-}
-
-void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
-                                           int64_t ts,
-                                           const TrackEventData& data) {
-  parser_.ParseTrackEvent(ts, &data, decoder.track_event(),
-                          decoder.trusted_packet_sequence_id());
 }
 
 void TrackEventModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
@@ -107,9 +100,15 @@ void TrackEventModule::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
   track_event_tracker_->OnFirstPacketOnSequence(packet_sequence_id);
 }
 
+void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
+                                           int64_t ts,
+                                           const TrackEventData& data) {
+  parser_.ParseTrackEvent(ts, &data, decoder.track_event(),
+                          decoder.trusted_packet_sequence_id());
+}
+
 void TrackEventModule::NotifyEndOfFile() {
   parser_.NotifyEndOfFile();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -23,16 +23,11 @@ import {AggregationController} from './aggregation_controller';
 
 export class CounterAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
-
     const trackIds: (string | number)[] = [];
-    for (const trackKey of area.tracks) {
-      const track = globals.state.tracks[trackKey];
-      if (track?.uri) {
-        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
-          trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
-        }
+    for (const trackUri of area.trackUris) {
+      const trackInfo = globals.trackManager.getTrack(trackUri);
+      if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
+        trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
       }
     }
     if (trackIds.length === 0) return false;
@@ -43,7 +38,7 @@ export class CounterAggregationController extends AggregationController {
     let query;
     if (trackIds.length === 1) {
       // Optimized query for the special case where there is only 1 track id.
-      query = `CREATE VIEW ${this.kind} AS
+      query = `CREATE OR REPLACE PERFETTO TABLE ${this.kind} AS
       WITH aggregated AS (
         SELECT
           COUNT(1) AS count,
@@ -73,7 +68,7 @@ export class CounterAggregationController extends AggregationController {
       FROM aggregated`;
     } else {
       // Slower, but general purspose query that can aggregate multiple tracks
-      query = `CREATE VIEW ${this.kind} AS
+      query = `CREATE OR REPLACE PERFETTO TABLE ${this.kind} AS
       WITH aggregated AS (
         SELECT track_id,
           COUNT(1) AS count,

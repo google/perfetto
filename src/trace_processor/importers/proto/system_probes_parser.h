@@ -46,6 +46,7 @@ class SystemProbesParser {
   void ParseThreadStats(int64_t timestamp, uint32_t pid, ConstBytes);
   void ParseDiskStats(int64_t ts, ConstBytes blob);
   void ParseProcessFds(int64_t ts, uint32_t pid, ConstBytes);
+  void ParseCpuIdleStats(int64_t ts, ConstBytes);
 
   TraceProcessorContext* const context_;
 
@@ -57,17 +58,7 @@ class SystemProbesParser {
   const StringId num_forks_name_id_;
   const StringId num_irq_total_name_id_;
   const StringId num_softirq_total_name_id_;
-  const StringId num_irq_name_id_;
-  const StringId num_softirq_name_id_;
-  const StringId cpu_times_user_ns_id_;
-  const StringId cpu_times_user_nice_ns_id_;
-  const StringId cpu_times_system_mode_ns_id_;
-  const StringId cpu_times_idle_ns_id_;
-  const StringId cpu_times_io_wait_ns_id_;
-  const StringId cpu_times_irq_ns_id_;
-  const StringId cpu_times_softirq_ns_id_;
   const StringId oom_score_adj_id_;
-  const StringId cpu_freq_id_;
   const StringId thermal_unit_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;

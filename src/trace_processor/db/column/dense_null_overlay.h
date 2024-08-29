@@ -25,6 +25,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
@@ -32,10 +33,12 @@ namespace perfetto::trace_processor::column {
 // Overlay which introduces the layer of nullability but without changing the
 // "spacing" of the underlying storage i.e. this overlay simply "masks" out
 // rows in the underlying storage with nulls.
-class DenseNullOverlay final : public DataLayer {
+class DenseNullOverlay final : public OverlayLayer {
  public:
   explicit DenseNullOverlay(const BitVector* non_null);
   ~DenseNullOverlay() override;
+
+  void Flatten(uint32_t* start, const uint32_t* end, uint32_t stride) override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,
@@ -65,11 +68,7 @@ class DenseNullOverlay final : public DataLayer {
 
     std::optional<Token> MinElement(Indices&) const override;
 
-    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override;
-
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
-
-    void Serialize(StorageProto*) const override;
 
     uint32_t size() const override { return non_null_->size(); }
 

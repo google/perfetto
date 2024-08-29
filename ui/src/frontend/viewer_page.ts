@@ -18,7 +18,7 @@ import {findRef, toHTMLElement} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {TrackCacheEntry} from '../common/track_cache';
+import {TrackCacheEntry} from '../common/track_manager';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {TrackTags} from '../public';
@@ -29,7 +29,11 @@ import {NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
-import {Panel, PanelContainer, PanelOrGroup} from './panel_container';
+import {
+  PanelContainer,
+  PanelOrGroup,
+  RenderedPanelInfo,
+} from './panel_container';
 import {publishShowPanningHint} from './publish';
 import {TabPanel} from './tab_panel';
 import {TickmarkPanel} from './tickmark_panel';
@@ -37,9 +41,18 @@ import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
-import {TrackPanel} from './track_panel';
+import {TrackPanel, getTitleFontSize} from './track_panel';
 import {assertExists} from '../base/logging';
 import {PxSpan, TimeScale} from './time_scale';
+import {GroupNode, Node, TrackNode} from './workspace';
+import {fuzzyMatch, FuzzySegment} from '../base/fuzzy';
+
+import {exists, Optional} from '../base/utils';
+import {EmptyState} from '../widgets/empty_state';
+import {removeFalsyValues} from '../base/array_utils';
+import {renderFlows} from './flow_events_renderer';
+import {Size} from '../base/geom';
+import {canvasClip, canvasSave} from '../common/canvas_utils';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -182,7 +195,7 @@ class TraceViewer implements m.ClassComponent {
             timeline.selectArea(
               Time.max(Time.min(keepTime, newTime), traceTime.start),
               Time.min(Time.max(keepTime, newTime), traceTime.end),
-              selection.tracks,
+              selection.trackUris,
             );
           }
         } else {
@@ -230,72 +243,7 @@ class TraceViewer implements m.ClassComponent {
   }
 
   view() {
-    const scrollingPanels: PanelOrGroup[] = globals.state.scrollingTracks.map(
-      (key) => {
-        const trackBundle = this.resolveTrack(key);
-        return new TrackPanel({
-          trackKey: key,
-          title: trackBundle.title,
-          tags: trackBundle.tags,
-          trackFSM: trackBundle.trackFSM,
-          closeable: trackBundle.closeable,
-          chips: trackBundle.chips,
-          pluginId: trackBundle.pluginId,
-        });
-      },
-    );
-
-    for (const group of Object.values(globals.state.trackGroups)) {
-      const summaryTrackKey = group.summaryTrack;
-      let headerPanel;
-      if (summaryTrackKey) {
-        const trackBundle = this.resolveTrack(summaryTrackKey);
-        headerPanel = new TrackGroupPanel({
-          groupKey: group.key,
-          trackFSM: trackBundle.trackFSM,
-          subtitle: trackBundle.subtitle,
-          tags: trackBundle.tags,
-          chips: trackBundle.chips,
-          collapsed: group.collapsed,
-          title: group.name,
-        });
-      } else {
-        headerPanel = new TrackGroupPanel({
-          groupKey: group.key,
-          collapsed: group.collapsed,
-          title: group.name,
-        });
-      }
-
-      const childTracks: Panel[] = [];
-      if (!group.collapsed) {
-        for (const key of group.tracks) {
-          const trackBundle = this.resolveTrack(key);
-          const panel = new TrackPanel({
-            trackKey: key,
-            title: trackBundle.title,
-            tags: trackBundle.tags,
-            trackFSM: trackBundle.trackFSM,
-            closeable: trackBundle.closeable,
-            chips: trackBundle.chips,
-            pluginId: trackBundle.pluginId,
-          });
-          childTracks.push(panel);
-        }
-      }
-
-      scrollingPanels.push({
-        kind: 'group',
-        collapsed: group.collapsed,
-        childPanels: childTracks,
-        header: headerPanel,
-      });
-    }
-
-    const overviewPanel = [];
-    if (OVERVIEW_PANEL_FLAG.get()) {
-      overviewPanel.push(this.overviewTimelinePanel);
-    }
+    const scrollingPanels = renderToplevelPanels(globals.state.trackFilterTerm);
 
     const result = m(
       '.page.viewer-page',
@@ -316,80 +264,241 @@ class TraceViewer implements m.ClassComponent {
           '.pf-timeline-header',
           m(PanelContainer, {
             className: 'header-panel-container',
-            panels: [
-              ...overviewPanel,
+            panels: removeFalsyValues([
+              OVERVIEW_PANEL_FLAG.get() && this.overviewTimelinePanel,
               this.timeAxisPanel,
               this.timeSelectionPanel,
               this.notesPanel,
               this.tickmarkPanel,
-            ],
+            ]),
           }),
           m('.scrollbar-spacer-vertical'),
         ),
         m(PanelContainer, {
           className: 'pinned-panel-container',
-          panels: globals.state.pinnedTracks.map((key) => {
-            const trackBundle = this.resolveTrack(key);
+          panels: globals.workspace.pinnedTracks.map((track) => {
+            const trackBundle = resolveTrack(track.uri, track.displayName);
             return new TrackPanel({
-              trackKey: key,
-              title: trackBundle.title,
+              track: track,
+              title: trackBundle.displayName,
               tags: trackBundle.tags,
               trackFSM: trackBundle.trackFSM,
               revealOnCreate: true,
-              closeable: trackBundle.closeable,
               chips: trackBundle.chips,
               pluginId: trackBundle.pluginId,
             });
           }),
         }),
-        m(PanelContainer, {
-          className: 'scrolling-panel-container',
-          panels: scrollingPanels,
-          onPanelStackResize: (width) => {
-            const timelineWidth = width - TRACK_SHELL_WIDTH;
-            this.timelineWidthPx = timelineWidth;
-          },
-        }),
+        scrollingPanels.length === 0 &&
+          filterTermIsValid(globals.state.trackFilterTerm)
+          ? m(
+              EmptyState,
+              {title: 'No matching tracks'},
+              `No tracks match filter term "${globals.state.trackFilterTerm}"`,
+            )
+          : m(PanelContainer, {
+              className: 'scrolling-panel-container',
+              panels: scrollingPanels,
+              onPanelStackResize: (width) => {
+                const timelineWidth = width - TRACK_SHELL_WIDTH;
+                this.timelineWidthPx = timelineWidth;
+              },
+              renderOverlay,
+            }),
       ),
-      this.renderTabPanel(),
+      m(TabPanel),
     );
 
     globals.trackManager.flushOldTracks();
     return result;
   }
+}
 
-  // Resolve a track and its metadata through the track cache
-  private resolveTrack(key: string): TrackBundle {
-    const trackState = globals.state.tracks[key];
-    const {uri, name, closeable} = trackState;
-    const trackDesc = globals.trackManager.resolveTrackInfo(uri);
-    const trackCacheEntry =
-      trackDesc && globals.trackManager.resolveTrack(key, trackDesc);
-    const trackFSM = trackCacheEntry;
-    const tags = trackCacheEntry?.desc.tags;
-    const subtitle = trackCacheEntry?.desc.subtitle;
-    const chips = trackCacheEntry?.desc.chips;
-    const plugin = trackCacheEntry?.desc.pluginId;
-    return {
-      title: name,
-      subtitle,
-      closeable: closeable ?? false,
-      tags,
-      trackFSM,
-      chips,
-      pluginId: plugin,
-    };
-  }
+function renderOverlay(
+  ctx: CanvasRenderingContext2D,
+  canvasSize: Size,
+  panels: ReadonlyArray<RenderedPanelInfo>,
+): void {
+  const size = {
+    width: canvasSize.width - TRACK_SHELL_WIDTH,
+    height: canvasSize.height,
+  };
 
-  private renderTabPanel() {
-    return m(TabPanel);
+  using _ = canvasSave(ctx);
+  ctx.translate(TRACK_SHELL_WIDTH, 0);
+  canvasClip(ctx, 0, 0, size.width, size.height);
+  renderFlows(ctx, size, panels);
+}
+
+// Given a set of fuzzy matched results, render the matching segments in bold
+function renderFuzzyMatchedTrackTitle(title: FuzzySegment[]): m.Children {
+  return title.map(({matching, value}) => {
+    return matching ? m('b', value) : value;
+  });
+}
+
+function filterTermIsValid(
+  filterTerm: undefined | string,
+): filterTerm is string {
+  // Note: Boolean(filterTerm) returns the same result, but this is clearer
+  return filterTerm !== undefined && filterTerm !== '';
+}
+
+// Split filter term on commas into a list of tokens, cleaning up any whitespace
+// before and after the token and removing any blank tokens
+function tokenizeFilterTerm(term: string): ReadonlyArray<string> {
+  return term
+    .split(',')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+// Render the toplevel "scrolling" tracks and track groups
+function renderToplevelPanels(filterTerm: Optional<string>): PanelOrGroup[] {
+  return renderNodes(globals.workspace.children, filterTerm);
+}
+
+// Given a list of tracks and a filter term, return a list pf panels filtered by
+// the filter term
+function renderNodes(
+  nodes: ReadonlyArray<Node>,
+  filterTerm?: string,
+): PanelOrGroup[] {
+  return nodes.flatMap((node) => {
+    if (node instanceof GroupNode) {
+      if (node.headless) {
+        return renderNodes(node.children, filterTerm);
+      } else {
+        if (filterTermIsValid(filterTerm)) {
+          const tokens = tokenizeFilterTerm(filterTerm);
+          const match = fuzzyMatch(node.displayName, ...tokens);
+          if (match.matches) {
+            return {
+              kind: 'group',
+              collapsed: node.collapsed,
+              header: renderGroupHeaderPanel(
+                node,
+                true,
+                node.collapsed,
+                renderFuzzyMatchedTrackTitle(match.segments),
+              ),
+              childPanels: node.collapsed ? [] : renderNodes(node.children),
+            };
+          } else {
+            const childPanels = renderNodes(node.children, filterTerm);
+            if (childPanels.length > 0) {
+              return {
+                kind: 'group',
+                collapsed: false,
+                header: renderGroupHeaderPanel(node, false, node.collapsed),
+                childPanels,
+              };
+            }
+            return [];
+          }
+        } else {
+          return {
+            kind: 'group',
+            collapsed: node.collapsed,
+            header: renderGroupHeaderPanel(node, true, node.collapsed),
+            childPanels: node.collapsed
+              ? []
+              : renderNodes(node.children, filterTerm),
+          };
+        }
+      }
+    } else {
+      if (filterTermIsValid(filterTerm)) {
+        const tokens = tokenizeFilterTerm(filterTerm);
+        const match = fuzzyMatch(node.displayName, ...tokens);
+        if (match.matches) {
+          return renderTrackPanel(
+            node,
+            renderFuzzyMatchedTrackTitle(match.segments),
+          );
+        } else {
+          return [];
+        }
+      } else {
+        return renderTrackPanel(node);
+      }
+    }
+  });
+}
+
+function renderTrackPanel(track: TrackNode, title?: m.Children) {
+  const trackBundle = resolveTrack(track.uri, track.displayName);
+  return new TrackPanel({
+    track: track,
+    title: m(
+      'span',
+      {
+        style: {
+          'font-size': getTitleFontSize(trackBundle.displayName),
+        },
+      },
+      Boolean(title) ? title : trackBundle.displayName,
+    ),
+    tags: trackBundle.tags,
+    trackFSM: trackBundle.trackFSM,
+    chips: trackBundle.chips,
+    pluginId: trackBundle.pluginId,
+  });
+}
+
+function renderGroupHeaderPanel(
+  group: GroupNode,
+  collapsable: boolean,
+  collapsed: boolean,
+  title?: m.Children,
+): TrackGroupPanel {
+  if (group.headerTrackUri !== undefined) {
+    const trackBundle = resolveTrack(group.headerTrackUri, group.displayName);
+    return new TrackGroupPanel({
+      groupNode: group,
+      trackFSM: trackBundle.trackFSM,
+      subtitle: trackBundle.subtitle,
+      tags: trackBundle.tags,
+      chips: trackBundle.chips,
+      collapsed,
+      title: exists(title) ? title : group.displayName,
+      tooltip: group.displayName,
+      collapsable,
+    });
+  } else {
+    return new TrackGroupPanel({
+      groupNode: group,
+      collapsed,
+      title: exists(title) ? title : group.displayName,
+      tooltip: group.displayName,
+      collapsable,
+    });
   }
 }
 
+// Resolve a track and its metadata through the track cache
+function resolveTrack(uri: string, displayName: string): TrackBundle {
+  const trackDesc = globals.trackManager.getTrack(uri);
+  const trackCacheEntry =
+    trackDesc && globals.trackManager.getTrackRenderer(trackDesc);
+  const trackFSM = trackCacheEntry;
+  const tags = trackCacheEntry?.desc.tags;
+  const subtitle = trackCacheEntry?.desc.subtitle;
+  const chips = trackCacheEntry?.desc.chips;
+  const plugin = trackCacheEntry?.desc.pluginId;
+  return {
+    displayName,
+    subtitle,
+    tags,
+    trackFSM,
+    chips,
+    pluginId: plugin,
+  };
+}
+
 interface TrackBundle {
-  readonly title: string;
+  readonly displayName: string;
   readonly subtitle?: string;
-  readonly closeable: boolean;
   readonly trackFSM?: TrackCacheEntry;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;

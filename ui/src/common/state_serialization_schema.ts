@@ -31,6 +31,7 @@ const zTime = z
 const SELECTION_SCHEMA = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('TRACK_EVENT'),
+    // This is actually the track URI but let's not rename for backwards compat
     trackKey: z.string(),
     eventId: z.string(),
   }),

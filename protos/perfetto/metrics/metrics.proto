@@ -75,7 +75,9 @@ import "protos/perfetto/metrics/android/monitor_contention_agg_metric.proto";
 import "protos/perfetto/metrics/android/app_process_starts_metric.proto";
 import "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto";
 import "protos/perfetto/metrics/android/android_broadcasts_metric.proto";
-import "protos/perfetto/metrics/android/wattson_app_startup.proto";
+import "protos/perfetto/metrics/android/wattson_in_time_period.proto";
+import "protos/perfetto/metrics/android/android_anomaly_metric.proto";
+import "protos/perfetto/metrics/android/wattson_tasks_attribution.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -122,7 +124,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 70
+// Next id: 75
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -317,8 +319,23 @@ message TraceMetrics {
   // Android Broadcasts aggregated metrics
   optional AndroidBroadcastsMetric android_broadcasts = 68;
 
+  // Android Wattson rail estimate for each app startup.
+  optional AndroidWattsonTimePeriodMetric wattson_app_startup_rails = 69;
+
+  // Android Wattson rail estimate for duration of entire trace.
+  optional AndroidWattsonTimePeriodMetric wattson_trace_rails = 70;
+
+  // Android Anomaly metric
+  optional AndroidAnomalyMetric android_anomaly = 71;
+
   // Android Wattson app startup metrics.
-  optional AndroidWattsonTimePeriodMetric wattson_app_startup = 69;
+  optional AndroidWattsonTasksAttributionMetric wattson_trace_threads = 72;
+
+  // Android Wattson thread attribution during markers time window.
+  optional AndroidWattsonTasksAttributionMetric wattson_markers_threads = 73;
+
+  // Android Wattson estimate during markers time window.
+  optional AndroidWattsonTimePeriodMetric wattson_markers_rails = 74;
 
   // Android
   // Demo extensions.

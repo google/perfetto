@@ -13,19 +13,16 @@
 // limitations under the License.
 
 import {globals} from '../../frontend/globals';
+import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {
-  SimpleSliceTrack,
-  SimpleSliceTrackConfig,
-} from '../../frontend/simple_slice_track';
-import {addDebugSliceTrack, PluginContextTrace} from '../../public';
+  addDebugSliceTrack,
+  PluginContextTrace,
+  TrackDescriptor,
+} from '../../public';
 import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
 import {time, Time} from '../../base/time';
 import {BigintMath} from '../../base/bigint_math';
-import {reveal} from '../../frontend/scroll_helper';
-
-// Common TrackType for tracks when using registerStatic or addDebug
-// TODO: b/349502258 - to be removed after single refactoring to single API
-export type TrackType = 'static' | 'debug';
+import {scrollToTrackAndTimeSpan} from '../../frontend/scroll_helper';
 
 /**
  * Adds debug tracks from SimpleSliceTrackConfig
@@ -51,56 +48,19 @@ export function addDebugTrackOnCommand(
 }
 
 /**
- * Registers and pins tracks on traceload, given params
- * TODO: b/349502258 - Refactor to single API
- *
- * @param {PluginContextTrace} ctx Context for trace methods and properties
- * @param {SimpleSliceTrackConfig} config Track config to add
- * @param {string} trackName Track name to display
- * @param {string} uri Unique identifier for the track
- */
-export function addDebugTrackOnTraceLoad(
-  ctx: PluginContextTrace,
-  config: SimpleSliceTrackConfig,
-  trackName: string,
-  uri: string,
-) {
-  ctx.registerStaticTrack({
-    uri: uri,
-    title: trackName,
-    isPinned: true,
-    trackFactory: (trackCtx) => {
-      return new SimpleSliceTrack(ctx.engine, trackCtx, config);
-    },
-  });
-}
-
-/**
  * Registers and pins tracks on traceload or command
- * Every enabled plugins' onTraceload is executed when the trace is first loaded
- * To add and pin tracks on traceload, need to use registerStaticTrack
- * After traceload, if plugin registered command invocated, then addDebugSliceTrack
- * TODO: b/349502258 - Refactor to single API
  *
  * @param {PluginContextTrace} ctx Context for trace methods and properties
  * @param {SimpleSliceTrackConfig} config Track config to add
  * @param {string} trackName Track name to display
- * @param {TrackType} type Whether to registerStaticTrack or addDebugSliceTrack
  * type 'static' expects caller to pass uri string
- * @param {string} uri Unique track identifier expected when type is 'static'
  */
 export function addAndPinSliceTrack(
   ctx: PluginContextTrace,
   config: SimpleSliceTrackConfig,
   trackName: string,
-  type: TrackType,
-  uri?: string,
 ) {
-  if (type == 'static') {
-    addDebugTrackOnTraceLoad(ctx, config, trackName, uri ?? '');
-  } else if (type == 'debug') {
-    addDebugTrackOnCommand(ctx, config, trackName);
-  }
+  addDebugTrackOnCommand(ctx, config, trackName);
 }
 
 /**
@@ -122,17 +82,17 @@ export interface SliceIdentifier {
  * @param {SliceIdentifier} slice slice to focus on with trackId and sliceId
  */
 
-export async function focusOnSlice(slice: SliceIdentifier) {
+export function focusOnSlice(slice: SliceIdentifier) {
   if (slice.sliceId == undefined || slice.trackId == undefined) {
     return;
   }
   const trackId = slice.trackId;
-  const trackKey = await getTrackKey(trackId);
+  const track = getTrackForTrackId(trackId);
   globals.setLegacySelection(
     {
       kind: 'SLICE',
       id: slice.sliceId,
-      trackKey: trackKey,
+      trackUri: track?.uri,
       table: 'slice',
     },
     {
@@ -145,19 +105,14 @@ export async function focusOnSlice(slice: SliceIdentifier) {
 }
 
 /**
- * Given the trackId of the track, retrieves its trackKey
+ * Given the trackId of the track, retrieves its corresponding TrackDescriptor.
  *
- * @param {number} trackId track_id of the track
- * @returns {string} trackKey given to the track with queried trackId
+ * @param trackId track_id of the track
  */
-async function getTrackKey(trackId: number): Promise<string | undefined> {
-  // TODO: b/353466921 - update when waiForTraceLoad function added
-  // waitForValue used to return trackKey when available
-  // as we need to wait for the trace to load first.
-  const trackKey = await waitForValue(() =>
-    globals.trackManager.trackKeyByTrackId.get(trackId),
-  );
-  return trackKey;
+function getTrackForTrackId(trackId: number): TrackDescriptor | undefined {
+  return globals.trackManager.getAllTracks().find((trackDescriptor) => {
+    return trackDescriptor?.tags?.trackIds?.includes(trackId);
+  });
 }
 
 /**
@@ -181,27 +136,15 @@ export async function focusOnTimeAndTrack(slice: SliceIdentifier) {
   const sliceStart = slice.ts;
   // row.dur can be negative. Clamp to 1ns.
   const sliceDur = BigintMath.max(slice.dur, 1n);
-  const trackKey = await getTrackKey(trackId);
+  const track = getTrackForTrackId(trackId);
   // true for whether to expand the process group the track belongs to
-  if (trackKey == undefined) {
+  if (track == undefined) {
     return;
   }
-  reveal(trackKey, sliceStart, Time.add(sliceStart, sliceDur), true);
-}
-
-/**
- * Function to check keep checking for object values at set intervals
- *
- * @param {T | undefined} getValue Function to retrieve object value
- * @returns {T} Value returned by getValue when available
- */
-export async function waitForValue<T>(getValue: () => T): Promise<T> {
-  while (true) {
-    // TODO: b/353466921 - update when waiForTraceLoad function added
-    const value = getValue();
-    if (value !== undefined) {
-      return value;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  scrollToTrackAndTimeSpan(
+    track.uri,
+    sliceStart,
+    Time.add(sliceStart, sliceDur),
+    true,
+  );
 }

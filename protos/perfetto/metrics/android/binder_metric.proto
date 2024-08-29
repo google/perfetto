@@ -32,7 +32,7 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
-  // Next field id: 30
+  // Next field id: 31
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
@@ -65,6 +65,7 @@ message AndroidBinderMetric {
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
     repeated BlockedFunctionBreakdown blocked_functions = 14;
+    repeated LogicalReasonBreakdown logical_reasons = 31;
 
     optional uint32 client_tid = 15;
     optional uint32 server_tid = 16;
@@ -85,6 +86,12 @@ message AndroidBinderMetric {
     optional string blocked_function = 2;
     optional int64 blocked_function_dur = 3;
     optional int64 blocked_function_count = 4;
+  }
+
+  message LogicalReasonBreakdown {
+    optional string thread_state_type = 1;
+    optional string reason = 2;
+    optional int64 reason_dur = 3;
   }
 
   repeated PerProcessBreakdown process_breakdown = 1;

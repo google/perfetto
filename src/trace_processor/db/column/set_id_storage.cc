@@ -36,7 +36,6 @@
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
 namespace {
@@ -65,6 +64,10 @@ uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, Range range) {
 }
 
 }  // namespace
+
+SetIdStorage::StoragePtr SetIdStorage::GetStoragePtr() {
+  return values_->data();
+}
 
 SetIdStorage::ChainImpl::ChainImpl(const std::vector<uint32_t>* values)
     : values_(values) {}
@@ -340,20 +343,9 @@ std::optional<Token> SetIdStorage::ChainImpl::MinElement(
   return *tok;
 }
 
-std::unique_ptr<DataLayer> SetIdStorage::ChainImpl::Flatten(
-    std::vector<uint32_t>&) const {
-  return std::unique_ptr<DataLayer>(new SetIdStorage(values_));
-}
-
 SqlValue SetIdStorage::ChainImpl::Get_AvoidUsingBecauseSlow(
     uint32_t index) const {
   return SqlValue::Long((*values_)[index]);
-}
-
-void SetIdStorage::ChainImpl::Serialize(StorageProto* msg) const {
-  auto* vec_msg = msg->set_set_id_storage();
-  vec_msg->set_values(reinterpret_cast<const uint8_t*>(values_->data()),
-                      sizeof(SetId) * size());
 }
 
 }  // namespace perfetto::trace_processor::column

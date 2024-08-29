@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_PARSER_H_
 
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 
 namespace perfetto::trace_processor {

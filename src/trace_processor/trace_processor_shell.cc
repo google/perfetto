@@ -41,6 +41,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
@@ -53,6 +54,7 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -496,41 +498,68 @@ void PrintQueryResultInteractively(Iterator* it,
          static_cast<double>((t_end - t_start).count()) / 1E6);
 }
 
-base::Status PrintQueryResultAsCsv(Iterator* it, bool has_more, FILE* output) {
+struct QueryResult {
+  std::vector<std::string> column_names;
+  std::vector<std::vector<std::string>> rows;
+};
+
+base::StatusOr<QueryResult> ExtractQueryResult(Iterator* it, bool has_more) {
+  QueryResult result;
+
   for (uint32_t c = 0; c < it->ColumnCount(); c++) {
+    fprintf(stderr, "column %d = %s\n", c, it->GetColumnName(c).c_str());
+    result.column_names.push_back(it->GetColumnName(c));
+  }
+
+  for (; has_more; has_more = it->Next()) {
+    std::vector<std::string> row;
+    for (uint32_t c = 0; c < it->ColumnCount(); c++) {
+      SqlValue value = it->Get(c);
+      std::string str_value;
+      switch (value.type) {
+        case SqlValue::Type::kNull:
+          str_value = "\"[NULL]\"";
+          break;
+        case SqlValue::Type::kDouble:
+          str_value =
+              base::StackString<256>("%f", value.double_value).ToStdString();
+          break;
+        case SqlValue::Type::kLong:
+          str_value = base::StackString<256>("%" PRIi64, value.long_value)
+                          .ToStdString();
+          break;
+        case SqlValue::Type::kString:
+          str_value = '"' + std::string(value.string_value) + '"';
+          break;
+        case SqlValue::Type::kBytes:
+          str_value = "\"<raw bytes>\"";
+          break;
+      }
+
+      row.push_back(std::move(str_value));
+    }
+    result.rows.push_back(std::move(row));
+  }
+  RETURN_IF_ERROR(it->Status());
+  return result;
+}
+
+void PrintQueryResultAsCsv(const QueryResult& result, FILE* output) {
+  for (uint32_t c = 0; c < result.column_names.size(); c++) {
     if (c > 0)
       fprintf(output, ",");
-    fprintf(output, "\"%s\"", it->GetColumnName(c).c_str());
+    fprintf(output, "\"%s\"", result.column_names[c].c_str());
   }
   fprintf(output, "\n");
 
-  for (; has_more; has_more = it->Next()) {
-    for (uint32_t c = 0; c < it->ColumnCount(); c++) {
+  for (const auto& row : result.rows) {
+    for (uint32_t c = 0; c < result.column_names.size(); c++) {
       if (c > 0)
         fprintf(output, ",");
-
-      auto value = it->Get(c);
-      switch (value.type) {
-        case SqlValue::Type::kNull:
-          fprintf(output, "\"%s\"", "[NULL]");
-          break;
-        case SqlValue::Type::kDouble:
-          fprintf(output, "%f", value.double_value);
-          break;
-        case SqlValue::Type::kLong:
-          fprintf(output, "%" PRIi64, value.long_value);
-          break;
-        case SqlValue::Type::kString:
-          fprintf(output, "\"%s\"", value.string_value);
-          break;
-        case SqlValue::Type::kBytes:
-          fprintf(output, "\"%s\"", "<raw bytes>");
-          break;
-      }
+      fprintf(output, "%s", row[c].c_str());
     }
     fprintf(output, "\n");
   }
-  return it->Status();
 }
 
 base::Status RunQueriesWithoutOutput(const std::string& sql_query) {
@@ -575,8 +604,16 @@ base::Status RunQueriesAndPrintResult(const std::string& sql_query,
     return base::OkStatus();
   }
 
+  auto query_result = ExtractQueryResult(&it, has_more);
+  RETURN_IF_ERROR(query_result.status());
+
+  // We want to include the query iteration time (as it's a part of executing
+  // SQL and can be non-trivial), and we want to exclude the time spent printing
+  // the result (which can be significant for large results), so we materialise
+  // the results first, then take the measurement, then print them.
   auto query_end = std::chrono::steady_clock::now();
-  RETURN_IF_ERROR(PrintQueryResultAsCsv(&it, has_more, output));
+
+  PrintQueryResultAsCsv(query_result.value(), output);
 
   auto dur = query_end - query_start;
   PERFETTO_ILOG(
@@ -687,6 +724,7 @@ struct CommandLineOptions {
           metatrace::MetatraceCategories::QUERY_TIMELINE |
           metatrace::MetatraceCategories::API_TIMELINE);
   bool dev = false;
+  bool extra_checks = false;
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
@@ -748,6 +786,9 @@ Feature flags:
  --dev-flag KEY=VALUE                 Set a development flag to the given value.
                                       Does not have any affect unless --dev is
                                       specified.
+ --extra-checks                       Enables additional checks which can catch
+                                      more SQL errors, but which incur
+                                      additional runtime overhead.
 
 Standard library:
  --add-sql-module MODULE_PATH         Files from the directory will be treated
@@ -802,6 +843,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_ADD_SQL_MODULE,
     OPT_METRIC_EXTENSION,
     OPT_DEV,
+    OPT_EXTRA_CHECKS,
     OPT_OVERRIDE_STDLIB,
     OPT_OVERRIDE_SQL_MODULE,
     OPT_NO_FTRACE_RAW,
@@ -836,6 +878,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
        OPT_ANALYZE_TRACE_PROTO_CONTENT},
       {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
       {"dev", no_argument, nullptr, OPT_DEV},
+      {"extra-checks", no_argument, nullptr, OPT_EXTRA_CHECKS},
       {"add-sql-module", required_argument, nullptr, OPT_ADD_SQL_MODULE},
       {"override-sql-module", required_argument, nullptr,
        OPT_OVERRIDE_SQL_MODULE},
@@ -950,6 +993,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_DEV) {
       command_line_options.dev = true;
+      continue;
+    }
+
+    if (option == OPT_EXTRA_CHECKS) {
+      command_line_options.extra_checks = true;
       continue;
     }
 
@@ -1084,8 +1132,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
           }
         });
   }
-  g_tp->NotifyEndOfFile();
-  return base::OkStatus();
+  return g_tp->NotifyEndOfFile();
 }
 
 base::Status RunQueries(const std::string& queries, bool expect_output) {
@@ -1595,6 +1642,10 @@ base::Status TraceProcessorMain(int argc, char** argv) {
       }
       config.dev_flags.emplace(kv[0], kv[1]);
     }
+  }
+
+  if (options.extra_checks) {
+    config.enable_extra_checks = true;
   }
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);

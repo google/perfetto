@@ -96,14 +96,17 @@ export function moveByFocusedFlow(direction: Direction): void {
   for (const flow of globals.connectedFlows) {
     if (flow.id === flowId) {
       const flowPoint = direction === 'Backward' ? flow.begin : flow.end;
-      const trackKeyByTrackId = globals.trackManager.trackKeyByTrackId;
-      const trackKey = trackKeyByTrackId.get(flowPoint.trackId);
-      if (trackKey) {
+      const track = globals.workspace.flatTracks.find((t) => {
+        return globals.trackManager
+          .getTrack(t.uri)
+          ?.tags?.trackIds?.includes(flowPoint.trackId);
+      });
+      if (track) {
         globals.setLegacySelection(
           {
             kind: 'SLICE',
             id: flowPoint.sliceId,
-            trackKey,
+            trackUri: track.uri,
             table: 'slice',
           },
           {
@@ -126,7 +129,7 @@ export async function findCurrentSelection() {
     focusHorizontalRange(range.start, range.end);
   }
 
-  if (selection.trackKey) {
-    verticalScrollToTrack(selection.trackKey, true);
+  if (selection.trackUri) {
+    verticalScrollToTrack(selection.trackUri, true);
   }
 }

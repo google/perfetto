@@ -128,7 +128,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
 
   std::string id = value.isMember("id") ? value["id"].asString() : "";
 
-  base::StringView cat = value.isMember("cat")
+  base::StringView cat = value.isMember("cat") && value["cat"].isString()
                              ? base::StringView(value["cat"].asCString())
                              : base::StringView();
   StringId cat_id = storage->InternString(cat);
@@ -181,11 +181,9 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       auto opt_tts = json::CoerceToTs(value["tts"]);
       if (opt_slice_id.has_value() && opt_tts) {
         auto* slice = storage->mutable_slice_table();
-        auto maybe_row = slice->id().IndexOf(*opt_slice_id);
-        PERFETTO_DCHECK(maybe_row.has_value());
-        auto start_tts = slice->thread_ts()[*maybe_row];
-        if (start_tts) {
-          slice->mutable_thread_dur()->Set(*maybe_row, *opt_tts - *start_tts);
+        auto rr = *slice->FindById(*opt_slice_id);
+        if (auto start_tts = rr.thread_ts(); start_tts) {
+          rr.set_thread_dur(*opt_tts - *start_tts);
         }
       }
       break;
@@ -291,8 +289,8 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
 
       TrackId track_id;
       if (scope == "g") {
-        track_id = context_->track_tracker
-                       ->GetOrCreateLegacyChromeGlobalInstantTrack();
+        track_id = context_->track_tracker->InternGlobalTrack(
+            TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
       } else if (scope == "p") {
         if (!opt_pid) {
           context_->storage->IncrementStats(stats::json_parser_failure);

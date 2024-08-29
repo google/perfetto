@@ -48,6 +48,8 @@ message ProtoLogViewerConfig {
     optional ProtoLogLevel level = 3;
     // the id of the log group this message belongs to
     optional uint32 group_id = 4;
+    // path to the file where the message was logged
+    optional string location = 5;
   }
 
   /* information about a ProtoLog log group */

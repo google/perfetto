@@ -28,14 +28,14 @@ CREATE PERFETTO FUNCTION _is_libcore_or_array(obj_name STRING)
 RETURNS BOOL AS
 SELECT ($obj_name GLOB 'java.*' AND NOT $obj_name GLOB 'java.lang.Class<*>')
   OR $obj_name GLOB 'j$.*'
-  OR $obj_name GLOB 'int[*'
-  OR $obj_name GLOB 'long[*'
-  OR $obj_name GLOB 'byte[*'
-  OR $obj_name GLOB 'char[*'
-  OR $obj_name GLOB 'short[*'
-  OR $obj_name GLOB 'float[*'
-  OR $obj_name GLOB 'double[*'
-  OR $obj_name GLOB 'boolean[*'
+  OR $obj_name GLOB 'int[[]*'
+  OR $obj_name GLOB 'long[[]*'
+  OR $obj_name GLOB 'byte[[]*'
+  OR $obj_name GLOB 'char[[]*'
+  OR $obj_name GLOB 'short[[]*'
+  OR $obj_name GLOB 'float[[]*'
+  OR $obj_name GLOB 'double[[]*'
+  OR $obj_name GLOB 'boolean[[]*'
   OR $obj_name GLOB 'android.util.*Array*';
 
 CREATE PERFETTO TABLE _heap_graph_dominator_tree_for_partition AS

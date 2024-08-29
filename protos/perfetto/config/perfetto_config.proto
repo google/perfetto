@@ -733,6 +733,9 @@ message ProtoLogConfig {
   repeated ProtoLogGroup group_overrides = 1;
   // Specified what tracing mode to use for the tracing instance.
   optional TracingMode tracing_mode = 2;
+  // If set, any message with log level higher than this level (inclusive) will
+  // be traced. Group overrides take precedence over this value.
+  optional ProtoLogLevel default_log_from_level = 3;
 }
 
 message ProtoLogGroup {
@@ -827,6 +830,9 @@ message WindowManagerConfig {
 
     // Trace state snapshots every time a transaction is committed.
     LOG_FREQUENCY_TRANSACTION = 2;
+
+    // Trace single state snapshots when the data source is started.
+    LOG_FREQUENCY_SINGLE_DUMP = 3;
   }
   optional LogFrequency log_frequency = 1;
 
@@ -3163,6 +3169,10 @@ message SysStatsConfig {
   // Polls /sys/class/thermal/* every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 thermal_period_ms = 12;
+
+  // Polls /sys/devices/system/cpu/cpu*/cpuidle/state* every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 cpuidle_period_ms = 13;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto

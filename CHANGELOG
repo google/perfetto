@@ -1,6 +1,19 @@
 Unreleased:
   Tracing service and probes:
+    * Improved accuracy of ftrace event cropping when there are multiple
+      concurrent tracing sessions. See `previous_bundle_end_timestamp` in
+      ftrace_event_bundle.proto.
+  SQL Standard library:
     *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v47.0 - 2024-08-07:
   SQL Standard library:
     * Removed `cpu.cpus` and `cpu.size` modules. The functions inside
       for guessing core type were inaccurate and often misleading.
@@ -14,10 +27,10 @@ Unreleased:
       reason as above.
     * Moved `gpu.frequency` to `android.gpu.frequency` for the same reason as
       above.
-    * Moved `cpu.idle` module to `linux.cpu.idle` for the same
-      reason as above.
-    * Moved content of `linux.cpu_idle` into `linux.cpu.idle` to make it
-      consistent with above changes.
+    * Moved `cpu.idle` module to `linux.cpu.idle` or `linux.cpu.idle_stats` for
+      the same reason as above.
+    * Moved content of `linux.cpu_idle` into `linux.cpu.idle` and
+      `linux.cpu.idle_stats` to make it consistent with above changes.
     * Moved `memory.android.gpu` to `android.memory.gpu`  to make it consistent
       with above changes.`
     * Moved contents of `memory.linux.process` to `linux.memory.process` and
@@ -27,13 +40,44 @@ Unreleased:
     * Moved `memory.heap_graph_dominator_tree` to
       `android.memory.heap_graph.dominator_tree`. This is to allow for the
       addition of more modules related to heap graphs.
+    * Added `linux_kernel_threads` table to `linux.threads` module.
   Trace Processor:
+    * Change `NotifyEndOfFile` method to return a Status object. For backwards
+      compatibility, this value can be ignored but in the future a [[nodiscard]]
+      annotation will be added.
     * Added `CREATE PERFETTO INDEX` to add sqlite-like indexes to Perfetto
       tables. Has the same API as `CREATE INDEX`.
   UI:
-    *
-  SDK:
-    *
+    * Updated to Typescript 5.5.2, lib es2022, & upreved various packages.
+    * Made `Disposable`, `DisposableStack`, and their async variants available
+      to use in the UI.
+    * Vastly improved flamegraph.
+    * Added track filter which can be used to search for tracks by name.
+    * Added Wattson cpu power estimation plugin.
+    * Added option to show thread slice ancestor/descendant slices in thread
+      slice details panel context menu.
+    * Added feature where plugin can ask tracks to be automatically pinned when
+      adding tracks on trace load.
+    * Fixed inconsistent y-range for all CPU SS tracks.
+    * Switched to using explicit de/serialization when creating/loading
+      permalinks.
+    * Improved sched slice details query efficiency.
+    * Added `TagInput` widget.
+    * Added `ui/format-sources` script to run eslint and prettier in one go.
+    * Reduced number of circular imports.
+    * Added `SharedAsyncDisposable` for management of shared async resources.
+    * Fixed rendering of negative counter tracks.
+    * Improved data loss notification using a popup
+    * Tidied up `TrackDescriptor`.
+    * Added Android trace probes for ChromeOS
+    * Added feature to try reconnect when websocket connection is lost.
+    * Fixed bug in 1ns event rendering.
+    * Tidied up details panel font sizes and weights.
+    * Added segmented buttons widget.
+    * Added 'main thread' chip to main thread tracks.
+    * Added plugin API to add menu items to the sidebar.
+    * Added `onTraceReady` plugin hook.
+    * Various clean-ups and bugfixes.
 
 
 v46.0 - 2024-06-13:

@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AddTrackArgs} from '../../common/actions';
 import {ObjectByKey} from '../../common/state';
 import {featureFlags} from '../../core/feature_flags';
 import {CustomSqlDetailsPanelConfig} from '../../frontend/tracks/custom_sql_table_slice_track';
-
-export const SCROLL_JANK_GROUP_ID = 'chrome-scroll-jank-track-group';
 
 export const ENABLE_CHROME_SCROLL_JANK_PLUGIN = featureFlags.register({
   id: 'enableChromeScrollJankPlugin',
@@ -25,10 +22,6 @@ export const ENABLE_CHROME_SCROLL_JANK_PLUGIN = featureFlags.register({
   description: 'Adds new tracks for scroll jank in Chrome',
   defaultValue: false,
 });
-
-export type DecideTracksResult = {
-  tracksToAdd: AddTrackArgs[];
-};
 
 export interface ScrollJankTrackSpec {
   key: string;
@@ -55,12 +48,12 @@ export class ScrollJankPluginState {
 
   public registerTrack(args: {
     kind: string;
-    trackKey: string;
+    trackUri: string;
     tableName: string;
     detailsPanelConfig: CustomSqlDetailsPanelConfig;
   }): void {
     this.tracks[args.kind] = {
-      key: args.trackKey,
+      key: args.trackUri,
       sqlTableName: args.tableName,
       detailsPanelConfig: args.detailsPanelConfig,
     };
@@ -74,9 +67,3 @@ export class ScrollJankPluginState {
     return this.tracks[kind];
   }
 }
-
-export const ScrollJankV3TrackKind =
-  'org.chromium.ScrollJank.scroll_jank_v3_track';
-
-export const CHROME_EVENT_LATENCY_TRACK_KIND =
-  'org.chromium.ScrollJank.event_latencies';

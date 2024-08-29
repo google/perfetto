@@ -22,26 +22,26 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 
 namespace perfetto::trace_processor {
 
 namespace {
+
 using OrderedIndices = column::DataLayerChain::OrderedIndices;
 
 OrderedIndices OrderedIndicesFromIndex(const std::vector<uint32_t>& index) {
@@ -50,6 +50,7 @@ OrderedIndices OrderedIndicesFromIndex(const std::vector<uint32_t>& index) {
   o.size = static_cast<uint32_t>(index.size());
   return o;
 }
+
 }  // namespace
 
 // Represents a table of data with named, strongly typed columns.
@@ -140,17 +141,18 @@ class Table {
   Table(Table&& other) noexcept { *this = std::move(other); }
   Table& operator=(Table&& other) noexcept;
 
-  // Return a chain corresponding to a given column.
-  const column::DataLayerChain& ChainForColumn(uint32_t col_idx) const {
-    return *chains_[col_idx];
-  }
-
   // Filters and sorts the tables with the arguments specified, returning the
   // result as a RowMap.
   RowMap QueryToRowMap(const Query&) const;
 
   // Applies the RowMap |rm| onto this table and returns an iterator over the
   // resulting rows.
+  Iterator QueryToIterator(const Query& q) const {
+    return ApplyAndIterateRows(QueryToRowMap(q));
+  }
+
+  // Do not add any further uses.
+  // TODO(lalitm): make this private.
   Iterator ApplyAndIterateRows(RowMap rm) const {
     return Iterator(this, std::move(rm));
   }
@@ -158,10 +160,9 @@ class Table {
   std::optional<OrderedIndices> GetIndex(
       const std::vector<uint32_t>& cols) const {
     for (const auto& idx : indexes_) {
-      if (cols.size() >= idx.index.size()) {
+      if (cols.size() > idx.columns.size()) {
         continue;
       }
-
       if (std::equal(cols.begin(), cols.end(), idx.columns.begin())) {
         return OrderedIndicesFromIndex(idx.index);
       }
@@ -171,41 +172,13 @@ class Table {
 
   // Adds an index onto column.
   // Returns an error if index already exists and `!replace`.
-  base::Status SetIndex(const std::string& name,
-                        std::vector<uint32_t> col_idxs,
-                        std::vector<uint32_t> index,
-                        bool replace = false) {
-    for (auto& idx : indexes_) {
-      if (idx.name == name) {
-        if (replace) {
-          idx.columns = std::move(col_idxs);
-          idx.index = std::move(index);
-          return base::OkStatus();
-        }
-        return base::ErrStatus(
-            "Index of this name already exists on this table.");
-      }
-    }
-
-    ColumnIndex idx;
-    idx.name = name;
-    idx.columns = std::move(col_idxs);
-    idx.index = std::move(index);
-    indexes_.push_back(std::move(idx));
-    return base::OkStatus();
-  }
+  base::Status CreateIndex(const std::string& name,
+                           std::vector<uint32_t> col_idxs,
+                           bool replace);
 
   // Removes index from the table.
   // Returns an error if index doesn't exist.
-  base::Status DropIndex(const std::string& name) {
-    for (uint32_t i = 0; i < indexes_.size(); i++) {
-      if (indexes_[i].name == name) {
-        indexes_.erase(indexes_.begin() + i);
-        return base::OkStatus();
-      }
-    }
-    return base::ErrStatus("Index '%s' not found.", name.c_str());
-  }
+  base::Status DropIndex(const std::string& name);
 
   // Sorts the table using the specified order by constraints.
   Table Sort(const std::vector<Order>&) const;
@@ -220,22 +193,21 @@ class Table {
   // TODO(mayzner): This is not a long term function, it should be used with
   // caution.
   std::optional<uint32_t> ColumnIdxFromName(const std::string& col_name) const {
-    auto x = std::find_if(columns_.begin(), columns_.end(),
-                          [col_name](const ColumnLegacy& col) {
-                            return col_name.compare(col.name()) == 0;
-                          });
-
-    return (x == columns_.end()) ? std::nullopt
-                                 : std::make_optional(x->index_in_table());
+    auto x = std::find_if(
+        columns_.begin(), columns_.end(),
+        [col_name](const ColumnLegacy& col) { return col_name == col.name(); });
+    return x == columns_.end() ? std::nullopt
+                               : std::make_optional(x->index_in_table());
   }
 
   uint32_t row_count() const { return row_count_; }
-  StringPool* string_pool() const { return string_pool_; }
   const std::vector<ColumnLegacy>& columns() const { return columns_; }
-  const std::vector<RefPtr<column::DataLayer>>& storage_layers() const {
+  StringPool* string_pool() const { return string_pool_; }
+
+  const std::vector<RefPtr<column::StorageLayer>>& storage_layers() const {
     return storage_layers_;
   }
-  const std::vector<RefPtr<column::DataLayer>>& null_layers() const {
+  const std::vector<RefPtr<column::OverlayLayer>>& null_layers() const {
     return null_layers_;
   }
 
@@ -263,9 +235,9 @@ class Table {
   }
 
   void OnConstructionCompleted(
-      std::vector<RefPtr<column::DataLayer>> storage_layers,
-      std::vector<RefPtr<column::DataLayer>> null_layers,
-      std::vector<RefPtr<column::DataLayer>> overlay_layers);
+      std::vector<RefPtr<column::StorageLayer>> storage_layers,
+      std::vector<RefPtr<column::OverlayLayer>> null_layers,
+      std::vector<RefPtr<column::OverlayLayer>> overlay_layers);
 
   ColumnLegacy* GetColumn(uint32_t index) { return &columns_[index]; }
 
@@ -275,12 +247,15 @@ class Table {
 
  private:
   friend class ColumnLegacy;
+  friend class QueryExecutor;
 
   struct ColumnIndex {
     std::string name;
     std::vector<uint32_t> columns;
     std::vector<uint32_t> index;
   };
+
+  bool HasNullOrOverlayLayer(uint32_t col_idx) const;
 
   void CreateChains() const;
 
@@ -289,14 +264,23 @@ class Table {
   void ApplyDistinct(const Query&, RowMap*) const;
   void ApplySort(const Query&, RowMap*) const;
 
+  RowMap TryApplyIndex(const std::vector<Constraint>&,
+                       uint32_t& cs_offset) const;
+  RowMap ApplyIdJoinConstraints(const std::vector<Constraint>&,
+                                uint32_t& cs_offset) const;
+
+  const column::DataLayerChain& ChainForColumn(uint32_t col_idx) const {
+    return *chains_[col_idx];
+  }
+
   StringPool* string_pool_ = nullptr;
   uint32_t row_count_ = 0;
   std::vector<ColumnStorageOverlay> overlays_;
   std::vector<ColumnLegacy> columns_;
 
-  std::vector<RefPtr<column::DataLayer>> storage_layers_;
-  std::vector<RefPtr<column::DataLayer>> null_layers_;
-  std::vector<RefPtr<column::DataLayer>> overlay_layers_;
+  std::vector<RefPtr<column::StorageLayer>> storage_layers_;
+  std::vector<RefPtr<column::OverlayLayer>> null_layers_;
+  std::vector<RefPtr<column::OverlayLayer>> overlay_layers_;
   mutable std::vector<std::unique_ptr<column::DataLayerChain>> chains_;
 
   std::vector<ColumnIndex> indexes_;

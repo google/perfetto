@@ -1,3 +1,0 @@
-"type","name","id","ts","dur","type","name"
-"track","DeviceStateChanged",0,1000,0,"internal_slice","some_state_from_sysprops"
-"track","DeviceStateChanged",1,3000,0,"internal_slice","some_state_from_atrace"

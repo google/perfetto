@@ -24,15 +24,16 @@ import {
   SqlValue,
   sqlValueToReadableString,
 } from '../../../../trace_processor/sql_utils';
+import {Arg, getArgs} from '../../../../trace_processor/sql_utils/args';
+import {asArgSetId} from '../../../../trace_processor/sql_utils/core_types';
 import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
 import {SqlRef} from '../../../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../../../widgets/tree';
 import {hasArgs, renderArguments} from '../../../slice_args';
-import {asArgSetId} from '../../../sql_types';
 import {DurationWidget} from '../../../widgets/duration';
 import {Timestamp as TimestampWidget} from '../../../widgets/timestamp';
-import {Arg, getArgs} from '../../../sql/args';
+import {sqlIdRegistry} from './sql_ref_renderer_registry';
 
 // This file contains the helper to render the details tree (based on Tree
 // widget) for an object represented by a SQL row in some table. The user passes
@@ -168,6 +169,13 @@ export namespace DetailsSchema {
     return new ScalarValueSchema('url', value, args);
   }
 
+  export function Boolean(
+    value: string,
+    args?: ScalarValueParams,
+  ): ScalarValueSchema {
+    return new ScalarValueSchema('boolean', value, args);
+  }
+
   // Create an object representing a reference to a SQL table row in the schema.
   // |table| - name of the table.
   // |id| - SQL expression (e.g. column name) for the id.
@@ -209,13 +217,12 @@ export class Details {
     private sqlTable: string,
     private id: number,
     schema: {[key: string]: ValueDesc},
-    sqlIdTypesRenderers: {[key: string]: SqlIdRefRenderer} = {},
   ) {
     this.dataController = new DataController(
       engine,
       sqlTable,
       id,
-      sqlIdTypesRenderers,
+      sqlIdRegistry,
     );
 
     this.resolvedSchema = {
@@ -285,15 +292,6 @@ export type SqlIdRefRenderer = {
   render: (data: {}) => RenderedValue;
 };
 
-// Type-safe helper to create a SqlIdRefRenderer, which ensures that the
-// type returned from the fetch is the same type that renderer takes.
-export function createSqlIdRefRenderer<Data extends {}>(
-  fetch: (engine: Engine, id: bigint) => Promise<Data>,
-  render: (data: Data) => RenderedValue,
-): SqlIdRefRenderer {
-  return {fetch, render: render as (data: {}) => RenderedValue};
-}
-
 // === Impl details ===
 
 // Resolved index into the list of columns / expression to fetch.
@@ -339,7 +337,13 @@ type ResolvedArray = {
 // from SQL).
 class ScalarValueSchema {
   constructor(
-    public kind: 'timestamp' | 'duration' | 'arg_set_id' | 'value' | 'url',
+    public kind:
+      | 'timestamp'
+      | 'duration'
+      | 'arg_set_id'
+      | 'value'
+      | 'url'
+      | 'boolean',
     public sourceExpression: string,
     public params?: ScalarValueParams,
   ) {}
@@ -347,7 +351,7 @@ class ScalarValueSchema {
 
 // Resolved version of simple scalar values.
 type ResolvedScalarValue = {
-  kind: 'timestamp' | 'duration' | 'value' | 'url';
+  kind: 'timestamp' | 'duration' | 'value' | 'url' | 'boolean';
   source: ExpressionIndex;
 } & ScalarValueParams;
 
@@ -435,7 +439,13 @@ interface Data {
   // Source statements for the SQL references.
   sqlIdRefs: {tableName: string; idExpression: string}[];
   // Fetched data for the SQL references.
-  sqlIdRefData: ({data: {}; id: bigint} | Err)[];
+  sqlIdRefData: (
+    | {
+        data: {};
+        id: bigint | null;
+      }
+    | Err
+  )[];
 }
 
 // Class responsible for collecting the description of the data to fetch and
@@ -501,7 +511,7 @@ class DataController {
       const argSetId = data.values[argSetIndex];
       if (argSetId === null) {
         data.argSets.push([]);
-      } else if (typeof argSetId !== 'number') {
+      } else if (typeof argSetId !== 'number' && typeof argSetId !== 'bigint') {
         data.argSets.push(
           new Err(
             `Incorrect type for arg set ${
@@ -510,7 +520,9 @@ class DataController {
           ),
         );
       } else {
-        data.argSets.push(await getArgs(this.engine, asArgSetId(argSetId)));
+        data.argSets.push(
+          await getArgs(this.engine, asArgSetId(Number(argSetId))),
+        );
       }
     }
 
@@ -522,7 +534,10 @@ class DataController {
         continue;
       }
       const id = data.values[ref.id];
-      if (typeof id !== 'bigint') {
+      if (id === null) {
+        data.sqlIdRefData.push({data: {}, id});
+        continue;
+      } else if (typeof id !== 'bigint') {
         data.sqlIdRefData.push(
           new Err(
             `Incorrect type for SQL reference ${
@@ -673,10 +688,10 @@ function renderValue(
       });
     case 'url': {
       const url = data.values[value.source];
-      let rhs: m.Child;
+      let rhs: m.Children;
       if (url === null) {
         if (value.skipIfNull) return null;
-        rhs = m('i', 'NULL');
+        rhs = renderNull();
       } else if (typeof url !== 'string') {
         rhs = renderError(
           `Incorrect type for URL ${
@@ -694,6 +709,21 @@ function renderValue(
         left: key,
         right: rhs,
       });
+    }
+    case 'boolean': {
+      const bool = data.values[value.source];
+      if (bool === null && value.skipIfNull) return null;
+      let rhs: m.Child;
+      if (typeof bool !== 'bigint' && typeof bool !== 'number') {
+        rhs = renderError(
+          `Incorrect type for boolean ${
+            data.valueExpressions[value.source]
+          }: expected bigint or number, got ${typeof bool}`,
+        );
+      } else {
+        rhs = bool ? 'true' : 'false';
+      }
+      return m(TreeNode, {left: key, right: rhs});
     }
     case 'timestamp': {
       const ts = data.values[value.source];
@@ -747,6 +777,8 @@ function renderValue(
       let children: m.Children;
       if (refData instanceof Err) {
         rhs = renderError(refData.message);
+      } else if (refData.id === null && value.skipIfNull === true) {
+        rhs = renderNull();
       } else {
         const renderer = sqlIdRefRenderers[ref.tableName];
         if (renderer === undefined) {
@@ -827,4 +859,8 @@ function renderValue(
       );
     }
   }
+}
+
+function renderNull(): m.Children {
+  return m('i', 'NULL');
 }

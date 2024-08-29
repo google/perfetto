@@ -17,35 +17,43 @@ import {THREAD_SLICE_TRACK_KIND} from '../../public';
 import {ThreadSliceDetailsTab} from '../../frontend/thread_slice_details_tab';
 import {
   BottomTabToSCSAdapter,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
+import {removeFalsyValues} from '../../base/array_utils';
 
-class ThreadSlicesPlugin implements Plugin {
+class ThreadSlicesPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
+
     const result = await engine.query(`
       include perfetto module viz.summary.slices;
-      select
-        thread_track.utid as utid,
-        thread_track.id as trackId,
-        thread_track.name as trackName,
-        EXTRACT_ARG(thread_track.source_arg_set_id,
-                    'is_root_in_scope') as isDefaultTrackForScope,
-        tid,
-        thread.name as threadName,
-        max_depth as maxDepth,
-        thread.upid as upid,
-        is_main_thread as isMainThread
-      from thread_track
-      join thread using(utid)
-      join _slice_track_summary sts on sts.id = thread_track.id
-  `);
+      include perfetto module viz.summary.threads;
+      include perfetto module viz.threads;
 
+      select
+        tt.utid as utid,
+        tt.id as trackId,
+        tt.name as trackName,
+        extract_arg(
+          tt.source_arg_set_id,
+          'is_root_in_scope'
+        ) as isDefaultTrackForScope,
+        t.tid,
+        t.name as threadName,
+        s.max_depth as maxDepth,
+        t.upid as upid,
+        t.is_main_thread as isMainThread,
+        t.is_kernel_thread AS isKernelThread
+      from _thread_track_summary_by_utid_and_name s
+      join _threads_with_kernel_flag t using(utid)
+      join thread_track tt on s.track_id = tt.id
+      where s.track_count = 1
+  `);
     const it = result.iter({
       utid: NUM,
       trackId: NUM,
@@ -56,10 +64,21 @@ class ThreadSlicesPlugin implements Plugin {
       maxDepth: NUM,
       upid: NUM_NULL,
       isMainThread: NUM_NULL,
+      isKernelThread: NUM,
     });
-
     for (; it.valid(); it.next()) {
-      const {upid, utid, trackId, trackName, tid, threadName, maxDepth} = it;
+      const {
+        upid,
+        utid,
+        trackId,
+        trackName,
+        tid,
+        threadName,
+        maxDepth,
+        isMainThread,
+        isKernelThread,
+        isDefaultTrackForScope,
+      } = it;
       const displayName = getTrackName({
         name: trackName,
         utid,
@@ -68,23 +87,28 @@ class ThreadSlicesPlugin implements Plugin {
         kind: 'Slices',
       });
 
-      const chips = it.isMainThread === 1 ? ['main thread'] : [];
-
+      const uri = `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`;
       ctx.registerTrack({
-        uri: `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`,
+        uri,
         title: displayName,
         tags: {
           trackIds: [trackId],
           kind: THREAD_SLICE_TRACK_KIND,
+          utid,
+          upid: upid ?? undefined,
+          ...(isDefaultTrackForScope === 1 && {isDefaultTrackForScope: true}),
         },
-        chips,
-        trackFactory: ({trackKey}) => {
-          const newTrackArgs = {
+        chips: removeFalsyValues([
+          isKernelThread === 0 && isMainThread === 1 && 'main thread',
+        ]),
+        track: new ThreadSliceTrack(
+          {
             engine: ctx.engine,
-            trackKey,
-          };
-          return new ThreadSliceTrack(newTrackArgs, trackId, maxDepth);
-        },
+            uri,
+          },
+          trackId,
+          maxDepth,
+        ),
       });
     }
 

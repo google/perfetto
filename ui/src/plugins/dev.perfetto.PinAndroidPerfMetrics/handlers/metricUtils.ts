@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import {TrackType} from '../../dev.perfetto.AndroidCujs/trackUtils';
 import {PluginContextTrace} from '../../../public';
 
 /**
@@ -61,11 +59,17 @@ export interface BlockingCallMetricData {
   aggregation: string;
 }
 
+/** Represents a cuj to be pinned. */
+export interface CujMetricData {
+  cujName: string;
+}
+
 // Common MetricData for all handler. If new needed then add here.
 export type MetricData =
   | FullTraceMetricData
   | CujScopedMetricData
-  | BlockingCallMetricData;
+  | BlockingCallMetricData
+  | CujMetricData;
 
 // Common JankType for cujScoped and fullTrace metrics
 export type JankType = 'sf_frames' | 'app_frames' | 'frames';
@@ -87,15 +91,9 @@ export interface MetricHandler {
    *
    * @param {MetricData} metricData The parsed metric data.
    * @param {PluginContextTrace} ctx context for trace methods and properties
-   * @param {TrackType} type 'static' onTraceload, 'debug' on command.
-   * TODO: b/349502258 - Refactor to single API
    * @returns {void}
    */
-  addMetricTrack(
-    metricData: MetricData,
-    ctx: PluginContextTrace,
-    type: TrackType,
-  ): void;
+  addMetricTrack(metricData: MetricData, ctx: PluginContextTrace): void;
 }
 
 // Pair for matching metric and its handler

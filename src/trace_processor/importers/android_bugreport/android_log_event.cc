@@ -16,11 +16,33 @@
 
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 
 namespace perfetto::trace_processor {
+
+namespace {
+std::vector<base::StringView> FindLines(const uint8_t* data, size_t size) {
+  std::vector<base::StringView> lines;
+  const char* line_start = reinterpret_cast<const char*>(data);
+  const char* ptr = line_start;
+  const char* const end = ptr + size;
+
+  for (; ptr != end; ++ptr) {
+    if (*ptr == '\n') {
+      lines.push_back(
+          base::StringView(line_start, static_cast<size_t>(ptr - line_start)));
+      line_start = ptr + 1;
+    }
+  }
+  return lines;
+}
+}  // namespace
 
 // static
 std::optional<AndroidLogEvent::Format> AndroidLogEvent::DetectFormat(
@@ -42,6 +64,21 @@ std::optional<AndroidLogEvent::Format> AndroidLogEvent::DetectFormat(
     return Format::kBugreport;
 
   return std::nullopt;
+}
+
+// static
+bool AndroidLogEvent::IsAndroidLogcat(const uint8_t* data, size_t size) {
+  // Make sure we don't split an entire file into lines.
+  constexpr size_t kMaxGuessAndroidLogEventLookAhead = 4096;
+  std::vector<base::StringView> lines =
+      FindLines(data, std::min(size, kMaxGuessAndroidLogEventLookAhead));
+
+  auto is_marker = [](base::StringView line) {
+    return line.StartsWith("--------");
+  };
+  auto it = std::find_if_not(lines.begin(), lines.end(), is_marker);
+
+  return it != lines.end() && DetectFormat(*it).has_value();
 }
 
 }  // namespace perfetto::trace_processor

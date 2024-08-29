@@ -12,13 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG, Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  LONG,
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {
   SimpleSliceTrack,
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
 
-class AndroidStartup implements Plugin {
+class AndroidStartup implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const e = ctx.engine;
     await e.query(`include perfetto module android.startup.startups;`);
@@ -39,12 +44,11 @@ class AndroidStartup implements Plugin {
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: [],
     };
-    ctx.registerStaticTrack({
-      uri: `/android_startups`,
+    const uri = `/android_startups`;
+    ctx.registerTrackAndShowOnTraceLoad({
+      uri,
       title: 'Android App Startups',
-      trackFactory: (trackCtx) => {
-        return new SimpleSliceTrack(ctx.engine, trackCtx, config);
-      },
+      track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
     });
   }
 }

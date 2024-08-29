@@ -141,16 +141,5 @@ TEST(RangeOverlay, Distinct) {
   ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0));
 }
 
-TEST(RangeOverlay, Flatten) {
-  Range range(3, 8);
-  RangeOverlay storage(&range);
-  auto fake = FakeStorageChain::SearchAll(10);
-  auto chain = storage.MakeChain(FakeStorageChain::SearchAll(10));
-
-  std::vector<uint32_t> indices{0, 1, 3, 5};
-  chain->Flatten(indices);
-  ASSERT_THAT(indices, ElementsAre(3, 4, 6, 8));
-}
-
 }  // namespace
 }  // namespace perfetto::trace_processor::column

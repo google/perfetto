@@ -29,16 +29,13 @@ export class WattsonEstimateAggregationController extends AggregationController 
     if (!(await hasWattsonSupport(engine))) return false;
 
     const estimateTracks: string[] = [];
-    for (const trackKey of area.tracks) {
-      const track = globals.state.tracks[trackKey];
-      if (track?.uri) {
-        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (
-          trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND &&
-          exists(trackInfo.tags?.wattson)
-        ) {
-          estimateTracks.push(`${trackInfo.tags.wattson}`);
-        }
+    for (const trackUri of area.trackUris) {
+      const trackInfo = globals.trackManager.getTrack(trackUri);
+      if (
+        trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND &&
+        exists(trackInfo.tags?.wattson)
+      ) {
+        estimateTracks.push(`${trackInfo.tags.wattson}`);
       }
     }
     if (estimateTracks.length === 0) return false;
@@ -57,8 +54,7 @@ export class WattsonEstimateAggregationController extends AggregationController 
     let query = `
       INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
 
-      DROP TABLE IF EXISTS _ui_selection_window;
-      CREATE PERFETTO TABLE _ui_selection_window AS
+      CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
@@ -99,14 +95,14 @@ export class WattsonEstimateAggregationController extends AggregationController 
         columnId: 'name',
       },
       {
-        title: 'Average estimated power (mW)',
+        title: 'Average power (estimated mW)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'power',
         sum: true,
       },
       {
-        title: 'Total estimated energy (mWs)',
+        title: 'Total energy (estimated mWs)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'energy',

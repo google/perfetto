@@ -53,7 +53,7 @@ class CollectFrameCookiesIntegrationTest
     memcpy(read_buffer.get(), raw->data(), raw->size());
 
     ASSERT_OK(trace_processor_->Parse(std::move(read_buffer), raw->size()));
-    trace_processor_->NotifyEndOfFile();
+    ASSERT_OK(trace_processor_->NotifyEndOfFile());
   }
 
   std::unique_ptr<trace_processor::TraceProcessor> trace_processor_;

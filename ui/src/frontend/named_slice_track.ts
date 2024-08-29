@@ -72,7 +72,7 @@ export abstract class NamedSliceTrack<
       {
         kind: 'SLICE',
         id: args.slice.id,
-        trackKey: this.trackKey,
+        trackUri: this.uri,
         table: 'slice',
       },
       {

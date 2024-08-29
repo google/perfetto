@@ -19,14 +19,14 @@ import {
 } from '../../frontend/base_counter_track';
 import {
   Engine,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../core/track_kinds';
 import {hasWattsonSupport} from '../../core/trace_config_utils';
 
-class Wattson implements Plugin {
+class Wattson implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     // Short circuit if Wattson is not supported for this Perfetto trace
     if (!(await hasWattsonSupport(ctx.engine))) return;
@@ -37,28 +37,29 @@ class Wattson implements Plugin {
     const cpus = globals.traceContext.cpus;
     for (const cpu of cpus) {
       const queryKey = `cpu${cpu}_curve`;
-      ctx.registerStaticTrack({
-        uri: `/wattson/cpu_subsystem_estimate_cpu${cpu}`,
+      const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
+      ctx.registerTrackAndShowOnTraceLoad({
+        uri,
         title: `Cpu${cpu} Estimate`,
-        trackFactory: ({trackKey}) =>
-          new CpuSubsystemEstimateTrack(ctx.engine, trackKey, queryKey),
-        groupName: `Wattson`,
+        track: new CpuSubsystemEstimateTrack(ctx.engine, uri, queryKey),
+
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
           wattson: `CPU${cpu}`,
+          groupName: `Wattson`,
         },
       });
     }
 
-    ctx.registerStaticTrack({
-      uri: `/wattson/cpu_subsystem_estimate_dsu_scu`,
+    const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
+    ctx.registerTrackAndShowOnTraceLoad({
+      uri,
       title: `DSU/SCU Estimate`,
-      trackFactory: ({trackKey}) =>
-        new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `dsu_scu`),
-      groupName: `Wattson`,
+      track: new CpuSubsystemEstimateTrack(ctx.engine, uri, `dsu_scu`),
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
         wattson: 'Dsu_Scu',
+        groupName: `Wattson`,
       },
     });
   }
@@ -68,10 +69,10 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   readonly engine: Engine;
   readonly queryKey: string;
 
-  constructor(engine: Engine, trackKey: string, queryKey: string) {
+  constructor(engine: Engine, uri: string, queryKey: string) {
     super({
-      engine: engine,
-      trackKey: trackKey,
+      engine,
+      uri,
     });
     this.engine = engine;
     this.queryKey = queryKey;

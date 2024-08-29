@@ -17,9 +17,15 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <tuple>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -113,8 +119,8 @@ void ArgsTracker::Flush() {
 
   // Apply permutation of entries[].index to args.
   base::SmallVector<Arg, 16> sorted_args;
-  for (uint32_t i = 0; i < entries.size(); i++) {
-    sorted_args.emplace_back(args_[entries[i].index]);
+  for (auto& entry : entries) {
+    sorted_args.emplace_back(args_[entry.index]);
   }
 
   // Insert args.
@@ -130,8 +136,8 @@ void ArgsTracker::Flush() {
       next_rid_idx++;
     }
 
-    ArgSetId set_id = context_->global_args_tracker->AddArgSet(&sorted_args[0],
-                                                               i, next_rid_idx);
+    ArgSetId set_id = context_->global_args_tracker->AddArgSet(
+        sorted_args.data(), i, next_rid_idx);
     if (col->IsNullable()) {
       TypedColumn<std::optional<uint32_t>>::FromColumn(col)->Set(row, set_id);
     } else {

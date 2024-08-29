@@ -59,7 +59,7 @@ class TraceProcessorImpl : public TraceProcessor,
   // TraceProcessorStorage implementation:
   base::Status Parse(TraceBlobView) override;
   void Flush() override;
-  void NotifyEndOfFile() override;
+  base::Status NotifyEndOfFile() override;
 
   // TraceProcessor implementation:
   Iterator ExecuteQuery(const std::string& sql) override;
@@ -118,6 +118,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
+  std::unordered_map<std::string, std::string> proto_fn_name_to_path_;
 
   // This is atomic because it is set by the CTRL-C signal handler and we need
   // to prevent single-flow compiler optimizations in ExecuteQuery().

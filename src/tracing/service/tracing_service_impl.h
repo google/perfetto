@@ -345,7 +345,7 @@ class TracingServiceImpl : public TracingService {
                              base::ScopedFile);
   void ChangeTraceConfig(ConsumerEndpointImpl*, const TraceConfig&);
 
-  base::Status StartTracing(TracingSessionID);
+  void StartTracing(TracingSessionID);
   void DisableTracing(TracingSessionID, bool disable_immediately = false);
   void Flush(TracingSessionID tsid,
              uint32_t timeout_ms,

@@ -18,7 +18,6 @@ import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 import {Area, State} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Store} from '../public';
-
 import {ratelimit} from './rate_limiters';
 
 interface Range {
@@ -84,13 +83,13 @@ export class Timeline {
   selectArea(
     start: time,
     end: time,
-    tracks = this._selectedArea ? this._selectedArea.tracks : [],
+    tracks = this._selectedArea ? this._selectedArea.trackUris : [],
   ) {
     assertTrue(
       end >= start,
       `Impossible select area: start [${start}] >= end [${end}]`,
     );
-    this._selectedArea = {start, end, tracks};
+    this._selectedArea = {start, end, trackUris: tracks};
     raf.scheduleFullRedraw();
   }
 
@@ -110,10 +109,10 @@ export class Timeline {
 
   // Set visible window using a high precision time span
   updateVisibleTimeHP(ts: HighPrecisionTimeSpan) {
-    this._visibleWindow = ts.intersect(
-      this.traceSpan.start,
-      this.traceSpan.end,
-    );
+    this._visibleWindow = ts
+      .clampDuration(MIN_DURATION)
+      .fitWithin(this.traceSpan.start, this.traceSpan.end);
+
     this.rateLimitedPoker();
   }
 

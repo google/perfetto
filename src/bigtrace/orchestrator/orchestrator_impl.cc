@@ -14,12 +14,18 @@
  * limitations under the License.
  */
 
-#include "src/bigtrace/orchestrator/orchestrator_impl.h"
+#include <chrono>
+#include <mutex>
+#include <thread>
+
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/threading/thread_pool.h"
-#include "perfetto/ext/base/waitable_event.h"
+#include "src/bigtrace/orchestrator/orchestrator_impl.h"
 
 namespace perfetto::bigtrace {
+
+namespace {
+const uint32_t kBufferPushDelay = 100;
+}
 
 OrchestratorImpl::OrchestratorImpl(
     std::unique_ptr<protos::BigtraceWorker::Stub> stub,
@@ -34,10 +40,44 @@ grpc::Status OrchestratorImpl::Query(
     grpc::ServerWriter<protos::BigtraceQueryResponse>* writer) {
   grpc::Status query_status;
   std::mutex status_lock;
-  base::WaitableEvent pool_completion;
   const std::string& sql_query = args->sql_query();
 
+  std::vector<protos::BigtraceQueryResponse> response_buffer;
+  uint64_t trace_count = static_cast<uint64_t>(args->traces_size());
+
+  std::thread push_response_buffer_thread([&]() {
+    uint64_t pushed_response_count = 0;
+    for (;;) {
+      {
+        std::lock_guard<std::mutex> status_guard(status_lock);
+        if (pushed_response_count == trace_count || !query_status.ok()) {
+          break;
+        }
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(kBufferPushDelay));
+      if (response_buffer.empty()) {
+        continue;
+      }
+      std::vector<protos::BigtraceQueryResponse> buffer;
+      {
+        std::lock_guard<std::mutex> buffer_guard(buffer_lock_);
+        buffer = std::move(response_buffer);
+        response_buffer.clear();
+      }
+      for (protos::BigtraceQueryResponse& response : buffer) {
+        writer->Write(std::move(response));
+      }
+      pushed_response_count += buffer.size();
+    }
+  });
+
   for (const std::string& trace : args->traces()) {
+    {
+      std::lock_guard<std::mutex> status_guard(status_lock);
+      if (!query_status.ok()) {
+        break;
+      }
+    }
     semaphore_.Acquire();
     pool_->PostTask([&]() {
       grpc::ClientContext client_context;
@@ -51,8 +91,10 @@ grpc::Status OrchestratorImpl::Query(
       if (!status.ok()) {
         PERFETTO_ELOG("QueryTrace returned an error status %s",
                       status.error_message().c_str());
-        std::lock_guard<std::mutex> status_guard(status_lock);
-        query_status = status;
+        {
+          std::lock_guard<std::mutex> status_guard(status_lock);
+          query_status = status;
+        }
       } else {
         protos::BigtraceQueryResponse response;
         response.set_trace(trace_response.trace());
@@ -60,14 +102,13 @@ grpc::Status OrchestratorImpl::Query(
              trace_response.result()) {
           response.add_result()->CopyFrom(query_result);
         }
-        std::lock_guard<std::mutex> write_guard(write_lock_);
-        writer->Write(response);
+        std::lock_guard<std::mutex> buffer_guard(buffer_lock_);
+        response_buffer.emplace_back(std::move(response));
       }
-      pool_completion.Notify();
       semaphore_.Release();
     });
   }
-  pool_completion.Wait(static_cast<uint64_t>(args->traces_size()));
+  push_response_buffer_thread.join();
   return query_status;
 }
 

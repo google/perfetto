@@ -66,6 +66,13 @@ bool ZipTraceReader::Entry::operator<(const Entry& rhs) const {
     return true;
   }
 
+  if (rhs.trace_type == TraceType::kGzipTraceType) {
+    return false;
+  }
+  if (trace_type == TraceType::kGzipTraceType) {
+    return true;
+  }
+
   return std::tie(name, index) < std::tie(rhs.name, rhs.index);
 }
 
@@ -73,14 +80,7 @@ base::Status ZipTraceReader::Parse(TraceBlobView blob) {
   return zip_reader_.Parse(std::move(blob));
 }
 
-void ZipTraceReader::NotifyEndOfFile() {
-  base::Status status = NotifyEndOfFileImpl();
-  if (!status.ok()) {
-    PERFETTO_ELOG("ZipTraceReader failed: %s", status.c_message());
-  }
-}
-
-base::Status ZipTraceReader::NotifyEndOfFileImpl() {
+base::Status ZipTraceReader::NotifyEndOfFile() {
   std::vector<util::ZipFile> files = zip_reader_.TakeFiles();
 
   // Android bug reports are ZIP files and its files do not get handled
@@ -89,13 +89,11 @@ base::Status ZipTraceReader::NotifyEndOfFileImpl() {
     return AndroidBugreportReader::Parse(context_, std::move(files));
   }
 
-  base::StatusOr<std::vector<Entry>> entries = ExtractEntries(std::move(files));
-  if (!entries.ok()) {
-    return entries.status();
-  }
-  std::sort(entries->begin(), entries->end());
+  ASSIGN_OR_RETURN(std::vector<Entry> entries,
+                   ExtractEntries(std::move(files)));
+  std::sort(entries.begin(), entries.end());
 
-  for (Entry& e : *entries) {
+  for (Entry& e : entries) {
     ScopedActiveTraceFile trace_file =
         context_->trace_file_tracker->StartNewFile(e.name, e.trace_type,
                                                    e.uncompressed_data.size());
@@ -105,7 +103,7 @@ base::Status ZipTraceReader::NotifyEndOfFileImpl() {
     context_->chunk_readers.push_back(std::move(chunk_reader));
 
     RETURN_IF_ERROR(parser.Parse(std::move(e.uncompressed_data)));
-    parser.NotifyEndOfFile();
+    RETURN_IF_ERROR(parser.NotifyEndOfFile());
 
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.

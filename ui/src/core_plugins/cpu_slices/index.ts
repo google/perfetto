@@ -18,14 +18,14 @@ import {CPU_SLICE_TRACK_KIND} from '../../public';
 import {SliceDetailsPanel} from '../../frontend/slice_details_panel';
 import {
   Engine,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {CpuSliceTrack} from './cpu_slice_track';
 
-class CpuSlices implements Plugin {
+class CpuSlices implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const cpus = ctx.trace.cpus;
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
@@ -42,9 +42,7 @@ class CpuSlices implements Plugin {
           kind: CPU_SLICE_TRACK_KIND,
           cpu,
         },
-        trackFactory: ({trackKey}) => {
-          return new CpuSliceTrack(ctx.engine, trackKey, cpu);
-        },
+        track: new CpuSliceTrack(ctx.engine, uri, cpu),
       });
     }
 

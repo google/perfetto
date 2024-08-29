@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  NUM,
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {SimpleSliceTrack} from '../../frontend/simple_slice_track';
 
-class TraceMetadata implements Plugin {
+class TraceMetadata implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const res = await ctx.engine.query(`
       select count() as cnt from (select 1 from clock_snapshot limit 1)
@@ -24,11 +29,14 @@ class TraceMetadata implements Plugin {
     if (row.cnt === 0) {
       return;
     }
-    ctx.registerStaticTrack({
-      uri: `/clock_snapshots`,
+    const uri = `/clock_snapshots`;
+    ctx.registerTrackAndShowOnTraceLoad({
+      uri,
       title: 'Clock Snapshots',
-      trackFactory: (trackCtx) => {
-        return new SimpleSliceTrack(ctx.engine, trackCtx, {
+      track: new SimpleSliceTrack(
+        ctx.engine,
+        {trackUri: uri},
+        {
           data: {
             sqlSource: `
               select ts, 0 as dur, 'Snapshot' as name
@@ -38,8 +46,8 @@ class TraceMetadata implements Plugin {
           },
           columns: {ts: 'ts', dur: 'dur', name: 'name'},
           argColumns: [],
-        });
-      },
+        },
+      ),
     });
   }
 }

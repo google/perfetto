@@ -733,6 +733,9 @@ message ProtoLogConfig {
   repeated ProtoLogGroup group_overrides = 1;
   // Specified what tracing mode to use for the tracing instance.
   optional TracingMode tracing_mode = 2;
+  // If set, any message with log level higher than this level (inclusive) will
+  // be traced. Group overrides take precedence over this value.
+  optional ProtoLogLevel default_log_from_level = 3;
 }
 
 message ProtoLogGroup {
@@ -827,6 +830,9 @@ message WindowManagerConfig {
 
     // Trace state snapshots every time a transaction is committed.
     LOG_FREQUENCY_TRANSACTION = 2;
+
+    // Trace single state snapshots when the data source is started.
+    LOG_FREQUENCY_SINGLE_DUMP = 3;
   }
   optional LogFrequency log_frequency = 1;
 
@@ -3163,6 +3169,10 @@ message SysStatsConfig {
   // Polls /sys/class/thermal/* every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 thermal_period_ms = 12;
+
+  // Polls /sys/devices/system/cpu/cpu*/cpuidle/state* every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 cpuidle_period_ms = 13;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -5066,6 +5076,8 @@ message ProtoLogViewerConfig {
     optional ProtoLogLevel level = 3;
     // the id of the log group this message belongs to
     optional uint32 group_id = 4;
+    // path to the file where the message was logged
+    optional string location = 5;
   }
 
   /* information about a ProtoLog log group */
@@ -8744,6 +8756,53 @@ message KgslGpuFrequencyFtraceEvent {
   optional uint32 gpu_freq = 1;
   optional uint32 gpu_id = 2;
 }
+message KgslAdrenoCmdbatchQueuedFtraceEvent {
+  optional uint32 id = 1;
+  optional uint32 timestamp = 2;
+  optional uint32 queued = 3;
+  optional uint32 flags = 4;
+  optional uint32 prio = 5;
+}
+message KgslAdrenoCmdbatchSubmittedFtraceEvent {
+  optional uint32 id = 1;
+  optional uint32 timestamp = 2;
+  optional int64 inflight = 3;
+  optional uint32 flags = 4;
+  optional uint64 ticks = 5;
+  optional uint64 secs = 6;
+  optional uint64 usecs = 7;
+  optional int32 prio = 8;
+  optional int32 rb_id = 9;
+  optional uint32 rptr = 10;
+  optional uint32 wptr = 11;
+  optional int32 q_inflight = 12;
+  optional int32 dispatch_queue = 13;
+}
+message KgslAdrenoCmdbatchSyncFtraceEvent {
+  optional uint32 id = 1;
+  optional uint32 timestamp = 2;
+  optional uint64 ticks = 3;
+  optional int32 prio = 4;
+}
+message KgslAdrenoCmdbatchRetiredFtraceEvent {
+  optional uint32 id = 1;
+  optional uint32 timestamp = 2;
+  optional int64 inflight = 3;
+  optional uint32 recovery = 4;
+  optional uint32 flags = 5;
+  optional uint64 start = 6;
+  optional uint64 retire = 7;
+  optional int32 prio = 8;
+  optional int32 rb_id = 9;
+  optional uint32 rptr = 10;
+  optional uint32 wptr = 11;
+  optional int32 q_inflight = 12;
+  optional uint64 fault_recovery = 13;
+  optional uint32 dispatch_queue = 14;
+  optional uint64 submitted_to_rb = 15;
+  optional uint64 retired_on_gmu = 16;
+  optional uint64 active = 17;
+}
 
 // End of protos/perfetto/trace/ftrace/kgsl.proto
 
@@ -9603,24 +9662,42 @@ message PanelWriteGenericFtraceEvent {
 message SchedSwitchWithCtrsFtraceEvent {
   optional int32 old_pid = 1;
   optional int32 new_pid = 2;
-  optional uint32 cctr = 3;
-  optional uint32 ctr0 = 4;
-  optional uint32 ctr1 = 5;
-  optional uint32 ctr2 = 6;
-  optional uint32 ctr3 = 7;
+  optional uint64 cctr = 3;
+  optional uint64 ctr0 = 4;
+  optional uint64 ctr1 = 5;
+  optional uint64 ctr2 = 6;
+  optional uint64 ctr3 = 7;
   optional uint32 lctr0 = 8;
   optional uint32 lctr1 = 9;
-  optional uint32 ctr4 = 10;
-  optional uint32 ctr5 = 11;
+  optional uint64 ctr4 = 10;
+  optional uint64 ctr5 = 11;
   optional string prev_comm = 12;
   optional int32 prev_pid = 13;
   optional uint32 cyc = 14;
   optional uint32 inst = 15;
   optional uint32 stallbm = 16;
   optional uint32 l3dm = 17;
+  optional int32 next_pid = 18;
+  optional string next_comm = 19;
+  optional int64 prev_state = 20;
+  optional uint64 amu0 = 21;
+  optional uint64 amu1 = 22;
+  optional uint64 amu2 = 23;
 }
 
 // End of protos/perfetto/trace/ftrace/perf_trace_counters.proto
+
+// Begin of protos/perfetto/trace/ftrace/pixel_mm.proto
+
+message PixelMmKswapdWakeFtraceEvent {
+  optional int32 whatever = 1;
+}
+message PixelMmKswapdDoneFtraceEvent {
+  optional uint64 delta_nr_scanned = 1;
+  optional uint64 delta_nr_reclaimed = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/pixel_mm.proto
 
 // Begin of protos/perfetto/trace/ftrace/power.proto
 
@@ -11029,6 +11106,12 @@ message FtraceEvent {
     MaliMaliPMMCUPOWERDOWNFtraceEvent mali_mali_PM_MCU_POWER_DOWN = 531;
     MaliMaliPMMCURESETWAITFtraceEvent mali_mali_PM_MCU_RESET_WAIT = 532;
     BclIrqTriggerFtraceEvent bcl_irq_trigger = 533;
+    KgslAdrenoCmdbatchQueuedFtraceEvent kgsl_adreno_cmdbatch_queued = 534;
+    KgslAdrenoCmdbatchSubmittedFtraceEvent kgsl_adreno_cmdbatch_submitted = 535;
+    KgslAdrenoCmdbatchSyncFtraceEvent kgsl_adreno_cmdbatch_sync = 536;
+    KgslAdrenoCmdbatchRetiredFtraceEvent kgsl_adreno_cmdbatch_retired = 537;
+    PixelMmKswapdWakeFtraceEvent pixel_mm_kswapd_wake = 538;
+    PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
   }
 }
 
@@ -11253,15 +11336,22 @@ message FtraceEventBundle {
   }
   repeated FtraceError error = 8;
 
-  // The timestamp (ftrace clock) of the last event consumed from this per-cpu
-  // kernel buffer prior to starting this bundle. In other words: the last
-  // event in the previous bundle.
+  // Superseded by |previous_bundle_end_timestamp| in perfetto v47+. The
+  // primary difference is that this field tracked the last timestamp read from
+  // the per-cpu buffer, while the newer field tracks events that get
+  // serialised into the trace.
+  // Added in: perfetto v44.
+  optional uint64 last_read_event_timestamp = 9;
+
+  // The timestamp (using ftrace clock) of the last event written into this
+  // data source on this cpu. In other words: the last event in the previous
+  // bundle.
   // Lets the trace processing find an initial timestamp after which ftrace
   // data is known to be valid across all cpus. Of particular importance when
   // the perfetto trace buffer is a ring buffer as well, as the overwriting of
   // oldest bundles can skew the first valid timestamp per cpu significantly.
-  // Added in: perfetto v44.
-  optional uint64 last_read_event_timestamp = 9;
+  // Added in: perfetto v47.
+  optional uint64 previous_bundle_end_timestamp = 10;
 }
 
 enum FtraceClock {
@@ -12396,6 +12486,19 @@ message ChromeLatencyInfo {
   optional bool is_coalesced = 5;
   optional int64 gesture_scroll_id = 6;
   optional int64 touch_id = 7;
+
+  enum InputType {
+    UNSPECIFIED_OR_OTHER = 0;
+    TOUCH_MOVED = 1;
+    GESTURE_SCROLL_BEGIN = 2;
+    GESTURE_SCROLL_UPDATE = 3;
+    GESTURE_SCROLL_END = 4;
+    GESTURE_TAP = 5;
+    GESTURE_TAP_CANCEL = 6;
+  }
+
+  // The type of input corresponding to this `ChromeLatencyInfo`.
+  optional InputType input_type = 8;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_latency_info.proto
@@ -12560,16 +12663,6 @@ message ChromeWindowHandleEventInfo {
 }
 
 // End of protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto
-
-// Begin of protos/perfetto/trace/track_event/pixel_modem.proto
-
-// Event insights emitted by the Pixel modem.
-message PixelModemEventInsight {
-  // Opaque string containing arguments from the modem.
-  optional string detokenized_message = 1;
-}
-
-// End of protos/perfetto/trace/track_event/pixel_modem.proto
 
 // Begin of protos/perfetto/trace/track_event/screenshot.proto
 
@@ -12810,7 +12903,6 @@ message TrackEvent {
       43;
   optional ChromeActiveProcesses chrome_active_processes = 49;
   optional Screenshot screenshot = 50;
-  optional PixelModemEventInsight pixel_modem_event_insight = 51;
 
   // This field is used only if the source location represents the function that
   // executes during this event.
@@ -12961,6 +13053,8 @@ message TrackEvent {
   }
 
   optional LegacyEvent legacy_event = 6;
+
+  reserved 51;
 }
 
 // Default values for fields of all TrackEvents on the same packet sequence.
@@ -14387,8 +14481,19 @@ message SysStats {
     optional string type = 3;
   }
   repeated ThermalZone thermal_zone = 15;
-}
 
+  // Reading from /sys/devices/system/cpu/cpu*/cpuidle/state*.
+  message CpuIdleStateEntry {
+    // Name of the idle state, e.g. C1-C10
+    optional string state = 1;
+    optional uint64 duration_us = 2;
+  }
+  message CpuIdleState {
+    optional uint32 cpu_id = 1;
+    repeated CpuIdleStateEntry cpuidle_state_entry = 2;
+  }
+  repeated CpuIdleState cpuidle_state = 16;
+}
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto
 
 // Begin of protos/perfetto/trace/system_info.proto
@@ -14409,6 +14514,15 @@ message SystemInfo {
 
   // The hardware reversion from android device
   optional string android_hardware_revision = 10;
+
+  // The storage component from android_device. This field has been introduced
+  // after Android W in Aug 2024 and is not supported on older versions.
+  optional string android_storage_model = 11;
+
+  // The RAM component information from android device. This field has been
+  // introduced after Android W in Aug 2024 and is not supported on older
+  // versions.
+  optional string android_ram_model = 12;
 
   // The version of traced (the same returned by `traced --version`).
   // This is a human readable string with and its format varies depending on

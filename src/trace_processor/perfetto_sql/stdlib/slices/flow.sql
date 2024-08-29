@@ -15,6 +15,15 @@
 
 INCLUDE PERFETTO MODULE graphs.search;
 
+-- It's very typical to filter the flow table on either incoming or outgoing slice ids.
+--
+-- Ideally, this should be automatic and shouldn't require any additional imports, however we
+-- can't add it to prelude (because it is initialised before the trace is loaded and the indexes
+-- are not rebuilt when the new data is loaded), so the interested parties should remember to import
+-- this module.
+CREATE PERFETTO INDEX flow_in ON flow(slice_in);
+CREATE PERFETTO INDEX flow_out ON flow(slice_out);
+
 -- Computes the "reachable" set of slices from the |flows| table, starting from slice ids
 -- specified in |source_table|. This provides a more efficient result than with the in-built
 -- following_flow operator.

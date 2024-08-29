@@ -113,11 +113,13 @@ base::StatusOr<std::unique_ptr<Table>> Descendant::ComputeTable(
     // Nothing matches a null id so return an empty table.
     switch (type_) {
       case Type::kSlice:
-        return tables::DescendantSliceTable::SelectAndExtendParent(
-            storage_->slice_table(), {}, {});
+        return std::unique_ptr<Table>(
+            tables::DescendantSliceTable::SelectAndExtendParent(
+                storage_->slice_table(), {}, {}));
       case Type::kSliceByStack:
-        return tables::DescendantSliceByStackTable::SelectAndExtendParent(
-            storage_->slice_table(), {}, {});
+        return std::unique_ptr<Table>(
+            tables::DescendantSliceByStackTable::SelectAndExtendParent(
+                storage_->slice_table(), {}, {}));
     }
     PERFETTO_FATAL("For GCC");
   }

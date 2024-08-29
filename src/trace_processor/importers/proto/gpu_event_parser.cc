@@ -17,33 +17,47 @@
 #include "src/trace_processor/importers/proto/gpu_event_parser.h"
 
 #include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <optional>
+#include <string>
 
-#include "perfetto/ext/base/utils.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
-#include "protos/perfetto/trace/android/graphics_frame_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_api_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
 // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkObjectType.html
-typedef enum VkObjectType {
+enum VkObjectType {
   VK_OBJECT_TYPE_UNKNOWN = 0,
   VK_OBJECT_TYPE_INSTANCE = 1,
   VK_OBJECT_TYPE_PHYSICAL_DEVICE = 2,
@@ -88,7 +102,9 @@ typedef enum VkObjectType {
   VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION_KHR =
       VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION,
   VK_OBJECT_TYPE_MAX_ENUM = 0x7FFFFFFF
-} VkObjectType;
+};
+
+using protos::pbzero::VulkanMemoryEvent;
 
 }  // anonymous namespace
 
@@ -209,7 +225,7 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   }
 }
 
-const StringId GpuEventParser::GetFullStageName(
+StringId GpuEventParser::GetFullStageName(
     PacketSequenceStateGeneration* sequence_state,
     const protos::pbzero::GpuRenderStageEvent_Decoder& event) const {
   StringId stage_name;
@@ -223,8 +239,7 @@ const StringId GpuEventParser::GetFullStageName(
     }
     stage_name = context_->storage->InternString(decoder->name());
   } else {
-    uint64_t stage_id = static_cast<uint64_t>(event.stage_id());
-
+    auto stage_id = static_cast<uint64_t>(event.stage_id());
     if (stage_id < gpu_render_stage_ids_.size()) {
       stage_name = gpu_render_stage_ids_[static_cast<size_t>(stage_id)].first;
     } else {
@@ -263,14 +278,11 @@ void GpuEventParser::InsertGpuTrack(
     // description.
     auto track_id = gpu_hw_queue_ids_[gpu_hw_queue_counter_];
     if (track_id.has_value()) {
-      auto row = context_->storage->mutable_gpu_track_table()
-                     ->id()
-                     .IndexOf(track_id.value())
-                     .value();
-      context_->storage->mutable_gpu_track_table()->mutable_name()->Set(
-          row, track_name);
-      context_->storage->mutable_gpu_track_table()->mutable_description()->Set(
-          row, context_->storage->InternString(hw_queue.description()));
+      auto rr = *context_->storage->mutable_gpu_track_table()->FindById(
+          track_id.value());
+      rr.set_name(track_name);
+      rr.set_description(
+          context_->storage->InternString(hw_queue.description()));
     } else {
       tables::GpuTrackTable::Row track(track_name);
       track.scope = gpu_render_stage_scope_id_;
@@ -291,12 +303,11 @@ std::optional<std::string> GpuEventParser::FindDebugName(
   auto name = map->second.find(vk_handle);
   if (name == map->second.end()) {
     return std::nullopt;
-  } else {
-    return name->second;
   }
+  return name->second;
 }
 
-const StringId GpuEventParser::ParseRenderSubpasses(
+StringId GpuEventParser::ParseRenderSubpasses(
     const protos::pbzero::GpuRenderStageEvent_Decoder& event) const {
   if (!event.has_render_subpass_index_mask()) {
     return kNullStringId;
@@ -345,9 +356,9 @@ void GpuEventParser::ParseGpuRenderStageEvent(
       protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
           stage(*it);
       if (stage.has_name()) {
-        gpu_render_stage_ids_.emplace_back(std::make_pair(
+        gpu_render_stage_ids_.emplace_back(
             context_->storage->InternString(stage.name()),
-            context_->storage->InternString(stage.description())));
+            context_->storage->InternString(stage.description()));
       }
     }
     if (spec.has_context_spec()) {
@@ -759,7 +770,7 @@ void GpuEventParser::ParseGpuMemTotalEvent(int64_t ts, ConstBytes blob) {
   } else {
     // Process emitting the packet can be different from the pid in the event.
     UniqueTid utid = context_->process_tracker->UpdateThread(pid, pid);
-    UniquePid upid = context_->storage->thread_table().upid()[utid].value_or(0);
+    UniquePid upid = context_->storage->thread_table()[utid].upid().value_or(0);
     track = context_->track_tracker->InternProcessCounterTrack(
         gpu_mem_total_name_id_, upid, gpu_mem_total_unit_id_,
         gpu_mem_total_proc_desc_id_);
@@ -768,5 +779,4 @@ void GpuEventParser::ParseGpuMemTotalEvent(int64_t ts, ConstBytes blob) {
       ts, static_cast<double>(gpu_mem_total.size()), track);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

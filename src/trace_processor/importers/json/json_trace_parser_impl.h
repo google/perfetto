@@ -17,21 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_IMPL_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_IMPL_H_
 
-#include <stdint.h>
-
-#include <memory>
-#include <tuple>
+#include <cstdint>
+#include <string>
 
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace Json {
 class Value;
 }
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -43,8 +41,8 @@ class JsonTraceParserImpl : public JsonTraceParser {
   ~JsonTraceParserImpl() override;
 
   // TraceParser implementation.
-  void ParseJsonPacket(int64_t timestamp, std::string string_value) override;
-  void ParseSystraceLine(int64_t timestamp, SystraceLine line) override;
+  void ParseJsonPacket(int64_t, std::string) override;
+  void ParseSystraceLine(int64_t, SystraceLine) override;
 
  private:
   TraceProcessorContext* const context_;
@@ -53,7 +51,6 @@ class JsonTraceParserImpl : public JsonTraceParser {
   void MaybeAddFlow(TrackId track_id, const Json::Value& event);
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_IMPL_H_

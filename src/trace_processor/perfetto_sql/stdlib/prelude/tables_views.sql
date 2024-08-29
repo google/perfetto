@@ -13,6 +13,41 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE prelude.views;
+
+-- Tracks are a fundamental concept in trace processor and represent a
+-- "timeline" for events of the same type and with the same context. See
+-- https://perfetto.dev/docs/analysis/trace-processor#tracks for a more
+-- detailed explanation, with examples.
+CREATE PERFETTO VIEW track (
+  -- Unique identifier for this track. Identical to |track_id|, prefer using
+  -- |track_id| instead.
+  id UINT,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track; can be null for some types of tracks (e.g. thread
+  -- tracks).
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id UINT,
+  -- Args for this track which store information about "source" of this track
+  -- in the trace. For example: whether this track orginated from atrace,
+  -- Chrome tracepoints etc. Alias of `args.arg_set_id`.
+  source_arg_set_id UINT,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id UINT
+) AS
+SELECT
+  id,
+  type AS type,
+  name,
+  parent_id,
+  source_arg_set_id,
+  machine_id
+FROM
+  __intrinsic_track;
+
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
@@ -33,7 +68,7 @@ CREATE PERFETTO VIEW cpu (
   machine_id UINT,
   -- Capacity of a CPU of a device, a metric which indicates the
   -- relative performance of a CPU on a device
-  -- For details see: 
+  -- For details see:
   -- https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
   capacity UINT
 ) AS
@@ -122,6 +157,32 @@ SELECT
   ucpu
 FROM
   __intrinsic_sched_slice;
+
+-- Shorter alias for table `sched_slice`.
+CREATE PERFETTO VIEW sched(
+  -- Alias for `sched_slice.id`.
+  id UINT,
+  -- Alias for `sched_slice.type`.
+  type STRING,
+  -- Alias for `sched_slice.ts`.
+  ts LONG,
+  -- Alias for `sched_slice.dur`.
+  dur LONG,
+  -- Alias for `sched_slice.cpu`.
+  cpu UINT,
+  -- Alias for `sched_slice.utid`.
+  utid UINT,
+  -- Alias for `sched_slice.end_state`.
+  end_state STRING,
+  -- Alias for `sched_slice.priority`.
+  priority INT,
+  -- Alias for `sched_slice.ucpu`.
+  ucpu UINT,
+  -- Legacy column, should no longer be used.
+  ts_end UINT
+) AS
+SELECT *, ts + dur as ts_end
+FROM sched_slice;
 
 -- This table contains the scheduling state of every thread on the system during
 -- the trace.

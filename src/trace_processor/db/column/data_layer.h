@@ -24,15 +24,11 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/db/column/types.h"
-
-namespace perfetto::protos::pbzero {
-class SerializedColumn_Storage;
-}
 
 namespace perfetto::trace_processor::column {
 class DataLayerChain;
@@ -92,8 +88,6 @@ class DataLayer : public RefCounted {
 // functionality for querying the transformed data of the entire chain.
 class DataLayerChain {
  public:
-  using StorageProto = protos::pbzero::SerializedColumn_Storage;
-
   // Index vector related data required to Filter using IndexSearch.
   struct Indices {
     enum class State {
@@ -267,9 +261,6 @@ class DataLayerChain {
   // chain.
   virtual std::optional<Token> MinElement(Indices&) const = 0;
 
-  // Serializes storage data to proto format.
-  virtual void Serialize(StorageProto*) const = 0;
-
   // Returns a string which represents the column for debugging purposes.
   //
   // Warning: the format of the string returned by this class is *not* stable
@@ -308,13 +299,6 @@ class DataLayerChain {
   Range OrderedIndexSearchValidated(FilterOp op,
                                     SqlValue value,
                                     const OrderedIndices& indices) const;
-
-  // Returns the pointer to storage DataLayer and modifies indices so that it
-  // maps the data in the column.
-  // If |indices[i] == std::numeric_limits<uint32_t>::max()| the index points to
-  // null value.
-  virtual std::unique_ptr<DataLayer> Flatten(
-      std::vector<uint32_t>& indices) const = 0;
 
   // Returns the SqlValue representing the value at a given index.
   //

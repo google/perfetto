@@ -1277,3 +1277,28 @@ class AndroidStdlib(TestSuite):
         "android.content.pm.action.SESSION_COMMITTED","com.android.launcher3",3219,0,91360380556725,15221753
         "android.intent.action.PACKAGE_ADDED","system",2519,0,91360396877398,107502
         """))
+
+
+  def test_binder_breakdown(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE android.binder_breakdown;
+        WITH x AS (
+          SELECT reason, dur FROM android_binder_server_breakdown
+          UNION ALL
+          SELECT reason, dur FROM android_binder_client_breakdown
+        ) SELECT reason, SUM(dur) AS dur FROM x GROUP BY reason ORDER BY dur
+      """,
+        out=Csv("""
+        "reason","dur"
+        "D",548774
+        "io",705773
+        "art_lock_contention",9500403
+        "monitor_contention",76505897
+        "R+",198506855
+        "R",201261723
+        "Running",608081756
+        "binder",4174605447
+        "S",5144384456
+        """))

@@ -141,6 +141,7 @@ source_set("unittests") {
     "../../../../protos/perfetto/trace:zero",
     "../../../base",
     "../../storage",
+    "../../tables",
     "../../types",
   ]
 }

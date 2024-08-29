@@ -17,14 +17,18 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GPU_EVENT_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GPU_EVENT_PARSER_H_
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -32,13 +36,9 @@
 
 namespace perfetto {
 
-namespace protos {
-namespace pbzero {
-
+namespace protos::pbzero {
 class GpuRenderStageEvent_Decoder;
-
-}  // namespace pbzero
-}  // namespace protos
+}  // namespace protos::pbzero
 
 namespace trace_processor {
 
@@ -55,8 +55,9 @@ struct ProtoEnumHasher {
 class GpuEventParser {
  public:
   using ConstBytes = protozero::ConstBytes;
-  using VulkanMemoryEventSource = VulkanMemoryEvent::Source;
-  using VulkanMemoryEventOperation = VulkanMemoryEvent::Operation;
+  using VulkanMemoryEventSource = protos::pbzero::VulkanMemoryEvent::Source;
+  using VulkanMemoryEventOperation =
+      protos::pbzero::VulkanMemoryEvent::Operation;
   explicit GpuEventParser(TraceProcessorContext*);
 
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
@@ -67,15 +68,16 @@ class GpuEventParser {
   void ParseGpuLog(int64_t ts, ConstBytes);
 
   void ParseVulkanMemoryEvent(PacketSequenceStateGeneration*, ConstBytes);
-  void UpdateVulkanMemoryAllocationCounters(UniquePid,
-                                            const VulkanMemoryEvent::Decoder&);
+  void UpdateVulkanMemoryAllocationCounters(
+      UniquePid,
+      const protos::pbzero::VulkanMemoryEvent::Decoder&);
 
   void ParseVulkanApiEvent(int64_t, ConstBytes);
 
   void ParseGpuMemTotalEvent(int64_t, ConstBytes);
 
  private:
-  const StringId GetFullStageName(
+  StringId GetFullStageName(
       PacketSequenceStateGeneration* sequence_state,
       const protos::pbzero::GpuRenderStageEvent_Decoder& event) const;
   void InsertGpuTrack(
@@ -83,7 +85,7 @@ class GpuEventParser {
           GpuRenderStageEvent_Specifications_Description_Decoder& hw_queue);
   std::optional<std::string> FindDebugName(int32_t vk_object_type,
                                            uint64_t vk_handle) const;
-  const StringId ParseRenderSubpasses(
+  StringId ParseRenderSubpasses(
       const protos::pbzero::GpuRenderStageEvent_Decoder& event) const;
 
   TraceProcessorContext* const context_;
@@ -98,7 +100,7 @@ class GpuEventParser {
   // Map of stage ID -> pair(stage name, stage description)
   std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;
   // For VulkanMemoryEvent
-  std::unordered_map<VulkanMemoryEvent::AllocationScope,
+  std::unordered_map<protos::pbzero::VulkanMemoryEvent::AllocationScope,
                      int64_t /*counter_value*/,
                      ProtoEnumHasher>
       vulkan_driver_memory_counters_;

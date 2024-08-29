@@ -18,28 +18,26 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <type_traits>
 #include <unordered_set>
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
-class NumericStorageBase : public DataLayer {
+class NumericStorageBase : public StorageLayer {
  protected:
   class ChainImpl : public DataLayerChain {
    public:
@@ -49,8 +47,6 @@ class NumericStorageBase : public DataLayer {
     RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
-
-    void Serialize(StorageProto*) const override;
 
     std::string DebugString() const override { return "NumericStorage"; }
 
@@ -91,6 +87,8 @@ class NumericStorage final : public NumericStorageBase {
                                     ColumnType type,
                                     bool is_sorted);
 
+  StoragePtr GetStoragePtr() override { return vector_->data(); }
+
   // The implementation of this function is given by
   // make_chain.cc/make_chain_minimal.cc depending on whether this is a minimal
   // or full build of trace processor.
@@ -125,12 +123,8 @@ class NumericStorage final : public NumericStorageBase {
                            [this](const Token& t1, const Token& t2) {
                              return (*vector_)[t1.index] < (*vector_)[t2.index];
                            });
-
-      if (tok == indices.tokens.end()) {
-        return std::nullopt;
-      }
-
-      return *tok;
+      return tok == indices.tokens.end() ? std::nullopt
+                                         : std::make_optional(*tok);
     }
 
     std::optional<Token> MinElement(Indices& indices) const override {
@@ -139,16 +133,8 @@ class NumericStorage final : public NumericStorageBase {
                            [this](const Token& t1, const Token& t2) {
                              return (*vector_)[t1.index] < (*vector_)[t2.index];
                            });
-      if (tok == indices.tokens.end()) {
-        return std::nullopt;
-      }
-
-      return *tok;
-    }
-
-    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override {
-      return std::unique_ptr<DataLayer>(
-          new NumericStorage<T>(vector_, column_type(), is_sorted()));
+      return tok == indices.tokens.end() ? std::nullopt
+                                         : std::make_optional(*tok);
     }
 
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override {

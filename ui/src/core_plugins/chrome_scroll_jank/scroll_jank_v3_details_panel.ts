@@ -19,8 +19,8 @@ import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {getSlice, SliceDetails} from '../../frontend/sql/slice';
-import {asSliceSqlId} from '../../frontend/sql_types';
+import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
+import {asSliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
@@ -32,13 +32,13 @@ import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
 
-import {CHROME_EVENT_LATENCY_TRACK_KIND} from './common';
 import {
   EventLatencySlice,
   getEventLatencyDescendantSlice,
   getEventLatencySlice,
   getSliceForTrack,
 } from './scroll_jank_slice';
+import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public';
 
 interface Data {
   name: string;

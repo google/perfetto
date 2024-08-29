@@ -21,7 +21,6 @@ import {showModal} from '../widgets/modal';
 
 import {onClickCopy} from './clipboard';
 import {globals} from './globals';
-import {isTraceLoaded} from './sidebar';
 
 export function isShareable() {
   return globals.isInternalUser && isDownloadable();
@@ -91,4 +90,8 @@ export function createTraceLink(title: string, url: string) {
     onclick: onClickCopy(url),
   };
   return m('a.trace-file-name', linkProps, title);
+}
+
+export function isTraceLoaded(): boolean {
+  return globals.getCurrentEngine() !== undefined;
 }

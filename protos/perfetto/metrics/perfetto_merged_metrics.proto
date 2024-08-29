@@ -53,6 +53,39 @@ message AdServicesMetric {
 }
 // End of protos/perfetto/metrics/android/ad_services_metric.proto
 
+// Begin of protos/perfetto/metrics/android/android_anomaly_metric.proto
+
+// Detects outlier scenarios in different Android Systems in a trace. For now, this just
+// detects high binder transaction rates. In the future, there could be others
+// like garbage_collection, CPU, broadcasts, etc.
+message AndroidAnomalyMetric {
+
+  enum Unit {
+      UNIT_UNSPECIFIED = 0;
+      COUNT_PER_SECOND = 1;
+  }
+
+  // For anomalies related to a particular process.
+  message ProcessAnomaly {
+    optional string process_name = 1;
+    optional uint32 pid = 2;
+    optional Unit unit = 3;
+    optional uint32 value = 4;
+  }
+
+  // Binder subsystem outliers with the following aggegations:
+  // 1. Max incoming binder transaction count from each process over a one second sliding window.
+  // 2. Max outgoing binder transaction count from each process over a one second sliding window.
+  message Binder {
+      repeated ProcessAnomaly max_incoming_process_count_per_second = 1;
+      repeated ProcessAnomaly max_outgoing_process_count_per_second = 2;
+  }
+
+  optional Binder binder = 1;
+}
+
+// End of protos/perfetto/metrics/android/android_anomaly_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_blocking_call.proto
 
 // Blocking call on the main thread.
@@ -623,7 +656,7 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
-  // Next field id: 30
+  // Next field id: 31
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
@@ -656,6 +689,7 @@ message AndroidBinderMetric {
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
     repeated BlockedFunctionBreakdown blocked_functions = 14;
+    repeated LogicalReasonBreakdown logical_reasons = 31;
 
     optional uint32 client_tid = 15;
     optional uint32 server_tid = 16;
@@ -676,6 +710,12 @@ message AndroidBinderMetric {
     optional string blocked_function = 2;
     optional int64 blocked_function_dur = 3;
     optional int64 blocked_function_count = 4;
+  }
+
+  message LogicalReasonBreakdown {
+    optional string thread_state_type = 1;
+    optional string reason = 2;
+    optional int64 reason_dur = 3;
   }
 
   repeated PerProcessBreakdown process_breakdown = 1;
@@ -2840,7 +2880,7 @@ message UnsymbolizedFrames {
 
 // End of protos/perfetto/metrics/android/unsymbolized_frames.proto
 
-// Begin of protos/perfetto/metrics/android/wattson_app_startup.proto
+// Begin of protos/perfetto/metrics/android/wattson_in_time_period.proto
 
 message AndroidWattsonTimePeriodMetric {
   optional int32 metric_version = 1;
@@ -2850,16 +2890,66 @@ message AndroidWattsonTimePeriodMetric {
 message AndroidWattsonEstimateInfo {
   optional int32 period_id = 1;
   optional int64 period_dur = 2;
-  repeated AndroidWattsonRailEstimate rail = 3;
+  optional AndroidWattsonCpuSubsystemEstimate cpu_subsystem = 3;
 }
 
-message AndroidWattsonRailEstimate {
-  optional string name = 1;
-  optional float estimate_mw = 2;
-  repeated AndroidWattsonRailEstimate rail = 3;
+message AndroidWattsonCpuSubsystemEstimate {
+  // estimates and estimates of subrails
+  optional float estimated_mw = 1;
+  optional AndroidWattsonPolicyEstimate policy0 = 2;
+  optional AndroidWattsonPolicyEstimate policy1 = 3;
+  optional AndroidWattsonPolicyEstimate policy2 = 4;
+  optional AndroidWattsonPolicyEstimate policy3 = 5;
+  optional AndroidWattsonPolicyEstimate policy4 = 6;
+  optional AndroidWattsonPolicyEstimate policy5 = 7;
+  optional AndroidWattsonPolicyEstimate policy6 = 8;
+  optional AndroidWattsonPolicyEstimate policy7 = 9;
+  optional AndroidWattsonDsuScuEstimate dsu_scu = 10;
 }
 
-// End of protos/perfetto/metrics/android/wattson_app_startup.proto
+message AndroidWattsonPolicyEstimate {
+  optional float estimated_mw = 1;
+  optional AndroidWattsonCpuEstimate cpu0 = 2;
+  optional AndroidWattsonCpuEstimate cpu1 = 3;
+  optional AndroidWattsonCpuEstimate cpu2 = 4;
+  optional AndroidWattsonCpuEstimate cpu3 = 5;
+  optional AndroidWattsonCpuEstimate cpu4 = 6;
+  optional AndroidWattsonCpuEstimate cpu5 = 7;
+  optional AndroidWattsonCpuEstimate cpu6 = 8;
+  optional AndroidWattsonCpuEstimate cpu7 = 9;
+}
+
+message AndroidWattsonCpuEstimate {
+  optional float estimated_mw = 1;
+}
+
+message AndroidWattsonDsuScuEstimate {
+  optional float estimated_mw = 1;
+}
+
+// End of protos/perfetto/metrics/android/wattson_in_time_period.proto
+
+// Begin of protos/perfetto/metrics/android/wattson_tasks_attribution.proto
+
+message AndroidWattsonTasksAttributionMetric {
+  optional int32 metric_version = 1;
+  // Lists tasks (e.g. threads, process, package) and associated estimates
+  repeated AndroidWattsonTaskInfo task_info = 2;
+}
+
+message AndroidWattsonTaskInfo {
+  // Average estimated power for wall duration in mW
+  optional float estimated_mw = 1;
+  // Total energy over wall duration across CPUs in mWs
+  optional float estimated_mws = 2;
+  optional string thread_name = 3;
+  optional string process_name = 4;
+  optional string package_name = 5;
+  optional int32 thread_id = 6;
+  optional int32 process_id = 7;
+}
+
+// End of protos/perfetto/metrics/android/wattson_tasks_attribution.proto
 
 // Begin of protos/perfetto/metrics/metrics.proto
 
@@ -2908,7 +2998,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 70
+// Next id: 75
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -3103,8 +3193,23 @@ message TraceMetrics {
   // Android Broadcasts aggregated metrics
   optional AndroidBroadcastsMetric android_broadcasts = 68;
 
+  // Android Wattson rail estimate for each app startup.
+  optional AndroidWattsonTimePeriodMetric wattson_app_startup_rails = 69;
+
+  // Android Wattson rail estimate for duration of entire trace.
+  optional AndroidWattsonTimePeriodMetric wattson_trace_rails = 70;
+
+  // Android Anomaly metric
+  optional AndroidAnomalyMetric android_anomaly = 71;
+
   // Android Wattson app startup metrics.
-  optional AndroidWattsonTimePeriodMetric wattson_app_startup = 69;
+  optional AndroidWattsonTasksAttributionMetric wattson_trace_threads = 72;
+
+  // Android Wattson thread attribution during markers time window.
+  optional AndroidWattsonTasksAttributionMetric wattson_markers_threads = 73;
+
+  // Android Wattson estimate during markers time window.
+  optional AndroidWattsonTimePeriodMetric wattson_markers_rails = 74;
 
   // Android
   // Demo extensions.

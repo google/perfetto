@@ -85,20 +85,20 @@ function selectCurrentSearchResult() {
   const searchIndex = globals.state.searchIndex;
   const source = globals.currentSearchResults.sources[searchIndex];
   const currentId = globals.currentSearchResults.eventIds[searchIndex];
-  const trackKey = globals.currentSearchResults.trackKeys[searchIndex];
+  const uri = globals.currentSearchResults.trackUris[searchIndex];
 
   if (currentId === undefined) return;
 
   switch (source) {
     case 'track':
-      verticalScrollToTrack(trackKey, true);
+      verticalScrollToTrack(uri, true);
       break;
     case 'cpu':
       globals.setLegacySelection(
         {
           kind: 'SCHED_SLICE',
           id: currentId,
-          trackKey,
+          trackUri: uri,
         },
         {
           clearSearch: false,
@@ -112,7 +112,7 @@ function selectCurrentSearchResult() {
         {
           kind: 'LOG',
           id: currentId,
-          trackKey,
+          trackUri: uri,
         },
         {
           clearSearch: false,
@@ -128,7 +128,7 @@ function selectCurrentSearchResult() {
         {
           kind: 'SLICE',
           id: currentId,
-          trackKey,
+          trackUri: uri,
           table: 'slice',
         },
         {

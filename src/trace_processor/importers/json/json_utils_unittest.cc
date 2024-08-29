@@ -16,13 +16,12 @@
 
 #include "src/trace_processor/importers/json/json_utils.h"
 
+#include <json/config.h>
 #include <json/value.h>
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace json {
+namespace perfetto::trace_processor::json {
 namespace {
 
 TEST(JsonTraceUtilsTest, CoerceToUint32) {
@@ -78,6 +77,4 @@ TEST(JsonTraceUtilsTest, CoerceToTs) {
 }
 
 }  // namespace
-}  // namespace json
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::json

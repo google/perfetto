@@ -63,7 +63,8 @@ PixelModemParser::PixelModemParser(TraceProcessorContext* context)
     : context_(context),
       detokenizer_(pigweed::CreateNullDetokenizer()),
       template_id_(context->storage->InternString("raw_template")),
-      token_id_(context->storage->InternString("token_id")) {}
+      token_id_(context->storage->InternString("token_id")),
+      packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
 
 PixelModemParser::~PixelModemParser() = default;
 
@@ -73,6 +74,7 @@ base::Status PixelModemParser::SetDatabase(protozero::ConstBytes blob) {
 }
 
 base::Status PixelModemParser::ParseEvent(int64_t ts,
+                                          uint64_t trace_packet_ts,
                                           protozero::ConstBytes blob) {
   ASSIGN_OR_RETURN(pigweed::DetokenizedString detokenized_str,
                    detokenizer_.Detokenize(blob));
@@ -96,11 +98,14 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
 
   context_->slice_tracker->Scoped(
       ts, id, kNullStringId, slice_name_id, 0,
-      [this, &detokenized_str](ArgsTracker::BoundInserter* inserter) {
+      [this, &detokenized_str,
+       trace_packet_ts](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(template_id_,
                          Variadic::String(context_->storage->InternString(
                              detokenized_str.template_str().c_str())));
         inserter->AddArg(token_id_, Variadic::Integer(detokenized_str.token()));
+        inserter->AddArg(packet_timestamp_id_,
+                         Variadic::UnsignedInteger(trace_packet_ts));
         auto pw_args = detokenized_str.args();
         for (size_t i = 0; i < pw_args.size(); i++) {
           StringId arg_name = context_->storage->InternString(

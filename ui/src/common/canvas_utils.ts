@@ -173,3 +173,26 @@ export function canvasClip(
   ctx.rect(x, y, w, h);
   ctx.clip();
 }
+
+/**
+ * Save the state of the canvas, returning a disposable which restores the state
+ * when disposed.
+ *
+ * Allows using the |using| keyword to automatically restore the canvas state.
+ * @param ctx - The canvas context to save the state of.
+ * @returns A disposable.
+ *
+ * @example
+ * {
+ *   using const _ = canvasSave(ctx);
+ *   ctx.translate(123, 456); // Manipulate the canvas state
+ * } // ctx.restore() is automatically called when the _ falls out of scope
+ */
+export function canvasSave(ctx: CanvasRenderingContext2D): Disposable {
+  ctx.save();
+  return {
+    [Symbol.dispose](): void {
+      ctx.restore();
+    },
+  };
+}

@@ -17,18 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_TOKENIZER_H_
 
-#include <stdint.h>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 namespace Json {
 class Value;
 }
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -101,7 +104,7 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
-  void NotifyEndOfFile() override;
+  base::Status NotifyEndOfFile() override;
 
  private:
   // Enum which tracks which type of JSON trace we are dealing with.
@@ -162,7 +165,6 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
   std::vector<char> buffer_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_TOKENIZER_H_

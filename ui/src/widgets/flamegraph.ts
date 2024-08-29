@@ -17,17 +17,17 @@ import m from 'mithril';
 import {findRef} from '../base/dom_utils';
 import {assertExists, assertTrue} from '../base/logging';
 import {Monitor} from '../base/monitor';
-import {cropText} from '../base/string_utils';
 
+import {Button, ButtonBar} from './button';
 import {EmptyState} from './empty_state';
 import {Popup, PopupPosition} from './popup';
+import {scheduleFullRedraw} from './raf';
 import {Select} from './select';
 import {Spinner} from './spinner';
 import {TagInput} from './tag_input';
-import {scheduleFullRedraw} from './raf';
-import {Button, ButtonBar} from './button';
+import {SegmentedButtons} from './segmented_buttons';
 
-const LABEL_FONT_STYLE = '12px Roboto Mono';
+const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
 const FILTER_COMMON_TEXT = `
@@ -88,21 +88,41 @@ export interface FlamegraphQueryData {
     readonly name: string;
     readonly selfValue: number;
     readonly cumulativeValue: number;
+    readonly parentCumulativeValue?: number;
     readonly properties: ReadonlyMap<string, string>;
     readonly xStart: number;
     readonly xEnd: number;
   }>;
+  readonly unfilteredCumulativeValue: number;
   readonly allRootsCumulativeValue: number;
   readonly minDepth: number;
   readonly maxDepth: number;
 }
+
+export interface FlamegraphTopDown {
+  readonly kind: 'TOP_DOWN';
+}
+
+export interface FlamegraphBottomUp {
+  readonly kind: 'BOTTOM_UP';
+}
+
+export interface FlamegraphPivot {
+  readonly kind: 'PIVOT';
+  readonly pivot: string;
+}
+
+export type FlamegraphView =
+  | FlamegraphTopDown
+  | FlamegraphBottomUp
+  | FlamegraphPivot;
 
 export interface FlamegraphFilters {
   readonly showStack: ReadonlyArray<string>;
   readonly hideStack: ReadonlyArray<string>;
   readonly showFromFrame: ReadonlyArray<string>;
   readonly hideFrame: ReadonlyArray<string>;
-  readonly pivot: string | undefined;
+  readonly view: FlamegraphView;
 }
 
 export interface FlamegraphAttrs {
@@ -159,6 +179,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private rawFilterText: string = '';
   private rawFilters: ReadonlyArray<string> = [];
   private filterFocus: boolean = false;
+  private switchState: 'TOP_DOWN' | 'BOTTOM_UP' = 'TOP_DOWN';
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
@@ -383,7 +404,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const yStart = containerRect.top - canvasRect.top;
     const yEnd = containerRect.bottom - canvasRect.top;
 
-    const {allRootsCumulativeValue, nodes} = this.attrs.data;
+    const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
+      this.attrs.data;
     const unit = assertExists(this.selectedMetric).unit;
 
     ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
@@ -414,7 +436,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
       let name: string;
       if (source.kind === 'ROOT') {
-        name = `root: ${displaySize(allRootsCumulativeValue, unit)}`;
+        const val = displaySize(allRootsCumulativeValue, unit);
+        const percent = displayPercentage(
+          allRootsCumulativeValue,
+          unfilteredCumulativeValue,
+        );
+        name = `root: ${val} (${percent})`;
         ctx.fillStyle = generateColor('root', state === 'PARTIAL', hover);
       } else if (source.kind === 'MERGED') {
         name = '(merged)';
@@ -429,7 +456,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       if (widthNoPadding >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
         ctx.fillStyle = 'black';
         ctx.fillText(
-          cropText(name, this.labelCharWidth, widthNoPadding),
+          name.substring(0, widthNoPadding / this.labelCharWidth),
           x + LABEL_PADDING_PX,
           y + (NODE_HEIGHT - 1) / 2,
           widthNoPadding,
@@ -491,14 +518,18 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                 normalizeFilter(tag),
               );
               self.rawFilterText = '';
-              self.attrs.onFiltersChanged(computeFilters(self.rawFilters));
+              self.attrs.onFiltersChanged(
+                computeFilters(self.switchState, self.rawFilters),
+              );
               scheduleFullRedraw();
             },
             onTagRemove(index: number) {
               const filters = Array.from(self.rawFilters);
               filters.splice(index, 1);
               self.rawFilters = filters;
-              self.attrs.onFiltersChanged(computeFilters(self.rawFilters));
+              self.attrs.onFiltersChanged(
+                computeFilters(self.switchState, self.rawFilters),
+              );
               scheduleFullRedraw();
             },
             onfocus() {
@@ -514,6 +545,18 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         },
         m('.pf-flamegraph-filter-bar-popup-content', FILTER_EMPTY_TEXT.trim()),
       ),
+      m(SegmentedButtons, {
+        options: [{label: 'Top Down'}, {label: 'Bottom Up'}],
+        selectedOption: this.switchState === 'TOP_DOWN' ? 0 : 1,
+        onOptionSelected: (num) => {
+          this.switchState = num === 0 ? 'TOP_DOWN' : 'BOTTOM_UP';
+          self.attrs.onFiltersChanged(
+            computeFilters(self.switchState, self.rawFilters),
+          );
+          scheduleFullRedraw();
+        },
+        disabled: hasPivot(this.rawFilters),
+      }),
     );
   }
 
@@ -529,39 +572,80 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m('.tooltip-text', 'Nodes too small to show, please use filters'),
       );
     }
-    const {nodes, allRootsCumulativeValue} = assertExists(this.attrs.data);
+    const {nodes, allRootsCumulativeValue, unfilteredCumulativeValue} =
+      assertExists(this.attrs.data);
     const {unit} = assertExists(this.selectedMetric);
     if (node.source.kind === 'ROOT') {
+      const val = displaySize(allRootsCumulativeValue, unit);
+      const percent = displayPercentage(
+        allRootsCumulativeValue,
+        unfilteredCumulativeValue,
+      );
       return m(
         'div',
         m('.tooltip-bold-text', 'root'),
         m(
           '.tooltip-text-line',
           m('.tooltip-bold-text', 'Cumulative:'),
-          m('.tooltip-text', displaySize(allRootsCumulativeValue, unit)),
+          m('.tooltip-text', `${val}, ${percent}`),
         ),
       );
     }
     const {queryIdx} = node.source;
-    const {name, cumulativeValue, selfValue, properties} = nodes[queryIdx];
+    const {
+      name,
+      cumulativeValue,
+      selfValue,
+      parentCumulativeValue,
+      properties,
+    } = nodes[queryIdx];
     const filterButtonClick = (filter: string) => {
       this.rawFilters = addFilter(this.rawFilters, filter);
-      this.attrs.onFiltersChanged(computeFilters(this.rawFilters));
+      this.attrs.onFiltersChanged(
+        computeFilters(this.switchState, this.rawFilters),
+      );
       this.tooltipPos = undefined;
       scheduleFullRedraw();
     };
+
+    const percent = displayPercentage(
+      cumulativeValue,
+      unfilteredCumulativeValue,
+    );
+    const selfPercent = displayPercentage(selfValue, unfilteredCumulativeValue);
+
+    let percentText = `all: ${percent}`;
+    let selfPercentText = `all: ${selfPercent}`;
+    if (parentCumulativeValue !== undefined) {
+      const parentPercent = displayPercentage(
+        cumulativeValue,
+        parentCumulativeValue,
+      );
+      percentText += `, parent: ${parentPercent}`;
+      const parentSelfPercent = displayPercentage(
+        selfValue,
+        parentCumulativeValue,
+      );
+      selfPercentText += `, parent: ${parentSelfPercent}`;
+    }
     return m(
       'div',
       m('.tooltip-bold-text', name),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Cumulative:'),
-        m('.tooltip-text', displaySize(cumulativeValue, unit)),
+        m(
+          '.tooltip-text',
+          `${displaySize(cumulativeValue, unit)} (${percentText})`,
+        ),
       ),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Self:'),
-        m('.tooltip-text', displaySize(selfValue, unit)),
+        m(
+          '.tooltip-text',
+          `${displaySize(selfValue, unit)} (${selfPercentText})`,
+        ),
       ),
       Array.from(properties, ([key, value]) => {
         return m(
@@ -583,31 +667,31 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m(Button, {
           label: 'Show Stack',
           onclick: () => {
-            filterButtonClick(`Show Stack: ${name}`);
+            filterButtonClick(`Show Stack: ^${name}$`);
           },
         }),
         m(Button, {
           label: 'Hide Stack',
           onclick: () => {
-            filterButtonClick(`Hide Stack: ${name}`);
+            filterButtonClick(`Hide Stack: ^${name}$`);
           },
         }),
         m(Button, {
           label: 'Hide Frame',
           onclick: () => {
-            filterButtonClick(`Hide Frame: ${name}`);
+            filterButtonClick(`Hide Frame: ^${name}$`);
           },
         }),
         m(Button, {
           label: 'Show From Frame',
           onclick: () => {
-            filterButtonClick(`Show From Frame: ${name}`);
+            filterButtonClick(`Show From Frame: ^${name}$`);
           },
         }),
         m(Button, {
           label: 'Pivot',
           onclick: () => {
-            filterButtonClick(`Pivot: ${name}`);
+            filterButtonClick(`Pivot: ^${name}$`);
           },
         }),
       ),
@@ -628,8 +712,8 @@ function computeRenderNodes(
 ): ReadonlyArray<RenderNode> {
   const renderNodes: RenderNode[] = [];
 
-  const idToIdx = new Map<number, number>();
-  const idxToChildMergedIdx = new Map<number, number>();
+  const mergedKeyToX = new Map<string, number>();
+  const keyToChildMergedIdx = new Map<string, number>();
   renderNodes.push({
     x: 0,
     y: -minDepth * NODE_HEIGHT,
@@ -646,11 +730,12 @@ function computeRenderNodes(
         ? 'NORMAL'
         : 'PARTIAL',
   });
-  idToIdx.set(-1, renderNodes.length - 1);
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
   for (let i = 0; i < nodes.length; i++) {
     const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i];
+    assertTrue(depth !== 0);
+
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
     if (
       depthMatchingZoom &&
@@ -676,9 +761,10 @@ function computeRenderNodes(
       : relativeWidth / queryXPerPx;
     const state = computeState(qXStart, qXEnd, zoomRegion, depthMatchingZoom);
 
-    if (width < MIN_PIXEL_DISPLAYED && depth > 0) {
-      const parentIdx = assertExists(idToIdx.get(parentId));
-      const childMergedIdx = idxToChildMergedIdx.get(parentIdx);
+    if (width < MIN_PIXEL_DISPLAYED) {
+      const parentChildMergeKey = `${parentId}_${depth}`;
+      const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
+      const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
         const r = renderNodes[childMergedIdx];
         const mergedWidth = isDepthMatchingZoom(depth, zoomRegion)
@@ -692,12 +778,12 @@ function computeRenderNodes(
             queryXEnd: qXEnd,
           },
         };
-        idToIdx.set(id, childMergedIdx);
+        mergedKeyToX.set(mergedXKey, r.x);
         continue;
       }
-      const parentNode = renderNodes[parentIdx];
+      const mergedX = mergedKeyToX.get(`${parentId}_${depth}`) ?? x;
       renderNodes.push({
-        x: parentNode.source.kind === 'MERGED' ? parentNode.x : x,
+        x: mergedX,
         y,
         width: Math.max(width, MIN_PIXEL_DISPLAYED),
         source: {
@@ -708,8 +794,8 @@ function computeRenderNodes(
         },
         state,
       });
-      idToIdx.set(id, renderNodes.length - 1);
-      idxToChildMergedIdx.set(parentIdx, renderNodes.length - 1);
+      keyToChildMergedIdx.set(parentChildMergeKey, renderNodes.length - 1);
+      mergedKeyToX.set(mergedXKey, mergedX);
       continue;
     }
     renderNodes.push({
@@ -725,7 +811,6 @@ function computeRenderNodes(
       },
       state,
     });
-    idToIdx.set(id, renderNodes.length - 1);
   }
   return renderNodes;
 }
@@ -778,21 +863,38 @@ function isIntersecting(
 function displaySize(totalSize: number, unit: string): string {
   if (unit === '') return totalSize.toLocaleString();
   if (totalSize === 0) return `0 ${unit}`;
-  const step = unit === 'B' ? 1024 : 1000;
-  const units = [
-    ['', 1],
-    [unit === 'B' ? 'Ki' : 'K', step],
-    [unit === 'B' ? 'Mi' : 'M', Math.pow(step, 2)],
-    [unit === 'B' ? 'Gi' : 'G', Math.pow(step, 3)],
-  ];
-  let unitsIndex = Math.trunc(Math.log(totalSize) / Math.log(step));
-  unitsIndex = unitsIndex > units.length - 1 ? units.length - 1 : unitsIndex;
-  const result = totalSize / +units[unitsIndex][1];
+  let step: number;
+  let units: string[];
+  switch (unit) {
+    case 'B':
+      step = 1024;
+      units = ['B', 'KiB', 'MiB', 'GiB'];
+      break;
+    case 'ns':
+      step = 1000;
+      units = ['ns', 'us', 'ms', 's'];
+      break;
+    default:
+      step = 1000;
+      units = [unit, `K${unit}`, `M${unit}`, `G${unit}`];
+      break;
+  }
+  const unitsIndex = Math.min(
+    Math.trunc(Math.log(totalSize) / Math.log(step)),
+    units.length - 1,
+  );
+  const pow = Math.pow(step, unitsIndex);
+  const result = totalSize / pow;
   const resultString =
-    totalSize % +units[unitsIndex][1] === 0
-      ? result.toString()
-      : result.toFixed(2);
-  return `${resultString} ${units[unitsIndex][0]}${unit}`;
+    totalSize % pow === 0 ? result.toString() : result.toFixed(2);
+  return `${resultString} ${units[unitsIndex]}`;
+}
+
+function displayPercentage(size: number, totalSize: number): string {
+  if (totalSize === 0) {
+    return `[NULL]%`;
+  }
+  return `${((size / totalSize) * 100.0).toFixed(2)}%`;
 }
 
 function normalizeFilter(filter: string): string {
@@ -818,7 +920,10 @@ function addFilter(filters: ReadonlyArray<string>, filter: string): string[] {
   return [...filters, filter];
 }
 
-function computeFilters(rawFilters: readonly string[]): FlamegraphFilters {
+function computeFilters(
+  switchState: 'TOP_DOWN' | 'BOTTOM_UP',
+  rawFilters: readonly string[],
+): FlamegraphFilters {
   const showStack = rawFilters
     .filter((x) => x.startsWith('Show Stack: '))
     .map((x) => x.split(': ', 2)[1]);
@@ -838,6 +943,10 @@ function computeFilters(rawFilters: readonly string[]): FlamegraphFilters {
   const pivot = rawFilters.filter((x) => x.startsWith('Pivot: '));
   assertTrue(pivot.length <= 1, 'Only one pivot can be active');
 
+  const view: FlamegraphView =
+    pivot.length === 0
+      ? {kind: switchState}
+      : {kind: 'PIVOT', pivot: pivot[0].split(': ', 2)[1]};
   return {
     showStack,
     hideStack: rawFilters
@@ -847,8 +956,14 @@ function computeFilters(rawFilters: readonly string[]): FlamegraphFilters {
     hideFrame: rawFilters
       .filter((x) => x.startsWith('Hide Frame: '))
       .map((x) => x.split(': ', 2)[1]),
-    pivot: pivot.length === 0 ? undefined : pivot[0].split(': ', 2)[1],
+    view,
   };
+}
+
+function hasPivot(rawFilters: readonly string[]) {
+  const pivot = rawFilters.filter((x) => x.startsWith('Pivot: '));
+  assertTrue(pivot.length <= 1, 'Only one pivot can be active');
+  return pivot.length === 1;
 }
 
 function generateColor(name: string, greyed: boolean, hovered: boolean) {

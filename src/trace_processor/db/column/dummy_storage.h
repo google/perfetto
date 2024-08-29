@@ -21,16 +21,23 @@
 #include <optional>
 #include <string>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Dummy storage. Used for columns that are not supposed to have operations done
 // on them.
-class DummyStorage final : public DataLayer {
+class DummyStorage final : public StorageLayer {
  public:
+  StoragePtr GetStoragePtr() override { PERFETTO_FATAL("Shouldn't be called"); }
+
+  std::unique_ptr<DataLayerChain> MakeChain();
+
+ private:
   class ChainImpl : public DataLayerChain {
    public:
     ChainImpl() = default;
@@ -54,17 +61,12 @@ class DummyStorage final : public DataLayer {
 
     std::optional<Token> MinElement(Indices&) const override;
 
-    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override;
-
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
-
-    void Serialize(StorageProto*) const override;
 
     uint32_t size() const override;
 
     std::string DebugString() const override { return "DummyStorage"; }
   };
-  std::unique_ptr<DataLayerChain> MakeChain();
 };
 
 }  // namespace perfetto::trace_processor::column

@@ -194,16 +194,24 @@ PROTOLOG_TABLE = Table(
         C('tag', CppString()),
         C('message', CppString()),
         C('stacktrace', CppString()),
+        C('location', CppString()),
     ],
     tabledoc=TableDoc(
         doc='Protolog',
         group='Winscope',
         columns={
-            'ts': 'The timestamp the log message was sent',
-            'level': 'The log level of the protolog message',
-            'tag': 'The log tag of the protolog message',
-            'message': 'The protolog message',
-            'stacktrace': 'Stacktrace captured at the message\'s logpoint',
+            'ts':
+                'The timestamp the log message was sent',
+            'level':
+                'The log level of the protolog message',
+            'tag':
+                'The log tag of the protolog message',
+            'message':
+                'The protolog message',
+            'stacktrace':
+                'Stacktrace captured at the message\'s logpoint',
+            'location':
+                'The location of the logpoint (only for processed messages)',
         }))
 
 # Keep this list sorted.

@@ -21,9 +21,9 @@ buffers {
   clear_before_clone: true
 }
 
-# Buffer 2: for com.android.wm.shell.transition
+# Buffer 2: for other Winscope traces
 buffers {
-  size_kb: 32
+  size_kb: 2048
   fill_policy: RING_BUFFER
 }
 
@@ -57,3 +57,12 @@ data_sources: {
   }
 }
 
+data_sources: {
+  config {
+    name: "android.protolog"
+    protolog_config {
+      tracing_mode: ENABLE_ALL
+    }
+    target_buffer: 2
+  }
+}

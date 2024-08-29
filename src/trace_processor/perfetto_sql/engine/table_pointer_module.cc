@@ -172,18 +172,15 @@ int TablePointerModule::Filter(sqlite3_vtab_cursor* cur,
       return sqlite::utils::SetError(c->pVtab, "Column name is not text");
     }
 
-    std::string_view tok(
-        reinterpret_cast<const char*>(sqlite3_value_text(argv[i])));
-    auto it = std::find_if(
-        c->table->columns().begin(), c->table->columns().end(),
-        [&tok](const ColumnLegacy& col) { return col.name() == tok; });
-    if (it == c->table->columns().end()) {
+    const char* tok =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
+    auto idx = c->table->ColumnIdxFromName(tok);
+    if (!idx) {
       base::StackString<128> err("column '%s' does not exist in table",
                                  sqlite3_value_text(argv[i]));
       return sqlite::utils::SetError(c->pVtab, err.c_str());
     }
-    c->bound_col_to_table_index[c->col_count++] =
-        static_cast<uint32_t>(std::distance(c->table->columns().begin(), it));
+    c->bound_col_to_table_index[c->col_count++] = *idx;
   }
   c->iterator = c->table->IterateRows();
   return SQLITE_OK;

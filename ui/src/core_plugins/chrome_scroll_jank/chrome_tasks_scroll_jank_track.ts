@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {InThreadTrackSortKey} from '../../common/state';
 import {
   NAMED_ROW,
   NamedRow,
@@ -20,13 +19,8 @@ import {
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {Slice} from '../../public';
-import {Engine} from '../../trace_processor/engine';
-import {NUM} from '../../trace_processor/query_result';
-import {DecideTracksResult, ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './common';
 
 export class ChromeTasksScrollJankTrack extends NamedSliceTrack {
-  static readonly kind = 'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
-
   constructor(args: NewTrackArgs) {
     super(args);
   }
@@ -51,46 +45,4 @@ export class ChromeTasksScrollJankTrack extends NamedSliceTrack {
       join slice s2 on s2.id=s1.slice_id
     `;
   }
-}
-export type GetTrackGroupUuidFn = (utid: number, upid: number | null) => string;
-
-export async function decideTracks(
-  engine: Engine,
-  getTrackGroupUuid: GetTrackGroupUuidFn,
-): Promise<DecideTracksResult> {
-  const result: DecideTracksResult = {
-    tracksToAdd: [],
-  };
-  if (!ENABLE_CHROME_SCROLL_JANK_PLUGIN.get()) {
-    return result;
-  }
-
-  const queryResult = await engine.query(`
-    select
-      utid,
-      upid
-    from thread
-    where name='CrBrowserMain'
-  `);
-
-  const it = queryResult.iter({
-    utid: NUM,
-    upid: NUM,
-  });
-
-  if (!it.valid()) {
-    return result;
-  }
-
-  result.tracksToAdd.push({
-    uri: 'perfetto.ChromeScrollJank',
-    trackSortKey: {
-      utid: it.utid,
-      priority: InThreadTrackSortKey.ORDINARY,
-    },
-    name: 'Scroll Jank causes - long tasks',
-    trackGroup: getTrackGroupUuid(it.utid, it.upid),
-  });
-
-  return result;
 }

@@ -416,7 +416,10 @@ class GnParser(object):
     if target is not None:
       return target  # Target already processed.
 
-    desc = self.gn_desc_[gn_target_name]
+    desc = self.gn_desc_.get(gn_target_name)
+    if not desc:
+      return None
+
     target = GnParser.Target(gn_target_name, desc['type'])
     target.testonly = desc.get('testonly', False)
     target.toolchain = desc.get('toolchain', None)
