@@ -68,7 +68,7 @@ SELECT
   -- significant fraction of the runtime on big traces.
   IFNULL(
     DEMANGLE(COALESCE(s.name, f.deobfuscated_name, f.name)),
-    COALESCE(s.name, f.deobfuscated_name, f.name)
+    COALESCE(s.name, f.deobfuscated_name, f.name, '[Unknown]')
   ) AS name,
   f.mapping AS mapping_id,
   s.source_file,
