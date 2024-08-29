@@ -27,7 +27,6 @@ import {
   Store,
   TabDescriptor,
   TrackDescriptor,
-  TrackRef,
   SidebarMenuItem,
 } from '../public';
 import {EngineBase, Engine} from '../trace_processor/engine';
@@ -120,7 +119,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     this.trash.use(dispose);
   }
 
-  registerTrackAndShowOnTraceLoad(track: TrackDescriptor & TrackRef): void {
+  registerTrackAndShowOnTraceLoad(track: TrackDescriptor): void {
     this.registerTrack(track);
 
     // Silently ignore if context is dead.
