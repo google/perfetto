@@ -110,7 +110,7 @@ export function focusOnSlice(slice: SliceIdentifier) {
  * @param trackId track_id of the track
  */
 function getTrackForTrackId(trackId: number): TrackDescriptor | undefined {
-  return globals.trackManager.getAllTracks().find((trackDescriptor) => {
+  return globals.trackManager.findTrack((trackDescriptor) => {
     return trackDescriptor?.tags?.trackIds?.includes(trackId);
   });
 }
