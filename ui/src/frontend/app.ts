@@ -28,7 +28,7 @@ import {
   TimestampFormat,
 } from '../core/timestamp_format';
 import {raf} from '../core/raf_scheduler';
-import {Command, Engine, addDebugSliceTrack} from '../public';
+import {Command} from '../public';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
@@ -52,10 +52,7 @@ import {
 } from './keyboard_event_handler';
 import {publishPermalinkHash} from './publish';
 import {OmniboxMode, PromptOption} from './omnibox_manager';
-import {Utid} from '../trace_processor/sql_utils/core_types';
-import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 import {DisposableStack} from '../base/disposable_stack';
-import {getThreadInfo} from '../trace_processor/sql_utils/thread';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;
@@ -81,35 +78,6 @@ class Alerts implements m.ClassComponent {
   }
 }
 
-const criticalPathSliceColumns = {
-  ts: 'ts',
-  dur: 'dur',
-  name: 'name',
-};
-const criticalPathsliceColumnNames = [
-  'id',
-  'utid',
-  'ts',
-  'dur',
-  'name',
-  'table_name',
-];
-
-const criticalPathsliceLiteColumns = {
-  ts: 'ts',
-  dur: 'dur',
-  name: 'thread_name',
-};
-const criticalPathsliceLiteColumnNames = [
-  'id',
-  'utid',
-  'ts',
-  'dur',
-  'thread_name',
-  'process_name',
-  'table_name',
-];
-
 export class App implements m.ClassComponent {
   private trash = new DisposableStack();
   static readonly OMNIBOX_INPUT_REF = 'omnibox';
@@ -119,33 +87,6 @@ export class App implements m.ClassComponent {
   constructor() {
     this.trash.use(new Notes());
     this.trash.use(new AggregationsTabs());
-  }
-
-  private getEngine(): Engine | undefined {
-    const engineId = globals.getCurrentEngine()?.id;
-    if (engineId === undefined) {
-      return undefined;
-    }
-    const engine = globals.engines.get(engineId)?.getProxy('QueryPage');
-    return engine;
-  }
-
-  private getFirstUtidOfSelectionOrVisibleWindow(): number {
-    const selection = globals.state.selection;
-    if (selection.kind === 'area') {
-      for (const trackUri of selection.trackUris) {
-        const trackDesc = globals.trackManager.getTrack(trackUri);
-
-        if (
-          trackDesc?.tags?.kind === THREAD_STATE_TRACK_KIND &&
-          trackDesc?.tags?.utid !== undefined
-        ) {
-          return trackDesc.tags.utid;
-        }
-      }
-    }
-
-    return 0;
   }
 
   private cmds: Command[] = [
@@ -197,116 +138,6 @@ export class App implements m.ClassComponent {
           raf.scheduleFullRedraw();
         } catch {
           // Prompt was probably cancelled - do nothing.
-        }
-      },
-    },
-    {
-      id: 'perfetto.CriticalPathLite',
-      name: `Critical path lite`,
-      callback: async () => {
-        const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
-        const engine = this.getEngine();
-
-        if (engine !== undefined && trackUtid != 0) {
-          await engine.query(
-            `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
-          );
-          await addDebugSliceTrack(
-            // NOTE(stevegolton): This is a temporary patch, this menu should
-            // become part of a critical path plugin, at which point we can just
-            // use the plugin's context object.
-            {
-              engine,
-              registerTrack: (x) => globals.trackManager.registerTrack(x),
-            },
-            {
-              sqlSource: `
-                   SELECT
-                      cr.id,
-                      cr.utid,
-                      cr.ts,
-                      cr.dur,
-                      thread.name AS thread_name,
-                      process.name AS process_name,
-                      'thread_state' AS table_name
-                    FROM
-                      _thread_executing_span_critical_path(
-                          ${trackUtid},
-                          ${window.start},
-                          ${window.end} - ${window.start}) cr
-                    JOIN thread USING(utid)
-                    JOIN process USING(upid)
-                  `,
-              columns: criticalPathsliceLiteColumnNames,
-            },
-            (await getThreadInfo(engine, trackUtid as Utid)).name ??
-              '<thread name>',
-            criticalPathsliceLiteColumns,
-            criticalPathsliceLiteColumnNames,
-          );
-        }
-      },
-    },
-    {
-      id: 'perfetto.CriticalPath',
-      name: `Critical path`,
-      callback: async () => {
-        const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
-        const engine = this.getEngine();
-
-        if (engine !== undefined && trackUtid != 0) {
-          await engine.query(
-            `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
-          );
-          await addDebugSliceTrack(
-            // NOTE(stevegolton): This is a temporary patch, this menu should
-            // become part of a critical path plugin, at which point we can just
-            // use the plugin's context object.
-            {
-              engine,
-              registerTrack: (x) => globals.trackManager.registerTrack(x),
-            },
-            {
-              sqlSource: `
-                        SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
-                        FROM
-                        _critical_path_stack(
-                          ${trackUtid},
-                          ${window.start},
-                          ${window.end} - ${window.start}, 1, 1, 1, 1) cr WHERE name IS NOT NULL
-                  `,
-              columns: criticalPathsliceColumnNames,
-            },
-            (await getThreadInfo(engine, trackUtid as Utid)).name ??
-              '<thread name>',
-            criticalPathSliceColumns,
-            criticalPathsliceColumnNames,
-          );
-        }
-      },
-    },
-    {
-      id: 'perfetto.CriticalPathPprof',
-      name: `Critical path pprof`,
-      callback: async () => {
-        const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
-        const engine = this.getEngine();
-
-        if (engine !== undefined && trackUtid != 0) {
-          addQueryResultsTab({
-            query: `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;
-                   SELECT *
-                      FROM
-                        _thread_executing_span_critical_path_graph(
-                        "criical_path",
-                         ${trackUtid},
-                         ${window.start},
-                         ${window.end} - ${window.start}) cr`,
-            title: 'Critical path',
-          });
         }
       },
     },
