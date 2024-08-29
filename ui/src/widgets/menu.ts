@@ -120,9 +120,9 @@ export class MenuDivider implements m.ClassComponent {
 // A siple container for a menu.
 // The menu contents are passed in as children, and are typically MenuItems or
 // MenuDividers, but really they can be any Mithril component.
-export class Menu implements m.ClassComponent {
-  view({children}: m.CVnode) {
-    return m('.pf-menu', children);
+export class Menu implements m.ClassComponent<HTMLAttrs> {
+  view({attrs, children}: m.CVnode<HTMLAttrs>) {
+    return m('.pf-menu', attrs, children);
   }
 }
 
