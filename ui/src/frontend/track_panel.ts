@@ -19,7 +19,7 @@ import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
-import {TrackCacheEntry} from '../common/track_manager';
+import {TrackRenderer} from '../common/track_manager';
 import {raf} from '../core/raf_scheduler';
 import {Track, TrackTags} from '../public';
 
@@ -491,7 +491,7 @@ interface TrackPanelAttrs {
   readonly title: m.Children;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
-  readonly trackFSM?: TrackCacheEntry;
+  readonly trackRenderer?: TrackRenderer;
   readonly revealOnCreate?: boolean;
   readonly pluginId?: string;
   readonly track: TrackNode;
@@ -510,12 +510,12 @@ export class TrackPanel implements Panel {
   render(): m.Children {
     const attrs = this.attrs;
 
-    if (attrs.trackFSM) {
-      if (attrs.trackFSM.getError()) {
+    if (attrs.trackRenderer) {
+      if (attrs.trackRenderer.getError()) {
         return m(TrackComponent, {
           title: attrs.title,
-          error: attrs.trackFSM.getError(),
-          track: attrs.trackFSM.track,
+          error: attrs.trackRenderer.getError(),
+          track: attrs.trackRenderer.track,
           chips: attrs.chips,
           pluginId: attrs.pluginId,
           trackNode: attrs.track,
@@ -523,11 +523,11 @@ export class TrackPanel implements Panel {
       }
       return m(TrackComponent, {
         title: attrs.title,
-        heightPx: attrs.trackFSM.track.getHeight(),
-        buttons: attrs.trackFSM.track.getTrackShellButtons?.(),
+        heightPx: attrs.trackRenderer.track.getHeight(),
+        buttons: attrs.trackRenderer.track.getTrackShellButtons?.(),
         tags: attrs.tags,
-        track: attrs.trackFSM.track,
-        error: attrs.trackFSM.getError(),
+        track: attrs.trackRenderer.track,
+        error: attrs.trackRenderer.getError(),
         revealOnCreate: attrs.revealOnCreate,
         chips: attrs.chips,
         pluginId: attrs.pluginId,
@@ -580,11 +580,11 @@ export class TrackPanel implements Panel {
     );
     drawGridLines(ctx, timespan, timescale, trackSize);
 
-    const track = this.attrs.trackFSM;
+    const track = this.attrs.trackRenderer;
 
     if (track !== undefined) {
       const trackRenderCtx: TrackRenderContext = {
-        trackUri: track.trackUri,
+        trackUri: track.desc.uri,
         visibleWindow,
         size: trackSize,
         resolution: calculateResolution(visibleWindow, trackSize.width),
@@ -610,10 +610,10 @@ export class TrackPanel implements Panel {
   }
 
   getSliceVerticalBounds(depth: number): Optional<VerticalBounds> {
-    if (this.attrs.trackFSM === undefined) {
+    if (this.attrs.trackRenderer === undefined) {
       return undefined;
     }
-    return this.attrs.trackFSM.track.getSliceVerticalBounds?.(depth);
+    return this.attrs.trackRenderer.track.getSliceVerticalBounds?.(depth);
   }
 }
 

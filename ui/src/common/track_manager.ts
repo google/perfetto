@@ -19,35 +19,36 @@ import {Track, TrackDescriptor} from '../public';
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/tracks';
 
-export interface TrackCacheEntry {
-  readonly trackUri: string;
+export interface TrackRenderer {
   readonly track: Track;
   desc: TrackDescriptor;
   render(ctx: TrackRenderContext): void;
   getError(): Optional<Error>;
 }
 
-// This class is responsible for managing the lifecycle of tracks over render
-// cycles.
-
-// Example usage:
-// function render() {
-//   const trackCache = new TrackCache();
-//   const foo = trackCache.resolveTrack('foo', 'exampleURI', {});
-//   const bar = trackCache.resolveTrack('bar', 'exampleURI', {});
-//   trackCache.flushOldTracks(); // <-- Destroys any unused cached tracks
-// }
-
-// Example of how flushing works:
-// First cycle
-//   resolveTrack('foo', ...) <-- new track 'foo' created
-//   resolveTrack('bar', ...) <-- new track 'bar' created
-//   flushTracks()
-// Second cycle
-//   resolveTrack('foo', ...) <-- returns cached 'foo' track
-//   flushTracks() <-- 'bar' is destroyed, as it was not resolved this cycle
-// Third cycle
-//   flushTracks() <-- 'foo' is destroyed.
+/**
+ * TrackManager is responsible for managing the registry of tracks and their
+ * lifecycle of tracks over render cycles.
+ *
+ * Example usage:
+ * function render() {
+ *   const trackCache = new TrackCache();
+ *   const foo = trackCache.getTrackRenderer('foo', 'exampleURI', {});
+ *   const bar = trackCache.getTrackRenderer('bar', 'exampleURI', {});
+ *   trackCache.flushOldTracks(); // <-- Destroys any unused cached tracks
+ * }
+ *
+ * Example of how flushing works:
+ * First cycle
+ *   getTrackRenderer('foo', ...) <-- new track 'foo' created
+ *   getTrackRenderer('bar', ...) <-- new track 'bar' created
+ *   flushTracks()
+ * Second cycle
+ *   getTrackRenderer('foo', ...) <-- returns cached 'foo' track
+ *   flushTracks() <-- 'bar' is destroyed, as it was not resolved this cycle
+ * Third cycle
+ *   flushTracks() <-- 'foo' is destroyed.
+ */
 export class TrackManager {
   private tracks = new Registry<TrackDescriptor>(({uri}) => uri);
 
@@ -89,14 +90,14 @@ export class TrackManager {
   // Creates a new track using |uri| and |params| or retrieves a cached track if
   // |key| exists in the cache.
   // This is only called by the viewer_page.ts.
-  getTrackRenderer(trackDesc: TrackDescriptor): TrackCacheEntry {
+  getTrackRenderer(trackDesc: TrackDescriptor): TrackRenderer {
     // Search for a cached version of this track,
     const cached = this.trackCache.get(trackDesc.uri);
     if (cached) {
       cached.markUsed();
       return cached;
     } else {
-      const cache = new TrackFSM(trackDesc.uri, trackDesc.track, trackDesc);
+      const cache = new TrackFSM(trackDesc);
       this.trackCache.set(trackDesc.uri, cache);
       return cache;
     }
@@ -115,30 +116,38 @@ const DESTROY_IF_NOT_SEEN_FOR_CYCLE_COUNT = 0;
 /**
  * Wrapper that manages lifecycle hooks on behalf of a track, ensuring lifecycle
  * hooks are called synchronously and in the correct order.
+ *
+ * There are quite some subtle properties that this class guarantees:
+ * - It make sure that lifecycle methods don't overlap with each other.
+ * - It prevents a chain of onCreate > onDestroy > onCreate if the first
+ *   onCreate() is still oustanding. This is by virtue of using AsyncLimiter
+ *   which under the hoods holds only the most recent task and skips the
+ *   intermediate ones.
+ * - Ensures that a track never sees two consecutive onCreate, or onDestroy or
+ *   an onDestroy without an onCreate.
+ * - Ensures that onUpdate never overlaps or follows with onDestroy. This is
+ *   particularly important because tracks often drop tables/views onDestroy
+ *   and they shouldn't try to fetch more data onUpdate past that point.
  */
-class TrackFSM implements TrackCacheEntry {
-  public readonly trackUri: string;
-  public readonly track: Track;
+class TrackFSM implements TrackRenderer {
   public readonly desc: TrackDescriptor;
 
   private readonly limiter = new AsyncLimiter();
   private error?: Error;
-  private lastUsed = 0;
+  private tickSinceLastUsed = 0;
   private created = false;
 
-  constructor(trackUri: string, track: Track, desc: TrackDescriptor) {
-    this.trackUri = trackUri;
-    this.track = track;
+  constructor(desc: TrackDescriptor) {
     this.desc = desc;
   }
 
   markUsed(): void {
-    this.lastUsed = 0;
+    this.tickSinceLastUsed = 0;
   }
 
   // Increment the lastUsed counter, and maybe call onDestroy().
   tick(): void {
-    if (this.lastUsed++ > DESTROY_IF_NOT_SEEN_FOR_CYCLE_COUNT) {
+    if (this.tickSinceLastUsed++ > DESTROY_IF_NOT_SEEN_FOR_CYCLE_COUNT) {
       // Schedule an onDestroy
       this.limiter
         .schedule(async () => {
@@ -176,5 +185,9 @@ class TrackFSM implements TrackCacheEntry {
 
   getError(): Optional<Error> {
     return this.error;
+  }
+
+  get track(): Track {
+    return this.desc.track;
   }
 }

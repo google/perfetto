@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
-import {TrackCacheEntry} from '../common/track_manager';
+import {TrackRenderer} from '../common/track_manager';
 import {TrackTags} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
@@ -49,7 +49,7 @@ interface Attrs {
   readonly tooltip: string;
   readonly collapsed: boolean;
   readonly collapsable: boolean;
-  readonly trackFSM?: TrackCacheEntry;
+  readonly trackRenderer?: TrackRenderer;
   readonly tags?: TrackTags;
   readonly subtitle?: string;
   readonly chips?: ReadonlyArray<string>;
@@ -65,7 +65,8 @@ export class TrackGroupPanel implements Panel {
   }
 
   render(): m.Children {
-    const {title, subtitle, chips, collapsed, trackFSM, tooltip} = this.attrs;
+    const {title, subtitle, chips, collapsed, trackRenderer, tooltip} =
+      this.attrs;
 
     // The shell should be highlighted if the current search result is inside
     // this track group.
@@ -98,7 +99,7 @@ export class TrackGroupPanel implements Panel {
       }
     }
 
-    const error = trackFSM?.getError();
+    const error = trackRenderer?.getError();
 
     return m(
       `.track-group-panel[collapsed=${collapsed}]`,
@@ -162,13 +163,13 @@ export class TrackGroupPanel implements Panel {
             }),
         ),
       ),
-      trackFSM
+      trackRenderer
         ? m(
             TrackContent,
             {
-              track: trackFSM.track,
-              hasError: Boolean(trackFSM.getError()),
-              height: this.attrs.trackFSM?.track.getHeight(),
+              track: trackRenderer.track,
+              hasError: Boolean(trackRenderer.getError()),
+              height: this.attrs.trackRenderer?.track.getHeight(),
             },
             !collapsed && subtitle !== null ? m('span', subtitle) : null,
           )
@@ -177,8 +178,8 @@ export class TrackGroupPanel implements Panel {
   }
 
   private onupdate() {
-    if (this.attrs.trackFSM !== undefined) {
-      this.attrs.trackFSM.track.onFullRedraw?.();
+    if (this.attrs.trackRenderer !== undefined) {
+      this.attrs.trackRenderer.track.onFullRedraw?.();
     }
   }
 
@@ -205,7 +206,7 @@ export class TrackGroupPanel implements Panel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
-    const {collapsed, trackFSM: track} = this.attrs;
+    const {collapsed, trackRenderer: track} = this.attrs;
 
     if (!collapsed) return;
 
@@ -233,7 +234,7 @@ export class TrackGroupPanel implements Panel {
           visibleWindow,
           size: trackSize,
           ctx,
-          trackUri: track.trackUri,
+          trackUri: track.desc.uri,
           resolution: calculateResolution(visibleWindow, trackSize.width),
           timescale,
         };
