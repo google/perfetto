@@ -37,7 +37,7 @@ import {
 } from '../widgets/multiselect';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {Portal} from '../widgets/portal';
-import {FilterableSelect, Select} from '../widgets/select';
+import {Select} from '../widgets/select';
 import {Spinner} from '../widgets/spinner';
 import {Switch} from '../widgets/switch';
 import {TextInput} from '../widgets/text_input';
@@ -722,14 +722,6 @@ export const WidgetsPage = createPage({
         initialOpts: {
           disabled: false,
         },
-      }),
-      m(WidgetShowcase, {
-        label: 'Filterable Select',
-        renderWidget: () =>
-          m(FilterableSelect, {
-            values: ['foo', 'bar', 'baz'],
-            onSelected: () => {},
-          }),
       }),
       m(WidgetShowcase, {
         label: 'Empty State',
