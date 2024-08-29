@@ -106,8 +106,15 @@ export class SqlTableState {
       this.columns.push(...args.initialColumns);
     } else {
       for (const column of this.config.columns) {
-        if (column instanceof TableColumn && column.startsHidden !== true) {
-          this.columns.push(column);
+        if (column instanceof TableColumn) {
+          if (column.startsHidden !== true) {
+            this.columns.push(column);
+          }
+        } else {
+          const cols = column.initialColumns?.();
+          for (const col of cols ?? []) {
+            this.columns.push(col);
+          }
         }
       }
       if (args?.additionalColumns !== undefined) {

@@ -179,8 +179,7 @@ export abstract class TableColumnSet {
   abstract discover(manager: TableManager): Promise<
     {
       key: string;
-      // TODO(altimin): This probably should allow returning TableColumnSet as well.
-      column: TableColumn;
+      column: TableColumn | TableColumnSet;
     }[]
   >;
 }
