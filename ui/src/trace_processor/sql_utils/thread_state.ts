@@ -128,11 +128,9 @@ export async function getThreadState(
 }
 
 export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
-  const track = globals.trackManager
-    .getAllTracks()
-    .find(
-      (td) => td.tags?.kind === CPU_SLICE_TRACK_KIND && td.tags.cpu === cpu,
-    );
+  const track = globals.trackManager.findTrack(
+    (td) => td.tags?.kind === CPU_SLICE_TRACK_KIND && td.tags.cpu === cpu,
+  );
   if (track === undefined) {
     return;
   }

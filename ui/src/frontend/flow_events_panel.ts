@@ -65,9 +65,9 @@ export class FlowEventsPanel implements m.ClassComponent {
     }
 
     const flowClickHandler = (sliceId: number, trackId: number) => {
-      const track = globals.trackManager
-        .getAllTracks()
-        .find((td) => td.tags?.trackIds?.includes(trackId));
+      const track = globals.trackManager.findTrack((td) =>
+        td.tags?.trackIds?.includes(trackId),
+      );
       if (track) {
         globals.setLegacySelection(
           {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertExists} from '../base/logging';
 import {Duration} from '../base/time';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {TrackDescriptor} from '../public';
@@ -63,11 +64,12 @@ beforeEach(() => {
     track: mockTrack,
   };
   trackManager = new TrackManager();
+  trackManager.registerTrack(td);
 });
 
 describe('TrackManager', () => {
   it('calls track lifecycle hooks', async () => {
-    const entry = trackManager.getTrackRenderer(td);
+    const entry = assertExists(trackManager.getTrackRenderer(td.uri));
 
     entry.render(dummyCtx);
     await settle();
@@ -83,7 +85,7 @@ describe('TrackManager', () => {
 
   it('calls onCrate lazily', async () => {
     // Check we wait until the first call to render before calling onCreate
-    const entry = trackManager.getTrackRenderer(td);
+    const entry = assertExists(trackManager.getTrackRenderer(td.uri));
     await settle();
     expect(mockTrack.onCreate).not.toHaveBeenCalled();
 
@@ -93,12 +95,12 @@ describe('TrackManager', () => {
   });
 
   it('reuses tracks', async () => {
-    const first = trackManager.getTrackRenderer(td);
+    const first = assertExists(trackManager.getTrackRenderer(td.uri));
     trackManager.flushOldTracks();
     first.render(dummyCtx);
     await settle();
 
-    const second = trackManager.getTrackRenderer(td);
+    const second = assertExists(trackManager.getTrackRenderer(td.uri));
     trackManager.flushOldTracks();
     second.render(dummyCtx);
     await settle();
@@ -109,7 +111,7 @@ describe('TrackManager', () => {
   });
 
   it('destroys tracks when they are not resolved for one cycle', async () => {
-    const entry = trackManager.getTrackRenderer(td);
+    const entry = assertExists(trackManager.getTrackRenderer(td.uri));
     entry.render(dummyCtx);
 
     // Double flush should destroy all tracks
@@ -122,7 +124,7 @@ describe('TrackManager', () => {
   });
 
   it('contains crash inside onCreate()', async () => {
-    const entry = trackManager.getTrackRenderer(td);
+    const entry = assertExists(trackManager.getTrackRenderer(td.uri));
     const e = new Error();
 
     // Mock crash inside onCreate
@@ -139,7 +141,7 @@ describe('TrackManager', () => {
   });
 
   it('contains crash inside onUpdate()', async () => {
-    const entry = trackManager.getTrackRenderer(td);
+    const entry = assertExists(trackManager.getTrackRenderer(td.uri));
     const e = new Error();
 
     // Mock crash inside onUpdate
@@ -156,7 +158,7 @@ describe('TrackManager', () => {
   });
 
   it('handles dispose after crash', async () => {
-    const entry = trackManager.getTrackRenderer(td);
+    const entry = assertExists(trackManager.getTrackRenderer(td.uri));
     const e = new Error();
 
     // Mock crash inside onUpdate

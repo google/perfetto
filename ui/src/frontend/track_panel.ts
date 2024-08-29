@@ -178,7 +178,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         m(
           'h1',
           {
-            title: attrs.title,
+            title: attrs.track.displayName,
           },
           attrs.title,
           attrs.chips && renderChips(attrs.chips),
