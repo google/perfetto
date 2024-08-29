@@ -109,7 +109,7 @@ export class TrackManager {
   }
 }
 
-const DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT = 0;
+const DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT = 1;
 
 /**
  * Owns all runtime information about a track and manages its lifecycle,
@@ -145,7 +145,7 @@ class TrackFSM implements TrackRenderer {
 
   // Increment the lastUsed counter, and maybe call onDestroy().
   tick(): void {
-    if (this.tickSinceLastUsed++ > DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT) {
+    if (this.tickSinceLastUsed++ === DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT) {
       // Schedule an onDestroy
       this.limiter
         .schedule(async () => {
