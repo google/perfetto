@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
-import {TrackCacheEntry} from '../common/track_cache';
+import {TrackCacheEntry} from '../common/track_manager';
 import {TrackTags} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';

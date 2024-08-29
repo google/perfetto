@@ -29,7 +29,7 @@ import {CurrentSearchResults} from '../common/search_data';
 import {EngineConfig, State, getLegacySelection} from '../common/state';
 import {TabManager} from '../common/tab_registry';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
-import {TrackManager} from '../common/track_cache';
+import {TrackManager} from '../common/track_manager';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
@@ -780,7 +780,7 @@ class Globals implements AppContext {
     } else if (sel.kind === 'single') {
       const uri = sel.trackUri;
       const bounds = await globals.trackManager
-        .resolveTrackInfo(uri)
+        .getTrack(uri)
         ?.getEventBounds?.(sel.eventId);
       if (bounds) {
         return {

@@ -29,7 +29,7 @@ export class ThreadAggregationController extends AggregationController {
   setThreadStateUtids(tracks: string[]) {
     this.utids = [];
     for (const trackUri of tracks) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      const trackInfo = globals.trackManager.getTrack(trackUri);
       if (trackInfo?.tags?.kind === THREAD_STATE_TRACK_KIND) {
         exists(trackInfo.tags.utid) && this.utids.push(trackInfo.tags.utid);
       }

@@ -30,7 +30,7 @@ export class WattsonEstimateAggregationController extends AggregationController 
 
     const estimateTracks: string[] = [];
     for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      const trackInfo = globals.trackManager.getTrack(trackUri);
       if (
         trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND &&
         exists(trackInfo.tags?.wattson)

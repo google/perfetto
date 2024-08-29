@@ -245,23 +245,16 @@ export interface PluginContextTrace extends PluginContext {
     hideTab(uri: string): void;
   };
 
-  // Register a new track against a unique key known as a URI.
-  // Once a track is registered it can be referenced multiple times on the
-  // timeline with different params to allow customising each instance.
+  // Register a new track against a unique key known as a URI. The track is not
+  // shown by default and callers need to either manually add it to a
+  // Workspace or use registerTrackAndShowOnTraceLoad() below.
   registerTrack(trackDesc: TrackDescriptor): void;
 
-  // Add a new entry to the pool of default tracks. Default tracks are a list
-  // of track references that describe the list of tracks that should be added
-  // to the main timeline on startup.
-  // Default tracks are only used when a trace is first loaded, not when
-  // loading from a permalink, where the existing list of tracks from the
+  // Register a track and mark it as "automatically show on trace load".
+  // These tracks are shown only when the trace is loaded from scratch, not
+  // when loading from a permalink, where the existing list of tracks from the
   // shared state is used instead.
-  addDefaultTrack(track: TrackRef): void;
-
-  // Simultaneously register a track and add it as a default track in one go.
-  // This is simply a helper which calls registerTrack() and addDefaultTrack()
-  // with the same URI.
-  registerStaticTrack(track: TrackDescriptor & TrackRef): void;
+  registerTrackAndShowOnTraceLoad(track: TrackDescriptor & TrackRef): void;
 
   // Register a new tab for this plugin. Will be unregistered when the plugin
   // is deactivated or when the trace is unloaded.

@@ -30,7 +30,7 @@ class TraceMetadata implements PerfettoPlugin {
       return;
     }
     const uri = `/clock_snapshots`;
-    ctx.registerStaticTrack({
+    ctx.registerTrackAndShowOnTraceLoad({
       uri,
       title: 'Clock Snapshots',
       track: new SimpleSliceTrack(
