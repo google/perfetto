@@ -778,7 +778,7 @@ class TrackDecider {
 
   private addPluginTracks(): void {
     const groups = new Map<string, GroupNode>();
-    const tracks = globals.trackManager.findPotentialTracks();
+    const tracks = globals.trackManager.getAutoShowTracks();
 
     for (const info of tracks) {
       const groupName = info.groupName;

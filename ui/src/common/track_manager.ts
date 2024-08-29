@@ -49,40 +49,47 @@ export interface TrackCacheEntry {
 // Third cycle
 //   flushTracks() <-- 'foo' is destroyed.
 export class TrackManager {
-  private trackRegistry = new Registry<TrackDescriptor>(({uri}) => uri);
-  private defaultTracks = new Set<TrackRef>();
+  private tracks = new Registry<TrackDescriptor>(({uri}) => uri);
+
+  // This contains the tracks refs that plugins want to get auto-added on trace
+  // load, rather than bothering manually adding them to the workspace. They
+  // come from plugins calling registerTrackAndShowOnTraceLoad().
+  // TODO(primiano): this is going away soon.
+  private autoShowTracks = new Set<TrackRef>();
 
   // A cache of all tracks we've ever seen actually rendered
   private trackCache = new Map<string, TrackFSM>();
 
   registerTrack(trackDesc: TrackDescriptor): Disposable {
-    return this.trackRegistry.register(trackDesc);
+    return this.tracks.register(trackDesc);
   }
 
-  addPotentialTrack(track: TrackRef): Disposable {
-    this.defaultTracks.add(track);
+  // TODO(primiano): this is going away soon.
+  autoShowOnTraceLoad(track: TrackRef): Disposable {
+    this.autoShowTracks.add(track);
     return {
-      [Symbol.dispose]: () => this.defaultTracks.delete(track),
+      [Symbol.dispose]: () => this.autoShowTracks.delete(track),
     };
   }
 
-  findPotentialTracks(): TrackRef[] {
-    return Array.from(this.defaultTracks);
+  getAutoShowTracks(): TrackRef[] {
+    return Array.from(this.autoShowTracks);
   }
 
   getAllTracks(): TrackDescriptor[] {
-    return Array.from(this.trackRegistry.values());
+    return Array.from(this.tracks.values());
   }
 
   // Look up track into for a given track's URI.
   // Returns |undefined| if no track can be found.
-  resolveTrackInfo(uri: string): TrackDescriptor | undefined {
-    return this.trackRegistry.tryGet(uri);
+  getTrack(uri: string): TrackDescriptor | undefined {
+    return this.tracks.tryGet(uri);
   }
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
   // |key| exists in the cache.
-  resolveTrack(trackDesc: TrackDescriptor): TrackCacheEntry {
+  // This is only called by the viewer_page.ts.
+  getTrackRenderer(trackDesc: TrackDescriptor): TrackCacheEntry {
     // Search for a cached version of this track,
     const cached = this.trackCache.get(trackDesc.uri);
     if (cached) {

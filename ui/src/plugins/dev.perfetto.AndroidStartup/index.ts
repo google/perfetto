@@ -45,7 +45,7 @@ class AndroidStartup implements PerfettoPlugin {
       argColumns: [],
     };
     const uri = `/android_startups`;
-    ctx.registerStaticTrack({
+    ctx.registerTrackAndShowOnTraceLoad({
       uri,
       title: 'Android App Startups',
       track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),

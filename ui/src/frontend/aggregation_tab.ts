@@ -209,7 +209,7 @@ class AreaDetailsPanel implements m.ClassComponent {
     }
     const utids = [];
     for (const trackUri of currentSelection.trackUris) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      const trackInfo = globals.trackManager.getTrack(trackUri);
       if (trackInfo?.tags?.kind === CPU_PROFILE_TRACK_KIND) {
         utids.push(trackInfo.tags?.utid);
       }
@@ -318,7 +318,7 @@ class AreaDetailsPanel implements m.ClassComponent {
     }
     const trackIds = [];
     for (const trackUri of currentSelection.trackUris) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      const trackInfo = globals.trackManager.getTrack(trackUri);
       if (trackInfo?.tags?.kind !== THREAD_SLICE_TRACK_KIND) {
         continue;
       }
@@ -434,7 +434,7 @@ export class AggregationsTabs implements Disposable {
 function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   const upids = [];
   for (const trackUri of currentSelection.trackUris) {
-    const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+    const trackInfo = globals.trackManager.getTrack(trackUri);
     if (
       trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
       trackInfo.tags?.utid === undefined
@@ -448,7 +448,7 @@ function getUpidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
 function getUtidsFromPerfSampleAreaSelection(currentSelection: AreaSelection) {
   const utids = [];
   for (const trackUri of currentSelection.trackUris) {
-    const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+    const trackInfo = globals.trackManager.getTrack(trackUri);
     if (
       trackInfo?.tags?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND &&
       trackInfo.tags?.utid !== undefined

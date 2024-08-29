@@ -25,7 +25,7 @@ export class CounterAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     const trackIds: (string | number)[] = [];
     for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      const trackInfo = globals.trackManager.getTrack(trackUri);
       if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
       }

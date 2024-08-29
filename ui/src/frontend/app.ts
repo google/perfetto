@@ -134,7 +134,7 @@ export class App implements m.ClassComponent {
     const selection = globals.state.selection;
     if (selection.kind === 'area') {
       for (const trackUri of selection.trackUris) {
-        const trackDesc = globals.trackManager.resolveTrackInfo(trackUri);
+        const trackDesc = globals.trackManager.getTrack(trackUri);
 
         if (
           trackDesc?.tags?.kind === THREAD_STATE_TRACK_KIND &&

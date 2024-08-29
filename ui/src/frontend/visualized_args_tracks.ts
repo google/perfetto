@@ -96,9 +96,7 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
     // Find the thread slice track that corresponds with this trackID and insert
     // this track before it.
     const threadSliceTrack = globals.workspace.flatTracks.find((trackNode) => {
-      const trackDescriptor = globals.trackManager.resolveTrackInfo(
-        trackNode.uri,
-      );
+      const trackDescriptor = globals.trackManager.getTrack(trackNode.uri);
       return (
         trackDescriptor &&
         trackDescriptor.tags?.kind === 'ThreadSliceTrack' &&

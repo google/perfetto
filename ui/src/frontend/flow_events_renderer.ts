@@ -77,7 +77,7 @@ export function renderFlows(
   const trackIdToTrack = new Map<number, TrackNode>();
   globals.workspace.flatTracks.forEach((track) =>
     globals.trackManager
-      .resolveTrackInfo(track.uri)
+      .getTrack(track.uri)
       ?.tags?.trackIds?.forEach((trackId) =>
         trackIdToTrack.set(trackId, track),
       ),

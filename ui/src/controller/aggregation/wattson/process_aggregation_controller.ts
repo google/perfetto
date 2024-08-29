@@ -30,7 +30,7 @@ export class WattsonProcessAggregationController extends AggregationController {
 
     const selectedCpus: number[] = [];
     for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+      const trackInfo = globals.trackManager.getTrack(trackUri);
       trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND &&
         exists(trackInfo.tags.cpu) &&
         selectedCpus.push(trackInfo.tags.cpu);

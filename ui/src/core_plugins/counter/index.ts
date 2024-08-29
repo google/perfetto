@@ -176,7 +176,7 @@ class CounterPlugin implements PerfettoPlugin {
       const displayName = it.name;
       const unit = it.unit ?? undefined;
       const uri = `/counter_${trackId}`;
-      ctx.registerStaticTrack({
+      ctx.registerTrackAndShowOnTraceLoad({
         uri,
         title: displayName,
         tags: {

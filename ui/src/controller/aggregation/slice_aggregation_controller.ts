@@ -26,7 +26,7 @@ import {
 export function getSelectedTrackKeys(area: Area): number[] {
   const selectedTrackKeys: number[] = [];
   for (const trackUri of area.trackUris) {
-    const trackInfo = globals.trackManager.resolveTrackInfo(trackUri);
+    const trackInfo = globals.trackManager.getTrack(trackUri);
     if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
       trackInfo.tags.trackIds &&
         selectedTrackKeys.push(...trackInfo.tags.trackIds);

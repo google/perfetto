@@ -18,7 +18,7 @@ import {findRef, toHTMLElement} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {TrackCacheEntry} from '../common/track_cache';
+import {TrackCacheEntry} from '../common/track_manager';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {TrackTags} from '../public';
@@ -478,9 +478,9 @@ function renderGroupHeaderPanel(
 
 // Resolve a track and its metadata through the track cache
 function resolveTrack(uri: string, displayName: string): TrackBundle {
-  const trackDesc = globals.trackManager.resolveTrackInfo(uri);
+  const trackDesc = globals.trackManager.getTrack(uri);
   const trackCacheEntry =
-    trackDesc && globals.trackManager.resolveTrack(trackDesc);
+    trackDesc && globals.trackManager.getTrackRenderer(trackDesc);
   const trackFSM = trackCacheEntry;
   const tags = trackCacheEntry?.desc.tags;
   const subtitle = trackCacheEntry?.desc.subtitle;

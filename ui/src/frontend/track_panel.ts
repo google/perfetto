@@ -19,7 +19,7 @@ import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
-import {TrackCacheEntry} from '../common/track_cache';
+import {TrackCacheEntry} from '../common/track_manager';
 import {raf} from '../core/raf_scheduler';
 import {Track, TrackTags} from '../public';
 
