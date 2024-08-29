@@ -36,14 +36,9 @@ interface SchedRefAttrs {
 }
 
 export function findSchedTrack(cpu: number): string | undefined {
-  for (const trackInfo of Object.values(globals.trackManager.getAllTracks())) {
-    if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-      if (trackInfo?.tags?.cpu === cpu) {
-        return trackInfo.uri;
-      }
-    }
-  }
-  return undefined;
+  return globals.trackManager.findTrack((t) => {
+    return t.tags?.kind === CPU_SLICE_TRACK_KIND && t.tags.cpu === cpu;
+  })?.uri;
 }
 
 export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {

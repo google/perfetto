@@ -226,13 +226,11 @@ export class SliceDetailsPanel extends SlicePanel {
       return;
     }
 
-    const trackDescriptor = globals.trackManager
-      .getAllTracks()
-      .find(
-        (td) =>
-          td.tags?.kind === THREAD_STATE_TRACK_KIND &&
-          td.tags?.utid === threadInfo.utid,
-      );
+    const trackDescriptor = globals.trackManager.findTrack(
+      (td) =>
+        td.tags?.kind === THREAD_STATE_TRACK_KIND &&
+        td.tags?.utid === threadInfo.utid,
+    );
 
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (trackDescriptor && sliceInfo.threadStateId) {

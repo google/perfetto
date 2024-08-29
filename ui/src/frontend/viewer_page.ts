@@ -18,10 +18,8 @@ import {findRef, toHTMLElement} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {TrackRenderer} from '../common/track_manager';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {TrackTags} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -277,15 +275,15 @@ class TraceViewer implements m.ClassComponent {
         m(PanelContainer, {
           className: 'pinned-panel-container',
           panels: globals.workspace.pinnedTracks.map((track) => {
-            const trackBundle = resolveTrack(track.uri, track.displayName);
+            const tr = globals.trackManager.getTrackRenderer(track.uri);
             return new TrackPanel({
               track: track,
-              title: trackBundle.displayName,
-              tags: trackBundle.tags,
-              trackRenderer: trackBundle.trackRenderer,
+              title: track.displayName,
+              tags: tr?.desc.tags,
+              trackRenderer: tr,
               revealOnCreate: true,
-              chips: trackBundle.chips,
-              pluginId: trackBundle.pluginId,
+              chips: tr?.desc.chips,
+              pluginId: tr?.desc.pluginId,
             });
           }),
         }),
@@ -427,22 +425,22 @@ function renderNodes(
 }
 
 function renderTrackPanel(track: TrackNode, title?: m.Children) {
-  const trackBundle = resolveTrack(track.uri, track.displayName);
+  const tr = globals.trackManager.getTrackRenderer(track.uri);
   return new TrackPanel({
     track: track,
     title: m(
       'span',
       {
         style: {
-          'font-size': getTitleFontSize(trackBundle.displayName),
+          'font-size': getTitleFontSize(track.displayName),
         },
       },
-      Boolean(title) ? title : trackBundle.displayName,
+      Boolean(title) ? title : track.displayName,
     ),
-    tags: trackBundle.tags,
-    trackRenderer: trackBundle.trackRenderer,
-    chips: trackBundle.chips,
-    pluginId: trackBundle.pluginId,
+    tags: tr?.desc.tags,
+    trackRenderer: tr,
+    chips: tr?.desc.chips,
+    pluginId: tr?.desc.pluginId,
   });
 }
 
@@ -453,13 +451,13 @@ function renderGroupHeaderPanel(
   title?: m.Children,
 ): TrackGroupPanel {
   if (group.headerTrackUri !== undefined) {
-    const trackBundle = resolveTrack(group.headerTrackUri, group.displayName);
+    const tr = globals.trackManager.getTrackRenderer(group.headerTrackUri);
     return new TrackGroupPanel({
       groupNode: group,
-      trackRenderer: trackBundle.trackRenderer,
-      subtitle: trackBundle.subtitle,
-      tags: trackBundle.tags,
-      chips: trackBundle.chips,
+      trackRenderer: tr,
+      subtitle: tr?.desc.subtitle,
+      tags: tr?.desc.tags,
+      chips: tr?.desc.chips,
       collapsed,
       title: exists(title) ? title : group.displayName,
       tooltip: group.displayName,
@@ -474,35 +472,6 @@ function renderGroupHeaderPanel(
       collapsable,
     });
   }
-}
-
-// Resolve a track and its metadata through the track cache
-function resolveTrack(uri: string, displayName: string): TrackBundle {
-  const trackDesc = globals.trackManager.getTrack(uri);
-  const trackCacheEntry =
-    trackDesc && globals.trackManager.getTrackRenderer(trackDesc);
-  const trackRenderer = trackCacheEntry;
-  const tags = trackCacheEntry?.desc.tags;
-  const subtitle = trackCacheEntry?.desc.subtitle;
-  const chips = trackCacheEntry?.desc.chips;
-  const plugin = trackCacheEntry?.desc.pluginId;
-  return {
-    displayName,
-    subtitle,
-    tags,
-    trackRenderer,
-    chips,
-    pluginId: plugin,
-  };
-}
-
-interface TrackBundle {
-  readonly displayName: string;
-  readonly subtitle?: string;
-  readonly trackRenderer?: TrackRenderer;
-  readonly tags?: TrackTags;
-  readonly chips?: ReadonlyArray<string>;
-  readonly pluginId?: string;
 }
 
 export const ViewerPage = createPage({
