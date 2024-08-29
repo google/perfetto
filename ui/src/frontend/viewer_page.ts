@@ -18,7 +18,7 @@ import {findRef, toHTMLElement} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {TrackCacheEntry} from '../common/track_manager';
+import {TrackRenderer} from '../common/track_manager';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {TrackTags} from '../public';
@@ -282,7 +282,7 @@ class TraceViewer implements m.ClassComponent {
               track: track,
               title: trackBundle.displayName,
               tags: trackBundle.tags,
-              trackFSM: trackBundle.trackFSM,
+              trackRenderer: trackBundle.trackRenderer,
               revealOnCreate: true,
               chips: trackBundle.chips,
               pluginId: trackBundle.pluginId,
@@ -440,7 +440,7 @@ function renderTrackPanel(track: TrackNode, title?: m.Children) {
       Boolean(title) ? title : trackBundle.displayName,
     ),
     tags: trackBundle.tags,
-    trackFSM: trackBundle.trackFSM,
+    trackRenderer: trackBundle.trackRenderer,
     chips: trackBundle.chips,
     pluginId: trackBundle.pluginId,
   });
@@ -456,7 +456,7 @@ function renderGroupHeaderPanel(
     const trackBundle = resolveTrack(group.headerTrackUri, group.displayName);
     return new TrackGroupPanel({
       groupNode: group,
-      trackFSM: trackBundle.trackFSM,
+      trackRenderer: trackBundle.trackRenderer,
       subtitle: trackBundle.subtitle,
       tags: trackBundle.tags,
       chips: trackBundle.chips,
@@ -481,7 +481,7 @@ function resolveTrack(uri: string, displayName: string): TrackBundle {
   const trackDesc = globals.trackManager.getTrack(uri);
   const trackCacheEntry =
     trackDesc && globals.trackManager.getTrackRenderer(trackDesc);
-  const trackFSM = trackCacheEntry;
+  const trackRenderer = trackCacheEntry;
   const tags = trackCacheEntry?.desc.tags;
   const subtitle = trackCacheEntry?.desc.subtitle;
   const chips = trackCacheEntry?.desc.chips;
@@ -490,7 +490,7 @@ function resolveTrack(uri: string, displayName: string): TrackBundle {
     displayName,
     subtitle,
     tags,
-    trackFSM,
+    trackRenderer,
     chips,
     pluginId: plugin,
   };
@@ -499,7 +499,7 @@ function resolveTrack(uri: string, displayName: string): TrackBundle {
 interface TrackBundle {
   readonly displayName: string;
   readonly subtitle?: string;
-  readonly trackFSM?: TrackCacheEntry;
+  readonly trackRenderer?: TrackRenderer;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
   readonly pluginId?: string;
