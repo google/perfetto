@@ -27,6 +27,10 @@ export class CommandManager {
     return this.registry.get(commandId);
   }
 
+  hasCommand(commandId: string): boolean {
+    return this.registry.has(commandId);
+  }
+
   get commands(): Command[] {
     return Array.from(this.registry.values());
   }
