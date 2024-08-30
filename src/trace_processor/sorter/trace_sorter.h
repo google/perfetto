@@ -38,6 +38,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
@@ -125,6 +126,15 @@ class TraceSorter {
       std::optional<MachineId> machine_id = std::nullopt) {
     TraceTokenBuffer::Id id = token_buffer_.Append(std::move(record));
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kPerfRecord, id,
+                         machine_id);
+  }
+
+  inline void PushInstrumentsRow(
+      int64_t timestamp,
+      instruments_importer::Row row,
+      std::optional<MachineId> machine_id = std::nullopt) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(row));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kInstrumentsRow, id,
                          machine_id);
   }
 
@@ -264,6 +274,7 @@ class TraceSorter {
     enum class Type : uint8_t {
       kFtraceEvent,
       kPerfRecord,
+      kInstrumentsRow,
       kTracePacket,
       kInlineSchedSwitch,
       kInlineSchedWaking,

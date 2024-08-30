@@ -23,6 +23,7 @@ ProtoTraceParser::~ProtoTraceParser() = default;
 JsonTraceParser::~JsonTraceParser() = default;
 FuchsiaRecordParser::~FuchsiaRecordParser() = default;
 PerfRecordParser::~PerfRecordParser() = default;
+InstrumentsRowParser::~InstrumentsRowParser() = default;
 AndroidLogEventParser::~AndroidLogEventParser() = default;
 
 }  // namespace trace_processor

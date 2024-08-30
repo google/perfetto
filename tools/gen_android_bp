@@ -382,6 +382,16 @@ def enable_zlib(module):
     module.shared_libs.add('libz')
 
 
+def enable_expat(module):
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libexpat')
+  elif module.host_supported:
+    module.android.shared_libs.add('libexpat')
+    module.host.static_libs.add('libexpat')
+  else:
+    module.shared_libs.add('libexpat')
+
+
 def enable_uapi_headers(module):
   module.include_dirs.add('bionic/libc/kernel')
 
@@ -417,6 +427,8 @@ builtin_deps = {
         enable_sqlite,
     '//gn:zlib':
         enable_zlib,
+    '//gn:expat':
+        enable_expat,
     '//gn:bionic_kernel_uapi_headers':
         enable_uapi_headers,
     '//src/profiling/memory:bionic_libc_platform_headers_on_android':
