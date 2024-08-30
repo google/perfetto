@@ -145,10 +145,11 @@ FrameId DummyMemoryMapping::InternDummyFrame(base::StringView function_name,
 
   PERFETTO_CHECK(symbol_set_id == symbol_id.value);
 
-  const FrameId frame_id = context()
-                               ->storage->mutable_stack_profile_frame_table()
-                               ->Insert({key.function_name_id, mapping_id(), 0})
-                               .id;
+  const FrameId frame_id =
+      context()
+          ->storage->mutable_stack_profile_frame_table()
+          ->Insert({key.function_name_id, mapping_id(), 0, symbol_set_id})
+          .id;
   interned_dummy_frames_.Insert(key, frame_id);
 
   return frame_id;

@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -154,6 +155,18 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
   // needs to be handled carefully.
+  context_->args_tracker->Flush();
+}
+
+void ProtoTraceParserImpl::ParseLegacyV8ProfileEvent(
+    int64_t ts,
+    LegacyV8CpuProfileEvent event) {
+  base::Status status = context_->legacy_v8_cpu_profile_tracker->AddSample(
+      ts, event.session_id, event.pid, event.tid, event.callsite_id);
+  if (!status.ok()) {
+    context_->storage->IncrementStats(
+        stats::legacy_v8_cpu_profile_invalid_sample);
+  }
   context_->args_tracker->Flush();
 }
 

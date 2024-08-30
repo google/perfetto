@@ -41,6 +41,8 @@ source_set("common") {
     "global_args_tracker.h",
     "jit_cache.cc",
     "jit_cache.h",
+    "legacy_v8_cpu_profile_tracker.cc",
+    "legacy_v8_cpu_profile_tracker.h",
     "machine_tracker.cc",
     "machine_tracker.h",
     "mapping_tracker.cc",
