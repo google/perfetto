@@ -14,6 +14,7 @@
 
 import {Actions} from '../../common/actions';
 import {LegacySelection, ProfileType} from '../../common/state';
+import {profileType} from '../../core/selection_manager';
 import {
   BASE_ROW,
   BaseSliceTrack,
@@ -21,7 +22,6 @@ import {
   OnSliceOverArgs,
 } from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
-import {profileType} from '../../frontend/legacy_flamegraph_panel';
 import {NewTrackArgs} from '../../frontend/track';
 import {Slice} from '../../public';
 import {STR} from '../../trace_processor/query_result';
@@ -99,13 +99,9 @@ export class HeapProfileTrack extends BaseSliceTrack<
 
   rowToSlice(row: HeapProfileRow): HeapProfileSlice {
     const slice = this.rowToSliceBase(row);
-    let type = row.type;
-    if (type === 'heap_profile:libc.malloc,com.android.art') {
-      type = 'heap_profile:com.android.art,libc.malloc';
-    }
     return {
       ...slice,
-      type: profileType(type),
+      type: profileType(row.type),
     };
   }
 

@@ -32,8 +32,6 @@ import {
   FlamegraphView,
 } from '../widgets/flamegraph';
 
-import {featureFlags} from './feature_flags';
-
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
   readonly name: string;
@@ -452,10 +450,3 @@ function getPivotFilter(view: FlamegraphView) {
   }
   return '0';
 }
-
-export const USE_NEW_FLAMEGRAPH_IMPL = featureFlags.register({
-  id: 'useNewFlamegraphImpl',
-  name: 'Use new flamegraph implementation',
-  description: 'Use new flamgraph implementation in details panels.',
-  defaultValue: true,
-});
