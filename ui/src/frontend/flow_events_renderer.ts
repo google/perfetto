@@ -20,7 +20,7 @@ import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, globals} from './globals';
 import {RenderedPanelInfo} from './panel_container';
 import {PxSpan, TimeScale} from './time_scale';
-import {TrackNode} from './workspace';
+import {TrackNode} from '../public/workspace';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;

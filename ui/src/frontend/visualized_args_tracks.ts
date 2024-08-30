@@ -19,7 +19,7 @@ import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
 import {globals} from './globals';
 import {VisualisedArgsTrack} from './visualized_args_track';
-import {TrackNode} from './workspace';
+import {TrackNode} from '../public/workspace';
 
 const VISUALISED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualisedArgs';
 

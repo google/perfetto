@@ -35,7 +35,7 @@ import {
   THREAD_STATE_TRACK_KIND,
 } from '../core/track_kinds';
 import {exists, Optional} from '../base/utils';
-import {GroupNode, ContainerNode, TrackNode} from '../frontend/workspace';
+import {GroupNode, ContainerNode, TrackNode} from '../public/workspace';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';

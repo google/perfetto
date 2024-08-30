@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Optional} from '../../base/utils';
-import {GroupNode, TrackNode} from '../../frontend/workspace';
+import {GroupNode, TrackNode} from '../../public/workspace';
 import {
   PerfettoPlugin,
   PluginContext,

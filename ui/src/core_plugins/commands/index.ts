@@ -33,7 +33,7 @@ import {
   addSqlTableTabImpl,
   SqlTableTabConfig,
 } from '../../frontend/sql_table_tab';
-import {Workspace} from '../../frontend/workspace';
+import {Workspace} from '../../public/workspace';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)

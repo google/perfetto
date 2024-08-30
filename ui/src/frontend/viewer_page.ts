@@ -42,7 +42,7 @@ import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel, getTitleFontSize} from './track_panel';
 import {assertExists} from '../base/logging';
 import {PxSpan, TimeScale} from './time_scale';
-import {GroupNode, Node, TrackNode} from './workspace';
+import {GroupNode, Node, TrackNode} from '../public/workspace';
 import {fuzzyMatch, FuzzySegment} from '../base/fuzzy';
 
 import {exists, Optional} from '../base/utils';
