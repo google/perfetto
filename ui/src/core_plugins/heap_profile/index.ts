@@ -16,16 +16,11 @@ import m from 'mithril';
 
 import {assertExists, assertFalse} from '../../base/logging';
 import {Monitor} from '../../base/monitor';
-import {LegacyFlamegraphCache} from '../../core/legacy_flamegraph_cache';
 import {
   HeapProfileSelection,
   LegacySelection,
   ProfileType,
 } from '../../core/selection_manager';
-import {
-  LegacyFlamegraphDetailsPanel,
-  profileType,
-} from '../../frontend/legacy_flamegraph_panel';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {
   Engine,
@@ -42,7 +37,6 @@ import {HeapProfileTrack} from './heap_profile_track';
 import {
   QueryFlamegraph,
   QueryFlamegraphAttrs,
-  USE_NEW_FLAMEGRAPH_IMPL,
   metricsFromTableOrSubquery,
 } from '../../core/query_flamegraph';
 import {time} from '../../base/time';
@@ -57,7 +51,6 @@ import {globals} from '../../frontend/globals';
 import {Modal} from '../../widgets/modal';
 import {Router} from '../../frontend/router';
 import {Actions} from '../../common/actions';
-import {SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG} from '../../common/legacy_flamegraph_util';
 
 class HeapProfilePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -104,7 +97,6 @@ class HeapProfileFlamegraphDetailsPanel implements LegacyDetailsPanel {
     () => this.sel?.type,
   ]);
   private flamegraphAttrs?: QueryFlamegraphAttrs;
-  private cache = new LegacyFlamegraphCache('heap_profile');
 
   constructor(
     private engine: Engine,
@@ -115,18 +107,6 @@ class HeapProfileFlamegraphDetailsPanel implements LegacyDetailsPanel {
     if (sel.kind !== 'HEAP_PROFILE') {
       this.sel = undefined;
       return undefined;
-    }
-    if (!USE_NEW_FLAMEGRAPH_IMPL.get()) {
-      this.sel = undefined;
-      return m(LegacyFlamegraphDetailsPanel, {
-        cache: this.cache,
-        selection: {
-          profileType: profileType(sel.type),
-          start: sel.ts,
-          end: sel.ts,
-          upids: [sel.upid],
-        },
-      });
     }
 
     const {ts, upid, type} = sel;
@@ -318,37 +298,6 @@ function flamegraphAttrsForHeapProfile(
 }
 
 function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
-  const dominator = SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG.get()
-    ? metricsFromTableOrSubquery(
-        `
-          (
-            select
-              id,
-              parent_id as parentId,
-              name,
-              root_type,
-              self_size,
-              self_count
-            from _heap_graph_dominator_class_tree
-            where graph_sample_ts = ${ts} and upid = ${upid}
-          )
-        `,
-        [
-          {
-            name: 'Dominated Object Size',
-            unit: 'B',
-            columnName: 'self_size',
-          },
-          {
-            name: 'Dominated Object Count',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module android.memory.heap_graph.dominator_class_tree;',
-        [{name: 'root_type', displayName: 'Root Type'}],
-      )
-    : [];
   return {
     engine,
     metrics: [
@@ -381,7 +330,35 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
         'include perfetto module android.memory.heap_graph.class_tree;',
         [{name: 'root_type', displayName: 'Root Type'}],
       ),
-      ...dominator,
+      ...metricsFromTableOrSubquery(
+        `
+          (
+            select
+              id,
+              parent_id as parentId,
+              name,
+              root_type,
+              self_size,
+              self_count
+            from _heap_graph_dominator_class_tree
+            where graph_sample_ts = ${ts} and upid = ${upid}
+          )
+        `,
+        [
+          {
+            name: 'Dominated Object Size',
+            unit: 'B',
+            columnName: 'self_size',
+          },
+          {
+            name: 'Dominated Object Count',
+            unit: '',
+            columnName: 'self_count',
+          },
+        ],
+        'include perfetto module android.memory.heap_graph.dominator_class_tree;',
+        [{name: 'root_type', displayName: 'Root Type'}],
+      ),
     ],
   };
 }
