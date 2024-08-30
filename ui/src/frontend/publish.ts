@@ -22,7 +22,6 @@ import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {getLegacySelection} from '../common/state';
 
 import {
-  CpuProfileDetails,
   Flow,
   globals,
   QuantizedLoad,
@@ -71,11 +70,6 @@ export function publishSelectedFlows(selectedFlows: Flow[]) {
 export function publishHttpRpcState(httpRpcState: HttpRpcState) {
   globals.httpRpcState = httpRpcState;
   raf.scheduleFullRedraw();
-}
-
-export function publishCpuProfileDetails(details: CpuProfileDetails) {
-  globals.cpuProfileDetails = details;
-  globals.publishRedraw();
 }
 
 export function publishHasFtrace(value: boolean): void {
