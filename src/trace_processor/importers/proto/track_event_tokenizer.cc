@@ -23,6 +23,7 @@
 #include <string>
 #include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -34,6 +35,7 @@
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -288,6 +290,15 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     return ModuleResult::Handled();
   }
 
+  // Handle legacy sample events which might have timestamps embedded inside.
+  if (PERFETTO_UNLIKELY(event.has_legacy_event())) {
+    protos::pbzero::TrackEvent::LegacyEvent::Decoder leg(event.legacy_event());
+    if (PERFETTO_UNLIKELY(leg.phase() == 'P')) {
+      RETURN_IF_ERROR(TokenizeLegacySampleEvent(
+          event, leg, *data.trace_packet_data.sequence_state));
+    }
+  }
+
   if (event.has_thread_time_delta_us()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
@@ -434,6 +445,78 @@ base::Status TrackEventTokenizer::AddExtraCounterValues(
     }
     data.extra_counter_values[index] = *abs_value;
   }
+  return base::OkStatus();
+}
+
+base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
+    const protos::pbzero::TrackEvent::Decoder& event,
+    const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy,
+    PacketSequenceStateGeneration& state) {
+  // We are just trying to parse out the V8 profiling events into the cpu
+  // sampling tables: if we don't have JSON enabled, just don't do this.
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+  for (auto it = event.debug_annotations(); it; ++it) {
+    protos::pbzero::DebugAnnotation::Decoder da(*it);
+    auto* interned_name = state.LookupInternedMessage<
+        protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
+        protos::pbzero::DebugAnnotationName>(da.name_iid());
+    base::StringView name(interned_name->name());
+    if (name != "data" || !da.has_legacy_json_value()) {
+      continue;
+    }
+    auto opt_val = json::ParseJsonString(da.legacy_json_value());
+    if (!opt_val) {
+      continue;
+    }
+    const auto& val = *opt_val;
+    if (val.isMember("startTime")) {
+      ASSIGN_OR_RETURN(int64_t ts, context_->clock_tracker->ToTraceTime(
+                                       protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
+                                       val["startTime"].asInt64() * 1000));
+      context_->legacy_v8_cpu_profile_tracker->SetStartTsForSessionAndPid(
+          legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), ts);
+      continue;
+    }
+    const auto& profile = val["cpuProfile"];
+    for (const auto& n : profile["nodes"]) {
+      uint32_t node_id = n["id"].asUInt();
+      std::optional<uint32_t> parent_node_id =
+          n.isMember("parent") ? std::make_optional(n["parent"].asUInt())
+                               : std::nullopt;
+      const auto& frame = n["callFrame"];
+      base::StringView url =
+          frame.isMember("url") ? frame["url"].asCString() : base::StringView();
+      base::StringView function_name = frame["functionName"].asCString();
+      base::Status status =
+          context_->legacy_v8_cpu_profile_tracker->AddCallsite(
+              legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node_id,
+              parent_node_id, url, function_name);
+      if (!status.ok()) {
+        context_->storage->IncrementStats(
+            stats::legacy_v8_cpu_profile_invalid_callsite);
+        continue;
+      }
+    }
+    const auto& samples = profile["samples"];
+    const auto& deltas = val["timeDeltas"];
+    if (samples.size() != deltas.size()) {
+      return base::ErrStatus(
+          "v8 legacy profile: samples and timestamps do not have same size");
+    }
+    for (uint32_t i = 0; i < samples.size(); ++i) {
+      ASSIGN_OR_RETURN(
+          int64_t ts,
+          context_->legacy_v8_cpu_profile_tracker->AddDeltaAndGetTs(
+              legacy.unscoped_id(), static_cast<uint32_t>(state.pid()),
+              deltas[i].asInt64() * 1000));
+      context_->sorter->PushLegacyV8CpuProfileEvent(
+          ts, legacy.unscoped_id(), static_cast<uint32_t>(state.pid()),
+          static_cast<uint32_t>(state.tid()), samples[i].asUInt());
+    }
+  }
+#else
+  base::ignore_result(event, legacy, state);
+#endif
   return base::OkStatus();
 }
 

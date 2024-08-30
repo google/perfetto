@@ -37,6 +37,7 @@ struct SystraceLine;
 struct InlineSchedWaking;
 struct TracePacketData;
 struct TrackEventData;
+struct LegacyV8CpuProfileEvent;
 
 class ProtoTraceParser {
  public:
@@ -47,6 +48,7 @@ class ProtoTraceParser {
   virtual void ParseFtraceEvent(uint32_t, int64_t, TracePacketData) = 0;
   virtual void ParseInlineSchedSwitch(uint32_t, int64_t, InlineSchedSwitch) = 0;
   virtual void ParseInlineSchedWaking(uint32_t, int64_t, InlineSchedWaking) = 0;
+  virtual void ParseLegacyV8ProfileEvent(int64_t, LegacyV8CpuProfileEvent) = 0;
 };
 
 class JsonTraceParser {
