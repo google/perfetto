@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertExists} from '../../base/logging';
 import {Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {LegacySelection} from '../../common/state';
-import {getColorForSlice} from '../../core/colorizer';
+import {getColorForSample} from '../../core/colorizer';
 import {
   BaseSliceTrack,
   OnSliceClickArgs,
@@ -23,9 +24,13 @@ import {
 import {globals} from '../../frontend/globals';
 import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {Slice} from '../../public';
+import {NUM, Slice} from '../../public';
 
-export class CpuProfileTrack extends BaseSliceTrack<Slice, NamedRow> {
+interface CpuProfileRow extends NamedRow {
+  callsiteId: number;
+}
+
+export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
   constructor(
     args: NewTrackArgs,
     private utid: number,
@@ -33,14 +38,14 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, NamedRow> {
     super(args);
   }
 
-  protected getRowSpec(): NamedRow {
-    return NAMED_ROW;
+  protected getRowSpec(): CpuProfileRow {
+    return {...NAMED_ROW, callsiteId: NUM};
   }
 
-  protected rowToSlice(row: NamedRow): Slice {
+  protected rowToSlice(row: CpuProfileRow): Slice {
     const baseSlice = super.rowToSliceBase(row);
-    const name = row.name ?? '';
-    const colorScheme = getColorForSlice(name);
+    const name = assertExists(row.name);
+    const colorScheme = getColorForSample(row.callsiteId);
     return {...baseSlice, title: name, colorScheme};
   }
 
@@ -56,7 +61,13 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, NamedRow> {
 
   getSqlSource(): string {
     return `
-      select p.id, ts, 0 as dur, 0 as depth, 'CPU Sample' as name
+      select
+        p.id,
+        ts,
+        0 as dur,
+        0 as depth,
+        'CPU Sample' as name,
+        callsite_id as callsiteId
       from cpu_profile_stack_sample p
       where utid = ${this.utid}
       order by ts

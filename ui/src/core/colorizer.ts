@@ -238,13 +238,10 @@ export function colorForFtrace(name: string): ColorScheme {
   return materialColorScheme(name);
 }
 
-export function colorForSample(callsiteId: number, isHovered: boolean): string {
-  let colorScheme;
+export function getColorForSample(callsiteId: number): ColorScheme {
   if (USE_CONSISTENT_COLORS.get()) {
-    colorScheme = materialColorScheme(String(callsiteId));
+    return materialColorScheme(String(callsiteId));
   } else {
-    colorScheme = proceduralColorScheme(String(callsiteId));
+    return proceduralColorScheme(String(callsiteId));
   }
-
-  return isHovered ? colorScheme.variant.cssString : colorScheme.base.cssString;
 }
