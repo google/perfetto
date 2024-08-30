@@ -41,7 +41,6 @@ import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
-import {LegacyFlamegraphCache} from '../core/legacy_flamegraph_cache';
 import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
 import {
@@ -235,7 +234,6 @@ class Globals implements AppContext {
   private _currentWorkspace: Workspace;
 
   omnibox = new OmniboxManager();
-  areaFlamegraphCache = new LegacyFlamegraphCache('area');
 
   scrollToTrackUri?: string;
   httpRpcState: HttpRpcState = {connected: false};

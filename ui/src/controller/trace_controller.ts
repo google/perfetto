@@ -90,13 +90,12 @@ import {
   TraceStream,
 } from '../core/trace_stream';
 import {decideTracks} from './track_decider';
-import {profileType} from '../frontend/legacy_flamegraph_panel';
-import {LegacyFlamegraphCache} from '../core/legacy_flamegraph_cache';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
 } from '../common/state_serialization';
 import {TraceContext} from '../frontend/trace_context';
+import {profileType} from '../core/selection_manager';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -379,10 +378,6 @@ export class TraceController extends Controller<States> {
   onDestroy() {
     pluginManager.onTraceClose();
     globals.engines.delete(this.engineId);
-
-    // Invalidate the flamegraph cache.
-    // TODO(stevegolton): migrate this to the new system when it's ready.
-    globals.areaFlamegraphCache = new LegacyFlamegraphCache('area');
   }
 
   private async loadTrace(): Promise<EngineMode> {
@@ -658,28 +653,29 @@ export class TraceController extends Controller<States> {
   }
 
   private async selectFirstHeapProfile() {
-    const query = `select * from (
-      select
-        min(ts) AS ts,
-        'heap_profile:' || group_concat(distinct heap_name) AS type,
-        upid
-      from heap_profile_allocation
-      group by upid
-      union
-      select distinct graph_sample_ts as ts, 'graph' as type, upid
-      from heap_graph_object)
-      order by ts limit 1`;
+    const query = `
+      select * from (
+        select
+          min(ts) AS ts,
+          'heap_profile:' || group_concat(distinct heap_name) AS type,
+          upid
+        from heap_profile_allocation
+        group by upid
+        union
+        select distinct graph_sample_ts as ts, 'graph' as type, upid
+        from heap_graph_object
+      )
+      order by ts
+      limit 1
+    `;
     const profile = await assertExists(this.engine).query(query);
     if (profile.numRows() !== 1) return;
     const row = profile.firstRow({ts: LONG, type: STR, upid: NUM});
     const ts = Time.fromRaw(row.ts);
-    let profType = row.type;
-    if (profType == 'heap_profile:libc.malloc,com.android.art') {
-      profType = 'heap_profile:com.android.art,libc.malloc';
-    }
-    const type = profileType(profType);
     const upid = row.upid;
-    globals.dispatch(Actions.selectHeapProfile({id: 0, upid, ts, type}));
+    globals.dispatch(
+      Actions.selectHeapProfile({id: 0, upid, ts, type: profileType(row.type)}),
+    );
   }
 
   private async selectPendingDeeplink(link: PendingDeeplinkState) {

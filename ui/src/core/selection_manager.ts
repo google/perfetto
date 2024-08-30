@@ -26,6 +26,19 @@ export enum ProfileType {
   PERF_SAMPLE = 'perf',
 }
 
+export function profileType(s: string): ProfileType {
+  if (s === 'heap_profile:libc.malloc,com.android.art') {
+    s = 'heap_profile:com.android.art,libc.malloc';
+  }
+  if (Object.values(ProfileType).includes(s as ProfileType)) {
+    return s as ProfileType;
+  }
+  if (s.startsWith('heap_profile')) {
+    return ProfileType.HEAP_PROFILE;
+  }
+  throw new Error('Unknown type ${s}');
+}
+
 // LEGACY Selection types:
 export interface SliceSelection {
   kind: 'SCHED_SLICE';
