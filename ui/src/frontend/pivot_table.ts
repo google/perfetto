@@ -206,6 +206,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     ) {
       if (typeof value === 'bigint') {
         return m(DurationWidget, {dur: value});
+      } else if (typeof value === 'number') {
+        return m(DurationWidget, {dur: BigInt(Math.round(value))});
       }
     }
     return `${value}`;
