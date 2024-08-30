@@ -78,7 +78,7 @@ class Alerts implements m.ClassComponent {
   }
 }
 
-export class App implements m.ClassComponent {
+export class UiMain implements m.ClassComponent {
   private trash = new DisposableStack();
   static readonly OMNIBOX_INPUT_REF = 'omnibox';
   private omniboxInputEl?: HTMLInputElement;
@@ -388,7 +388,7 @@ export class App implements m.ClassComponent {
     return m(Omnibox, {
       value: globals.omnibox.text,
       placeholder: prompt.text,
-      inputRef: App.OMNIBOX_INPUT_REF,
+      inputRef: UiMain.OMNIBOX_INPUT_REF,
       extraClasses: 'prompt-mode',
       closeOnOutsideClick: true,
       options,
@@ -448,7 +448,7 @@ export class App implements m.ClassComponent {
     return m(Omnibox, {
       value: globals.omnibox.text,
       placeholder: 'Filter commands...',
-      inputRef: App.OMNIBOX_INPUT_REF,
+      inputRef: UiMain.OMNIBOX_INPUT_REF,
       extraClasses: 'command-mode',
       options,
       closeOnSubmit: true,
@@ -492,7 +492,7 @@ export class App implements m.ClassComponent {
     return m(Omnibox, {
       value: globals.omnibox.text,
       placeholder: ph,
-      inputRef: App.OMNIBOX_INPUT_REF,
+      inputRef: UiMain.OMNIBOX_INPUT_REF,
       extraClasses: 'query-mode',
 
       onInput: (value) => {
@@ -529,7 +529,7 @@ export class App implements m.ClassComponent {
     return m(Omnibox, {
       value: globals.state.omniboxState.omnibox,
       placeholder: "Search or type '>' for commands or ':' for SQL mode",
-      inputRef: App.OMNIBOX_INPUT_REF,
+      inputRef: UiMain.OMNIBOX_INPUT_REF,
       onInput: (value, prev) => {
         if (prev === '') {
           if (value === '>') {
@@ -648,7 +648,7 @@ export class App implements m.ClassComponent {
   }
 
   private updateOmniboxInputRef(dom: Element): void {
-    const el = findRef(dom, App.OMNIBOX_INPUT_REF);
+    const el = findRef(dom, UiMain.OMNIBOX_INPUT_REF);
     if (el && el instanceof HTMLInputElement) {
       this.omniboxInputEl = el;
     }
