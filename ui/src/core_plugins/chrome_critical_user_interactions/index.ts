@@ -27,7 +27,7 @@ import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
 import {WebContentInteractionPanel} from './web_content_interaction_details_panel';
 import {CriticalUserInteractionTrack} from './critical_user_interaction_track';
-import {TrackNode} from '../../frontend/workspace';
+import {TrackNode} from '../../public/workspace';
 import {globals} from '../../frontend/globals';
 
 function addCriticalUserInteractionTrack() {

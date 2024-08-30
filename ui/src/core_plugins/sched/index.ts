@@ -14,7 +14,7 @@
 
 import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
-import {TrackNode} from '../../frontend/workspace';
+import {TrackNode} from '../../public/workspace';
 import {
   PerfettoPlugin,
   PluginContextTrace,

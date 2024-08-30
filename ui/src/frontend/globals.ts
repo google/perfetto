@@ -53,7 +53,7 @@ import {AppContext} from './app_context';
 import {TraceContext} from './trace_context';
 import {Registry} from '../base/registry';
 import {SidebarMenuItem} from '../public';
-import {Workspace} from './workspace';
+import {Workspace} from '../public/workspace';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;

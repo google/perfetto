@@ -22,7 +22,7 @@ import {Engine} from '../trace_processor/engine';
 import {PromptOption} from '../frontend/omnibox_manager';
 import {LegacyDetailsPanel, TrackDescriptor} from './tracks';
 import {TraceContext} from '../frontend/trace_context';
-import {Workspace} from '../frontend/workspace';
+import {Workspace} from './workspace';
 
 export {Engine} from '../trace_processor/engine';
 export {

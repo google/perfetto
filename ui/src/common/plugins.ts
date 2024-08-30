@@ -40,7 +40,7 @@ import {PromptOption} from '../frontend/omnibox_manager';
 import {horizontalScrollToTs} from '../frontend/scroll_helper';
 import {DisposableStack} from '../base/disposable_stack';
 import {TraceContext} from '../frontend/trace_context';
-import {Workspace} from '../frontend/workspace';
+import {Workspace} from '../public/workspace';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular

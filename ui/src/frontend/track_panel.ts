@@ -46,7 +46,7 @@ import {TrackRenderContext} from '../public/tracks';
 import {calculateResolution} from '../common/resolution';
 import {featureFlags} from '../core/feature_flags';
 import {Tree, TreeNode} from '../widgets/tree';
-import {TrackNode} from './workspace';
+import {TrackNode} from '../public/workspace';
 
 export const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   id: 'showTrackDetailsButton',
