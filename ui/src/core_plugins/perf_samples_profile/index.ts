@@ -20,11 +20,6 @@ import {
   LegacyDetailsPanel,
   PERF_SAMPLES_PROFILE_TRACK_KIND,
 } from '../../public';
-import {LegacyFlamegraphCache} from '../../core/legacy_flamegraph_cache';
-import {
-  LegacyFlamegraphDetailsPanel,
-  profileType,
-} from '../../frontend/legacy_flamegraph_panel';
 import {
   PerfettoPlugin,
   PluginContextTrace,
@@ -38,7 +33,6 @@ import {
 import {
   QueryFlamegraph,
   QueryFlamegraphAttrs,
-  USE_NEW_FLAMEGRAPH_IMPL,
   metricsFromTableOrSubquery,
 } from '../../core/query_flamegraph';
 import {Monitor} from '../../base/monitor';
@@ -139,7 +133,6 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
     () => this.sel?.type,
   ]);
   private flamegraphAttrs?: QueryFlamegraphAttrs;
-  private cache = new LegacyFlamegraphCache('perf_samples');
 
   constructor(private engine: Engine) {}
 
@@ -147,22 +140,6 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
     if (sel.kind !== 'PERF_SAMPLES') {
       this.sel = undefined;
       return undefined;
-    }
-    if (
-      !USE_NEW_FLAMEGRAPH_IMPL.get() &&
-      sel.utid === undefined &&
-      sel.upid !== undefined
-    ) {
-      this.sel = undefined;
-      return m(LegacyFlamegraphDetailsPanel, {
-        cache: this.cache,
-        selection: {
-          profileType: profileType(sel.type),
-          start: sel.leftTs,
-          end: sel.rightTs,
-          upids: [sel.upid],
-        },
-      });
     }
 
     const {leftTs, rightTs, upid, utid} = sel;

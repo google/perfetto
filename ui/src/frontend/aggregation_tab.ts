@@ -23,12 +23,7 @@ import {raf} from '../core/raf_scheduler';
 import {EmptyState} from '../widgets/empty_state';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 import {PivotTable} from './pivot_table';
-import {
-  LegacyFlamegraphDetailsPanel,
-  FlamegraphSelectionParams,
-} from './legacy_flamegraph_panel';
-import {AreaSelection, ProfileType} from '../common/state';
-import {assertExists} from '../base/logging';
+import {AreaSelection} from '../common/state';
 import {Monitor} from '../base/monitor';
 import {
   CPU_PROFILE_TRACK_KIND,
@@ -38,10 +33,10 @@ import {
 import {
   QueryFlamegraph,
   QueryFlamegraphAttrs,
-  USE_NEW_FLAMEGRAPH_IMPL,
   metricsFromTableOrSubquery,
 } from '../core/query_flamegraph';
 import {DisposableStack} from '../base/disposable_stack';
+import {assertExists} from '../base/logging';
 
 interface View {
   key: string;
@@ -55,7 +50,6 @@ class AreaDetailsPanel implements m.ClassComponent {
   private cpuProfileFlamegraphAttrs?: QueryFlamegraphAttrs;
   private perfSampleFlamegraphAttrs?: QueryFlamegraphAttrs;
   private sliceFlamegraphAttrs?: QueryFlamegraphAttrs;
-  private legacyFlamegraphSelection?: FlamegraphSelectionParams;
 
   private getCurrentView(): string | undefined {
     const types = this.getViews().map(({key}) => key);
@@ -103,12 +97,7 @@ class AreaDetailsPanel implements m.ClassComponent {
       });
     }
 
-    const isChanged = this.monitor.ifStateChanged();
-    if (USE_NEW_FLAMEGRAPH_IMPL.get()) {
-      this.addFlamegraphView(isChanged, views);
-    } else {
-      this.addLegacyFlamegraphView(isChanged, views);
-    }
+    this.addFlamegraphView(this.monitor.ifStateChanged(), views);
 
     // Add this after all aggregation panels, to make it appear after 'Slices'
     if (globals.selectedFlows.length > 0) {
@@ -361,44 +350,6 @@ class AreaDetailsPanel implements m.ClassComponent {
           'include perfetto module viz.slices;',
         ),
       ],
-    };
-  }
-
-  private addLegacyFlamegraphView(isChanged: boolean, views: View[]) {
-    this.legacyFlamegraphSelection =
-      this.computeLegacyFlamegraphSelection(isChanged);
-    if (this.legacyFlamegraphSelection === undefined) {
-      return;
-    }
-    views.push({
-      key: 'flamegraph_selection',
-      name: 'Flamegraph Selection',
-      content: m(LegacyFlamegraphDetailsPanel, {
-        cache: globals.areaFlamegraphCache,
-        selection: this.legacyFlamegraphSelection,
-      }),
-    });
-  }
-
-  private computeLegacyFlamegraphSelection(isChanged: boolean) {
-    const currentSelection = globals.state.selection;
-    if (currentSelection.kind !== 'area') {
-      return undefined;
-    }
-    if (!isChanged) {
-      // If the selection has not changed, just return a copy of the last seen
-      // selection.
-      return this.legacyFlamegraphSelection;
-    }
-    const upids = getUpidsFromPerfSampleAreaSelection(currentSelection);
-    if (upids.length === 0) {
-      return undefined;
-    }
-    return {
-      profileType: ProfileType.PERF_SAMPLE,
-      start: currentSelection.start,
-      end: currentSelection.end,
-      upids,
     };
   }
 
