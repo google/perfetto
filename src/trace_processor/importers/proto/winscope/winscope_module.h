@@ -36,6 +36,13 @@ class WinscopeModule : public ProtoImporterModule {
  public:
   explicit WinscopeModule(TraceProcessorContext* context);
 
+  ModuleResult TokenizePacket(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    TraceBlobView* packet,
+    int64_t packet_timestamp,
+    RefPtr<PacketSequenceStateGeneration> state,
+    uint32_t field_id) override;
+
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder&,
                             int64_t ts,
                             const TracePacketData&,
