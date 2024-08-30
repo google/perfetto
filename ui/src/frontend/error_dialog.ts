@@ -75,6 +75,11 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
     return;
   }
 
+  if (err.message.includes('(ERR:ws)')) {
+    showWebsocketConnectionIssue(err.message);
+    return;
+  }
+
   // This is only for older version of the UI and for ease of tracking across
   // cherry-picks. Newer versions don't have this exception anymore.
   if (err.message.includes('State hash does not match')) {
@@ -443,7 +448,11 @@ export function showExtensionNotInstalled(): void {
 export function showWebsocketConnectionIssue(message: string): void {
   showModal({
     title: 'Unable to connect to the device via websocket',
-    content: m('div', m('span', message), m('br')),
+    content: m(
+      'div',
+      m('div', 'trace_processor_shell --httpd is unreachable or crashed.'),
+      m('pre', message),
+    ),
   });
 }
 

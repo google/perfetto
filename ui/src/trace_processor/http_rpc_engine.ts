@@ -49,7 +49,7 @@ export class HttpRpcEngine extends EngineBase {
       this.websocket.onclose = (e) => this.onWebsocketClosed(e);
       this.websocket.onerror = (e) =>
         this.errorHandler(
-          `WebSocket error (state=${(e.target as WebSocket)?.readyState})`,
+          `WebSocket error rs=${(e.target as WebSocket)?.readyState} (ERR:ws)`,
         );
     }
 
@@ -78,7 +78,7 @@ export class HttpRpcEngine extends EngineBase {
       this.connected = false;
       this.rpcSendRequestBytes(new Uint8Array()); // Triggers a reconnection.
     } else {
-      this.errorHandler(`Websocket closed (${e.code}: ${e.reason})`);
+      this.errorHandler(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
     }
   }
 
