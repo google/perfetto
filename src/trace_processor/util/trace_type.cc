@@ -119,6 +119,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "zip";
     case kPerfDataTraceType:
       return "perf";
+    case kInstrumentsXmlTraceType:
+      return "instruments_xml";
     case kAndroidLogcatTraceType:
       return "android_logcat";
     case kAndroidDumpstateTraceType:
@@ -171,6 +173,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::StartsWith(lower_start, "<!doctype html>") ||
       base::StartsWith(lower_start, "<html>"))
     return kSystraceTraceType;
+
+  // MacOS Instruments XML export.
+  if (base::StartsWith(start, "<?xml version=\"1.0\"?>\n<trace-query-result>"))
+    return kInstrumentsXmlTraceType;
 
   // Traces obtained from atrace -z (compress).
   // They all have the string "TRACE:" followed by 78 9C which is a zlib header

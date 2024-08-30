@@ -363,6 +363,14 @@ config("sqlite_third_party_include_path") {
   }
 }
 
+group("expat") {
+  if (perfetto_root_path == "//") {
+    public_deps = [ "//buildtools:expat" ]
+  } else {
+    public_deps = [ "//third_party/expat:expat" ]
+  }
+}
+
 if (enable_perfetto_trace_processor_json) {
   group("jsoncpp") {
     if (perfetto_root_path == "//") {

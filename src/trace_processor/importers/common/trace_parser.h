@@ -24,6 +24,9 @@ namespace perfetto::trace_processor {
 namespace perf_importer {
 struct Record;
 }
+namespace instruments_importer {
+struct Row;
+}
 
 struct AndroidLogEvent;
 class PacketSequenceStateGeneration;
@@ -63,6 +66,12 @@ class PerfRecordParser {
  public:
   virtual ~PerfRecordParser();
   virtual void ParsePerfRecord(int64_t, perf_importer::Record) = 0;
+};
+
+class InstrumentsRowParser {
+ public:
+  virtual ~InstrumentsRowParser();
+  virtual void ParseInstrumentsRow(int64_t, instruments_importer::Row) = 0;
 };
 
 class AndroidLogEventParser {
