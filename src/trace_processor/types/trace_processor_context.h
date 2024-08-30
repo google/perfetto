@@ -48,6 +48,7 @@ class GlobalArgsTracker;
 class HeapGraphTracker;
 class InstrumentsRowParser;
 class JsonTraceParser;
+class LegacyV8CpuProfileTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -130,6 +131,7 @@ class TraceProcessorContext {
   std::unique_ptr<MetadataTracker> metadata_tracker;
   std::unique_ptr<CpuTracker> cpu_tracker;
   std::unique_ptr<TraceFileTracker> trace_file_tracker;
+  std::unique_ptr<LegacyV8CpuProfileTracker> legacy_v8_cpu_profile_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass

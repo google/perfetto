@@ -78,6 +78,10 @@ class TrackEventTokenizer {
       protozero::RepeatedFieldIterator<T> value_it,
       protozero::RepeatedFieldIterator<uint64_t> packet_track_uuid_it,
       protozero::RepeatedFieldIterator<uint64_t> default_track_uuid_it);
+  base::Status TokenizeLegacySampleEvent(
+      const protos::pbzero::TrackEvent_Decoder&,
+      const protos::pbzero::TrackEvent_LegacyEvent_Decoder&,
+      PacketSequenceStateGeneration& state);
 
   TraceProcessorContext* context_;
   TrackEventTracker* track_event_tracker_;

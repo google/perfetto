@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -105,6 +106,8 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
       });
 
   trace_file_tracker = std::make_unique<TraceFileTracker>(this);
+  legacy_v8_cpu_profile_tracker =
+      std::make_unique<LegacyV8CpuProfileTracker>(this);
 }
 
 TraceProcessorContext::TraceProcessorContext() = default;
