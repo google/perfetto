@@ -24,7 +24,7 @@ import {
 import {Engine} from '../../trace_processor/engine';
 import {DebugCounterTrack} from './counter_track';
 import {ARG_PREFIX} from './details_tab';
-import {TrackNode} from '../workspace';
+import {TrackNode} from '../../public/workspace';
 import {raf} from '../../core/raf_scheduler';
 
 // We need to add debug tracks from the core and from plugins. In order to add a

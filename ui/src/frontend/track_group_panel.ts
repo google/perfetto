@@ -39,7 +39,7 @@ import {calculateResolution} from '../common/resolution';
 import {PxSpan, TimeScale} from './time_scale';
 import {exists} from '../base/utils';
 import {classNames} from '../base/classnames';
-import {GroupNode} from './workspace';
+import {GroupNode} from '../public/workspace';
 import {raf} from '../core/raf_scheduler';
 import {Actions} from '../common/actions';
 
