@@ -67,6 +67,14 @@ def perfetto_deps():
     )
 
     _add_repo_if_not_existing(
+        new_git_repository,
+        name = "perfetto_dep_expat",
+        remote = "https://github.com/libexpat/libexpat",
+        commit = "fa75b96546c069d17b8f80d91e0f4ef0cde3790d",  # R_2_6_2
+        build_file = "//bazel:expat.BUILD",
+    )
+
+    _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_zlib",
         url = "https://storage.googleapis.com/perfetto/zlib-6d3f6aa0f87c9791ca7724c279ef61384f331dfd.tar.gz",

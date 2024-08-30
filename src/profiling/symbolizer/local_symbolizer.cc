@@ -226,13 +226,27 @@ struct load_command {
   uint32_t cmdsize; /* total size of command in bytes */
 };
 
+struct segment_64_command {
+  uint32_t cmd;      /* LC_SEGMENT_64 */
+  uint32_t cmdsize;  /* includes sizeof section_64 structs */
+  char segname[16];  /* segment name */
+  uint64_t vmaddr;   /* memory address of this segment */
+  uint64_t vmsize;   /* memory size of this segment */
+  uint64_t fileoff;  /* file offset of this segment */
+  uint64_t filesize; /* amount to map from the file */
+  uint32_t maxprot;  /* maximum VM protection */
+  uint32_t initprot; /* initial VM protection */
+  uint32_t nsects;   /* number of sections in segment */
+  uint32_t flags;    /* flags */
+};
+
 struct BinaryInfo {
   std::string build_id;
   uint64_t load_bias;
   BinaryType type;
 };
 
-std::optional<std::string> GetMachOUuid(char* mem, size_t size) {
+std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
   if (size < sizeof(mach_header_64))
     return {};
 
@@ -242,34 +256,46 @@ std::optional<std::string> GetMachOUuid(char* mem, size_t size) {
   if (size < sizeof(mach_header_64) + header.sizeofcmds)
     return {};
 
-  char* cmd = mem + sizeof(mach_header_64);
-  char* cmds_end = cmd + header.sizeofcmds;
-  while (cmd < cmds_end) {
-    load_command cmd_header;
-    memcpy(&cmd_header, cmd, sizeof(load_command));
+  std::optional<std::string> build_id;
+  uint64_t load_bias = 0;
 
-    if (cmd_header.cmd == 0x1b) {
-      return std::string(cmd + sizeof(load_command),
-                         cmd_header.cmdsize - sizeof(load_command));
+  char* pcmd = mem + sizeof(mach_header_64);
+  char* pcmds_end = pcmd + header.sizeofcmds;
+  while (pcmd < pcmds_end) {
+    load_command cmd_header;
+    memcpy(&cmd_header, pcmd, sizeof(load_command));
+
+    constexpr uint32_t LC_SEGMENT_64 = 0x19;
+    constexpr uint32_t LC_UUID = 0x1b;
+
+    switch (cmd_header.cmd) {
+      case LC_UUID: {
+        build_id = std::string(pcmd + sizeof(load_command),
+                               cmd_header.cmdsize - sizeof(load_command));
+        break;
+      }
+      case LC_SEGMENT_64: {
+        segment_64_command seg_cmd;
+        memcpy(&seg_cmd, pcmd, sizeof(segment_64_command));
+        if (strcmp(seg_cmd.segname, "__TEXT") == 0) {
+          load_bias = seg_cmd.vmaddr;
+        }
+        break;
+      }
+      default:
+        break;
     }
 
-    cmd += cmd_header.cmdsize;
+    pcmd += cmd_header.cmdsize;
   }
 
+  if (build_id) {
+    constexpr uint32_t MH_DSYM = 0xa;
+    BinaryType type = header.filetype == MH_DSYM ? BinaryType::kMachODsym
+                                                 : BinaryType::kMachO;
+    return BinaryInfo{*build_id, load_bias, type};
+  }
   return {};
-}
-
-std::optional<BinaryType> GetMachOBinaryType(char* mem, size_t size) {
-  if (size < sizeof(mach_header_64))
-    return {};
-
-  mach_header_64 header;
-  memcpy(&header, mem, sizeof(mach_header_64));
-
-  constexpr uint32_t MH_DSYM = 0xa;
-
-  return header.filetype == MH_DSYM ? BinaryType::kMachODsym
-                                    : BinaryType::kMachO;
 }
 
 std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
@@ -285,7 +311,6 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
 
   std::optional<std::string> build_id;
   std::optional<uint64_t> load_bias;
-  std::optional<BinaryType> type;
   if (IsElf(mem, size)) {
     switch (mem[EI_CLASS]) {
       case ELFCLASS32:
@@ -299,14 +324,11 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
       default:
         return std::nullopt;
     }
-    type = BinaryType::kElf;
+    if (build_id && load_bias) {
+      return BinaryInfo{*build_id, *load_bias, BinaryType::kElf};
+    }
   } else if (IsMachO64(mem, size)) {
-    build_id = GetMachOUuid(mem, size);
-    load_bias = {0};
-    type = GetMachOBinaryType(mem, size);
-  }
-  if (build_id && load_bias && type) {
-    return BinaryInfo{*build_id, *load_bias, *type};
+    return GetMachOBinaryInfo(mem, size);
   }
   return std::nullopt;
 }

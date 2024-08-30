@@ -57,6 +57,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
       return std::nullopt;
 
     case kPerfDataTraceType:
+    case kInstrumentsXmlTraceType:
       return TraceSorter::SortingMode::kDefault;
 
     case kUnknownTraceType:

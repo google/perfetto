@@ -73,6 +73,7 @@ StackProfileCallsiteTable::~StackProfileCallsiteTable() = default;
 CpuProfileStackSampleTable::~CpuProfileStackSampleTable() = default;
 PerfSessionTable::~PerfSessionTable() = default;
 PerfSampleTable::~PerfSampleTable() = default;
+InstrumentsSampleTable::~InstrumentsSampleTable() = default;
 SymbolTable::~SymbolTable() = default;
 HeapProfileAllocationTable::~HeapProfileAllocationTable() = default;
 ExperimentalFlamegraphTable::~ExperimentalFlamegraphTable() = default;

@@ -37,6 +37,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kNinjaLogTraceType:
     case kSystraceTraceType:
     case kPerfDataTraceType:
+    case kInstrumentsXmlTraceType:
     case kUnknownTraceType:
     case kJsonTraceType:
     case kFuchsiaTraceType:

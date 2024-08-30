@@ -37,6 +37,7 @@ enum TraceType {
   kSystraceTraceType,
   kUnknownTraceType,
   kZipFile,
+  kInstrumentsXmlTraceType,
 };
 
 constexpr size_t kGuessTraceMaxLookahead = 64;
