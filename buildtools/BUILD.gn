@@ -1419,7 +1419,7 @@ config("no_format_warning") {
   cflags = [ "-Wno-format" ]
 }
 
-static_library("expat") {
+source_set("expat") {
   sources = [
     "expat/src/expat/lib/expat.h",
     "expat/src/expat/lib/xmlparse.c",
