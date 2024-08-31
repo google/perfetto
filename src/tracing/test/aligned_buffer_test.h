@@ -20,6 +20,7 @@
 #include <stdlib.h>
 
 #include <memory>
+#include <utility>
 
 #include "perfetto/ext/base/utils.h"
 #include "src/tracing/test/test_shared_memory.h"
@@ -34,7 +35,10 @@ class AlignedBufferTest : public ::testing::TestWithParam<size_t> {
   void SetUp() override;
   void TearDown() override;
 
-  uint8_t* buf() const { return reinterpret_cast<uint8_t*>(buf_->start()); }
+  uint8_t* buf() { return const_cast<uint8_t*>(std::as_const(*this).buf()); }
+  const uint8_t* buf() const {
+    return reinterpret_cast<const uint8_t*>(buf_->start());
+  }
   size_t buf_size() const { return buf_->size(); }
   size_t page_size() const { return page_size_; }
 
