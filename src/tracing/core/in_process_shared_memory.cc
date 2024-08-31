@@ -21,7 +21,7 @@ namespace perfetto {
 InProcessSharedMemory::~InProcessSharedMemory() = default;
 InProcessSharedMemory::Factory::~Factory() = default;
 
-void* InProcessSharedMemory::start() const {
+const void* InProcessSharedMemory::start() const {
   return mem_.Get();
 }
 size_t InProcessSharedMemory::size() const {
