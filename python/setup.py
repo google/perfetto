@@ -8,7 +8,7 @@ setup(
     ],
     package_data={'perfetto.trace_processor': ['*.descriptor']},
     include_package_data=True,
-    version='0.8.0',
+    version='0.9.0',
     license='apache-2.0',
     description='Python API for Perfetto\'s Trace Processor',
     author='Perfetto',
