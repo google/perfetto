@@ -1719,6 +1719,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_instruments_instruments",
     srcs = [
+        "src/trace_processor/importers/instruments/instruments_utils.h",
         "src/trace_processor/importers/instruments/instruments_xml_tokenizer.cc",
         "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h",
         "src/trace_processor/importers/instruments/row_data_tracker.cc",

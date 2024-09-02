@@ -31,6 +31,11 @@
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
+#error \
+    "This file should not be built when enable_perfetto_trace_processor_mac_instruments=false"
+#endif
+
 namespace perfetto::trace_processor::instruments_importer {
 
 namespace {

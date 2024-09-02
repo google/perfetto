@@ -51,6 +51,7 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
+#include "src/trace_processor/importers/instruments/instruments_utils.h"
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 #include "src/trace_processor/importers/instruments/row_parser.h"
 #include "src/trace_processor/importers/json/json_trace_parser_impl.h"
@@ -400,11 +401,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   context_.perf_record_parser =
       std::make_unique<perf_importer::RecordParser>(&context_);
 
-  context_.reader_registry
-      ->RegisterTraceReader<instruments_importer::InstrumentsXmlTokenizer>(
-          kInstrumentsXmlTraceType);
-  context_.instruments_row_parser =
-      std::make_unique<instruments_importer::RowParser>(&context_);
+  if (instruments_importer::IsInstrumentsSupported()) {
+    context_.reader_registry
+        ->RegisterTraceReader<instruments_importer::InstrumentsXmlTokenizer>(
+            kInstrumentsXmlTraceType);
+    context_.instruments_row_parser =
+        std::make_unique<instruments_importer::RowParser>(&context_);
+  }
 
   if (util::IsGzipSupported()) {
     context_.reader_registry->RegisterTraceReader<GzipTraceParser>(

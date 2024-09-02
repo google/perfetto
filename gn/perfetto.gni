@@ -298,6 +298,14 @@ declare_args() {
   enable_perfetto_trace_processor_json =
       enable_perfetto_trace_processor && !perfetto_build_with_android
 
+  # Enables the support for importing profiles from the MacOS Instruments app.
+  # Requires a dependency on libexpat for XML parsing.
+  # Disabled in chromium due to some fuzzer related build failure (b/363347029).
+  enable_perfetto_trace_processor_mac_instruments =
+      enable_perfetto_trace_processor &&
+      (perfetto_build_standalone || perfetto_build_with_android ||
+       is_perfetto_build_generator)
+
   # Enables httpd RPC support in the trace processor.
   # Further per-OS conditionals are applied in gn/BUILD.gn.
   # Chromium+Win: httpd support depends on enable_perfetto_ipc, which is not
