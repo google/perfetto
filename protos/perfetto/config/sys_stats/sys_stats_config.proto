@@ -87,4 +87,8 @@ message SysStatsConfig {
   // Polls /sys/devices/system/cpu/cpu*/cpuidle/state* every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 cpuidle_period_ms = 13;
+
+  // Polls device-specific GPU frequency info every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 gpufreq_period_ms = 14;
 }
