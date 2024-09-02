@@ -534,3 +534,4 @@ kgsl/adreno_cmdbatch_sync
 kgsl/adreno_cmdbatch_retired
 pixel_mm/pixel_mm_kswapd_wake
 pixel_mm/pixel_mm_kswapd_done
+sched/sched_wakeup_task_attr
