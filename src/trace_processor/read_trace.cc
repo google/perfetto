@@ -94,10 +94,7 @@ base::Status DecompressTrace(const uint8_t* data,
     std::unique_ptr<ChunkedTraceReader> reader(
         new SerializingProtoTraceReader(output));
     GzipTraceParser parser(std::move(reader));
-
     RETURN_IF_ERROR(parser.ParseUnowned(data, size));
-    if (parser.needs_more_input())
-      return base::ErrStatus("Cannot decompress partial trace file");
     return parser.NotifyEndOfFile();
   }
 
