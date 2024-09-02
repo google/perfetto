@@ -59,12 +59,12 @@ struct TrackedMessage {
 
 class ProtoLogMessageDecoder : public Destructible {
  public:
-  explicit ProtoLogMessageDecoder();
+  explicit ProtoLogMessageDecoder(TraceProcessorContext* context);
   virtual ~ProtoLogMessageDecoder() override;
 
   static ProtoLogMessageDecoder* GetOrCreate(TraceProcessorContext* context) {
     if (!context->protolog_message_decoder) {
-      context->protolog_message_decoder.reset(new ProtoLogMessageDecoder());
+      context->protolog_message_decoder.reset(new ProtoLogMessageDecoder(context));
     }
     return static_cast<ProtoLogMessageDecoder*>(
         context->protolog_message_decoder.get());
@@ -86,6 +86,7 @@ class ProtoLogMessageDecoder : public Destructible {
                     const std::optional<std::string>& location);
 
  private:
+  TraceProcessorContext* const context_;
   base::FlatHashMap<uint64_t, TrackedGroup> tracked_groups_;
   base::FlatHashMap<uint64_t, TrackedMessage> tracked_messages_;
 };
