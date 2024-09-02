@@ -23,31 +23,28 @@ source_set("row") {
   ]
 }
 
-source_set("instruments") {
-  sources = [
-    "instruments_utils.h",
-    "instruments_xml_tokenizer.h",
-    "row_parser.h",
-  ]
-  public_deps = [ ":row" ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
-    "../../../../include/perfetto/public",
-    "../../../../include/perfetto/trace_processor:trace_processor",
-    "../../../../protos/perfetto/trace:zero",
-    "../../sorter",
-    "../../storage",
-    "../../types",
-    "../common:common",
-  ]
-  if (enable_perfetto_trace_processor_mac_instruments) {
-    sources += [
+if (enable_perfetto_trace_processor_mac_instruments) {
+  source_set("instruments") {
+    sources = [
       "instruments_xml_tokenizer.cc",
+      "instruments_xml_tokenizer.h",
       "row_data_tracker.cc",
       "row_data_tracker.h",
       "row_parser.cc",
+      "row_parser.h",
     ]
-    deps += [ "../../../../gn:expat" ]
+    public_deps = [ ":row" ]
+    deps = [
+      "../../../../gn:default_deps",
+      "../../../../gn:expat",
+      "../../../../include/perfetto/ext/base:base",
+      "../../../../include/perfetto/public",
+      "../../../../include/perfetto/trace_processor:trace_processor",
+      "../../../../protos/perfetto/trace:zero",
+      "../../sorter",
+      "../../storage",
+      "../../types",
+      "../common:common",
+    ]
   }
 }

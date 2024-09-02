@@ -51,9 +51,6 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
-#include "src/trace_processor/importers/instruments/instruments_utils.h"
-#include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
-#include "src/trace_processor/importers/instruments/row_parser.h"
 #include "src/trace_processor/importers/json/json_trace_parser_impl.h"
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 #include "src/trace_processor/importers/json/json_utils.h"
@@ -125,6 +122,11 @@
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
+#include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
+#include "src/trace_processor/importers/instruments/row_parser.h"
+#endif
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -401,13 +403,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   context_.perf_record_parser =
       std::make_unique<perf_importer::RecordParser>(&context_);
 
-  if (instruments_importer::IsInstrumentsSupported()) {
-    context_.reader_registry
-        ->RegisterTraceReader<instruments_importer::InstrumentsXmlTokenizer>(
-            kInstrumentsXmlTraceType);
-    context_.instruments_row_parser =
-        std::make_unique<instruments_importer::RowParser>(&context_);
-  }
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
+  context_.reader_registry
+      ->RegisterTraceReader<instruments_importer::InstrumentsXmlTokenizer>(
+          kInstrumentsXmlTraceType);
+  context_.instruments_row_parser =
+      std::make_unique<instruments_importer::RowParser>(&context_);
+#endif
 
   if (util::IsGzipSupported()) {
     context_.reader_registry->RegisterTraceReader<GzipTraceParser>(
