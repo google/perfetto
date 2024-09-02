@@ -72,6 +72,7 @@ from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.graphics.tests import GraphicsParser
 from diff_tests.parser.graphics.tests_drm_related_ftrace_events import GraphicsDrmRelatedFtraceEvents
 from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
+from diff_tests.parser.gzip.tests import Gzip
 from diff_tests.parser.instruments.tests import Instruments
 from diff_tests.parser.json.tests import JsonParser
 from diff_tests.parser.memory.tests import MemoryParser
@@ -240,6 +241,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *AndroidInputEvent(index_path, 'parser/android',
                          'AndroidInputEvent').fetch(),
       *Instruments(index_path, 'parser/instruments', 'Instruments').fetch(),
+      *Gzip(index_path, 'parser/gzip', 'Gzip').fetch(),
   ]
 
   metrics_tests = [

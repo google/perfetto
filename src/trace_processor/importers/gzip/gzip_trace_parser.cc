@@ -79,11 +79,9 @@ base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
   // Our default uncompressed buffer size is 32MB as it allows for good
   // throughput.
   constexpr size_t kUncompressedBufferSize = 32ul * 1024 * 1024;
-
-  needs_more_input_ = false;
   decompressor_.Feed(start, len);
 
-  for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
+  for (;;) {
     if (!buffer_) {
       buffer_.reset(new uint8_t[kUncompressedBufferSize]);
       bytes_written_ = 0;
@@ -92,39 +90,44 @@ base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
     auto result =
         decompressor_.ExtractOutput(buffer_.get() + bytes_written_,
                                     kUncompressedBufferSize - bytes_written_);
-    ret = result.ret;
+    util::GzipDecompressor::ResultCode ret = result.ret;
     if (ret == ResultCode::kError)
       return base::ErrStatus("Failed to decompress trace chunk");
 
     if (ret == ResultCode::kNeedsMoreInput) {
       PERFETTO_DCHECK(result.bytes_written == 0);
-      needs_more_input_ = true;
       return base::OkStatus();
     }
     bytes_written_ += result.bytes_written;
+    output_state_ = kMidStream;
 
     if (bytes_written_ == kUncompressedBufferSize || ret == ResultCode::kEof) {
       TraceBlob blob =
           TraceBlob::TakeOwnership(std::move(buffer_), bytes_written_);
       RETURN_IF_ERROR(inner_->Parse(TraceBlobView(std::move(blob))));
     }
+
+    // We support multiple gzip streams in a single gzip file (which is valid
+    // according to RFC1952 section 2.2): in that case, we just need to reset
+    // the decompressor to begin processing the next stream: all other variables
+    // can be preserved.
+    if (ret == ResultCode::kEof) {
+      decompressor_.Reset();
+      output_state_ = kStreamBoundary;
+
+      if (decompressor_.AvailIn() == 0) {
+        return base::OkStatus();
+      }
+    }
   }
-  return base::OkStatus();
 }
 
 base::Status GzipTraceParser::NotifyEndOfFile() {
-  // TODO(lalitm): this should really be an error returned to the caller but
-  // due to historical implementation, NotifyEndOfFile does not return a
-  // base::Status.
-  if (needs_more_input_) {
+  if (output_state_ != kStreamBoundary || decompressor_.AvailIn() > 0) {
     return base::ErrStatus("GZIP stream incomplete, trace is likely corrupt");
   }
-  PERFETTO_DCHECK(!buffer_);
-
-  if (!inner_) {
-    base::OkStatus();
-  }
-  return inner_->NotifyEndOfFile();
+  PERFETTO_CHECK(!buffer_);
+  return inner_ ? inner_->NotifyEndOfFile() : base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor
