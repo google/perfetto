@@ -13,33 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef SRC_BIGTRACE_WORKER_WORKER_IMPL_H_
-#define SRC_BIGTRACE_WORKER_WORKER_IMPL_H_
+#ifndef SRC_BIGTRACE_WORKER_REPOSITORY_POLICIES_GCS_TRACE_PROCESSOR_LOADER_H_
+#define SRC_BIGTRACE_WORKER_REPOSITORY_POLICIES_GCS_TRACE_PROCESSOR_LOADER_H_
 
-#include <unordered_map>
-
-#include "protos/perfetto/bigtrace/worker.grpc.pb.h"
-#include "protos/perfetto/bigtrace/worker.pb.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/bigtrace/worker/repository_policies/trace_processor_loader.h"
 
 namespace perfetto::bigtrace {
 
-class WorkerImpl final : public protos::BigtraceWorker::Service {
+class GcsTraceProcessorLoader : public TraceProcessorLoader {
  public:
-  explicit WorkerImpl(
-      std::unordered_map<std::string, std::unique_ptr<TraceProcessorLoader>>
-          registry)
-      : registry_(std::move(registry)) {}
-  grpc::Status QueryTrace(
-      grpc::ServerContext*,
-      const protos::BigtraceQueryTraceArgs* args,
-      protos::BigtraceQueryTraceResponse* response) override;
-
- private:
-  std::unordered_map<std::string, std::unique_ptr<TraceProcessorLoader>>
-      registry_;
+  base::StatusOr<std::unique_ptr<trace_processor::TraceProcessor>>
+  LoadTraceProcessor(const std::string& path) override;
 };
 
 }  // namespace perfetto::bigtrace
 
-#endif  // SRC_BIGTRACE_WORKER_WORKER_IMPL_H_
+#endif  // SRC_BIGTRACE_WORKER_REPOSITORY_POLICIES_GCS_TRACE_PROCESSOR_LOADER_H_

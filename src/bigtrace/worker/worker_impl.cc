@@ -16,8 +16,9 @@
 
 #include "src/bigtrace/worker/worker_impl.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
-#include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/bigtrace/worker/repository_policies/gcs_trace_processor_loader.h"
+#include "src/bigtrace/worker/repository_policies/local_trace_processor_loader.h"
 
 namespace perfetto::bigtrace {
 
@@ -25,16 +26,31 @@ grpc::Status WorkerImpl::QueryTrace(
     grpc::ServerContext*,
     const protos::BigtraceQueryTraceArgs* args,
     protos::BigtraceQueryTraceResponse* response) {
-  trace_processor::Config config;
-  std::unique_ptr<trace_processor::TraceProcessor> tp =
-      trace_processor::TraceProcessor::CreateInstance(config);
+  std::string args_trace = args->trace();
 
-  base::Status status =
-      trace_processor::ReadTrace(tp.get(), args->trace().c_str());
-  if (!status.ok()) {
-    const std::string& error_message = status.c_message();
+  std::string prefix = args_trace.substr(0, args_trace.find("/", 1));
+  if (registry_.find(prefix) == registry_.end()) {
+    return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                        "Invalid path prefix specified");
+  }
+
+  if (prefix.length() == args_trace.length()) {
+    return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                        "Empty path is invalid");
+  }
+
+  std::string path = args_trace.substr(prefix.length() + 1);
+
+  base::StatusOr<std::unique_ptr<trace_processor::TraceProcessor>> tp_or =
+      registry_[prefix]->LoadTraceProcessor(path);
+
+  if (!tp_or.ok()) {
+    const std::string& error_message = tp_or.status().message();
     return grpc::Status(grpc::StatusCode::INTERNAL, error_message);
   }
+
+  std::unique_ptr<trace_processor::TraceProcessor> tp = std::move(*tp_or);
+
   auto iter = tp->ExecuteQuery(args->sql_query());
   trace_processor::QueryResultSerializer serializer =
       trace_processor::QueryResultSerializer(std::move(iter));
