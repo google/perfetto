@@ -58,7 +58,7 @@ ModuleResult WinscopeModule::TokenizePacket(
 
   switch (field_id) {
     case TracePacket::kProtologViewerConfigFieldNumber:
-      protolog_parser_.ParseProtoLogViewerConfig(
+      protolog_parser_.ParseAndAddViewerConfigToMessageDecoder(
           decoder.protolog_viewer_config());
       return ModuleResult::Handled();
   }

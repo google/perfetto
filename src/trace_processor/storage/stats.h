@@ -353,6 +353,12 @@ namespace perfetto::trace_processor::stats {
   F(winscope_protolog_missing_interned_stacktrace_parse_errors,                \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Failed to find interned ProtoLog stacktrace."),                         \
+  F(winscope_protolog_message_decoding_failed,                                 \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Failed to decode ProtoLog message."),                                   \
+  F(winscope_protolog_view_config_collision,                                   \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Got a viewer config collision!"),                                       \
   F(winscope_viewcapture_parse_errors,                                         \
                                           kSingle,  kInfo,     kAnalysis,      \
       "ViewCapture packet has unknown fields, which results in some "          \
