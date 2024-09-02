@@ -21,6 +21,9 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/getopt.h"
+#include "src/bigtrace/worker/repository_policies/gcs_trace_processor_loader.h"
+#include "src/bigtrace/worker/repository_policies/local_trace_processor_loader.h"
+#include "src/bigtrace/worker/repository_policies/trace_processor_loader.h"
 #include "src/bigtrace/worker/worker_impl.h"
 
 namespace perfetto::bigtrace {
@@ -53,7 +56,13 @@ base::Status WorkerMain(int argc, char** argv) {
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
   std::string socket =
       options.socket.empty() ? "127.0.0.1:5052" : options.socket;
-  auto service = std::make_unique<WorkerImpl>();
+
+  std::unordered_map<std::string, std::unique_ptr<TraceProcessorLoader>>
+      registry;
+  registry["/gcs"] = std::make_unique<GcsTraceProcessorLoader>();
+  registry["/local"] = std::make_unique<LocalTraceProcessorLoader>();
+
+  auto service = std::make_unique<WorkerImpl>(std::move(registry));
   grpc::ServerBuilder builder;
   builder.RegisterService(service.get());
   builder.AddListeningPort(socket, grpc::InsecureServerCredentials());
