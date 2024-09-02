@@ -23,7 +23,6 @@
 
 #include "protos/perfetto/trace/android/protolog.pbzero.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h"
-#include "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
@@ -38,12 +37,9 @@ class ProtoLogParser {
   void ParseProtoLogMessage(PacketSequenceStateGeneration* sequence_state,
                             protozero::ConstBytes,
                             int64_t timestamp);
-  void ParseProtoLogViewerConfig(protozero::ConstBytes);
+  void ParseAndAddViewerConfigToMessageDecoder(protozero::ConstBytes);
 
  private:
-  void AddViewerConfigToMessageDecoder(
-      protos::pbzero::ProtoLogViewerConfig::Decoder& protolog_viewer_config);
-  void ProcessPendingMessagesWithId(uint64_t message_id);
   void PopulateReservedRowWithMessage(tables::ProtoLogTable::Id table_row_id,
                                       ProtoLogLevel level,
                                       std::string& group_tag,
