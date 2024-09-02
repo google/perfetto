@@ -41,8 +41,6 @@ class GzipTraceParser : public ChunkedTraceReader {
 
   base::Status ParseUnowned(const uint8_t*, size_t);
 
-  bool needs_more_input() const { return needs_more_input_; }
-
  private:
   TraceProcessorContext* const context_;
   util::GzipDecompressor decompressor_;
@@ -52,7 +50,7 @@ class GzipTraceParser : public ChunkedTraceReader {
   size_t bytes_written_ = 0;
 
   bool first_chunk_parsed_ = false;
-  bool needs_more_input_ = false;
+  enum { kStreamBoundary, kMidStream } output_state_ = kStreamBoundary;
 };
 
 }  // namespace perfetto::trace_processor
