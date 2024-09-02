@@ -19,7 +19,18 @@ import {raf} from '../core/raf_scheduler';
 export class TrackNode {
   // This is the URI of the track this node references.
   public readonly uri: string;
+
+  // Human readable name.
   public displayName: string;
+
+  // Optional sort order, which workspaces may or may not take advantage of for
+  // sorting when displaying the workspace.
+  public sortOrder?: number;
+
+  // This node's parent element in the tree. Updating this will do nothing and
+  // probably just break things.
+  //
+  // TODO(stevegolton): Try and make this readonly to the outside world.
   public parent?: ContainerNode;
 
   constructor(uri: string, displayName: string) {
@@ -90,8 +101,11 @@ export class ContainerNode {
   public parent?: ContainerNode;
   private _children: Array<Node>;
 
+  protected readonly indexByUri = new Map<string, Node>();
+
   clear(): void {
     this._children = [];
+    this.indexByUri.clear();
   }
 
   get children(): ReadonlyArray<Node> {
@@ -108,9 +122,31 @@ export class ContainerNode {
       child.parent.removeChild(child);
     }
     child.parent = this;
+    this.indexByUri.set(child.uri, child);
   }
 
-  addChild(child: Node): void {
+  /**
+   * Inserts a new child node considering it's sortOrder.
+   *
+   * The child will be added before the first child whose |sortOrder| is greater
+   * than the child node's sort order, or at the end if one does not exist. If
+   * |sortOrder| is omitted on either node in the comparison it is assumed to be
+   * 0.
+   *
+   * @param child - The child node to add.
+   */
+  insertChildInOrder(child: Node): void {
+    const insertPoint = this._children.find(
+      (n) => (n.sortOrder ?? 0) > (child.sortOrder ?? 0),
+    );
+    if (insertPoint) {
+      this.insertBefore(child, insertPoint);
+    } else {
+      this.appendChild(child);
+    }
+  }
+
+  appendChild(child: Node): void {
     this.adopt(child);
     this._children.push(child);
     raf.scheduleFullRedraw();
@@ -122,9 +158,14 @@ export class ContainerNode {
     raf.scheduleFullRedraw();
   }
 
+  get firstChild(): Optional<Node> {
+    return this.children[0];
+  }
+
   removeChild(child: Node): void {
     this._children = this.children.filter((x) => child !== x);
     child.parent = undefined;
+    this.indexByUri.delete(child.uri);
     raf.scheduleFullRedraw();
   }
 
@@ -134,10 +175,7 @@ export class ContainerNode {
       throw new Error('Reference node is not a child of this node');
     }
 
-    if (newNode.parent) {
-      newNode.parent.removeChild(newNode);
-    }
-    newNode.parent = this;
+    this.adopt(newNode);
 
     this._children.splice(indexOfReference, 0, newNode);
     raf.scheduleFullRedraw();
@@ -149,10 +187,7 @@ export class ContainerNode {
       throw new Error('Reference node is not a child of this node');
     }
 
-    if (newNode.parent) {
-      newNode.parent.removeChild(newNode);
-    }
-    newNode.parent = this;
+    this.adopt(newNode);
 
     this._children.splice(indexOfReference + 1, 0, newNode);
     raf.scheduleFullRedraw();
@@ -187,11 +222,63 @@ export class ContainerNode {
   get flatGroups(): ReadonlyArray<GroupNode> {
     return this.flatNodes.filter((t) => t instanceof GroupNode);
   }
+
+  /**
+   * Find a node by its URI.
+   *
+   * @param uri The URI of the node we want to find.
+   * @returns The node or undefined if no such node exists.
+   */
+  getNodeByUri(uri: string): Optional<Node> {
+    const foundNode = this.indexByUri.get(uri);
+    if (foundNode) {
+      return foundNode;
+    } else {
+      // Recurse our children
+      for (const child of this._children) {
+        if (child instanceof ContainerNode) {
+          const foundNode = child.getNodeByUri(uri);
+          if (foundNode) return foundNode;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Get a track node by its URI.
+   *
+   * Nodes in this workspace are indexed on their URI, so lookups are fast.
+   *
+   * @param uri - The URI of the track to look up.
+   * @returns The track node if it exists in this workspace, otherwise
+   * undefined.
+   */
+  getTrackByUri(uri: string): Optional<TrackNode> {
+    const node = this.getNodeByUri(uri);
+    if (node instanceof TrackNode) return node;
+    else return undefined;
+  }
+
+  /**
+   * Get a group by its URI.
+   *
+   * Nodes in this workspace are indexed on their URI, so lookups are fast.
+   *
+   * @param uri - The URI of the group to look up.
+   * @returns The group node if it exists in this workspace, otherwise
+   * undefined.
+   */
+  getGroupByUri(uri: string): Optional<GroupNode> {
+    const node = this.getNodeByUri(uri);
+    if (node instanceof GroupNode) return node;
+    else return undefined;
+  }
 }
 
 export class GroupNode extends ContainerNode {
   // A unique URI used to identify this group
-  public readonly uri: string;
+  public uri: string;
 
   // Optional URI of a track to show on this group's header.
   public headerTrackUri?: string;
@@ -199,6 +286,11 @@ export class GroupNode extends ContainerNode {
   // If true, this track will not show a header & permanently expanded.
   public headless: boolean;
 
+  // Optional sort order, which workspaces may or may not take advantage of for
+  // sorting when displaying the workspace.
+  public sortOrder?: number;
+
+  // Whether this node is collapsed ot not.
   private _collapsed: boolean;
 
   constructor(displayName: string) {
@@ -272,16 +364,5 @@ export class Workspace extends ContainerNode {
   unpinTrack(track: TrackNode): void {
     this.pinnedTracks = this.pinnedTracks.filter((t) => t !== track);
     raf.scheduleFullRedraw();
-  }
-
-  /**
-   * Get a track node by its URI.
-   *
-   * @param uri - The URI of the track to look up.
-   * @returns The track node if it exists in this workspace, otherwise
-   * undefined.
-   */
-  getTrackByUri(uri: string): Optional<TrackNode> {
-    return this.flatTracks.find((t) => t.uri === uri);
   }
 }

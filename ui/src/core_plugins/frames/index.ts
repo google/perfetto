@@ -21,7 +21,9 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {getTrackName} from '../../public/utils';
+import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
 import {ActualFramesTrack} from './actual_frames_track';
@@ -76,7 +78,7 @@ class FramesPlugin implements PerfettoPlugin {
 
       const uri = `/process_${upid}/expected_frames`;
       ctx.registerTrack({
-        uri: `/process_${upid}/expected_frames`,
+        uri,
         title: displayName,
         track: new ExpectedFramesTrack(engine, maxDepth, uri, trackIds),
         tags: {
@@ -85,6 +87,10 @@ class FramesPlugin implements PerfettoPlugin {
           kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         },
       });
+      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = -50;
+      group.insertChildInOrder(track);
     }
   }
 
@@ -145,6 +151,10 @@ class FramesPlugin implements PerfettoPlugin {
           kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         },
       });
+      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = -50;
+      group.insertChildInOrder(track);
     }
   }
 }

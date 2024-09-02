@@ -22,7 +22,7 @@ import {
   SimpleSliceTrack,
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
-
+import {TrackNode} from '../../public/workspace';
 class AndroidStartup implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const e = ctx.engine;
@@ -45,11 +45,13 @@ class AndroidStartup implements PerfettoPlugin {
       argColumns: [],
     };
     const uri = `/android_startups`;
-    ctx.registerTrackAndShowOnTraceLoad({
+    const title = 'Android App Startups';
+    ctx.registerTrack({
       uri,
       title: 'Android App Startups',
       track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
     });
+    ctx.timeline.workspace.insertChildInOrder(new TrackNode(uri, title));
   }
 }
 

@@ -119,15 +119,6 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     this.trash.use(dispose);
   }
 
-  registerTrackAndShowOnTraceLoad(track: TrackDescriptor): void {
-    this.registerTrack(track);
-
-    // Silently ignore if context is dead.
-    if (!this.alive) return;
-    const dispose = globals.trackManager.autoShowOnTraceLoad(track);
-    this.trash.use(dispose);
-  }
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): any {
     return this.ctx.runCommand(id, ...args);

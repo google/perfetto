@@ -28,6 +28,7 @@ import {
   SimpleCounterTrackConfig,
 } from '../../frontend/simple_counter_track';
 import {globals} from '../../frontend/globals';
+import {GroupNode, TrackNode} from '../../public/workspace';
 
 interface ContainedTrace {
   uuid: string;
@@ -1152,6 +1153,28 @@ const BT_ACTIVITY = `
 `;
 
 class AndroidLongBatteryTracing implements PerfettoPlugin {
+  private readonly groups = new Map<string, GroupNode>();
+
+  private addTrack(
+    ctx: PluginContextTrace,
+    track: TrackNode,
+    groupName?: string,
+  ): void {
+    if (groupName) {
+      const existingGroup = this.groups.get(groupName);
+      if (existingGroup) {
+        existingGroup.insertChildInOrder(track);
+      } else {
+        const group = new GroupNode(groupName);
+        group.insertChildInOrder(track);
+        this.groups.set(groupName, group);
+        ctx.timeline.workspace.insertChildInOrder(group);
+      }
+    } else {
+      ctx.timeline.workspace.insertChildInOrder(track);
+    }
+  }
+
   addSliceTrack(
     ctx: PluginContextTrace,
     name: string,
@@ -1168,18 +1191,14 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
       argColumns: columns,
     };
 
-    let uri;
-    if (groupName) {
-      uri = `/${groupName}/long_battery_tracing_${name}`;
-    } else {
-      uri = `/long_battery_tracing_${name}`;
-    }
-    ctx.registerTrackAndShowOnTraceLoad({
+    const uri = `/long_battery_tracing_${name}`;
+    ctx.registerTrack({
       uri,
       title: name,
       track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
-      tags: {groupName},
     });
+    const track = new TrackNode(uri, name);
+    this.addTrack(ctx, track, groupName);
   }
 
   addCounterTrack(
@@ -1198,19 +1217,14 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
       options,
     };
 
-    let uri;
-    if (groupName) {
-      uri = `/${groupName}/long_battery_tracing_${name}`;
-    } else {
-      uri = `/long_battery_tracing_${name}`;
-    }
-
-    ctx.registerTrackAndShowOnTraceLoad({
+    const uri = `/long_battery_tracing_${name}`;
+    ctx.registerTrack({
       uri,
       title: name,
       track: new SimpleCounterTrack(ctx.engine, {trackUri: uri}, config),
-      tags: {groupName},
     });
+    const track = new TrackNode(uri, name);
+    this.addTrack(ctx, track, groupName);
   }
 
   addBatteryStatsState(

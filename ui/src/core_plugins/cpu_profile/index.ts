@@ -36,6 +36,8 @@ import {Timestamp} from '../../frontend/widgets/timestamp';
 import {assertExists} from '../../base/logging';
 import {DetailsShell} from '../../widgets/details_shell';
 import {CpuProfileSampleSelection, LegacySelection} from '../../common/state';
+import {getOrCreateGroupForThread} from '../../public/standard_groups';
+import {TrackNode} from '../../public/workspace';
 
 class CpuProfile implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -65,9 +67,10 @@ class CpuProfile implements PerfettoPlugin {
       const upid = it.upid;
       const threadName = it.threadName;
       const uri = `${getThreadUriPrefix(upid, utid)}_cpu_samples`;
+      const displayName = `${threadName} (CPU Stack Samples)`;
       ctx.registerTrack({
         uri,
-        title: `${threadName} (CPU Stack Samples)`,
+        title: displayName,
         tags: {
           kind: CPU_PROFILE_TRACK_KIND,
           utid,
@@ -81,6 +84,10 @@ class CpuProfile implements PerfettoPlugin {
           utid,
         ),
       });
+      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = -40;
+      group.insertChildInOrder(track);
     }
     ctx.registerDetailsPanel(
       new CpuProfileSampleFlamegraphDetailsPanel(ctx.engine),

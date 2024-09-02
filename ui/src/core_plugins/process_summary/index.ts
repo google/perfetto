@@ -31,7 +31,8 @@ import {
   ProcessSummaryTrack,
 } from './process_summary_track';
 
-// This plugin now manages both process "scheduling" and "summary" tracks.
+// This plugin is responsible for adding summary tracks for process and thread
+// groups.
 class ProcessSummaryPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addProcessTrackGroups(ctx);

@@ -546,14 +546,7 @@ export class TraceController extends Controller<States> {
       this.updateStatus(`Running plugin: ${id}`);
     });
 
-    {
-      // When we reload from a permalink don't create extra tracks.
-      // TODO(stevegolton): This is a terrible way of telling whether we have
-      // loaded from a permalink or not.
-      if (globals.workspace.flatTracks.length === 0) {
-        await this.listTracks();
-      }
-    }
+    await this.listTracks();
 
     this.decideTabs();
 
@@ -735,8 +728,7 @@ export class TraceController extends Controller<States> {
 
   private async listTracks() {
     this.updateStatus('Loading tracks');
-    const engine = assertExists(this.engine);
-    await decideTracks(engine);
+    await decideTracks();
   }
 
   // Show the list of default tabs, but don't make them active!

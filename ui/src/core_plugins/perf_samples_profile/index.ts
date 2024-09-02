@@ -44,6 +44,11 @@ import {
   ThreadPerfSamplesProfileTrack,
 } from './perf_samples_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
+import {
+  getOrCreateGroupForProcess,
+  getOrCreateGroupForThread,
+} from '../../public/standard_groups';
+import {TrackNode} from '../../public/workspace';
 
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;
@@ -60,9 +65,10 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const uri = `/process_${upid}/perf_samples_profile`;
+      const title = `Process Callstacks`;
       ctx.registerTrack({
         uri,
-        title: `Process Callstacks`,
+        title,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
@@ -75,6 +81,10 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
           upid,
         ),
       });
+      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const track = new TrackNode(uri, title);
+      track.sortOrder = -40;
+      group.insertChildInOrder(track);
     }
     const tResult = await ctx.engine.query(`
       select distinct
@@ -118,6 +128,10 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
           utid,
         ),
       });
+      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = -50;
+      group.insertChildInOrder(track);
     }
     ctx.registerDetailsPanel(new PerfSamplesFlamegraphDetailsPanel(ctx.engine));
   }

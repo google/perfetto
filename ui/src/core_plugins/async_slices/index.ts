@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {removeFalsyValues} from '../../base/array_utils';
+import {globals} from '../../frontend/globals';
+import {GroupNode, TrackNode} from '../../public/workspace';
 import {ASYNC_SLICE_TRACK_KIND} from '../../public';
 import {
   PerfettoPlugin,
@@ -23,6 +25,10 @@ import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
 import {AsyncSliceTrack} from './async_slice_track';
+import {
+  getOrCreateGroupForProcess,
+  getOrCreateGroupForThread,
+} from '../../public/standard_groups';
 
 class AsyncSlicePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -81,6 +87,9 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         },
         track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIds),
       });
+      const trackNode = new TrackNode(uri, displayName);
+      trackNode.sortOrder = -25;
+      ctx.timeline.workspace.insertChildInOrder(trackNode);
     }
   }
 
@@ -140,6 +149,10 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           trackIds,
         ),
       });
+      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = 30;
+      group.insertChildInOrder(track);
     }
   }
 
@@ -217,6 +230,10 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           trackIds,
         ),
       });
+      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = 20;
+      group.insertChildInOrder(track);
     }
   }
 
@@ -249,40 +266,50 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       maxDepth: NUM_NULL,
     });
 
-    for (; it.valid(); it.next()) {
-      const kind = ASYNC_SLICE_TRACK_KIND;
-      const rawName = it.name === null ? undefined : it.name;
-      const uid = it.uid === null ? undefined : it.uid;
-      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
-      const rawTrackIds = it.trackIds;
-      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const maxDepth = it.maxDepth;
+    const groupMap = new Map<string, GroupNode>();
 
-      // If there are no slices in this track, skip it.
-      if (maxDepth === null) {
+    for (; it.valid(); it.next()) {
+      const {trackIds, name, uid, maxDepth} = it;
+      if (name == null || uid == null || maxDepth === null) {
         continue;
       }
 
+      const kind = ASYNC_SLICE_TRACK_KIND;
+      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
+      const trackIdList = trackIds.split(',').map((v) => Number(v));
+
       const displayName = getTrackName({
-        name: rawName,
+        name,
         uid,
         userName,
         kind,
         uidTrack: true,
       });
 
-      const uri = `/async_slices_${rawName}_${uid}`;
+      const uri = `/async_slices_${name}_${uid}`;
       ctx.registerTrack({
         uri,
         title: displayName,
         tags: {
-          trackIds,
+          trackIds: trackIdList,
           kind: ASYNC_SLICE_TRACK_KIND,
-          scope: 'user',
-          rawName, // Defines grouping
         },
-        track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIds),
+        track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIdList),
       });
+      ctx.timeline.workspace.insertChildInOrder(
+        new TrackNode(uri, displayName),
+      );
+
+      const track = new TrackNode(uri, displayName);
+      const existingGroup = groupMap.get(name);
+      if (existingGroup) {
+        existingGroup.insertChildInOrder(track);
+      } else {
+        const group = new GroupNode(name);
+        globals.workspace.insertChildInOrder(group);
+        groupMap.set(name, group);
+        group.insertChildInOrder(track);
+      }
     }
   }
 }

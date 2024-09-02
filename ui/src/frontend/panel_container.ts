@@ -194,9 +194,7 @@ export class PanelContainer
         continue;
       }
       if (panel.groupUri !== undefined) {
-        const trackGroup = globals.workspace.flatGroups.find(
-          (g) => g.uri === panel.groupUri,
-        );
+        const trackGroup = globals.workspace.getGroupByUri(panel.groupUri);
         // Only select a track group and all child tracks if it is closed.
         if (trackGroup && trackGroup.collapsed) {
           tracks.push(panel.groupUri);
