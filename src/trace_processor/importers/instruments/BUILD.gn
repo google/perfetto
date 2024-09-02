@@ -29,27 +29,25 @@ source_set("instruments") {
     "instruments_xml_tokenizer.h",
     "row_parser.h",
   ]
+  public_deps = [ ":row" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/public",
+    "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../protos/perfetto/trace:zero",
+    "../../sorter",
+    "../../storage",
+    "../../types",
+    "../common:common",
   ]
   if (enable_perfetto_trace_processor_mac_instruments) {
-    public_deps = [ ":row" ]
     sources += [
       "instruments_xml_tokenizer.cc",
       "row_data_tracker.cc",
       "row_data_tracker.h",
       "row_parser.cc",
     ]
-    deps += [
-      "../../../../gn:expat",
-      "../../../../include/perfetto/public",
-      "../../../../include/perfetto/trace_processor:trace_processor",
-      "../../../../protos/perfetto/trace:zero",
-      "../../sorter",
-      "../../storage",
-      "../../types",
-      "../common:common",
-    ]
+    deps += [ "../../../../gn:expat" ]
   }
 }
