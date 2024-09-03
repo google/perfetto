@@ -13,14 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {findRef} from '../../base/dom_utils';
 import {raf} from '../../core/raf_scheduler';
 import {Engine} from '../../trace_processor/engine';
 import {Form, FormLabel} from '../../widgets/form';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
-
 import {
   CounterColumns,
   SliceColumns,

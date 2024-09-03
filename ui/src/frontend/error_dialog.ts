@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {ErrorDetails} from '../base/logging';
 import {EXTENSION_URL} from '../common/recordingV2/recording_utils';
 import {GcsUploader} from '../common/gcs_uploader';

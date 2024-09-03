@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
-
 import {hash} from './hash';
 import {featureFlags} from './feature_flags';
-
 import {Color, HSLColor, HSLuvColor} from './color';
 
 // 128 would provide equal weighting between dark and light text.

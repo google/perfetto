@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {assertExists, assertTrue} from '../base/logging';
 import {PageAttrs} from './pages';
 import {z} from 'zod';

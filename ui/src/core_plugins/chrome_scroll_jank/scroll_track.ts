@@ -20,7 +20,6 @@ import {
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
 import {ScrollJankPluginState} from './common';
-
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {HTMLAnchorAttrs} from './common';
 
 interface AnchorAttrs extends HTMLAnchorAttrs {

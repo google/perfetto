@@ -34,7 +34,6 @@ import {
 import {Aggregation, PivotTree} from '../frontend/pivot_table_types';
 import {Engine} from '../trace_processor/engine';
 import {ColumnType} from '../trace_processor/query_result';
-
 import {Controller} from './controller';
 
 export const PIVOT_TABLE_REDUX_FLAG = featureFlags.register({

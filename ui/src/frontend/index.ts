@@ -17,10 +17,8 @@ import '../base/disposable_polyfill';
 import '../base/static_initializers';
 import '../gen/all_plugins';
 import '../gen/all_core_plugins';
-
 import {Draft} from 'immer';
 import m from 'mithril';
-
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {Store} from '../base/store';
@@ -35,7 +33,6 @@ import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
 import {setScheduleFullRedraw} from '../widgets/raf';
-
 import {UiMain} from './ui_main';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';

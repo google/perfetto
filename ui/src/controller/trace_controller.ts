@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {assertExists, assertTrue} from '../base/logging';
 import {Duration, time, Time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
@@ -56,7 +55,6 @@ import {
   WasmEngineProxy,
 } from '../trace_processor/wasm_engine_proxy';
 import {showModal} from '../widgets/modal';
-
 import {CounterAggregationController} from './aggregation/counter_aggregation_controller';
 import {CpuAggregationController} from './aggregation/cpu_aggregation_controller';
 import {CpuByProcessAggregationController} from './aggregation/cpu_by_process_aggregation_controller';

@@ -15,9 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import {Browser, Page} from 'puppeteer';
-
 import {assertExists} from '../base/logging';
-
 import {
   compareScreenshots,
   failIfTraceProcessorHttpdIsActive,

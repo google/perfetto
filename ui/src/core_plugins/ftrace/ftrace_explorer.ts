@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {colorForFtrace} from '../../core/colorizer';
@@ -24,7 +23,6 @@ import {
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
-
 import {globals} from '../../frontend/globals';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {FtraceFilter, FtraceStat} from './common';

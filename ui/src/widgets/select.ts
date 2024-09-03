@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {HTMLInputAttrs} from './common';
 
 export class Select implements m.ClassComponent<HTMLInputAttrs> {

@@ -16,7 +16,6 @@ import {
   getThreadInfo,
   ThreadInfo,
 } from '../../trace_processor/sql_utils/thread';
-
 import {
   addDebugSliceTrack,
   Engine,

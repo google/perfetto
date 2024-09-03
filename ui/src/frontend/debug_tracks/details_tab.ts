@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {duration, Time, time} from '../../base/time';
 import {raf} from '../../core/raf_scheduler';
 import {BottomTab, NewBottomTabArgs} from '../bottom_tab';

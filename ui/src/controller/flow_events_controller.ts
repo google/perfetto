@@ -20,7 +20,6 @@ import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
-
 import {Controller} from './controller';
 import {Monitor} from '../base/monitor';
 import {

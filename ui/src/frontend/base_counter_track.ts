@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {searchSegment} from '../base/binary_search';
-
 import {assertTrue, assertUnreachable} from '../base/logging';
 import {Time, time} from '../base/time';
 import {uuidv4Sql} from '../base/uuid';
@@ -27,7 +25,6 @@ import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM} from '../trace_processor/query_result';
-
 import {checkerboardExcept} from './checkerboard';
 import {NewTrackArgs} from './track';
 import {AsyncDisposableStack} from '../base/disposable_stack';

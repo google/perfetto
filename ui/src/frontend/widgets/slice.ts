@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Time, duration, time} from '../../base/time';
 import {
   asSliceSqlId,

@@ -21,7 +21,6 @@ import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
-
 import {maybeShowErrorDialog} from './error_dialog';
 import {globals} from './globals';
 

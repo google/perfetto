@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {
   Engine,
@@ -22,7 +21,6 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {NUM} from '../../trace_processor/query_result';
-
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceRawTrack} from './ftrace_track';
 import {DisposableStack} from '../../base/disposable_stack';

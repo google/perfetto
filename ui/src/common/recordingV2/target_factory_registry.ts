@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Registry} from '../../base/registry';
-
 import {RecordingTargetV2, TargetFactory} from './recording_interfaces_v2';
 
 export class TargetFactoryRegistry extends Registry<TargetFactory> {

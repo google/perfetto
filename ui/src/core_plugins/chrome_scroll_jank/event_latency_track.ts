@@ -21,7 +21,6 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {JANK_COLOR} from './jank_colors';
 import {getLegacySelection} from '../../common/state';

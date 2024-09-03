@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {classNames} from '../base/classnames';
-
 import {HTMLCheckboxAttrs} from './common';
 
 export interface CheckboxAttrs extends HTMLCheckboxAttrs {

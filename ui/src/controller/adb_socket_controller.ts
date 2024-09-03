@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import protobuf from 'protobufjs/minimal';
-
 import {
   DisableTracingResponse,
   EnableTracingResponse,
@@ -22,7 +21,6 @@ import {
   IPCFrame,
   ReadBuffersResponse,
 } from '../protos';
-
 import {AdbBaseConsumerPort, AdbConnectionState} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
 import {isReadBuffersResponse} from './consumer_port_types';

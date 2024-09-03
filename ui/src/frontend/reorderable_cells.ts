@@ -15,7 +15,6 @@
  */
 
 import m from 'mithril';
-
 import {DropDirection} from '../common/dragndrop_logic';
 import {raf} from '../core/raf_scheduler';
 

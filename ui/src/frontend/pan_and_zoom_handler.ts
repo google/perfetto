@@ -15,7 +15,6 @@
 import {DisposableStack} from '../base/disposable_stack';
 import {currentTargetOffset, elementIsEditable} from '../base/dom_utils';
 import {raf} from '../core/raf_scheduler';
-
 import {Animation} from './animation';
 import {DragGestureHandler} from './drag_gesture_handler';
 

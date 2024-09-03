@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {assertExists, assertFalse} from '../../base/logging';
 import {Monitor} from '../../base/monitor';
 import {
@@ -32,7 +31,6 @@ import {
 } from '../../public';
 import {NUM} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
-
 import {HeapProfileTrack} from './heap_profile_track';
 import {
   QueryFlamegraph,

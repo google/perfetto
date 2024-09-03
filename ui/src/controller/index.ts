@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import '../common/recordingV2/target_factories';
-
 import {assertExists, assertTrue} from '../base/logging';
-
 import {AppController} from './app_controller';
 import {ControllerAny} from './controller';
 

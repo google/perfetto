@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../base/semantic_icons';
 import {TrackRenderer} from '../common/track_manager';
 import {TrackTags} from '../public';
-
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {Size} from '../base/geom';

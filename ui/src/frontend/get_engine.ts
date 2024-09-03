@@ -14,7 +14,6 @@
 
 import {assertExists} from '../base/logging';
 import {Engine} from '../public';
-
 import {globals} from './globals';
 
 // TODO(stevegolton): Find a way to make this more elegant.

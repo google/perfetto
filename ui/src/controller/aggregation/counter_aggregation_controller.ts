@@ -18,7 +18,6 @@ import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {COUNTER_TRACK_KIND} from '../../public';
 import {Engine} from '../../trace_processor/engine';
-
 import {AggregationController} from './aggregation_controller';
 
 export class CounterAggregationController extends AggregationController {

@@ -15,7 +15,6 @@
 import {copyToClipboard} from '../base/clipboard';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
-
 import {globals} from './globals';
 
 export function onClickCopy(url: string) {

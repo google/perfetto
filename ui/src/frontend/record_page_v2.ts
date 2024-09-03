@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {Attributes} from 'mithril';
-
 import {assertExists} from '../base/logging';
 import {RecordingConfigUtils} from '../common/recordingV2/recording_config_utils';
 import {
@@ -32,7 +31,6 @@ import {
 } from '../common/recordingV2/recording_utils';
 import {targetFactoryRegistry} from '../common/recordingV2/target_factory_registry';
 import {raf} from '../core/raf_scheduler';
-
 import {globals} from './globals';
 import {createPage, PageAttrs} from './pages';
 import {recordConfigStore} from './record_config';

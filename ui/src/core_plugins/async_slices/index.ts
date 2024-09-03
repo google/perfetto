@@ -23,7 +23,6 @@ import {
 } from '../../public';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
-
 import {AsyncSliceTrack} from './async_slice_track';
 import {
   getOrCreateGroupForProcess,

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Brand} from '../../../../base/brand';
 import {Time} from '../../../../base/time';
 import {exists} from '../../../../base/utils';

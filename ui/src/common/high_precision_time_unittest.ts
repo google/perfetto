@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Time, time} from '../base/time';
-
 import {HighPrecisionTime as HPTime} from './high_precision_time';
 
 const t = Time.fromRaw;

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {produce, Draft} from 'immer';
-
 import {getPath, Path, setPath} from './object_utils';
 
 export type Migrate<T> = (init: unknown) => T;

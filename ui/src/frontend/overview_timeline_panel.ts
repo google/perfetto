@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Time, TimeSpan, time} from '../base/time';
 import {colorForCpu} from '../core/colorizer';
 import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
-
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
   TRACK_SHELL_WIDTH,

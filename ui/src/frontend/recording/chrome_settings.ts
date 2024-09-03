@@ -14,7 +14,6 @@
 
 import {produce} from 'immer';
 import m from 'mithril';
-
 import {Actions} from '../../common/actions';
 import {DataSource} from '../../common/recordingV2/recording_interfaces_v2';
 import {getBuiltinChromeCategoryList, isChromeTarget} from '../../common/state';
@@ -31,7 +30,6 @@ import {
   Toggle,
   ToggleAttrs,
 } from '../record_widgets';
-
 import {RecordingSectionAttrs} from './recording_sections';
 
 function extractChromeCategories(

@@ -13,12 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Gate} from '../base/mithril_utils';
 import {Actions} from '../common/actions';
 import {getLegacySelection} from '../common/state';
 import {EmptyState} from '../widgets/empty_state';
-
 import {
   DragHandle,
   Tab,

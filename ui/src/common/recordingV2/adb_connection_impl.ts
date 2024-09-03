@@ -14,7 +14,6 @@
 
 import {defer} from '../../base/deferred';
 import {ArrayBufferBuilder} from '../../base/array_buffer_builder';
-
 import {AdbFileHandler} from './adb_file_handler';
 import {
   AdbConnection,

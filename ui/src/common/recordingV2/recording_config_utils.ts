@@ -39,9 +39,7 @@ import {
   TrackEventConfig,
   VmstatCounters,
 } from '../../protos';
-
 import {TargetInfo} from './recording_interfaces_v2';
-
 import PerfClock = PerfEvents.PerfClock;
 import Timebase = PerfEvents.Timebase;
 import CallstackSampling = PerfEventConfig.CallstackSampling;

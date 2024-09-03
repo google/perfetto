@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 import {ThreadSliceTrack} from './thread_slice_track';

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Engine} from '../trace_processor/engine';
 
 export interface NewBottomTabArgs<Config> {

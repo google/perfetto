@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {Duration, duration} from '../../base/time';
@@ -27,7 +26,6 @@ import {
 import {raf} from '../../core/raf_scheduler';
 import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
-
 import {menuItemForFormat} from './timestamp';
 
 interface DurationWidgetAttrs {

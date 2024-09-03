@@ -105,7 +105,7 @@ class PinCujScopedJank implements MetricHandler {
       f.ts AS ts,
       f.dur as dur
     FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
-    WHERE cuj.process_name = "${processName}" 
+    WHERE cuj.process_name = "${processName}"
     AND cuj_name = "${cuj}" ${jankTypeFilter}
     `;
 
