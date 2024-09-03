@@ -24,7 +24,6 @@ import {
   ConversionJobStatus,
 } from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
-import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults} from '../common/search_data';
 import {EngineConfig, State, getLegacySelection} from '../common/state';
 import {TabManager} from '../common/tab_registry';
@@ -58,7 +57,6 @@ const INCOMPLETE_SLICE_DURATION = 30_000n;
 
 type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
-type QueryResultsStore = Map<string, {} | undefined>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
 
@@ -206,7 +204,6 @@ class Globals implements AppContext {
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
-  private _queryResults?: QueryResultsStore = undefined;
   private _overviewStore?: OverviewStore = undefined;
   private _aggregateDataStore?: AggregateDataStore = undefined;
   private _threadMap?: ThreadMap = undefined;
@@ -220,7 +217,6 @@ class Globals implements AppContext {
   private _recordingLog?: string = undefined;
   private _traceErrors?: number = undefined;
   private _metricError?: string = undefined;
-  private _metricResult?: MetricResult = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
@@ -351,7 +347,6 @@ class Globals implements AppContext {
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
     this._trackDataStore = new Map<string, {}>();
-    this._queryResults = new Map<string, {}>();
     this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._aggregateDataStore = new Map<string, AggregateData>();
     this._threadMap = new Map<number, ThreadDesc>();
@@ -412,10 +407,6 @@ class Globals implements AppContext {
 
   get trackDataStore(): TrackDataStore {
     return assertExists(this._trackDataStore);
-  }
-
-  get queryResults(): QueryResultsStore {
-    return assertExists(this._queryResults);
   }
 
   get threads() {
@@ -480,14 +471,6 @@ class Globals implements AppContext {
 
   setMetricError(arg: string) {
     this._metricError = arg;
-  }
-
-  get metricResult() {
-    return this._metricResult;
-  }
-
-  setMetricResult(result: MetricResult) {
-    this._metricResult = result;
   }
 
   set numQueuedQueries(value: number) {
@@ -645,14 +628,12 @@ class Globals implements AppContext {
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
     this._trackDataStore = undefined;
-    this._queryResults = undefined;
     this._overviewStore = undefined;
     this._threadMap = undefined;
     this._sliceDetails = undefined;
     this._threadStateDetails = undefined;
     this._aggregateDataStore = undefined;
     this._numQueriesQueued = 0;
-    this._metricResult = undefined;
     this._currentSearchResults = {
       eventIds: new Float64Array(0),
       tses: new BigInt64Array(0),
