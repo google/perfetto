@@ -69,13 +69,16 @@ class FullTraceJankMetricHandler implements MetricHandler {
     trackName: string;
   } {
     let jankTypeFilter;
-    let jankTypeDisplayName = 'all';
+    let jankTypeDisplayName;
     if (metricData.jankType?.includes('app')) {
       jankTypeFilter = ' android_is_app_jank_type(display_value)';
       jankTypeDisplayName = 'app';
     } else if (metricData.jankType?.includes('sf')) {
       jankTypeFilter = ' android_is_sf_jank_type(display_value)';
       jankTypeDisplayName = 'sf';
+    } else {
+      jankTypeFilter = " display_value != 'None'";
+      jankTypeDisplayName = 'all';
     }
     const processName = metricData.process;
 

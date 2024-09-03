@@ -113,6 +113,8 @@ export function expandProcessName(metricProcessName: string): string {
     return 'com.android.systemui';
   } else if (metricProcessName.includes('launcher')) {
     return 'com.google.android.apps.nexuslauncher';
+  } else if (metricProcessName.includes('surfaceflinger')) {
+    return '/system/bin/surfaceflinger';
   } else {
     return metricProcessName;
   }
