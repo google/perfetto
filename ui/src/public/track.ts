@@ -17,7 +17,7 @@ import {duration, time} from '../base/time';
 import {Optional} from '../base/utils';
 import {UntypedEventSet} from '../core/event_set';
 import {LegacySelection, Selection} from '../core/selection_manager';
-import {Size, VerticalBounds} from '../base/geom';
+import {Size2D, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../frontend/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
@@ -40,7 +40,7 @@ export interface TrackRenderContext extends TrackContext {
   /**
    * The dimensions of the track on the canvas in pixels.
    */
-  readonly size: Size;
+  readonly size: Size2D;
 
   /**
    * Suggested data resolution.

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
-import {Size, Vector} from '../base/geom';
+import {Size2D, Point2D} from '../base/geom';
 import {Optional} from '../base/utils';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, globals} from './globals';
@@ -37,8 +37,8 @@ const FOCUSED_FLOW_INTENSITY = 55;
 const DEFAULT_FLOW_INTENSITY = 70;
 
 type VerticalEdgeOrPoint =
-  | ({kind: 'vertical_edge'} & Vector)
-  | ({kind: 'point'} & Vector);
+  | ({kind: 'vertical_edge'} & Point2D)
+  | ({kind: 'point'} & Point2D);
 
 /**
  * Renders the flows overlay on top of the timeline, given the set of panels and
@@ -53,7 +53,7 @@ type VerticalEdgeOrPoint =
  */
 export function renderFlows(
   ctx: CanvasRenderingContext2D,
-  size: Size,
+  size: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
 ): void {
   const timescale = new TimeScale(

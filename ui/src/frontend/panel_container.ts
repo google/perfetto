@@ -32,7 +32,7 @@ import {
   TRACK_SHELL_WIDTH,
 } from './css_constants';
 import {globals} from './globals';
-import {Rect, Size, VerticalBounds} from '../base/geom';
+import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
 import {PxSpan, TimeScale} from './time_scale';
@@ -46,7 +46,7 @@ export interface Panel {
   readonly selectable: boolean;
   readonly trackUri?: string; // Defined if this panel represents are track
   readonly groupUri?: string; // Defined if this panel represents a group - i.e. a group summary track
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size): void;
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D): void;
   getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
 }
 
@@ -68,7 +68,7 @@ export interface PanelContainerAttrs {
   // caller the opportunity to render an overlay on top of the panels.
   renderOverlay?(
     ctx: CanvasRenderingContext2D,
-    size: Size,
+    size: Size2D,
     panels: ReadonlyArray<RenderedPanelInfo>,
   ): void;
 }
@@ -84,7 +84,7 @@ interface PanelInfo {
 
 export interface RenderedPanelInfo {
   panel: Panel;
-  rect: Rect;
+  rect: Bounds2D;
 }
 
 export class PanelContainer
@@ -518,7 +518,7 @@ export class PanelContainer
     panel: Panel,
     renderTime: number,
     ctx: CanvasRenderingContext2D,
-    size: Size,
+    size: Size2D,
   ) {
     if (!perfDebug()) return;
     let renderStats = this.panelPerfStats.get(panel);

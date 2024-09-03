@@ -18,7 +18,7 @@ import {TrackRenderer} from '../common/track_manager';
 import {TrackTags} from '../public/track';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
-import {Size} from '../base/geom';
+import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
 import {
   CrashButton,
@@ -184,7 +184,7 @@ export class TrackGroupPanel implements Panel {
   highlightIfTrackSelected(
     ctx: CanvasRenderingContext2D,
     timescale: TimeScale,
-    size: Size,
+    size: Size2D,
   ) {
     const selection = globals.state.selection;
     if (selection.kind !== 'area') return;
@@ -203,7 +203,7 @@ export class TrackGroupPanel implements Panel {
     }
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     const {collapsed, trackRenderer: track} = this.attrs;
 
     if (!collapsed) return;

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Vector, vectorAdd, vectorScale} from '../geom';
+import {Point2D, Vector2D} from '../geom';
 import {assertUnreachable} from '../logging';
 
 export type CardinalDirection = 'north' | 'south' | 'east' | 'west';
@@ -50,8 +50,8 @@ export interface ArrowHeadStyle {
  */
 export function drawBezierArrow(
   ctx: CanvasRenderingContext2D,
-  start: Vector,
-  end: Vector,
+  start: Point2D,
+  end: Point2D,
   controlPointOffset: number = 30,
   startStyle: ArrowHeadStyle = {
     shape: 'none',
@@ -68,29 +68,18 @@ export function drawBezierArrow(
   const startRetreat = drawArrowEnd(ctx, start, startOri, startStyle);
   const endRetreat = drawArrowEnd(ctx, end, endOri, endStyle);
 
-  const startRetreatVec = vectorScale(
-    orientationToUnitVector(startOri),
-    startRetreat,
-  );
-  const endRetreatVec = vectorScale(
-    orientationToUnitVector(endOri),
-    endRetreat,
-  );
+  const startRetreatVec = orientationToUnitVector(startOri).scale(startRetreat);
+  const endRetreatVec = orientationToUnitVector(endOri).scale(endRetreat);
 
-  start = vectorAdd(start, startRetreatVec);
-  end = vectorAdd(end, endRetreatVec);
+  const startVec = new Vector2D(start).add(startRetreatVec);
+  const endVec = new Vector2D(end).add(endRetreatVec);
 
-  const startOffset = vectorScale(
-    orientationToUnitVector(startOri),
-    controlPointOffset,
-  );
-  const endOffset = vectorScale(
-    orientationToUnitVector(endOri),
-    controlPointOffset,
-  );
+  const startOffset =
+    orientationToUnitVector(startOri).scale(controlPointOffset);
+  const endOffset = orientationToUnitVector(endOri).scale(controlPointOffset);
 
-  const cp1 = vectorAdd(start, startOffset);
-  const cp2 = vectorAdd(end, endOffset);
+  const cp1 = startVec.add(startOffset);
+  const cp2 = endVec.add(endOffset);
 
   ctx.beginPath();
   ctx.moveTo(start.x, start.y);
@@ -99,8 +88,8 @@ export function drawBezierArrow(
 }
 
 function getOri(
-  pos: Vector,
-  other: Vector,
+  pos: Point2D,
+  other: Point2D,
   ori: ArrowHeadOrientation,
 ): CardinalDirection {
   switch (ori) {
@@ -123,7 +112,7 @@ function getOri(
 
 function drawArrowEnd(
   ctx: CanvasRenderingContext2D,
-  pos: Vector,
+  pos: Point2D,
   orientation: CardinalDirection,
   style: ArrowHeadStyle,
 ): number {
@@ -157,16 +146,16 @@ function orientationToAngle(orientation: CardinalDirection): number {
   }
 }
 
-function orientationToUnitVector(orientation: CardinalDirection): Vector {
+function orientationToUnitVector(orientation: CardinalDirection): Vector2D {
   switch (orientation) {
     case 'north':
-      return {x: 0, y: -1};
+      return new Vector2D({x: 0, y: -1});
     case 'east':
-      return {x: 1, y: 0};
+      return new Vector2D({x: 1, y: 0});
     case 'south':
-      return {x: 0, y: 1};
+      return new Vector2D({x: 0, y: 1});
     case 'west':
-      return {x: -1, y: 0};
+      return new Vector2D({x: -1, y: 0});
     default:
       assertUnreachable(orientation);
   }
@@ -174,7 +163,7 @@ function orientationToUnitVector(orientation: CardinalDirection): Vector {
 
 function drawTriangle(
   ctx: CanvasRenderingContext2D,
-  pos: Vector,
+  pos: Point2D,
   orientation: CardinalDirection,
   size: number,
 ) {
@@ -208,7 +197,7 @@ function drawTriangle(
 
 function drawCircle(
   ctx: CanvasRenderingContext2D,
-  pos: Vector,
+  pos: Point2D,
   radius: number,
 ) {
   ctx.beginPath();
