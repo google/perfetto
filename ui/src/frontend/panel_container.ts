@@ -25,7 +25,7 @@ import {
 } from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {SimpleResizeObserver} from '../base/resize_observer';
-import {canvasClip} from '../common/canvas_utils';
+import {canvasClip} from '../base/canvas_utils';
 import {
   SELECTION_STROKE_COLOR,
   TOPBAR_HEIGHT,

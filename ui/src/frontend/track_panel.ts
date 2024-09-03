@@ -35,7 +35,7 @@ import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {classNames} from '../base/classnames';
 import {Button, ButtonBar} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
-import {canvasClip} from '../common/canvas_utils';
+import {canvasClip} from '../base/canvas_utils';
 import {PxSpan, TimeScale} from './time_scale';
 import {getLegacySelection} from '../common/state';
 import {exists, Optional} from '../base/utils';

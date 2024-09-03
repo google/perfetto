@@ -30,7 +30,7 @@ import {
   renderWakeupVertical,
   TrackContent,
 } from './track_panel';
-import {canvasClip} from '../common/canvas_utils';
+import {canvasClip} from '../base/canvas_utils';
 import {Button} from '../widgets/button';
 import {TrackRenderContext} from '../public/tracks';
 import {calculateResolution} from '../common/resolution';

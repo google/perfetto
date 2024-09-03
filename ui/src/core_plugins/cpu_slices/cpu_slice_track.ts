@@ -22,7 +22,7 @@ import {
   drawDoubleHeadedArrow,
   drawIncompleteSlice,
   drawTrackHoverTooltip,
-} from '../../common/canvas_utils';
+} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../core/color';
 import {colorForThread} from '../../core/colorizer';

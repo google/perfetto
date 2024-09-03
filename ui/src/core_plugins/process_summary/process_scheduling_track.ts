@@ -17,7 +17,7 @@ import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {drawTrackHoverTooltip} from '../../common/canvas_utils';
+import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {Color} from '../../core/color';
 import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
