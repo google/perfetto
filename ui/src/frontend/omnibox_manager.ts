@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PromptOption} from '../public/omnibox';
 import {raf} from '../core/raf_scheduler';
 
 export enum OmniboxMode {
@@ -19,11 +20,6 @@ export enum OmniboxMode {
   Query,
   Command,
   Prompt,
-}
-
-export interface PromptOption {
-  key: string;
-  displayName: string;
 }
 
 interface Prompt {

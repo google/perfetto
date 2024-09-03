@@ -16,14 +16,11 @@ import {
   getThreadInfo,
   ThreadInfo,
 } from '../../trace_processor/sql_utils/thread';
-import {
-  addDebugSliceTrack,
-  Engine,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  THREAD_STATE_TRACK_KIND,
-} from '../../public';
+import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {Engine} from '../../trace_processor/engine';
+import {PluginContextTrace} from '../../public';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
   getTimeSpanOfSelectionOrVisibleWindow,
   globals,

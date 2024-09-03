@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Store} from '../base/store';
 import {CurrentSearchResults} from '../common/search_data';
 import {State} from '../common/state';
-import {Store} from '../public';
 import {Timeline} from './timeline';
 import {TraceContext} from './trace_context';
 

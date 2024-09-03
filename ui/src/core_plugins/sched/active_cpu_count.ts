@@ -20,7 +20,8 @@ import {
   CounterOptions,
 } from '../../frontend/base_counter_track';
 import {globals} from '../../frontend/globals';
-import {Engine, TrackContext} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {TrackContext} from '../../public/track';
 import {Button} from '../../widgets/button';
 
 export enum CPUType {

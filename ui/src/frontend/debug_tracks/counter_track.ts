@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
-import {TrackContext} from '../../public';
+import {TrackContext} from '../../public/track';
 import {Engine} from '../../trace_processor/engine';
 import {Button} from '../../widgets/button';
 import {globals} from '../globals';

@@ -57,7 +57,7 @@ import {
   ScrollJankSlice,
 } from './scroll_jank_slice';
 import {sliceRef} from '../../frontend/widgets/slice';
-import {SCROLL_JANK_V3_TRACK_KIND} from '../../public';
+import {SCROLL_JANK_V3_TRACK_KIND} from '../../public/track_kinds';
 import {globals} from '../../frontend/globals';
 
 // Given a node in the slice tree, return a path from root to it.

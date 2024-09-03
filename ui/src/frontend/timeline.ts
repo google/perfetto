@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {Store} from '../base/store';
 import {time, TimeSpan} from '../base/time';
 import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
 import {Area, State} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {Store} from '../public';
 import {ratelimit} from './rate_limiters';
 
 interface Range {

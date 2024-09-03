@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  addDebugSliceTrack,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 class AndroidPerf implements PerfettoPlugin {
   async addAppProcessStartsDebugTrack(

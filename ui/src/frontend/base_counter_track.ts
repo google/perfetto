@@ -20,7 +20,7 @@ import {uuidv4Sql} from '../base/uuid';
 import {drawTrackHoverTooltip} from '../base/canvas_utils';
 import {raf} from '../core/raf_scheduler';
 import {CacheKey} from '../core/timeline_cache';
-import {Track, TrackMouseEvent, TrackRenderContext} from '../public/tracks';
+import {Track, TrackMouseEvent, TrackRenderContext} from '../public/track';
 import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 import {Engine} from '../trace_processor/engine';

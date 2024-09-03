@@ -12,13 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-  addDebugSliceTrack,
-} from '../../public';
+import {PluginContext, PluginContextTrace} from '../../public';
+import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 class Chaos implements PerfettoPlugin {
   onActivate(ctx: PluginContext): void {

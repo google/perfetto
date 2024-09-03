@@ -14,11 +14,9 @@
 
 import {globals} from '../../frontend/globals';
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
-import {
-  addDebugSliceTrack,
-  PluginContextTrace,
-  TrackDescriptor,
-} from '../../public';
+import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {PluginContextTrace} from '../../public';
+import {TrackDescriptor} from '../../public/track';
 import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
 import {time, Time} from '../../base/time';
 import {BigintMath} from '../../base/bigint_math';

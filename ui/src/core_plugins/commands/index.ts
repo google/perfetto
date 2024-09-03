@@ -17,12 +17,8 @@ import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {openInOldUIWithSizeCheck} from '../../frontend/legacy_trace_viewer';
-import {
-  PerfettoPlugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {PluginContext, PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,

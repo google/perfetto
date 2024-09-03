@@ -14,7 +14,7 @@
 
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Registry} from '../base/registry';
-import {Command} from '../public';
+import {Command} from '../public/command';
 
 export interface CommandWithMatchInfo extends Command {
   segments: FuzzySegment[];

@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  createStore,
-  MetricVisualisation,
-  PerfettoPlugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-  Store,
-} from '../../public';
+import {PluginContext, PluginContextTrace} from '../../public';
+import {MetricVisualisation} from '../../public/plugin';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {createStore, Store} from '../../base/store';
 
 interface State {
   foo: string;

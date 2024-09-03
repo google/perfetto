@@ -15,8 +15,7 @@
 import {assertExists} from '../base/logging';
 import {Duration} from '../base/time';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
-import {TrackDescriptor} from '../public';
-import {TrackRenderContext} from '../public/tracks';
+import {TrackDescriptor, TrackRenderContext} from '../public/track';
 import {HighPrecisionTime} from './high_precision_time';
 import {HighPrecisionTimeSpan} from './high_precision_time_span';
 import {TrackManager} from './track_manager';

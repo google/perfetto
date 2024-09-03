@@ -14,12 +14,9 @@
 
 import m from 'mithril';
 import {LogFilteringCriteria, LogPanel} from './logs_panel';
-import {
-  PerfettoPlugin,
-  ANDROID_LOGS_TRACK_KIND,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM} from '../../trace_processor/query_result';
 import {AndroidLogTrack} from './logs_track';
 import {exists} from '../../base/utils';

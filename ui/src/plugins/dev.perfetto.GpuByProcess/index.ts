@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NUM_NULL,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  STR_NULL,
-  Slice,
-} from '../../public';
+import {NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {PluginContextTrace} from '../../public';
+import {Slice} from '../../public/track';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
   NAMED_ROW,
   NamedRow,

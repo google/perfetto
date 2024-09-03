@@ -17,14 +17,13 @@ import {
   STR_NULL,
   LONG_NULL,
   NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
   STR,
   LONG,
-  Engine,
-  COUNTER_TRACK_KIND,
-} from '../../public';
+} from '../../trace_processor/query_result';
+import {PluginContextTrace} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {CounterOptions} from '../../frontend/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';

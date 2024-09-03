@@ -19,12 +19,9 @@ import {
 } from '../../frontend/globals';
 import {OmniboxMode} from '../../frontend/omnibox_manager';
 import {verticalScrollToTrack} from '../../frontend/scroll_helper';
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  PromptOption,
-} from '../../public';
+import {PluginContextTrace} from '../../public';
+import {PromptOption} from '../../public/omnibox';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 class TrackUtilsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

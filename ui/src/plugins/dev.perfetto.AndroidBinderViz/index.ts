@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  MetricVisualisation,
-  PerfettoPlugin,
-  PluginDescriptor,
-} from '../../public';
+import {MetricVisualisation} from '../../public/plugin';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 const SPEC = `
 {

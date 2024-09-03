@@ -18,7 +18,7 @@ import {Area, Sorting} from '../../../common/state';
 import {globals} from '../../../frontend/globals';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM} from '../../../trace_processor/query_result';
-import {CPU_SLICE_TRACK_KIND} from '../../../core/track_kinds';
+import {CPU_SLICE_TRACK_KIND} from '../../../public/track_kinds';
 import {AggregationController} from '../aggregation_controller';
 import {hasWattsonSupport} from '../../../core/trace_config_utils';
 

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DetailsPanel, LegacyDetailsPanel, TabDescriptor} from '../public';
+import {DetailsPanel, LegacyDetailsPanel} from '../public/track';
+import {TabDescriptor} from '../public/tab';
 
 export interface ResolvedTab {
   uri: string;

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {duration, TimeSpan} from '../../base/time';
-import {Engine} from '../../public';
+import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM_NULL,

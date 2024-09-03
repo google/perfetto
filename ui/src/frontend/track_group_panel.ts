@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
 import {TrackRenderer} from '../common/track_manager';
-import {TrackTags} from '../public';
+import {TrackTags} from '../public/track';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {Size} from '../base/geom';
@@ -32,7 +32,7 @@ import {
 } from './track_panel';
 import {canvasClip} from '../base/canvas_utils';
 import {Button} from '../widgets/button';
-import {TrackRenderContext} from '../public/tracks';
+import {TrackRenderContext} from '../public/track';
 import {calculateResolution} from '../common/resolution';
 import {PxSpan, TimeScale} from './time_scale';
 import {exists} from '../base/utils';

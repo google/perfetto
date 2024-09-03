@@ -23,7 +23,7 @@ import {
 } from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
-import {Slice} from '../../public';
+import {Slice} from '../../public/track';
 import {STR} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 

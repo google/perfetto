@@ -21,7 +21,7 @@ import {globals} from '../globals';
 import {NAMED_ROW, NamedRow, NamedSliceTrack} from '../named_slice_track';
 import {NewTrackArgs} from '../track';
 import {createView} from '../../trace_processor/sql_utils';
-import {Slice} from '../../public';
+import {Slice} from '../../public/track';
 import {uuidv4} from '../../base/uuid';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 

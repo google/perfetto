@@ -30,7 +30,7 @@ import {Panel} from './panel_container';
 import {Timestamp} from './widgets/timestamp';
 import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
-import {DetailsPanel} from '../public';
+import {DetailsPanel} from '../public/track';
 import {PxSpan, TimeScale} from './time_scale';
 import {canvasClip} from '../base/canvas_utils';
 import {isTraceLoaded} from './trace_attrs';
