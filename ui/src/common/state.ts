@@ -330,11 +330,6 @@ export interface PendingDeeplinkState {
   visEnd?: string;
 }
 
-export interface TabsV2State {
-  openTabs: string[];
-  currentTab: string;
-}
-
 export interface State {
   version: number;
   nextId: string;
@@ -380,8 +375,6 @@ export interface State {
   pendingScrollId?: number;
 
   searchIndex: number;
-
-  tabs: TabsV2State;
 
   /**
    * Trace recording

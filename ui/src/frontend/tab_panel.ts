@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {Gate} from '../base/mithril_utils';
-import {Actions} from '../common/actions';
 import {getLegacySelection} from '../common/state';
 import {EmptyState} from '../widgets/empty_state';
 import {
@@ -38,7 +37,7 @@ export class TabPanel implements m.ClassComponent {
 
   view() {
     const tabMan = globals.tabManager;
-    const tabList = globals.store.state.tabs.openTabs;
+    const tabList = globals.tabManager.openTabsUri;
 
     const resolvedTabs = tabMan.resolveTabs(tabList);
     const tabs = resolvedTabs.map(({uri, tab: tabDesc}): TabWithContent => {
@@ -76,19 +75,11 @@ export class TabPanel implements m.ClassComponent {
     const tabDropdownEntries = globals.tabManager.tabs
       .filter((tab) => tab.isEphemeral === false)
       .map(({content, uri}): TabDropdownEntry => {
-        // Check if the tab is already open
-        const isOpen =
-          globals.state.tabs.openTabs.find((openTabUri) => {
-            return openTabUri === uri;
-          }) !== undefined;
-        const clickAction = isOpen
-          ? Actions.hideTab({uri})
-          : Actions.showTab({uri});
         return {
           key: uri,
           title: content.getTitle(),
-          onClick: () => globals.dispatch(clickAction),
-          checked: isOpen,
+          onClick: () => globals.tabManager.toggleTab(uri),
+          checked: globals.tabManager.isOpen(uri),
         };
       });
 
@@ -100,10 +91,10 @@ export class TabPanel implements m.ClassComponent {
         },
         height: this.detailsHeight,
         tabs,
-        currentTabKey: globals.state.tabs.currentTab,
+        currentTabKey: globals.tabManager.currentTabUri,
         tabDropdownEntries,
-        onTabClick: (key) => globals.dispatch(Actions.showTab({uri: key})),
-        onTabClose: (key) => globals.dispatch(Actions.hideTab({uri: key})),
+        onTabClick: (uri) => globals.tabManager.showTab(uri),
+        onTabClose: (uri) => globals.tabManager.hideTab(uri),
       }),
       m(
         '.details-panel-container',
@@ -111,7 +102,7 @@ export class TabPanel implements m.ClassComponent {
           style: {height: `${this.detailsHeight}px`},
         },
         tabs.map(({key, content}) => {
-          const active = key === globals.state.tabs.currentTab;
+          const active = key === globals.tabManager.currentTabUri;
           return m(Gate, {open: active}, content);
         }),
       ),

@@ -16,7 +16,6 @@ import {BottomTab} from '../frontend/bottom_tab';
 import {globals} from '../frontend/globals';
 import {Tab} from '../public/tab';
 import {BottomTabToTabAdapter} from '../public/utils';
-import {Actions} from './actions';
 
 export function addEphemeralTab(uriPrefix: string, tab: Tab): void {
   const uri = `${uriPrefix}#${uuidv4()}`;
@@ -26,8 +25,7 @@ export function addEphemeralTab(uriPrefix: string, tab: Tab): void {
     content: tab,
     isEphemeral: true,
   });
-
-  globals.dispatch(Actions.showTab({uri}));
+  globals.tabManager.showTab(uri);
 }
 
 export function addBottomTab(tab: BottomTab, uriPrefix: string): void {
@@ -38,6 +36,5 @@ export function addBottomTab(tab: BottomTab, uriPrefix: string): void {
     content: new BottomTabToTabAdapter(tab),
     isEphemeral: true,
   });
-
-  globals.dispatch(Actions.showTab({uri}));
+  globals.tabManager.showTab(uri);
 }
