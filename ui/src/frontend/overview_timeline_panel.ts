@@ -35,7 +35,7 @@ import {
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {PxSpan, TimeScale} from './time_scale';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 export class OverviewTimelinePanel implements Panel {
   private static HANDLE_SIZE_PX = 5;

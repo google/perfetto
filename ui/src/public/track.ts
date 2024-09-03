@@ -19,7 +19,7 @@ import {UntypedEventSet} from '../core/event_set';
 import {LegacySelection, Selection} from '../core/selection_manager';
 import {Size, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../frontend/time_scale';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
 
 export interface TrackContext {

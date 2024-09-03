@@ -14,7 +14,7 @@
 
 import {HighPrecisionTime as HPTime} from './high_precision_time';
 import {HighPrecisionTimeSpan as HPTimeSpan} from './high_precision_time_span';
-import {Time} from '../base/time';
+import {Time} from './time';
 
 const t = Time.fromRaw;
 

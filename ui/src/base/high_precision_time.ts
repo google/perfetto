@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../base/logging';
-import {Time, time} from '../base/time';
+import {assertUnreachable} from './logging';
+import {Time, time} from './time';
 
 export type RoundMode = 'round' | 'floor' | 'ceil';
 
