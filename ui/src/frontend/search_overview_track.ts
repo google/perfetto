@@ -14,7 +14,7 @@
 
 import {Duration, Time, TimeSpan, duration, time} from '../base/time';
 import {Size2D} from '../base/geom';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {createVirtualTable} from '../trace_processor/sql_utils';
@@ -183,7 +183,10 @@ export async function createSearchOverviewTrack(
     size: Size2D,
   ): void {
     const visibleWindow = app.timeline.visibleWindow;
-    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: size.width,
+    });
 
     if (!searchSummary) return;
 

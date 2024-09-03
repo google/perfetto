@@ -14,7 +14,7 @@
 
 import {assertExists} from '../base/logging';
 import {Duration} from '../base/time';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {TrackDescriptor, TrackRenderContext} from '../public/track';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
@@ -51,7 +51,7 @@ const dummyCtx: TrackRenderContext = {
   size: {width: 123, height: 123},
   visibleWindow,
   resolution: Duration.ZERO,
-  timescale: new TimeScale(visibleWindow, new PxSpan(0, 0)),
+  timescale: new TimeScale(visibleWindow, {left: 0, right: 0}),
 };
 
 beforeEach(() => {

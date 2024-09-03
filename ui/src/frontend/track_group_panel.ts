@@ -34,7 +34,7 @@ import {canvasClip} from '../base/canvas_utils';
 import {Button} from '../widgets/button';
 import {TrackRenderContext} from '../public/track';
 import {calculateResolution} from '../common/resolution';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {exists} from '../base/utils';
 import {classNames} from '../base/classnames';
 import {GroupNode} from '../public/workspace';
@@ -219,10 +219,10 @@ export class TrackGroupPanel implements Panel {
 
     const visibleWindow = globals.timeline.visibleWindow;
     const timespan = visibleWindow.toTimeSpan();
-    const timescale = new TimeScale(
-      visibleWindow,
-      new PxSpan(0, trackSize.width),
-    );
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: trackSize.width,
+    });
 
     drawGridLines(ctx, timespan, timescale, trackSize);
 
