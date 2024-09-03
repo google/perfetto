@@ -50,7 +50,7 @@ import {EmptyState} from '../widgets/empty_state';
 import {removeFalsyValues} from '../base/array_utils';
 import {renderFlows} from './flow_events_renderer';
 import {Size} from '../base/geom';
-import {canvasClip, canvasSave} from '../common/canvas_utils';
+import {canvasClip, canvasSave} from '../base/canvas_utils';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',

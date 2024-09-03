@@ -28,7 +28,7 @@ import {
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {PxSpan, TimeScale} from './time_scale';
-import {canvasClip} from '../common/canvas_utils';
+import {canvasClip} from '../base/canvas_utils';
 
 export class TimeAxisPanel implements Panel {
   readonly kind = 'panel';

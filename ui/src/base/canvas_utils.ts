@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Size, Vector} from '../base/geom';
-import {isString} from '../base/object_utils';
+import {Size, Vector} from './geom';
+import {isString} from './object_utils';
 
 export function drawDoubleHeadedArrow(
   ctx: CanvasRenderingContext2D,
