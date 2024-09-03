@@ -48,7 +48,7 @@ import {
   moveByFocusedFlow,
 } from './keyboard_event_handler';
 import {publishPermalinkHash} from './publish';
-import {OmniboxMode} from './omnibox_manager';
+import {OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 

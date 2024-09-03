@@ -18,7 +18,7 @@ import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {PxSpan, TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
 
 // This is used to display the summary of search results.

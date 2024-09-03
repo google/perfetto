@@ -18,7 +18,7 @@ import {Optional} from '../base/utils';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, globals} from './globals';
 import {RenderedPanelInfo} from './panel_container';
-import {PxSpan, TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from '../base/time_scale';
 import {TrackNode} from '../public/workspace';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;

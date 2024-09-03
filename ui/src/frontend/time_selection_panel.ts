@@ -26,7 +26,7 @@ import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
 import {canvasClip} from '../base/canvas_utils';
-import {PxSpan, TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from '../base/time_scale';
 
 export interface BBox {
   x: number;

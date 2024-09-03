@@ -15,7 +15,7 @@ import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {raf} from '../../core/raf_scheduler';
 import {globals} from '../globals';
-import {TimeScale} from '../time_scale';
+import {TimeScale} from '../../base/time_scale';
 
 export abstract class DragStrategy {
   constructor(protected map: TimeScale) {}

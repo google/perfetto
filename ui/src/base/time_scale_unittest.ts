@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time} from '../base/time';
-import {HighPrecisionTime} from '../base/high_precision_time';
-import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import {Time} from './time';
+import {HighPrecisionTime} from './high_precision_time';
+import {HighPrecisionTimeSpan} from './high_precision_time_span';
 import {PxSpan, TimeScale} from './time_scale';
 
 const t = Time.fromRaw;
