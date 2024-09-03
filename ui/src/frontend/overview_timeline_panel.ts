@@ -34,7 +34,7 @@ import {
 } from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 export class OverviewTimelinePanel implements Panel {
@@ -54,12 +54,12 @@ export class OverviewTimelinePanel implements Panel {
     this.width = dom.getBoundingClientRect().width;
     const traceTime = globals.traceContext;
     if (this.width > TRACK_SHELL_WIDTH) {
-      const pxSpan = new PxSpan(TRACK_SHELL_WIDTH, this.width);
+      const pxBounds = {left: TRACK_SHELL_WIDTH, right: this.width};
       const hpTraceTime = HighPrecisionTimeSpan.fromTime(
         traceTime.start,
         traceTime.end,
       );
-      this.timeScale = new TimeScale(hpTraceTime, pxSpan);
+      this.timeScale = new TimeScale(hpTraceTime, pxBounds);
       if (this.gesture === undefined) {
         this.gesture = new DragGestureHandler(
           dom as HTMLElement,

@@ -35,7 +35,7 @@ import {globals} from './globals';
 import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {Optional} from '../base/utils';
 
 const CANVAS_OVERDRAW_PX = 100;
@@ -171,10 +171,10 @@ export class PanelContainer
     // right now, that's a job for our parent, but we can put one together so we
     // don't have to refactor this entire bit right now...
 
-    const visibleTimeScale = new TimeScale(
-      globals.timeline.visibleWindow,
-      new PxSpan(0, this.virtualCanvas!.size.width - TRACK_SHELL_WIDTH),
-    );
+    const visibleTimeScale = new TimeScale(globals.timeline.visibleWindow, {
+      left: 0,
+      right: this.virtualCanvas!.size.width - TRACK_SHELL_WIDTH,
+    });
 
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
@@ -485,10 +485,10 @@ export class PanelContainer
     // right now, that's a job for our parent, but we can put one together so we
     // don't have to refactor this entire bit right now...
 
-    const visibleTimeScale = new TimeScale(
-      globals.timeline.visibleWindow,
-      new PxSpan(0, vc.size.width - TRACK_SHELL_WIDTH),
-    );
+    const visibleTimeScale = new TimeScale(globals.timeline.visibleWindow, {
+      left: 0,
+      right: vc.size.width - TRACK_SHELL_WIDTH,
+    });
 
     const startX = visibleTimeScale.timeToPx(area.start);
     const endX = visibleTimeScale.timeToPx(area.end);

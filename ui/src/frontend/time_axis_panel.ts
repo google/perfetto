@@ -25,7 +25,7 @@ import {
 } from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
 
 export class TimeAxisPanel implements Panel {
@@ -86,7 +86,10 @@ export class TimeAxisPanel implements Panel {
 
   private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
     const visibleWindow = globals.timeline.visibleWindow;
-    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: size.width,
+    });
     const timespan = visibleWindow.toTimeSpan();
     const offset = globals.timestampOffset();
 

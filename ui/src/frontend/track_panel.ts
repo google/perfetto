@@ -36,7 +36,7 @@ import {classNames} from '../base/classnames';
 import {Button, ButtonBar} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {canvasClip} from '../base/canvas_utils';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {getLegacySelection} from '../common/state';
 import {exists, Optional} from '../base/utils';
 import {Intent} from '../widgets/common';
@@ -336,10 +336,10 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
 
   private getTargetTimeScale(event: MouseEvent): TimeScale {
     const timeWindow = globals.timeline.visibleWindow;
-    return new TimeScale(
-      timeWindow,
-      new PxSpan(0, this.getTargetContainerSize(event)),
-    );
+    return new TimeScale(timeWindow, {
+      left: 0,
+      right: this.getTargetContainerSize(event),
+    });
   }
 
   view(node: m.CVnode<TrackContentAttrs>) {
@@ -572,10 +572,10 @@ export class TrackPanel implements Panel {
 
     const visibleWindow = globals.timeline.visibleWindow;
     const timespan = visibleWindow.toTimeSpan();
-    const timescale = new TimeScale(
-      visibleWindow,
-      new PxSpan(0, trackSize.width),
-    );
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: trackSize.width,
+    });
     drawGridLines(ctx, timespan, timescale, trackSize);
 
     const track = this.attrs.trackRenderer;

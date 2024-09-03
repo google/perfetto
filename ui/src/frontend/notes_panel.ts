@@ -31,7 +31,7 @@ import {Timestamp} from './widgets/timestamp';
 import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public/track';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
 import {isTraceLoaded} from './trace_attrs';
 
@@ -160,7 +160,10 @@ export class NotesPanel implements Panel {
     let aNoteIsHovered = false;
 
     const visibleWindow = globals.timeline.visibleWindow;
-    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: size.width,
+    });
     const timespan = visibleWindow.toTimeSpan();
 
     this.timescale = timescale;

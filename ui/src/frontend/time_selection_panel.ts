@@ -26,7 +26,7 @@ import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
 import {canvasClip} from '../base/canvas_utils';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 
 export interface BBox {
   x: number;
@@ -154,7 +154,10 @@ export class TimeSelectionPanel implements Panel {
 
   private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
     const visibleWindow = globals.timeline.visibleWindow;
-    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: size.width,
+    });
     const timespan = visibleWindow.toTimeSpan();
 
     if (size.width > 0 && timespan.duration > 0n) {

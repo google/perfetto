@@ -15,14 +15,14 @@
 import {Time} from './time';
 import {HighPrecisionTime} from './high_precision_time';
 import {HighPrecisionTimeSpan} from './high_precision_time_span';
-import {PxSpan, TimeScale} from './time_scale';
+import {TimeScale} from './time_scale';
 
 const t = Time.fromRaw;
 
 describe('TimeScale', () => {
   const ts = new TimeScale(
     new HighPrecisionTimeSpan(new HighPrecisionTime(t(40n)), 100),
-    new PxSpan(200, 1000),
+    {left: 200, right: 1000},
   );
 
   it('converts timescales to pixels', () => {
