@@ -22,6 +22,8 @@ import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
 import {THREAD_SLICE_TRACK_KIND} from '../../public';
+import {ContainerNode, GroupNode, TrackNode} from '../../public/workspace';
+import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 
 class AnnotationPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -49,6 +51,8 @@ class AnnotationPlugin implements PerfettoPlugin {
       groupName: STR_NULL,
     });
 
+    const groups = new Map<string, GroupNode>();
+
     for (; it.valid(); it.next()) {
       const {id, name, upid, groupName} = it;
 
@@ -60,7 +64,6 @@ class AnnotationPlugin implements PerfettoPlugin {
           kind: THREAD_SLICE_TRACK_KIND,
           scope: 'annotation',
           upid,
-          ...(groupName && {groupName}),
         },
         chips: ['metric'],
         track: new ThreadSliceTrack(
@@ -73,6 +76,33 @@ class AnnotationPlugin implements PerfettoPlugin {
           'annotation_slice',
         ),
       });
+
+      // We want to try and find a group to put this track in. If groupName is
+      // defined, create a new group or place in existing one if it already
+      // exists Otherwise, try upid to see if we can put this in a process
+      // group
+
+      let container: ContainerNode;
+      if (groupName) {
+        const existingGroup = groups.get(groupName);
+        if (!existingGroup) {
+          const group = new GroupNode(groupName);
+          group.headerTrackUri = uri;
+          container = group;
+          groups.set(groupName, group);
+          ctx.timeline.workspace.insertChildInOrder(group);
+        } else {
+          container = existingGroup;
+        }
+      } else {
+        if (upid !== 0) {
+          container = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+        } else {
+          container = ctx.timeline.workspace;
+        }
+      }
+
+      container.insertChildInOrder(new TrackNode(uri, name));
     }
   }
 
@@ -115,6 +145,9 @@ class AnnotationPlugin implements PerfettoPlugin {
           rootTable: 'annotation_counter',
         }),
       });
+
+      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      group.insertChildInOrder(new TrackNode(uri, name));
     }
   }
 }

@@ -215,12 +215,6 @@ export interface PluginContextTrace extends PluginContext {
   // Workspace or use registerTrackAndShowOnTraceLoad() below.
   registerTrack(trackDesc: TrackDescriptor): void;
 
-  // Register a track and mark it as "automatically show on trace load".
-  // These tracks are shown only when the trace is loaded from scratch, not
-  // when loading from a permalink, where the existing list of tracks from the
-  // shared state is used instead.
-  registerTrackAndShowOnTraceLoad(track: TrackDescriptor): void;
-
   // Register a new tab for this plugin. Will be unregistered when the plugin
   // is deactivated or when the trace is unloaded.
   registerTab(tab: TabDescriptor): void;
