@@ -29,7 +29,7 @@ import {
 } from './css_constants';
 import {globals} from './globals';
 import {generateTicks, TickType, getMaxMajorTicks} from './gridline_helper';
-import {Size, VerticalBounds} from '../base/geom';
+import {Size2D, VerticalBounds} from '../base/geom';
 import {Panel} from './panel_container';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {classNames} from '../base/classnames';
@@ -545,7 +545,7 @@ export class TrackPanel implements Panel {
   highlightIfTrackSelected(
     ctx: CanvasRenderingContext2D,
     timescale: TimeScale,
-    size: Size,
+    size: Size2D,
   ) {
     const selection = globals.state.selection;
     if (selection.kind !== 'area') {
@@ -563,7 +563,7 @@ export class TrackPanel implements Panel {
     }
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
 
     ctx.save();
@@ -619,7 +619,7 @@ export function drawGridLines(
   ctx: CanvasRenderingContext2D,
   timespan: TimeSpan,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ): void {
   ctx.strokeStyle = TRACK_BORDER_COLOR;
   ctx.lineWidth = 1;
@@ -642,7 +642,7 @@ export function drawGridLines(
 export function renderHoveredCursorVertical(
   ctx: CanvasRenderingContext2D,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ) {
   if (globals.state.hoverCursorTimestamp !== -1n) {
     drawVerticalLineAtTime(
@@ -658,7 +658,7 @@ export function renderHoveredCursorVertical(
 export function renderHoveredNoteVertical(
   ctx: CanvasRenderingContext2D,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ) {
   if (globals.state.hoveredNoteTimestamp !== -1n) {
     drawVerticalLineAtTime(
@@ -674,7 +674,7 @@ export function renderHoveredNoteVertical(
 export function renderWakeupVertical(
   ctx: CanvasRenderingContext2D,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ) {
   const currentSelection = getLegacySelection(globals.state);
   if (currentSelection !== null) {
@@ -696,7 +696,7 @@ export function renderWakeupVertical(
 export function renderNoteVerticals(
   ctx: CanvasRenderingContext2D,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ) {
   // All marked areas should have semi-transparent vertical lines
   // marking the start and end.

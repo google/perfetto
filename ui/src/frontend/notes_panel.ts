@@ -25,7 +25,7 @@ import {TextInput} from '../widgets/text_input';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
-import {Size} from '../base/geom';
+import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
 import {Timestamp} from './widgets/timestamp';
 import {uuidv4} from '../base/uuid';
@@ -143,7 +143,7 @@ export class NotesPanel implements Panel {
     );
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
@@ -156,7 +156,7 @@ export class NotesPanel implements Panel {
     ctx.restore();
   }
 
-  private renderPanel(ctx: CanvasRenderingContext2D, size: Size): void {
+  private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
     let aNoteIsHovered = false;
 
     const visibleWindow = globals.timeline.visibleWindow;

@@ -27,7 +27,7 @@ import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
-import {Vector} from '../../base/geom';
+import {Point2D} from '../../base/geom';
 import {createView, createVirtualTable} from '../../trace_processor/sql_utils';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 
@@ -51,7 +51,7 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 20;
 
 export class CpuFreqTrack implements Track {
-  private mousePos: Vector = {x: 0, y: 0};
+  private mousePos: Point2D = {x: 0, y: 0};
   private hoveredValue: number | undefined = undefined;
   private hoveredTs: time | undefined = undefined;
   private hoveredTsEnd: time | undefined = undefined;
