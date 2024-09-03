@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {HighPrecisionTime} from '../common/high_precision_time';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
+import {HighPrecisionTime} from '../base/high_precision_time';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {PxSpan, TimeScale} from './time_scale';
 
 const t = Time.fromRaw;
