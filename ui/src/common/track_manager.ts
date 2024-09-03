@@ -15,7 +15,6 @@
 import {Optional} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Track, TrackDescriptor} from '../public';
-
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/tracks';
 

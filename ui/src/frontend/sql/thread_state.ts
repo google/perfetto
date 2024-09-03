@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {duration, TimeSpan} from '../../base/time';
 import {Engine} from '../../public';
 import {

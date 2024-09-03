@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {classNames} from '../base/classnames';
 import {hasChildren} from '../base/mithril_utils';
-
 import {HTMLAttrs} from './common';
 import {Icon} from './icon';
 import {Popup, PopupAttrs, PopupPosition} from './popup';

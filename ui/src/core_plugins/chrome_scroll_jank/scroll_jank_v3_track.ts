@@ -21,7 +21,6 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-
 import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {getColorForSlice} from '../../core/colorizer';

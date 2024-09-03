@@ -13,12 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {assertExists} from '../base/logging';
 import {TraceArrayBufferSource} from '../common/state';
 import {createPermalink} from './permalink';
 import {showModal} from '../widgets/modal';
-
 import {onClickCopy} from './clipboard';
 import {globals} from './globals';
 

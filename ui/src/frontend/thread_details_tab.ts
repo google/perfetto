@@ -13,15 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Engine, Tab} from '../public';
 import {Utid} from '../trace_processor/sql_utils/core_types';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
-
 import {Details, DetailsSchema} from './widgets/sql/details/details';
-
 import d = DetailsSchema;
 
 export class ThreadDetailsTab implements Tab {

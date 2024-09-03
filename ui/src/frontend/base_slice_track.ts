@@ -33,7 +33,6 @@ import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {Engine, Slice, Track} from '../public';
 import {LONG, NUM} from '../trace_processor/query_result';
-
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';

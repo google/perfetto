@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect} from '../base/geom';
 import {assertExists} from '../base/logging';

@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
-
 import {globals} from './globals';
 import {createPage} from './pages';
 import {QueryResult, UNKNOWN} from '../trace_processor/query_result';
@@ -177,20 +175,20 @@ class TraceMetadata implements m.ClassComponent {
           name,
           ifnull(str_value, cast(int_value as text)) as value,
           name in (
-            "trace_size_bytes", 
+            "trace_size_bytes",
             "cr-os-arch",
             "cr-os-name",
             "cr-os-version",
             "cr-physical-memory",
             "cr-product-version",
             "cr-hardware-class"
-          ) as priority 
+          ) as priority
         from metadata
       )
       select
         name,
         value
-      from metadata_with_priorities 
+      from metadata_with_priorities
       order by
         priority desc,
         name

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {classNames} from '../base/classnames';
 import {FuzzySegment} from '../base/fuzzy';
 import {isString} from '../base/object_utils';

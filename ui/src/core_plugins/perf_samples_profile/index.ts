@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {TrackData} from '../../common/track_data';
 import {
   Engine,

@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import {SortDirection} from '../base/comparison_utils';
-
 import {isString} from '../base/object_utils';
 import {sqliteString} from '../base/string_utils';
-
 import {Engine} from './engine';
 import {NUM, SqlValue} from './query_result';
 

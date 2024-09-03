@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {classNames} from '../../base/classnames';
 import {raf} from '../../core/raf_scheduler';
 

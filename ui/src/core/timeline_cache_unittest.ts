@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-
 import {CacheKey} from './timeline_cache';
 
 test('cacheKeys', () => {

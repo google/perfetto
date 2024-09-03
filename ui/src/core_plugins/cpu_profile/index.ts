@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {
   CPU_PROFILE_TRACK_KIND,
   Engine,

@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {time, Time} from '../base/time';
 import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
-
 import {
   BACKGROUND_COLOR,
   FOREGROUND_COLOR,

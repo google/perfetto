@@ -13,12 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 import {getLegacySelection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-
 import {Flow, globals} from './globals';
 import {DurationWidget} from './widgets/duration';
 import {EmptyState} from '../widgets/empty_state';

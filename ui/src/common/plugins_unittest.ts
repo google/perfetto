@@ -15,7 +15,6 @@
 import {globals} from '../frontend/globals';
 import {PerfettoPlugin} from '../public';
 import {EngineBase} from '../trace_processor/engine';
-
 import {createEmptyState} from './empty_state';
 import {PluginManager, PluginRegistry} from './plugins';
 

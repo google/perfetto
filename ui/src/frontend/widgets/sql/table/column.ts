@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Engine} from '../../../../public';
 import {SortDirection} from '../../../../base/comparison_utils';

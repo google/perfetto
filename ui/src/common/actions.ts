@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Draft} from 'immer';
-
 import {SortDirection} from '../base/comparison_utils';
 import {assertTrue} from '../base/logging';
 import {duration, time} from '../base/time';
@@ -30,7 +29,6 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_types';
-
 import {
   computeIntervals,
   DropDirection,

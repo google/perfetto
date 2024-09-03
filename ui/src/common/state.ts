@@ -19,7 +19,6 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
-
 import {
   selectionToLegacySelection,
   Selection,

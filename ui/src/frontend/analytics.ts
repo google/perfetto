@@ -15,7 +15,6 @@
 import {ErrorDetails} from '../base/logging';
 import {getCurrentChannel} from '../common/channels';
 import {VERSION} from '../gen/perfetto_version';
-
 import {globals} from './globals';
 import {Router} from './router';
 

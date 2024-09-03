@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
-
 import {isString} from '../base/object_utils';
 import {base64Encode} from '../base/string_utils';
 import {Actions} from '../common/actions';
@@ -30,7 +29,6 @@ import {
 import {globals} from '../frontend/globals';
 import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 import {ConsumerPort, TraceConfig} from '../protos';
-
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_shell_controller';
 import {AdbSocketConsumerPort} from './adb_socket_controller';

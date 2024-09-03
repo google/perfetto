@@ -27,7 +27,6 @@ import {
   TraceProcessorRpc,
   TraceProcessorRpcStream,
 } from '../protos';
-
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
@@ -35,9 +34,7 @@ import {
   QueryResult,
   WritableQueryResult,
 } from './query_result';
-
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
-
 import {Result} from '../base/utils';
 
 export interface LoadingTracker {

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {RecordingPageController} from '../../common/recordingV2/recording_page_controller';
 import {
   EXTENSION_URL,
@@ -27,7 +26,6 @@ import {targetFactoryRegistry} from '../../common/recordingV2/target_factory_reg
 import {WebsocketMenuController} from '../../common/recordingV2/websocket_menu_controller';
 import {closeModal, showModal} from '../../widgets/modal';
 import {CodeSnippet} from '../record_widgets';
-
 import {RecordingMultipleChoice} from './recording_multiple_choice';
 
 const RUN_WEBSOCKET_CMD =

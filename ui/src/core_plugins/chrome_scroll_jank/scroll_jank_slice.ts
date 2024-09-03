@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../../base/semantic_icons';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
@@ -27,7 +26,6 @@ import {
   SQLConstraints,
 } from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
-
 import {ScrollJankPluginState, ScrollJankTrackSpec} from './common';
 import {
   CHROME_EVENT_LATENCY_TRACK_KIND,

@@ -18,7 +18,6 @@ import {Area, Sorting} from '../../common/state';
 import {CPU_SLICE_TRACK_KIND} from '../../core/track_kinds';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
-
 import {AggregationController} from './aggregation_controller';
 
 export class CpuAggregationController extends AggregationController {

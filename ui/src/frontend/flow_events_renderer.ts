@@ -15,7 +15,6 @@
 import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
 import {Size, Vector} from '../base/geom';
 import {Optional} from '../base/utils';
-
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, globals} from './globals';
 import {RenderedPanelInfo} from './panel_container';

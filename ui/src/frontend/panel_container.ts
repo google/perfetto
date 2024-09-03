@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {assertExists, assertFalse} from '../base/logging';
 import {
@@ -25,7 +24,6 @@ import {
   runningStatStr,
 } from '../core/perf';
 import {raf} from '../core/raf_scheduler';
-
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {canvasClip} from '../common/canvas_utils';
 import {

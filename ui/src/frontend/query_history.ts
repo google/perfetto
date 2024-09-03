@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../base/semantic_icons';
 import {assertTrue} from '../base/logging';
 import {Icon} from '../widgets/icon';

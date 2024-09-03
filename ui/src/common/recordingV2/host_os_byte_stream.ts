@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {defer} from '../../base/deferred';
-
 import {
   ByteStream,
   OnStreamCloseCallback,

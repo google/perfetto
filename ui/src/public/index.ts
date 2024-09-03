@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Hotkey} from '../base/hotkeys';
 import {TimeSpan, duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';

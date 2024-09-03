@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {Time} from '../base/time';
@@ -23,7 +22,6 @@ import {SpanNote, Note, Selection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';
 import {TextInput} from '../widgets/text_input';
-
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';

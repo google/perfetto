@@ -19,7 +19,6 @@ import {
   extractTraceConfig,
 } from '../core/trace_config_utils';
 import {globals} from '../frontend/globals';
-
 import {Adb} from './adb_interfaces';
 import {ReadBuffersResponse} from './consumer_port_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';

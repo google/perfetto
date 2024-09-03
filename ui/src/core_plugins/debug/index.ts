@@ -23,7 +23,6 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-
 import {DebugSliceDetailsTab} from '../../frontend/debug_tracks/details_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {Optional, exists} from '../../base/utils';

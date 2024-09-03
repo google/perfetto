@@ -15,7 +15,6 @@
  */
 
 import m from 'mithril';
-
 import {SortDirection} from '../base/comparison_utils';
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
@@ -24,7 +23,6 @@ import {COUNT_AGGREGATION} from '../common/empty_state';
 import {Area, PivotTableResult} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {ColumnType} from '../trace_processor/query_result';
-
 import {globals} from './globals';
 import {
   aggregationIndex,

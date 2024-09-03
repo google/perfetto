@@ -22,7 +22,6 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-
 import {ScreenshotTab} from './screenshot_panel';
 import {ScreenshotsTrack} from './screenshots_track';
 

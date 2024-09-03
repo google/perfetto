@@ -17,7 +17,6 @@ import {
   DEFAULT_WEBSOCKET_URL,
   TRACED_ENDPOINT,
 } from '../../frontend/recording/recording_ui_utils';
-
 import {TargetFactory} from './recording_interfaces_v2';
 import {
   ANDROID_WEBSOCKET_TARGET_FACTORY,

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {assertTrue} from '../../base/logging';
 import {exists} from '../../base/utils';
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';

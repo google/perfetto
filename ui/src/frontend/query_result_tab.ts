@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
-
 import {assertExists} from '../base/logging';
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
@@ -26,7 +25,6 @@ import {
 import {Button} from '../widgets/button';
 import {PopupMenu2} from '../widgets/menu';
 import {PopupPosition} from '../widgets/popup';
-
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {QueryTable} from './query_table';
 import {globals} from './globals';

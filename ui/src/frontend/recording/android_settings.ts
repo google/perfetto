@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {DataSourceDescriptor} from '../../protos';
 import {globals} from '../globals';
 import {
@@ -28,7 +27,6 @@ import {
   Toggle,
   ToggleAttrs,
 } from '../record_widgets';
-
 import {RecordingSectionAttrs} from './recording_sections';
 
 const LOG_BUFFERS = new Map<string, string>();

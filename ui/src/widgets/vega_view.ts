@@ -15,7 +15,6 @@
 import m from 'mithril';
 import * as vega from 'vega';
 import * as vegaLite from 'vega-lite';
-
 import {getErrorMessage} from '../base/errors';
 import {isString, shallowEquals} from '../base/object_utils';
 import {SimpleResizeObserver} from '../base/resize_observer';

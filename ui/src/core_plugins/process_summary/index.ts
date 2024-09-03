@@ -19,7 +19,6 @@ import {
 } from '../../public';
 import {getThreadOrProcUri} from '../../public/utils';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-
 import {
   Config as ProcessSchedulingTrackConfig,
   PROCESS_SCHEDULING_TRACK_KIND,

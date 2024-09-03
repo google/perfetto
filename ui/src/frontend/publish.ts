@@ -20,7 +20,6 @@ import {CurrentSearchResults} from '../common/search_data';
 import {raf} from '../core/raf_scheduler';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {getLegacySelection} from '../common/state';
-
 import {
   Flow,
   globals,

@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import {produce} from 'immer';
-
 import {assertExists} from '../base/logging';
-
 import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';
 import {TraceUrlSource} from './state';
