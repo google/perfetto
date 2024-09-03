@@ -29,7 +29,7 @@ import {Track} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
-import {Vector} from '../../base/geom';
+import {Point2D} from '../../base/geom';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -55,7 +55,7 @@ export interface Config {
 }
 
 export class ProcessSchedulingTrack implements Track {
-  private mousePos?: Vector;
+  private mousePos?: Point2D;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private cpuCount: number;

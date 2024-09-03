@@ -32,7 +32,7 @@ import {
   generateTicks,
   TickType,
 } from './gridline_helper';
-import {Size} from '../base/geom';
+import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
 import {PxSpan, TimeScale} from './time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
@@ -100,7 +100,7 @@ export class OverviewTimelinePanel implements Panel {
     });
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     if (this.width === undefined) return;
     if (this.timeScale === undefined) return;
     const headerHeight = 20;

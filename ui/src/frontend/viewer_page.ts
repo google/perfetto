@@ -46,7 +46,7 @@ import {exists, Optional} from '../base/utils';
 import {EmptyState} from '../widgets/empty_state';
 import {removeFalsyValues} from '../base/array_utils';
 import {renderFlows} from './flow_events_renderer';
-import {Size} from '../base/geom';
+import {Size2D} from '../base/geom';
 import {canvasClip, canvasSave} from '../base/canvas_utils';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
@@ -311,7 +311,7 @@ class TraceViewer implements m.ClassComponent {
 
 function renderOverlay(
   ctx: CanvasRenderingContext2D,
-  canvasSize: Size,
+  canvasSize: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
 ): void {
   const size = {
