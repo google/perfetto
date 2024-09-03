@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import protobuf from 'protobufjs/minimal';
-
 import {defer, Deferred} from '../../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../../base/logging';
 import {
@@ -35,7 +34,6 @@ import {
   ReadBuffersResponse,
   TraceConfig,
 } from '../../protos';
-
 import {RecordingError} from './recording_error_handling';
 import {
   ByteStream,

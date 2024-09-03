@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Time, time} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {Anchor} from '../widgets/anchor';
@@ -24,7 +23,6 @@ import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {Tree, TreeNode} from '../widgets/tree';
 import {Intent} from '../widgets/common';
-
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {
   SchedSqlId,

@@ -20,7 +20,6 @@ import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
-
 import {NonSerializableState, State, STATE_VERSION} from './state';
 
 const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({

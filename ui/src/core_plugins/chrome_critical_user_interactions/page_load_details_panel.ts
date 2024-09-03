@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
@@ -22,7 +21,6 @@ import {
 } from '../../frontend/widgets/sql/details/details';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-
 import d = DetailsSchema;
 
 export class PageLoadDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> {

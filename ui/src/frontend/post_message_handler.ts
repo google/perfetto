@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Time} from '../base/time';
 import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
 import {showModal} from '../widgets/modal';
-
 import {initCssConstants} from './css_constants';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';

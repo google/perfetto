@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Probe, ProbeAttrs} from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
 

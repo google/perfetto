@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {GenericSliceDetailsTabConfig} from '../core/generic_slice_details_types';
 import {raf} from '../core/raf_scheduler';
 import {ColumnType} from '../trace_processor/query_result';
@@ -23,7 +22,6 @@ import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {dictToTree, Tree, TreeNode} from '../widgets/tree';
-
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 
 export {

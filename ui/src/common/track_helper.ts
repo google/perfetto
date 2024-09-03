@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-
 import {duration, Time, time, TimeSpan} from '../base/time';
 export {Store} from '../base/store';
 import {raf} from '../core/raf_scheduler';

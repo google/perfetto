@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {copyToClipboard} from '../base/clipboard';
-
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
@@ -32,7 +30,6 @@ import {Command} from '../public';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
-
 import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {getTimeSpanOfSelectionOrVisibleWindow, globals} from './globals';

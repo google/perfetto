@@ -20,7 +20,6 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-
 import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {RunnableThreadCountTrack} from './runnable_thread_count';
 import {getSchedTable} from './table';

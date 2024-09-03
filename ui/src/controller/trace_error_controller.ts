@@ -15,7 +15,6 @@
 import {publishTraceErrors} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
-
 import {Controller} from './controller';
 
 export interface TraceErrorControllerArgs {

@@ -25,7 +25,6 @@ import {publishSearchResult} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
-
 import {Controller} from './controller';
 
 export interface SearchControllerArgs {

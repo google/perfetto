@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {HTMLFocusableAttrs} from './common';
 import {Icon} from './icon';
 import {findRef} from '../base/dom_utils';

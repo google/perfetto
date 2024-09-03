@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {v4 as uuidv4} from 'uuid';
-
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
   BottomTabToSCSAdapter,
@@ -22,7 +21,6 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
 import {WebContentInteractionPanel} from './web_content_interaction_details_panel';

@@ -21,7 +21,6 @@ import {
   fromNumNull,
   SQLConstraints,
 } from '../sql_utils';
-
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
 import {asUtid, SchedSqlId, ThreadStateSqlId} from './core_types';

@@ -20,7 +20,6 @@ import {THREAD_STATE_TRACK_KIND} from '../../core/track_kinds';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-
 import {AggregationController} from './aggregation_controller';
 
 export class ThreadAggregationController extends AggregationController {

@@ -25,7 +25,6 @@ import {
   PluginDescriptor,
   STR_NULL,
 } from '../../public';
-
 import {ChromeTasksDetailsTab} from './details';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';

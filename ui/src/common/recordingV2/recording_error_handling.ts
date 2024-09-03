@@ -23,7 +23,6 @@ import {
   showWebsocketConnectionIssue,
   showWebUSBErrorV2,
 } from '../../frontend/error_dialog';
-
 import {OnMessageCallback} from './recording_interfaces_v2';
 import {
   ALLOW_USB_DEBUGGING,

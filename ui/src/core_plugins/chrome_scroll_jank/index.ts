@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {v4 as uuidv4} from 'uuid';
-
 import {uuidv4Sql} from '../../base/uuid';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
 import {featureFlags} from '../../core/feature_flags';
@@ -30,7 +29,6 @@ import {
   SCROLL_JANK_V3_TRACK_KIND,
 } from '../../public';
 import {Engine} from '../../trace_processor/engine';
-
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './common';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';

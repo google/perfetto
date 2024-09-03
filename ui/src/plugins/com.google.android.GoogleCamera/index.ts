@@ -17,7 +17,6 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-
 import * as cameraConstants from './googleCameraConstants';
 
 class GoogleCamera implements PerfettoPlugin {

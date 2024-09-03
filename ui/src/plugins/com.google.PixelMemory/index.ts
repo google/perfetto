@@ -17,7 +17,6 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-
 import {addDebugCounterTrack} from '../../frontend/debug_tracks/debug_tracks';
 
 class PixelMemory implements PerfettoPlugin {

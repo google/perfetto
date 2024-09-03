@@ -15,7 +15,6 @@
 import {Engine} from '../engine';
 import {NUM, NUM_NULL, STR_NULL} from '../query_result';
 import {fromNumNull} from '../sql_utils';
-
 import {Upid} from './core_types';
 
 // TODO(altimin): We should consider implementing some form of cache rather than querying

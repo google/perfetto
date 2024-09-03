@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import {dingus} from 'dingusjs';
-
 import {utf8Encode} from '../base/string_utils';
 import {EnableTracingRequest, TraceConfig} from '../protos';
-
 import {AdbStream, MockAdb, MockAdbStream} from './adb_interfaces';
 import {AdbConsumerPort} from './adb_shell_controller';
 import {Consumer} from './record_controller_interfaces';

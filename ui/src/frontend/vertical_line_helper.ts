@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {time} from '../base/time';
-
 import {TimeScale} from './time_scale';
 
 export function drawVerticalLineAtTime(

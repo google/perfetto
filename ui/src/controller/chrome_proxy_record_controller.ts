@@ -14,7 +14,6 @@
 
 import {binaryDecode, binaryEncode} from '../base/string_utils';
 import {TRACE_SUFFIX} from '../common/constants';
-
 import {
   ConsumerPortResponse,
   hasProperty,

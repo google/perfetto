@@ -15,7 +15,6 @@
  */
 
 import m from 'mithril';
-
 import {raf} from '../core/raf_scheduler';
 
 interface ArgumentPopupArgs {

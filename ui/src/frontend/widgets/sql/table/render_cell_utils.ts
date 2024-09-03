@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {TableManager, SqlColumn} from './column';
 import {MenuItem, PopupMenu2} from '../../../../widgets/menu';
 import {SqlValue} from '../../../../trace_processor/query_result';

@@ -19,7 +19,6 @@ import {
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
 import {Engine} from '../../public';
-
 import {ChromeTasksDetailsTab} from './details';
 
 export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {

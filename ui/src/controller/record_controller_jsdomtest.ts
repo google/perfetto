@@ -14,7 +14,6 @@
 
 import {assertExists} from '../base/logging';
 import {TraceConfig} from '../protos';
-
 import {createEmptyRecordConfig} from './record_config_types';
 import {genConfigProto, toPbtxt} from './record_controller';
 

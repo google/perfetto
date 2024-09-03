@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../../../../base/semantic_icons';
 import {sqliteString} from '../../../../base/string_utils';
 import {Duration, Time} from '../../../../base/time';
@@ -37,7 +36,6 @@ import {SliceRef} from '../../slice';
 import {showThreadDetailsMenuItem, threadRefMenuItems} from '../../thread';
 import {ThreadStateRef} from '../../thread_state';
 import {Timestamp} from '../../timestamp';
-
 import {
   AggregationConfig,
   SourceTable,

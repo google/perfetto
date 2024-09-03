@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Tree, TreeNode} from '../widgets/tree';
-
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
 
 // This file implements a component for rendering JSON-like values (with

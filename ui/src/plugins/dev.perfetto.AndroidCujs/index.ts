@@ -162,7 +162,7 @@ const LATENCY_CUJ_QUERY = `
                 cuj_state_marker.ts >= cuj.ts
                 AND cuj_state_marker.ts + cuj_state_marker.dur <= cuj.ts + cuj.dur
                 AND marker_track.name = cuj.name AND (
-                    cuj_state_marker.name GLOB 'cancel' 
+                    cuj_state_marker.name GLOB 'cancel'
                     OR cuj_state_marker.name GLOB 'timeout')
             )
           THEN ' ❌ '

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {globals} from './globals';
 import {NotesManager} from './notes_manager';
 import {NotesEditorTab} from './notes_panel';

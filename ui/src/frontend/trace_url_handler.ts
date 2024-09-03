@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Actions} from '../common/actions';
 import {tryGetTrace} from '../common/cache_manager';
 import {showModal} from '../widgets/modal';
-
 import {loadPermalink} from './permalink';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {globals} from './globals';

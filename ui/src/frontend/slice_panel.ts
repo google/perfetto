@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {exists} from '../base/utils';
-
 import {SliceDetails} from './globals';
 
 // To display process or thread, we want to concatenate their name with ID, but

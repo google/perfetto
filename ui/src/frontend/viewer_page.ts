@@ -13,14 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {NotesPanel} from './notes_panel';
@@ -44,7 +42,6 @@ import {assertExists} from '../base/logging';
 import {PxSpan, TimeScale} from './time_scale';
 import {GroupNode, Node, TrackNode} from '../public/workspace';
 import {fuzzyMatch, FuzzySegment} from '../base/fuzzy';
-
 import {exists, Optional} from '../base/utils';
 import {EmptyState} from '../widgets/empty_state';
 import {removeFalsyValues} from '../base/array_utils';

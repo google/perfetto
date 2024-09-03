@@ -16,7 +16,6 @@ import {BottomTab} from '../frontend/bottom_tab';
 import {globals} from '../frontend/globals';
 import {Tab} from '../public';
 import {BottomTabToTabAdapter} from '../public/utils';
-
 import {Actions} from './actions';
 
 export function addEphemeralTab(uriPrefix: string, tab: Tab): void {

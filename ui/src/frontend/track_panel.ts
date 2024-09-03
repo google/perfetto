@@ -14,7 +14,6 @@
 
 import {hex} from 'color-convert';
 import m from 'mithril';
-
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {TimeSpan} from '../base/time';
@@ -22,7 +21,6 @@ import {Actions} from '../common/actions';
 import {TrackRenderer} from '../common/track_manager';
 import {raf} from '../core/raf_scheduler';
 import {Track, TrackTags} from '../public';
-
 import {checkerboard} from './checkerboard';
 import {
   SELECTION_FILL_COLOR,

@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {raf} from '../../../../core/raf_scheduler';
 import {Spinner} from '../../../../widgets/spinner';
-
 import {
   TableColumn,
   tableColumnId,

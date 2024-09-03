@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {CPU_SLICE_TRACK_KIND} from '../../public';
 import {SliceDetailsPanel} from '../../frontend/slice_details_panel';
 import {

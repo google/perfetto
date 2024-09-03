@@ -15,7 +15,6 @@
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {getLegacySelection} from '../common/state';
-
 import {Flow, globals} from './globals';
 import {focusHorizontalRange, verticalScrollToTrack} from './scroll_helper';
 
