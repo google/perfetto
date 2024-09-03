@@ -25,6 +25,8 @@ import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {removeFalsyValues} from '../../base/array_utils';
+import {getOrCreateGroupForThread} from '../../public/standard_groups';
+import {TrackNode} from '../../public/workspace';
 
 class ThreadSlicesPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -97,6 +99,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
           ...(isDefaultTrackForScope === 1 && {isDefaultTrackForScope: true}),
+          ...(isKernelThread === 1 && {kernelThread: true}),
         },
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
@@ -110,6 +113,10 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
           maxDepth,
         ),
       });
+      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = 20;
+      group.insertChildInOrder(track);
     }
 
     ctx.registerDetailsPanel(

@@ -26,7 +26,7 @@ import {
   NamedSliceTrack,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-
+import {TrackNode} from '../../public/workspace';
 class GpuPidTrack extends NamedSliceTrack {
   upid: number;
 
@@ -83,11 +83,13 @@ class GpuByProcess implements PerfettoPlugin {
       }
 
       const uri = `dev.perfetto.GpuByProcess#${upid}`;
-      ctx.registerTrackAndShowOnTraceLoad({
+      const title = `GPU ${processName}`;
+      ctx.registerTrack({
         uri,
-        title: `GPU ${processName}`,
+        title,
         track: new GpuPidTrack({engine: ctx.engine, uri}, upid),
       });
+      ctx.timeline.workspace.insertChildInOrder(new TrackNode(uri, title));
     }
   }
 

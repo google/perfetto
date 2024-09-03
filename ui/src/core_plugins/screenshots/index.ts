@@ -14,6 +14,7 @@
 
 import {uuidv4} from '../../base/uuid';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
+import {TrackNode} from '../../public/workspace';
 import {
   BottomTabToSCSAdapter,
   NUM,
@@ -49,6 +50,9 @@ class ScreenshotsPlugin implements PerfettoPlugin {
           kind: ScreenshotsTrack.kind,
         },
       });
+      const trackNode = new TrackNode(uri, displayName);
+      trackNode.sortOrder = -60;
+      ctx.timeline.workspace.insertChildInOrder(trackNode);
 
       ctx.registerDetailsPanel(
         new BottomTabToSCSAdapter({

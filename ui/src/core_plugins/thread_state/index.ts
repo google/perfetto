@@ -29,6 +29,8 @@ import {removeFalsyValues} from '../../base/array_utils';
 import {getThreadStateTable} from './table';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
 import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
+import {TrackNode} from '../../public/workspace';
+import {getOrCreateGroupForThread} from '../../public/standard_groups';
 
 class ThreadState implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -74,6 +76,7 @@ class ThreadState implements PerfettoPlugin {
           kind: THREAD_STATE_TRACK_KIND,
           utid,
           upid: upid ?? undefined,
+          ...(isKernelThread === 1 && {kernelThread: true}),
         },
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
@@ -86,6 +89,11 @@ class ThreadState implements PerfettoPlugin {
           utid,
         ),
       });
+
+      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = 10;
+      group.insertChildInOrder(track);
     }
 
     ctx.registerDetailsPanel(

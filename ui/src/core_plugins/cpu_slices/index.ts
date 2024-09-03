@@ -24,6 +24,7 @@ import {
 } from '../../public';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {CpuSliceTrack} from './cpu_slice_track';
+import {TrackNode} from '../../public/workspace';
 
 class CpuSlices implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -44,6 +45,9 @@ class CpuSlices implements PerfettoPlugin {
         },
         track: new CpuSliceTrack(ctx.engine, uri, cpu),
       });
+      const trackNode = new TrackNode(uri, name);
+      trackNode.sortOrder = -50;
+      ctx.timeline.workspace.insertChildInOrder(trackNode);
     }
 
     ctx.registerDetailsPanel({
