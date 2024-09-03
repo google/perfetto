@@ -20,7 +20,7 @@ import {
   STR,
   LONG,
 } from '../../trace_processor/query_result';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {Engine} from '../../trace_processor/engine';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
@@ -142,7 +142,7 @@ async function getCounterEventBounds(
 }
 
 class CounterPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCounterTracks(ctx);
     await this.addGpuFrequencyTracks(ctx);
     await this.addCpuFreqLimitCounterTracks(ctx);
@@ -151,7 +151,7 @@ class CounterPlugin implements PerfettoPlugin {
     await this.addProcessCounterTracks(ctx);
   }
 
-  private async addCounterTracks(ctx: PluginContextTrace) {
+  private async addCounterTracks(ctx: Trace) {
     const result = await ctx.engine.query(`
       select name, id, unit
       from (
@@ -208,7 +208,7 @@ class CounterPlugin implements PerfettoPlugin {
     }
   }
 
-  async addCpuFreqLimitCounterTracks(ctx: PluginContextTrace): Promise<void> {
+  async addCpuFreqLimitCounterTracks(ctx: Trace): Promise<void> {
     const cpuFreqLimitCounterTracksSql = `
       select name, id
       from cpu_counter_track
@@ -220,7 +220,7 @@ class CounterPlugin implements PerfettoPlugin {
     this.addCpuCounterTracks(ctx, cpuFreqLimitCounterTracksSql, 'cpuFreqLimit');
   }
 
-  async addCpuPerfCounterTracks(ctx: PluginContextTrace): Promise<void> {
+  async addCpuPerfCounterTracks(ctx: Trace): Promise<void> {
     // Perf counter tracks are bound to CPUs, follow the scheduling and
     // frequency track naming convention ("Cpu N ...").
     // Note: we might not have a track for a given cpu if no data was seen from
@@ -237,7 +237,7 @@ class CounterPlugin implements PerfettoPlugin {
   }
 
   async addCpuCounterTracks(
-    ctx: PluginContextTrace,
+    ctx: Trace,
     sql: string,
     scope: string,
   ): Promise<void> {
@@ -277,7 +277,7 @@ class CounterPlugin implements PerfettoPlugin {
     }
   }
 
-  async addThreadCounterTracks(ctx: PluginContextTrace): Promise<void> {
+  async addThreadCounterTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       select
         thread_counter_track.name as trackName,
@@ -349,7 +349,7 @@ class CounterPlugin implements PerfettoPlugin {
     }
   }
 
-  async addProcessCounterTracks(ctx: PluginContextTrace): Promise<void> {
+  async addProcessCounterTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
     select
       process_counter_track.id as trackId,
@@ -411,7 +411,7 @@ class CounterPlugin implements PerfettoPlugin {
     }
   }
 
-  private async addGpuFrequencyTracks(ctx: PluginContextTrace) {
+  private async addGpuFrequencyTracks(ctx: Trace) {
     const engine = ctx.engine;
     const numGpus = ctx.trace.gpuCount;
 

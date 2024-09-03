@@ -15,7 +15,7 @@
 import {globals} from '../../frontend/globals';
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {TrackDescriptor} from '../../public/track';
 import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
 import {time, Time} from '../../base/time';
@@ -27,12 +27,12 @@ import {scrollToTrackAndTimeSpan} from '../../frontend/scroll_helper';
  * Static tracks cannot be added on command
  * TODO: b/349502258 - To be removed later
  *
- * @param {PluginContextTrace} ctx Context for trace methods and properties
+ * @param {Trace} ctx Context for trace methods and properties
  * @param {SimpleSliceTrackConfig} config Track config to add
  * @param {string} trackName Track name to display
  */
 export function addDebugTrackOnCommand(
-  ctx: PluginContextTrace,
+  ctx: Trace,
   config: SimpleSliceTrackConfig,
   trackName: string,
 ) {
@@ -48,13 +48,13 @@ export function addDebugTrackOnCommand(
 /**
  * Registers and pins tracks on traceload or command
  *
- * @param {PluginContextTrace} ctx Context for trace methods and properties
+ * @param {Trace} ctx Context for trace methods and properties
  * @param {SimpleSliceTrackConfig} config Track config to add
  * @param {string} trackName Track name to display
  * type 'static' expects caller to pass uri string
  */
 export function addAndPinSliceTrack(
-  ctx: PluginContextTrace,
+  ctx: Trace,
   config: SimpleSliceTrackConfig,
   trackName: string,
 ) {

@@ -24,7 +24,7 @@ import {Timestamp} from '../../frontend/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
 import {HEAP_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {LegacyDetailsPanel} from '../../public/track';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -50,7 +50,7 @@ import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
 
 class HeapProfilePlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       select distinct upid from heap_profile_allocation
       union

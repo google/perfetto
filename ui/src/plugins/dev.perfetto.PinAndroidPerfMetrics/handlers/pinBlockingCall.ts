@@ -17,7 +17,7 @@ import {
   BlockingCallMetricData,
   MetricHandler,
 } from './metricUtils';
-import {PluginContextTrace} from '../../../public';
+import {Trace} from '../../../public/trace';
 import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
 import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
 import {addAndPinSliceTrack} from '../../dev.perfetto.AndroidCujs/trackUtils';
@@ -49,23 +49,17 @@ class BlockingCallMetricHandler implements MetricHandler {
    * Adds the debug tracks for Blocking Call metrics
    *
    * @param {BlockingCallMetricData} metricData Parsed metric data for the cuj scoped jank
-   * @param {PluginContextTrace} ctx PluginContextTrace for trace related properties and methods
+   * @param {Trace} ctx PluginContextTrace for trace related properties and methods
    * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
    */
-  public addMetricTrack(
-    metricData: BlockingCallMetricData,
-    ctx: PluginContextTrace,
-  ): void {
+  public addMetricTrack(metricData: BlockingCallMetricData, ctx: Trace): void {
     this.pinSingleCuj(ctx, metricData);
     const {config: blockingCallMetricConfig, trackName: trackName} =
       this.blockingCallTrackConfig(metricData);
     addAndPinSliceTrack(ctx, blockingCallMetricConfig, trackName);
   }
 
-  private pinSingleCuj(
-    ctx: PluginContextTrace,
-    metricData: BlockingCallMetricData,
-  ) {
+  private pinSingleCuj(ctx: Trace, metricData: BlockingCallMetricData) {
     const trackName = `Jank CUJ: ${metricData.cujName}`;
     addJankCUJDebugTrack(ctx, trackName, metricData.cujName);
   }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
   getOrCreateGroupForProcess,
@@ -37,13 +37,11 @@ interface Cache {
 // This plugin is responsible for organizing all process and thread groups
 // including the kernel groups, sorting, and adding summary tracks.
 class ProcessThreadGroupsPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessAndThreadGroups(ctx);
   }
 
-  private async addProcessAndThreadGroups(
-    ctx: PluginContextTrace,
-  ): Promise<void> {
+  private async addProcessAndThreadGroups(ctx: Trace): Promise<void> {
     const cache: Cache = {
       threadGroups: new Map<number, GroupNode>(),
       processGroups: new Map<number, GroupNode>(),
@@ -66,7 +64,7 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
   }
 
   private async addKernelThreadGrouping(
-    ctx: PluginContextTrace,
+    ctx: Trace,
     cache: Cache,
   ): Promise<void> {
     // Identify kernel threads if this is a linux system trace, and sufficient
@@ -131,10 +129,7 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
 
   // Adds top level groups for processes and thread that don't belong to a
   // process.
-  private async addProcessGroups(
-    ctx: PluginContextTrace,
-    cache: Cache,
-  ): Promise<void> {
+  private async addProcessGroups(ctx: Trace, cache: Cache): Promise<void> {
     const result = await ctx.engine.query(`
       with processGroups as (
         select
@@ -278,10 +273,7 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
 
   // Create all the nested & headless thread groups that live inside existing
   // process groups.
-  private async addThreadGroups(
-    ctx: PluginContextTrace,
-    cache: Cache,
-  ): Promise<void> {
+  private async addThreadGroups(ctx: Trace, cache: Cache): Promise<void> {
     const result = await ctx.engine.query(`
       with threadGroups as (
         select

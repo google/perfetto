@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext, PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
+import {App} from '../../public/app';
 import {MetricVisualisation} from '../../public/plugin';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {createStore, Store} from '../../base/store';
@@ -34,7 +35,7 @@ class Skeleton implements PerfettoPlugin {
    * This hook should be used for adding commands that don't depend on the
    * trace.
    */
-  onActivate(_: PluginContext): void {
+  onActivate(_: App): void {
     //
   }
 
@@ -46,7 +47,7 @@ class Skeleton implements PerfettoPlugin {
    * It should not be used for finding tracks from other plugins as there is no
    * guarantee those tracks will have been added yet.
    */
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     this.store = ctx.mountStore((_: unknown): State => {
       return {foo: 'bar'};
     });
@@ -91,22 +92,22 @@ class Skeleton implements PerfettoPlugin {
    * TODO(stevegolton): Update this comment if the semantics of track adding
    * changes.
    */
-  async onTraceReady(_ctx: PluginContextTrace): Promise<void> {}
+  async onTraceReady(_ctx: Trace): Promise<void> {}
 
   /**
    * This hook is called as the trace is being unloaded, such as when switching
    * traces. It should be used to clean up any trace related resources.
    */
-  async onTraceUnload(_: PluginContextTrace): Promise<void> {
+  async onTraceUnload(_: Trace): Promise<void> {
     this.store[Symbol.dispose]();
   }
 
   /**
    * This hook is called when this plugin is manually deactivated by the user.
    */
-  onDeactivate(_: PluginContext): void {}
+  onDeactivate(_: App): void {}
 
-  metricVisualisations(_: PluginContextTrace): MetricVisualisation[] {
+  metricVisualisations(_: Trace): MetricVisualisation[] {
     return [];
   }
 }

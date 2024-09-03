@@ -14,19 +14,19 @@
 
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {addAndPinSliceTrack} from './trackUtils';
 
 /**
  * Adds the Debug Slice Track for given Jank CUJ name
  *
- * @param {PluginContextTrace} ctx For properties and methods of trace viewer
+ * @param {Trace} ctx For properties and methods of trace viewer
  * @param {string} trackName Display Name of the track
  * @param {string | string[]} cujNames List of Jank CUJs to pin
  */
 export function addJankCUJDebugTrack(
-  ctx: PluginContextTrace,
+  ctx: Trace,
   trackName: string,
   cujNames?: string | string[],
 ) {
@@ -215,7 +215,7 @@ const BLOCKING_CALLS_DURING_CUJS_COLUMNS = [
 ];
 
 class AndroidCujs implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidCujs#PinJankCUJs',
       name: 'Add track: Android jank CUJs',

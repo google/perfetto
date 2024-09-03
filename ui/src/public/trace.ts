@@ -1,4 +1,4 @@
-// Copyright (C) 2022 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,40 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TimeSpan, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
-import {Engine} from '../trace_processor/engine';
-import {PromptOption} from './omnibox';
-import {LegacyDetailsPanel, TrackDescriptor} from './track';
+import {time, TimeSpan} from '../base/time';
 import {TraceContext} from '../frontend/trace_context';
-import {Workspace} from './workspace';
-import {Command} from './command';
+import {Engine} from '../trace_processor/engine';
+import {App} from './app';
+import {PromptOption} from './omnibox';
 import {TabDescriptor} from './tab';
-import {SidebarMenuItem} from './sidebar';
+import {LegacyDetailsPanel, TrackDescriptor} from './track';
+import {Workspace} from './workspace';
 
-// This interface defines a context for a plugin, which is an object passed to
-// most hooks within the plugin. It should be used to interact with Perfetto.
-export interface PluginContext {
-  // The unique ID for this plugin.
-  readonly pluginId: string;
-
-  // Register command against this plugin context.
-  registerCommand(command: Command): void;
-
-  // Run a command, optionally passing some args.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  runCommand(id: string, ...args: any[]): any;
-
-  // Adds a new menu item to the sidebar.
-  // All entries must map to a command. This will allow the shortcut and
-  // optional shortcut to be displayed on the UI.
-  addSidebarMenuItem(menuItem: SidebarMenuItem): void;
-}
-
-// Similar to PluginContext but with additional methods to operate on the
-// currently loaded trace. Passed to trace-relevant hooks on a plugin instead of
-// PluginContext.
-export interface PluginContextTrace extends PluginContext {
+/**
+ * The main API endpoint to interact programmaticaly with the UI and alter its
+ * state once a trace is loaded. There are N+1 instances of this interface,
+ * one for each plugin and one for the core (which, however, gets to see the
+ * full AppImpl behind this to acces all the internal methods).
+ * This interface is passed to plugins' onTraceLoad() hook and is injected
+ * pretty much everywhere in core.
+ */
+export interface Trace extends App {
   readonly engine: Engine;
 
   // Control over the main timeline.

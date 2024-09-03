@@ -16,7 +16,7 @@ import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../../public/track_kinds';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {getTrackName} from '../../public/utils';
@@ -26,12 +26,12 @@ import {ActualFramesTrack} from './actual_frames_track';
 import {ExpectedFramesTrack} from './expected_frames_track';
 
 class FramesPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
   }
 
-  async addExpectedFrames(ctx: PluginContextTrace): Promise<void> {
+  async addExpectedFrames(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
       select
@@ -90,7 +90,7 @@ class FramesPlugin implements PerfettoPlugin {
     }
   }
 
-  async addActualFrames(ctx: PluginContextTrace): Promise<void> {
+  async addActualFrames(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
       select

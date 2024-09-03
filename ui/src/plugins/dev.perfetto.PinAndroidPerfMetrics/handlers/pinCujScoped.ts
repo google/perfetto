@@ -19,7 +19,7 @@ import {
   JankType,
 } from './metricUtils';
 import {LONG, NUM} from '../../../trace_processor/query_result';
-import {PluginContextTrace} from '../../../public';
+import {Trace} from '../../../public/trace';
 import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
 import {
   addAndPinSliceTrack,
@@ -57,13 +57,10 @@ class PinCujScopedJank implements MetricHandler {
    * Adds the debug tracks for cuj Scoped jank metrics.
    *
    * @param {CujScopedMetricData} metricData Parsed metric data for the cuj scoped jank
-   * @param {PluginContextTrace} ctx PluginContextTrace for trace related properties and methods
+   * @param {Trace} ctx PluginContextTrace for trace related properties and methods
    * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
    */
-  public async addMetricTrack(
-    metricData: CujScopedMetricData,
-    ctx: PluginContextTrace,
-  ) {
+  public async addMetricTrack(metricData: CujScopedMetricData, ctx: Trace) {
     // TODO: b/349502258 - Refactor to single API
     const {
       config: cujScopedJankSlice,
@@ -78,7 +75,7 @@ class PinCujScopedJank implements MetricHandler {
 
   private async cujScopedTrackConfig(
     metricData: CujScopedMetricData,
-    ctx: PluginContextTrace,
+    ctx: Trace,
   ): Promise<{
     config: SimpleSliceTrackConfig;
     trackName: string;
@@ -135,7 +132,7 @@ class PinCujScopedJank implements MetricHandler {
   }
 
   private async findFirstJank(
-    ctx: PluginContextTrace,
+    ctx: Trace,
     tableWithJankyFramesName: string,
   ): Promise<SliceIdentifier | undefined> {
     const queryForFirstJankyFrame = `
@@ -166,10 +163,7 @@ class PinCujScopedJank implements MetricHandler {
     return slice;
   }
 
-  private async focusOnFirstJank(
-    ctx: PluginContextTrace,
-    tableWithJankyFramesName: string,
-  ) {
+  private async focusOnFirstJank(ctx: Trace, tableWithJankyFramesName: string) {
     const slice = await this.findFirstJank(ctx, tableWithJankyFramesName);
     if (slice) {
       focusOnSlice(slice);
