@@ -604,51 +604,6 @@ export const StateActions = {
     state.hoveredNoteTimestamp = args.ts;
   },
 
-  // Add a tab with a given URI to the tab bar and show it.
-  // If the tab is already present in the tab bar, just show it.
-  showTab(state: StateDraft, args: {uri: string}) {
-    // Add tab, unless we're talking about the special current_selection tab
-    if (args.uri !== 'current_selection') {
-      // Add tab to tab list if not already
-      if (!state.tabs.openTabs.some((uri) => uri === args.uri)) {
-        state.tabs.openTabs.push(args.uri);
-      }
-    }
-    state.tabs.currentTab = args.uri;
-  },
-
-  // Hide a tab in the tab bar pick a new tab to show.
-  // Note: Attempting to hide the "current_selection" tab doesn't work. This tab
-  // is special and cannot be removed.
-  hideTab(state: StateDraft, args: {uri: string}) {
-    const tabs = state.tabs;
-    // If the removed tab is the "current" tab, we must find a new tab to focus
-    if (args.uri === tabs.currentTab) {
-      // Remember the index of the current tab
-      const currentTabIdx = tabs.openTabs.findIndex((uri) => uri === args.uri);
-
-      // Remove the tab
-      tabs.openTabs = tabs.openTabs.filter((uri) => uri !== args.uri);
-
-      if (currentTabIdx !== -1) {
-        if (tabs.openTabs.length === 0) {
-          // No more tabs, use current selection
-          tabs.currentTab = 'current_selection';
-        } else if (currentTabIdx < tabs.openTabs.length - 1) {
-          // Pick the tab to the right
-          tabs.currentTab = tabs.openTabs[currentTabIdx];
-        } else {
-          // Pick the last tab
-          const lastTab = tabs.openTabs[tabs.openTabs.length - 1];
-          tabs.currentTab = lastTab;
-        }
-      }
-    } else {
-      // Otherwise just remove the tab
-      tabs.openTabs = tabs.openTabs.filter((uri) => uri !== args.uri);
-    }
-  },
-
   togglePivotTable(state: StateDraft, args: {area?: Area}) {
     state.nonSerializableState.pivotTable.selectionArea = args.area;
     state.nonSerializableState.pivotTable.queryResult = null;

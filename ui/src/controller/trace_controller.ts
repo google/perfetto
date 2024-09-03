@@ -727,7 +727,7 @@ export class TraceController extends Controller<States> {
   // Show the list of default tabs, but don't make them active!
   private decideTabs() {
     for (const tabUri of globals.tabManager.defaultTabs) {
-      globals.dispatch(Actions.showTab({uri: tabUri}));
+      globals.tabManager.showTab(tabUri);
     }
   }
 

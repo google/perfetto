@@ -24,7 +24,6 @@ import {MetricVisualisation} from '../public/plugin';
 import {PerfettoPlugin, PluginDescriptor} from '../public/plugin';
 import {Command} from '../public/command';
 import {EngineBase, Engine} from '../trace_processor/engine';
-import {Actions} from './actions';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Flag, featureFlags} from '../core/feature_flags';
 import {assertExists} from '../base/logging';
@@ -145,11 +144,11 @@ class PluginContextTraceImpl implements Trace, Disposable {
     },
 
     showTab(uri: string): void {
-      globals.dispatch(Actions.showTab({uri}));
+      globals.tabManager.showTab(uri);
     },
 
     hideTab(uri: string): void {
-      globals.dispatch(Actions.hideTab({uri}));
+      globals.tabManager.hideTab(uri);
     },
   };
 
