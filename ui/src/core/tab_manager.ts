@@ -24,7 +24,7 @@ export interface ResolvedTab {
  * Stores tab & current selection section registries.
  * Keeps track of tab lifecycles.
  */
-export class TabManager implements Disposable {
+export class TabManagerImpl implements Disposable {
   private _registry = new Map<string, TabDescriptor>();
   private _defaultTabs = new Set<string>();
   private _legacyDetailsPanelRegistry = new Set<LegacyDetailsPanel>();

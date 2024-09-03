@@ -17,7 +17,7 @@ import {
   getTimeSpanOfSelectionOrVisibleWindow,
   globals,
 } from '../../frontend/globals';
-import {OmniboxMode} from '../../frontend/omnibox_manager';
+import {OmniboxMode} from '../../core/omnibox_manager';
 import {verticalScrollToTrack} from '../../frontend/scroll_helper';
 import {Trace} from '../../public/trace';
 import {PromptOption} from '../../public/omnibox';

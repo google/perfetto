@@ -18,7 +18,7 @@ import {Optional} from '../base/utils';
 import {UntypedEventSet} from '../core/event_set';
 import {LegacySelection, Selection} from '../core/selection_manager';
 import {Size2D, VerticalBounds} from '../base/geom';
-import {TimeScale} from '../frontend/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
 

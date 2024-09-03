@@ -48,7 +48,7 @@ export interface TrackRenderer {
  * Third cycle
  *   flushTracks() <-- 'foo' is destroyed.
  */
-export class TrackManager {
+export class TrackManagerImpl {
   private tracks = new Registry<TrackFSM>((x) => x.desc.uri);
 
   registerTrack(trackDesc: TrackDescriptor): Disposable {
