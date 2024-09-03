@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Duration, Time, TimeSpan, duration, time} from '../base/time';
-import {Size} from '../base/geom';
+import {Size2D} from '../base/geom';
 import {PxSpan, TimeScale} from './time_scale';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
@@ -28,7 +28,7 @@ import {Engine} from '../trace_processor/engine';
 import {LONG, NUM} from '../trace_processor/query_result';
 
 export interface SearchOverviewTrack extends AsyncDisposable {
-  render(ctx: CanvasRenderingContext2D, size: Size): void;
+  render(ctx: CanvasRenderingContext2D, size: Size2D): void;
 }
 
 /**
@@ -133,7 +133,7 @@ export async function createSearchOverviewTrack(
     return summary;
   }
 
-  function maybeUpdate(size: Size) {
+  function maybeUpdate(size: Size2D) {
     const omniboxState = app.state.omniboxState;
     if (omniboxState === undefined || omniboxState.mode === 'COMMAND') {
       return;
@@ -180,7 +180,7 @@ export async function createSearchOverviewTrack(
 
   function renderSearchOverview(
     ctx: CanvasRenderingContext2D,
-    size: Size,
+    size: Size2D,
   ): void {
     const visibleWindow = app.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
@@ -226,7 +226,7 @@ export async function createSearchOverviewTrack(
   }
 
   return {
-    render(ctx: CanvasRenderingContext2D, size: Size) {
+    render(ctx: CanvasRenderingContext2D, size: Size2D) {
       maybeUpdate(size);
       renderSearchOverview(ctx, size);
     },

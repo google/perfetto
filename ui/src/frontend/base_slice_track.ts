@@ -40,7 +40,7 @@ import {BUCKETS_PER_PIXEL, CacheKey} from '../core/timeline_cache';
 import {uuidv4Sql} from '../base/uuid';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {TrackMouseEvent, TrackRenderContext} from '../public/track';
-import {Vector, VerticalBounds} from '../base/geom';
+import {Point2D, VerticalBounds} from '../base/geom';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -192,7 +192,7 @@ export abstract class BaseSliceTrack<
   private extraSqlColumns: string[];
 
   private charWidth = -1;
-  private hoverPos?: Vector;
+  private hoverPos?: Point2D;
   protected hoveredSlice?: SliceT;
   private hoverTooltip: string[] = [];
   private maxDataDepth = 0;
