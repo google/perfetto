@@ -14,7 +14,7 @@
 
 import {uuidv4, uuidv4Sql} from '../../base/uuid';
 import {globals} from '../globals';
-import {TrackDescriptor} from '../../public';
+import {TrackDescriptor} from '../../public/track';
 import {DebugSliceTrack} from './slice_track';
 import {
   createPerfettoTable,

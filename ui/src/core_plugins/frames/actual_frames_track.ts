@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor} from '../../core/color';
-import {ColorScheme, makeColorScheme} from '../../core/colorizer';
+import {HSLColor} from '../../public/color';
+import {makeColorScheme} from '../../core/colorizer';
+import {ColorScheme} from '../../public/color_scheme';
 import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
-import {Engine, Slice, STR_NULL} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {STR_NULL} from '../../trace_processor/query_result';
+import {Slice} from '../../public/track';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or

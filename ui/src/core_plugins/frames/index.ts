@@ -15,12 +15,9 @@
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
-} from '../../public';
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+} from '../../public/track_kinds';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';

@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine, Tab} from '../public';
+import {Engine} from '../trace_processor/engine';
+import {Tab} from '../public/tab';
 import {Utid} from '../trace_processor/sql_utils/core_types';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';

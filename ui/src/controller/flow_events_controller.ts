@@ -25,8 +25,8 @@ import {Monitor} from '../base/monitor';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
-} from '../core/track_kinds';
-import {TrackDescriptor} from '../public';
+} from '../public/track_kinds';
+import {TrackDescriptor} from '../public/track';
 
 export interface FlowEventsControllerArgs {
   engine: Engine;

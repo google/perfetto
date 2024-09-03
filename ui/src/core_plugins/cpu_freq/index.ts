@@ -13,12 +13,9 @@
 // limitations under the License.
 
 import {TrackNode} from '../../public/workspace';
-import {
-  CPU_FREQ_TRACK_KIND,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {CPU_FREQ_TRACK_KIND} from '../../public/track_kinds';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
 

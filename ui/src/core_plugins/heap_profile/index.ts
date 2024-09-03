@@ -21,14 +21,11 @@ import {
   ProfileType,
 } from '../../core/selection_manager';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {
-  Engine,
-  HEAP_PROFILE_TRACK_KIND,
-  LegacyDetailsPanel,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {HEAP_PROFILE_TRACK_KIND} from '../../public/track_kinds';
+import {LegacyDetailsPanel} from '../../public/track';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {HeapProfileTrack} from './heap_profile_track';

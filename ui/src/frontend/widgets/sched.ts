@@ -18,7 +18,7 @@ import {duration, time} from '../../base/time';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
-import {CPU_SLICE_TRACK_KIND} from '../../core/track_kinds';
+import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {scrollToTrackAndTs} from '../scroll_helper';
 
 interface SchedRefAttrs {

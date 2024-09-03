@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {createStore, Store} from '../../base/store';
 import {exists} from '../../base/utils';
-import {
-  createStore,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  Store,
-} from '../../public';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 interface State {
   counter: number;

@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  COUNTER_TRACK_KIND,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
-import {THREAD_SLICE_TRACK_KIND} from '../../public';
+import {THREAD_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {ContainerNode, GroupNode, TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 

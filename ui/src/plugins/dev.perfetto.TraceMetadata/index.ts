@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {NUM} from '../../trace_processor/query_result';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {SimpleSliceTrack} from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
 class TraceMetadata implements PerfettoPlugin {

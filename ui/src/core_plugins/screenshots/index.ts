@@ -15,13 +15,10 @@
 import {uuidv4} from '../../base/uuid';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {TrackNode} from '../../public/workspace';
-import {
-  BottomTabToSCSAdapter,
-  NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {BottomTabToSCSAdapter} from '../../public/utils';
+import {NUM} from '../../trace_processor/query_result';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ScreenshotTab} from './screenshot_panel';
 import {ScreenshotsTrack} from './screenshots_track';
 

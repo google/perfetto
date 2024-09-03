@@ -15,8 +15,9 @@
 import m from 'mithril';
 import {LegacySelection} from '../common/state';
 import {BottomTab} from '../frontend/bottom_tab';
-import {LegacyDetailsPanel, Tab} from '.';
+import {Tab} from './tab';
 import {exists} from '../base/utils';
+import {LegacyDetailsPanel} from './track';
 
 export function getTrackName(
   args: Partial<{

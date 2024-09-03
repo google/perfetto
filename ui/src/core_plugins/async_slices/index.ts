@@ -15,12 +15,9 @@
 import {removeFalsyValues} from '../../base/array_utils';
 import {globals} from '../../frontend/globals';
 import {GroupNode, TrackNode} from '../../public/workspace';
-import {ASYNC_SLICE_TRACK_KIND} from '../../public';
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {AsyncSliceTrack} from './async_slice_track';

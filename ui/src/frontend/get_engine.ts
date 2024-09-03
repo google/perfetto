@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {Engine} from '../public';
+import {Engine} from '../trace_processor/engine';
 import {globals} from './globals';
 
 // TODO(stevegolton): Find a way to make this more elegant.

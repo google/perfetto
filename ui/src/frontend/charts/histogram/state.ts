@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import {raf} from '../../../core/raf_scheduler';
-import {Engine} from '../../../public';
+import {Engine} from '../../../trace_processor/engine';
 import {Row} from '../../../trace_processor/query_result';
 
 interface ChartConfig {

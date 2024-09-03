@@ -17,13 +17,10 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
-import {
-  Engine,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../core/track_kinds';
+import {Engine} from '../../trace_processor/engine';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
 import {hasWattsonSupport} from '../../core/trace_config_utils';
 import {GroupNode, TrackNode} from '../../public/workspace';
 

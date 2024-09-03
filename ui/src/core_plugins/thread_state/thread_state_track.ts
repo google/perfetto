@@ -28,7 +28,7 @@ import {
 } from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
-import {Slice} from '../../public';
+import {Slice} from '../../public/track';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,

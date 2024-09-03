@@ -16,8 +16,10 @@ import {Time, duration, time} from '../../base/time';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {Engine, LONG, NUM, Track} from '../../public';
-import {TrackRenderContext} from '../../public/tracks';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM} from '../../trace_processor/query_result';
+import {Track} from '../../public/track';
+import {TrackRenderContext} from '../../public/track';
 
 export interface Data extends TrackData {
   // Total number of log events within [start, end], before any quantization.

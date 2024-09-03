@@ -24,17 +24,18 @@ import {
   drawTrackHoverTooltip,
 } from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
-import {Color} from '../../core/color';
+import {Color} from '../../public/color';
 import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Vector} from '../../base/geom';
-import {Engine, Track} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
-import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
+import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.

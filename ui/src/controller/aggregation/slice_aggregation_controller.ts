@@ -20,7 +20,7 @@ import {AggregationController} from './aggregation_controller';
 import {
   ASYNC_SLICE_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
-} from '../../core/track_kinds';
+} from '../../public/track_kinds';
 
 export function getSelectedTrackKeys(area: Area): number[] {
   const selectedTrackKeys: number[] = [];

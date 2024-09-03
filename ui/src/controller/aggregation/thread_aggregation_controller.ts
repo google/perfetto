@@ -16,7 +16,7 @@ import {exists} from '../../base/utils';
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
 import {translateState} from '../../common/thread_state';
-import {THREAD_STATE_TRACK_KIND} from '../../core/track_kinds';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';

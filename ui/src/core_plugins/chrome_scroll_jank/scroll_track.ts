@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NewTrackArgs} from '../../frontend/track';
-import {CHROME_TOPLEVEL_SCROLLS_KIND} from '../../public';
+import {CHROME_TOPLEVEL_SCROLLS_KIND} from '../../public/track_kinds';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,

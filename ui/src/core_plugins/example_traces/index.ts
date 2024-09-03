@@ -14,7 +14,8 @@
 
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
-import {PerfettoPlugin, PluginContext, PluginDescriptor} from '../../public';
+import {PluginContext} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 const EXAMPLE_ANDROID_TRACE_URL =
   'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';

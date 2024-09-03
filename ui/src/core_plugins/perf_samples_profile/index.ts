@@ -14,16 +14,11 @@
 
 import m from 'mithril';
 import {TrackData} from '../../common/track_data';
-import {
-  Engine,
-  LegacyDetailsPanel,
-  PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../../public';
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {LegacyDetailsPanel} from '../../public/track';
+import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../../public/track_kinds';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {
   LegacySelection,

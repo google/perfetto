@@ -23,7 +23,7 @@ import {
 } from '../base/result';
 import {pluginManager, PluginManager} from '../common/plugins';
 import {raf} from '../core/raf_scheduler';
-import {MetricVisualisation} from '../public';
+import {MetricVisualisation} from '../public/plugin';
 import {Engine} from '../trace_processor/engine';
 import {STR} from '../trace_processor/query_result';
 import {Select} from '../widgets/select';

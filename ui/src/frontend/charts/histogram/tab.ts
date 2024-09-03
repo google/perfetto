@@ -16,7 +16,7 @@ import m from 'mithril';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {uuidv4} from '../../../base/uuid';
 import {addBottomTab} from '../../../common/addEphemeralTab';
-import {Engine} from '../../../public';
+import {Engine} from '../../../trace_processor/engine';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {Spinner} from '../../../widgets/spinner';
 import {VegaView} from '../../../widgets/vega_view';

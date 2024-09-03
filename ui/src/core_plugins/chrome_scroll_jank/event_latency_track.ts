@@ -15,7 +15,8 @@
 import {globals} from '../../frontend/globals';
 import {NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {CHROME_EVENT_LATENCY_TRACK_KIND, Slice} from '../../public';
+import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public/track_kinds';
+import {Slice} from '../../public/track';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,

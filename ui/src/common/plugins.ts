@@ -15,20 +15,13 @@
 import {Registry} from '../base/registry';
 import {TimeSpan, time} from '../base/time';
 import {globals} from '../frontend/globals';
-import {
-  Command,
-  LegacyDetailsPanel,
-  MetricVisualisation,
-  Migrate,
-  PerfettoPlugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-  Store,
-  TabDescriptor,
-  TrackDescriptor,
-  SidebarMenuItem,
-} from '../public';
+import {LegacyDetailsPanel, TrackDescriptor} from '../public/track';
+import {PluginContext, PluginContextTrace} from '../public';
+import {SidebarMenuItem} from '../public/sidebar';
+import {TabDescriptor} from '../public/tab';
+import {MetricVisualisation} from '../public/plugin';
+import {PerfettoPlugin, PluginDescriptor} from '../public/plugin';
+import {Command} from '../public/command';
 import {EngineBase, Engine} from '../trace_processor/engine';
 import {Actions} from './actions';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
@@ -36,11 +29,12 @@ import {Flag, featureFlags} from '../core/feature_flags';
 import {assertExists} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
-import {PromptOption} from '../frontend/omnibox_manager';
+import {PromptOption} from '../public/omnibox';
 import {horizontalScrollToTs} from '../frontend/scroll_helper';
 import {DisposableStack} from '../base/disposable_stack';
 import {TraceContext} from '../frontend/trace_context';
 import {Workspace} from '../public/workspace';
+import {Migrate, Store} from '../base/store';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular

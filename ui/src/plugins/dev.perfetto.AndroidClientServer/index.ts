@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  STR,
-} from '../../public';
-import {addDebugSliceTrack} from '../../public';
+import {NUM, STR} from '../../trace_processor/query_result';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {addDebugSliceTrack} from '../../public/debug_tracks';
 
 class AndroidClientServer implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
