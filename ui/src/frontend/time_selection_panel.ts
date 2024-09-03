@@ -25,7 +25,7 @@ import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
-import {canvasClip} from '../common/canvas_utils';
+import {canvasClip} from '../base/canvas_utils';
 import {PxSpan, TimeScale} from './time_scale';
 
 export interface BBox {
