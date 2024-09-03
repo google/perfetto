@@ -292,9 +292,6 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         },
         track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIdList),
       });
-      ctx.timeline.workspace.insertChildInOrder(
-        new TrackNode(uri, displayName),
-      );
 
       const track = new TrackNode(uri, displayName);
       const existingGroup = groupMap.get(name);
