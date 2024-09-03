@@ -16,7 +16,7 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
-import {drawTrackHoverTooltip} from '../../common/canvas_utils';
+import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {colorForCpu} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';

@@ -32,7 +32,7 @@ import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public';
 import {PxSpan, TimeScale} from './time_scale';
-import {canvasClip} from '../common/canvas_utils';
+import {canvasClip} from '../base/canvas_utils';
 import {isTraceLoaded} from './trace_attrs';
 
 const FLAG_WIDTH = 16;
