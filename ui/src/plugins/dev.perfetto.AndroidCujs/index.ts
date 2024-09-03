@@ -13,12 +13,9 @@
 // limitations under the License.
 
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
-import {addDebugSliceTrack} from '../../public';
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {addAndPinSliceTrack} from './trackUtils';
 
 /**

@@ -12,136 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {Hotkey} from '../base/hotkeys';
-import {TimeSpan, duration, time} from '../base/time';
+import {TimeSpan, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
-import {ColorScheme} from '../core/colorizer';
 import {Engine} from '../trace_processor/engine';
-import {PromptOption} from '../frontend/omnibox_manager';
-import {LegacyDetailsPanel, TrackDescriptor} from './tracks';
+import {PromptOption} from './omnibox';
+import {LegacyDetailsPanel, TrackDescriptor} from './track';
 import {TraceContext} from '../frontend/trace_context';
 import {Workspace} from './workspace';
-
-export {Engine} from '../trace_processor/engine';
-export {
-  LONG,
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../trace_processor/query_result';
-export {BottomTabToSCSAdapter} from './utils';
-export {createStore, Migrate, Store} from '../base/store';
-export {PromptOption} from '../frontend/omnibox_manager';
-
-export {addDebugSliceTrack} from '../frontend/debug_tracks/debug_tracks';
-export * from '../core/track_kinds';
-export {
-  TrackDescriptor,
-  Track,
-  TrackContext,
-  TrackTags,
-  DetailsPanel,
-  LegacyDetailsPanel,
-  TrackSelectionDetailsPanel,
-} from './tracks';
-
-export interface Slice {
-  // These properties are updated only once per query result when the Slice
-  // object is created and don't change afterwards.
-  readonly id: number;
-  readonly startNs: time;
-  readonly endNs: time;
-  readonly durNs: duration;
-  readonly ts: time;
-  readonly dur: duration;
-  readonly depth: number;
-  readonly flags: number;
-
-  // Each slice can represent some extra numerical information by rendering a
-  // portion of the slice with a lighter tint.
-  // |fillRatio\ describes the ratio of the normal area to the tinted area
-  // width of the slice, normalized between 0.0 -> 1.0.
-  // 0.0 means the whole slice is tinted.
-  // 1.0 means none of the slice is tinted.
-  // E.g. If |fillRatio| = 0.65 the slice will be rendered like this:
-  // [############|*******]
-  // ^------------^-------^
-  //     Normal     Light
-  readonly fillRatio: number;
-
-  // These can be changed by the Impl.
-  title: string;
-  subTitle: string;
-  colorScheme: ColorScheme;
-  isHighlighted: boolean;
-}
-
-export interface Command {
-  // A unique id for this command.
-  id: string;
-  // A human-friendly name for this command.
-  name: string;
-  // Callback is called when the command is invoked.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  callback: (...args: any[]) => any;
-  // Default hotkey for this command.
-  // Note: this is just the default and may be changed by the user.
-  // Examples:
-  // - 'P'
-  // - 'Shift+P'
-  // - '!Mod+Shift+P'
-  // See hotkeys.ts for guidance on hotkey syntax.
-  defaultHotkey?: Hotkey;
-}
-
-export interface MetricVisualisation {
-  // The name of the metric e.g. 'android_camera'
-  metric: string;
-
-  // A vega or vega-lite visualisation spec.
-  // The data from the metric under path will be exposed as a
-  // datasource named "metric" in Vega(-Lite)
-  spec: string;
-
-  // A path index into the metric.
-  // For example if the metric returns the folowing protobuf:
-  // {
-  //   foo {
-  //     bar {
-  //       baz: { name: "a" }
-  //       baz: { name: "b" }
-  //       baz: { name: "c" }
-  //     }
-  //   }
-  // }
-  // That becomes the following json:
-  // { "foo": { "bar": { "baz": [
-  //  {"name": "a"},
-  //  {"name": "b"},
-  //  {"name": "c"},
-  // ]}}}
-  // And given path = ["foo", "bar", "baz"]
-  // We extract:
-  // [ {"name": "a"}, {"name": "b"}, {"name": "c"} ]
-  // And pass that to the vega(-lite) visualisation.
-  path: string[];
-}
-
-export interface SidebarMenuItem {
-  readonly commandId: string;
-  readonly group:
-    | 'navigation'
-    | 'current_trace'
-    | 'convert_trace'
-    | 'example_traces'
-    | 'support';
-  when?(): boolean;
-  readonly icon: string;
-  readonly priority?: number;
-}
+import {Command} from './command';
+import {TabDescriptor} from './tab';
+import {SidebarMenuItem} from './sidebar';
 
 // This interface defines a context for a plugin, which is an object passed to
 // most hooks within the plugin. It should be used to interact with Perfetto.
@@ -160,19 +40,6 @@ export interface PluginContext {
   // All entries must map to a command. This will allow the shortcut and
   // optional shortcut to be displayed on the UI.
   addSidebarMenuItem(menuItem: SidebarMenuItem): void;
-}
-
-export interface Tab {
-  render(): m.Children;
-  getTitle(): string;
-}
-
-export interface TabDescriptor {
-  uri: string; // TODO(stevegolton): Maybe optional for ephemeral tabs.
-  content: Tab;
-  isEphemeral?: boolean; // Defaults false
-  onHide?(): void;
-  onShow?(): void;
 }
 
 // Similar to PluginContext but with additional methods to operate on the
@@ -236,45 +103,4 @@ export interface PluginContextTrace extends PluginContext {
   readonly openerPluginArgs?: {[key: string]: unknown};
 
   prompt(text: string, options?: PromptOption[]): Promise<string>;
-}
-
-export interface PerfettoPlugin {
-  // Lifecycle methods.
-  onActivate?(ctx: PluginContext): void;
-  onTraceLoad?(ctx: PluginContextTrace): Promise<void>;
-  onTraceReady?(ctx: PluginContextTrace): Promise<void>;
-  onTraceUnload?(ctx: PluginContextTrace): Promise<void>;
-  onDeactivate?(ctx: PluginContext): void;
-
-  // Extension points.
-  metricVisualisations?(ctx: PluginContext): MetricVisualisation[];
-}
-
-// This interface defines what a plugin factory should look like.
-// This can be defined in the plugin class definition by defining a constructor
-// and the relevant static methods:
-// E.g.
-// class MyPlugin implements TracePlugin<MyState> {
-//   migrate(initialState: unknown): MyState {...}
-//   constructor(store: Store<MyState>, engine: EngineProxy) {...}
-//   ... methods from the TracePlugin interface go here ...
-// }
-// ... which can then be passed around by class i.e. MyPlugin
-export interface PluginClass {
-  // Instantiate the plugin.
-  new (): PerfettoPlugin;
-}
-
-// Plugins can be class refs or concrete plugin implementations.
-export type PluginFactory = PluginClass | PerfettoPlugin;
-
-export interface PluginDescriptor {
-  // A unique string for your plugin. To ensure the name is unique you
-  // may wish to use a URL with reversed components in the manner of
-  // Java package names.
-  pluginId: string;
-
-  // The plugin factory used to instantiate the plugin object, or if this is
-  // an actual plugin implementation, it's just used as-is.
-  plugin: PluginFactory;
 }

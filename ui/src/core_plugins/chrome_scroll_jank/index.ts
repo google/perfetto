@@ -17,17 +17,16 @@ import {uuidv4Sql} from '../../base/uuid';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
 import {featureFlags} from '../../core/feature_flags';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
+import {BottomTabToSCSAdapter} from '../../public/utils';
 import {
-  BottomTabToSCSAdapter,
   CHROME_EVENT_LATENCY_TRACK_KIND,
   CHROME_TOPLEVEL_SCROLLS_KIND,
-  NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
   CHROME_SCROLL_JANK_TRACK_KIND,
   SCROLL_JANK_V3_TRACK_KIND,
-} from '../../public';
+} from '../../public/track_kinds';
+import {NUM} from '../../trace_processor/query_result';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './common';

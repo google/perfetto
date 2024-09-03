@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {globals} from '../frontend/globals';
-import {PerfettoPlugin} from '../public';
+import {PerfettoPlugin} from '../public/plugin';
 import {EngineBase} from '../trace_processor/engine';
 import {createEmptyState} from './empty_state';
 import {PluginManager, PluginRegistry} from './plugins';

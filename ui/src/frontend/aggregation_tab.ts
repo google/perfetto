@@ -28,7 +28,7 @@ import {
   CPU_PROFILE_TRACK_KIND,
   PERF_SAMPLES_PROFILE_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
-} from '../core/track_kinds';
+} from '../public/track_kinds';
 import {
   QueryFlamegraph,
   QueryFlamegraphAttrs,

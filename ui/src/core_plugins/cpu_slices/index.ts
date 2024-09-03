@@ -13,14 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {CPU_SLICE_TRACK_KIND} from '../../public';
+import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SliceDetailsPanel} from '../../frontend/slice_details_panel';
-import {
-  Engine,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {CpuSliceTrack} from './cpu_slice_track';
 import {TrackNode} from '../../public/workspace';

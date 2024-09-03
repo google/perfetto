@@ -20,7 +20,7 @@ import {TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
 import {TrackRenderer} from '../common/track_manager';
 import {raf} from '../core/raf_scheduler';
-import {Track, TrackTags} from '../public';
+import {Track, TrackTags} from '../public/track';
 import {checkerboard} from './checkerboard';
 import {
   SELECTION_FILL_COLOR,
@@ -40,7 +40,7 @@ import {PxSpan, TimeScale} from './time_scale';
 import {getLegacySelection} from '../common/state';
 import {exists, Optional} from '../base/utils';
 import {Intent} from '../widgets/common';
-import {TrackRenderContext} from '../public/tracks';
+import {TrackRenderContext} from '../public/track';
 import {calculateResolution} from '../common/resolution';
 import {featureFlags} from '../core/feature_flags';
 import {Tree, TreeNode} from '../widgets/tree';

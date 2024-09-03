@@ -17,12 +17,9 @@ import {
   addDebugCounterTrack,
   addDebugSliceTrack,
 } from '../../frontend/debug_tracks/debug_tracks';
-import {
-  BottomTabToSCSAdapter,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {BottomTabToSCSAdapter} from '../../public/utils';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {DebugSliceDetailsTab} from '../../frontend/debug_tracks/details_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {Optional, exists} from '../../base/utils';

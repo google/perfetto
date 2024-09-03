@@ -46,7 +46,7 @@ import {
   getSliceForTrack,
   ScrollJankSlice,
 } from './scroll_jank_slice';
-import {SCROLL_JANK_V3_TRACK_KIND} from '../../public';
+import {SCROLL_JANK_V3_TRACK_KIND} from '../../public/track_kinds';
 
 interface Data {
   // Scroll ID.

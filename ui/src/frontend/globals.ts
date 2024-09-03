@@ -50,7 +50,7 @@ import {
 import {AppContext} from './app_context';
 import {TraceContext} from './trace_context';
 import {Registry} from '../base/registry';
-import {SidebarMenuItem} from '../public';
+import {SidebarMenuItem} from '../public/sidebar';
 import {Workspace} from '../public/workspace';
 
 const INSTANT_FOCUS_DURATION = 1n;

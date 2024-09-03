@@ -14,7 +14,7 @@
 
 import {uuidv4} from '../base/uuid';
 // import {THREAD_SLICE_TRACK_KIND} from '../public';
-import {TrackDescriptor} from '../public/tracks';
+import {TrackDescriptor} from '../public/track';
 import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
 import {globals} from './globals';

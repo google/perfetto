@@ -24,7 +24,8 @@ import {
 import {globals} from '../../frontend/globals';
 import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {NUM, Slice} from '../../public';
+import {NUM} from '../../trace_processor/query_result';
+import {Slice} from '../../public/track';
 
 interface CpuProfileRow extends NamedRow {
   callsiteId: number;

@@ -15,7 +15,8 @@
 import {globals} from '../../frontend/globals';
 import {NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {SCROLL_JANK_V3_TRACK_KIND, Slice} from '../../public';
+import {SCROLL_JANK_V3_TRACK_KIND} from '../../public/track_kinds';
+import {Slice} from '../../public/track';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,

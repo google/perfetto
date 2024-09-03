@@ -13,14 +13,11 @@
 // limitations under the License.
 
 import {uuidv4} from '../../base/uuid';
-import {THREAD_SLICE_TRACK_KIND} from '../../public';
+import {THREAD_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {ThreadSliceDetailsTab} from '../../frontend/thread_slice_details_tab';
-import {
-  BottomTabToSCSAdapter,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {BottomTabToSCSAdapter} from '../../public/utils';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';

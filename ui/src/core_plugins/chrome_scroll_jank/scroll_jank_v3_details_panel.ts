@@ -36,7 +36,7 @@ import {
   getEventLatencySlice,
   getSliceForTrack,
 } from './scroll_jank_slice';
-import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public';
+import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public/track_kinds';
 
 interface Data {
   name: string;

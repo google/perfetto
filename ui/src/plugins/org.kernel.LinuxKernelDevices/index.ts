@@ -12,15 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  STR_NULL,
-} from '../../public';
+import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {AsyncSliceTrack} from '../../core_plugins/async_slices/async_slice_track';
-import {ASYNC_SLICE_TRACK_KIND} from '../../public';
+import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {GroupNode, TrackNode} from '../../public/workspace';
 
 // This plugin renders visualizations of runtime power state transitions for

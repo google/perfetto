@@ -30,7 +30,7 @@ import {ScrollJankPluginState, ScrollJankTrackSpec} from './common';
 import {
   CHROME_EVENT_LATENCY_TRACK_KIND,
   SCROLL_JANK_V3_TRACK_KIND,
-} from '../../public';
+} from '../../public/track_kinds';
 
 interface BasicSlice {
   // ID of slice.

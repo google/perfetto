@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-import {addDebugSliceTrack} from '../../public';
+import {PluginContextTrace} from '../../public';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {addDebugSliceTrack} from '../../public/debug_tracks';
 
 const PERF_TRACE_COUNTERS_PRECONDITION = `
   SELECT

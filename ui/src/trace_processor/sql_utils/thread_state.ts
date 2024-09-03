@@ -24,7 +24,7 @@ import {
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
 import {asUtid, SchedSqlId, ThreadStateSqlId} from './core_types';
-import {CPU_SLICE_TRACK_KIND} from '../../core/track_kinds';
+import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadInfo, ThreadInfo} from './thread';
 
 // Representation of a single thread state object, corresponding to

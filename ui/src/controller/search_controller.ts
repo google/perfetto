@@ -19,7 +19,7 @@ import {OmniboxState} from '../common/state';
 import {
   ANDROID_LOGS_TRACK_KIND,
   CPU_SLICE_TRACK_KIND,
-} from '../core/track_kinds';
+} from '../public/track_kinds';
 import {globals} from '../frontend/globals';
 import {publishSearchResult} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';

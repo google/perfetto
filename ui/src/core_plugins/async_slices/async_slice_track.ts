@@ -19,7 +19,7 @@ import {
 } from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
-import {Slice} from '../../public';
+import {Slice} from '../../public/track';
 
 export class AsyncSliceTrack extends NamedSliceTrack {
   constructor(

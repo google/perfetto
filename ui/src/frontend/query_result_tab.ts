@@ -30,7 +30,7 @@ import {QueryTable} from './query_table';
 import {globals} from './globals';
 import {Actions} from '../common/actions';
 import {BottomTabToTabAdapter} from '../public/utils';
-import {Engine} from '../public';
+import {Engine} from '../trace_processor/engine';
 
 interface QueryResultTabConfig {
   readonly query: string;

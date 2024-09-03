@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {SqlValue} from '../../../../trace_processor/query_result';
-import {Engine} from '../../../../public';
+import {Engine} from '../../../../trace_processor/engine';
 import {SortDirection} from '../../../../base/comparison_utils';
 import {arrayEquals} from '../../../../base/array_utils';
 

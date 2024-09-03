@@ -21,7 +21,7 @@ import {
   ThreadSliceSelection,
   getLegacySelection,
 } from '../common/state';
-import {THREAD_SLICE_TRACK_KIND} from '../core/track_kinds';
+import {THREAD_SLICE_TRACK_KIND} from '../public/track_kinds';
 import {globals, SliceDetails, ThreadStateDetails} from '../frontend/globals';
 import {
   publishSliceDetails,
