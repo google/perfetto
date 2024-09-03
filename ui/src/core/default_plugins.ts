@@ -59,6 +59,7 @@ export const defaultPlugins = [
   'perfetto.PivotTable',
   'perfetto.Process',
   'perfetto.ProcessSummary',
+  'perfetto.ProcessThreadGroups',
   'perfetto.Sched',
   'perfetto.Screenshots',
   'perfetto.Slice',

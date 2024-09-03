@@ -31,6 +31,11 @@ import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {CounterDetailsPanel} from './counter_details_panel';
 import {Time, duration, time} from '../../base/time';
 import {exists, Optional} from '../../base/utils';
+import {TrackNode} from '../../public/workspace';
+import {
+  getOrCreateGroupForProcess,
+  getOrCreateGroupForThread,
+} from '../../public/standard_groups';
 
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
@@ -175,8 +180,9 @@ class CounterPlugin implements PerfettoPlugin {
       const trackId = it.id;
       const displayName = it.name;
       const unit = it.unit ?? undefined;
+
       const uri = `/counter_${trackId}`;
-      ctx.registerTrackAndShowOnTraceLoad({
+      ctx.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -197,6 +203,9 @@ class CounterPlugin implements PerfettoPlugin {
           return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
+      ctx.timeline.workspace.insertChildInOrder(
+        new TrackNode(uri, displayName),
+      );
     }
   }
 
@@ -263,6 +272,9 @@ class CounterPlugin implements PerfettoPlugin {
           return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
+      const trackNode = new TrackNode(uri, name);
+      trackNode.sortOrder = -20;
+      ctx.timeline.workspace.insertChildInOrder(trackNode);
     }
   }
 
@@ -331,6 +343,10 @@ class CounterPlugin implements PerfettoPlugin {
           return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
+      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const track = new TrackNode(uri, name);
+      track.sortOrder = 30;
+      group.insertChildInOrder(track);
     }
   }
 
@@ -389,6 +405,10 @@ class CounterPlugin implements PerfettoPlugin {
           return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
+      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const track = new TrackNode(uri, name);
+      track.sortOrder = 20;
+      group.insertChildInOrder(track);
     }
   }
 
@@ -429,6 +449,9 @@ class CounterPlugin implements PerfettoPlugin {
             return await getCounterEventBounds(ctx.engine, trackId, id);
           },
         });
+        const trackNode = new TrackNode(uri, name);
+        trackNode.sortOrder = -20;
+        ctx.timeline.workspace.insertChildInOrder(trackNode);
       }
     }
   }

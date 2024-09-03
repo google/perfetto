@@ -35,7 +35,7 @@ function addCriticalUserInteractionTrack() {
     CriticalUserInteractionTrack.kind,
     'Chrome Interactions',
   );
-  globals.workspace.addChild(track);
+  globals.workspace.insertChildInOrder(track);
   track.pin();
 }
 

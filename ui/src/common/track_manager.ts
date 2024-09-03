@@ -52,26 +52,8 @@ export interface TrackRenderer {
 export class TrackManager {
   private tracks = new Registry<TrackFSM>((x) => x.desc.uri);
 
-  // This contains the tracks refs that plugins want to get auto-added on trace
-  // load, rather than bothering manually adding them to the workspace. They
-  // come from plugins calling registerTrackAndShowOnTraceLoad().
-  // TODO(primiano): this is going away soon.
-  private autoShowTracks = new Set<TrackDescriptor>();
-
   registerTrack(trackDesc: TrackDescriptor): Disposable {
     return this.tracks.register(new TrackFSM(trackDesc));
-  }
-
-  // TODO(primiano): this is going away soon.
-  autoShowOnTraceLoad(track: TrackDescriptor): Disposable {
-    this.autoShowTracks.add(track);
-    return {
-      [Symbol.dispose]: () => this.autoShowTracks.delete(track),
-    };
-  }
-
-  getAutoShowTracks(): TrackDescriptor[] {
-    return Array.from(this.autoShowTracks);
   }
 
   findTrack(

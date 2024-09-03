@@ -21,6 +21,7 @@ import {
 } from '../../public';
 import {AsyncSliceTrack} from '../../core_plugins/async_slices/async_slice_track';
 import {ASYNC_SLICE_TRACK_KIND} from '../../public';
+import {GroupNode, TrackNode} from '../../public/workspace';
 
 // This plugin renders visualizations of runtime power state transitions for
 // Linux kernel devices (devices managed by Linux drivers).
@@ -45,7 +46,7 @@ class LinuxKernelDevices implements PerfettoPlugin {
       const displayName = it.name ?? `${trackId}`;
 
       const uri = `/kernel_devices/${displayName}`;
-      ctx.registerTrackAndShowOnTraceLoad({
+      ctx.registerTrack({
         uri,
         title: displayName,
         track: new AsyncSliceTrack(
@@ -62,6 +63,10 @@ class LinuxKernelDevices implements PerfettoPlugin {
           groupName: `Linux Kernel Devices`,
         },
       });
+      const group = new GroupNode('Linux Kernel Devices');
+      const track = new TrackNode(uri, displayName);
+      group.insertChildInOrder(track);
+      ctx.timeline.workspace.insertChildInOrder(group);
     }
   }
 }

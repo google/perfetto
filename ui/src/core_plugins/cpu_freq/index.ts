@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TrackNode} from '../../public/workspace';
 import {
   CPU_FREQ_TRACK_KIND,
   PerfettoPlugin,
@@ -70,15 +71,19 @@ class CpuFreq implements PerfettoPlugin {
         };
 
         const uri = `/cpu_freq_cpu${cpu}`;
+        const title = `Cpu ${cpu} Frequency`;
         ctx.registerTrack({
           uri,
-          title: `Cpu ${cpu} Frequency`,
+          title,
           tags: {
             kind: CPU_FREQ_TRACK_KIND,
             cpu,
           },
           track: new CpuFreqTrack(config, ctx.engine),
         });
+        const trackNode = new TrackNode(uri, title);
+        trackNode.sortOrder = -40;
+        ctx.timeline.workspace.insertChildInOrder(trackNode);
       }
     }
   }

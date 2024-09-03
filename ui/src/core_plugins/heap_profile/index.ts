@@ -51,6 +51,8 @@ import {globals} from '../../frontend/globals';
 import {Modal} from '../../widgets/modal';
 import {Router} from '../../frontend/router';
 import {Actions} from '../../common/actions';
+import {getOrCreateGroupForProcess} from '../../public/standard_groups';
+import {TrackNode} from '../../public/workspace';
 
 class HeapProfilePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -62,9 +64,10 @@ class HeapProfilePlugin implements PerfettoPlugin {
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const uri = `/process_${upid}/heap_profile`;
+      const displayName = 'Heap Profile';
       ctx.registerTrack({
         uri,
-        title: 'Heap Profile',
+        title: displayName,
         tags: {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
@@ -77,6 +80,10 @@ class HeapProfilePlugin implements PerfettoPlugin {
           upid,
         ),
       });
+      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = -30;
+      group.insertChildInOrder(track);
     }
     const it = await ctx.engine.query(`
       select value from stats

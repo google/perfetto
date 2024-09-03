@@ -19,7 +19,7 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {SimpleSliceTrack} from '../../frontend/simple_slice_track';
-
+import {TrackNode} from '../../public/workspace';
 class TraceMetadata implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const res = await ctx.engine.query(`
@@ -30,9 +30,10 @@ class TraceMetadata implements PerfettoPlugin {
       return;
     }
     const uri = `/clock_snapshots`;
-    ctx.registerTrackAndShowOnTraceLoad({
+    const title = 'Clock Snapshots';
+    ctx.registerTrack({
       uri,
-      title: 'Clock Snapshots',
+      title,
       track: new SimpleSliceTrack(
         ctx.engine,
         {trackUri: uri},
@@ -49,6 +50,7 @@ class TraceMetadata implements PerfettoPlugin {
         },
       ),
     });
+    ctx.timeline.workspace.insertChildInOrder(new TrackNode(uri, title));
   }
 }
 

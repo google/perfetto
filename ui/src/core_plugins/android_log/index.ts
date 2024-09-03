@@ -24,6 +24,7 @@ import {
 import {NUM} from '../../trace_processor/query_result';
 import {AndroidLogTrack} from './logs_track';
 import {exists} from '../../base/utils';
+import {TrackNode} from '../../public/workspace';
 
 const VERSION = 1;
 
@@ -55,13 +56,16 @@ class AndroidLog implements PerfettoPlugin {
       `select count(1) as cnt from android_logs`,
     );
     const logCount = result.firstRow({cnt: NUM}).cnt;
+    const uri = 'perfetto.AndroidLog';
+    const title = 'Android logs';
     if (logCount > 0) {
-      ctx.registerTrackAndShowOnTraceLoad({
-        uri: 'perfetto.AndroidLog',
-        title: 'Android logs',
+      ctx.registerTrack({
+        uri,
+        title,
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
         track: new AndroidLogTrack(ctx.engine),
       });
+      ctx.timeline.workspace.insertChildInOrder(new TrackNode(uri, title));
     }
 
     const androidLogsTabUri = 'perfetto.AndroidLog#tab';
