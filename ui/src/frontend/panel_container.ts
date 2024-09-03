@@ -35,7 +35,7 @@ import {globals} from './globals';
 import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
-import {PxSpan, TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from '../base/time_scale';
 import {Optional} from '../base/utils';
 
 const CANVAS_OVERDRAW_PX = 100;

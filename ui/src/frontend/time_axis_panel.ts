@@ -25,7 +25,7 @@ import {
 } from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {PxSpan, TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
 
 export class TimeAxisPanel implements Panel {

@@ -20,7 +20,7 @@ export interface CommandWithMatchInfo extends Command {
   segments: FuzzySegment[];
 }
 
-export class CommandManager {
+export class CommandManagerImpl {
   private readonly registry = new Registry<Command>((cmd) => cmd.id);
 
   getCommand(commandId: string): Command {

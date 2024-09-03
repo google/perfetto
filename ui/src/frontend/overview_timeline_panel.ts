@@ -34,7 +34,7 @@ import {
 } from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {PxSpan, TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 export class OverviewTimelinePanel implements Panel {

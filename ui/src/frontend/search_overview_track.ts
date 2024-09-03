@@ -14,7 +14,7 @@
 
 import {Duration, Time, TimeSpan, duration, time} from '../base/time';
 import {Size2D} from '../base/geom';
-import {PxSpan, TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from '../base/time_scale';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {createVirtualTable} from '../trace_processor/sql_utils';

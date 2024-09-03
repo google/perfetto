@@ -179,7 +179,7 @@ interface SelectionState {
   selection: Selection;
 }
 
-export class SelectionManager {
+export class SelectionManagerImpl {
   private store: Store<SelectionState>;
 
   constructor(store: Store<SelectionState>) {

@@ -18,7 +18,7 @@ import {duration, Time, time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args} from '../common/arg_types';
-import {CommandManager} from '../common/commands';
+import {CommandManagerImpl} from '../core/command_manager';
 import {
   ConversionJobName,
   ConversionJobStatus,
@@ -26,9 +26,9 @@ import {
 import {createEmptyState} from '../common/empty_state';
 import {CurrentSearchResults} from '../common/search_data';
 import {EngineConfig, State, getLegacySelection} from '../common/state';
-import {TabManager} from '../common/tab_registry';
+import {TabManagerImpl} from '../core/tab_manager';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
-import {TrackManager} from '../common/track_manager';
+import {TrackManagerImpl} from '../core/track_manager';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
@@ -37,9 +37,9 @@ import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import type {Analytics} from './analytics';
 import {Timeline} from './timeline';
 import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
-import {SelectionManager, LegacySelection} from '../core/selection_manager';
+import {SelectionManagerImpl, LegacySelection} from '../core/selection_manager';
 import {Optional, exists} from '../base/utils';
-import {OmniboxManager} from './omnibox_manager';
+import {OmniboxManagerImpl} from '../core/omnibox_manager';
 import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
 import {
@@ -220,16 +220,16 @@ class Globals implements AppContext {
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
-  private _cmdManager = new CommandManager();
-  private _tabManager = new TabManager();
-  private _trackManager = new TrackManager();
-  private _selectionManager = new SelectionManager(this._store);
+  private _cmdManager = new CommandManagerImpl();
+  private _tabManager = new TabManagerImpl();
+  private _trackManager = new TrackManagerImpl();
+  private _selectionManager = new SelectionManagerImpl(this._store);
   private _hasFtrace: boolean = false;
   private _searchOverviewTrack?: SearchOverviewTrack;
   readonly workspaces: Workspace[] = [];
   private _currentWorkspace: Workspace;
 
-  omnibox = new OmniboxManager();
+  omnibox = new OmniboxManagerImpl();
 
   scrollToTrackUri?: string;
   httpRpcState: HttpRpcState = {connected: false};
@@ -290,7 +290,7 @@ class Globals implements AppContext {
 
     // Reset the trackManager - this clears out the cache and any registered
     // tracks
-    this._trackManager = new TrackManager();
+    this._trackManager = new TrackManagerImpl();
   }
 
   // Used for permalink load by trace_controller.ts.
@@ -675,7 +675,7 @@ class Globals implements AppContext {
     raf.shutdown();
   }
 
-  get commandManager(): CommandManager {
+  get commandManager(): CommandManagerImpl {
     return assertExists(this._cmdManager);
   }
 

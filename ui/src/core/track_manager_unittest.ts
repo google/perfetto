@@ -14,11 +14,11 @@
 
 import {assertExists} from '../base/logging';
 import {Duration} from '../base/time';
-import {PxSpan, TimeScale} from '../frontend/time_scale';
+import {PxSpan, TimeScale} from '../base/time_scale';
 import {TrackDescriptor, TrackRenderContext} from '../public/track';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {TrackManager} from './track_manager';
+import {TrackManagerImpl} from '../core/track_manager';
 
 function makeMockTrack() {
   return {
@@ -43,7 +43,7 @@ async function settle() {
 
 let mockTrack: ReturnType<typeof makeMockTrack>;
 let td: TrackDescriptor;
-let trackManager: TrackManager;
+let trackManager: TrackManagerImpl;
 const visibleWindow = new HighPrecisionTimeSpan(HighPrecisionTime.ZERO, 0);
 const dummyCtx: TrackRenderContext = {
   trackUri: 'foo',
@@ -61,7 +61,7 @@ beforeEach(() => {
     title: 'foo',
     track: mockTrack,
   };
-  trackManager = new TrackManager();
+  trackManager = new TrackManagerImpl();
   trackManager.registerTrack(td);
 });
 
