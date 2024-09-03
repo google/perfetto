@@ -15,7 +15,7 @@
 import {assertTrue} from '../base/logging';
 import {Store} from '../base/store';
 import {time, TimeSpan} from '../base/time';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {Area, State} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {ratelimit} from './rate_limiters';

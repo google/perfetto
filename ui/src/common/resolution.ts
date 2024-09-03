@@ -14,7 +14,7 @@
 
 import {BigintMath} from '../base/bigint_math';
 import {duration} from '../base/time';
-import {HighPrecisionTimeSpan} from './high_precision_time_span';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 /**
  * Work out an appropriate "resolution" for a given time span stretched over a

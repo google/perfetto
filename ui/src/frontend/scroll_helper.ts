@@ -14,8 +14,8 @@
 
 import {time} from '../base/time';
 import {escapeCSSSelector, exists} from '../base/utils';
-import {HighPrecisionTime} from '../common/high_precision_time';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time_span';
+import {HighPrecisionTime} from '../base/high_precision_time';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {raf} from '../core/raf_scheduler';
 import {globals} from './globals';
 
