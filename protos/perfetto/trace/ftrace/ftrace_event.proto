@@ -677,5 +677,6 @@ message FtraceEvent {
     KgslAdrenoCmdbatchRetiredFtraceEvent kgsl_adreno_cmdbatch_retired = 537;
     PixelMmKswapdWakeFtraceEvent pixel_mm_kswapd_wake = 538;
     PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
+    SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
   }
 }
