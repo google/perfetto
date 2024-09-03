@@ -28,7 +28,6 @@ import {PopupPosition} from '../widgets/popup';
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {QueryTable} from './query_table';
 import {globals} from './globals';
-import {Actions} from '../common/actions';
 import {BottomTabToTabAdapter} from '../public/utils';
 import {Engine} from '../trace_processor/engine';
 
@@ -59,8 +58,7 @@ export function addQueryResultsTab(
     content: new BottomTabToTabAdapter(queryResultsTab),
     isEphemeral: true,
   });
-
-  globals.dispatch(Actions.showTab({uri}));
+  globals.tabManager.showTab(uri);
 }
 
 // TODO(stevegolton): Find a way to make this more elegant.

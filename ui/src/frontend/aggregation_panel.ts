@@ -49,7 +49,7 @@ export class AggregationPanel
           {
             icon: Icons.ChangeTab,
             onclick: () => {
-              globals.dispatch(Actions.showTab({uri: 'current_selection'}));
+              globals.tabManager.showCurrentSelectionTab();
             },
           },
           'Go to current selection tab',

@@ -14,6 +14,7 @@
 
 import {DetailsPanel, LegacyDetailsPanel} from '../public/track';
 import {TabDescriptor} from '../public/tab';
+import {raf} from './raf_scheduler';
 
 export interface ResolvedTab {
   uri: string;
@@ -29,14 +30,16 @@ export class TabManagerImpl implements Disposable {
   private _defaultTabs = new Set<string>();
   private _legacyDetailsPanelRegistry = new Set<LegacyDetailsPanel>();
   private _detailsPanelRegistry = new Set<DetailsPanel>();
-  private _currentTabs = new Map<string, TabDescriptor>();
+  private _instantiatedTabs = new Map<string, TabDescriptor>();
+  private _openTabs: string[] = []; // URIs of the tabs open.
+  private _currentTab: string = 'current_selection';
 
   [Symbol.dispose]() {
     // Dispose of all tabs that are currently alive
-    for (const tab of this._currentTabs.values()) {
+    for (const tab of this._instantiatedTabs.values()) {
       this.disposeTab(tab);
     }
-    this._currentTabs.clear();
+    this._instantiatedTabs.clear();
   }
 
   registerTab(desc: TabDescriptor): Disposable {
@@ -69,6 +72,70 @@ export class TabManagerImpl implements Disposable {
 
   resolveTab(uri: string): TabDescriptor | undefined {
     return this._registry.get(uri);
+  }
+
+  showCurrentSelectionTab(): void {
+    this.showTab('current_selection');
+  }
+
+  showTab(uri: string): void {
+    // Add tab, unless we're talking about the special current_selection tab
+    if (uri !== 'current_selection') {
+      // Add tab to tab list if not already
+      if (!this._openTabs.some((x) => x === uri)) {
+        this._openTabs.push(uri);
+      }
+    }
+    this._currentTab = uri;
+    raf.scheduleFullRedraw();
+  }
+
+  // Hide a tab in the tab bar pick a new tab to show.
+  // Note: Attempting to hide the "current_selection" tab doesn't work. This tab
+  // is special and cannot be removed.
+  hideTab(uri: string): void {
+    // If the removed tab is the "current" tab, we must find a new tab to focus
+    if (uri === this._currentTab) {
+      // Remember the index of the current tab
+      const currentTabIdx = this._openTabs.findIndex((x) => x === uri);
+
+      // Remove the tab
+      this._openTabs = this._openTabs.filter((x) => x !== uri);
+
+      if (currentTabIdx !== -1) {
+        if (this._openTabs.length === 0) {
+          // No more tabs, use current selection
+          this._currentTab = 'current_selection';
+        } else if (currentTabIdx < this._openTabs.length - 1) {
+          // Pick the tab to the right
+          this._currentTab = this._openTabs[currentTabIdx];
+        } else {
+          // Pick the last tab
+          const lastTab = this._openTabs[this._openTabs.length - 1];
+          this._currentTab = lastTab;
+        }
+      }
+    } else {
+      // Otherwise just remove the tab
+      this._openTabs = this._openTabs.filter((x) => x !== uri);
+    }
+    raf.scheduleFullRedraw();
+  }
+
+  toggleTab(uri: string): void {
+    return this.isOpen(uri) ? this.hideTab(uri) : this.showTab(uri);
+  }
+
+  isOpen(uri: string): boolean {
+    return this._openTabs.find((x) => x == uri) !== undefined;
+  }
+
+  get currentTabUri(): string {
+    return this._currentTab;
+  }
+
+  get openTabsUri(): string[] {
+    return this._openTabs;
   }
 
   get tabs(): TabDescriptor[] {
@@ -108,21 +175,21 @@ export class TabManagerImpl implements Disposable {
 
     // Call onShow() on any new tabs.
     for (const [uri, tab] of newTabs) {
-      const oldTab = this._currentTabs.get(uri);
+      const oldTab = this._instantiatedTabs.get(uri);
       if (!oldTab) {
         this.initTab(tab);
       }
     }
 
     // Call onHide() on any tabs that have been removed.
-    for (const [uri, tab] of this._currentTabs) {
+    for (const [uri, tab] of this._instantiatedTabs) {
       const newTab = newTabs.get(uri);
       if (!newTab) {
         this.disposeTab(tab);
       }
     }
 
-    this._currentTabs = newTabs;
+    this._instantiatedTabs = newTabs;
 
     return tabs;
   }

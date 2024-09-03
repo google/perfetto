@@ -567,13 +567,11 @@ class Globals implements AppContext {
 
   makeSelection(action: DeferredAction<{}>, opts: MakeSelectionOpts = {}) {
     const {switchToCurrentSelectionTab = true, clearSearch = true} = opts;
-    const currentSelectionTabUri = 'current_selection';
 
     // A new selection should cancel the current search selection.
     clearSearch && globals.dispatch(Actions.setSearchIndex({index: -1}));
-
     if (switchToCurrentSelectionTab) {
-      globals.dispatch(Actions.showTab({uri: currentSelectionTabUri}));
+      globals.tabManager.showCurrentSelectionTab();
     }
     globals.dispatch(action);
   }
@@ -612,7 +610,7 @@ class Globals implements AppContext {
       );
     }
     if (switchToCurrentSelectionTab) {
-      globals.dispatch(Actions.showTab({uri: 'current_selection'}));
+      globals.tabManager.showCurrentSelectionTab();
     }
   }
 
