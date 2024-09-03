@@ -42,7 +42,7 @@ export class TimeScale {
 
   hpTimeToPx(time: HighPrecisionTime): number {
     const timeOffset = time.sub(this.timeSpan.start).toNumber();
-    return this.pxBounds.right + timeOffset / this.timePerPx;
+    return this.pxBounds.left + timeOffset / this.timePerPx;
   }
 
   // Convert pixels to a high precision time object, which can be further
