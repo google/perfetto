@@ -43,7 +43,7 @@ export class ArgumentSelector
   implements m.ClassComponent<ArgumentSelectorAttrs>
 {
   searchText = '';
-  columns?: {key: string; column: TableColumn}[];
+  columns?: {key: string; column: TableColumn | TableColumnSet}[];
 
   constructor({attrs}: m.Vnode<ArgumentSelectorAttrs>) {
     this.load(attrs);
@@ -60,7 +60,9 @@ export class ArgumentSelector
 
     // Candidates are the columns which have not been selected yet.
     const candidates = columns.filter(
-      ({column}) => !attrs.alreadySelectedColumnIds.has(tableColumnId(column)),
+      ({column}) =>
+        column instanceof TableColumnSet ||
+        !attrs.alreadySelectedColumnIds.has(tableColumnId(column)),
     );
 
     // Filter the candidates based on the search text.
@@ -106,19 +108,30 @@ export class ArgumentSelector
         }),
       ),
       ...displayed.map(({key, column}, index) =>
-        m(MenuItem, {
-          id: index === 0 ? firstButtonUuid : undefined,
-          label: key,
-          onclick: (event) => {
-            attrs.onArgumentSelected(column);
-            // For Control-Click, we don't want to close the menu to allow the user
-            // to select multiple items in one go.
-            if (hasModKey(event)) {
-              event.stopPropagation();
-            }
-            // Otherwise this popup will be closed.
+        m(
+          MenuItem,
+          {
+            id: index === 0 ? firstButtonUuid : undefined,
+            label: key,
+            onclick: (event) => {
+              if (column instanceof TableColumnSet) return;
+              attrs.onArgumentSelected(column);
+              // For Control-Click, we don't want to close the menu to allow the user
+              // to select multiple items in one go.
+              if (hasModKey(event)) {
+                event.stopPropagation();
+              }
+              // Otherwise this popup will be closed.
+            },
           },
-        }),
+          column instanceof TableColumnSet &&
+            m(ArgumentSelector, {
+              columnSet: column,
+              alreadySelectedColumnIds: attrs.alreadySelectedColumnIds,
+              onArgumentSelected: attrs.onArgumentSelected,
+              tableManager: attrs.tableManager,
+            }),
+        ),
       ),
       Boolean(extraItems) && m('i', `+${extraItems} more`),
     ];

@@ -15,9 +15,10 @@
 import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
 import {
   DurationColumn,
-  ProcessColumn,
+  ProcessColumnSet,
   StandardColumn,
   ThreadColumn,
+  ThreadColumnSet,
   ThreadStateIdColumn,
   TimestampColumn,
 } from '../../frontend/widgets/sql/table/well_known_columns';
@@ -31,8 +32,8 @@ export function getThreadStateTable(): SqlTableDescription {
       new DurationColumn('dur'),
       new StandardColumn('state'),
       new StandardColumn('cpu', {aggregationType: 'nominal'}),
-      new ThreadColumn('utid', {title: 'Thread', notNull: true}),
-      new ProcessColumn(
+      new ThreadColumnSet('utid', {title: 'utid', notNull: true}),
+      new ProcessColumnSet(
         {
           column: 'upid',
           source: {
@@ -43,7 +44,7 @@ export function getThreadStateTable(): SqlTableDescription {
             innerJoin: true,
           },
         },
-        {title: 'Process', notNull: true},
+        {title: 'upid (process)', notNull: true},
       ),
       new StandardColumn('io_wait', {aggregationType: 'nominal'}),
       new StandardColumn('blocked_function'),
