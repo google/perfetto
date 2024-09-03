@@ -17,7 +17,7 @@ import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {asThreadStateSqlId} from '../../trace_processor/sql_utils/core_types';
 import {ThreadStateTab} from '../../frontend/thread_state_tab';
 import {BottomTabToSCSAdapter} from '../../public/utils';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -30,7 +30,7 @@ import {TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 
 class ThreadState implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
     const result = await engine.query(`

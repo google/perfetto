@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {NUM, STR} from '../../trace_processor/query_result';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 
 class AndroidClientServer implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidClientServer#ThreadRuntimeIPC',
       name: 'Show dependencies in client server model',

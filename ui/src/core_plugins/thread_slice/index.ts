@@ -16,7 +16,7 @@ import {uuidv4} from '../../base/uuid';
 import {THREAD_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {ThreadSliceDetailsTab} from '../../frontend/thread_slice_details_tab';
 import {BottomTabToSCSAdapter} from '../../public/utils';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -26,7 +26,7 @@ import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
 
 class ThreadSlicesPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
     const result = await engine.query(`

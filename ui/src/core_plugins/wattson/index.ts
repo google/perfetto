@@ -18,14 +18,14 @@ import {
   CounterOptions,
 } from '../../frontend/base_counter_track';
 import {Engine} from '../../trace_processor/engine';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
 import {hasWattsonSupport} from '../../core/trace_config_utils';
 import {GroupNode, TrackNode} from '../../public/workspace';
 
 class Wattson implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     // Short circuit if Wattson is not supported for this Perfetto trace
     if (!(await hasWattsonSupport(ctx.engine))) return;
 

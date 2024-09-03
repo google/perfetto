@@ -18,7 +18,7 @@ import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {asUtid} from '../../trace_processor/sql_utils/core_types';
 import {BottomTabToSCSAdapter} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ChromeTasksDetailsTab} from './details';
 import {chromeTasksTable} from './table';
@@ -28,7 +28,7 @@ import {GroupNode, TrackNode} from '../../public/workspace';
 class ChromeTasksPlugin implements PerfettoPlugin {
   onActivate() {}
 
-  async onTraceLoad(ctx: PluginContextTrace) {
+  async onTraceLoad(ctx: Trace) {
     await this.createTracks(ctx);
 
     ctx.registerCommand({
@@ -41,7 +41,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
     });
   }
 
-  async createTracks(ctx: PluginContextTrace) {
+  async createTracks(ctx: Trace) {
     const it = (
       await ctx.engine.query(`
       INCLUDE PERFETTO MODULE chrome.tasks;

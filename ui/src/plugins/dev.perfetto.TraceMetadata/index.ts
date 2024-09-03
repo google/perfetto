@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {NUM} from '../../trace_processor/query_result';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {SimpleSliceTrack} from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
 class TraceMetadata implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
       select count() as cnt from (select 1 from clock_snapshot limit 1)
     `);

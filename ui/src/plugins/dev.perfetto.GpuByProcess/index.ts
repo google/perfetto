@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
@@ -49,7 +49,7 @@ class GpuPidTrack extends NamedSliceTrack {
 }
 
 class GpuByProcess implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     // Find all unique upid values in gpu_slices and join with process table.
     const results = await ctx.engine.query(`
       WITH slice_upids AS (
@@ -89,7 +89,7 @@ class GpuByProcess implements PerfettoPlugin {
     }
   }
 
-  async onTraceUnload(_: PluginContextTrace): Promise<void> {}
+  async onTraceUnload(_: Trace): Promise<void> {}
 }
 
 export const plugin: PluginDescriptor = {
