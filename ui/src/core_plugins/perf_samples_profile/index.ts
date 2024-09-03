@@ -17,7 +17,7 @@ import {TrackData} from '../../common/track_data';
 import {Engine} from '../../trace_processor/engine';
 import {LegacyDetailsPanel} from '../../public/track';
 import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../../public/track_kinds';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {
@@ -49,7 +49,7 @@ export interface Data extends TrackData {
 }
 
 class PerfSamplesProfilePlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const pResult = await ctx.engine.query(`
       select distinct upid
       from perf_sample

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadOrProcUri} from '../../public/utils';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
@@ -30,12 +30,12 @@ import {
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
 class ProcessSummaryPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
     await this.addKernelThreadSummary(ctx);
   }
 
-  private async addProcessTrackGroups(ctx: PluginContextTrace): Promise<void> {
+  private async addProcessTrackGroups(ctx: Trace): Promise<void> {
     const cpuCount = Math.max(...ctx.trace.cpus, -1) + 1;
 
     const result = await ctx.engine.query(`
@@ -146,7 +146,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
     }
   }
 
-  private async addKernelThreadSummary(ctx: PluginContextTrace): Promise<void> {
+  private async addKernelThreadSummary(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
     // Identify kernel threads if this is a linux system trace, and sufficient

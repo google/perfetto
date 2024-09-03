@@ -12,32 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext, PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
+import {App} from '../../public/app';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 declare global {
   interface Window {
-    ctx: PluginContext | PluginContextTrace | undefined;
+    ctx: App | Trace | undefined;
   }
 }
 
 class BookmarkletApi implements PerfettoPlugin {
-  private pluginCtx?: PluginContext;
+  private pluginCtx?: App;
 
-  onActivate(pluginCtx: PluginContext): void {
+  onActivate(pluginCtx: App): void {
     this.pluginCtx = pluginCtx;
     window.ctx = pluginCtx;
   }
 
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     window.ctx = ctx;
   }
 
-  async onTraceUnload(_: PluginContextTrace): Promise<void> {
+  async onTraceUnload(_: Trace): Promise<void> {
     window.ctx = this.pluginCtx;
   }
 
-  onDeactivate(_: PluginContext): void {
+  onDeactivate(_: App): void {
     window.ctx = undefined;
   }
 }

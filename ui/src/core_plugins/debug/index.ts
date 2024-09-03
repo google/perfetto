@@ -18,14 +18,14 @@ import {
   addDebugSliceTrack,
 } from '../../frontend/debug_tracks/debug_tracks';
 import {BottomTabToSCSAdapter} from '../../public/utils';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {DebugSliceDetailsTab} from '../../frontend/debug_tracks/details_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {Optional, exists} from '../../base/utils';
 
 class DebugTracksPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.registerCommand({
       id: 'perfetto.DebugTracks#addDebugSliceTrack',
       name: 'Add debug slice track',
@@ -94,7 +94,7 @@ class DebugTracksPlugin implements PerfettoPlugin {
 // exception is thrown if the prompt is cancelled, so this function handles this
 // and returns undefined in this case.
 async function getStringFromArgOrPrompt(
-  ctx: PluginContextTrace,
+  ctx: Trace,
   arg: unknown,
 ): Promise<Optional<string>> {
   if (typeof arg === 'string') {

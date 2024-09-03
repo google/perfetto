@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 
@@ -26,7 +26,7 @@ const PERF_TRACE_COUNTERS_PRECONDITION = `
 `;
 
 class AndroidPerfTraceCounters implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const resp = await ctx.engine.query(PERF_TRACE_COUNTERS_PRECONDITION);
     if (resp.numRows() === 0) return;
     ctx.registerCommand({

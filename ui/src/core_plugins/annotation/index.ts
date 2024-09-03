@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
@@ -23,12 +23,12 @@ import {ContainerNode, GroupNode, TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 
 class AnnotationPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addAnnotationTracks(ctx);
     await this.addAnnotationCounterTracks(ctx);
   }
 
-  private async addAnnotationTracks(ctx: PluginContextTrace) {
+  private async addAnnotationTracks(ctx: Trace) {
     const {engine} = ctx;
 
     const result = await engine.query(`
@@ -103,7 +103,7 @@ class AnnotationPlugin implements PerfettoPlugin {
     }
   }
 
-  private async addAnnotationCounterTracks(ctx: PluginContextTrace) {
+  private async addAnnotationCounterTracks(ctx: Trace) {
     const {engine} = ctx;
     const counterResult = await engine.query(`
       SELECT

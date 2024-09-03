@@ -16,7 +16,8 @@ import {Registry} from '../base/registry';
 import {TimeSpan, time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {LegacyDetailsPanel, TrackDescriptor} from '../public/track';
-import {PluginContext, PluginContextTrace} from '../public';
+import {Trace} from '../public/trace';
+import {App} from '../public/app';
 import {SidebarMenuItem} from '../public/sidebar';
 import {TabDescriptor} from '../public/tab';
 import {MetricVisualisation} from '../public/plugin';
@@ -40,7 +41,7 @@ import {Migrate, Store} from '../base/store';
 // what each plugin is doing and how we can blame issues on particular
 // plugins.
 // The PluginContext exists for the whole duration a plugin is active.
-export class PluginContextImpl implements PluginContext, Disposable {
+export class PluginContextImpl implements App, Disposable {
   private trash = new DisposableStack();
   private alive = true;
 
@@ -73,13 +74,13 @@ export class PluginContextImpl implements PluginContext, Disposable {
 // related resources, such as the engine and the store.
 // The PluginContextTrace exists for the whole duration a plugin is active AND a
 // trace is loaded.
-class PluginContextTraceImpl implements PluginContextTrace, Disposable {
+class PluginContextTraceImpl implements Trace, Disposable {
   private trash = new DisposableStack();
   private alive = true;
   readonly engine: Engine;
 
   constructor(
-    private ctx: PluginContext,
+    private ctx: App,
     engine: EngineBase,
   ) {
     const engineProxy = engine.getProxy(ctx.pluginId);
@@ -212,7 +213,7 @@ export class PluginRegistry extends Registry<PluginDescriptor> {
 
 export interface PluginDetails {
   plugin: PerfettoPlugin;
-  context: PluginContext & Disposable;
+  context: App & Disposable;
   traceContext?: PluginContextTraceImpl;
   previousOnTraceLoadTimeMillis?: number;
 }
