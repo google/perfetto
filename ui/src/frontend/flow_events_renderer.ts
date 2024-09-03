@@ -18,7 +18,7 @@ import {Optional} from '../base/utils';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, globals} from './globals';
 import {RenderedPanelInfo} from './panel_container';
-import {PxSpan, TimeScale} from '../base/time_scale';
+import {TimeScale} from '../base/time_scale';
 import {TrackNode} from '../public/workspace';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
@@ -56,10 +56,10 @@ export function renderFlows(
   size: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
 ): void {
-  const timescale = new TimeScale(
-    globals.timeline.visibleWindow,
-    new PxSpan(0, size.width),
-  );
+  const timescale = new TimeScale(globals.timeline.visibleWindow, {
+    left: 0,
+    right: size.width,
+  });
 
   // Create indexes for the tracks and groups by key for quick access
   const trackPanelsByKey = new Map(

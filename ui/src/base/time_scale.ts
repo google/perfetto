@@ -15,19 +15,21 @@
 import {duration, time} from './time';
 import {HighPrecisionTime} from './high_precision_time';
 import {HighPrecisionTimeSpan} from './high_precision_time_span';
+import {HorizontalBounds} from './geom';
 
 export class TimeScale {
   readonly timeSpan: HighPrecisionTimeSpan;
-  readonly pxSpan: PxSpan;
+  readonly pxBounds: HorizontalBounds;
   private readonly timePerPx: number;
 
-  constructor(timespan: HighPrecisionTimeSpan, pxSpan: PxSpan) {
-    this.pxSpan = pxSpan;
+  constructor(timespan: HighPrecisionTimeSpan, pxBounds: HorizontalBounds) {
+    this.pxBounds = pxBounds;
     this.timeSpan = timespan;
-    if (timespan.duration <= 0 || pxSpan.delta <= 0) {
+    const delta = pxBounds.right - pxBounds.left;
+    if (timespan.duration <= 0 || delta <= 0) {
       this.timePerPx = 1;
     } else {
-      this.timePerPx = timespan.duration / pxSpan.delta;
+      this.timePerPx = timespan.duration / delta;
     }
   }
 
@@ -35,18 +37,18 @@ export class TimeScale {
     const timeOffset =
       Number(ts - this.timeSpan.start.integral) -
       this.timeSpan.start.fractional;
-    return this.pxSpan.start + timeOffset / this.timePerPx;
+    return this.pxBounds.left + timeOffset / this.timePerPx;
   }
 
   hpTimeToPx(time: HighPrecisionTime): number {
     const timeOffset = time.sub(this.timeSpan.start).toNumber();
-    return this.pxSpan.start + timeOffset / this.timePerPx;
+    return this.pxBounds.right + timeOffset / this.timePerPx;
   }
 
   // Convert pixels to a high precision time object, which can be further
   // converted to other time formats.
   pxToHpTime(px: number): HighPrecisionTime {
-    const timeOffset = (px - this.pxSpan.start) * this.timePerPx;
+    const timeOffset = (px - this.pxBounds.left) * this.timePerPx;
     return this.timeSpan.start.addNumber(timeOffset);
   }
 
@@ -56,21 +58,5 @@ export class TimeScale {
 
   pxToDuration(pxDelta: number): number {
     return pxDelta * this.timePerPx;
-  }
-}
-
-export class PxSpan {
-  static readonly ZERO = new PxSpan(0, 0);
-
-  readonly start: number;
-  readonly end: number;
-
-  constructor(start: number, end: number) {
-    this.start = start;
-    this.end = end;
-  }
-
-  get delta(): number {
-    return this.end - this.start;
   }
 }
