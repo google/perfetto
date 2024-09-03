@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {LONG} from '../../trace_processor/query_result';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
   SimpleSliceTrack,
@@ -21,7 +21,7 @@ import {
 } from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
 class AndroidStartup implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`include perfetto module android.startup.startups;`);
 

@@ -16,7 +16,7 @@ import m from 'mithril';
 import {CPU_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {LegacyDetailsPanel} from '../../public/track';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {CpuProfileTrack} from './cpu_profile_track';
@@ -36,7 +36,7 @@ import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
 
 class CpuProfile implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (
         select distinct utid

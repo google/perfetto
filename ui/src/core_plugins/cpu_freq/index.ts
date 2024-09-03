@@ -14,13 +14,13 @@
 
 import {TrackNode} from '../../public/workspace';
 import {CPU_FREQ_TRACK_KIND} from '../../public/track_kinds';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
 
 class CpuFreq implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
     const cpus = ctx.trace.cpus;

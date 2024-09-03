@@ -15,14 +15,14 @@
 import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
 import {TrackNode} from '../../public/workspace';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {RunnableThreadCountTrack} from './runnable_thread_count';
 import {getSchedTable} from './table';
 
 class SchedPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace) {
+  async onTraceLoad(ctx: Trace) {
     const runnableThreadCountUri = `/runnable_thread_count`;
     ctx.registerTrack({
       uri: runnableThreadCountUri,
@@ -90,7 +90,7 @@ function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
   }
 }
 
-function addPinnedTrack(ctx: PluginContextTrace, uri: string, title: string) {
+function addPinnedTrack(ctx: Trace, uri: string, title: string) {
   const track = new TrackNode(uri, title);
   // Add track to the top of the stack
   ctx.timeline.workspace.prependChild(track);

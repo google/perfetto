@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext, PluginContextTrace} from '.';
+import {Trace} from './trace';
+import {App} from './app';
 
 export interface PerfettoPlugin {
   // Lifecycle methods.
-  onActivate?(ctx: PluginContext): void;
-  onTraceLoad?(ctx: PluginContextTrace): Promise<void>;
-  onTraceReady?(ctx: PluginContextTrace): Promise<void>;
-  onTraceUnload?(ctx: PluginContextTrace): Promise<void>;
-  onDeactivate?(ctx: PluginContext): void;
+  onActivate?(ctx: App): void;
+  onTraceLoad?(ctx: Trace): Promise<void>;
+  onTraceReady?(ctx: Trace): Promise<void>;
+  onTraceUnload?(ctx: Trace): Promise<void>;
+  onDeactivate?(ctx: App): void;
 
   // Extension points.
-  metricVisualisations?(ctx: PluginContext): MetricVisualisation[];
+  metricVisualisations?(ctx: App): MetricVisualisation[];
 }
 // This interface defines what a plugin factory should look like.
 // This can be defined in the plugin class definition by defining a constructor

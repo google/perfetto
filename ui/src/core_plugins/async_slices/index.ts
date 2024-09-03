@@ -16,7 +16,7 @@ import {removeFalsyValues} from '../../base/array_utils';
 import {globals} from '../../frontend/globals';
 import {GroupNode, TrackNode} from '../../public/workspace';
 import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
@@ -27,14 +27,14 @@ import {
 } from '../../public/standard_groups';
 
 class AsyncSlicePlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addGlobalAsyncTracks(ctx);
     await this.addProcessAsyncSliceTracks(ctx);
     await this.addThreadAsyncSliceTracks(ctx);
     await this.addUserAsyncSliceTracks(ctx);
   }
 
-  async addGlobalAsyncTracks(ctx: PluginContextTrace): Promise<void> {
+  async addGlobalAsyncTracks(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks_grouped as (
@@ -89,7 +89,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     }
   }
 
-  async addProcessAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
+  async addProcessAsyncSliceTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       select
         upid,
@@ -152,7 +152,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     }
   }
 
-  async addThreadAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
+  async addThreadAsyncSliceTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       include perfetto module viz.summary.slices;
       include perfetto module viz.summary.threads;
@@ -233,7 +233,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     }
   }
 
-  async addUserAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
+  async addUserAsyncSliceTracks(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
       with grouped_packages as materialized (

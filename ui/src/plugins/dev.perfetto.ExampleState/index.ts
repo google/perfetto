@@ -14,7 +14,7 @@
 
 import {createStore, Store} from '../../base/store';
 import {exists} from '../../base/utils';
-import {PluginContextTrace} from '../../public';
+import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 interface State {
@@ -39,7 +39,7 @@ class ExampleState implements PerfettoPlugin {
     }
   }
 
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     this.store = ctx.mountStore((init: unknown) => this.migrate(init));
 
     ctx.registerCommand({
@@ -58,7 +58,7 @@ class ExampleState implements PerfettoPlugin {
     });
   }
 
-  async onTraceUnload(_: PluginContextTrace): Promise<void> {
+  async onTraceUnload(_: Trace): Promise<void> {
     this.store[Symbol.dispose]();
   }
 }
