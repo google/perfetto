@@ -2512,6 +2512,8 @@ cc_test {
         ":perfetto_src_tracing_test_client_api_integrationtests",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_test_tracing_integration_test",
+        ":perfetto_test_integrationtest_initializer",
+        ":perfetto_test_integrationtest_main",
         ":perfetto_test_test_helper",
     ],
     shared_libs: [
@@ -14663,7 +14665,6 @@ filegroup {
     name: "perfetto_src_tracing_test_client_api_integrationtests",
     srcs: [
         "src/tracing/test/api_integrationtest.cc",
-        "src/tracing/test/api_integrationtest_main.cc",
         "src/tracing/test/tracing_module.cc",
         "src/tracing/test/tracing_module2.cc",
         "src/tracing/test/tracing_module3.cc",
@@ -14698,6 +14699,19 @@ filegroup {
         "src/tracing/internal/interceptor_trace_writer_unittest.cc",
         "src/tracing/traced_proto_unittest.cc",
         "src/tracing/traced_value_unittest.cc",
+    ],
+}
+
+// GN: //test:integrationtest_initializer
+filegroup {
+    name: "perfetto_test_integrationtest_initializer",
+}
+
+// GN: //test:integrationtest_main
+filegroup {
+    name: "perfetto_test_integrationtest_main",
+    srcs: [
+        "test/integrationtest_main.cc",
     ],
 }
 
