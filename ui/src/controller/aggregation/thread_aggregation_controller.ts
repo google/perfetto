@@ -14,7 +14,8 @@
 
 import {exists} from '../../base/utils';
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
-import {Area, Sorting} from '../../common/state';
+import {Sorting} from '../../common/state';
+import {Area} from 'src/core/selection_manager';
 import {translateState} from '../../common/thread_state';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {globals} from '../../frontend/globals';

@@ -43,7 +43,6 @@ import {
 } from './metatracing';
 import {
   AdbRecordingTarget,
-  Area,
   EngineMode,
   LoadedConfig,
   NewEngineMode,
@@ -56,6 +55,7 @@ import {
   State,
   Status,
 } from './state';
+import {Area} from 'src/core/selection_manager';
 
 type StateDraft = Draft<State>;
 

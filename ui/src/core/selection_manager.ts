@@ -121,11 +121,14 @@ export interface SingleSelection {
   eventId: number;
 }
 
-export interface AreaSelection {
-  kind: 'area';
-  trackUris: string[];
+export interface Area {
   start: time;
   end: time;
+  trackUris: string[];
+}
+
+export interface AreaSelection extends Area {
+  kind: 'area';
 }
 
 export interface NoteSelection {

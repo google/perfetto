@@ -14,26 +14,9 @@
 
 import {time} from '../base/time';
 import {escapeCSSSelector, exists} from '../base/utils';
-import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {raf} from '../core/raf_scheduler';
 import {globals} from './globals';
-
-// Given a timestamp, if |ts| is not currently in view move the view to
-// center |ts|, keeping the same zoom level.
-export function horizontalScrollToTs(ts: time) {
-  const visibleWindow = globals.timeline.visibleWindow;
-  if (!visibleWindow.contains(ts)) {
-    // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
-    const halfDuration = visibleWindow.duration / 2;
-    const newStart = new HighPrecisionTime(ts).subNumber(halfDuration);
-    const newWindow = new HighPrecisionTimeSpan(
-      newStart,
-      visibleWindow.duration,
-    );
-    globals.timeline.updateVisibleTimeHP(newWindow);
-  }
-}
 
 // Given a start and end timestamp (in ns), move the viewport to center this
 // range and zoom if necessary:
@@ -101,7 +84,7 @@ export function scrollToTrackAndTs(
   openGroup = false,
 ) {
   verticalScrollToTrack(trackUri, openGroup);
-  horizontalScrollToTs(ts);
+  globals.timeline.panToTimestamp(ts);
 }
 
 // Scroll vertically and horizontally to a track and time range
