@@ -21,6 +21,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -39,7 +41,13 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/perf/attrs_section_reader.h"
+#include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
+#include "src/trace_processor/importers/perf/aux_record.h"
+#include "src/trace_processor/importers/perf/aux_stream_manager.h"
+#include "src/trace_processor/importers/perf/auxtrace_info_record.h"
+#include "src/trace_processor/importers/perf/auxtrace_record.h"
 #include "src/trace_processor/importers/perf/dso_tracker.h"
+#include "src/trace_processor/importers/perf/etm_tokenizer.h"
 #include "src/trace_processor/importers/perf/features.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
@@ -47,11 +55,13 @@
 #include "src/trace_processor/importers/perf/perf_session.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/importers/perf/sample_id.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
@@ -108,7 +118,7 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
 }  // namespace
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
-    : context_(ctx) {}
+    : context_(ctx), aux_manager_(ctx) {}
 
 PerfDataTokenizer::~PerfDataTokenizer() = default;
 
@@ -143,6 +153,10 @@ base::Status PerfDataTokenizer::Parse(TraceBlobView blob) {
 
       case ParsingState::kParseRecords:
         result = ParseRecords();
+        break;
+
+      case ParsingState::kParseAuxtraceData:
+        result = ParseAuxtraceData();
         break;
 
       case ParsingState::kParseFeatures:
@@ -247,10 +261,32 @@ PerfDataTokenizer::ParseRecords() {
       return res;
     }
 
-    if (!PushRecord(std::move(record))) {
-      context_->storage->IncrementStats(stats::perf_record_skipped);
+    switch (record.header.type) {
+      case PERF_RECORD_AUXTRACE:
+        PERFETTO_CHECK(!current_auxtrace_.has_value());
+        current_auxtrace_.emplace();
+        RETURN_IF_ERROR(current_auxtrace_->Parse(record));
+        parsing_state_ = ParsingState::kParseAuxtraceData;
+        return ParsingResult::kSuccess;
+
+      case PERF_RECORD_AUXTRACE_INFO:
+        RETURN_IF_ERROR(ProcessAuxtraceInfoRecord(std::move(record)));
+        break;
+
+      case PERF_RECORD_AUX:
+        RETURN_IF_ERROR(ProcessAuxRecord(std::move(record)));
+        break;
+
+      default:
+        if (!PushRecord(std::move(record)).ok()) {
+          context_->storage->IncrementIndexedStats(
+              stats::perf_record_skipped, static_cast<int>(record.header.type));
+        }
+        break;
     }
   }
+
+  RETURN_IF_ERROR(aux_manager_.FinalizeStreams());
 
   parsing_state_ = ParsingState::kParseFeatureSections;
   return ParsingResult::kSuccess;
@@ -290,8 +326,13 @@ base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
   return ParsingResult::kSuccess;
 }
 
-base::StatusOr<int64_t> PerfDataTokenizer::ToTraceTimestamp(
-    std::optional<uint64_t> time) {
+base::StatusOr<int64_t> PerfDataTokenizer::ExtractTraceTimestamp(
+    const Record& record) {
+  std::optional<uint64_t> time;
+  if (!ReadTime(record, time)) {
+    return base::ErrStatus("Failed to read time");
+  }
+
   base::StatusOr<int64_t> trace_ts =
       time.has_value()
           ? context_->clock_tracker->ToTraceTime(
@@ -306,28 +347,12 @@ base::StatusOr<int64_t> PerfDataTokenizer::ToTraceTimestamp(
   return trace_ts;
 }
 
-bool PerfDataTokenizer::PushRecord(Record record) {
-  std::optional<uint64_t> time;
-  if (!ReadTime(record, time)) {
-    return false;
-  }
+base::Status PerfDataTokenizer::PushRecord(Record record) {
+  ASSIGN_OR_RETURN(int64_t trace_ts, ExtractTraceTimestamp(record));
 
-  base::StatusOr<int64_t> trace_ts = ToTraceTimestamp(time);
-  if (!trace_ts.ok()) {
-    return false;
-  }
+  context_->sorter->PushPerfRecord(trace_ts, std::move(record));
 
-  switch (record.header.type) {
-    case PERF_RECORD_AUXTRACE_INFO:
-    case PERF_RECORD_AUXTRACE:
-    case PERF_RECORD_AUX:
-      break;
-    default:
-      context_->sorter->PushPerfRecord(*trace_ts, std::move(record));
-      break;
-  }
-
-  return true;
+  return base::OkStatus();
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
@@ -350,6 +375,12 @@ PerfDataTokenizer::ParseFeatureSections() {
   std::sort(feature_sections_.begin(), feature_sections_.end(),
             [](const std::pair<uint8_t, PerfFile::Section>& lhs,
                const std::pair<uint8_t, PerfFile::Section>& rhs) {
+              if (lhs.second.offset == rhs.second.offset) {
+                // Some sections have 0 length and thus there can be offset
+                // collisions. To make sure we parse sections by increasing
+                // offset parse empty sections first.
+                return lhs.second.size > rhs.second.size;
+              }
               return lhs.second.offset > rhs.second.offset;
             });
 
@@ -440,6 +471,40 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
   }
 
   return base::OkStatus();
+}
+
+base::Status PerfDataTokenizer::ProcessAuxtraceInfoRecord(Record record) {
+  AuxtraceInfoRecord auxtrace_info;
+  RETURN_IF_ERROR(auxtrace_info.Parse(record));
+  return aux_manager_.OnAuxtraceInfoRecord(std::move(auxtrace_info));
+}
+
+base::Status PerfDataTokenizer::ProcessAuxRecord(Record record) {
+  AuxRecord aux;
+  RETURN_IF_ERROR(aux.Parse(record));
+  return aux_manager_.OnAuxRecord(std::move(aux));
+}
+
+base::StatusOr<PerfDataTokenizer::ParsingResult>
+PerfDataTokenizer::ParseAuxtraceData() {
+  PERFETTO_CHECK(current_auxtrace_.has_value());
+  const uint64_t size = current_auxtrace_->size;
+  if (buffer_.avail() < size) {
+    return ParsingResult::kMoreDataNeeded;
+  }
+
+  // TODO(carlscab): We could make this more efficient and avoid the copies by
+  // passing several chunks instead.
+  std::optional<TraceBlobView> data =
+      buffer_.SliceOff(buffer_.start_offset(), size);
+  buffer_.PopFrontBytes(size);
+  PERFETTO_CHECK(data.has_value());
+  base::Status status = aux_manager_.OnAuxtraceRecord(
+      std::move(*current_auxtrace_), std::move(*data));
+  current_auxtrace_.reset();
+  parsing_state_ = ParsingState::kParseRecords;
+  RETURN_IF_ERROR(status);
+  return ParsingResult::kSuccess;
 }
 
 base::Status PerfDataTokenizer::NotifyEndOfFile() {
