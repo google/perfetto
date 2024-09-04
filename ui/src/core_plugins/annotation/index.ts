@@ -19,7 +19,7 @@ import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
 import {THREAD_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {ContainerNode, GroupNode, TrackNode} from '../../public/workspace';
+import {GroupNode, TrackNode, Workspace} from '../../public/workspace';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 
 class AnnotationPlugin implements PerfettoPlugin {
@@ -79,7 +79,7 @@ class AnnotationPlugin implements PerfettoPlugin {
       // exists Otherwise, try upid to see if we can put this in a process
       // group
 
-      let container: ContainerNode;
+      let container: Workspace | GroupNode;
       if (groupName) {
         const existingGroup = groups.get(groupName);
         if (!existingGroup) {
