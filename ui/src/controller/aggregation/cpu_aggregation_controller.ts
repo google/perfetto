@@ -14,7 +14,8 @@
 
 import {exists} from '../../base/utils';
 import {ColumnDef} from '../../common/aggregation_data';
-import {Area, Sorting} from '../../common/state';
+import {Sorting} from '../../common/state';
+import {Area} from 'src/core/selection_manager';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';

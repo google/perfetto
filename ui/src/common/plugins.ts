@@ -30,7 +30,6 @@ import {assertExists} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
 import {PromptOption} from '../public/omnibox';
-import {horizontalScrollToTs} from '../frontend/scroll_helper';
 import {DisposableStack} from '../base/disposable_stack';
 import {TraceContext} from '../frontend/trace_context';
 import {Workspace} from '../public/workspace';
@@ -158,7 +157,7 @@ class PluginContextTraceImpl implements Trace, Disposable {
 
   readonly timeline = {
     panToTimestamp(ts: time): void {
-      horizontalScrollToTs(ts);
+      globals.timeline.panToTimestamp(ts);
     },
 
     setViewportTime(start: time, end: time): void {
