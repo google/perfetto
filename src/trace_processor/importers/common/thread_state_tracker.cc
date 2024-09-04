@@ -98,7 +98,9 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
 void ThreadStateTracker::PushNewTaskEvent(int64_t event_ts,
                                           UniqueTid utid,
                                           UniqueTid waker_utid) {
-  AddOpenState(event_ts, utid, runnable_string_id_, std::nullopt, waker_utid);
+  // open a runnable state with a non-interrupt wakeup from the cloning thread.
+  AddOpenState(event_ts, utid, runnable_string_id_, /*cpu=*/std::nullopt,
+               waker_utid, /*common_flags=*/0);
 }
 
 void ThreadStateTracker::PushBlockedReason(
