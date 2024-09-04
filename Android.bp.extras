@@ -199,6 +199,22 @@ gensrcs {
 }
 
 java_library {
+    name: "perfetto_winscope-lite",
+    proto: {
+        type: "lite",
+        include_dirs: ["external/protobuf/src"],
+        canonical_path_from_root: false,
+    },
+    srcs: [
+        ":libprotobuf-internal-descriptor-proto",
+        ":perfetto_winscope_filegroup_proto",
+    ],
+    static_libs: [
+        "libprotobuf-java-lite",
+    ],
+}
+
+java_library {
     name: "perfetto_config_java_protos",
     srcs: [
         ":perfetto_config_filegroup_proto",
