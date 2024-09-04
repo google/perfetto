@@ -65,7 +65,7 @@ void ProtoLogParser::ParseProtoLogMessage(
 
   std::vector<int64_t> sint64_params;
   for (auto it = protolog_message.sint64_params(); it; ++it) {
-    sint64_params.emplace_back(*it);
+    sint64_params.emplace_back(it->as_sint64());
   }
 
   std::vector<double> double_params;
