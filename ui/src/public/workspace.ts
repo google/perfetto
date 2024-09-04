@@ -96,7 +96,7 @@ export class TrackNode {
 /**
  * A base class for any node with children (i.e. a group or a workspace).
  */
-export class ContainerNode {
+abstract class ContainerNode {
   public displayName: string;
   public parent?: ContainerNode;
   private _children: Array<Node>;
