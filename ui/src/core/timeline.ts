@@ -64,6 +64,7 @@ export class TimelineImpl {
       .scale(ratio, centerPoint, MIN_DURATION)
       .fitWithin(this.traceSpan.start, this.traceSpan.end);
 
+    raf.scheduleRedraw();
     this.retriggerControllersOnChange();
   }
 
@@ -71,6 +72,8 @@ export class TimelineImpl {
     this._visibleWindow = this._visibleWindow
       .translate(delta)
       .fitWithin(this.traceSpan.start, this.traceSpan.end);
+
+    raf.scheduleRedraw();
     this.retriggerControllersOnChange();
   }
 
@@ -122,6 +125,7 @@ export class TimelineImpl {
       .clampDuration(MIN_DURATION)
       .fitWithin(this.traceSpan.start, this.traceSpan.end);
 
+    raf.scheduleRedraw();
     this.retriggerControllersOnChange();
   }
 
