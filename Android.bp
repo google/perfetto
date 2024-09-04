@@ -1021,6 +1021,9 @@ cc_library_static {
     shared_libs: [
         "liblog",
     ],
+    export_shared_lib_headers: [
+        "liblog",
+    ],
     host_supported: true,
     vendor_available: true,
     product_available: true,
