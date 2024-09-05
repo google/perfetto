@@ -21,7 +21,7 @@ import {getProcessTable} from './table';
 class ProcessPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace) {
     sqlTableRegistry['process'] = getProcessTable();
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.ShowTable.process',
       name: 'Open table: process',
       callback: () => {

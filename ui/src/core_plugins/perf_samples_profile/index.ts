@@ -57,7 +57,7 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
       const upid = it.upid;
       const uri = `/process_${upid}/perf_samples_profile`;
       const title = `Process Callstacks`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title,
         tags: {
@@ -72,7 +72,7 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
           upid,
         ),
       });
-      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode(uri, title);
       track.sortOrder = -40;
       group.insertChildInOrder(track);
@@ -103,7 +103,7 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
           ? `Thread Callstacks ${tid}`
           : `${threadName} Callstacks ${tid}`;
       const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -119,7 +119,7 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
           utid,
         ),
       });
-      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = -50;
       group.insertChildInOrder(track);

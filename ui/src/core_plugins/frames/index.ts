@@ -73,7 +73,7 @@ class FramesPlugin implements PerfettoPlugin {
       });
 
       const uri = `/process_${upid}/expected_frames`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         track: new ExpectedFramesTrack(engine, maxDepth, uri, trackIds),
@@ -83,7 +83,7 @@ class FramesPlugin implements PerfettoPlugin {
           kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         },
       });
-      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = -50;
       group.insertChildInOrder(track);
@@ -137,7 +137,7 @@ class FramesPlugin implements PerfettoPlugin {
       });
 
       const uri = `/process_${upid}/actual_frames`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         track: new ActualFramesTrack(engine, maxDepth, uri, trackIds),
@@ -147,7 +147,7 @@ class FramesPlugin implements PerfettoPlugin {
           kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         },
       });
-      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = -50;
       group.insertChildInOrder(track);

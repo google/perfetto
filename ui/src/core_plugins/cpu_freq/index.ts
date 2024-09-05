@@ -69,7 +69,7 @@ class CpuFreq implements PerfettoPlugin {
 
         const uri = `/cpu_freq_cpu${cpu}`;
         const title = `Cpu ${cpu} Frequency`;
-        ctx.registerTrack({
+        ctx.tracks.registerTrack({
           uri,
           title,
           tags: {
@@ -80,7 +80,7 @@ class CpuFreq implements PerfettoPlugin {
         });
         const trackNode = new TrackNode(uri, title);
         trackNode.sortOrder = -40;
-        ctx.timeline.workspace.insertChildInOrder(trackNode);
+        ctx.workspace.insertChildInOrder(trackNode);
       }
     }
   }

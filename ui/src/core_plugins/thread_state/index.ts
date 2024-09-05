@@ -66,7 +66,7 @@ class ThreadState implements PerfettoPlugin {
       });
 
       const uri = `${getThreadUriPrefix(upid, utid)}_state`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -87,7 +87,7 @@ class ThreadState implements PerfettoPlugin {
         ),
       });
 
-      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = 10;
       group.insertChildInOrder(track);
@@ -111,7 +111,7 @@ class ThreadState implements PerfettoPlugin {
     );
 
     sqlTableRegistry['thread_state'] = getThreadStateTable();
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {

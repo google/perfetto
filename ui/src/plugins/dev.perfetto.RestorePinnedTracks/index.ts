@@ -35,14 +35,14 @@ class RestorePinnedTrack implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.ctx = ctx;
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: `${PLUGIN_ID}#save`,
       name: 'Save: Pinned tracks',
       callback: () => {
         this.saveTracks();
       },
     });
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: `${PLUGIN_ID}#restore`,
       name: 'Restore: Pinned tracks',
       callback: () => {
@@ -52,7 +52,7 @@ class RestorePinnedTrack implements PerfettoPlugin {
   }
 
   private saveTracks() {
-    const workspace = this.ctx.timeline.workspace;
+    const workspace = this.ctx.workspace;
     const pinnedTracks = workspace.pinnedTracks;
     const tracksToSave: SavedPinnedTrack[] = pinnedTracks.map((track) => ({
       groupName: groupName(track),
@@ -68,7 +68,7 @@ class RestorePinnedTrack implements PerfettoPlugin {
       return;
     }
     const tracksToRestore: SavedPinnedTrack[] = JSON.parse(savedTracks);
-    const workspace = this.ctx.timeline.workspace;
+    const workspace = this.ctx.workspace;
     const tracks = workspace.flatTracks;
     tracksToRestore.forEach((trackToRestore) => {
       // Check for an exact match

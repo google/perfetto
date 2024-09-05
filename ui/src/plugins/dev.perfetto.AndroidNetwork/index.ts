@@ -39,7 +39,7 @@ class AndroidNetwork implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#batteryEvents',
       name: 'Add track: battery events',
       callback: async (track) => {
@@ -60,7 +60,7 @@ class AndroidNetwork implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#activityTrack',
       name: 'Add track: network activity',
       callback: async (groupby, filter, trackName) => {

@@ -31,7 +31,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace) {
     await this.createTracks(ctx);
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'org.chromium.ChromeTasks.ShowChromeTasksTable',
       name: 'Show chrome_tasks table',
       callback: () =>
@@ -99,13 +99,13 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       const utid = it.utid;
       const uri = `org.chromium.ChromeTasks#thread.${utid}`;
       const title = `${it.threadName} ${it.tid}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         track: new ChromeTasksThreadTrack(ctx.engine, uri, asUtid(utid)),
         title,
       });
       group.insertChildInOrder(new TrackNode(uri, title));
-      ctx.timeline.workspace.insertChildInOrder(group);
+      ctx.workspace.insertChildInOrder(group);
     }
 
     ctx.registerDetailsPanel(

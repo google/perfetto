@@ -32,7 +32,7 @@ class Wattson implements PerfettoPlugin {
     ctx.engine.query(`INCLUDE PERFETTO MODULE wattson.curves.ungrouped;`);
 
     const group = new GroupNode('Wattson');
-    ctx.timeline.workspace.insertChildInOrder(group);
+    ctx.workspace.insertChildInOrder(group);
 
     // CPUs estimate as part of CPU subsystem
     const cpus = globals.traceContext.cpus;
@@ -40,7 +40,7 @@ class Wattson implements PerfettoPlugin {
       const queryKey = `cpu${cpu}_curve`;
       const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
       const displayName = `Cpu${cpu} Estimate`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         track: new CpuSubsystemEstimateTrack(ctx.engine, uri, queryKey),
@@ -55,7 +55,7 @@ class Wattson implements PerfettoPlugin {
 
     const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
     const displayName = `DSU/SCU Estimate`;
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title: displayName,
       track: new CpuSubsystemEstimateTrack(ctx.engine, uri, `dsu_scu`),

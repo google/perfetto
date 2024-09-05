@@ -84,7 +84,7 @@ import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
 } from '../common/state_serialization';
-import {TraceContext} from '../frontend/trace_context';
+import {TraceInfo} from '../public/trace_info';
 import {ProfileType, profileType} from '../public/selection';
 
 type States = 'init' | 'loading_trace' | 'ready';
@@ -1141,7 +1141,7 @@ async function computeVisibleTime(
 async function getTraceTimeDetails(
   engine: Engine,
   engineCfg: EngineConfig,
-): Promise<TraceContext> {
+): Promise<TraceInfo> {
   const traceTime = await getTraceTimeBounds(engine);
 
   // Find the first REALTIME or REALTIME_COARSE clock snapshot.

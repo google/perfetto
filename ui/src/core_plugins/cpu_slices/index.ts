@@ -32,7 +32,7 @@ class CpuSlices implements PerfettoPlugin {
       const uri = `/sched_cpu${cpu}`;
 
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: name,
         tags: {
@@ -43,7 +43,7 @@ class CpuSlices implements PerfettoPlugin {
       });
       const trackNode = new TrackNode(uri, name);
       trackNode.sortOrder = -50;
-      ctx.timeline.workspace.insertChildInOrder(trackNode);
+      ctx.workspace.insertChildInOrder(trackNode);
     }
 
     ctx.registerDetailsPanel({

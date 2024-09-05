@@ -21,7 +21,7 @@ import {getThreadTable} from './table';
 class ThreadPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace) {
     sqlTableRegistry['thread'] = getThreadTable();
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.ShowTable.thread',
       name: 'Open table: thread',
       callback: () => {

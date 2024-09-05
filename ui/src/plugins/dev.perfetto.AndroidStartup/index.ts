@@ -43,12 +43,12 @@ class AndroidStartup implements PerfettoPlugin {
     };
     const uri = `/android_startups`;
     const title = 'Android App Startups';
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title: 'Android App Startups',
       track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
     });
-    ctx.timeline.workspace.insertChildInOrder(new TrackNode(uri, title));
+    ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
   }
 }
 
