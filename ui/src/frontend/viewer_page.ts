@@ -433,7 +433,6 @@ function renderGroupHeaderPanel(
       chips: tr?.desc.chips,
       collapsed,
       title: group.displayName,
-      tooltip: group.displayName,
       collapsable,
     });
   } else {
@@ -441,7 +440,6 @@ function renderGroupHeaderPanel(
       groupNode: group,
       collapsed,
       title: group.displayName,
-      tooltip: group.displayName,
       collapsable,
     });
   }
