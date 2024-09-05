@@ -44,7 +44,7 @@
 .track {
   display: grid;
   grid-template-columns: auto 1fr;
-  grid-template-rows: 1fr 0;
+  grid-template-rows: 1fr;
   container-type: size;
 
   &::after {
