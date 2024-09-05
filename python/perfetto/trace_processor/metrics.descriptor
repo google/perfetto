@@ -1015,8 +1015,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-þD
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"üC
+›E
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"™D
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -1179,11 +1179,12 @@ slice_name (	R	sliceName¤
 thread_utid (R
 threadUtid
 thread_name (	R
-threadNameï
+threadNameŒ
 Startup
 
 startup_id (R	startupId!
-startup_type (	RstartupType!
+startup_type (	RstartupType
+	cpu_count (RcpuCount!
 package_name (	RpackageName!
 process_name (	RprocessNameN
 

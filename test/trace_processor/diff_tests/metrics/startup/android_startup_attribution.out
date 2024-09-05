@@ -126,6 +126,7 @@ android_startup {
     dlopen_file: "libandroid.so"
     dlopen_file: "libandroid2.so"
     startup_type: "hot"
+    cpu_count: 1
     slow_start_reason: "GC Activity"
     slow_start_reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
     slow_start_reason: "Main Thread - Binder transactions blocked"
