@@ -93,6 +93,13 @@ std::optional<size_t> IdOffsetFromEndOfNonSampleRecord(
 
   return std::nullopt;
 }
+
+size_t GetSampleIdSize(const perf_event_attr& attr) {
+  constexpr uint64_t kSampleIdFlags = PERF_SAMPLE_TID | PERF_SAMPLE_TIME |
+                                      PERF_SAMPLE_ID | PERF_SAMPLE_STREAM_ID |
+                                      PERF_SAMPLE_CPU | PERF_SAMPLE_IDENTIFIER;
+  return CountSetFlags(attr.sample_type & kSampleIdFlags) * kBytesPerField;
+}
 }  // namespace
 
 PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
@@ -104,7 +111,8 @@ PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
       time_offset_from_start_(TimeOffsetFromStartOfSampleRecord(attr_)),
       time_offset_from_end_(TimeOffsetFromEndOfNonSampleRecord(attr_)),
       id_offset_from_start_(IdOffsetFromStartOfSampleRecord(attr_)),
-      id_offset_from_end_(IdOffsetFromEndOfNonSampleRecord(attr_)) {}
+      id_offset_from_end_(IdOffsetFromEndOfNonSampleRecord(attr_)),
+      sample_id_size_(GetSampleIdSize(attr_)) {}
 
 PerfEventAttr::~PerfEventAttr() = default;
 

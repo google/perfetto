@@ -1783,6 +1783,18 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/perf/attrs_section_reader.cc",
         "src/trace_processor/importers/perf/attrs_section_reader.h",
+        "src/trace_processor/importers/perf/aux_data_tokenizer.cc",
+        "src/trace_processor/importers/perf/aux_data_tokenizer.h",
+        "src/trace_processor/importers/perf/aux_record.cc",
+        "src/trace_processor/importers/perf/aux_record.h",
+        "src/trace_processor/importers/perf/aux_stream_manager.cc",
+        "src/trace_processor/importers/perf/aux_stream_manager.h",
+        "src/trace_processor/importers/perf/auxtrace_info_record.cc",
+        "src/trace_processor/importers/perf/auxtrace_info_record.h",
+        "src/trace_processor/importers/perf/auxtrace_record.cc",
+        "src/trace_processor/importers/perf/auxtrace_record.h",
+        "src/trace_processor/importers/perf/etm_tokenizer.cc",
+        "src/trace_processor/importers/perf/etm_tokenizer.h",
         "src/trace_processor/importers/perf/features.cc",
         "src/trace_processor/importers/perf/features.h",
         "src/trace_processor/importers/perf/mmap_record.cc",
@@ -1794,6 +1806,9 @@ perfetto_filegroup(
         "src/trace_processor/importers/perf/record_parser.h",
         "src/trace_processor/importers/perf/sample.cc",
         "src/trace_processor/importers/perf/sample.h",
+        "src/trace_processor/importers/perf/sample_id.cc",
+        "src/trace_processor/importers/perf/sample_id.h",
+        "src/trace_processor/importers/perf/util.h",
     ],
 )
 
