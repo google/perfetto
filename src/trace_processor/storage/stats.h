@@ -267,7 +267,7 @@ namespace perfetto::trace_processor::stats {
   F(perf_chosen_process_shard,            kIndexed, kInfo,     kTrace,    ""), \
   F(perf_guardrail_stop_ts,               kIndexed, kDataLoss, kTrace,    ""), \
   F(perf_unknown_record_type,             kIndexed, kInfo,     kAnalysis, ""), \
-  F(perf_record_skipped,                  kSingle,  kError,    kAnalysis, ""), \
+  F(perf_record_skipped,                  kIndexed, kError,    kAnalysis, ""), \
   F(perf_samples_skipped,                 kSingle,  kError,    kAnalysis, ""), \
   F(perf_counter_skipped_because_no_cpu,  kSingle,  kError,    kAnalysis, ""), \
   F(perf_features_skipped,                kIndexed, kInfo,     kAnalysis, ""), \
@@ -275,6 +275,11 @@ namespace perfetto::trace_processor::stats {
   F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,    ""), \
   F(perf_dummy_mapping_used,              kSingle,  kInfo,     kAnalysis, ""), \
   F(perf_invalid_event_id,                kSingle,  kError,    kTrace,    ""), \
+  F(perf_aux_missing,                     kSingle,  kDataLoss, kTrace,    ""), \
+  F(perf_aux_ignored,                     kSingle,  kInfo,     kTrace,    ""), \
+  F(perf_aux_lost,                        kSingle,  kDataLoss, kTrace,    ""), \
+  F(perf_auxtrace_missing,                kSingle,  kDataLoss, kTrace,    ""), \
+  F(perf_unknown_aux_data,                kIndexed, kDataLoss, kTrace,    ""), \
   F(memory_snapshot_parser_failure,       kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_out_of_order,    kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_unknown_cpu_freq,                                     \
