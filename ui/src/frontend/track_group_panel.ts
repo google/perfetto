@@ -40,10 +40,11 @@ import {classNames} from '../base/classnames';
 import {GroupNode} from '../public/workspace';
 import {raf} from '../core/raf_scheduler';
 import {Actions} from '../common/actions';
+import {MiddleEllipsis} from '../widgets/middle_ellipsis';
 
 interface Attrs {
   readonly groupNode: GroupNode;
-  readonly title: m.Children;
+  readonly title: string;
   readonly tooltip: string;
   readonly collapsed: boolean;
   readonly collapsable: boolean;
@@ -135,8 +136,7 @@ export class TrackGroupPanel implements Panel {
           m(
             'h1.track-title',
             {title: tooltip},
-            title,
-            chips && renderChips(chips),
+            m(MiddleEllipsis, {text: title}, chips && renderChips(chips)),
           ),
           collapsed && exists(subtitle) && m('h2.track-subtitle', subtitle),
         ),
