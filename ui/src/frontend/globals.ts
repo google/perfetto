@@ -25,7 +25,7 @@ import {
 } from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
 import {CurrentSearchResults} from '../common/search_data';
-import {EngineConfig, State, getLegacySelection} from '../common/state';
+import {EngineConfig, State} from '../common/state';
 import {TabManagerImpl} from '../core/tab_manager';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 import {TrackManagerImpl} from '../core/track_manager';
@@ -37,7 +37,8 @@ import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import type {Analytics} from './analytics';
 import {TimelineImpl} from '../core/timeline';
 import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
-import {SelectionManagerImpl, LegacySelection} from '../core/selection_manager';
+import {SelectionManagerImpl} from '../core/selection_manager';
+import {Selection, SelectionOpts} from '../public/selection';
 import {Optional, exists} from '../base/utils';
 import {OmniboxManagerImpl} from '../core/omnibox_manager';
 import {SerializedAppState} from '../common/state_serialization_schema';
@@ -52,6 +53,7 @@ import {Registry} from '../base/registry';
 import {SidebarMenuItem} from '../public/sidebar';
 import {Workspace} from '../public/workspace';
 import {ratelimit} from './rate_limiters';
+import {NoteManagerImpl} from '../core/note_manager';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -148,23 +150,6 @@ export interface ThreadDesc {
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
-// Options for globals.makeSelection().
-export interface MakeSelectionOpts {
-  // Whether to switch to the current selection tab or not. Default = true.
-  switchToCurrentSelectionTab?: boolean;
-
-  // Whether to cancel the current search selection. Default = true.
-  clearSearch?: boolean;
-}
-
-// All of these control additional things we can do when doing a
-// selection.
-export interface LegacySelectionArgs {
-  clearSearch: boolean;
-  switchToCurrentSelectionTab: boolean;
-  pendingScrollId: number | undefined;
-}
-
 export const defaultTraceContext: TraceContext = {
   traceTitle: '',
   traceUrl: '',
@@ -224,7 +209,8 @@ class Globals implements AppContext {
   private _cmdManager = new CommandManagerImpl();
   private _tabManager = new TabManagerImpl();
   private _trackManager = new TrackManagerImpl();
-  private _selectionManager = new SelectionManagerImpl(this._store);
+  private _selectionManager = new SelectionManagerImpl();
+  private _noteManager = new NoteManagerImpl(this._selectionManager);
   private _hasFtrace: boolean = false;
   private _searchOverviewTrack?: SearchOverviewTrack;
   readonly workspaces: Workspace[] = [];
@@ -318,6 +304,10 @@ class Globals implements AppContext {
     const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
     this.workspaces.push(defaultWorkspace);
     this._currentWorkspace = defaultWorkspace;
+    this._selectionManager.onSelectionChange = (
+      _s: Selection,
+      opts: SelectionOpts,
+    ) => this.handleSelectionOpts(opts);
   }
 
   initialize(
@@ -566,40 +556,12 @@ class Globals implements AppContext {
     return this.state.engine;
   }
 
-  makeSelection(action: DeferredAction<{}>, opts: MakeSelectionOpts = {}) {
-    const {switchToCurrentSelectionTab = true, clearSearch = true} = opts;
-
-    // A new selection should cancel the current search selection.
-    clearSearch && globals.dispatch(Actions.setSearchIndex({index: -1}));
-    if (switchToCurrentSelectionTab) {
-      globals.tabManager.showCurrentSelectionTab();
-    }
-    globals.dispatch(action);
-  }
-
-  setLegacySelection(
-    legacySelection: LegacySelection,
-    args: Partial<LegacySelectionArgs> = {},
-  ): void {
-    this._selectionManager.setLegacy(legacySelection);
-    this.handleSelectionArgs(args);
-  }
-
-  selectSingleEvent(
-    trackUri: string,
-    eventId: number,
-    args: Partial<LegacySelectionArgs> = {},
-  ): void {
-    this._selectionManager.setEvent(trackUri, eventId);
-    this.handleSelectionArgs(args);
-  }
-
-  private handleSelectionArgs(args: Partial<LegacySelectionArgs> = {}): void {
+  private handleSelectionOpts(opts: SelectionOpts = {}): void {
     const {
       clearSearch = true,
       switchToCurrentSelectionTab = true,
       pendingScrollId = undefined,
-    } = args;
+    } = opts;
     if (clearSearch) {
       globals.dispatch(Actions.setSearchIndex({index: -1}));
     }
@@ -613,34 +575,6 @@ class Globals implements AppContext {
     if (switchToCurrentSelectionTab) {
       globals.tabManager.showCurrentSelectionTab();
     }
-  }
-
-  clearSelection(): void {
-    globals.dispatch(Actions.setSearchIndex({index: -1}));
-    this._selectionManager.clear();
-  }
-
-  resetForTesting() {
-    this._dispatchMultiple = undefined;
-    this._timeline = undefined;
-    this._serviceWorkerController = undefined;
-
-    // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
-    this._trackDataStore = undefined;
-    this._overviewStore = undefined;
-    this._threadMap = undefined;
-    this._sliceDetails = undefined;
-    this._threadStateDetails = undefined;
-    this._aggregateDataStore = undefined;
-    this._numQueriesQueued = 0;
-    this._currentSearchResults = {
-      eventIds: new Float64Array(0),
-      tses: new BigInt64Array(0),
-      utids: new Float64Array(0),
-      trackUris: [],
-      sources: [],
-      totalResults: 0,
-    };
   }
 
   // This variable is set by the is_internal_user.js script if the user is a
@@ -686,6 +620,14 @@ class Globals implements AppContext {
     return this._trackManager;
   }
 
+  get selectionManager() {
+    return this._selectionManager;
+  }
+
+  get noteManager() {
+    return this._noteManager;
+  }
+
   // Offset between t=0 and the configured time domain.
   timestampOffset(): time {
     const fmt = timestampFormat();
@@ -714,13 +656,12 @@ class Globals implements AppContext {
   async findTimeRangeOfSelection(): Promise<
     Optional<{start: time; end: time}>
   > {
-    const sel = globals.state.selection;
+    const sel = globals.selectionManager.selection;
     if (sel.kind === 'area') {
       return sel;
     } else if (sel.kind === 'note') {
-      const selectedNote = this.state.notes[sel.id];
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (selectedNote) {
+      const selectedNote = this.noteManager.getNote(sel.id);
+      if (selectedNote !== undefined) {
         const kind = selectedNote.noteType;
         switch (kind) {
           case 'SPAN':
@@ -751,7 +692,7 @@ class Globals implements AppContext {
       return undefined;
     }
 
-    const selection = getLegacySelection(this.state);
+    const selection = globals.selectionManager.legacySelection;
     if (selection === null) {
       return undefined;
     }

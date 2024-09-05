@@ -209,8 +209,7 @@ export class UiMain implements m.ClassComponent {
       id: 'perfetto.Deselect',
       name: 'Deselect',
       callback: () => {
-        globals.clearSelection();
-        globals.dispatch(Actions.removeNote({id: '0'}));
+        globals.selectionManager.clear();
       },
       defaultHotkey: 'Escape',
     },
@@ -220,13 +219,11 @@ export class UiMain implements m.ClassComponent {
       callback: async () => {
         const range = await globals.findTimeRangeOfSelection();
         if (range) {
-          globals.dispatch(
-            Actions.addSpanNote({
-              start: range.start,
-              end: range.end,
-              id: '__temp__',
-            }),
-          );
+          globals.noteManager.addSpanNote({
+            start: range.start,
+            end: range.end,
+            id: '__temp__',
+          });
         }
       },
       defaultHotkey: 'M',
@@ -237,9 +234,7 @@ export class UiMain implements m.ClassComponent {
       callback: async () => {
         const range = await globals.findTimeRangeOfSelection();
         if (range) {
-          globals.dispatch(
-            Actions.addSpanNote({start: range.start, end: range.end}),
-          );
+          globals.noteManager.addSpanNote({start: range.start, end: range.end});
         }
       },
       defaultHotkey: 'Shift+M',
@@ -248,13 +243,9 @@ export class UiMain implements m.ClassComponent {
       id: 'perfetto.RemoveSelectedNote',
       name: 'Remove selected note',
       callback: () => {
-        const selection = globals.state.selection;
+        const selection = globals.selectionManager.selection;
         if (selection.kind === 'note') {
-          globals.dispatch(
-            Actions.removeNote({
-              id: selection.id,
-            }),
-          );
+          globals.noteManager.removeNote(selection.id);
         }
       },
       defaultHotkey: 'Delete',
@@ -295,7 +286,7 @@ export class UiMain implements m.ClassComponent {
         //   selected, then select the entire trace. This allows double tapping
         //   Ctrl+A to select the entire track, then select the entire trace.
         let tracksToSelect: string[] = [];
-        const selection = globals.state.selection;
+        const selection = globals.selectionManager.selection;
         if (selection.kind === 'area') {
           // Something is already selected, let's see if it covers the entire
           // span of the trace or not
@@ -317,13 +308,11 @@ export class UiMain implements m.ClassComponent {
           tracksToSelect = globals.workspace.flatTracks.map((t) => t.uri);
         }
         const {start, end} = globals.traceContext;
-        globals.dispatch(
-          Actions.selectArea({
-            start,
-            end,
-            trackUris: tracksToSelect,
-          }),
-        );
+        globals.selectionManager.setArea({
+          start,
+          end,
+          trackUris: tracksToSelect,
+        });
       },
       defaultHotkey: 'Mod+A',
     },

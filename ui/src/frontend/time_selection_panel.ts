@@ -173,7 +173,7 @@ export class TimeSelectionPanel implements Panel {
     }
 
     const localArea = globals.timeline.selectedArea;
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
     if (localArea !== undefined) {
       const start = Time.min(localArea.start, localArea.end);
       const end = Time.max(localArea.start, localArea.end);
@@ -193,7 +193,7 @@ export class TimeSelectionPanel implements Panel {
       );
     }
 
-    for (const note of Object.values(globals.state.notes)) {
+    for (const note of globals.noteManager.notes.values()) {
       const noteIsSelected =
         selection.kind === 'note' && selection.id === note.id;
       if (note.noteType === 'SPAN' && !noteIsSelected) {

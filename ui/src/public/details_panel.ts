@@ -12,21 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {LegacySelection, Selection} from './selection';
+
+export interface LegacyDetailsPanel {
+  render(selection: LegacySelection): m.Children;
+  isLoading?(): boolean;
+}
+
+export interface DetailsPanel {
+  render(selection: Selection): m.Children;
+  isLoading?(): boolean;
+}
+
+export interface TrackSelectionDetailsPanel {
+  render(id: number): m.Children;
+  isLoading?(): boolean;
+}
+
+// TODO(primiano): rationalize this GenericSliceDetailsTabConfig. it should be
+// probably moved to a public/lib/ next.
 export interface ColumnConfig {
-  displayName?: string;
+  readonly displayName?: string;
 }
 
 export type Columns = {
-  [columnName: string]: ColumnConfig;
+  readonly [columnName: string]: ColumnConfig;
 };
 
 export interface GenericSliceDetailsTabConfigBase {
-  sqlTableName: string;
-  title: string;
+  readonly sqlTableName: string;
+  readonly title: string;
   // All columns are rendered if |columns| is undefined.
-  columns?: Columns;
+  readonly columns?: Columns;
 }
 
 export type GenericSliceDetailsTabConfig = GenericSliceDetailsTabConfigBase & {
-  id: number;
+  readonly id: number;
 };

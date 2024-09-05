@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DetailsPanel, LegacyDetailsPanel} from '../public/track';
+import {DetailsPanel, LegacyDetailsPanel} from '../public/details_panel';
 import {TabDescriptor} from '../public/tab';
 import {raf} from './raf_scheduler';
 

@@ -17,7 +17,7 @@
 import {assertExists} from '../base/logging';
 import {sqliteString} from '../base/string_utils';
 import {PivotTableQuery, PivotTableState} from '../common/state';
-import {Area} from 'src/core/selection_manager';
+import {Area} from '../public/selection';
 import {getSelectedTrackKeys} from '../controller/aggregation/slice_aggregation_controller';
 import {Aggregation, TableColumn} from './pivot_table_types';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';

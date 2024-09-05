@@ -17,7 +17,6 @@ import m from 'mithril';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {TimeSpan} from '../base/time';
-import {Actions} from '../common/actions';
 import {TrackRenderer} from '../core/track_manager';
 import {raf} from '../core/raf_scheduler';
 import {Track, TrackTags} from '../public/track';
@@ -37,7 +36,6 @@ import {Button, ButtonBar} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {canvasClip} from '../base/canvas_utils';
 import {TimeScale} from '../base/time_scale';
-import {getLegacySelection} from '../common/state';
 import {exists, Optional} from '../base/utils';
 import {Intent} from '../widgets/common';
 import {TrackRenderContext} from '../public/track';
@@ -75,7 +73,7 @@ export function getTitleFontSize(title: string): string | undefined {
 }
 
 function isTrackSelected(track: TrackNode) {
-  const selection = globals.state.selection;
+  const selection = globals.selectionManager.selection;
   if (selection.kind !== 'area') return false;
   return selection.trackUris.includes(track.uri);
 }
@@ -155,7 +153,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       }
     }
 
-    const currentSelection = globals.state.selection;
+    const currentSelection = globals.selectionManager.selection;
     const pinned = attrs.track.isPinned;
 
     return m(
@@ -205,10 +203,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           currentSelection.kind === 'area'
             ? m(Button, {
                 onclick: (e: MouseEvent) => {
-                  globals.dispatch(
-                    Actions.toggleTrackAreaSelection({
-                      key: attrs.track.uri,
-                    }),
+                  globals.selectionManager.toggleTrackAreaSelection(
+                    attrs.track.uri,
                   );
                   e.stopPropagation();
                 },
@@ -551,7 +547,7 @@ export class TrackPanel implements Panel {
     timescale: TimeScale,
     size: Size2D,
   ) {
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
     if (selection.kind !== 'area') {
       return;
     }
@@ -680,7 +676,7 @@ export function renderWakeupVertical(
   timescale: TimeScale,
   size: Size2D,
 ) {
-  const currentSelection = getLegacySelection(globals.state);
+  const currentSelection = globals.selectionManager.legacySelection;
   if (currentSelection !== null) {
     if (
       currentSelection.kind === 'SCHED_SLICE' &&
@@ -704,7 +700,7 @@ export function renderNoteVerticals(
 ) {
   // All marked areas should have semi-transparent vertical lines
   // marking the start and end.
-  for (const note of Object.values(globals.state.notes)) {
+  for (const note of globals.noteManager.notes.values()) {
     if (note.noteType === 'SPAN') {
       const transparentNoteColor =
         'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';

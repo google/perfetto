@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
-import {LegacySelection, ProfileType} from '../../common/state';
-import {profileType} from '../../core/selection_manager';
 import {
   BASE_ROW,
   BaseSliceTrack,
@@ -23,6 +20,11 @@ import {
 } from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
+import {
+  LegacySelection,
+  ProfileType,
+  profileType,
+} from '../../public/selection';
 import {Slice} from '../../public/track';
 import {STR} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
@@ -110,14 +112,12 @@ export class HeapProfileTrack extends BaseSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    globals.makeSelection(
-      Actions.selectHeapProfile({
-        id: args.slice.id,
-        upid: this.upid,
-        ts: args.slice.ts,
-        type: args.slice.type,
-      }),
-    );
+    globals.selectionManager.setHeapProfile({
+      id: args.slice.id,
+      upid: this.upid,
+      ts: args.slice.ts,
+      type: args.slice.type,
+    });
   }
 
   protected isSelectionHandled(selection: LegacySelection): boolean {

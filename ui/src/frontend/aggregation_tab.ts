@@ -22,7 +22,7 @@ import {raf} from '../core/raf_scheduler';
 import {EmptyState} from '../widgets/empty_state';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 import {PivotTable} from './pivot_table';
-import {AreaSelection} from '../common/state';
+import {AreaSelection} from '../public/selection';
 import {Monitor} from '../base/monitor';
 import {
   CPU_PROFILE_TRACK_KIND,
@@ -44,7 +44,9 @@ interface View {
 }
 
 class AreaDetailsPanel implements m.ClassComponent {
-  private readonly monitor = new Monitor([() => globals.state.selection]);
+  private readonly monitor = new Monitor([
+    () => globals.selectionManager.selection,
+  ]);
   private currentTab: string | undefined = undefined;
   private cpuProfileFlamegraphAttrs?: QueryFlamegraphAttrs;
   private perfSampleFlamegraphAttrs?: QueryFlamegraphAttrs;
@@ -186,7 +188,7 @@ class AreaDetailsPanel implements m.ClassComponent {
   }
 
   private computeCpuProfileFlamegraphAttrs(isChanged: boolean) {
-    const currentSelection = globals.state.selection;
+    const currentSelection = globals.selectionManager.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
     }
@@ -247,7 +249,7 @@ class AreaDetailsPanel implements m.ClassComponent {
   }
 
   private computePerfSampleFlamegraphAttrs(isChanged: boolean) {
-    const currentSelection = globals.state.selection;
+    const currentSelection = globals.selectionManager.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
     }
@@ -295,7 +297,7 @@ class AreaDetailsPanel implements m.ClassComponent {
   }
 
   private computeSliceFlamegraphAttrs(isChanged: boolean) {
-    const currentSelection = globals.state.selection;
+    const currentSelection = globals.selectionManager.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
     }
