@@ -54,7 +54,7 @@ class AnnotationPlugin implements PerfettoPlugin {
       const {id, name, upid, groupName} = it;
 
       const uri = `/annotation_${id}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: name,
         tags: {
@@ -87,15 +87,15 @@ class AnnotationPlugin implements PerfettoPlugin {
           group.headerTrackUri = uri;
           container = group;
           groups.set(groupName, group);
-          ctx.timeline.workspace.insertChildInOrder(group);
+          ctx.workspace.insertChildInOrder(group);
         } else {
           container = existingGroup;
         }
       } else {
         if (upid !== 0) {
-          container = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+          container = getOrCreateGroupForProcess(ctx.workspace, upid);
         } else {
-          container = ctx.timeline.workspace;
+          container = ctx.workspace;
         }
       }
 
@@ -126,7 +126,7 @@ class AnnotationPlugin implements PerfettoPlugin {
       const {id: trackId, name, upid} = counterIt;
 
       const uri = `/annotation_counter_${trackId}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: name,
         tags: {
@@ -143,7 +143,7 @@ class AnnotationPlugin implements PerfettoPlugin {
         }),
       });
 
-      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       group.insertChildInOrder(new TrackNode(uri, name));
     }
   }

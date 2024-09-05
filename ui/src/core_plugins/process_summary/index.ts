@@ -115,7 +115,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
           utid,
         };
 
-        ctx.registerTrack({
+        ctx.tracks.registerTrack({
           uri,
           title: `${upid === null ? tid : pid} schedule`,
           tags: {
@@ -132,7 +132,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
           utid,
         };
 
-        ctx.registerTrack({
+        ctx.tracks.registerTrack({
           uri,
           title: `${upid === null ? tid : pid} summary`,
           tags: {
@@ -191,7 +191,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
       utid: it.utid,
     };
 
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri: '/kernel',
       title: `Kernel thread summary`,
       tags: {

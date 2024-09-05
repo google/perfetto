@@ -39,7 +39,9 @@ import {raf} from '../../core/raf_scheduler';
 // this to work.
 interface Context {
   engine: Engine;
-  registerTrack(track: TrackDescriptor): unknown;
+  tracks: {
+    registerTrack(track: TrackDescriptor): unknown;
+  };
 }
 
 // Names of the columns of the underlying view to be used as
@@ -136,7 +138,7 @@ export async function addDebugSliceTrack(
   );
 
   const uri = `debug.slice.${uuidv4()}`;
-  ctx.registerTrack({
+  ctx.tracks.registerTrack({
     uri,
     title: trackName,
     track: new DebugSliceTrack(ctx.engine, {trackUri: uri}, tableName),
@@ -218,7 +220,7 @@ export async function addDebugCounterTrack(
   );
 
   const uri = `debug.counter.${uuidv4()}`;
-  ctx.registerTrack({
+  ctx.tracks.registerTrack({
     uri,
     title: trackName,
     track: new DebugCounterTrack(ctx.engine, {trackUri: uri}, tableName),

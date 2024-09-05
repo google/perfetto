@@ -21,7 +21,7 @@ import {getSliceTable} from './table';
 class SlicePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace) {
     sqlTableRegistry['slice'] = getSliceTable();
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.ShowTable.slice',
       name: 'Open table: slice',
       callback: () => {

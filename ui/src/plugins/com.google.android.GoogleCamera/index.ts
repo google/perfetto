@@ -22,7 +22,7 @@ class GoogleCamera implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.ctx = ctx;
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'com.google.android.GoogleCamera#LoadGoogleCameraStartupView',
       name: 'Load google camera startup view',
       callback: () => {
@@ -30,7 +30,7 @@ class GoogleCamera implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'com.google.android.GoogleCamera#PinCameraRelatedTracks',
       name: 'Pin camera related tracks',
       callback: (trackNames) => {
@@ -54,7 +54,7 @@ class GoogleCamera implements PerfettoPlugin {
   }
 
   private pinTracks(trackNames: ReadonlyArray<string>) {
-    this.ctx.timeline.workspace.flatTracks.forEach((track) => {
+    this.ctx.workspace.flatTracks.forEach((track) => {
       if (trackNames.includes(track.displayName)) {
         track.pin();
       }

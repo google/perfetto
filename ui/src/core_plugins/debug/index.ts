@@ -26,7 +26,7 @@ import {Optional, exists} from '../../base/utils';
 
 class DebugTracksPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.DebugTracks#addDebugSliceTrack',
       name: 'Add debug slice track',
       callback: async (arg: unknown) => {
@@ -48,7 +48,7 @@ class DebugTracksPlugin implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.DebugTracks#addDebugCounterTrack',
       name: 'Add debug counter track',
       callback: async (arg: unknown) => {

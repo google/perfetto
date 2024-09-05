@@ -154,7 +154,9 @@ const ITEMS: ContextMenuItem[] = [
             // plugin's context object.
             {
               engine,
-              registerTrack: (x) => globals.trackManager.registerTrack(x),
+              tracks: {
+                registerTrack: (x) => globals.trackManager.registerTrack(x),
+              },
             },
             {
               sqlSource: `

@@ -19,7 +19,7 @@ import {addDebugSliceTrack} from '../../public/debug_tracks';
 
 class AndroidClientServer implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidClientServer#ThreadRuntimeIPC',
       name: 'Show dependencies in client server model',
       callback: async (sliceId) => {
