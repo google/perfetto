@@ -155,6 +155,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 
     const currentSelection = globals.selectionManager.selection;
     const pinned = attrs.track.isPinned;
+    const chips = attrs.chips && renderChips(attrs.chips);
 
     return m(
       `.track-shell[draggable=true]`,
@@ -175,13 +176,10 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         m(
           'h1',
           {
-            title: attrs.track.displayName,
+            ref: attrs.title,
           },
-          m(
-            MiddleEllipsis,
-            {text: attrs.title},
-            attrs.chips && renderChips(attrs.chips),
-          ),
+          m('.popup', attrs.title, chips),
+          m(MiddleEllipsis, {text: attrs.title}, chips),
         ),
         m(
           ButtonBar,
@@ -482,6 +480,22 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 
   onupdate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
     vnode.attrs.track?.onFullRedraw?.();
+    this.decidePopupRequired(vnode.dom);
+  }
+
+  // Works out whether to display a title popup on hover, based on whether the
+  // current title is truncated.
+  private decidePopupRequired(dom: Element) {
+    const popupElement = dom.querySelector('.popup') as HTMLElement;
+    const titleElement = dom.querySelector(
+      '.pf-middle-ellipsis',
+    ) as HTMLElement;
+
+    if (popupElement.clientWidth >= titleElement.clientWidth) {
+      popupElement.classList.add('show-popup');
+    } else {
+      popupElement.classList.remove('show-popup');
+    }
   }
 }
 

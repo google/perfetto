@@ -24,6 +24,21 @@
   line-break: anywhere;
   white-space: nowrap;
   text-overflow: ellipsis;
+
+  .popup {
+    visibility: hidden;
+    box-shadow: 1px 1px 2px 2px var(--track-border-color);
+    border-radius: 2px;
+    background: white;
+    color: black;
+    position: absolute;
+    text-overflow: unset;
+    pointer-events: none;
+  }
+
+  &:hover .popup.show-popup {
+    visibility: visible;
+  }
 }
 
 .track-content.pf-track-content-error {
