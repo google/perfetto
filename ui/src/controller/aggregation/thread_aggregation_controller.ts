@@ -15,7 +15,7 @@
 import {exists} from '../../base/utils';
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
 import {Sorting} from '../../common/state';
-import {Area} from 'src/core/selection_manager';
+import {Area} from '../../public/selection';
 import {translateState} from '../../common/thread_state';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {globals} from '../../frontend/globals';
@@ -26,7 +26,7 @@ import {AggregationController} from './aggregation_controller';
 export class ThreadAggregationController extends AggregationController {
   private utids?: number[];
 
-  setThreadStateUtids(tracks: string[]) {
+  setThreadStateUtids(tracks: ReadonlyArray<string>) {
     this.utids = [];
     for (const trackUri of tracks) {
       const trackInfo = globals.trackManager.getTrack(trackUri);

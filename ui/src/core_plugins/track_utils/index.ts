@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
 import {
   getTimeSpanOfSelectionOrVisibleWindow,
   globals,
@@ -65,13 +64,11 @@ class TrackUtilsPlugin implements PerfettoPlugin {
 
           verticalScrollToTrack(selectedUri, true);
           const traceTime = globals.traceContext;
-          globals.makeSelection(
-            Actions.selectArea({
-              start: traceTime.start,
-              end: traceTime.end,
-              trackUris: [selectedUri],
-            }),
-          );
+          globals.selectionManager.setArea({
+            start: traceTime.start,
+            end: traceTime.end,
+            trackUris: [selectedUri],
+          });
         } catch {
           // Prompt was probably cancelled - do nothing.
         }

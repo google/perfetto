@@ -94,7 +94,7 @@ function selectCurrentSearchResult() {
       verticalScrollToTrack(uri, true);
       break;
     case 'cpu':
-      globals.setLegacySelection(
+      globals.selectionManager.setLegacy(
         {
           kind: 'SCHED_SLICE',
           id: currentId,
@@ -108,7 +108,7 @@ function selectCurrentSearchResult() {
       );
       break;
     case 'log':
-      globals.setLegacySelection(
+      globals.selectionManager.setLegacy(
         {
           kind: 'LOG',
           id: currentId,
@@ -116,7 +116,6 @@ function selectCurrentSearchResult() {
         },
         {
           clearSearch: false,
-          pendingScrollId: currentId,
           switchToCurrentSelectionTab: true,
         },
       );
@@ -124,7 +123,7 @@ function selectCurrentSearchResult() {
     case 'slice':
       // Search results only include slices from the slice table for now.
       // When we include annotations we need to pass the correct table.
-      globals.setLegacySelection(
+      globals.selectionManager.setLegacy(
         {
           kind: 'SLICE',
           id: currentId,

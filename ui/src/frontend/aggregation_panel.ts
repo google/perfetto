@@ -143,7 +143,7 @@ export class AggregationPanel
   }
 
   showTimeRange() {
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
     if (selection.kind !== 'area') return undefined;
     const duration = selection.end - selection.start;
     return m(

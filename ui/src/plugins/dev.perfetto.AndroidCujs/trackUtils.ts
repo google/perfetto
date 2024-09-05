@@ -86,7 +86,7 @@ export function focusOnSlice(slice: SliceIdentifier) {
   }
   const trackId = slice.trackId;
   const track = getTrackForTrackId(trackId);
-  globals.setLegacySelection(
+  globals.selectionManager.setLegacy(
     {
       kind: 'SLICE',
       id: slice.sliceId,
@@ -94,9 +94,7 @@ export function focusOnSlice(slice: SliceIdentifier) {
       table: 'slice',
     },
     {
-      clearSearch: true,
       pendingScrollId: slice.sliceId,
-      switchToCurrentSelectionTab: true,
     },
   );
   findCurrentSelection;

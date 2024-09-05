@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {AreaSelection, getLegacySelection} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
@@ -27,6 +26,7 @@ import {
   THREAD_SLICE_TRACK_KIND,
 } from '../public/track_kinds';
 import {TrackDescriptor} from '../public/track';
+import {AreaSelection} from '../public/selection';
 
 export interface FlowEventsControllerArgs {
   engine: Engine;
@@ -42,7 +42,9 @@ const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
 });
 
 export class FlowEventsController extends Controller<'main'> {
-  private readonly monitor = new Monitor([() => globals.state.selection]);
+  private readonly monitor = new Monitor([
+    () => globals.selectionManager.selection,
+  ]);
 
   constructor(private args: FlowEventsControllerArgs) {
     super('main');
@@ -422,14 +424,14 @@ export class FlowEventsController extends Controller<'main'> {
       return;
     }
 
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
     if (selection.kind === 'empty') {
       publishConnectedFlows([]);
       publishSelectedFlows([]);
       return;
     }
 
-    const legacySelection = getLegacySelection(globals.state);
+    const legacySelection = globals.selectionManager.legacySelection;
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
     if (

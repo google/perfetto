@@ -22,7 +22,7 @@ import {
   ThreadStateExtra,
 } from '../../common/aggregation_data';
 import {Sorting} from '../../common/state';
-import {Area} from 'src/core/selection_manager';
+import {Area} from '../../public/selection';
 import {globals} from '../../frontend/globals';
 import {publishAggregateData} from '../../frontend/publish';
 import {Engine} from '../../trace_processor/engine';
@@ -58,14 +58,14 @@ export abstract class AggregationController extends Controller<'main'> {
     super('main');
     this.kind = this.args.kind;
     this.monitor = new Monitor([
-      () => globals.state.selection,
+      () => globals.selectionManager.selection,
       () => globals.state.aggregatePreferences[this.args.kind],
     ]);
   }
 
   run() {
     if (this.monitor.ifStateChanged()) {
-      const selection = globals.state.selection;
+      const selection = globals.selectionManager.selection;
       if (selection.kind !== 'area') {
         publishAggregateData({
           data: {

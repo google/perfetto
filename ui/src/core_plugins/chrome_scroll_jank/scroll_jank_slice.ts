@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {duration, time, Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
 import {SliceSqlId} from '../../trace_processor/sql_utils/core_types';
@@ -181,16 +180,14 @@ export class ScrollJankSliceRef
 
           const trackUri = track.key;
 
-          globals.makeSelection(
-            Actions.selectGenericSlice({
-              id: vnode.attrs.id,
-              sqlTableName: track.sqlTableName,
-              start: vnode.attrs.ts,
-              duration: vnode.attrs.dur,
-              trackUri,
-              detailsPanelConfig: track.detailsPanelConfig,
-            }),
-          );
+          globals.selectionManager.setGenericSlice({
+            id: vnode.attrs.id,
+            sqlTableName: track.sqlTableName,
+            start: vnode.attrs.ts,
+            duration: vnode.attrs.dur,
+            trackUri,
+            detailsPanelConfig: track.detailsPanelConfig,
+          });
 
           scrollToTrackAndTs(trackUri, vnode.attrs.ts, true);
         },

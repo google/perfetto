@@ -18,7 +18,7 @@ import {Icons} from '../base/semantic_icons';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {randomColor} from '../core/colorizer';
-import {SpanNote, Note, Selection} from '../common/state';
+import {SpanNote, Note} from 'src/public/note';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';
 import {TextInput} from '../widgets/text_input';
@@ -30,10 +30,11 @@ import {Panel} from './panel_container';
 import {Timestamp} from './widgets/timestamp';
 import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
-import {DetailsPanel} from '../public/track';
+import {DetailsPanel} from '../public/details_panel';
 import {TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
 import {isTraceLoaded} from './trace_attrs';
+import {Selection} from '../public/selection';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -183,7 +184,7 @@ export class NotesPanel implements Panel {
     ctx.textBaseline = 'bottom';
     ctx.font = '10px Helvetica';
 
-    for (const note of Object.values(globals.state.notes)) {
+    for (const note of globals.noteManager.notes.values()) {
       const timestamp = getStartTimestamp(note);
       // TODO(hjd): We should still render area selection marks in viewport is
       // *within* the area (e.g. both lhs and rhs are out of bounds).
@@ -199,7 +200,7 @@ export class NotesPanel implements Panel {
         this.hoveredX !== null && this.hitTestNote(this.hoveredX, note);
       if (currentIsHovered) aNoteIsHovered = true;
 
-      const selection = globals.state.selection;
+      const selection = globals.selectionManager.selection;
       const isSelected = selection.kind === 'note' && selection.id === note.id;
       const x = timescale.timeToPx(timestamp);
       const left = Math.floor(x);
@@ -324,19 +325,17 @@ export class NotesPanel implements Panel {
 
     // Select the hovered note, or create a new single note & select it
     if (x < 0) return;
-    for (const note of Object.values(globals.state.notes)) {
+    for (const note of globals.noteManager.notes.values()) {
       if (this.hoveredX !== null && this.hitTestNote(this.hoveredX, note)) {
-        globals.makeSelection(Actions.selectNote({id: note.id}));
+        globals.selectionManager.setNote({id: note.id});
         return;
       }
     }
     const timestamp = this.timescale.pxToHpTime(x).toTime();
     const id = uuidv4();
     const color = randomColor();
-    globals.dispatchMultiple([
-      Actions.addNote({id, timestamp, color}),
-      Actions.selectNote({id}),
-    ]);
+    const noteId = globals.noteManager.addNote({id, timestamp, color});
+    globals.selectionManager.setNote({id: noteId});
   }
 
   private hitTestNote(x: number, note: SpanNote | Note): boolean {
@@ -367,7 +366,7 @@ export class NotesEditorTab implements DetailsPanel {
 
     const id = selection.id;
 
-    const note = globals.state.notes[id];
+    const note = globals.noteManager.getNote(id);
     if (note === undefined) {
       return m('.', `No Note with id ${id}`);
     }
@@ -385,12 +384,7 @@ export class NotesEditorTab implements DetailsPanel {
           value: note.text,
           onchange: (e: InputEvent) => {
             const newText = (e.target as HTMLInputElement).value;
-            globals.dispatch(
-              Actions.changeNoteText({
-                id,
-                newText,
-              }),
-            );
+            globals.noteManager.changeNote(id, {text: newText});
           },
         }),
         m(
@@ -400,22 +394,14 @@ export class NotesEditorTab implements DetailsPanel {
             value: note.color,
             onchange: (e: Event) => {
               const newColor = (e.target as HTMLInputElement).value;
-              globals.dispatch(
-                Actions.changeNoteColor({
-                  id,
-                  newColor,
-                }),
-              );
+              globals.noteManager.changeNote(id, {color: newColor});
             },
           }),
         ),
         m(Button, {
           label: 'Remove',
           icon: Icons.Delete,
-          onclick: () => {
-            globals.dispatch(Actions.removeNote({id}));
-            raf.scheduleFullRedraw();
-          },
+          onclick: () => globals.noteManager.removeNote(id),
         }),
       ),
     );

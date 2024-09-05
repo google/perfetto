@@ -15,7 +15,7 @@
 import {assertTrue} from '../base/logging';
 import {time, TimeSpan} from '../base/time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {Area} from './selection_manager';
+import {Area} from '../public/selection';
 import {raf} from './raf_scheduler';
 import {HighPrecisionTime} from '../base/high_precision_time';
 
