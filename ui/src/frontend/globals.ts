@@ -48,7 +48,7 @@ import {
   SearchOverviewTrack,
 } from './search_overview_track';
 import {AppContext} from './app_context';
-import {TraceContext} from './trace_context';
+import {TraceInfo} from '../public/trace_info';
 import {Registry} from '../base/registry';
 import {SidebarMenuItem} from '../public/sidebar';
 import {Workspace} from '../public/workspace';
@@ -150,7 +150,7 @@ export interface ThreadDesc {
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
-export const defaultTraceContext: TraceContext = {
+export const defaultTraceContext: TraceInfo = {
   traceTitle: '',
   traceUrl: '',
   start: Time.ZERO,
@@ -248,7 +248,7 @@ class Globals implements AppContext {
   // TODO(stevegolton): Eventually initialization that should be done on trace
   // load should be moved into here, and then we can remove TraceController
   // entirely
-  async onTraceLoad(engine: Engine, traceCtx: TraceContext): Promise<void> {
+  async onTraceLoad(engine: Engine, traceCtx: TraceInfo): Promise<void> {
     this.traceContext = traceCtx;
 
     const {start, end} = traceCtx;

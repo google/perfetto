@@ -26,15 +26,19 @@ export interface App {
    */
   readonly pluginId: string;
 
-  registerCommand(command: Command): void;
+  commands: {
+    registerCommand(command: Command): void;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  runCommand(id: string, ...args: any[]): any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    runCommand(id: string, ...args: any[]): any;
+  };
 
-  /**
-   * Adds a new menu item to the sidebar.
-   * All entries must map to a command. This will allow the shortcut and
-   * optional shortcut to be displayed on the UI.
-   */
-  addSidebarMenuItem(menuItem: SidebarMenuItem): void;
+  sidebar: {
+    /**
+     * Adds a new menu item to the sidebar.
+     * All entries must map to a command. This will allow the shortcut and
+     * optional shortcut to be displayed on the UI.
+     */
+    addSidebarMenuItem(menuItem: SidebarMenuItem): void;
+  };
 }

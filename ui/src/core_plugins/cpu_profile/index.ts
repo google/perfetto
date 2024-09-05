@@ -67,7 +67,7 @@ class CpuProfile implements PerfettoPlugin {
       const threadName = it.threadName;
       const uri = `${getThreadUriPrefix(upid, utid)}_cpu_samples`;
       const displayName = `${threadName} (CPU Stack Samples)`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -83,7 +83,7 @@ class CpuProfile implements PerfettoPlugin {
           utid,
         ),
       });
-      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = -40;
       group.insertChildInOrder(track);

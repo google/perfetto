@@ -16,12 +16,12 @@ import {Store} from '../base/store';
 import {CurrentSearchResults} from '../common/search_data';
 import {State} from '../common/state';
 import {TimelineImpl} from '../core/timeline';
-import {TraceContext} from './trace_context';
+import {TraceInfo} from '../public/trace_info';
 
 export interface AppContext {
   readonly store: Store<State>;
   readonly state: State;
-  readonly traceContext: TraceContext;
+  readonly traceContext: TraceInfo;
 
   // TODO(stevegolton): This could probably be moved into TraceContext.
   readonly timeline: TimelineImpl;

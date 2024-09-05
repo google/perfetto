@@ -36,7 +36,7 @@ function addCriticalUserInteractionTrack() {
 
 class CriticalUserInteractionPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri: CriticalUserInteractionTrack.kind,
       tags: {
         kind: CriticalUserInteractionTrack.kind,
@@ -108,7 +108,7 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
   }
 
   onActivate(ctx: App): void {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
       name: 'Add track: Chrome interactions',
       callback: () => addCriticalUserInteractionTrack(),

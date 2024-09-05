@@ -28,7 +28,7 @@ class TraceMetadata implements PerfettoPlugin {
     }
     const uri = `/clock_snapshots`;
     const title = 'Clock Snapshots';
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title,
       track: new SimpleSliceTrack(
@@ -47,7 +47,7 @@ class TraceMetadata implements PerfettoPlugin {
         },
       ),
     });
-    ctx.timeline.workspace.insertChildInOrder(new TrackNode(uri, title));
+    ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
   }
 }
 

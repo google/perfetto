@@ -31,7 +31,7 @@ import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
-import {TraceContext} from '../frontend/trace_context';
+import {TraceInfo} from '../public/trace_info';
 import {Workspace} from '../public/workspace';
 import {Migrate, Store} from '../base/store';
 import {LegacyDetailsPanel} from '../public/details_panel';
@@ -43,29 +43,35 @@ import {LegacyDetailsPanel} from '../public/details_panel';
 export class PluginContextImpl implements App, Disposable {
   private trash = new DisposableStack();
   private alive = true;
+  readonly commands;
+  readonly sidebar;
 
-  registerCommand(cmd: Command): void {
-    // Silently ignore if context is dead.
-    if (!this.alive) return;
+  constructor(readonly pluginId: string) {
+    const thiz = this;
+    this.commands = {
+      registerCommand(cmd: Command): void {
+        // Silently ignore if context is dead.
+        if (!thiz.alive) return;
 
-    const disposable = globals.commandManager.registerCommand(cmd);
-    this.trash.use(disposable);
+        const disposable = globals.commandManager.registerCommand(cmd);
+        thiz.trash.use(disposable);
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      runCommand(id: string, ...args: any[]): any {
+        return globals.commandManager.runCommand(id, ...args);
+      },
+    };
+
+    this.sidebar = {
+      addSidebarMenuItem(menuItem: SidebarMenuItem): void {
+        thiz.trash.use(globals.sidebarMenuItems.register(menuItem));
+      },
+    };
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  runCommand(id: string, ...args: any[]): any {
-    return globals.commandManager.runCommand(id, ...args);
-  }
-
-  constructor(readonly pluginId: string) {}
 
   [Symbol.dispose]() {
     this.trash.dispose();
     this.alive = false;
-  }
-
-  addSidebarMenuItem(menuItem: SidebarMenuItem): void {
-    this.trash.use(globals.sidebarMenuItems.register(menuItem));
   }
 }
 
@@ -77,6 +83,10 @@ class PluginContextTraceImpl implements Trace, Disposable {
   private trash = new DisposableStack();
   private alive = true;
   readonly engine: Engine;
+  readonly commands;
+  readonly tracks;
+  readonly tabs;
+  readonly sidebar;
 
   constructor(
     private ctx: App,
@@ -85,49 +95,70 @@ class PluginContextTraceImpl implements Trace, Disposable {
     const engineProxy = engine.getProxy(ctx.pluginId);
     this.trash.use(engineProxy);
     this.engine = engineProxy;
-  }
+    const thiz = this;
 
-  registerCommand(cmd: Command): void {
-    // Silently ignore if context is dead.
-    if (!this.alive) return;
+    this.commands = {
+      registerCommand(cmd: Command): void {
+        // Silently ignore if context is dead.
+        if (!thiz.alive) return;
 
-    const dispose = globals.commandManager.registerCommand(cmd);
-    this.trash.use(dispose);
-  }
+        const dispose = globals.commandManager.registerCommand(cmd);
+        thiz.trash.use(dispose);
+      },
 
-  addSidebarMenuItem(menuItem: SidebarMenuItem): void {
-    // Silently ignore if context is dead.
-    if (!this.alive) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      runCommand(id: string, ...args: any[]): any {
+        return ctx.commands.runCommand(id, ...args);
+      },
+    };
 
-    this.trash.use(globals.sidebarMenuItems.register(menuItem));
-  }
+    this.tracks = {
+      registerTrack(trackDesc: TrackDescriptor): void {
+        // Silently ignore if context is dead.
+        if (!thiz.alive) return;
 
-  registerTrack(trackDesc: TrackDescriptor): void {
-    // Silently ignore if context is dead.
-    if (!this.alive) return;
+        const dispose = globals.trackManager.registerTrack({
+          ...trackDesc,
+          pluginId: thiz.pluginId,
+        });
+        thiz.trash.use(dispose);
+      },
+    };
 
-    const dispose = globals.trackManager.registerTrack({
-      ...trackDesc,
-      pluginId: this.pluginId,
-    });
-    this.trash.use(dispose);
-  }
+    this.tabs = {
+      registerTab(desc: TabDescriptor): void {
+        if (!thiz.alive) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  runCommand(id: string, ...args: any[]): any {
-    return this.ctx.runCommand(id, ...args);
-  }
+        const unregister = globals.tabManager.registerTab(desc);
+        thiz.trash.use(unregister);
+      },
 
-  registerTab(desc: TabDescriptor): void {
-    if (!this.alive) return;
+      addDefaultTab(uri: string): void {
+        const remove = globals.tabManager.addDefaultTab(uri);
+        thiz.trash.use(remove);
+      },
 
-    const unregister = globals.tabManager.registerTab(desc);
-    this.trash.use(unregister);
-  }
+      openQuery: (query: string, title: string) => {
+        addQueryResultsTab({query, title});
+      },
 
-  addDefaultTab(uri: string): void {
-    const remove = globals.tabManager.addDefaultTab(uri);
-    this.trash.use(remove);
+      showTab(uri: string): void {
+        globals.tabManager.showTab(uri);
+      },
+
+      hideTab(uri: string): void {
+        globals.tabManager.hideTab(uri);
+      },
+    };
+
+    this.sidebar = {
+      addSidebarMenuItem(menuItem: SidebarMenuItem): void {
+        // Silently ignore if context is dead.
+        if (!thiz.alive) return;
+
+        thiz.trash.use(globals.sidebarMenuItems.register(menuItem));
+      },
+    };
   }
 
   registerDetailsPanel(detailsPanel: LegacyDetailsPanel): void {
@@ -137,20 +168,6 @@ class PluginContextTraceImpl implements Trace, Disposable {
     const unregister = tabMan.registerLegacyDetailsPanel(detailsPanel);
     this.trash.use(unregister);
   }
-
-  readonly tabs = {
-    openQuery: (query: string, title: string) => {
-      addQueryResultsTab({query, title});
-    },
-
-    showTab(uri: string): void {
-      globals.tabManager.showTab(uri);
-    },
-
-    hideTab(uri: string): void {
-      globals.tabManager.hideTab(uri);
-    },
-  };
 
   get pluginId(): string {
     return this.ctx.pluginId;
@@ -168,11 +185,11 @@ class PluginContextTraceImpl implements Trace, Disposable {
     get viewport(): TimeSpan {
       return globals.timeline.visibleWindow.toTimeSpan();
     },
-
-    get workspace(): Workspace {
-      return globals.workspace;
-    },
   };
+
+  get workspace(): Workspace {
+    return globals.workspace;
+  }
 
   [Symbol.dispose]() {
     this.trash.dispose();
@@ -183,7 +200,7 @@ class PluginContextTraceImpl implements Trace, Disposable {
     return globals.store.createSubStore(['plugins', this.pluginId], migrate);
   }
 
-  get trace(): TraceContext {
+  get trace(): TraceInfo {
     return globals.traceContext;
   }
 

@@ -17,11 +17,11 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 class LargeScreensPerf implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.LargeScreensPerf#PinUnfoldLatencyTracks',
       name: 'Pin: Unfold latency tracks',
       callback: () => {
-        ctx.timeline.workspace.flatTracks.forEach((track) => {
+        ctx.workspace.flatTracks.forEach((track) => {
           if (
             !!track.displayName.includes('UnfoldTransition') ||
             track.displayName.includes('Screen on blocked') ||

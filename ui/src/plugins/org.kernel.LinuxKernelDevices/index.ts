@@ -42,7 +42,7 @@ class LinuxKernelDevices implements PerfettoPlugin {
       const displayName = it.name ?? `${trackId}`;
 
       const uri = `/kernel_devices/${displayName}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         track: new AsyncSliceTrack(
@@ -62,7 +62,7 @@ class LinuxKernelDevices implements PerfettoPlugin {
       const group = new GroupNode('Linux Kernel Devices');
       const track = new TrackNode(uri, displayName);
       group.insertChildInOrder(track);
-      ctx.timeline.workspace.insertChildInOrder(group);
+      ctx.workspace.insertChildInOrder(group);
     }
   }
 }

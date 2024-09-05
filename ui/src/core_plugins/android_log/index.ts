@@ -55,13 +55,13 @@ class AndroidLog implements PerfettoPlugin {
     const uri = 'perfetto.AndroidLog';
     const title = 'Android logs';
     if (logCount > 0) {
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title,
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
         track: new AndroidLogTrack(ctx.engine),
       });
-      ctx.timeline.workspace.insertChildInOrder(new TrackNode(uri, title));
+      ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
     }
 
     const androidLogsTabUri = 'perfetto.AndroidLog#tab';
@@ -72,7 +72,7 @@ class AndroidLog implements PerfettoPlugin {
       (x) => x as LogFilteringCriteria,
     );
 
-    ctx.registerTab({
+    ctx.tabs.registerTab({
       isEphemeral: false,
       uri: androidLogsTabUri,
       content: {
@@ -83,10 +83,10 @@ class AndroidLog implements PerfettoPlugin {
     });
 
     if (logCount > 0) {
-      ctx.addDefaultTab(androidLogsTabUri);
+      ctx.tabs.addDefaultTab(androidLogsTabUri);
     }
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.AndroidLog#ShowLogsTab',
       name: 'Show android logs tab',
       callback: () => {

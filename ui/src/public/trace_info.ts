@@ -14,7 +14,7 @@
 
 import {time} from '../base/time';
 
-export interface TraceContext {
+export interface TraceInfo {
   traceTitle: string; // File name and size of the current trace.
   traceUrl: string; // URL of the Trace.
   readonly start: time;

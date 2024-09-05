@@ -65,7 +65,7 @@ class FtraceRawPlugin implements PerfettoPlugin {
       const uri = `/ftrace/cpu${cpuNum}`;
       const displayName = `Ftrace Track for CPU ${cpuNum}`;
 
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -89,7 +89,7 @@ class FtraceRawPlugin implements PerfettoPlugin {
 
     const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
 
-    ctx.registerTab({
+    ctx.tabs.registerTab({
       uri: ftraceTabUri,
       isEphemeral: false,
       content: {
@@ -103,7 +103,7 @@ class FtraceRawPlugin implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.FtraceRaw#ShowFtraceTab',
       name: 'Show ftrace tab',
       callback: () => {

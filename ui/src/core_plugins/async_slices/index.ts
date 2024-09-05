@@ -73,7 +73,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const maxDepth = it.maxDepth;
 
       const uri = `/async_slices_${rawName}_${it.parentId}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -85,7 +85,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       });
       const trackNode = new TrackNode(uri, displayName);
       trackNode.sortOrder = -25;
-      ctx.timeline.workspace.insertChildInOrder(trackNode);
+      ctx.workspace.insertChildInOrder(trackNode);
     }
   }
 
@@ -130,7 +130,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       });
 
       const uri = `/process_${upid}/async_slices_${rawTrackIds}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -145,7 +145,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           trackIds,
         ),
       });
-      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = 30;
       group.insertChildInOrder(track);
@@ -207,7 +207,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       });
 
       const uri = `/${getThreadUriPrefix(upid, utid)}_slice_${rawTrackIds}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -226,7 +226,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           trackIds,
         ),
       });
-      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = 20;
       group.insertChildInOrder(track);
@@ -283,7 +283,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       });
 
       const uri = `/async_slices_${name}_${uid}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {

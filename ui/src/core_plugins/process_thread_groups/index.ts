@@ -110,16 +110,13 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
     const kernelThreadsGroup = new GroupNode('Kernel threads');
     kernelThreadsGroup.headerTrackUri = '/kernel'; // Summary track
     kernelThreadsGroup.sortOrder = 50;
-    ctx.timeline.workspace.insertChildInOrder(kernelThreadsGroup);
+    ctx.workspace.insertChildInOrder(kernelThreadsGroup);
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
       const {utid} = it;
 
-      const threadGroup = getOrCreateGroupForThread(
-        ctx.timeline.workspace,
-        utid,
-      );
+      const threadGroup = getOrCreateGroupForThread(ctx.workspace, utid);
       threadGroup.headless = true;
       kernelThreadsGroup.insertChildInOrder(threadGroup);
 
@@ -233,13 +230,13 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
         }
 
         const displayName = getProcessDisplayName(name ?? undefined, id);
-        const group = getOrCreateGroupForProcess(ctx.timeline.workspace, uid);
+        const group = getOrCreateGroupForProcess(ctx.workspace, uid);
         group.displayName = displayName;
         group.headerTrackUri = `/process_${uid}`; // Summary track URI
         group.sortOrder = 50;
 
         // Re-insert the child node to sort it
-        ctx.timeline.workspace.insertChildInOrder(group);
+        ctx.workspace.insertChildInOrder(group);
         cache.processGroups.set(uid, group);
       } else {
         // Ignore kernel process groups
@@ -259,13 +256,13 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
         }
 
         const displayName = getThreadDisplayName(name ?? undefined, id);
-        const group = getOrCreateGroupForThread(ctx.timeline.workspace, uid);
+        const group = getOrCreateGroupForThread(ctx.workspace, uid);
         group.displayName = displayName;
         group.headerTrackUri = `/thread_${uid}`; // Summary track URI
         group.sortOrder = 50;
 
         // Re-insert the child node to sort it
-        ctx.timeline.workspace.insertChildInOrder(group);
+        ctx.workspace.insertChildInOrder(group);
         cache.threadGroups.set(uid, group);
       }
     }
@@ -326,7 +323,7 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
         continue;
       }
 
-      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const group = getOrCreateGroupForThread(ctx.workspace, utid);
       group.displayName = threadName ?? `Thread ${tid}`;
       cache.threadGroups.set(utid, group);
       group.headless = true;

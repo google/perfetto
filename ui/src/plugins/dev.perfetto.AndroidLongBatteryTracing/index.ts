@@ -1161,10 +1161,10 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
         const group = new GroupNode(groupName);
         group.insertChildInOrder(track);
         this.groups.set(groupName, group);
-        ctx.timeline.workspace.insertChildInOrder(group);
+        ctx.workspace.insertChildInOrder(group);
       }
     } else {
-      ctx.timeline.workspace.insertChildInOrder(track);
+      ctx.workspace.insertChildInOrder(track);
     }
   }
 
@@ -1185,7 +1185,7 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
     };
 
     const uri = `/long_battery_tracing_${name}`;
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title: name,
       track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
@@ -1211,7 +1211,7 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
     };
 
     const uri = `/long_battery_tracing_${name}`;
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title: name,
       track: new SimpleCounterTrack(ctx.engine, {trackUri: uri}, config),

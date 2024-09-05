@@ -87,7 +87,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
       });
 
       const uri = `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -110,7 +110,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
           maxDepth,
         ),
       });
-      const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+      const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = 20;
       group.insertChildInOrder(track);

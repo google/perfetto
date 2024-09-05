@@ -88,7 +88,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
       await this.addEventLatencyTrack(ctx, group);
       await this.addScrollJankV3ScrollTrack(ctx, group);
       await ScrollJankCauseMap.initialize(ctx.engine);
-      ctx.timeline.workspace.insertChildInOrder(group);
+      ctx.workspace.insertChildInOrder(group);
       group.expand();
     }
   }
@@ -114,7 +114,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
     const {upid, utid} = it;
     const uri = 'perfetto.ChromeScrollJank';
     const displayName = 'Scroll Jank causes - long tasks';
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title: displayName,
       tags: {
@@ -127,7 +127,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         uri,
       }),
     });
-    const group = getOrCreateGroupForThread(ctx.timeline.workspace, utid);
+    const group = getOrCreateGroupForThread(ctx.workspace, utid);
     const track = new TrackNode(uri, displayName);
     group.insertChildInOrder(track);
   }
@@ -144,7 +144,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
     const uri = 'perfetto.ChromeScrollJank#toplevelScrolls';
     const title = 'Chrome Scrolls';
 
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title,
       tags: {
@@ -281,7 +281,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
     const uri = 'perfetto.ChromeScrollJank#eventLatency';
     const title = 'Chrome Scroll Input Latencies';
 
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title,
       tags: {
@@ -324,7 +324,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
     const uri = 'perfetto.ChromeScrollJank#scrollJankV3';
     const title = 'Chrome Scroll Janks';
 
-    ctx.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       title,
       tags: {

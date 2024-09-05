@@ -57,7 +57,7 @@ class HeapProfilePlugin implements PerfettoPlugin {
       const upid = it.upid;
       const uri = `/process_${upid}/heap_profile`;
       const displayName = 'Heap Profile';
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -72,7 +72,7 @@ class HeapProfilePlugin implements PerfettoPlugin {
           upid,
         ),
       });
-      const group = getOrCreateGroupForProcess(ctx.timeline.workspace, upid);
+      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode(uri, displayName);
       track.sortOrder = -30;
       group.insertChildInOrder(track);

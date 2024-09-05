@@ -65,17 +65,17 @@ class TimelineSync implements PerfettoPlugin {
   >();
 
   onActivate(ctx: App): void {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: `dev.perfetto.SplitScreen#enableTimelineSync`,
       name: 'Enable timeline sync with other Perfetto UI tabs',
       callback: () => this.showTimelineSyncDialog(),
     });
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: `dev.perfetto.SplitScreen#disableTimelineSync`,
       name: 'Disable timeline sync',
       callback: () => this.disableTimelineSync(this._sessionId),
     });
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: `dev.perfetto.SplitScreen#toggleTimelineSync`,
       name: 'Toggle timeline sync with other PerfettoUI tabs',
       callback: () => this.toggleTimelineSync(),
