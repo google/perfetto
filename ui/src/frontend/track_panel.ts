@@ -45,6 +45,7 @@ import {calculateResolution} from '../common/resolution';
 import {featureFlags} from '../core/feature_flags';
 import {Tree, TreeNode} from '../widgets/tree';
 import {TrackNode} from '../public/workspace';
+import {MiddleEllipsis} from '../widgets/middle_ellipsis';
 
 export const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   id: 'showTrackDetailsButton',
@@ -128,7 +129,7 @@ export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
 }
 
 interface TrackShellAttrs {
-  readonly title: m.Children;
+  readonly title: string;
   readonly buttons: m.Children;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
@@ -178,8 +179,11 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           {
             title: attrs.track.displayName,
           },
-          attrs.title,
-          attrs.chips && renderChips(attrs.chips),
+          m(
+            MiddleEllipsis,
+            {text: attrs.title},
+            attrs.chips && renderChips(attrs.chips),
+          ),
         ),
         m(
           ButtonBar,
@@ -412,7 +416,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
 
 interface TrackComponentAttrs {
   readonly heightPx?: number;
-  readonly title: m.Children;
+  readonly title: string;
   readonly buttons?: m.Children;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
@@ -486,7 +490,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 }
 
 interface TrackPanelAttrs {
-  readonly title: m.Children;
+  readonly title: string;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
   readonly trackRenderer?: TrackRenderer;
