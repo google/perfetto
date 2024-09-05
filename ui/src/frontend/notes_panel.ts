@@ -62,6 +62,7 @@ export class NotesPanel implements Panel {
   readonly selectable = false;
   private timescale?: TimeScale; // The timescale from the last render()
   private hoveredX: null | number = null;
+  private mouseDragging = false;
 
   render(): m.Children {
     const allCollapsed = globals.workspace.flatGroups.every((n) => n.collapsed);
@@ -69,12 +70,22 @@ export class NotesPanel implements Panel {
     return m(
       '.notes-panel',
       {
+        onmousedown: () => {
+          // If the user clicks & drags, very likely they just want to measure
+          // the time horizontally, not set a flag. This debouncing is done to
+          // avoid setting accidental flags like measuring the time on the brush
+          // timeline.
+          this.mouseDragging = false;
+        },
         onclick: (e: MouseEvent) => {
-          const {x, y} = currentTargetOffset(e);
-          this.onClick(x - TRACK_SHELL_WIDTH, y);
-          e.stopPropagation();
+          if (!this.mouseDragging) {
+            const x = currentTargetOffset(e).x - TRACK_SHELL_WIDTH;
+            this.onClick(x);
+            e.stopPropagation();
+          }
         },
         onmousemove: (e: MouseEvent) => {
+          this.mouseDragging = true;
           this.hoveredX = currentTargetOffset(e).x - TRACK_SHELL_WIDTH;
           raf.scheduleRedraw();
         },
@@ -318,7 +329,7 @@ export class NotesPanel implements Panel {
     ctx.textBaseline = prevBaseline;
   }
 
-  private onClick(x: number, _: number) {
+  private onClick(x: number) {
     if (!this.timescale) {
       return;
     }
@@ -373,6 +384,9 @@ export class NotesEditorTab implements DetailsPanel {
     const startTime = getStartTimestamp(note);
     return m(
       '.notes-editor-panel',
+      {
+        key: id, // Every note shoul get its own brand new DOM.
+      },
       m(
         '.notes-editor-panel-heading-bar',
         m(
@@ -381,7 +395,15 @@ export class NotesEditorTab implements DetailsPanel {
           m(Timestamp, {ts: startTime}),
         ),
         m('input[type=text]', {
-          value: note.text,
+          oncreate: (v: m.VnodeDOM) => {
+            // NOTE: due to bad design decisions elsewhere this component is
+            // rendered every time the mouse moves on the canvas. We cannot set
+            // `value: note.text` as an input as that will clobber the input
+            // value as we move the mouse.
+            const inputElement = v.dom as HTMLInputElement;
+            inputElement.value = note.text;
+            inputElement.focus();
+          },
           onchange: (e: InputEvent) => {
             const newText = (e.target as HTMLInputElement).value;
             globals.noteManager.changeNote(id, {text: newText});
