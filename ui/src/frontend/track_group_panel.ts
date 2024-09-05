@@ -39,7 +39,6 @@ import {exists} from '../base/utils';
 import {classNames} from '../base/classnames';
 import {GroupNode} from '../public/workspace';
 import {raf} from '../core/raf_scheduler';
-import {Actions} from '../common/actions';
 import {MiddleEllipsis} from '../widgets/middle_ellipsis';
 
 interface Attrs {
@@ -78,7 +77,7 @@ export class TrackGroupPanel implements Panel {
       }
     }
 
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
 
     // const trackGroup = globals.state.trackGroups[groupKey];
     let checkBox = Icons.BlankCheckbox;
@@ -146,13 +145,11 @@ export class TrackGroupPanel implements Panel {
           selection.kind === 'area' &&
             m(Button, {
               onclick: (e: MouseEvent) => {
-                globals.dispatch(
-                  Actions.toggleGroupAreaSelection({
-                    // Dump URIs of all contained tracks & nodes, including this group
-                    trackUris: this.attrs.groupNode.flatNodes
-                      .map((t) => t.uri)
-                      .concat(this.attrs.groupNode.uri),
-                  }),
+                globals.selectionManager.toggleGroupAreaSelection(
+                  // Dump URIs of all contained tracks & nodes, including this group
+                  this.attrs.groupNode.flatNodes
+                    .map((t) => t.uri)
+                    .concat(this.attrs.groupNode.uri),
                 );
                 e.stopPropagation();
               },
@@ -186,7 +183,7 @@ export class TrackGroupPanel implements Panel {
     timescale: TimeScale,
     size: Size2D,
   ) {
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
     if (selection.kind !== 'area') return;
     const someSelected = this.attrs.groupNode.flatTracks.some((track) =>
       selection.trackUris.includes(track.uri),

@@ -15,15 +15,12 @@
 import m from 'mithril';
 import {assertExists, assertFalse} from '../../base/logging';
 import {Monitor} from '../../base/monitor';
-import {
-  HeapProfileSelection,
-  LegacySelection,
-  ProfileType,
-} from '../../core/selection_manager';
+import {ProfileType} from '../../public/selection';
+import {HeapProfileSelection, LegacySelection} from '../../public/selection';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
 import {HEAP_PROFILE_TRACK_KIND} from '../../public/track_kinds';
-import {LegacyDetailsPanel} from '../../public/track';
+import {LegacyDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM} from '../../trace_processor/query_result';

@@ -95,7 +95,6 @@ export function createEmptyState(): State {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
     aggregatePreferences: {},
     queries: {},
-    notes: {},
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()
       ? autosaveConfigStore.get()
@@ -109,9 +108,6 @@ export function createEmptyState(): State {
     },
 
     status: {msg: '', timestamp: 0},
-    selection: {
-      kind: 'empty',
-    },
     traceConversionInProgress: false,
 
     perfDebug: false,

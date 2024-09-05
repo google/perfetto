@@ -133,18 +133,11 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   if (track === undefined) {
     return;
   }
-  globals.setLegacySelection(
-    {
-      kind: 'SCHED_SLICE',
-      id,
-      trackUri: track.uri,
-    },
-    {
-      clearSearch: true,
-      pendingScrollId: undefined,
-      switchToCurrentSelectionTab: true,
-    },
-  );
+  globals.selectionManager.setLegacy({
+    kind: 'SCHED_SLICE',
+    id,
+    trackUri: track.uri,
+  });
 
   scrollToTrackAndTs(track.uri, ts);
 }

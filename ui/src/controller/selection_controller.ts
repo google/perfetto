@@ -16,11 +16,6 @@ import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Optional} from '../base/utils';
 import {Args, ArgValue} from '../common/arg_types';
-import {
-  SelectionKind,
-  ThreadSliceSelection,
-  getLegacySelection,
-} from '../common/state';
 import {THREAD_SLICE_TRACK_KIND} from '../public/track_kinds';
 import {globals, SliceDetails, ThreadStateDetails} from '../frontend/globals';
 import {
@@ -39,6 +34,7 @@ import {
 } from '../trace_processor/query_result';
 import {fromNumNull} from '../trace_processor/sql_utils';
 import {Controller} from './controller';
+import {SelectionKind, ThreadSliceSelection} from '../public/selection';
 
 export interface SelectionControllerArgs {
   engine: Engine;
@@ -67,7 +63,7 @@ export class SelectionController extends Controller<'main'> {
   }
 
   run() {
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.selectionManager.legacySelection;
     if (!selection) return;
 
     const selectWithId: SelectionKind[] = [
@@ -265,7 +261,7 @@ export class SelectionController extends Controller<'main'> {
     }
 
     // Check selection is still the same on completion of query.
-    if (selection === getLegacySelection(globals.state)) {
+    if (selection === globals.selectionManager.legacySelection) {
       publishSliceDetails(selected);
     }
   }
@@ -334,7 +330,7 @@ export class SelectionController extends Controller<'main'> {
     `;
     const result = await this.args.engine.query(query);
 
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.selectionManager.legacySelection;
     if (result.numRows() > 0 && selection) {
       const row = result.firstRow({
         ts: LONG,
@@ -362,7 +358,7 @@ export class SelectionController extends Controller<'main'> {
     `;
     const result = await this.args.engine.query(sqlQuery);
     // Check selection is still the same on completion of query.
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.selectionManager.legacySelection;
     if (result.numRows() > 0 && selection) {
       const row = result.firstRow({
         ts: LONG,

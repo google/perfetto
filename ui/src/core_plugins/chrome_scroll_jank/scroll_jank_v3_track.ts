@@ -25,7 +25,6 @@ import {
 import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {getColorForSlice} from '../../core/colorizer';
-import {getLegacySelection} from '../../common/state';
 import {ScrollJankPluginState} from './common';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
@@ -96,7 +95,7 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack {
 
   onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
-      const currentSelection = getLegacySelection(globals.state);
+      const currentSelection = globals.selectionManager.legacySelection;
       const isSelected =
         currentSelection &&
         currentSelection.kind === 'GENERIC_SLICE' &&

@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
-import {LegacySelection} from '../../common/state';
+import {LegacySelection} from '../../public/selection';
 import {OnSliceClickArgs} from '../base_slice_track';
 import {GenericSliceDetailsTabConfigBase} from '../generic_slice_details_tab';
 import {globals} from '../globals';
@@ -123,19 +122,17 @@ export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
     }
 
     const detailsPanelConfig = this.getDetailsPanel(args);
-    globals.makeSelection(
-      Actions.selectGenericSlice({
-        id: args.slice.id,
-        sqlTableName: this.tableName,
-        start: args.slice.ts,
-        duration: args.slice.dur,
-        trackUri: this.uri,
-        detailsPanelConfig: {
-          kind: detailsPanelConfig.kind,
-          config: detailsPanelConfig.config,
-        },
-      }),
-    );
+    globals.selectionManager.setGenericSlice({
+      id: args.slice.id,
+      sqlTableName: this.tableName,
+      start: args.slice.ts,
+      duration: args.slice.dur,
+      trackUri: this.uri,
+      detailsPanelConfig: {
+        kind: detailsPanelConfig.kind,
+        config: detailsPanelConfig.config,
+      },
+    });
   }
 
   async loadImports() {

@@ -16,7 +16,6 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {
   focusHorizontalRange,
@@ -207,13 +206,11 @@ export function getCauseLink(
           if (exists(ts) && exists(dur)) {
             focusHorizontalRange(ts, Time.fromRaw(ts + dur), 0.3);
 
-            globals.dispatch(
-              Actions.selectArea({
-                start: ts,
-                end: Time.fromRaw(ts + dur),
-                trackUris,
-              }),
-            );
+            globals.selectionManager.setArea({
+              start: ts,
+              end: Time.fromRaw(ts + dur),
+              trackUris,
+            });
           }
         },
       },

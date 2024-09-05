@@ -22,7 +22,7 @@ import {
   NUM,
   NUM_NULL,
 } from '../../trace_processor/query_result';
-import {TrackSelectionDetailsPanel} from '../../public/track';
+import {TrackSelectionDetailsPanel} from '../../public/details_panel';
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';

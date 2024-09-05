@@ -14,7 +14,7 @@
 
 import {ColumnDef} from '../../common/aggregation_data';
 import {Sorting} from '../../common/state';
-import {Area} from 'src/core/selection_manager';
+import {Area} from '../../public/selection';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {AggregationController} from './aggregation_controller';

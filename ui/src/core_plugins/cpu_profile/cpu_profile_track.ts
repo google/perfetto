@@ -14,8 +14,7 @@
 
 import {assertExists} from '../../base/logging';
 import {Time} from '../../base/time';
-import {Actions} from '../../common/actions';
-import {LegacySelection} from '../../common/state';
+import {LegacySelection} from '../../public/selection';
 import {getColorForSample} from '../../core/colorizer';
 import {
   BaseSliceTrack,
@@ -76,12 +75,10 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
   }
 
   onSliceClick({slice}: OnSliceClickArgs<Slice>) {
-    globals.makeSelection(
-      Actions.selectCpuProfileSample({
-        id: slice.id,
-        utid: this.utid,
-        ts: Time.fromRaw(slice.ts),
-      }),
-    );
+    globals.selectionManager.setCpuProfileSample({
+      id: slice.id,
+      utid: this.utid,
+      ts: Time.fromRaw(slice.ts),
+    });
   }
 }

@@ -21,7 +21,7 @@ import {Actions} from '../common/actions';
 import {DropDirection} from '../common/dragndrop_logic';
 import {COUNT_AGGREGATION} from '../common/empty_state';
 import {PivotTableResult} from '../common/state';
-import {Area} from 'src/core/selection_manager';
+import {Area} from '../public/selection';
 import {raf} from '../core/raf_scheduler';
 import {ColumnType} from '../trace_processor/query_result';
 import {globals} from './globals';

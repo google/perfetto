@@ -16,7 +16,6 @@ import m from 'mithril';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
-import {Actions} from '../common/actions';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {TRACK_SHELL_WIDTH} from './css_constants';
@@ -62,7 +61,7 @@ function onTimeRangeBoundary(
   timescale: TimeScale,
   mousePos: number,
 ): 'START' | 'END' | null {
-  const selection = globals.state.selection;
+  const selection = globals.selectionManager.selection;
   if (selection.kind === 'area') {
     // If frontend selectedArea exists then we are in the process of editing the
     // time range and need to use that value instead.
@@ -167,7 +166,7 @@ class TraceViewer implements m.ClassComponent {
         });
 
         if (editing) {
-          const selection = globals.state.selection;
+          const selection = globals.selectionManager.selection;
           if (selection.kind === 'area') {
             const area = globals.timeline.selectedArea
               ? globals.timeline.selectedArea
@@ -216,12 +215,12 @@ class TraceViewer implements m.ClassComponent {
         // If we are editing we need to pass the current id through to ensure
         // the marked area with that id is also updated.
         if (edit) {
-          const selection = globals.state.selection;
+          const selection = globals.selectionManager.selection;
           if (selection.kind === 'area' && area) {
-            globals.dispatch(Actions.selectArea({...area}));
+            globals.selectionManager.setArea({...area});
           }
         } else if (area) {
-          globals.makeSelection(Actions.selectArea({...area}));
+          globals.selectionManager.setArea({...area});
         }
         // Now the selection has ended we stored the final selected area in the
         // global state and can remove the in progress selection from the
@@ -252,7 +251,7 @@ class TraceViewer implements m.ClassComponent {
               this.keepCurrentSelection = false;
               return;
             }
-            globals.clearSelection();
+            globals.selectionManager.clear();
           },
         },
         m(

@@ -21,8 +21,8 @@ import {
   SerializedSelection,
   SerializedAppState,
 } from './state_serialization_schema';
-import {ProfileType} from './state';
 import {TimeSpan} from '../base/time';
+import {ProfileType} from '../public/selection';
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
@@ -55,7 +55,7 @@ export function serializeAppState(): SerializedAppState {
   const vizWindow = globals.timeline.visibleWindow.toTimeSpan();
 
   const notes = new Array<SerializedNote>();
-  for (const [id, note] of Object.entries(globals.state.notes)) {
+  for (const [id, note] of globals.noteManager.notes.entries()) {
     if (note.noteType === 'DEFAULT') {
       notes.push({
         noteType: 'DEFAULT',
@@ -77,7 +77,7 @@ export function serializeAppState(): SerializedAppState {
   }
 
   const selection = new Array<SerializedSelection>();
-  const stateSel = globals.state.selection;
+  const stateSel = globals.selectionManager.selection;
   if (stateSel.kind === 'single') {
     selection.push({
       kind: 'TRACK_EVENT',
@@ -195,74 +195,52 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
     }
   }
 
-  globals.store.edit((draft) => {
-    // Restore notes.
-    for (const note of appState.notes) {
-      const commonArgs = {
-        id: note.id,
-        timestamp: note.start,
-        color: note.color,
-        text: note.text,
-      };
-      if (note.noteType === 'DEFAULT') {
-        draft.notes[note.id] = {
-          noteType: 'DEFAULT',
-          ...commonArgs,
-        };
-      } else if (note.noteType === 'SPAN') {
-        draft.notes[note.id] = {
-          noteType: 'SPAN',
-          start: commonArgs.timestamp,
-          end: note.end,
-          ...commonArgs,
-        };
-      }
+  // Restore notes.
+  for (const note of appState.notes) {
+    const commonArgs = {
+      id: note.id,
+      timestamp: note.start,
+      color: note.color,
+      text: note.text,
+    };
+    if (note.noteType === 'DEFAULT') {
+      globals.noteManager.addNote({...commonArgs});
+    } else if (note.noteType === 'SPAN') {
+      globals.noteManager.addSpanNote({
+        ...commonArgs,
+        start: commonArgs.timestamp,
+        end: note.end,
+      });
     }
+  }
 
-    // Restore the selection
-    const sel = appState.selection[0];
-    if (sel !== undefined) {
-      switch (sel.kind) {
-        case 'TRACK_EVENT':
-          draft.selection = {
-            kind: 'single',
-            trackUri: sel.trackKey,
-            eventId: parseInt(sel.eventId),
-          };
-          break;
-        case 'LEGACY_SCHED_SLICE':
-          draft.selection = {
-            kind: 'legacy',
-            legacySelection: {kind: 'SCHED_SLICE', id: sel.id},
-          };
-          break;
-        case 'LEGACY_SLICE':
-          draft.selection = {
-            kind: 'legacy',
-            legacySelection: {kind: 'SLICE', id: sel.id},
-          };
-          break;
-        case 'LEGACY_THREAD_STATE':
-          draft.selection = {
-            kind: 'legacy',
-            legacySelection: {kind: 'THREAD_STATE', id: sel.id},
-          };
-          break;
-        case 'LEGACY_HEAP_PROFILE':
-          draft.selection = {
-            kind: 'legacy',
-            legacySelection: {
-              kind: 'HEAP_PROFILE',
-              id: sel.id,
-              upid: sel.upid,
-              ts: sel.ts,
-              type: sel.type as ProfileType,
-            },
-          };
-          break;
-      }
+  // Restore the selection
+  const sel = appState.selection[0];
+  if (sel !== undefined) {
+    const selMgr = globals.selectionManager;
+    switch (sel.kind) {
+      case 'TRACK_EVENT':
+        selMgr.setEvent(sel.trackKey, parseInt(sel.eventId));
+        break;
+      case 'LEGACY_SCHED_SLICE':
+        selMgr.setSchedSlice({id: sel.id});
+        break;
+      case 'LEGACY_SLICE':
+        selMgr.setLegacySlice({id: sel.id});
+        break;
+      case 'LEGACY_THREAD_STATE':
+        selMgr.setThreadState({id: sel.id});
+        break;
+      case 'LEGACY_HEAP_PROFILE':
+        selMgr.setHeapProfile({
+          id: sel.id,
+          upid: sel.upid,
+          ts: sel.ts,
+          type: sel.type as ProfileType,
+        });
+        break;
     }
-  });
+  }
 }
 
 /**

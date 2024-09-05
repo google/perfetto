@@ -19,26 +19,7 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
-import {
-  selectionToLegacySelection,
-  Selection,
-  LegacySelection,
-  Area,
-} from '../core/selection_manager';
-
-export {
-  Selection,
-  SelectionKind,
-  NoteSelection,
-  SliceSelection,
-  HeapProfileSelection,
-  PerfSamplesSelection,
-  LegacySelection,
-  AreaSelection,
-  ProfileType,
-  ThreadSliceSelection,
-  CpuProfileSampleSelection,
-} from '../core/selection_manager';
+import {Area} from '../public/selection';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -200,23 +181,6 @@ export interface Status {
   timestamp: number; // Epoch in seconds (Date.now() / 1000).
 }
 
-export interface Note {
-  noteType: 'DEFAULT';
-  id: string;
-  timestamp: time;
-  color: string;
-  text: string;
-}
-
-export interface SpanNote {
-  noteType: 'SPAN';
-  id: string;
-  start: time;
-  end: time;
-  color: string;
-  text: string;
-}
-
 export interface Pagination {
   offset: number;
   count: number;
@@ -347,9 +311,7 @@ export interface State {
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
-  notes: ObjectById<Note | SpanNote>;
   status: Status;
-  selection: Selection;
   traceConversionInProgress: boolean;
   flamegraphModalDismissed: boolean;
 
@@ -764,8 +726,4 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-worker.scheduler',
     'disabled-by-default-xr.debug',
   ];
-}
-
-export function getLegacySelection(state: State): LegacySelection | null {
-  return selectionToLegacySelection(state.selection);
 }

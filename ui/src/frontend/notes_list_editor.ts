@@ -14,14 +14,13 @@
 
 import m from 'mithril';
 import {globals} from './globals';
-import {Actions} from '../common/actions';
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 
-export class NotesManager implements m.ClassComponent {
+export class NotesListEditor implements m.ClassComponent {
   view(_: m.CVnode) {
-    const notesList = Object.entries(globals.state.notes);
-    if (notesList.length === 0) {
+    const notes = globals.noteManager.notes;
+    if (notes.size === 0) {
       return 'No notes found';
     }
 
@@ -40,7 +39,7 @@ export class NotesManager implements m.ClassComponent {
       ),
       m(
         'tbody',
-        notesList.map(([id, note]) => {
+        Array.from(notes.entries()).map(([id, note]) => {
           return m(
             'tr',
             m('td', id),
@@ -52,7 +51,7 @@ export class NotesManager implements m.ClassComponent {
               m(Button, {
                 icon: Icons.Delete,
                 onclick: () => {
-                  globals.dispatch(Actions.removeNote({id}));
+                  globals.noteManager.removeNote(id);
                 },
               }),
             ),

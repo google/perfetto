@@ -19,7 +19,8 @@ import {Engine} from '../trace_processor/engine';
 import {App} from './app';
 import {PromptOption} from './omnibox';
 import {TabDescriptor} from './tab';
-import {LegacyDetailsPanel, TrackDescriptor} from './track';
+import {TrackDescriptor} from './track';
+import {LegacyDetailsPanel} from './details_panel';
 import {Workspace} from './workspace';
 
 /**

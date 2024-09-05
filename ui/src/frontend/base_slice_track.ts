@@ -21,11 +21,7 @@ import {drawIncompleteSlice, drawTrackHoverTooltip} from '../base/canvas_utils';
 import {cropText} from '../base/string_utils';
 import {colorCompare} from '../public/color';
 import {UNEXPECTED_PINK} from '../core/colorizer';
-import {
-  LegacySelection,
-  SelectionKind,
-  getLegacySelection,
-} from '../common/state';
+import {LegacySelection, SelectionKind} from '../public/selection';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
@@ -407,7 +403,7 @@ export abstract class BaseSliceTrack<
       visibleWindow.end.toTime('ceil'),
     );
 
-    let selection = getLegacySelection(globals.state);
+    let selection = globals.selectionManager.legacySelection;
     if (!selection || !this.isSelectionHandled(selection)) {
       selection = null;
     }

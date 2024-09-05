@@ -15,7 +15,7 @@
 import {Registry} from '../base/registry';
 import {TimeSpan, time} from '../base/time';
 import {globals} from '../frontend/globals';
-import {LegacyDetailsPanel, TrackDescriptor} from '../public/track';
+import {TrackDescriptor} from '../public/track';
 import {Trace} from '../public/trace';
 import {App} from '../public/app';
 import {SidebarMenuItem} from '../public/sidebar';
@@ -34,6 +34,7 @@ import {DisposableStack} from '../base/disposable_stack';
 import {TraceContext} from '../frontend/trace_context';
 import {Workspace} from '../public/workspace';
 import {Migrate, Store} from '../base/store';
+import {LegacyDetailsPanel} from '../public/details_panel';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular

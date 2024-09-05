@@ -14,14 +14,8 @@
 
 import {Draft} from 'immer';
 import {SortDirection} from '../base/comparison_utils';
-import {assertTrue} from '../base/logging';
-import {duration, time} from '../base/time';
+import {time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
-import {randomColor} from '../core/colorizer';
-import {
-  GenericSliceDetailsTabConfig,
-  GenericSliceDetailsTabConfigBase,
-} from '../frontend/generic_slice_details_tab';
 import {
   Aggregation,
   AggregationFunction,
@@ -50,12 +44,11 @@ import {
   OmniboxState,
   PendingDeeplinkState,
   PivotTableResult,
-  ProfileType,
   RecordingTarget,
   State,
   Status,
 } from './state';
-import {Area} from 'src/core/selection_manager';
+import {Area} from '../public/selection';
 
 type StateDraft = Draft<State>;
 
@@ -269,200 +262,12 @@ export const StateActions = {
     state.lastLoadedConfig = args.configType || {type: 'NONE'};
   },
 
-  selectNote(state: StateDraft, args: {id: string}): void {
-    state.selection = {
-      kind: 'note',
-      id: args.id,
-    };
-  },
-
-  addNote(
-    state: StateDraft,
-    args: {timestamp: time; color: string; id?: string; text?: string},
-  ): void {
-    const {timestamp, color, id = generateNextId(state), text = ''} = args;
-    state.notes[id] = {
-      noteType: 'DEFAULT',
-      id,
-      timestamp,
-      color,
-      text,
-    };
-  },
-
-  addSpanNote(
-    state: StateDraft,
-    args: {start: time; end: time; id?: string; color?: string},
-  ): void {
-    const {
-      id = generateNextId(state),
-      color = randomColor(),
-      end,
-      start,
-    } = args;
-
-    state.notes[id] = {
-      noteType: 'SPAN',
-      start,
-      end,
-      color,
-      id,
-      text: '',
-    };
-  },
-
-  changeNoteColor(
-    state: StateDraft,
-    args: {id: string; newColor: string},
-  ): void {
-    const note = state.notes[args.id];
-    if (note === undefined) return;
-    note.color = args.newColor;
-  },
-
-  changeNoteText(state: StateDraft, args: {id: string; newText: string}): void {
-    const note = state.notes[args.id];
-    if (note === undefined) return;
-    note.text = args.newText;
-  },
-
-  removeNote(state: StateDraft, args: {id: string}): void {
-    delete state.notes[args.id];
-
-    // Clear the selection if this note was selected
-    if (state.selection.kind === 'note' && state.selection.id === args.id) {
-      state.selection = {kind: 'empty'};
-    }
-  },
-
-  selectHeapProfile(
-    state: StateDraft,
-    args: {id: number; upid: number; ts: time; type: ProfileType},
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'HEAP_PROFILE',
-        id: args.id,
-        upid: args.upid,
-        ts: args.ts,
-        type: args.type,
-      },
-    };
-  },
-
-  selectPerfSamples(
-    state: StateDraft,
-    args: {
-      id: number;
-      utid?: number;
-      upid?: number;
-      leftTs: time;
-      rightTs: time;
-      type: ProfileType;
-    },
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'PERF_SAMPLES',
-        id: args.id,
-        utid: args.utid,
-        upid: args.upid,
-        leftTs: args.leftTs,
-        rightTs: args.rightTs,
-        type: args.type,
-      },
-    };
-  },
-
-  selectCpuProfileSample(
-    state: StateDraft,
-    args: {id: number; utid: number; ts: time},
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'CPU_PROFILE_SAMPLE',
-        id: args.id,
-        utid: args.utid,
-        ts: args.ts,
-      },
-    };
-  },
-
-  selectSlice(
-    state: StateDraft,
-    args: {id: number; trackUri: string; table?: string; scroll?: boolean},
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'SLICE',
-        id: args.id,
-        trackUri: args.trackUri,
-        table: args.table,
-      },
-    };
-    state.pendingScrollId = args.scroll ? args.id : undefined;
-  },
-
-  selectGenericSlice(
-    state: StateDraft,
-    args: {
-      id: number;
-      sqlTableName: string;
-      start: time;
-      duration: duration;
-      trackUri: string;
-      detailsPanelConfig: {
-        kind: string;
-        config: GenericSliceDetailsTabConfigBase;
-      };
-    },
-  ): void {
-    const detailsPanelConfig: GenericSliceDetailsTabConfig = {
-      id: args.id,
-      ...args.detailsPanelConfig.config,
-    };
-
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'GENERIC_SLICE',
-        id: args.id,
-        sqlTableName: args.sqlTableName,
-        start: args.start,
-        duration: args.duration,
-        trackUri: args.trackUri,
-        detailsPanelConfig: {
-          kind: args.detailsPanelConfig.kind,
-          config: detailsPanelConfig,
-        },
-      },
-    };
-  },
-
   setPendingScrollId(state: StateDraft, args: {pendingScrollId: number}): void {
     state.pendingScrollId = args.pendingScrollId;
   },
 
   clearPendingScrollId(state: StateDraft, _: {}): void {
     state.pendingScrollId = undefined;
-  },
-
-  selectThreadState(
-    state: StateDraft,
-    args: {id: number; trackUri: string},
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'THREAD_STATE',
-        id: args.id,
-        trackUri: args.trackUri,
-      },
-    };
   },
 
   startRecording(state: StateDraft, _: {}): void {
@@ -505,52 +310,6 @@ export const StateActions = {
 
   setOmniboxMode(state: StateDraft, args: {mode: OmniboxMode}): void {
     state.omniboxState.mode = args.mode;
-  },
-
-  selectArea(state: StateDraft, args: Area): void {
-    const {start, end} = args;
-    assertTrue(start <= end);
-    state.selection = {
-      kind: 'area',
-      ...args,
-    };
-  },
-
-  toggleTrackAreaSelection(state: StateDraft, args: {key: string}) {
-    const selection = state.selection;
-    if (selection.kind !== 'area') {
-      return;
-    }
-
-    if (!selection.trackUris.includes(args.key)) {
-      selection.trackUris.push(args.key);
-    } else {
-      selection.trackUris = selection.trackUris.filter((t) => t !== args.key);
-    }
-  },
-
-  toggleGroupAreaSelection(state: StateDraft, args: {trackUris: string[]}) {
-    const currentSelection = state.selection;
-    if (currentSelection.kind !== 'area') {
-      return;
-    }
-
-    const allTracksSelected = args.trackUris.every((t) =>
-      currentSelection.trackUris.includes(t),
-    );
-
-    if (allTracksSelected) {
-      // Deselect all tracks in the list
-      currentSelection.trackUris = currentSelection.trackUris.filter(
-        (t) => !args.trackUris.includes(t),
-      );
-    } else {
-      args.trackUris.forEach((t) => {
-        if (!currentSelection.trackUris.includes(t)) {
-          currentSelection.trackUris.push(t);
-        }
-      });
-    }
   },
 
   setChromeCategories(state: StateDraft, args: {categories: string[]}): void {

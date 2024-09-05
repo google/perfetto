@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {Gate} from '../base/mithril_utils';
-import {getLegacySelection} from '../common/state';
 import {EmptyState} from '../widgets/empty_state';
 import {
   DragHandle,
@@ -60,7 +59,7 @@ export class TabPanel implements m.ClassComponent {
 
     if (
       !this.hasBeenDragged &&
-      (tabs.length > 0 || globals.state.selection.kind !== 'empty')
+      (tabs.length > 0 || globals.selectionManager.selection.kind !== 'empty')
     ) {
       this.detailsHeight = getDefaultDetailsHeight();
     }
@@ -119,8 +118,8 @@ export class TabPanel implements m.ClassComponent {
   }
 
   private renderCSTabContent(): {isLoading: boolean; content: m.Children} {
-    const currentSelection = globals.state.selection;
-    const legacySelection = getLegacySelection(globals.state);
+    const currentSelection = globals.selectionManager.selection;
+    const legacySelection = globals.selectionManager.legacySelection;
     if (currentSelection.kind === 'empty') {
       return {
         isLoading: false,
