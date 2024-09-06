@@ -40,8 +40,6 @@ import {
   EngineMode,
   LoadedConfig,
   NewEngineMode,
-  OmniboxMode,
-  OmniboxState,
   PendingDeeplinkState,
   PivotTableResult,
   RecordingTarget,
@@ -304,14 +302,6 @@ export const StateActions = {
     state.availableAdbDevices = args.devices;
   },
 
-  setOmnibox(state: StateDraft, args: OmniboxState): void {
-    state.omniboxState = args;
-  },
-
-  setOmniboxMode(state: StateDraft, args: {mode: OmniboxMode}): void {
-    state.omniboxState.mode = args.mode;
-  },
-
   setChromeCategories(state: StateDraft, args: {categories: string[]}): void {
     state.chromeCategories = args.categories;
   },
@@ -349,10 +339,6 @@ export const StateActions = {
 
   setHighlightedFlowRightId(state: StateDraft, args: {flowId: number}) {
     state.focusedFlowIdRight = args.flowId;
-  },
-
-  setSearchIndex(state: StateDraft, args: {index: number}) {
-    state.searchIndex = args.index;
   },
 
   setHoverCursorTimestamp(state: StateDraft, args: {ts: time}) {

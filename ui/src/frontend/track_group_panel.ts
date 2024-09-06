@@ -67,9 +67,10 @@ export class TrackGroupPanel implements Panel {
     // The shell should be highlighted if the current search result is inside
     // this track group.
     let highlightClass = '';
-    const searchIndex = globals.state.searchIndex;
-    if (searchIndex !== -1) {
-      const uri = globals.currentSearchResults.trackUris[searchIndex];
+    const searchIndex = globals.searchManager.resultIndex;
+    const searchResults = globals.searchManager.searchResults;
+    if (searchIndex !== -1 && searchResults !== undefined) {
+      const uri = searchResults.trackUris[searchIndex];
       if (this.attrs.groupNode.flatTracks.find((t) => t.uri === uri)) {
         highlightClass = 'flash';
       }

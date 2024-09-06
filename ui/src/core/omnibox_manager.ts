@@ -32,15 +32,16 @@ interface Prompt {
 const defaultMode = OmniboxMode.Search;
 
 export class OmniboxManagerImpl {
-  private _omniboxMode = defaultMode;
+  private _mode = defaultMode;
   private _focusOmniboxNextRender = false;
   private _pendingCursorPlacement?: number;
   private _pendingPrompt?: Prompt;
-  private _text = '';
   private _omniboxSelectionIndex = 0;
+  private _forceShortTextSearch = false;
+  private _textForMode = new Map<OmniboxMode, string>();
 
-  get omniboxMode(): OmniboxMode {
-    return this._omniboxMode;
+  get mode(): OmniboxMode {
+    return this._mode;
   }
 
   get pendingPrompt(): Prompt | undefined {
@@ -48,10 +49,10 @@ export class OmniboxManagerImpl {
   }
 
   get text(): string {
-    return this._text;
+    return this._textForMode.get(this._mode) ?? '';
   }
 
-  get omniboxSelectionIndex(): number {
+  get selectionIndex(): number {
     return this._omniboxSelectionIndex;
   }
 
@@ -63,29 +64,33 @@ export class OmniboxManagerImpl {
     return this._pendingCursorPlacement;
   }
 
-  setText(value: string): void {
-    this._text = value;
+  get forceShortTextSearch() {
+    return this._forceShortTextSearch;
   }
 
-  setOmniboxSelectionIndex(index: number): void {
+  setText(value: string): void {
+    this._textForMode.set(this._mode, value);
+  }
+
+  setSelectionIndex(index: number): void {
     this._omniboxSelectionIndex = index;
   }
 
-  focusOmnibox(cursorPlacement?: number): void {
+  focus(cursorPlacement?: number): void {
     this._focusOmniboxNextRender = true;
     this._pendingCursorPlacement = cursorPlacement;
     raf.scheduleFullRedraw();
   }
 
-  clearOmniboxFocusFlag(): void {
+  clearFocusFlag(): void {
     this._focusOmniboxNextRender = false;
     this._pendingCursorPlacement = undefined;
   }
 
   setMode(mode: OmniboxMode): void {
-    this._omniboxMode = mode;
+    this._mode = mode;
     this._focusOmniboxNextRender = true;
-    this.resetOmniboxText();
+    this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
     raf.scheduleFullRedraw();
   }
@@ -93,8 +98,8 @@ export class OmniboxManagerImpl {
   // Start a prompt. If options are supplied, the user must pick one from the
   // list, otherwise the input is free-form text.
   prompt(text: string, options?: PromptOption[]): Promise<string> {
-    this._omniboxMode = OmniboxMode.Prompt;
-    this.resetOmniboxText();
+    this._mode = OmniboxMode.Prompt;
+    this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
 
     const promise = new Promise<string>((resolve, reject) => {
@@ -134,7 +139,7 @@ export class OmniboxManagerImpl {
 
   reset(): void {
     this.setMode(defaultMode);
-    this.resetOmniboxText();
+    this._omniboxSelectionIndex = 0;
     raf.scheduleFullRedraw();
   }
 
@@ -143,10 +148,5 @@ export class OmniboxManagerImpl {
       this._pendingPrompt.reject();
       this._pendingPrompt = undefined;
     }
-  }
-
-  private resetOmniboxText() {
-    this._text = '';
-    this._omniboxSelectionIndex = 0;
   }
 }

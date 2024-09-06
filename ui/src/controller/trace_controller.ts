@@ -67,7 +67,6 @@ import {
 } from './flow_events_controller';
 import {LoadingManager} from './loading_manager';
 import {PivotTableController} from './pivot_table_controller';
-import {SearchController} from './search_controller';
 import {
   SelectionController,
   SelectionControllerArgs,
@@ -342,12 +341,6 @@ export class TraceController extends Controller<States> {
           }),
         );
         childControllers.push(
-          Child('search', SearchController, {
-            engine,
-            app: globals,
-          }),
-        );
-        childControllers.push(
           Child('pivot_table', PivotTableController, {engine}),
         );
 
@@ -473,6 +466,7 @@ export class TraceController extends Controller<States> {
     if (traceDetails.traceTitle) {
       document.title = `${traceDetails.traceTitle} - Perfetto UI`;
     }
+
     await globals.onTraceLoad(this.engine, traceDetails);
 
     const shownJsonWarning =
@@ -494,15 +488,9 @@ export class TraceController extends Controller<States> {
       }
     }
 
-    const emptyOmniboxState = {
-      omnibox: '',
-      mode: globals.state.omniboxState.mode || 'SEARCH',
-    };
-
-    const actions: DeferredAction[] = [
-      Actions.setOmnibox(emptyOmniboxState),
-      Actions.setTraceUuid({traceUuid}),
-    ];
+    globals.omnibox.reset();
+    globals.searchManager.reset();
+    const actions: DeferredAction[] = [Actions.setTraceUuid({traceUuid})];
 
     const visibleTimeSpan = await computeVisibleTime(
       traceDetails.start,
@@ -521,10 +509,6 @@ export class TraceController extends Controller<States> {
     await this.includeSummaryTables();
 
     await defineMaxLayoutDepthSqlFunction(engine);
-
-    // Remove all workspaces, and create an empty default workspace, ready for
-    // tracks to be inserted.
-    globals.resetWorkspaces();
 
     if (globals.restoreAppStateAfterTraceLoad) {
       deserializeAppStatePhase1(globals.restoreAppStateAfterTraceLoad);
