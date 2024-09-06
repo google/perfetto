@@ -192,7 +192,10 @@ export class AddDebugTrackMenu
                 addPivotedTracks(
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                    tracks: {
+                      registerTrack: (x) =>
+                        globals.trackManager.registerTrack(x),
+                    },
                   },
                   vnode.attrs.dataSource,
                   this.name,
@@ -213,7 +216,10 @@ export class AddDebugTrackMenu
                   // point we can just use the plugin's context object.
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                    tracks: {
+                      registerTrack: (x) =>
+                        globals.trackManager.registerTrack(x),
+                    },
                   },
                   vnode.attrs.dataSource,
                   this.name,
@@ -232,7 +238,10 @@ export class AddDebugTrackMenu
                 addPivotedTracks(
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                    tracks: {
+                      registerTrack: (x) =>
+                        globals.trackManager.registerTrack(x),
+                    },
                   },
                   vnode.attrs.dataSource,
                   this.name,
@@ -247,7 +256,10 @@ export class AddDebugTrackMenu
                   // point we can just use the plugin's context object.
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                    tracks: {
+                      registerTrack: (x) =>
+                        globals.trackManager.registerTrack(x),
+                    },
                   },
                   vnode.attrs.dataSource,
                   this.name,

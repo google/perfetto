@@ -144,7 +144,7 @@ class CriticalPath implements PerfettoPlugin {
     // 2. Invoked via runCommand(...) by thread_state_tab.ts when the user
     //    clicks on the buttons in the details panel. In this case the details
     //    panel passes the utid explicitly.
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: CRITICAL_PATH_LITE_CMD,
       name: 'Critical path lite (selected thread state slice)',
       callback: async (utid?: Utid) => {
@@ -186,7 +186,7 @@ class CriticalPath implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: CRITICAL_PATH_CMD,
       name: 'Critical path (selected thread state slice)',
       callback: async (utid?: Utid) => {
@@ -221,7 +221,7 @@ class CriticalPath implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CriticalPathLite_AreaSelection',
       name: 'Critical path lite (over area selection)',
       callback: async () => {
@@ -263,7 +263,7 @@ class CriticalPath implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CriticalPath_AreaSelection',
       name: 'Critical path  (over area selection)',
       callback: async () => {
@@ -297,7 +297,7 @@ class CriticalPath implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CriticalPathPprof_AreaSelection',
       name: 'Critical path pprof (over area selection)',
       callback: async () => {

@@ -114,7 +114,9 @@ function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
           addVisualisedArgTracks(
             {
               engine,
-              registerTrack: (t) => globals.trackManager.registerTrack(t),
+              tracks: {
+                registerTrack: (t) => globals.trackManager.registerTrack(t),
+              },
             },
             fullKey,
           );

@@ -80,12 +80,12 @@ class GpuByProcess implements PerfettoPlugin {
 
       const uri = `dev.perfetto.GpuByProcess#${upid}`;
       const title = `GPU ${processName}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title,
         track: new GpuPidTrack({engine: ctx.engine, uri}, upid),
       });
-      ctx.timeline.workspace.insertChildInOrder(new TrackNode(uri, title));
+      ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
     }
   }
 

@@ -18,7 +18,7 @@ import {addDebugCounterTrack} from '../../frontend/debug_tracks/debug_tracks';
 
 class PixelMemory implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.PixelMemory#ShowTotalMemory',
       name: 'Add tracks: show a process total memory',
       callback: async (pid) => {

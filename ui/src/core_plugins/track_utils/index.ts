@@ -24,7 +24,7 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 class TrackUtilsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.RunQueryInSelectedTimeWindow',
       name: `Run query in selected time window`,
       callback: async () => {
@@ -37,7 +37,7 @@ class TrackUtilsPlugin implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       // Selects & reveals the first track on the timeline with a given URI.
       id: 'perfetto.FindTrack',
       name: 'Find track by URI',

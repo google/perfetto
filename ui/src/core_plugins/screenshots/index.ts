@@ -35,7 +35,7 @@ class ScreenshotsPlugin implements PerfettoPlugin {
     if (count > 0) {
       const displayName = 'Screenshots';
       const uri = '/screenshots';
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         track: new ScreenshotsTrack({
@@ -48,7 +48,7 @@ class ScreenshotsPlugin implements PerfettoPlugin {
       });
       const trackNode = new TrackNode(uri, displayName);
       trackNode.sortOrder = -60;
-      ctx.timeline.workspace.insertChildInOrder(trackNode);
+      ctx.workspace.insertChildInOrder(trackNode);
 
       ctx.registerDetailsPanel(
         new BottomTabToSCSAdapter({

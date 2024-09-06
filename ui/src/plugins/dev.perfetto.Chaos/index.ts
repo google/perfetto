@@ -19,7 +19,7 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 class Chaos implements PerfettoPlugin {
   onActivate(ctx: App): void {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.Chaos#CrashNow',
       name: 'Chaos: crash now',
       callback: () => {
@@ -29,7 +29,7 @@ class Chaos implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.Chaos#CrashNowQuery',
       name: 'Chaos: run crashing query',
       callback: () => {
@@ -44,7 +44,7 @@ class Chaos implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.Chaos#AddCrashingDebugTrack',
       name: 'Chaos: add crashing debug track',
       callback: () => {

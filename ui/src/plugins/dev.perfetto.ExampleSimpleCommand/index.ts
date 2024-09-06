@@ -18,7 +18,7 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 // This is just an example plugin, used to prove that the plugin system works.
 class ExampleSimpleCommand implements PerfettoPlugin {
   onActivate(ctx: App): void {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
       name: 'Log "Hello, world!"',
       callback: () => console.log('Hello, world!'),

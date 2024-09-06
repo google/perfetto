@@ -40,7 +40,7 @@ class PinAndroidPerfMetrics implements PerfettoPlugin {
   }
 
   async onTraceReady(ctx: Trace) {
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.PinAndroidPerfMetrics#PinAndroidPerfMetrics',
       name: 'Add and Pin: Jank Metric Slice',
       callback: async (metric) => {
