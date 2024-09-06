@@ -82,7 +82,7 @@ const sliceColumns = {ts: 'ts', dur: 'dur', name: 'name'};
 const sliceColumnNames = ['id', 'utid', 'ts', 'dur', 'name', 'table_name'];
 
 function getFirstUtidOfSelectionOrVisibleWindow(): number {
-  const selection = globals.state.selection;
+  const selection = globals.selectionManager.selection;
   if (selection.kind === 'area') {
     for (const trackUri of selection.trackUris) {
       const trackDesc = globals.trackManager.getTrack(trackUri);
@@ -121,12 +121,13 @@ async function getThreadInfoForUtidOrSelection(
 ): Promise<Optional<ThreadInfo>> {
   if (utid === undefined) {
     if (
-      globals.state.selection.kind !== 'legacy' ||
-      globals.state.selection.legacySelection.kind !== 'THREAD_STATE'
+      globals.selectionManager.selection.kind !== 'legacy' ||
+      globals.selectionManager.selection.legacySelection.kind !== 'THREAD_STATE'
     ) {
       return undefined;
     }
-    const trackUri = globals.state.selection.legacySelection.trackUri;
+    const trackUri =
+      globals.selectionManager.selection.legacySelection.trackUri;
     if (trackUri === undefined) return undefined;
     const track = globals.trackManager.getTrack(trackUri);
     utid = asUtid(track?.tags?.utid);

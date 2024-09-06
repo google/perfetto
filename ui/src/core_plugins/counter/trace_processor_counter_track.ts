@@ -79,7 +79,7 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
         return;
       }
       const id = it.id;
-      globals.selectSingleEvent(this.uri, id);
+      globals.selectionManager.setEvent(this.uri, id);
     });
 
     return true;

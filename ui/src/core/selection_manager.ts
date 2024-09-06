@@ -12,150 +12,256 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue, assertUnreachable} from '../base/logging';
+import {
+  Selection,
+  LegacySelection,
+  Area,
+  ProfileType,
+  SelectionOpts,
+} from '../public/selection';
 import {duration, time} from '../base/time';
-import {Store} from '../base/store';
-import {assertUnreachable} from '../base/logging';
-import {GenericSliceDetailsTabConfigBase} from './generic_slice_details_types';
+import {
+  GenericSliceDetailsTabConfig,
+  GenericSliceDetailsTabConfigBase,
+} from '../public/details_panel';
+import {raf} from './raf_scheduler';
 
-export enum ProfileType {
-  HEAP_PROFILE = 'heap_profile',
-  MIXED_HEAP_PROFILE = 'heap_profile:com.android.art,libc.malloc',
-  NATIVE_HEAP_PROFILE = 'heap_profile:libc.malloc',
-  JAVA_HEAP_SAMPLES = 'heap_profile:com.android.art',
-  JAVA_HEAP_GRAPH = 'graph',
-  PERF_SAMPLE = 'perf',
-}
+export class SelectionManagerImpl {
+  private _selection: Selection = {kind: 'empty'};
+  onSelectionChange?: (selection: Selection, opts: SelectionOpts) => void;
 
-export function profileType(s: string): ProfileType {
-  if (s === 'heap_profile:libc.malloc,com.android.art') {
-    s = 'heap_profile:com.android.art,libc.malloc';
+  clear(): void {
+    this.setSelection({kind: 'empty'});
   }
-  if (Object.values(ProfileType).includes(s as ProfileType)) {
-    return s as ProfileType;
+
+  setEvent(trackUri: string, eventId: number) {
+    this.setSelection({
+      kind: 'single',
+      trackUri,
+      eventId,
+    });
   }
-  if (s.startsWith('heap_profile')) {
-    return ProfileType.HEAP_PROFILE;
+
+  setNote(args: {id: string}) {
+    this.setSelection({
+      kind: 'note',
+      id: args.id,
+    });
   }
-  throw new Error('Unknown type ${s}');
+
+  setArea(args: Area): void {
+    const {start, end} = args;
+    assertTrue(start <= end);
+    this.setSelection({
+      kind: 'area',
+      ...args,
+    });
+  }
+
+  toggleTrackAreaSelection(trackUri: string) {
+    const curSelection = this._selection;
+    if (curSelection.kind !== 'area') return;
+
+    let trackUris = curSelection.trackUris.slice();
+    if (!trackUris.includes(trackUri)) {
+      trackUris.push(trackUri);
+    } else {
+      trackUris = trackUris.filter((t) => t !== trackUri);
+    }
+    this.setSelection({
+      ...curSelection,
+      trackUris,
+    });
+  }
+
+  toggleGroupAreaSelection(trackUris: string[]) {
+    const curSelection = this._selection;
+    if (curSelection.kind !== 'area') return;
+
+    const allTracksSelected = trackUris.every((t) =>
+      curSelection.trackUris.includes(t),
+    );
+
+    let newTrackUris: string[];
+    if (allTracksSelected) {
+      // Deselect all tracks in the list
+      newTrackUris = curSelection.trackUris.filter(
+        (t) => !trackUris.includes(t),
+      );
+    } else {
+      newTrackUris = curSelection.trackUris.slice();
+      trackUris.forEach((t) => {
+        if (!newTrackUris.includes(t)) {
+          newTrackUris.push(t);
+        }
+      });
+    }
+    this.setSelection({
+      ...curSelection,
+      trackUris: newTrackUris,
+    });
+  }
+
+  // There is no matching addLegacy as we did not support multi-single
+  // selection with the legacy selection system.
+  setLegacy(legacySelection: LegacySelection, opts?: SelectionOpts): void {
+    this.setSelection(
+      {
+        kind: 'legacy',
+        legacySelection,
+      },
+      opts,
+    );
+  }
+
+  setHeapProfile(args: {
+    id: number;
+    upid: number;
+    ts: time;
+    type: ProfileType;
+  }): void {
+    this.setSelection({
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'HEAP_PROFILE',
+        id: args.id,
+        upid: args.upid,
+        ts: args.ts,
+        type: args.type,
+      },
+    });
+  }
+
+  setPerfSamples(args: {
+    id: number;
+    utid?: number;
+    upid?: number;
+    leftTs: time;
+    rightTs: time;
+    type: ProfileType;
+  }) {
+    this.setSelection({
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'PERF_SAMPLES',
+        id: args.id,
+        utid: args.utid,
+        upid: args.upid,
+        leftTs: args.leftTs,
+        rightTs: args.rightTs,
+        type: args.type,
+      },
+    });
+  }
+
+  setCpuProfileSample(args: {id: number; utid: number; ts: time}): void {
+    this.setSelection({
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'CPU_PROFILE_SAMPLE',
+        id: args.id,
+        utid: args.utid,
+        ts: args.ts,
+      },
+    });
+  }
+
+  setSchedSlice(args: {id: number; trackUri?: string}): void {
+    this.setSelection({
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'SCHED_SLICE',
+        id: args.id,
+        trackUri: args.trackUri,
+      },
+    });
+  }
+
+  setLegacySlice(
+    args: {
+      id: number;
+      trackUri?: string;
+      table?: string;
+      scroll?: boolean;
+    },
+    opts?: SelectionOpts,
+  ): void {
+    this.setSelection(
+      {
+        kind: 'legacy',
+        legacySelection: {
+          kind: 'SLICE',
+          id: args.id,
+          table: args.table,
+          trackUri: args.trackUri,
+        },
+      },
+      opts,
+    );
+  }
+
+  setGenericSlice(args: {
+    id: number;
+    sqlTableName: string;
+    start: time;
+    duration: duration;
+    trackUri: string;
+    detailsPanelConfig: {
+      kind: string;
+      config: GenericSliceDetailsTabConfigBase;
+    };
+  }): void {
+    const detailsPanelConfig: GenericSliceDetailsTabConfig = {
+      id: args.id,
+      ...args.detailsPanelConfig.config,
+    };
+    this.setSelection({
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'GENERIC_SLICE',
+        id: args.id,
+        sqlTableName: args.sqlTableName,
+        start: args.start,
+        duration: args.duration,
+        trackUri: args.trackUri,
+        detailsPanelConfig: {
+          kind: args.detailsPanelConfig.kind,
+          config: detailsPanelConfig,
+        },
+      },
+    });
+  }
+
+  setThreadState(args: {id: number; trackUri?: string}): void {
+    this.setSelection({
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'THREAD_STATE',
+        id: args.id,
+        trackUri: args.trackUri,
+      },
+    });
+  }
+
+  get selection(): Selection {
+    return this._selection;
+  }
+
+  get legacySelection(): LegacySelection | null {
+    return toLegacySelection(this._selection);
+  }
+
+  private setSelection(selection: Selection, opts?: SelectionOpts) {
+    this._selection = selection;
+    if (this.onSelectionChange !== undefined) {
+      this.onSelectionChange(selection, opts ?? {});
+    }
+    raf.scheduleFullRedraw();
+  }
 }
 
-// LEGACY Selection types:
-export interface SliceSelection {
-  kind: 'SCHED_SLICE';
-  id: number;
-}
-
-export interface HeapProfileSelection {
-  kind: 'HEAP_PROFILE';
-  id: number;
-  upid: number;
-  ts: time;
-  type: ProfileType;
-}
-
-export interface PerfSamplesSelection {
-  kind: 'PERF_SAMPLES';
-  id: number;
-  utid?: number;
-  upid?: number;
-  leftTs: time;
-  rightTs: time;
-  type: ProfileType;
-}
-
-export interface CpuProfileSampleSelection {
-  kind: 'CPU_PROFILE_SAMPLE';
-  id: number;
-  utid: number;
-  ts: time;
-}
-
-export interface ThreadSliceSelection {
-  kind: 'SLICE';
-  id: number;
-  table?: string;
-}
-
-export interface ThreadStateSelection {
-  kind: 'THREAD_STATE';
-  id: number;
-}
-
-export interface LogSelection {
-  kind: 'LOG';
-  id: number;
-  trackUri: string;
-}
-
-export interface GenericSliceSelection {
-  kind: 'GENERIC_SLICE';
-  id: number;
-  sqlTableName: string;
-  start: time;
-  duration: duration;
-  // NOTE: this config can be expanded for multiple details panel types.
-  detailsPanelConfig: {kind: string; config: GenericSliceDetailsTabConfigBase};
-}
-
-export type LegacySelection = (
-  | SliceSelection
-  | HeapProfileSelection
-  | CpuProfileSampleSelection
-  | ThreadSliceSelection
-  | ThreadStateSelection
-  | PerfSamplesSelection
-  | LogSelection
-  | GenericSliceSelection
-) & {trackUri?: string};
-export type SelectionKind = LegacySelection['kind']; // 'THREAD_STATE' | 'SLICE' ...
-
-// New Selection types:
-export interface LegacySelectionWrapper {
-  kind: 'legacy';
-  legacySelection: LegacySelection;
-}
-
-export interface SingleSelection {
-  kind: 'single';
-  trackUri: string;
-  eventId: number;
-}
-
-export interface Area {
-  start: time;
-  end: time;
-  trackUris: string[];
-}
-
-export interface AreaSelection extends Area {
-  kind: 'area';
-}
-
-export interface NoteSelection {
-  kind: 'note';
-  id: string;
-}
-
-export interface UnionSelection {
-  kind: 'union';
-  selections: Selection[];
-}
-
-export interface EmptySelection {
-  kind: 'empty';
-}
-
-export type Selection =
-  | SingleSelection
-  | AreaSelection
-  | NoteSelection
-  | UnionSelection
-  | EmptySelection
-  | LegacySelectionWrapper;
-
-export function selectionToLegacySelection(
-  selection: Selection,
-): LegacySelection | null {
+function toLegacySelection(selection: Selection): LegacySelection | null {
   switch (selection.kind) {
     case 'area':
     case 'single':
@@ -164,7 +270,7 @@ export function selectionToLegacySelection(
       return null;
     case 'union':
       for (const child of selection.selections) {
-        const result = selectionToLegacySelection(child);
+        const result = toLegacySelection(child);
         if (result !== null) {
           return result;
         }
@@ -175,87 +281,5 @@ export function selectionToLegacySelection(
     default:
       assertUnreachable(selection);
       return null;
-  }
-}
-
-interface SelectionState {
-  selection: Selection;
-}
-
-export class SelectionManagerImpl {
-  private store: Store<SelectionState>;
-
-  constructor(store: Store<SelectionState>) {
-    this.store = store;
-  }
-
-  clear(): void {
-    this.store.edit((draft) => {
-      draft.selection = {
-        kind: 'empty',
-      };
-    });
-  }
-
-  private addSelection(selection: Selection): void {
-    this.store.edit((draft) => {
-      switch (draft.selection.kind) {
-        case 'empty':
-          draft.selection = selection;
-          break;
-        case 'union':
-          draft.selection.selections.push(selection);
-          break;
-        case 'single':
-        case 'legacy':
-        case 'area':
-        case 'note':
-          draft.selection = {
-            kind: 'union',
-            selections: [draft.selection, selection],
-          };
-          break;
-        default:
-          assertUnreachable(draft.selection);
-          break;
-      }
-    });
-  }
-
-  // There is no matching addLegacy as we did not support multi-single
-  // selection with the legacy selection system.
-  setLegacy(legacySelection: LegacySelection): void {
-    this.clear();
-    this.addSelection({
-      kind: 'legacy',
-      legacySelection,
-    });
-  }
-
-  setEvent(
-    trackUri: string,
-    eventId: number,
-    legacySelection?: LegacySelection,
-  ) {
-    this.clear();
-    this.addEvent(trackUri, eventId, legacySelection);
-  }
-
-  addEvent(
-    trackUri: string,
-    eventId: number,
-    legacySelection?: LegacySelection,
-  ) {
-    this.addSelection({
-      kind: 'single',
-      trackUri,
-      eventId,
-    });
-    if (legacySelection) {
-      this.addSelection({
-        kind: 'legacy',
-        legacySelection,
-      });
-    }
   }
 }

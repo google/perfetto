@@ -44,7 +44,6 @@ interface SliceRefAttrs {
 
 export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
   view(vnode: m.Vnode<SliceRefAttrs>) {
-    const switchTab = vnode.attrs.switchToCurrentSelectionTab ?? true;
     return m(
       Anchor,
       {
@@ -62,7 +61,7 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
             Time.fromRaw(vnode.attrs.ts + dur),
           );
 
-          globals.setLegacySelection(
+          globals.selectionManager.setLegacy(
             {
               kind: 'SLICE',
               id: vnode.attrs.id,
@@ -70,9 +69,8 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
               table: 'slice',
             },
             {
-              clearSearch: true,
-              pendingScrollId: undefined,
-              switchToCurrentSelectionTab: switchTab,
+              switchToCurrentSelectionTab:
+                vnode.attrs.switchToCurrentSelectionTab,
             },
           );
         },

@@ -17,7 +17,6 @@ import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {Duration, duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {getLegacySelection} from '../../common/state';
 import {
   drawDoubleHeadedArrow,
   drawIncompleteSlice,
@@ -308,7 +307,7 @@ export class CpuSliceTrack implements Track {
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.selectionManager.legacySelection;
     const details = globals.sliceDetails;
     if (selection !== null && selection.kind === 'SCHED_SLICE') {
       const [startIndex, endIndex] = searchEq(data.ids, selection.id);
@@ -435,18 +434,11 @@ export class CpuSliceTrack implements Track {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.utidHoveredInThisTrack === -1) return false;
 
-    globals.setLegacySelection(
-      {
-        kind: 'SCHED_SLICE',
-        id,
-        trackUri: this.uri,
-      },
-      {
-        clearSearch: true,
-        pendingScrollId: undefined,
-        switchToCurrentSelectionTab: true,
-      },
-    );
+    globals.selectionManager.setLegacy({
+      kind: 'SCHED_SLICE',
+      id,
+      trackUri: this.uri,
+    });
 
     return true;
   }

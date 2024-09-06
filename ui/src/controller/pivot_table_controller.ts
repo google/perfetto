@@ -17,14 +17,13 @@
 import {arrayEquals} from '../base/array_utils';
 import {Actions} from '../common/actions';
 import {
-  AreaSelection,
   PivotTableAreaState,
   PivotTableQuery,
   PivotTableQueryMetadata,
   PivotTableResult,
   PivotTableState,
 } from '../common/state';
-import {Area} from 'src/core/selection_manager';
+import {Area, AreaSelection} from '../public/selection';
 import {featureFlags} from '../core/feature_flags';
 import {globals} from '../frontend/globals';
 import {
@@ -278,7 +277,7 @@ export class PivotTableController extends Controller<{}> {
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTable;
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
 
     if (
       pivotTableState.queryRequested ||

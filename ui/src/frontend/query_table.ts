@@ -17,7 +17,6 @@ import {BigintMath} from '../base/bigint_math';
 import {copyToClipboard} from '../base/clipboard';
 import {isString} from '../base/object_utils';
 import {Time} from '../base/time';
-import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../trace_processor/query_result';
 import {Anchor} from '../widgets/anchor';
@@ -169,12 +168,14 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     trackUuid: string,
     switchToCurrentSelectionTab: boolean,
   ) {
-    const action = Actions.selectSlice({
-      id: sliceId,
-      trackUri: trackUuid,
-      table: 'slice',
-    });
-    globals.makeSelection(action, {switchToCurrentSelectionTab});
+    globals.selectionManager.setLegacySlice(
+      {
+        id: sliceId,
+        trackUri: trackUuid,
+        table: 'slice',
+      },
+      {switchToCurrentSelectionTab},
+    );
   }
 }
 

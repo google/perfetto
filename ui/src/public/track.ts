@@ -16,11 +16,11 @@ import m from 'mithril';
 import {duration, time} from '../base/time';
 import {Optional} from '../base/utils';
 import {UntypedEventSet} from '../core/event_set';
-import {LegacySelection, Selection} from '../core/selection_manager';
 import {Size2D, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
+import {TrackSelectionDetailsPanel} from './details_panel';
 
 export interface TrackContext {
   // This track's URI, used for making selections et al.
@@ -92,21 +92,6 @@ export interface TrackDescriptor {
   readonly getEventBounds?: (
     id: number,
   ) => Promise<Optional<{ts: time; dur: duration}>>;
-}
-
-export interface LegacyDetailsPanel {
-  render(selection: LegacySelection): m.Children;
-  isLoading?(): boolean;
-}
-
-export interface DetailsPanel {
-  render(selection: Selection): m.Children;
-  isLoading?(): boolean;
-}
-
-export interface TrackSelectionDetailsPanel {
-  render(id: number): m.Children;
-  isLoading?(): boolean;
 }
 
 /**

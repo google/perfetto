@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {CPU_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {LegacyDetailsPanel} from '../../public/track';
+import {LegacyDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -31,7 +31,10 @@ import {
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {assertExists} from '../../base/logging';
 import {DetailsShell} from '../../widgets/details_shell';
-import {CpuProfileSampleSelection, LegacySelection} from '../../common/state';
+import {
+  CpuProfileSampleSelection,
+  LegacySelection,
+} from '../../public/selection';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
 

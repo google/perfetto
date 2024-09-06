@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
 import {colorForState} from '../../core/colorizer';
-import {LegacySelection} from '../../common/state';
+import {LegacySelection} from '../../public/selection';
 import {translateState} from '../../common/thread_state';
 import {
   BASE_ROW,
@@ -86,12 +85,10 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
   }
 
   onSliceClick(args: OnSliceClickArgs<Slice>) {
-    globals.makeSelection(
-      Actions.selectThreadState({
-        id: args.slice.id,
-        trackUri: this.uri,
-      }),
-    );
+    globals.selectionManager.setThreadState({
+      id: args.slice.id,
+      trackUri: this.uri,
+    });
   }
 
   protected isSelectionHandled(selection: LegacySelection): boolean {

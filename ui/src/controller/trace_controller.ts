@@ -22,12 +22,7 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
-import {
-  EngineConfig,
-  EngineMode,
-  PendingDeeplinkState,
-  ProfileType,
-} from '../common/state';
+import {EngineConfig, EngineMode, PendingDeeplinkState} from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
 import {globals, QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {
@@ -90,7 +85,7 @@ import {
   deserializeAppStatePhase2,
 } from '../common/state_serialization';
 import {TraceContext} from '../frontend/trace_context';
-import {profileType} from '../core/selection_manager';
+import {ProfileType, profileType} from '../public/selection';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -589,13 +584,11 @@ export class TraceController extends Controller<States> {
     if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
       const reliableRangeStart = await computeTraceReliableRangeStart(engine);
       if (reliableRangeStart > 0) {
-        globals.dispatch(
-          Actions.addNote({
-            timestamp: reliableRangeStart,
-            color: '#ff0000',
-            text: 'Reliable Range Start',
-          }),
-        );
+        globals.noteManager.addNote({
+          timestamp: reliableRangeStart,
+          color: '#ff0000',
+          text: 'Reliable Range Start',
+        });
       }
     }
 
@@ -627,15 +620,13 @@ export class TraceController extends Controller<States> {
     const upid = row.upid;
     const leftTs = traceTime.start;
     const rightTs = traceTime.end;
-    globals.dispatch(
-      Actions.selectPerfSamples({
-        id: 0,
-        upid,
-        leftTs,
-        rightTs,
-        type: ProfileType.PERF_SAMPLE,
-      }),
-    );
+    globals.selectionManager.setPerfSamples({
+      id: 0,
+      upid,
+      leftTs,
+      rightTs,
+      type: ProfileType.PERF_SAMPLE,
+    });
   }
 
   private async selectFirstHeapProfile() {
@@ -659,9 +650,12 @@ export class TraceController extends Controller<States> {
     const row = profile.firstRow({ts: LONG, type: STR, upid: NUM});
     const ts = Time.fromRaw(row.ts);
     const upid = row.upid;
-    globals.dispatch(
-      Actions.selectHeapProfile({id: 0, upid, ts, type: profileType(row.type)}),
-    );
+    globals.selectionManager.setHeapProfile({
+      id: 0,
+      upid,
+      ts,
+      type: profileType(row.type),
+    });
   }
 
   private async selectPendingDeeplink(link: PendingDeeplinkState) {
@@ -703,7 +697,7 @@ export class TraceController extends Controller<States> {
       if (track === undefined) {
         return;
       }
-      globals.setLegacySelection(
+      globals.selectionManager.setLegacy(
         {
           kind: 'SLICE',
           id: row.id,
@@ -711,7 +705,6 @@ export class TraceController extends Controller<States> {
           table: 'slice',
         },
         {
-          clearSearch: true,
           pendingScrollId: row.id,
           switchToCurrentSelectionTab: false,
         },

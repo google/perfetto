@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
 import {Anchor} from '../widgets/anchor';
 import {DetailsShell} from '../widgets/details_shell';
@@ -232,12 +231,10 @@ export class SliceDetailsPanel extends SlicePanel {
 
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (trackDescriptor && sliceInfo.threadStateId) {
-      globals.makeSelection(
-        Actions.selectThreadState({
-          id: sliceInfo.threadStateId,
-          trackUri: trackDescriptor.uri,
-        }),
-      );
+      globals.selectionManager.setThreadState({
+        id: sliceInfo.threadStateId,
+        trackUri: trackDescriptor.uri,
+      });
 
       scrollToTrackAndTs(trackDescriptor.uri, sliceInfo.ts, true);
     }

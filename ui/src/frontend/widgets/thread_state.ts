@@ -56,17 +56,15 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
 
           if (trackDescriptor === undefined) return;
 
-          globals.setLegacySelection(
+          globals.selectionManager.setLegacy(
             {
               kind: 'THREAD_STATE',
               id: vnode.attrs.id,
               trackUri: trackDescriptor.uri,
             },
             {
-              clearSearch: true,
-              pendingScrollId: undefined,
               switchToCurrentSelectionTab:
-                vnode.attrs.switchToCurrentSelectionTab ?? true,
+                vnode.attrs.switchToCurrentSelectionTab,
             },
           );
 
