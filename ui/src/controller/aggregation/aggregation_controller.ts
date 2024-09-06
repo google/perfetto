@@ -21,7 +21,8 @@ import {
   ColumnDef,
   ThreadStateExtra,
 } from '../../common/aggregation_data';
-import {Area, Sorting} from '../../common/state';
+import {Sorting} from '../../common/state';
+import {Area} from 'src/core/selection_manager';
 import {globals} from '../../frontend/globals';
 import {publishAggregateData} from '../../frontend/publish';
 import {Engine} from '../../trace_processor/engine';

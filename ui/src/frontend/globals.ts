@@ -35,7 +35,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import type {Analytics} from './analytics';
-import {Timeline} from './timeline';
+import {TimelineImpl} from '../core/timeline';
 import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {SelectionManagerImpl, LegacySelection} from '../core/selection_manager';
 import {Optional, exists} from '../base/utils';
@@ -51,6 +51,7 @@ import {TraceContext} from './trace_context';
 import {Registry} from '../base/registry';
 import {SidebarMenuItem} from '../public/sidebar';
 import {Workspace} from '../public/workspace';
+import {ratelimit} from './rate_limiters';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -197,7 +198,7 @@ class Globals implements AppContext {
   private _testing = false;
   private _dispatchMultiple?: DispatchMultiple = undefined;
   private _store = createStore<State>(createEmptyState());
-  private _timeline?: Timeline = undefined;
+  private _timeline?: TimelineImpl = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
   private _isInternalUser: boolean | undefined = undefined;
@@ -265,8 +266,9 @@ class Globals implements AppContext {
     this.traceContext = traceCtx;
 
     const {start, end} = traceCtx;
-    const traceSpan = new TimeSpan(start, end);
-    this._timeline = new Timeline(this._store, traceSpan);
+    this._timeline = new TimelineImpl(new TimeSpan(start, end));
+    this._timeline.retriggerControllersOnChange = () =>
+      ratelimit(() => this.store.edit(() => {}), 50);
 
     // TODO(stevegolton): Even though createSearchOverviewTrack() returns a
     // disposable, we completely ignore it as we assume the dispose action
@@ -312,8 +314,7 @@ class Globals implements AppContext {
 
   constructor() {
     const {start, end} = defaultTraceContext;
-    this._timeline = new Timeline(this._store, new TimeSpan(start, end));
-
+    this._timeline = new TimelineImpl(new TimeSpan(start, end));
     const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
     this.workspaces.push(defaultWorkspace);
     this._currentWorkspace = defaultWorkspace;

@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {Store} from '../base/store';
 import {time, TimeSpan} from '../base/time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {Area, State} from '../common/state';
-import {raf} from '../core/raf_scheduler';
-import {ratelimit} from './rate_limiters';
+import {Area} from './selection_manager';
+import {raf} from './raf_scheduler';
+import {HighPrecisionTime} from '../base/high_precision_time';
 
 interface Range {
   start?: number;
@@ -31,34 +30,30 @@ const MIN_DURATION = 10;
  * State that is shared between several frontend components, but not the
  * controller. This state is updated at 60fps.
  */
-export class Timeline {
+export class TimelineImpl {
   private _visibleWindow: HighPrecisionTimeSpan;
   private readonly traceSpan: TimeSpan;
-  private readonly store: Store<State>;
+
+  // This is a giant hack. Basically, removing visible window from the state
+  // means that we no longer update the state periodically while navigating
+  // the timeline, which means that controllers are not running. This keeps
+  // making null edits to the store which triggers the controller to run.
+  // This function is injected from Globals.initialize() to avoid a dependency
+  // on the State.
+  // TODO(stevegolton): When we remove controllers, we can remove this!
+  retriggerControllersOnChange: () => void = () => {};
 
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
   private _selectedArea?: Area;
 
-  constructor(store: Store<State>, traceSpan: TimeSpan) {
-    this.store = store;
+  constructor(traceSpan: TimeSpan) {
     this.traceSpan = traceSpan;
     this._visibleWindow = HighPrecisionTimeSpan.fromTime(
       traceSpan.start,
       traceSpan.end,
     );
   }
-
-  // This is a giant hack. Basically, removing visible window from the state
-  // means that we no longer update the state periodically while navigating
-  // the timeline, which means that controllers are not running. This keeps
-  // making null edits to the store which triggers the controller to run.
-  //
-  // TODO(stevegolton): When we remove controllers, we can remove this!
-  private readonly rateLimitedPoker = ratelimit(
-    () => this.store.edit(() => {}),
-    50,
-  );
 
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
@@ -69,14 +64,28 @@ export class Timeline {
       .scale(ratio, centerPoint, MIN_DURATION)
       .fitWithin(this.traceSpan.start, this.traceSpan.end);
 
-    this.rateLimitedPoker();
+    this.retriggerControllersOnChange();
   }
 
   panVisibleWindow(delta: number) {
     this._visibleWindow = this._visibleWindow
       .translate(delta)
       .fitWithin(this.traceSpan.start, this.traceSpan.end);
-    this.rateLimitedPoker();
+    this.retriggerControllersOnChange();
+  }
+
+  // Given a timestamp, if |ts| is not currently in view move the view to
+  // center |ts|, keeping the same zoom level.
+  panToTimestamp(ts: time) {
+    if (this._visibleWindow.contains(ts)) return;
+    // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
+    const halfDuration = this.visibleWindow.duration / 2;
+    const newStart = new HighPrecisionTime(ts).subNumber(halfDuration);
+    const newWindow = new HighPrecisionTimeSpan(
+      newStart,
+      this._visibleWindow.duration,
+    );
+    this.updateVisibleTimeHP(newWindow);
   }
 
   // Set the highlight box to draw
@@ -113,7 +122,7 @@ export class Timeline {
       .clampDuration(MIN_DURATION)
       .fitWithin(this.traceSpan.start, this.traceSpan.end);
 
-    this.rateLimitedPoker();
+    this.retriggerControllersOnChange();
   }
 
   // Get the bounds of the visible window as a high-precision time span

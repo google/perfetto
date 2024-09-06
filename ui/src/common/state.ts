@@ -23,6 +23,7 @@ import {
   selectionToLegacySelection,
   Selection,
   LegacySelection,
+  Area,
 } from '../core/selection_manager';
 
 export {
@@ -59,12 +60,6 @@ export interface OmniboxState {
   omnibox: string;
   mode: OmniboxMode;
   force?: boolean;
-}
-
-export interface Area {
-  start: time;
-  end: time;
-  trackUris: string[];
 }
 
 export const MAX_TIME = 180;
