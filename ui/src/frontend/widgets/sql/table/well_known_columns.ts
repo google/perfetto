@@ -84,7 +84,7 @@ export class StandardColumn extends TableColumn {
     return this.column;
   }
 
-  aggregate(): AggregationConfig {
+  aggregation(): AggregationConfig {
     return {dataType: this.params?.aggregationType};
   }
 
