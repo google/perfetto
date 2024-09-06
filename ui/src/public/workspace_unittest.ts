@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ContainerNode, GroupNode, TrackNode, Workspace} from './workspace';
+import {GroupNode, TrackNode, Workspace} from './workspace';
 
 test('Workspace', () => {
   const fooTrack = new TrackNode('foo', 'Foo');
@@ -33,7 +33,7 @@ describe('workspace', () => {
     expect(workspace.getNodeByUri('foo')).toEqual(track);
   });
 
-  test('getNodeByUri - ', () => {
+  test('getNodeByUri', () => {
     const track = new TrackNode('bar', 'Bar');
 
     const group = new GroupNode('Foo');
@@ -75,11 +75,11 @@ describe('workspace', () => {
   });
 });
 
-describe('ContainerNode.insertChildInOrder', () => {
-  let container: ContainerNode;
+describe('GroupNode.insertChildInOrder', () => {
+  let container: GroupNode;
 
   beforeEach(() => {
-    container = new ContainerNode('Test Container');
+    container = new GroupNode('Test Container');
   });
 
   test('inserts a child into an empty container', () => {
