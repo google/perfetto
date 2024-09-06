@@ -35,14 +35,6 @@ export interface ObjectByKey<Class extends {key: string}> {
   [key: string]: Class;
 }
 
-export type OmniboxMode = 'SEARCH' | 'COMMAND';
-
-export interface OmniboxState {
-  omnibox: string;
-  mode: OmniboxMode;
-  force?: boolean;
-}
-
 export const MAX_TIME = 180;
 
 // 3: TrackKindPriority and related sorting changes.
@@ -331,8 +323,6 @@ export interface State {
   focusedFlowIdRight: number;
   pendingScrollId?: number;
 
-  searchIndex: number;
-
   /**
    * Trace recording
    */
@@ -351,9 +341,6 @@ export interface State {
   // using permalink. Can be used to store those parts of the state that can't
   // be serialized at the moment, such as ES6 Set and Map.
   nonSerializableState: NonSerializableState;
-
-  // Omnibox info.
-  omniboxState: OmniboxState;
 
   // Pending deeplink which will happen when we first finish opening a
   // trace.

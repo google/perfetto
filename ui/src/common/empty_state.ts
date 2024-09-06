@@ -102,11 +102,6 @@ export function createEmptyState(): State {
     displayConfigAsPbtxt: false,
     lastLoadedConfig: {type: 'NONE'},
 
-    omniboxState: {
-      omnibox: '',
-      mode: 'SEARCH',
-    },
-
     status: {msg: '', timestamp: 0},
     traceConversionInProgress: false,
 
@@ -119,7 +114,6 @@ export function createEmptyState(): State {
     highlightedSliceId: -1,
     focusedFlowIdLeft: -1,
     focusedFlowIdRight: -1,
-    searchIndex: -1,
 
     recordingInProgress: false,
     recordingCancelled: false,

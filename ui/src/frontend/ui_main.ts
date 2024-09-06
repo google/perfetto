@@ -37,7 +37,6 @@ import {toggleHelp} from './help_modal';
 import {Notes} from './notes';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {addQueryResultsTab} from './query_result_tab';
-import {executeSearch} from './search_handler';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
@@ -51,6 +50,7 @@ import {publishPermalinkHash} from './publish';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
+import {Spinner} from '../widgets/spinner';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;
@@ -155,7 +155,7 @@ export class UiMain implements m.ClassComponent {
       id: 'perfetto.SearchNext',
       name: 'Go to next search result',
       callback: () => {
-        executeSearch();
+        globals.searchManager.stepForward();
       },
       defaultHotkey: 'Enter',
     },
@@ -163,7 +163,7 @@ export class UiMain implements m.ClassComponent {
       id: 'perfetto.SearchPrev',
       name: 'Go to previous search result',
       callback: () => {
-        executeSearch(true);
+        globals.searchManager.stepBackwards();
       },
       defaultHotkey: 'Shift+Enter',
     },
@@ -338,7 +338,7 @@ export class UiMain implements m.ClassComponent {
       );
     }
 
-    const omniboxMode = globals.omnibox.omniboxMode;
+    const omniboxMode = globals.omnibox.mode;
 
     if (omniboxMode === OmniboxMode.Command) {
       return this.renderCommandOmnibox();
@@ -379,14 +379,14 @@ export class UiMain implements m.ClassComponent {
       extraClasses: 'prompt-mode',
       closeOnOutsideClick: true,
       options,
-      selectedOptionIndex: globals.omnibox.omniboxSelectionIndex,
+      selectedOptionIndex: globals.omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
-        globals.omnibox.setOmniboxSelectionIndex(index);
+        globals.omnibox.setSelectionIndex(index);
         raf.scheduleFullRedraw();
       },
       onInput: (value) => {
         globals.omnibox.setText(value);
-        globals.omnibox.setOmniboxSelectionIndex(0);
+        globals.omnibox.setSelectionIndex(0);
         raf.scheduleFullRedraw();
       },
       onSubmit: (value, _alt) => {
@@ -440,14 +440,14 @@ export class UiMain implements m.ClassComponent {
       options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
-      selectedOptionIndex: globals.omnibox.omniboxSelectionIndex,
+      selectedOptionIndex: globals.omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
-        globals.omnibox.setOmniboxSelectionIndex(index);
+        globals.omnibox.setSelectionIndex(index);
         raf.scheduleFullRedraw();
       },
       onInput: (value) => {
         globals.omnibox.setText(value);
-        globals.omnibox.setOmniboxSelectionIndex(0);
+        globals.omnibox.setSelectionIndex(0);
         raf.scheduleFullRedraw();
       },
       onClose: () => {
@@ -509,25 +509,24 @@ export class UiMain implements m.ClassComponent {
   }
 
   renderSearchOmnibox(): m.Children {
-    const omniboxState = globals.state.omniboxState;
-    const displayStepThrough =
-      omniboxState.omnibox.length >= 4 || omniboxState.force;
-
     return m(Omnibox, {
-      value: globals.state.omniboxState.omnibox,
+      value: globals.omnibox.text,
       placeholder: "Search or type '>' for commands or ':' for SQL mode",
       inputRef: UiMain.OMNIBOX_INPUT_REF,
-      onInput: (value, prev) => {
-        if (prev === '') {
-          if (value === '>') {
-            globals.omnibox.setMode(OmniboxMode.Command);
-            return;
-          } else if (value === ':') {
-            globals.omnibox.setMode(OmniboxMode.Query);
-            return;
-          }
+      onInput: (value, _prev) => {
+        if (value === '>') {
+          globals.omnibox.setMode(OmniboxMode.Command);
+          return;
+        } else if (value === ':') {
+          globals.omnibox.setMode(OmniboxMode.Query);
+          return;
         }
-        globals.dispatch(Actions.setOmnibox({omnibox: value, mode: 'SEARCH'}));
+        globals.omnibox.setText(value);
+        if (value.length >= 4) {
+          globals.searchManager.search(value);
+        } else {
+          globals.searchManager.reset();
+        }
       },
       onClose: () => {
         if (this.omniboxInputEl) {
@@ -535,50 +534,51 @@ export class UiMain implements m.ClassComponent {
         }
       },
       onSubmit: (value, _mod, shift) => {
-        executeSearch(shift);
-        globals.dispatch(
-          Actions.setOmnibox({omnibox: value, mode: 'SEARCH', force: true}),
-        );
+        globals.searchManager.search(value);
+        if (shift) {
+          globals.searchManager.stepBackwards();
+        } else {
+          globals.searchManager.stepForward();
+        }
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
       },
-      rightContent: displayStepThrough && this.renderStepThrough(),
+      rightContent: this.renderStepThrough(),
     });
   }
 
   private renderStepThrough() {
-    return m(
-      '.stepthrough',
-      m(
-        '.current',
-        `${
-          globals.currentSearchResults.totalResults === 0
-            ? '0 / 0'
-            : `${globals.state.searchIndex + 1} / ${
-                globals.currentSearchResults.totalResults
-              }`
-        }`,
-      ),
-      m(
-        'button',
-        {
-          onclick: () => {
-            executeSearch(true /* reverse direction */);
+    const children = [];
+    const results = globals.searchManager.searchResults;
+    if (globals.searchManager.searchInProgress) {
+      children.push(m('.current', m(Spinner)));
+    } else if (results !== undefined) {
+      const index = globals.searchManager.resultIndex;
+      const total = results.totalResults ?? 0;
+      children.push(
+        m('.current', `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`),
+        m(
+          'button',
+          {
+            onclick: () => {
+              globals.searchManager.stepBackwards();
+            },
           },
-        },
-        m('i.material-icons.left', 'keyboard_arrow_left'),
-      ),
-      m(
-        'button',
-        {
-          onclick: () => {
-            executeSearch();
+          m('i.material-icons.left', 'keyboard_arrow_left'),
+        ),
+        m(
+          'button',
+          {
+            onclick: () => {
+              globals.searchManager.stepForward();
+            },
           },
-        },
-        m('i.material-icons.right', 'keyboard_arrow_right'),
-      ),
-    );
+          m('i.material-icons.right', 'keyboard_arrow_right'),
+        ),
+      );
+    }
+    return m('.stepthrough', children);
   }
 
   view({children}: m.Vnode): m.Children {
@@ -655,7 +655,7 @@ export class UiMain implements m.ClassComponent {
           );
         }
       }
-      globals.omnibox.clearOmniboxFocusFlag();
+      globals.omnibox.clearFocusFlag();
     }
   }
 }
