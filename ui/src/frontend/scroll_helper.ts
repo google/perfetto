@@ -17,6 +17,7 @@ import {escapeCSSSelector, exists} from '../base/utils';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {raf} from '../core/raf_scheduler';
 import {globals} from './globals';
+import {TrackNode} from '../public/workspace';
 
 // Given a start and end timestamp (in ns), move the viewport to center this
 // range and zoom if necessary:
@@ -75,6 +76,26 @@ export function verticalScrollToTrack(trackUri: string, openGroup = false) {
   }
   // If we get here, it means this track isn't in the workspace.
   // TODO(stevegolton): Warn the user about this?
+}
+
+globals.verticalScrollToTrack = verticalScrollToTrack;
+
+export function verticalScrollToTrackNode(
+  trackNode: TrackNode,
+  openGroup = false,
+) {
+  if (openGroup) {
+    trackNode.reveal();
+    // globals.scrollToTrackUri = trackUri;
+    return;
+  }
+  // Find the first closed ancestor of our target track.
+  const groupNode = trackNode.closestVisibleAncestor;
+  if (groupNode) {
+    document
+      .querySelector('#track_' + groupNode.uri)
+      ?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
 }
 
 // Scroll vertically and horizontally to reach track |track| at |ts|.

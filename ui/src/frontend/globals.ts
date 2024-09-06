@@ -24,7 +24,6 @@ import {
   ConversionJobStatus,
 } from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
-import {CurrentSearchResults} from '../common/search_data';
 import {EngineConfig, State} from '../common/state';
 import {TabManagerImpl} from '../core/tab_manager';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
@@ -47,13 +46,15 @@ import {
   createSearchOverviewTrack,
   SearchOverviewTrack,
 } from './search_overview_track';
-import {AppContext} from './app_context';
 import {TraceInfo} from '../public/trace_info';
 import {Registry} from '../base/registry';
 import {SidebarMenuItem} from '../public/sidebar';
 import {Workspace} from '../public/workspace';
 import {ratelimit} from './rate_limiters';
 import {NoteManagerImpl} from '../core/note_manager';
+import {SearchManagerImpl} from '../core/search_manager';
+import {SearchResult} from '../public/search';
+import {selectCurrentSearchResult} from './search_handler';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -177,13 +178,14 @@ const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
 /**
  * Global accessors for state/dispatch in the frontend.
  */
-class Globals implements AppContext {
+class Globals {
   readonly root = getServingRoot();
 
   private _testing = false;
   private _dispatchMultiple?: DispatchMultiple = undefined;
   private _store = createStore<State>(createEmptyState());
-  private _timeline?: TimelineImpl = undefined;
+  private _timeline: TimelineImpl;
+  private _searchManager = new SearchManagerImpl();
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
   private _isInternalUser: boolean | undefined = undefined;
@@ -215,8 +217,12 @@ class Globals implements AppContext {
   private _searchOverviewTrack?: SearchOverviewTrack;
   readonly workspaces: Workspace[] = [];
   private _currentWorkspace: Workspace;
+  readonly omnibox = new OmniboxManagerImpl();
 
-  omnibox = new OmniboxManagerImpl();
+  // TODO(primiano): this is a hack to work around circular deps in globals.
+  // This function is injected by scroll_helper.ts. Sort out once globals are no
+  // more.
+  verticalScrollToTrack?: (trackUri: string, openGroup?: boolean) => void;
 
   scrollToTrackUri?: string;
   httpRpcState: HttpRpcState = {connected: false};
@@ -233,13 +239,6 @@ class Globals implements AppContext {
     return this._currentWorkspace;
   }
 
-  resetWorkspaces(): void {
-    this.workspaces.length = 0;
-    const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
-    this.workspaces.push(defaultWorkspace);
-    this._currentWorkspace = defaultWorkspace;
-  }
-
   switchWorkspace(workspace: Workspace): void {
     this._currentWorkspace = workspace;
   }
@@ -251,10 +250,34 @@ class Globals implements AppContext {
   async onTraceLoad(engine: Engine, traceCtx: TraceInfo): Promise<void> {
     this.traceContext = traceCtx;
 
+    // Reset workspaces
+    this.workspaces.length = 0;
+    const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
+    this.workspaces.push(defaultWorkspace);
+    this._currentWorkspace = defaultWorkspace;
+
     const {start, end} = traceCtx;
     this._timeline = new TimelineImpl(new TimeSpan(start, end));
     this._timeline.retriggerControllersOnChange = () =>
       ratelimit(() => this.store.edit(() => {}), 50);
+
+    // Reset the trackManager - this clears out the cache and any registered
+    // tracks
+    this._trackManager = new TrackManagerImpl();
+
+    this._searchManager = new SearchManagerImpl({
+      timeline: this._timeline,
+      trackManager: this._trackManager,
+      workspace: this._currentWorkspace,
+      engine,
+      onResultStep: (step: SearchResult) => {
+        selectCurrentSearchResult(
+          step,
+          this._selectionManager,
+          assertExists(this.verticalScrollToTrack),
+        );
+      },
+    });
 
     // TODO(stevegolton): Even though createSearchOverviewTrack() returns a
     // disposable, we completely ignore it as we assume the dispose action
@@ -274,11 +297,11 @@ class Globals implements AppContext {
     //
     // Alternatively we could decide that we don't want to support switching
     // traces at all, in which case we can ignore tear down entirely.
-    this._searchOverviewTrack = await createSearchOverviewTrack(engine, this);
-
-    // Reset the trackManager - this clears out the cache and any registered
-    // tracks
-    this._trackManager = new TrackManagerImpl();
+    this._searchOverviewTrack = await createSearchOverviewTrack(
+      engine,
+      this.searchManager,
+      this.timeline,
+    );
   }
 
   // Used for permalink load by trace_controller.ts.
@@ -286,15 +309,6 @@ class Globals implements AppContext {
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
-
-  private _currentSearchResults: CurrentSearchResults = {
-    eventIds: new Float64Array(0),
-    tses: new BigInt64Array(0),
-    utids: new Float64Array(0),
-    trackUris: [],
-    sources: [],
-    totalResults: 0,
-  };
 
   engines = new Map<string, EngineBase>();
 
@@ -304,6 +318,7 @@ class Globals implements AppContext {
     const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
     this.workspaces.push(defaultWorkspace);
     this._currentWorkspace = defaultWorkspace;
+
     this._selectionManager.onSelectionChange = (
       _s: Selection,
       opts: SelectionOpts,
@@ -381,6 +396,10 @@ class Globals implements AppContext {
 
   get timeline() {
     return assertExists(this._timeline);
+  }
+
+  get searchManager() {
+    return this._searchManager;
   }
 
   get logging() {
@@ -480,14 +499,6 @@ class Globals implements AppContext {
     return this._recordingLog;
   }
 
-  get currentSearchResults() {
-    return this._currentSearchResults;
-  }
-
-  set currentSearchResults(results: CurrentSearchResults) {
-    this._currentSearchResults = results;
-  }
-
   set hasFtrace(value: boolean) {
     this._hasFtrace = value;
   }
@@ -563,7 +574,7 @@ class Globals implements AppContext {
       pendingScrollId = undefined,
     } = opts;
     if (clearSearch) {
-      globals.dispatch(Actions.setSearchIndex({index: -1}));
+      this.searchManager.reset();
     }
     if (pendingScrollId !== undefined) {
       globals.dispatch(

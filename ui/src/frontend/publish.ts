@@ -15,7 +15,6 @@
 import {Actions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
-import {CurrentSearchResults} from '../common/search_data';
 import {raf} from '../core/raf_scheduler';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {
@@ -85,11 +84,6 @@ export function publishLoading(numQueuedQueries: number) {
 
 export function publishBufferUsage(args: {percentage: number}) {
   globals.setBufferUsage(args.percentage);
-  globals.publishRedraw();
-}
-
-export function publishSearchResult(args: CurrentSearchResults) {
-  globals.currentSearchResults = args;
   globals.publishRedraw();
 }
 

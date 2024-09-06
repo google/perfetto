@@ -33,7 +33,7 @@ class TrackUtilsPlugin implements PerfettoPlugin {
         globals.omnibox.setText(
           `select  where ts >= ${window.start} and ts < ${window.end}`,
         );
-        globals.omnibox.focusOmnibox(7);
+        globals.omnibox.focus(7);
       },
     });
 
