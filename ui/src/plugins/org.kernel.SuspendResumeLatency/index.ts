@@ -19,13 +19,20 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SuspendResumeDetailsPanel} from './suspend_resume_details';
+import {Slice} from '../../public/track';
+import {OnSliceClickArgs} from '../../frontend/base_slice_track';
+import {globals} from '../../frontend/globals';
 
 // SuspendResumeSliceTrack exists so as to override the `onSliceClick` function
 // in AsyncSliceTrack.
-// TODO: Add `onSliceClick` function.
 class SuspendResumeSliceTrack extends AsyncSliceTrack {
   constructor(args: NewTrackArgs, maxDepth: number, trackIds: number[]) {
     super(args, maxDepth, trackIds);
+  }
+
+  onSliceClick(args: OnSliceClickArgs<Slice>) {
+    globals.selectionManager.selectTrackEvent(this.uri, args.slice.id);
   }
 }
 
@@ -74,6 +81,7 @@ class SuspendResumeLatency implements PerfettoPlugin {
         kind: ASYNC_SLICE_TRACK_KIND,
       },
       track: new SuspendResumeSliceTrack({uri, trace: ctx}, maxDepth, trackIds),
+      detailsPanel: new SuspendResumeDetailsPanel(ctx.engine),
     });
 
     // Display the track in the UI.
