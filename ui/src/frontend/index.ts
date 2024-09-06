@@ -157,6 +157,49 @@ function setupContentSecurityPolicy() {
   document.head.appendChild(meta);
 }
 
+function setupExtentionPort(extensionLocalChannel: MessageChannel) {
+  // We proxy messages between the extension and the controller because the
+  // controller's worker can't access chrome.runtime.
+  const extensionPort =
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    window.chrome && chrome.runtime
+      ? chrome.runtime.connect(EXTENSION_ID)
+      : undefined;
+
+  setExtensionAvailability(extensionPort !== undefined);
+
+  if (extensionPort) {
+    // Send messages to keep-alive the extension port.
+    const interval = setInterval(() => {
+      extensionPort.postMessage({
+        method: 'ExtensionVersion',
+      });
+    }, 25000);
+    extensionPort.onDisconnect.addListener((_) => {
+      setExtensionAvailability(false);
+      clearInterval(interval);
+      // Retry connection.
+      setupExtentionPort(extensionLocalChannel);
+      void chrome.runtime.lastError; // Needed to not receive an error log.
+    });
+    // This forwards the messages from the extension to the controller.
+    extensionPort.onMessage.addListener(
+      (message: object, _port: chrome.runtime.Port) => {
+        if (isGetCategoriesResponse(message)) {
+          globals.dispatch(Actions.setChromeCategories(message));
+          return;
+        }
+        extensionLocalChannel.port2.postMessage(message);
+      },
+    );
+  }
+
+  // This forwards the messages from the controller to the extension
+  extensionLocalChannel.port2.onmessage = ({data}) => {
+    if (extensionPort) extensionPort.postMessage(data);
+  };
+}
+
 function main() {
   // Wire up raf for widgets.
   setScheduleFullRedraw(() => raf.scheduleFullRedraw());
@@ -213,37 +256,7 @@ function main() {
   globals.store.subscribe(scheduleRafAndRunControllersOnStateChange);
   globals.publishRedraw = () => raf.scheduleFullRedraw();
 
-  // We proxy messages between the extension and the controller because the
-  // controller's worker can't access chrome.runtime.
-  const extensionPort =
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    window.chrome && chrome.runtime
-      ? chrome.runtime.connect(EXTENSION_ID)
-      : undefined;
-
-  setExtensionAvailability(extensionPort !== undefined);
-
-  if (extensionPort) {
-    extensionPort.onDisconnect.addListener((_) => {
-      setExtensionAvailability(false);
-      void chrome.runtime.lastError; // Needed to not receive an error log.
-    });
-    // This forwards the messages from the extension to the controller.
-    extensionPort.onMessage.addListener(
-      (message: object, _port: chrome.runtime.Port) => {
-        if (isGetCategoriesResponse(message)) {
-          globals.dispatch(Actions.setChromeCategories(message));
-          return;
-        }
-        extensionLocalChannel.port2.postMessage(message);
-      },
-    );
-  }
-
-  // This forwards the messages from the controller to the extension
-  extensionLocalChannel.port2.onmessage = ({data}) => {
-    if (extensionPort) extensionPort.postMessage(data);
-  };
+  setupExtentionPort(extensionLocalChannel);
 
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
