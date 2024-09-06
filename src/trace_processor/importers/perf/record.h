@@ -49,6 +49,14 @@ struct Record {
     }
   }
 
+  bool has_trailing_sample_id() const {
+    if (!attr) {
+      return false;
+    }
+    return attr->sample_id_all() && header.type != PERF_RECORD_SAMPLE &&
+           header.type < PERF_RECORD_USER_TYPE_START;
+  }
+
   bool mmap_has_build_id() const {
     return header.misc & PERF_RECORD_MISC_MMAP_BUILD_ID;
   }

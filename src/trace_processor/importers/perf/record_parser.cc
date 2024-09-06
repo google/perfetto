@@ -97,9 +97,8 @@ RecordParser::~RecordParser() = default;
 
 void RecordParser::ParsePerfRecord(int64_t ts, Record record) {
   if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
-    context_->storage->IncrementStats(record.header.type == PERF_RECORD_SAMPLE
-                                          ? stats::perf_samples_skipped
-                                          : stats::perf_record_skipped);
+    context_->storage->IncrementIndexedStats(
+        stats::perf_record_skipped, static_cast<int>(record.header.type));
   }
 }
 
