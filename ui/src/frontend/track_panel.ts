@@ -145,9 +145,10 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     // The shell should be highlighted if the current search result is inside
     // this track.
     let highlightClass = undefined;
-    const searchIndex = globals.state.searchIndex;
-    if (searchIndex !== -1) {
-      const uri = globals.currentSearchResults.trackUris[searchIndex];
+    const searchIndex = globals.searchManager.resultIndex;
+    const searchResults = globals.searchManager.searchResults;
+    if (searchIndex !== -1 && searchResults !== undefined) {
+      const uri = searchResults.trackUris[searchIndex];
       if (uri === attrs.track.uri) {
         highlightClass = 'flash';
       }
