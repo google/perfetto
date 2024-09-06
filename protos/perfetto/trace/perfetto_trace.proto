@@ -12457,9 +12457,9 @@ message ChromeLatencyInfo {
     // Renderer's compositor.
     STEP_SWAP_BUFFERS = 6;
     // Happens on the VizCompositor in the GPU process.
-    STEP_DRAW_AND_SWAP = 7;
+    STEP_DRAW_AND_SWAP = 7 [deprecated = true];
     // Happens on the GPU main thread after the swap has completed.
-    STEP_FINISHED_SWAP_BUFFERS = 11;
+    STEP_FINISHED_SWAP_BUFFERS = 11 [deprecated = true];
     // See above for NEXT ID, enum steps are not ordered by tag number.
   };
 
