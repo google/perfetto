@@ -646,8 +646,8 @@ class Globals {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
         return this.traceContext.start;
-      case TimestampFormat.Raw:
-      case TimestampFormat.RawLocale:
+      case TimestampFormat.TraceNs:
+      case TimestampFormat.TraceNsLocale:
         return Time.ZERO;
       case TimestampFormat.UTC:
         return this.traceContext.utcOffset;

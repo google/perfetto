@@ -273,10 +273,10 @@ function renderTimestamp(
     case TimestampFormat.Timecode:
       renderTimecode(ctx, time, x, y, minWidth);
       break;
-    case TimestampFormat.Raw:
+    case TimestampFormat.TraceNs:
       ctx.fillText(time.toString(), x, y, minWidth);
       break;
-    case TimestampFormat.RawLocale:
+    case TimestampFormat.TraceNsLocale:
       ctx.fillText(time.toLocaleString(), x, y, minWidth);
       break;
     case TimestampFormat.Seconds:
