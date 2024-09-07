@@ -32,7 +32,7 @@ import {defaultPlugins} from '../core/default_plugins';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 import {TraceInfo} from '../public/trace_info';
-import {Workspace} from '../public/workspace';
+import {Workspace, WorkspaceManager} from '../public/workspace';
 import {Migrate, Store} from '../base/store';
 import {LegacyDetailsPanel} from '../public/details_panel';
 
@@ -234,6 +234,10 @@ class PluginContextTraceImpl implements Trace, Disposable {
 
   mountStore<T>(migrate: Migrate<T>): Store<T> {
     return globals.store.createSubStore(['plugins', this.pluginId], migrate);
+  }
+
+  get workspaces(): WorkspaceManager {
+    return globals.workspaceManager;
   }
 
   get traceInfo(): TraceInfo {

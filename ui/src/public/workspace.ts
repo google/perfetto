@@ -16,6 +16,14 @@ import {Optional} from '../base/utils';
 import {uuidv4} from '../base/uuid';
 import {raf} from '../core/raf_scheduler';
 
+export interface WorkspaceManager {
+  // This is the same of ctx.workspace, exposed for consistency also here.
+  readonly currentWorkspace: Workspace;
+  readonly all: ReadonlyArray<Workspace>;
+  createEmptyWorkspace(displayName: string): Workspace;
+  switchWorkspace(workspace: Workspace): void;
+}
+
 export class TrackNode {
   // This is the URI of the track this node references.
   public readonly uri: string;
