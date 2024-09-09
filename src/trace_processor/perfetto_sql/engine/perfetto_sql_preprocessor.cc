@@ -209,7 +209,8 @@ bool PerfettoSqlPreprocessor::NextStatement() {
   }
 
   SqlSource stmt =
-      global_tokenizer_.Substr(tok, global_tokenizer_.NextTerminal());
+      global_tokenizer_.Substr(tok, global_tokenizer_.NextTerminal(),
+                               SqliteTokenizer::EndToken::kInclusive);
   auto stmt_or = RewriteInternal(stmt, {});
   if (stmt_or.ok()) {
     statement_ = std::move(*stmt_or);
