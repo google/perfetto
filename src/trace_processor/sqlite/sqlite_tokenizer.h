@@ -112,8 +112,11 @@ class SqliteTokenizer {
   // Returns an SqlSource containing all the tokens between |start| and |end|.
   //
   // Note: |start| and |end| must both have been previously returned by this
-  // tokenizer.
-  SqlSource Substr(const Token& start, const Token& end) const;
+  // tokenizer. If |end_token| == kInclusive, the end token is also included
+  // in the substring.
+  SqlSource Substr(const Token& start,
+                   const Token& end,
+                   EndToken end_token = EndToken::kExclusive) const;
 
   // Returns an SqlSource containing only the SQL backing |token|.
   //
