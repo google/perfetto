@@ -386,7 +386,15 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
         trace_config_raw = snapshot_config_;
       } else {
         if (!base::ReadFile(optarg, &trace_config_raw)) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+          PERFETTO_PLOG(
+              "Could not open %s. If this is a permission denied error, try "
+              "placing the config in /data/misc/perfetto-configs: Perfetto "
+              "should always be able to access this directory.",
+              optarg);
+#else
           PERFETTO_PLOG("Could not open %s", optarg);
+#endif
           return 1;
         }
       }
