@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../frontend/globals';
+import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {Trace} from '../../public/trace';
-import {TrackDescriptor} from '../../public/track';
-import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
-import {time, Time} from '../../base/time';
-import {BigintMath} from '../../base/bigint_math';
-import {scrollToTrackAndTimeSpan} from '../../frontend/scroll_helper';
 
 /**
  * Adds debug tracks from SimpleSliceTrackConfig
@@ -62,85 +57,30 @@ export function addAndPinSliceTrack(
 }
 
 /**
- * Interface for slice identifier
- */
-export interface SliceIdentifier {
-  sliceId?: number;
-  trackId?: number;
-  ts?: time;
-  dur?: bigint;
-}
-
-/**
  * Sets focus on a specific slice within the trace data.
  *
  * Takes and adds desired slice to current selection
  * Retrieves the track key and scrolls to the desired slice
- *
- * @param {SliceIdentifier} slice slice to focus on with trackId and sliceId
  */
-
-export function focusOnSlice(slice: SliceIdentifier) {
-  if (slice.sliceId == undefined || slice.trackId == undefined) {
-    return;
-  }
-  const trackId = slice.trackId;
-  const track = getTrackForTrackId(trackId);
-  globals.selectionManager.setLegacy(
+export function focusOnSlice(
+  ctx: Trace,
+  sqlSliceId: number,
+  sqlTrackId: number,
+) {
+  // Finds the TrackDescriptor associated to the given SQL `tracks(table).id`.
+  const track = ctx.tracks.findTrack((trackDescriptor) => {
+    return trackDescriptor?.tags?.trackIds?.includes(sqlTrackId);
+  });
+  ctx.selection.setLegacy(
     {
       kind: 'SLICE',
-      id: slice.sliceId,
+      id: sqlSliceId,
       trackUri: track?.uri,
       table: 'slice',
     },
     {
-      pendingScrollId: slice.sliceId,
+      pendingScrollId: sqlSliceId,
     },
   );
-  findCurrentSelection;
-}
-
-/**
- * Given the trackId of the track, retrieves its corresponding TrackDescriptor.
- *
- * @param trackId track_id of the track
- */
-function getTrackForTrackId(trackId: number): TrackDescriptor | undefined {
-  return globals.trackManager.findTrack((trackDescriptor) => {
-    return trackDescriptor?.tags?.trackIds?.includes(trackId);
-  });
-}
-
-/**
- * Sets focus on a specific time span and a track
- *
- * Takes a row object pans the view to that time span
- * Retrieves the track key and scrolls to the desired track
- *
- * @param {SliceIdentifier} slice slice to focus on with trackId and time data
- */
-
-export async function focusOnTimeAndTrack(slice: SliceIdentifier) {
-  if (
-    slice.trackId == undefined ||
-    slice.ts == undefined ||
-    slice.dur == undefined
-  ) {
-    return;
-  }
-  const trackId = slice.trackId;
-  const sliceStart = slice.ts;
-  // row.dur can be negative. Clamp to 1ns.
-  const sliceDur = BigintMath.max(slice.dur, 1n);
-  const track = getTrackForTrackId(trackId);
-  // true for whether to expand the process group the track belongs to
-  if (track == undefined) {
-    return;
-  }
-  scrollToTrackAndTimeSpan(
-    track.uri,
-    sliceStart,
-    Time.add(sliceStart, sliceDur),
-    true,
-  );
+  findCurrentSelection();
 }

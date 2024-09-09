@@ -17,7 +17,6 @@ import {
   globals,
 } from '../../frontend/globals';
 import {OmniboxMode} from '../../core/omnibox_manager';
-import {verticalScrollToTrack} from '../../frontend/scroll_helper';
 import {Trace} from '../../public/trace';
 import {PromptOption} from '../../public/omnibox';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
@@ -61,8 +60,7 @@ class TrackUtilsPlugin implements PerfettoPlugin {
           sortedOptions,
         );
         if (selectedUri === undefined) return; // Prompt cancelled.
-
-        verticalScrollToTrack(selectedUri, true);
+        ctx.scrollTo({track: {uri: selectedUri, expandGroup: true}});
         const traceTime = globals.traceContext;
         globals.selectionManager.setArea({
           start: traceTime.start,
