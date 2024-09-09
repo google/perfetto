@@ -17,10 +17,6 @@ import {Icons} from '../../base/semantic_icons';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {globals} from '../../frontend/globals';
-import {
-  focusHorizontalRange,
-  verticalScrollToTrack,
-} from '../../frontend/scroll_helper';
 import {SliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -30,6 +26,7 @@ import {
   CauseThread,
   ScrollJankCauseMap,
 } from './scroll_jank_cause_map';
+import {scrollTo} from '../../public/scroll_helper';
 
 const UNKNOWN_NAME = 'Unknown';
 
@@ -202,10 +199,17 @@ export function getCauseLink(
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          verticalScrollToTrack(trackUris[0], true);
+          scrollTo({
+            track: {uri: trackUris[0], expandGroup: true},
+          });
           if (exists(ts) && exists(dur)) {
-            focusHorizontalRange(ts, Time.fromRaw(ts + dur), 0.3);
-
+            scrollTo({
+              time: {
+                start: ts,
+                end: Time.fromRaw(ts + dur),
+                viewPercentage: 0.3,
+              },
+            });
             globals.selectionManager.setArea({
               start: ts,
               end: Time.fromRaw(ts + dur),

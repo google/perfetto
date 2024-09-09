@@ -468,9 +468,9 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 
   oncreate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
     const {attrs} = vnode;
-    if (globals.scrollToTrackUri === attrs.trackNode.uri) {
+    if (globals.trackManager.scrollToTrackUriOnCreate === attrs.trackNode.uri) {
       vnode.dom.scrollIntoView();
-      globals.scrollToTrackUri = undefined;
+      globals.trackManager.scrollToTrackUriOnCreate = undefined;
     }
     this.onupdate(vnode);
 

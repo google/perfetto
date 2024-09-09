@@ -51,6 +51,13 @@ export interface TrackRenderer {
 export class TrackManagerImpl implements TrackManager {
   private tracks = new Registry<TrackFSM>((x) => x.desc.uri);
 
+  // This property is written by scroll_helper.ts and read&cleared by the
+  // track_panel.ts. This exist for the following use case: the user wants to
+  // scroll to track X, but X is not visible because it's in a collapsed group.
+  // So we want to stash this information in a place that track_panel.ts can
+  // access when creating dom elements.
+  scrollToTrackUriOnCreate?: string;
+
   registerTrack(trackDesc: TrackDescriptor): Disposable {
     return this.tracks.register(new TrackFSM(trackDesc));
   }
