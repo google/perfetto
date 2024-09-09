@@ -49,12 +49,13 @@ import {
 import {TraceInfo} from '../public/trace_info';
 import {Registry} from '../base/registry';
 import {SidebarMenuItem} from '../public/sidebar';
-import {Workspace} from '../public/workspace';
+import {Workspace, WorkspaceManager} from '../public/workspace';
 import {ratelimit} from './rate_limiters';
 import {NoteManagerImpl} from '../core/note_manager';
 import {SearchManagerImpl} from '../core/search_manager';
 import {SearchResult} from '../public/search';
 import {selectCurrentSearchResult} from './search_handler';
+import {WorkspaceManagerImpl} from '../core/workspace_manager';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -174,8 +175,6 @@ interface SqlPackage {
   readonly modules: SqlModule[];
 }
 
-const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
-
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -216,8 +215,7 @@ class Globals {
   private _noteManager = new NoteManagerImpl(this._selectionManager);
   private _hasFtrace: boolean = false;
   private _searchOverviewTrack?: SearchOverviewTrack;
-  readonly workspaces: Workspace[] = [];
-  private _currentWorkspace: Workspace;
+  private _workspaceManager = new WorkspaceManagerImpl();
   readonly omnibox = new OmniboxManagerImpl();
 
   // TODO(primiano): this is a hack to work around circular deps in globals.
@@ -237,11 +235,11 @@ class Globals {
   readonly sidebarMenuItems = new Registry<SidebarMenuItem>((m) => m.commandId);
 
   get workspace(): Workspace {
-    return this._currentWorkspace;
+    return this._workspaceManager.currentWorkspace;
   }
 
-  switchWorkspace(workspace: Workspace): void {
-    this._currentWorkspace = workspace;
+  get workspaceManager(): WorkspaceManager {
+    return this._workspaceManager;
   }
 
   // This is the app's equivalent of a plugin's onTraceLoad() function.
@@ -252,10 +250,7 @@ class Globals {
     this.traceContext = traceCtx;
 
     // Reset workspaces
-    this.workspaces.length = 0;
-    const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
-    this.workspaces.push(defaultWorkspace);
-    this._currentWorkspace = defaultWorkspace;
+    this._workspaceManager = new WorkspaceManagerImpl();
 
     const {start, end} = traceCtx;
     this._timeline = new TimelineImpl(new TimeSpan(start, end));
@@ -269,7 +264,7 @@ class Globals {
     this._searchManager = new SearchManagerImpl({
       timeline: this._timeline,
       trackManager: this._trackManager,
-      workspace: this._currentWorkspace,
+      workspace: this._workspaceManager.currentWorkspace,
       engine,
       onResultStep: (step: SearchResult) => {
         selectCurrentSearchResult(
@@ -316,9 +311,6 @@ class Globals {
   constructor() {
     const {start, end} = defaultTraceContext;
     this._timeline = new TimelineImpl(new TimeSpan(start, end));
-    const defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_NAME);
-    this.workspaces.push(defaultWorkspace);
-    this._currentWorkspace = defaultWorkspace;
 
     this._selectionManager.onSelectionChange = (
       _s: Selection,

@@ -19,8 +19,8 @@ import {App} from './app';
 import {TabManager} from './tab';
 import {TrackManager} from './track';
 import {Timeline} from './timeline';
+import {Workspace, WorkspaceManager} from './workspace';
 import {LegacyDetailsPanel} from './details_panel';
-import {Workspace} from './workspace';
 import {SelectionManager} from './selection';
 
 /**
@@ -38,6 +38,7 @@ export interface Trace extends App {
   readonly tracks: TrackManager;
   readonly selection: SelectionManager;
   readonly workspace: Workspace;
+  readonly workspaces: WorkspaceManager;
   readonly traceInfo: TraceInfo;
 
   // TODO(primiano): remove this once the Legacy vs non-Legacy details panel is
