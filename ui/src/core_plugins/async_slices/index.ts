@@ -43,7 +43,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           count() as trackCount
         from track t
         join _slice_track_summary using (id)
-        where t.type in ('__intrinsic_track', 'gpu_track', 'cpu_track')
+        where t.type in ('__intrinsic_track', 'gpu_track', '__intrinsic_cpu_track')
         group by parent_id, name
       )
       select
