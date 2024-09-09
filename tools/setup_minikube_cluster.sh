@@ -15,7 +15,7 @@
 
 set -e
 
-cd src/bigtrace
+cd infra/bigtrace/docker
 
 minikube start
 eval $(minikube docker-env)
