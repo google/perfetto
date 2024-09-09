@@ -113,11 +113,11 @@ if (enable_perfetto_integration_tests) {
       "../../../protos/perfetto/trace/interned_data:zero",
       "../../../protos/perfetto/trace/profiling:cpp",
       "../../../protos/perfetto/trace/track_event:cpp",
+      "../../../test:integrationtest_initializer",
       "../../base",
     ]
     sources = [
       "api_integrationtest.cc",
-      "api_integrationtest_main.cc",
       "tracing_module.cc",
       "tracing_module.h",
       "tracing_module2.cc",
