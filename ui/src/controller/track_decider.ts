@@ -179,7 +179,7 @@ class TrackDecider {
         select distinct t.parent_id, t.name
         from track t
         join _slice_track_summary using (id)
-        where t.type in ('track', 'gpu_track', 'cpu_track')
+        where t.type in ('track', 'gpu_track', '__intrinsic_cpu_track')
       )
       select
         t.name as name,
