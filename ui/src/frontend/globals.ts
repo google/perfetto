@@ -161,6 +161,7 @@ export const defaultTraceContext: TraceInfo = {
   traceTzOffset: Time.ZERO,
   cpus: [],
   gpuCount: 0,
+  source: {type: 'URL', url: ''},
 };
 
 interface SqlModule {

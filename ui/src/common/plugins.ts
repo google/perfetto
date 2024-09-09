@@ -45,6 +45,7 @@ export class PluginContextImpl implements App, Disposable {
   private alive = true;
   readonly commands;
   readonly sidebar;
+  readonly omnibox;
 
   constructor(readonly pluginId: string) {
     const thiz = this;
@@ -60,11 +61,20 @@ export class PluginContextImpl implements App, Disposable {
       runCommand(id: string, ...args: any[]): any {
         return globals.commandManager.runCommand(id, ...args);
       },
+      hasCommand(commandId: string) {
+        return globals.commandManager.hasCommand(commandId);
+      },
     };
 
     this.sidebar = {
-      addSidebarMenuItem(menuItem: SidebarMenuItem): void {
+      addMenuItem(menuItem: SidebarMenuItem): void {
         thiz.trash.use(globals.sidebarMenuItems.register(menuItem));
+      },
+    };
+
+    this.omnibox = {
+      prompt(text: string, options?: PromptOption[]) {
+        return globals.omnibox.prompt(text, options);
       },
     };
   }
@@ -82,11 +92,13 @@ export class PluginContextImpl implements App, Disposable {
 class PluginContextTraceImpl implements Trace, Disposable {
   private trash = new DisposableStack();
   private alive = true;
-  readonly engine: Engine;
   readonly commands;
-  readonly tracks;
-  readonly tabs;
+  readonly engine: Engine;
+  readonly selection;
   readonly sidebar;
+  readonly tabs;
+  readonly tracks;
+  readonly omnibox;
 
   constructor(
     private ctx: App,
@@ -96,6 +108,8 @@ class PluginContextTraceImpl implements Trace, Disposable {
     this.trash.use(engineProxy);
     this.engine = engineProxy;
     const thiz = this;
+
+    this.omnibox = ctx.omnibox;
 
     this.commands = {
       registerCommand(cmd: Command): void {
@@ -110,6 +124,10 @@ class PluginContextTraceImpl implements Trace, Disposable {
       runCommand(id: string, ...args: any[]): any {
         return ctx.commands.runCommand(id, ...args);
       },
+
+      hasCommand(commandId: string) {
+        return globals.commandManager.hasCommand(commandId);
+      },
     };
 
     this.tracks = {
@@ -122,6 +140,15 @@ class PluginContextTraceImpl implements Trace, Disposable {
           pluginId: thiz.pluginId,
         });
         thiz.trash.use(dispose);
+      },
+      findTrack(predicate: (desc: TrackDescriptor) => boolean | undefined) {
+        return globals.trackManager.findTrack(predicate);
+      },
+      getAllTracks() {
+        return globals.trackManager.getAllTracks();
+      },
+      getTrack(uri: string) {
+        return globals.trackManager.getTrack(uri);
       },
     };
 
@@ -138,10 +165,6 @@ class PluginContextTraceImpl implements Trace, Disposable {
         thiz.trash.use(remove);
       },
 
-      openQuery: (query: string, title: string) => {
-        addQueryResultsTab({query, title});
-      },
-
       showTab(uri: string): void {
         globals.tabManager.showTab(uri);
       },
@@ -152,13 +175,26 @@ class PluginContextTraceImpl implements Trace, Disposable {
     };
 
     this.sidebar = {
-      addSidebarMenuItem(menuItem: SidebarMenuItem): void {
+      addMenuItem(menuItem: SidebarMenuItem): void {
         // Silently ignore if context is dead.
         if (!thiz.alive) return;
 
         thiz.trash.use(globals.sidebarMenuItems.register(menuItem));
       },
     };
+
+    this.selection = {
+      get selection() {
+        return globals.selectionManager.selection;
+      },
+      clear() {
+        globals.selectionManager.clear();
+      },
+    };
+  }
+
+  addQueryResultsTab(query: string, title: string) {
+    addQueryResultsTab({query, title});
   }
 
   registerDetailsPanel(detailsPanel: LegacyDetailsPanel): void {
@@ -182,8 +218,8 @@ class PluginContextTraceImpl implements Trace, Disposable {
       globals.timeline.updateVisibleTime(new TimeSpan(start, end));
     },
 
-    get viewport(): TimeSpan {
-      return globals.timeline.visibleWindow.toTimeSpan();
+    get visibleWindow() {
+      return globals.timeline.visibleWindow;
     },
   };
 
@@ -200,7 +236,7 @@ class PluginContextTraceImpl implements Trace, Disposable {
     return globals.store.createSubStore(['plugins', this.pluginId], migrate);
   }
 
-  get trace(): TraceInfo {
+  get traceInfo(): TraceInfo {
     return globals.traceContext;
   }
 
@@ -210,13 +246,6 @@ class PluginContextTraceImpl implements Trace, Disposable {
     }
     const pluginArgs = globals.state.engine?.source.pluginArgs;
     return (pluginArgs ?? {})[this.pluginId];
-  }
-
-  async prompt(
-    text: string,
-    options?: PromptOption[] | undefined,
-  ): Promise<string> {
-    return globals.omnibox.prompt(text, options);
   }
 }
 

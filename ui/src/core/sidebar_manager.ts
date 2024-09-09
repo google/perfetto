@@ -12,24 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import {Registry} from '../base/registry';
+import {SidebarManager, SidebarMenuItem} from '../public/sidebar';
 
-export interface TabManager {
-  registerTab(tab: TabDescriptor): void;
-  showTab(uri: string): void;
-  hideTab(uri: string): void;
-  addDefaultTab(uri: string): void;
-}
+export class SidebarManagerImpl implements SidebarManager {
+  readonly menuItems = new Registry<SidebarMenuItem>((m) => m.commandId);
 
-export interface Tab {
-  render(): m.Children;
-  getTitle(): string;
-}
-
-export interface TabDescriptor {
-  uri: string; // TODO(stevegolton): Maybe optional for ephemeral tabs.
-  content: Tab;
-  isEphemeral?: boolean; // Defaults false
-  onHide?(): void;
-  onShow?(): void;
+  addMenuItem(menuItem: SidebarMenuItem): Disposable {
+    return this.menuItems.register(menuItem);
+  }
 }

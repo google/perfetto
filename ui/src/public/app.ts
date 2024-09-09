@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Command} from './command';
-import {SidebarMenuItem} from './sidebar';
+import {CommandManager} from './command';
+import {OmniboxManager} from './omnibox';
+import {SidebarManager} from './sidebar';
 
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has
@@ -25,20 +26,7 @@ export interface App {
    * or '__core__' for the interface exposed to the core.
    */
   readonly pluginId: string;
-
-  commands: {
-    registerCommand(command: Command): void;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    runCommand(id: string, ...args: any[]): any;
-  };
-
-  sidebar: {
-    /**
-     * Adds a new menu item to the sidebar.
-     * All entries must map to a command. This will allow the shortcut and
-     * optional shortcut to be displayed on the UI.
-     */
-    addSidebarMenuItem(menuItem: SidebarMenuItem): void;
-  };
+  readonly commands: CommandManager;
+  readonly sidebar: SidebarManager;
+  readonly omnibox: OmniboxManager;
 }

@@ -19,6 +19,7 @@ import {
   Area,
   ProfileType,
   SelectionOpts,
+  SelectionManager,
 } from '../public/selection';
 import {duration, time} from '../base/time';
 import {
@@ -27,7 +28,7 @@ import {
 } from '../public/details_panel';
 import {raf} from './raf_scheduler';
 
-export class SelectionManagerImpl {
+export class SelectionManagerImpl implements SelectionManager {
   private _selection: Selection = {kind: 'empty'};
   onSelectionChange?: (selection: Selection, opts: SelectionOpts) => void;
 

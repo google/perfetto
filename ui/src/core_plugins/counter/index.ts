@@ -411,7 +411,7 @@ class CounterPlugin implements PerfettoPlugin {
 
   private async addGpuFrequencyTracks(ctx: Trace) {
     const engine = ctx.engine;
-    const numGpus = ctx.trace.gpuCount;
+    const numGpus = ctx.traceInfo.gpuCount;
 
     for (let gpu = 0; gpu < numGpus; gpu++) {
       // Only add a gpu freq track if we have

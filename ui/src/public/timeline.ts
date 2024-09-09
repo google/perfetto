@@ -12,24 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import {time} from '../base/time';
 
-export interface TabManager {
-  registerTab(tab: TabDescriptor): void;
-  showTab(uri: string): void;
-  hideTab(uri: string): void;
-  addDefaultTab(uri: string): void;
-}
+export interface Timeline {
+  // Bring a timestamp into view.
+  panToTimestamp(ts: time): void;
 
-export interface Tab {
-  render(): m.Children;
-  getTitle(): string;
-}
+  // Move the viewport.
+  setViewportTime(start: time, end: time): void;
 
-export interface TabDescriptor {
-  uri: string; // TODO(stevegolton): Maybe optional for ephemeral tabs.
-  content: Tab;
-  isEphemeral?: boolean; // Defaults false
-  onHide?(): void;
-  onShow?(): void;
+  // A span representing the current viewport location.
+  readonly visibleWindow: HighPrecisionTimeSpan;
 }

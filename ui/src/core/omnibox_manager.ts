@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PromptOption} from '../public/omnibox';
+import {OmniboxManager, PromptOption} from '../public/omnibox';
 import {raf} from './raf_scheduler';
 
 export enum OmniboxMode {
@@ -31,7 +31,7 @@ interface Prompt {
 
 const defaultMode = OmniboxMode.Search;
 
-export class OmniboxManagerImpl {
+export class OmniboxManagerImpl implements OmniboxManager {
   private _mode = defaultMode;
   private _focusOmniboxNextRender = false;
   private _pendingCursorPlacement?: number;

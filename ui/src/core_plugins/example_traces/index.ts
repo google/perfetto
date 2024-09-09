@@ -39,7 +39,7 @@ class ExampleTracesPlugin implements PerfettoPlugin {
         openTraceUrl(EXAMPLE_ANDROID_TRACE_URL);
       },
     });
-    ctx.sidebar.addSidebarMenuItem({
+    ctx.sidebar.addMenuItem({
       commandId: OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID,
       group: 'example_traces',
       icon: 'description',
@@ -54,7 +54,7 @@ class ExampleTracesPlugin implements PerfettoPlugin {
         openTraceUrl(EXAMPLE_CHROME_TRACE_URL);
       },
     });
-    ctx.sidebar.addSidebarMenuItem({
+    ctx.sidebar.addMenuItem({
       commandId: OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID,
       group: 'example_traces',
       icon: 'description',

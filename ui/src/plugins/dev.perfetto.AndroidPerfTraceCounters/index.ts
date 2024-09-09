@@ -95,7 +95,7 @@ class AndroidPerfTraceCounters implements PerfettoPlugin {
           {ts: 'ts', dur: 'dur', name: 'ipc'},
           ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss'],
         );
-        ctx.tabs.openQuery(
+        ctx.addQueryResultsTab(
           sqlPrefix +
             `
             SELECT
