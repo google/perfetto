@@ -24,6 +24,10 @@ if (enable_perfetto_grpc) {
       "orchestrator_impl.cc",
       "orchestrator_impl.h",
       "orchestrator_main.cc",
+      "resizable_task_pool.cc",
+      "resizable_task_pool.h",
+      "trace_address_pool.cc",
+      "trace_address_pool.h",
     ]
     deps = [
       "../../../gn:default_deps",
