@@ -144,6 +144,12 @@ proto_groups = {
             '//protos/perfetto/config:source_set',
         ]
     },
+    'metrics': {
+        'types': ['python'],
+        'targets': [
+            '//protos/perfetto/metrics:source_set',
+        ]
+    },
 }
 
 needs_libfts = [
@@ -1011,6 +1017,13 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
       module = Module('java_library', name, name)
       module.comment = f'''GN: [{', '.join(target_names)}]'''
       module.proto = {'type': 'lite', 'canonical_path_from_root': False}
+      module.srcs = module_sources
+      blueprint.add_module(module)
+    elif type == 'python':
+      name = label_to_module_name(module_name) + '_python_protos'
+      module = Module('python_library_host', name, name)
+      module.comment = f'''GN: [{', '.join(target_names)}]'''
+      module.proto = {'canonical_path_from_root': False}
       module.srcs = module_sources
       blueprint.add_module(module)
     else:
