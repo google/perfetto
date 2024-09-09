@@ -176,7 +176,7 @@ class ClockTracker {
   }
 
   // Apply the clock offset to convert remote trace times to host trace time.
-  int64_t ToHostTraceTime(int64_t timestamp) {
+  PERFETTO_ALWAYS_INLINE int64_t ToHostTraceTime(int64_t timestamp) {
     if (PERFETTO_LIKELY(!context_->machine_id())) {
       // No need to convert host timestamps.
       return timestamp;
@@ -188,7 +188,9 @@ class ClockTracker {
     return timestamp - clock_offset;
   }
 
-  base::StatusOr<int64_t> ToTraceTime(ClockId clock_id, int64_t timestamp) {
+  PERFETTO_ALWAYS_INLINE base::StatusOr<int64_t> ToTraceTime(
+      ClockId clock_id,
+      int64_t timestamp) {
     if (PERFETTO_UNLIKELY(!trace_time_clock_id_used_for_conversion_)) {
       context_->metadata_tracker->SetMetadata(
           metadata::trace_time_clock_id,
@@ -197,8 +199,9 @@ class ClockTracker {
     }
     trace_time_clock_id_used_for_conversion_ = true;
 
-    if (clock_id == trace_time_clock_id_)
+    if (clock_id == trace_time_clock_id_) {
       return ToHostTraceTime(timestamp);
+    }
 
     ASSIGN_OR_RETURN(int64_t ts,
                      Convert(clock_id, timestamp, trace_time_clock_id_));
