@@ -100,10 +100,10 @@ export class UiMain implements m.ClassComponent {
             displayName: 'Realtime (Trace TZ)',
           },
           {key: TimestampFormat.Seconds, displayName: 'Seconds'},
-          {key: TimestampFormat.Raw, displayName: 'Raw'},
+          {key: TimestampFormat.TraceNs, displayName: 'Trace nanoseconds'},
           {
-            key: TimestampFormat.RawLocale,
-            displayName: 'Raw (with locale-specific formatting)',
+            key: TimestampFormat.TraceNsLocale,
+            displayName: 'Trace nanoseconds (with locale-specific formatting)',
           },
         ];
         const promptText = 'Select format...';
