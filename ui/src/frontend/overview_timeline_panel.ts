@@ -282,6 +282,12 @@ function renderTimestamp(
     case TimestampFormat.Seconds:
       ctx.fillText(Time.formatSeconds(time), x, y, minWidth);
       break;
+    case TimestampFormat.Milliseoncds:
+      ctx.fillText(Time.formatMilliseconds(time), x, y, minWidth);
+      break;
+    case TimestampFormat.Microseconds:
+      ctx.fillText(Time.formatMicroseconds(time), x, y, minWidth);
+      break;
     default:
       const z: never = fmt;
       throw new Error(`Invalid timestamp ${z}`);

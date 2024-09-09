@@ -645,6 +645,8 @@ class Globals {
     switch (fmt) {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
+      case TimestampFormat.Milliseoncds:
+      case TimestampFormat.Microseconds:
         return this.traceContext.start;
       case TimestampFormat.TraceNs:
       case TimestampFormat.TraceNsLocale:

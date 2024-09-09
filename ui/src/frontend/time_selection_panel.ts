@@ -263,6 +263,10 @@ function stringifyTimestamp(time: time): string {
       return time.toLocaleString();
     case TimestampFormat.Seconds:
       return Time.formatSeconds(time);
+    case TimestampFormat.Milliseoncds:
+      return Time.formatMilliseconds(time);
+    case TimestampFormat.Microseconds:
+      return Time.formatMicroseconds(time);
     default:
       const z: never = fmt;
       throw new Error(`Invalid timestamp ${z}`);

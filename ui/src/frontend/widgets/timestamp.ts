@@ -76,6 +76,8 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
         menuItemForFormat(TimestampFormat.UTC, 'Realtime (UTC)'),
         menuItemForFormat(TimestampFormat.TraceTz, 'Realtime (Trace TZ)'),
         menuItemForFormat(TimestampFormat.Seconds, 'Seconds'),
+        menuItemForFormat(TimestampFormat.Milliseoncds, 'Milliseconds'),
+        menuItemForFormat(TimestampFormat.Microseconds, 'Microseconds'),
         menuItemForFormat(TimestampFormat.TraceNs, 'Raw'),
         menuItemForFormat(
           TimestampFormat.TraceNsLocale,
@@ -115,6 +117,10 @@ function renderTimestamp(time: time): m.Children {
       return domainTime.toLocaleString();
     case TimestampFormat.Seconds:
       return Time.formatSeconds(domainTime);
+    case TimestampFormat.Milliseoncds:
+      return Time.formatMilliseconds(domainTime);
+    case TimestampFormat.Microseconds:
+      return Time.formatMicroseconds(domainTime);
     default:
       const x: never = fmt;
       throw new Error(`Invalid timestamp ${x}`);

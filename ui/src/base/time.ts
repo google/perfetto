@@ -28,6 +28,7 @@ export type duration = bigint;
 // The conversion factor for converting between different time units.
 const TIME_UNITS_PER_SEC = 1e9;
 const TIME_UNITS_PER_MILLISEC = 1e6;
+const TIME_UNITS_PER_MICROSEC = 1e3;
 
 export class Time {
   // Negative time is never found in a trace - so -1 is commonly used as a flag
@@ -85,6 +86,20 @@ export class Time {
   // Note: BigInt -> number conversion is relatively slow.
   static toMillis(t: time): number {
     return Number(t) / TIME_UNITS_PER_MILLISEC;
+  }
+
+  // Convert microseconds (number) to a time value.
+  // Note: number -> BigInt conversion is relatively slow.
+  static fromMicros(millis: number): time {
+    return Time.fromRaw(BigInt(Math.floor(millis * TIME_UNITS_PER_MICROSEC)));
+  }
+
+  // Convert time value to microseconds and return as a number (i.e. float).
+  // Warning: This function is lossy, i.e. precision is lost when converting
+  // BigInt -> number.
+  // Note: BigInt -> number conversion is relatively slow.
+  static toMicros(t: time): number {
+    return Number(t) / TIME_UNITS_PER_MICROSEC;
   }
 
   // Convert a Date object to a time value, given an offset from the unix epoch.
@@ -147,9 +162,16 @@ export class Time {
     return Time.fromRaw(BigintMath.quant(a, b));
   }
 
-  // Format time as seconds.
   static formatSeconds(time: time): string {
     return Time.toSeconds(time).toString() + ' s';
+  }
+
+  static formatMilliseconds(time: time): string {
+    return Time.toMillis(time).toString() + ' ms';
+  }
+
+  static formatMicroseconds(time: time): string {
+    return Time.toMicros(time).toString() + ' us';
   }
 
   static toTimecode(time: time): Timecode {
@@ -199,6 +221,18 @@ export class Duration {
     return Number(d) / TIME_UNITS_PER_SEC;
   }
 
+  // Convert time to seconds as a number.
+  // Use this function with caution. It loses precision and is slow.
+  static toMilliseconds(d: duration) {
+    return Number(d) / TIME_UNITS_PER_MILLISEC;
+  }
+
+  // Convert time to seconds as a number.
+  // Use this function with caution. It loses precision and is slow.
+  static toMicroSeconds(d: duration) {
+    return Number(d) / TIME_UNITS_PER_MICROSEC;
+  }
+
   // Print duration as as human readable string - i.e. to only a handful of
   // significant figues.
   // Use this when readability is more desireable than precision.
@@ -244,6 +278,14 @@ export class Duration {
 
   static formatSeconds(dur: duration): string {
     return Duration.toSeconds(dur).toString() + ' s';
+  }
+
+  static formatMilliseconds(dur: duration): string {
+    return Duration.toMilliseconds(dur).toString() + ' s';
+  }
+
+  static formatMicroseconds(dur: duration): string {
+    return Duration.toMicroSeconds(dur).toString() + ' s';
   }
 }
 
