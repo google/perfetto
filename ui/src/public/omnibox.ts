@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Optional} from '../base/utils';
+
 export interface OmniboxManager {
   /**
    * Turns the omnibox into an interfactive prompt for the user. Think of
@@ -25,7 +27,7 @@ export interface OmniboxManager {
    * the chosen PromptOption.key if `options` was provided; returns undefined
    * if the user dimisses the prompt by pressing Esc or clicking eslewhere.
    */
-  prompt(text: string, options?: PromptOption[] | undefined): Promise<string>;
+  prompt(text: string, options?: PromptOption[]): Promise<Optional<string>>;
 }
 
 export interface PromptOption {

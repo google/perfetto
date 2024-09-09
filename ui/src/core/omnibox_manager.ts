@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Optional} from '../base/utils';
 import {OmniboxManager, PromptOption} from '../public/omnibox';
 import {raf} from './raf_scheduler';
 
@@ -25,8 +26,7 @@ export enum OmniboxMode {
 interface Prompt {
   text: string;
   options?: PromptOption[];
-  resolve(result: string): void;
-  reject(): void;
+  resolve(result: Optional<string>): void;
 }
 
 const defaultMode = OmniboxMode.Search;
@@ -97,17 +97,16 @@ export class OmniboxManagerImpl implements OmniboxManager {
 
   // Start a prompt. If options are supplied, the user must pick one from the
   // list, otherwise the input is free-form text.
-  prompt(text: string, options?: PromptOption[]): Promise<string> {
+  prompt(text: string, options?: PromptOption[]): Promise<Optional<string>> {
     this._mode = OmniboxMode.Prompt;
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
 
-    const promise = new Promise<string>((resolve, reject) => {
+    const promise = new Promise<Optional<string>>((resolve) => {
       this._pendingPrompt = {
         text,
         options,
         resolve,
-        reject,
       };
     });
 
@@ -130,10 +129,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
   // promise to catch, so only do this when things go seriously wrong.
   // Use |resolvePrompt(null)| to indicate cancellation.
   rejectPrompt(): void {
-    if (this._pendingPrompt) {
-      this._pendingPrompt.reject();
-      this._pendingPrompt = undefined;
-    }
+    this.rejectPendingPrompt();
     this.setMode(OmniboxMode.Search);
   }
 
@@ -145,7 +141,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
 
   private rejectPendingPrompt() {
     if (this._pendingPrompt) {
-      this._pendingPrompt.reject();
+      this._pendingPrompt.resolve(undefined);
       this._pendingPrompt = undefined;
     }
   }

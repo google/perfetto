@@ -296,13 +296,11 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'createNewEmptyWorkspace',
       name: 'Create new empty workspace',
       callback: async () => {
-        try {
-          const name = await ctx.omnibox.prompt('Give it a name...');
-          const newWorkspace = new Workspace(name);
-          globals.workspaces.push(newWorkspace);
-          globals.switchWorkspace(newWorkspace);
-        } finally {
-        }
+        const name = await ctx.omnibox.prompt('Give it a name...');
+        if (name === undefined || name === '') return;
+        const newWorkspace = new Workspace(name);
+        globals.workspaces.push(newWorkspace);
+        globals.switchWorkspace(newWorkspace);
       },
     });
 
@@ -310,21 +308,19 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'switchWorkspace',
       name: 'Switch workspace',
       callback: async () => {
-        try {
-          const options = globals.workspaces.map((ws) => {
-            return {key: ws.uuid, displayName: ws.displayName};
-          });
-          const workspaceUuid = await ctx.omnibox.prompt(
-            'Choose a workspace...',
-            options,
-          );
-          const workspace = globals.workspaces.find(
-            (ws) => ws.uuid === workspaceUuid,
-          );
-          if (workspace) {
-            globals.switchWorkspace(workspace);
-          }
-        } finally {
+        const options = globals.workspaces.map((ws) => {
+          return {key: ws.uuid, displayName: ws.displayName};
+        });
+        const workspaceUuid = await ctx.omnibox.prompt(
+          'Choose a workspace...',
+          options,
+        );
+        if (workspaceUuid === undefined) return;
+        const workspace = globals.workspaces.find(
+          (ws) => ws.uuid === workspaceUuid,
+        );
+        if (workspace) {
+          globals.switchWorkspace(workspace);
         }
       },
     });

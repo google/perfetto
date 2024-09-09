@@ -100,12 +100,7 @@ async function getStringFromArgOrPrompt(
   if (typeof arg === 'string') {
     return arg;
   } else {
-    try {
-      return await ctx.omnibox.prompt('Enter a query...');
-    } catch {
-      // Prompt was ignored
-      return undefined;
-    }
+    return await ctx.omnibox.prompt('Enter a query...');
   }
 }
 

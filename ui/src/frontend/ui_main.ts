@@ -110,13 +110,10 @@ export class UiMain implements m.ClassComponent {
         ];
         const promptText = 'Select format...';
 
-        try {
-          const result = await globals.omnibox.prompt(promptText, options);
-          setTimestampFormat(result as TimestampFormat);
-          raf.scheduleFullRedraw();
-        } catch {
-          // Prompt was probably cancelled - do nothing.
-        }
+        const result = await globals.omnibox.prompt(promptText, options);
+        if (result === undefined) return;
+        setTimestampFormat(result as TimestampFormat);
+        raf.scheduleFullRedraw();
       },
     },
     {
@@ -132,13 +129,10 @@ export class UiMain implements m.ClassComponent {
         ];
         const promptText = 'Select duration precision mode...';
 
-        try {
-          const result = await globals.omnibox.prompt(promptText, options);
-          setDurationPrecision(result as DurationPrecision);
-          raf.scheduleFullRedraw();
-        } catch {
-          // Prompt was probably cancelled - do nothing.
-        }
+        const result = await globals.omnibox.prompt(promptText, options);
+        if (result === undefined) return;
+        setDurationPrecision(result as DurationPrecision);
+        raf.scheduleFullRedraw();
       },
     },
     {
