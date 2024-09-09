@@ -14,8 +14,8 @@
 
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
+import {scrollTo} from '../public/scroll_helper';
 import {Flow, globals} from './globals';
-import {focusHorizontalRange, verticalScrollToTrack} from './scroll_helper';
 
 type Direction = 'Forward' | 'Backward';
 
@@ -116,16 +116,16 @@ export function moveByFocusedFlow(direction: Direction): void {
   }
 }
 
+// TODO(primiano): this will be moved to SelectionManager but I need first to
+// disentangle some dependencies.
 export async function findCurrentSelection() {
   const selection = globals.selectionManager.legacySelection;
-  if (selection === null) return;
+  if (!exists(selection)) return;
 
   const range = await globals.findTimeRangeOfSelection();
-  if (exists(range)) {
-    focusHorizontalRange(range.start, range.end);
-  }
-
-  if (selection.trackUri) {
-    verticalScrollToTrack(selection.trackUri, true);
-  }
+  const trackUri = selection.trackUri;
+  scrollTo({
+    time: exists(range) ? {start: range.start, end: range.end} : undefined,
+    track: exists(trackUri) ? {uri: trackUri, expandGroup: true} : undefined,
+  });
 }

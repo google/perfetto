@@ -17,6 +17,7 @@ import {GenericSliceDetailsTabConfigBase} from './details_panel';
 
 export interface SelectionManager {
   readonly selection: Selection;
+  setLegacy(args: LegacySelection, opts?: SelectionOpts): void;
   clear(): void;
 }
 

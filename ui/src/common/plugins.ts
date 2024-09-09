@@ -35,6 +35,8 @@ import {TraceInfo} from '../public/trace_info';
 import {Workspace, WorkspaceManager} from '../public/workspace';
 import {Migrate, Store} from '../base/store';
 import {LegacyDetailsPanel} from '../public/details_panel';
+import {scrollTo, ScrollToArgs} from '../public/scroll_helper';
+import {LegacySelection, SelectionOpts} from '../public/selection';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -187,6 +189,9 @@ class PluginContextTraceImpl implements Trace, Disposable {
       get selection() {
         return globals.selectionManager.selection;
       },
+      setLegacy(args: LegacySelection, opts?: SelectionOpts) {
+        globals.selectionManager.setLegacy(args, opts);
+      },
       clear() {
         globals.selectionManager.clear();
       },
@@ -203,6 +208,10 @@ class PluginContextTraceImpl implements Trace, Disposable {
     const tabMan = globals.tabManager;
     const unregister = tabMan.registerLegacyDetailsPanel(detailsPanel);
     this.trash.use(unregister);
+  }
+
+  scrollTo(args: ScrollToArgs): void {
+    scrollTo(args);
   }
 
   get pluginId(): string {

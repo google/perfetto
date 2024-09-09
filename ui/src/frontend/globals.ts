@@ -56,6 +56,8 @@ import {SearchManagerImpl} from '../core/search_manager';
 import {SearchResult} from '../public/search';
 import {selectCurrentSearchResult} from './search_handler';
 import {WorkspaceManagerImpl} from '../core/workspace_manager';
+import {ScrollHelper} from '../core/scroll_helper';
+import {setScrollToFunction} from '../public/scroll_helper';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -218,12 +220,6 @@ class Globals {
   private _workspaceManager = new WorkspaceManagerImpl();
   readonly omnibox = new OmniboxManagerImpl();
 
-  // TODO(primiano): this is a hack to work around circular deps in globals.
-  // This function is injected by scroll_helper.ts. Sort out once globals are no
-  // more.
-  verticalScrollToTrack?: (trackUri: string, openGroup?: boolean) => void;
-
-  scrollToTrackUri?: string;
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
   permalinkHash?: string;
@@ -261,17 +257,21 @@ class Globals {
     // tracks
     this._trackManager = new TrackManagerImpl();
 
+    const scrollHelper = new ScrollHelper(
+      traceCtx,
+      this._timeline,
+      this._workspaceManager.currentWorkspace,
+      this._trackManager,
+    );
+    setScrollToFunction((args) => scrollHelper.scrollTo(args));
+
     this._searchManager = new SearchManagerImpl({
       timeline: this._timeline,
       trackManager: this._trackManager,
       workspace: this._workspaceManager.currentWorkspace,
       engine,
       onResultStep: (step: SearchResult) => {
-        selectCurrentSearchResult(
-          step,
-          this._selectionManager,
-          assertExists(this.verticalScrollToTrack),
-        );
+        selectCurrentSearchResult(step, this._selectionManager, scrollHelper);
       },
     });
 
