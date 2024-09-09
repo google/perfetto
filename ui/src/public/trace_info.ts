@@ -15,8 +15,11 @@
 import {time} from '../base/time';
 
 export interface TraceInfo {
-  traceTitle: string; // File name and size of the current trace.
-  traceUrl: string; // URL of the Trace.
+  readonly source: TraceSource;
+
+  readonly traceTitle: string; // File name and size of the current trace.
+  readonly traceUrl: string; // URL of the Trace.
+
   readonly start: time;
   readonly end: time;
 
@@ -39,3 +42,45 @@ export interface TraceInfo {
   // The number of gpus in the trace
   readonly gpuCount: number;
 }
+
+export interface TraceFileSource {
+  type: 'FILE';
+  file: File;
+}
+
+export interface TraceArrayBufferSource {
+  type: 'ARRAY_BUFFER';
+  buffer: ArrayBuffer;
+  title: string;
+  url?: string;
+  fileName?: string;
+
+  // |uuid| is set only when loading via ?local_cache_key=1234. When set,
+  // this matches global.state.traceUuid, with the exception of the following
+  // time window: When a trace T1 is loaded and the user loads another trace T2,
+  // this |uuid| will be == T2, but the globals.state.traceUuid will be
+  // temporarily == T1 until T2 has been loaded (consistently to what happens
+  // with all other state fields).
+  uuid?: string;
+  // if |localOnly| is true then the trace should not be shared or downloaded.
+  localOnly?: boolean;
+
+  // The set of extra args, keyed by plugin, that can be passed when opening the
+  // trace via postMessge deep-linking. See post_message_handler.ts for details.
+  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+}
+
+export interface TraceUrlSource {
+  type: 'URL';
+  url: string;
+}
+
+export interface TraceHttpRpcSource {
+  type: 'HTTP_RPC';
+}
+
+export type TraceSource =
+  | TraceFileSource
+  | TraceArrayBufferSource
+  | TraceUrlSource
+  | TraceHttpRpcSource;

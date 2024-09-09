@@ -47,7 +47,7 @@ class ExampleState implements PerfettoPlugin {
       name: 'Show ExampleState counter',
       callback: () => {
         const counter = this.store.state.counter;
-        ctx.tabs.openQuery(
+        ctx.addQueryResultsTab(
           `SELECT ${counter} as counter;`,
           `Show counter ${counter}`,
         );

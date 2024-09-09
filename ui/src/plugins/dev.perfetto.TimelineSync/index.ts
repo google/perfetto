@@ -397,7 +397,7 @@ class TimelineSync implements PerfettoPlugin {
   }
 
   private getCurrentViewportBounds(): ViewportBounds {
-    return this._ctx!.timeline.viewport;
+    return this._ctx!.timeline.visibleWindow.toTimeSpan();
   }
 
   private purgeInactiveClients() {

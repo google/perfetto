@@ -14,6 +14,15 @@
 
 import {Hotkey} from '../base/hotkeys';
 
+export interface CommandManager {
+  registerCommand(command: Command): void;
+
+  hasCommand(commandId: string): boolean;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  runCommand(id: string, ...args: any[]): any;
+}
+
 export interface Command {
   // A unique id for this command.
   id: string;

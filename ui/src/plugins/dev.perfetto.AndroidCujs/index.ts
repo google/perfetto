@@ -232,7 +232,9 @@ class AndroidCujs implements PerfettoPlugin {
       callback: () => {
         ctx.engine
           .query(JANK_CUJ_QUERY_PRECONDITIONS)
-          .then(() => ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'));
+          .then(() =>
+            ctx.addQueryResultsTab(JANK_CUJ_QUERY, 'Android Jank CUJs'),
+          );
       },
     });
 
@@ -257,7 +259,7 @@ class AndroidCujs implements PerfettoPlugin {
       id: 'dev.perfetto.AndroidCujs#ListLatencyCUJs',
       name: 'Run query: Android Latency CUJs',
       callback: () =>
-        ctx.tabs.openQuery(LATENCY_CUJ_QUERY, 'Android Latency CUJs'),
+        ctx.addQueryResultsTab(LATENCY_CUJ_QUERY, 'Android Latency CUJs'),
     });
 
     ctx.commands.registerCommand({

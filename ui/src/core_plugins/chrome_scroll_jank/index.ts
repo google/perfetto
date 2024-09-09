@@ -78,7 +78,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
          from chrome_tasks_delaying_input_processing s1
          join slice s2 on s1.slice_id=s2.id
          `;
-      ctx.tabs.openQuery(query, 'Scroll Jank: long tasks');
+      ctx.addQueryResultsTab(query, 'Scroll Jank: long tasks');
     }
 
     if (ENABLE_SCROLL_JANK_PLUGIN_V2.get()) {

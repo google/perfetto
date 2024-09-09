@@ -36,7 +36,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
-    const cpuCount = Math.max(...ctx.trace.cpus, -1) + 1;
+    const cpuCount = Math.max(...ctx.traceInfo.cpus, -1) + 1;
 
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;

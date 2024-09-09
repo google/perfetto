@@ -22,6 +22,23 @@ import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
 import {TrackSelectionDetailsPanel} from './details_panel';
 
+export interface TrackManager {
+  /**
+   * Register a new track against a unique key known as a URI. The track is not
+   * shown by default and callers need to either manually add it to a
+   * Workspace or use registerTrackAndShowOnTraceLoad() below.
+   */
+  registerTrack(trackDesc: TrackDescriptor): void;
+
+  findTrack(
+    predicate: (desc: TrackDescriptor) => boolean | undefined,
+  ): TrackDescriptor | undefined;
+
+  getAllTracks(): TrackDescriptor[];
+
+  getTrack(uri: string): TrackDescriptor | undefined;
+}
+
 export interface TrackContext {
   // This track's URI, used for making selections et al.
   readonly trackUri: string;

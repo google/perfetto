@@ -24,7 +24,7 @@ import {TrackNode} from '../../public/workspace';
 
 class CpuSlices implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const cpus = ctx.trace.cpus;
+    const cpus = ctx.traceInfo.cpus;
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
     for (const cpu of cpus) {
