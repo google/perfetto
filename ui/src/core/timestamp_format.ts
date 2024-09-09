@@ -19,6 +19,8 @@ export enum TimestampFormat {
   TraceNs = 'traceNs',
   TraceNsLocale = 'traceNsLocale',
   Seconds = 'seconds',
+  Milliseoncds = 'milliseconds',
+  Microseconds = 'microseconds',
   UTC = 'utc',
   TraceTz = 'traceTz',
 }
