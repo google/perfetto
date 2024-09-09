@@ -56,22 +56,19 @@ class TrackUtilsPlugin implements PerfettoPlugin {
           return collator.compare(a.displayName, b.displayName);
         });
 
-        try {
-          const selectedUri = await ctx.omnibox.prompt(
-            'Choose a track...',
-            sortedOptions,
-          );
+        const selectedUri = await ctx.omnibox.prompt(
+          'Choose a track...',
+          sortedOptions,
+        );
+        if (selectedUri === undefined) return; // Prompt cancelled.
 
-          verticalScrollToTrack(selectedUri, true);
-          const traceTime = globals.traceContext;
-          globals.selectionManager.setArea({
-            start: traceTime.start,
-            end: traceTime.end,
-            trackUris: [selectedUri],
-          });
-        } catch {
-          // Prompt was probably cancelled - do nothing.
-        }
+        verticalScrollToTrack(selectedUri, true);
+        const traceTime = globals.traceContext;
+        globals.selectionManager.setArea({
+          start: traceTime.start,
+          end: traceTime.end,
+          trackUris: [selectedUri],
+        });
       },
     });
   }
