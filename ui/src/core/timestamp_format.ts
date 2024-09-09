@@ -16,8 +16,8 @@ import {isEnumValue} from '../base/object_utils';
 
 export enum TimestampFormat {
   Timecode = 'timecode',
-  Raw = 'raw',
-  RawLocale = 'rawLocale',
+  TraceNs = 'traceNs',
+  TraceNsLocale = 'traceNsLocale',
   Seconds = 'seconds',
   UTC = 'utc',
   TraceTz = 'traceTz',

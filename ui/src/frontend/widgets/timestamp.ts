@@ -76,9 +76,9 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
         menuItemForFormat(TimestampFormat.UTC, 'Realtime (UTC)'),
         menuItemForFormat(TimestampFormat.TraceTz, 'Realtime (Trace TZ)'),
         menuItemForFormat(TimestampFormat.Seconds, 'Seconds'),
-        menuItemForFormat(TimestampFormat.Raw, 'Raw'),
+        menuItemForFormat(TimestampFormat.TraceNs, 'Raw'),
         menuItemForFormat(
-          TimestampFormat.RawLocale,
+          TimestampFormat.TraceNsLocale,
           'Raw (with locale-specific formatting)',
         ),
       ),
@@ -109,9 +109,9 @@ function renderTimestamp(time: time): m.Children {
     case TimestampFormat.TraceTz:
     case TimestampFormat.Timecode:
       return renderTimecode(domainTime);
-    case TimestampFormat.Raw:
+    case TimestampFormat.TraceNs:
       return domainTime.toString();
-    case TimestampFormat.RawLocale:
+    case TimestampFormat.TraceNsLocale:
       return domainTime.toLocaleString();
     case TimestampFormat.Seconds:
       return Time.formatSeconds(domainTime);
