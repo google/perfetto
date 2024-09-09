@@ -260,8 +260,8 @@ PerfDataTokenizer::ParseRecords() {
         !res.ok() || *res != ParsingResult::kSuccess) {
       return res;
     }
-
-    switch (record.header.type) {
+    const uint32_t type = record.header.type;
+    switch (type) {
       case PERF_RECORD_AUXTRACE:
         PERFETTO_CHECK(!current_auxtrace_.has_value());
         current_auxtrace_.emplace();
@@ -279,8 +279,8 @@ PerfDataTokenizer::ParseRecords() {
 
       default:
         if (!PushRecord(std::move(record)).ok()) {
-          context_->storage->IncrementIndexedStats(
-              stats::perf_record_skipped, static_cast<int>(record.header.type));
+          context_->storage->IncrementIndexedStats(stats::perf_record_skipped,
+                                                   static_cast<int>(type));
         }
         break;
     }
