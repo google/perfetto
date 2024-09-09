@@ -215,20 +215,6 @@ java_library {
 }
 
 java_library {
-    name: "perfetto_config_java_protos",
-    srcs: [
-        ":perfetto_config_filegroup_proto",
-    ],
-    static_libs: [
-        "libprotobuf-java-lite",
-    ],
-    proto: {
-        type: "lite",
-        canonical_path_from_root: false,
-    },
-}
-
-java_library {
     name: "perfetto_config_java_protos_system_server_current",
     srcs: [
         ":perfetto_config_filegroup_proto",
