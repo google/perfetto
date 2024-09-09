@@ -139,7 +139,7 @@ proto_groups = {
         ]
     },
     'config': {
-        'types': ['filegroup'],
+        'types': ['lite', 'filegroup'],
         'targets': [
             '//protos/perfetto/config:source_set',
         ]
