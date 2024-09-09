@@ -83,8 +83,8 @@ import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
 } from '../common/state_serialization';
-import {TraceInfo} from '../public/trace_info';
 import {ProfileType, profileType} from '../public/selection';
+import {TraceInfo} from '../public/trace_info';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -1228,6 +1228,7 @@ async function getTraceTimeDetails(
     traceTzOffset,
     cpus: await getCpus(engine),
     gpuCount: await getNumberOfGpus(engine),
+    source: engineCfg.source,
   };
 }
 

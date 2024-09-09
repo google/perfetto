@@ -12,6 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export interface SidebarManager {
+  /**
+   * Adds a new menu item to the sidebar.
+   * All entries must map to a command. This will allow the shortcut and
+   * optional shortcut to be displayed on the UI.
+   */
+  addMenuItem(menuItem: SidebarMenuItem): void;
+}
+
 export interface SidebarMenuItem {
   readonly commandId: string;
   readonly group:

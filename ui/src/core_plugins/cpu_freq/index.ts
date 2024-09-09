@@ -23,7 +23,7 @@ class CpuFreq implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
-    const cpus = ctx.trace.cpus;
+    const cpus = ctx.traceInfo.cpus;
 
     const maxCpuFreqResult = await engine.query(`
       select ifnull(max(value), 0) as freq

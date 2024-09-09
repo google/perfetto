@@ -57,7 +57,7 @@ class TrackUtilsPlugin implements PerfettoPlugin {
         });
 
         try {
-          const selectedUri = await ctx.prompt(
+          const selectedUri = await ctx.omnibox.prompt(
             'Choose a track...',
             sortedOptions,
           );

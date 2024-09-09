@@ -20,6 +20,7 @@ import {
   TableColumn,
 } from '../frontend/pivot_table_types';
 import {Area} from '../public/selection';
+import {TraceSource} from '../public/trace_info';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -111,48 +112,6 @@ export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 export type EngineMode = 'WASM' | 'HTTP_RPC';
 
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
-
-export interface TraceFileSource {
-  type: 'FILE';
-  file: File;
-}
-
-export interface TraceArrayBufferSource {
-  type: 'ARRAY_BUFFER';
-  buffer: ArrayBuffer;
-  title: string;
-  url?: string;
-  fileName?: string;
-
-  // |uuid| is set only when loading via ?local_cache_key=1234. When set,
-  // this matches global.state.traceUuid, with the exception of the following
-  // time window: When a trace T1 is loaded and the user loads another trace T2,
-  // this |uuid| will be == T2, but the globals.state.traceUuid will be
-  // temporarily == T1 until T2 has been loaded (consistently to what happens
-  // with all other state fields).
-  uuid?: string;
-  // if |localOnly| is true then the trace should not be shared or downloaded.
-  localOnly?: boolean;
-
-  // The set of extra args, keyed by plugin, that can be passed when opening the
-  // trace via postMessge deep-linking. See post_message_handler.ts for details.
-  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
-}
-
-export interface TraceUrlSource {
-  type: 'URL';
-  url: string;
-}
-
-export interface TraceHttpRpcSource {
-  type: 'HTTP_RPC';
-}
-
-export type TraceSource =
-  | TraceFileSource
-  | TraceArrayBufferSource
-  | TraceUrlSource
-  | TraceHttpRpcSource;
 
 export interface EngineConfig {
   id: string;

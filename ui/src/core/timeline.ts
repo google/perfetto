@@ -18,6 +18,7 @@ import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {Area} from '../public/selection';
 import {raf} from './raf_scheduler';
 import {HighPrecisionTime} from '../base/high_precision_time';
+import {Timeline} from '../public/timeline';
 
 interface Range {
   start?: number;
@@ -30,7 +31,7 @@ const MIN_DURATION = 10;
  * State that is shared between several frontend components, but not the
  * controller. This state is updated at 60fps.
  */
-export class TimelineImpl {
+export class TimelineImpl implements Timeline {
   private _visibleWindow: HighPrecisionTimeSpan;
   private readonly traceSpan: TimeSpan;
 
@@ -117,6 +118,12 @@ export class TimelineImpl {
   // Set visible window using an integer time span
   updateVisibleTime(ts: TimeSpan) {
     this.updateVisibleTimeHP(HighPrecisionTimeSpan.fromTime(ts.start, ts.end));
+  }
+
+  // TODO(primiano): we ended up with two entry-points for the same function,
+  // unify them.
+  setViewportTime(start: time, end: time): void {
+    this.updateVisibleTime(new TimeSpan(start, end));
   }
 
   // Set visible window using a high precision time span
