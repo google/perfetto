@@ -100,6 +100,8 @@ export class UiMain implements m.ClassComponent {
             displayName: 'Realtime (Trace TZ)',
           },
           {key: TimestampFormat.Seconds, displayName: 'Seconds'},
+          {key: TimestampFormat.Milliseoncds, displayName: 'Milliseconds'},
+          {key: TimestampFormat.Microseconds, displayName: 'Microseconds'},
           {key: TimestampFormat.TraceNs, displayName: 'Trace nanoseconds'},
           {
             key: TimestampFormat.TraceNsLocale,
