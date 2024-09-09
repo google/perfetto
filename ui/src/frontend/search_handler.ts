@@ -13,13 +13,14 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../base/logging';
+import {ScrollHelper} from '../core/scroll_helper';
 import {SelectionManagerImpl} from '../core/selection_manager';
 import {SearchResult} from '../public/search';
 
 export function selectCurrentSearchResult(
   step: SearchResult,
   selectionManager: SelectionManagerImpl,
-  verticalScrollToTrack: (trackUri: string, openGroup?: boolean) => void,
+  scrollHelper: ScrollHelper,
 ) {
   const {source, eventId, trackUri} = step;
   if (eventId === undefined) {
@@ -27,7 +28,7 @@ export function selectCurrentSearchResult(
   }
   switch (source) {
     case 'track':
-      verticalScrollToTrack(trackUri, true);
+      scrollHelper.scrollTo({track: {uri: trackUri, expandGroup: true}});
       break;
     case 'cpu':
       selectionManager.setLegacy(

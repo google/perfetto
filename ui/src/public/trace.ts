@@ -22,6 +22,7 @@ import {Timeline} from './timeline';
 import {Workspace, WorkspaceManager} from './workspace';
 import {LegacyDetailsPanel} from './details_panel';
 import {SelectionManager} from './selection';
+import {ScrollToArgs} from './scroll_helper';
 
 /**
  * The main API endpoint to interact programmaticaly with the UI and alter its
@@ -40,6 +41,10 @@ export interface Trace extends App {
   readonly workspace: Workspace;
   readonly workspaces: WorkspaceManager;
   readonly traceInfo: TraceInfo;
+
+  // Scrolls to the given track and/or time. Does NOT change the current
+  // selection.
+  scrollTo(args: ScrollToArgs): void;
 
   // TODO(primiano): remove this once the Legacy vs non-Legacy details panel is
   // gone. This method is particularly problematic because the method called

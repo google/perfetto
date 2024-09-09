@@ -27,7 +27,7 @@ import {queryResponseToClipboard} from './clipboard';
 import {downloadData} from './download_utils';
 import {globals} from './globals';
 import {Router} from './router';
-import {scrollToTrackAndTimeSpan} from './scroll_helper';
+import {scrollTo} from '../public/scroll_helper';
 
 interface QueryTableRowAttrs {
   row: Row;
@@ -150,12 +150,10 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       td.tags?.trackIds?.includes(trackId),
     )?.uri;
     if (trackUri !== undefined) {
-      scrollToTrackAndTimeSpan(
-        trackUri,
-        sliceStart,
-        Time.add(sliceStart, sliceDur),
-        true,
-      );
+      scrollTo({
+        track: {uri: trackUri, expandGroup: true},
+        time: {start: sliceStart, end: Time.add(sliceStart, sliceDur)},
+      });
       const sliceId = getSliceId(row);
       if (sliceId !== undefined) {
         this.selectSlice(sliceId, trackUri, switchToCurrentSelectionTab);

@@ -16,7 +16,6 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {duration, time, Time} from '../../base/time';
 import {globals} from '../../frontend/globals';
-import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
 import {SliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
@@ -30,6 +29,7 @@ import {
   CHROME_EVENT_LATENCY_TRACK_KIND,
   SCROLL_JANK_V3_TRACK_KIND,
 } from '../../public/track_kinds';
+import {scrollTo} from '../../public/scroll_helper';
 
 interface BasicSlice {
   // ID of slice.
@@ -189,7 +189,10 @@ export class ScrollJankSliceRef
             detailsPanelConfig: track.detailsPanelConfig,
           });
 
-          scrollToTrackAndTs(trackUri, vnode.attrs.ts, true);
+          scrollTo({
+            track: {uri: trackUri, expandGroup: true},
+            time: {start: vnode.attrs.ts},
+          });
         },
       },
       vnode.attrs.name,

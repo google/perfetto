@@ -19,7 +19,7 @@ import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {scrollToTrackAndTs} from '../scroll_helper';
+import {scrollTo} from '../../public/scroll_helper';
 
 interface SchedRefAttrs {
   id: SchedSqlId;
@@ -51,8 +51,10 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
     id,
     trackUri,
   });
-
-  scrollToTrackAndTs(trackUri, ts);
+  scrollTo({
+    track: {uri: trackUri, expandGroup: true},
+    time: {start: ts},
+  });
 }
 
 export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
@@ -76,8 +78,10 @@ export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
                 vnode.attrs.switchToCurrentSelectionTab ?? true,
             },
           );
-
-          scrollToTrackAndTs(trackUri, vnode.attrs.ts, true);
+          scrollTo({
+            track: {uri: trackUri, expandGroup: true},
+            time: {start: vnode.attrs.ts},
+          });
         },
       },
       vnode.attrs.name ?? `Sched ${vnode.attrs.id}`,
