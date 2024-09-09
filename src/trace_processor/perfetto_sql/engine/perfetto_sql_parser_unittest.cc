@@ -68,7 +68,7 @@ TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
   PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
-  ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "SELECT * FROM slice"));
+  ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "SELECT * FROM slice;"));
 }
 
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
@@ -78,7 +78,7 @@ TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
-            FindSubstr(res, "SELECT * FROM slice").sql());
+            FindSubstr(res, "SELECT * FROM slice;").sql());
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
@@ -91,7 +91,7 @@ TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
-            FindSubstr(res, "SELECT * FROM s").sql());
+            FindSubstr(res, "SELECT * FROM s;").sql());
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {

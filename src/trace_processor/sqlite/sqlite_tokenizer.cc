@@ -455,10 +455,15 @@ SqliteTokenizer::Token SqliteTokenizer::NextTerminal() {
   return tok;
 }
 
-SqlSource SqliteTokenizer::Substr(const Token& start, const Token& end) const {
+SqlSource SqliteTokenizer::Substr(const Token& start,
+                                  const Token& end,
+                                  EndToken end_token) const {
   uint32_t offset =
       static_cast<uint32_t>(start.str.data() - source_.sql().c_str());
-  uint32_t len = static_cast<uint32_t>(end.str.data() - start.str.data());
+  const char* e =
+      end.str.data() +
+      (end_token == SqliteTokenizer::EndToken::kInclusive ? end.str.size() : 0);
+  uint32_t len = static_cast<uint32_t>(e - start.str.data());
   return source_.Substr(offset, len);
 }
 
