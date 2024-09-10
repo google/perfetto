@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {SliceDetailsPanel} from '../../frontend/slice_details_panel';
+import {SchedDetailsTab} from './sched_details_tab';
 import {Engine} from '../../trace_processor/engine';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {CpuSliceTrack} from './cpu_slice_track';
 import {TrackNode} from '../../public/workspace';
+import {BottomTabToSCSAdapter} from '../../public/utils';
+import {uuidv4} from '../../base/uuid';
+import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
 
 class CpuSlices implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -46,14 +48,22 @@ class CpuSlices implements PerfettoPlugin {
       ctx.workspace.insertChildInOrder(trackNode);
     }
 
-    ctx.registerDetailsPanel({
-      render: (sel) => {
-        if (sel.kind === 'SCHED_SLICE') {
-          return m(SliceDetailsPanel);
-        }
-        return undefined;
-      },
-    });
+    ctx.registerDetailsPanel(
+      new BottomTabToSCSAdapter({
+        tabFactory: (sel) => {
+          if (sel.kind !== 'SCHED_SLICE') {
+            return undefined;
+          }
+          return new SchedDetailsTab({
+            config: {
+              id: asSchedSqlId(sel.id),
+            },
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        },
+      }),
+    );
   }
 
   async getAndroidCpuClusterTypes(
