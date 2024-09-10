@@ -555,6 +555,10 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
     RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ts", &opt_raw_ts));
     std::optional<int64_t> opt_ts =
         opt_raw_ts ? json::CoerceToTs(*opt_raw_ts) : std::nullopt;
+    std::optional<std::string> opt_raw_dur;
+    RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "dur", &opt_raw_dur));
+    std::optional<int64_t> opt_dur =
+        opt_raw_dur ? json::CoerceToTs(*opt_raw_dur) : std::nullopt;
     int64_t ts = 0;
     if (opt_ts.has_value()) {
       ts = opt_ts.value();
@@ -567,7 +571,7 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
         continue;
       }
     }
-    context_->sorter->PushJsonValue(ts, unparsed.ToStdString());
+    context_->sorter->PushJsonValue(ts, unparsed.ToStdString(), opt_dur);
   }
   return SetOutAndReturn(next, out);
 }
