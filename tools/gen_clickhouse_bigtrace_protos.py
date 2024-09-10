@@ -24,7 +24,7 @@ and modify the include paths to point to the correct file paths
 
 def main():
   subprocess.run([
-      "python",
+      "python3",
       "-m",
       "grpc_tools.protoc",
       "-I.",
@@ -36,7 +36,7 @@ def main():
       "protos/perfetto/trace_processor/metatrace_categories.proto",
   ])
   subprocess.run([
-      "python",
+      "python3",
       "-m",
       "grpc_tools.protoc",
       "-I.",
