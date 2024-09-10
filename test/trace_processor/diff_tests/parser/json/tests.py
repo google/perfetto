@@ -106,3 +106,32 @@ class JsonParser(TestSuite):
           "Event2","args.01.step1",1
           "Event2","args.02.step2",2
         """))
+
+  def test_x_event_order(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Child",
+            "ph": "X",
+            "ts": 1,
+            "dur": 5,
+            "pid": 1
+          },
+          {
+            "name": "Parent",
+            "ph": "X",
+            "ts": 1,
+            "dur": 10,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query='''
+          SELECT ts, dur, name, depth
+          FROM slice
+        ''',
+        out=Csv("""
+          "ts","dur","name","depth"
+          1000,10000,"Parent",0
+          1000,5000,"Child",1
+        """))

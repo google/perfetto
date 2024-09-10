@@ -60,6 +60,12 @@ struct alignas(8) JsonEvent {
 };
 static_assert(sizeof(JsonEvent) % 8 == 0);
 
+struct alignas(8) JsonWithDurEvent {
+  int64_t dur;
+  std::string value;
+};
+static_assert(sizeof(JsonWithDurEvent) % 8 == 0);
+
 struct alignas(8) TracePacketData {
   TraceBlobView packet;
   RefPtr<PacketSequenceStateGeneration> sequence_state;
