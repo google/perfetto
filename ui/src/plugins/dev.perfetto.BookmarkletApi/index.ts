@@ -37,10 +37,6 @@ class BookmarkletApi implements PerfettoPlugin {
   async onTraceUnload(_: Trace): Promise<void> {
     window.ctx = this.pluginCtx;
   }
-
-  onDeactivate(_: App): void {
-    window.ctx = undefined;
-  }
 }
 
 export const plugin: PluginDescriptor = {

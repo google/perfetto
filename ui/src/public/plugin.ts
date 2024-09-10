@@ -15,13 +15,25 @@
 import {Trace} from './trace';
 import {App} from './app';
 
+// TODO(primiano): I think we should re-think the plugins lifecycle API. Having
+// onTraceUnload and on(another)TraceLoad on the same object is too brittle.
+// What is going to happen is that plugins will mix the state of old and new
+// trace their `this.xxx` and hit bugs on trace swap.
+// I think a better model is to create a new Plugin instance for each trace, and
+// pass the Trace interface in the ctor. In this way they can save it in
+// `this.trace` if they want, and keep all their trace-related state there.
+// The number of plugins that want to do things before a trace is loaded is
+// extremely low and I'd much rather treat that as a special case (e.g., by
+// having a two different factories in the PluginDescriptor, one for App and
+// one factory invoked on each new trace. Such a model would be incredibly more
+// robust.
+
 export interface PerfettoPlugin {
   // Lifecycle methods.
   onActivate?(ctx: App): void;
   onTraceLoad?(ctx: Trace): Promise<void>;
   onTraceReady?(ctx: Trace): Promise<void>;
   onTraceUnload?(ctx: Trace): Promise<void>;
-  onDeactivate?(ctx: App): void;
 
   // Extension points.
   metricVisualisations?(ctx: App): MetricVisualisation[];

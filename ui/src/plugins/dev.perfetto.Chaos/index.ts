@@ -68,8 +68,6 @@ class Chaos implements PerfettoPlugin {
   }
 
   async onTraceUnload(_: Trace): Promise<void> {}
-
-  onDeactivate(_: App): void {}
 }
 
 export const plugin: PluginDescriptor = {
