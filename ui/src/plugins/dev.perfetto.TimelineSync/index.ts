@@ -100,10 +100,6 @@ class TimelineSync implements PerfettoPlugin {
     }
   }
 
-  onDeactivate(_: App) {
-    this.disableTimelineSync(this._sessionId);
-  }
-
   async onTraceLoad(ctx: Trace) {
     this._ctx = ctx;
     this._traceLoadTime = Date.now();

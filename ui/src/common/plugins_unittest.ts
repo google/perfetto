@@ -27,7 +27,6 @@ class FakeEngine extends EngineBase {
 function makeMockPlugin(): PerfettoPlugin {
   return {
     onActivate: jest.fn(),
-    onDeactivate: jest.fn(),
     onTraceLoad: jest.fn(),
     onTraceUnload: jest.fn(),
   };
@@ -57,14 +56,6 @@ describe('PluginManger', () => {
     expect(mockPlugin.onActivate).toHaveBeenCalledTimes(1);
   });
 
-  it('can deactivate plugin', async () => {
-    await manager.activatePlugin('foo');
-    await manager.deactivatePlugin('foo');
-
-    expect(manager.isActive('foo')).toBe(false);
-    expect(mockPlugin.onDeactivate).toHaveBeenCalledTimes(1);
-  });
-
   it('invokes onTraceLoad when trace is loaded', async () => {
     await manager.activatePlugin('foo');
     await manager.onTraceLoad(engine);
@@ -77,13 +68,5 @@ describe('PluginManger', () => {
     await manager.activatePlugin('foo');
 
     expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
-  });
-
-  it('invokes onTraceUnload when plugin deactivated while trace loaded', async () => {
-    await manager.activatePlugin('foo');
-    await manager.onTraceLoad(engine);
-    await manager.deactivatePlugin('foo');
-
-    expect(mockPlugin.onTraceUnload).toHaveBeenCalledTimes(1);
   });
 });
