@@ -23,8 +23,12 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {DurationWidget} from '../../frontend/widgets/duration';
+import {Anchor} from '../../widgets/anchor';
+import {globals} from '../../frontend/globals';
+import {scrollTo} from '../../public/scroll_helper';
 import {Engine} from '../../trace_processor/engine';
 import {TrackSelectionDetailsPanel} from '../../public/details_panel';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 
 interface SuspendResumeEventDetails {
   ts: time;
@@ -34,6 +38,7 @@ interface SuspendResumeEventDetails {
   device_name: string;
   driver_name: string;
   callback_phase: string;
+  thread_state_id: number;
 }
 
 export class SuspendResumeDetailsPanel implements TrackSelectionDetailsPanel {
@@ -64,6 +69,10 @@ export class SuspendResumeDetailsPanel implements TrackSelectionDetailsPanel {
   private renderView() {
     const eventDetails = this.suspendResumeEventDetails;
     if (eventDetails) {
+      const threadInfo = globals.threads.get(eventDetails.utid);
+      if (!threadInfo) {
+        return null;
+      }
       return m(
         DetailsShell,
         {title: 'Suspend / Resume Event'},
@@ -94,6 +103,23 @@ export class SuspendResumeDetailsPanel implements TrackSelectionDetailsPanel {
                 left: 'Callback Phase',
                 right: eventDetails.callback_phase,
               }),
+              m(TreeNode, {
+                left: 'Thread',
+                right: m(
+                  Anchor,
+                  {
+                    icon: 'call_made',
+                    onclick: () => {
+                      this.goToThread(
+                        eventDetails.utid,
+                        eventDetails.ts,
+                        eventDetails.thread_state_id,
+                      );
+                    },
+                  },
+                  `${threadInfo.threadName} [${threadInfo.tid}]`,
+                ),
+              }),
               m(TreeNode, {left: 'Event Type', right: eventDetails.event_type}),
             ),
           ),
@@ -110,13 +136,37 @@ export class SuspendResumeDetailsPanel implements TrackSelectionDetailsPanel {
   isLoading(): boolean {
     return this.suspendResumeEventDetails === undefined;
   }
+
+  goToThread(utid: number, ts: time, threadStateId: number) {
+    const threadInfo = globals.threads.get(utid);
+    if (threadInfo === undefined) {
+      return;
+    }
+
+    const trackDescriptor = globals.trackManager.findTrack(
+      (td) =>
+        td.tags?.kind === THREAD_STATE_TRACK_KIND &&
+        td.tags?.utid === threadInfo.utid,
+    );
+
+    if (trackDescriptor) {
+      globals.selectionManager.selectSqlEvent(
+        'thread_state',
+        threadStateId,
+      );
+      scrollTo({
+        track: {uri: trackDescriptor.uri, expandGroup: true},
+        time: {start: ts},
+      });
+    }
+  }
 }
 
 async function loadSuspendResumeEventDetails(
   engine: Engine,
   id: number,
 ): Promise<SuspendResumeEventDetails> {
-  const query = `
+  const suspendResumeDetailsQuery = `
         SELECT ts,
                dur,
                EXTRACT_ARG(arg_set_id, 'utid') as utid,
@@ -128,8 +178,10 @@ async function loadSuspendResumeEventDetails(
         WHERE slice_id = ${id};
     `;
 
-  const result = await engine.query(query);
-  const row = result.iter({
+  const suspendResumeDetailsResult = await engine.query(
+    suspendResumeDetailsQuery,
+  );
+  const suspendResumeEventRow = suspendResumeDetailsResult.iter({
     ts: LONG,
     dur: LONG,
     utid: NUM,
@@ -138,7 +190,7 @@ async function loadSuspendResumeEventDetails(
     driver_name: STR_NULL,
     callback_phase: STR_NULL,
   });
-  if (!row.valid()) {
+  if (!suspendResumeEventRow.valid()) {
     return {
       ts: Time.fromRaw(0n),
       dur: Duration.fromRaw(0n),
@@ -147,16 +199,46 @@ async function loadSuspendResumeEventDetails(
       device_name: 'Error',
       driver_name: 'Error',
       callback_phase: 'Error',
+      thread_state_id: 0,
     };
   }
 
+  const threadStateQuery = `
+        SELECT t.id as threadStateId
+        FROM thread_state t
+        WHERE t.utid = ${suspendResumeEventRow.utid}
+              AND t.ts <= ${suspendResumeEventRow.ts}
+              AND t.ts + t.dur > ${suspendResumeEventRow.ts};
+  `;
+  const threadStateResult = await engine.query(threadStateQuery);
+  let threadStateId = 0;
+  if (threadStateResult.numRows() > 0) {
+    const threadStateRow = threadStateResult.firstRow({
+      threadStateId: NUM,
+    });
+    threadStateId = threadStateRow.threadStateId;
+  }
+
   return {
-    ts: Time.fromRaw(row.ts),
-    dur: Duration.fromRaw(row.dur),
-    utid: row.utid,
-    event_type: row.event_type !== null ? row.event_type : 'N/A',
-    device_name: row.device_name !== null ? row.device_name : 'N/A',
-    driver_name: row.driver_name !== null ? row.driver_name : 'N/A',
-    callback_phase: row.callback_phase !== null ? row.callback_phase : 'N/A',
+    ts: Time.fromRaw(suspendResumeEventRow.ts),
+    dur: Duration.fromRaw(suspendResumeEventRow.dur),
+    utid: suspendResumeEventRow.utid,
+    event_type:
+      suspendResumeEventRow.event_type !== null
+        ? suspendResumeEventRow.event_type
+        : 'N/A',
+    device_name:
+      suspendResumeEventRow.device_name !== null
+        ? suspendResumeEventRow.device_name
+        : 'N/A',
+    driver_name:
+      suspendResumeEventRow.driver_name !== null
+        ? suspendResumeEventRow.driver_name
+        : 'N/A',
+    callback_phase:
+      suspendResumeEventRow.callback_phase !== null
+        ? suspendResumeEventRow.callback_phase
+        : 'N/A',
+    thread_state_id: threadStateId,
   };
 }
