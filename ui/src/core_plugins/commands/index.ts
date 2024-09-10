@@ -24,7 +24,6 @@ import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
 } from '../../frontend/legacy_trace_viewer';
-import {DisposableStack} from '../../base/disposable_stack';
 import {ADD_SQL_TABLE_TAB_COMMAND_ID} from '../../frontend/sql_table_tab_command';
 import {
   addSqlTableTabImpl,
@@ -98,8 +97,6 @@ order by total_self_size desc
 limit 100;`;
 
 class CoreCommandsPlugin implements PerfettoPlugin {
-  private readonly disposable = new DisposableStack();
-
   onActivate(ctx: App) {
     ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#ToggleLeftSidebar',
@@ -128,9 +125,6 @@ class CoreCommandsPlugin implements PerfettoPlugin {
     input.style.display = 'none';
     input.addEventListener('change', onInputElementFileSelectionChanged);
     document.body.appendChild(input);
-    this.disposable.defer(() => {
-      document.body.removeChild(input);
-    });
 
     const OPEN_TRACE_COMMAND_ID = 'perfetto.CoreCommands#openTrace';
     ctx.commands.registerCommand({
@@ -324,10 +318,6 @@ class CoreCommandsPlugin implements PerfettoPlugin {
         }
       },
     });
-  }
-
-  onDeactivate(_: App): void {
-    this.disposable[Symbol.dispose]();
   }
 }
 
