@@ -293,6 +293,7 @@ export class PluginManager {
   private _plugins: Map<string, PluginDetails>;
   private engine?: EngineBase;
   private flags = new Map<string, Flag>();
+  private _needsRestart = false;
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
@@ -305,13 +306,7 @@ export class PluginManager {
 
   // Must only be called once on startup
   async initialize(): Promise<void> {
-    // Shuffle the order of plugins to weed out any implicit inter-plugin
-    // dependencies.
-    const pluginsShuffled = Array.from(pluginRegistry.values())
-      .map(({pluginId}) => ({pluginId, sort: Math.random()}))
-      .sort((a, b) => a.sort - b.sort);
-
-    for (const {pluginId} of pluginsShuffled) {
+    for (const {pluginId} of pluginRegistry.values()) {
       const flagId = `plugin_${pluginId}`;
       const name = `Plugin: ${pluginId}`;
       const flag = featureFlags.register({
@@ -330,27 +325,25 @@ export class PluginManager {
   /**
    * Enable plugin flag - i.e. configure a plugin to start on boot.
    * @param id The ID of the plugin.
-   * @param now Optional: If true, also activate the plugin now.
    */
-  async enablePlugin(id: string, now?: boolean): Promise<void> {
+  async enablePlugin(id: string): Promise<void> {
     const flag = this.flags.get(id);
     if (flag) {
       flag.set(true);
     }
-    now && (await this.activatePlugin(id));
+    await this.activatePlugin(id);
   }
 
   /**
    * Disable plugin flag - i.e. configure a plugin not to start on boot.
    * @param id The ID of the plugin.
-   * @param now Optional: If true, also deactivate the plugin now.
    */
-  async disablePlugin(id: string, now?: boolean): Promise<void> {
+  async disablePlugin(id: string): Promise<void> {
     const flag = this.flags.get(id);
     if (flag) {
       flag.set(false);
     }
-    now && (await this.deactivatePlugin(id));
+    this._needsRestart = true;
   }
 
   /**
@@ -387,42 +380,18 @@ export class PluginManager {
   }
 
   /**
-   * Stop a plugin just for this session. This setting is not persisted.
-   * @param id The ID of the plugin to stop.
-   */
-  async deactivatePlugin(id: string): Promise<void> {
-    const pluginDetails = this.getPluginContext(id);
-    if (pluginDetails === undefined) {
-      return;
-    }
-    const {context, plugin} = pluginDetails;
-
-    await doPluginTraceUnload(pluginDetails);
-
-    plugin.onDeactivate && plugin.onDeactivate(context);
-    context[Symbol.dispose]();
-
-    this._plugins.delete(id);
-
-    raf.scheduleFullRedraw();
-  }
-
-  /**
    * Restore all plugins enable/disabled flags to their default values.
-   * @param now Optional: Also activates/deactivates plugins to match flag
-   * settings.
+   * Also activates new plugins to match flag settings.
    */
-  async restoreDefaults(now?: boolean): Promise<void> {
+  async restoreDefaults(): Promise<void> {
     for (const plugin of pluginRegistry.values()) {
       const pluginId = plugin.pluginId;
       const flag = assertExists(this.flags.get(pluginId));
       flag.reset();
-      if (now) {
-        if (flag.get()) {
-          await this.activatePlugin(plugin.pluginId);
-        } else {
-          await this.deactivatePlugin(plugin.pluginId);
-        }
+      if (flag.get()) {
+        await this.activatePlugin(plugin.pluginId);
+      } else {
+        this._needsRestart = true;
       }
     }
   }
@@ -444,19 +413,12 @@ export class PluginManager {
     beforeEach?: (id: string) => void,
   ): Promise<void> {
     this.engine = engine;
-
-    // Shuffle the order of plugins to weed out any implicit inter-plugin
-    // dependencies.
-    const pluginsShuffled = Array.from(this._plugins.entries())
-      .map(([id, plugin]) => ({id, plugin, sort: Math.random()}))
-      .sort((a, b) => a.sort - b.sort);
-
     // Awaiting all plugins in parallel will skew timing data as later plugins
     // will spend most of their time waiting for earlier plugins to load.
     // Running in parallel will have very little performance benefit assuming
     // most plugins use the same engine, which can only process one query at a
     // time.
-    for (const {id, plugin} of pluginsShuffled) {
+    for (const [id, plugin] of this._plugins.entries()) {
       beforeEach?.(id);
       await doPluginTraceLoad(plugin, engine);
     }
@@ -488,6 +450,10 @@ export class PluginManager {
         return [];
       }
     });
+  }
+
+  get needsRestart() {
+    return this._needsRestart;
   }
 }
 

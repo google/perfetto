@@ -102,11 +102,6 @@ class Skeleton implements PerfettoPlugin {
     this.store[Symbol.dispose]();
   }
 
-  /**
-   * This hook is called when this plugin is manually deactivated by the user.
-   */
-  onDeactivate(_: App): void {}
-
   metricVisualisations(_: Trace): MetricVisualisation[] {
     return [];
   }
