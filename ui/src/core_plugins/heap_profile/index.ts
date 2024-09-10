@@ -306,7 +306,7 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
             select
               id,
               parent_id as parentId,
-              name,
+              ifnull(name, '[Unknown]') as name,
               root_type,
               self_size,
               self_count
@@ -335,7 +335,7 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
             select
               id,
               parent_id as parentId,
-              name,
+              ifnull(name, '[Unknown]') as name,
               root_type,
               self_size,
               self_count
