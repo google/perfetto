@@ -22,7 +22,12 @@ import {
   SQLConstraints,
 } from '../sql_utils';
 import {globals} from '../../frontend/globals';
-import {asUtid, SchedSqlId, ThreadStateSqlId} from './core_types';
+import {
+  asThreadStateSqlId,
+  asUtid,
+  SchedSqlId,
+  ThreadStateSqlId,
+} from './core_types';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadInfo, ThreadInfo} from './thread';
 import {scrollTo} from '../../public/scroll_helper';
@@ -46,6 +51,7 @@ export interface ThreadState {
 
   thread?: ThreadInfo;
   wakerThread?: ThreadInfo;
+  wakerId?: ThreadStateSqlId;
 }
 
 // Gets a list of thread state objects from Trace Processor with given
@@ -69,7 +75,8 @@ export async function getThreadStateFromConstraints(
       thread_state.blocked_function as blockedFunction,
       io_wait as ioWait,
       thread_state.utid as utid,
-      waker_utid as wakerUtid
+      waker_utid as wakerUtid,
+      waker_id as wakerId
     FROM thread_state
     ${constraintsToQuerySuffix(constraints)}`);
   const it = query.iter({
@@ -83,6 +90,7 @@ export async function getThreadStateFromConstraints(
     ioWait: NUM_NULL,
     utid: NUM,
     wakerUtid: NUM_NULL,
+    wakerId: NUM_NULL,
   });
 
   const result: ThreadState[] = [];
@@ -105,6 +113,7 @@ export async function getThreadStateFromConstraints(
       wakerThread: wakerUtid
         ? await getThreadInfo(engine, wakerUtid)
         : undefined,
+      wakerId: asThreadStateSqlId(it.wakerId ?? undefined),
     });
   }
   return result;
