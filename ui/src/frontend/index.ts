@@ -178,8 +178,6 @@ function setupExtentionPort(extensionLocalChannel: MessageChannel) {
     extensionPort.onDisconnect.addListener((_) => {
       setExtensionAvailability(false);
       clearInterval(interval);
-      // Retry connection.
-      setupExtentionPort(extensionLocalChannel);
       void chrome.runtime.lastError; // Needed to not receive an error log.
     });
     // This forwards the messages from the extension to the controller.
