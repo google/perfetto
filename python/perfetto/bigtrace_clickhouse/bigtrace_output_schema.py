@@ -26,7 +26,7 @@ def main():
 
     try:
       config = TraceProcessorConfig(
-          bin_path="/data/clickhouse/user_scripts/trace_processor_shell")
+          bin_path="/var/lib/clickhouse/user_scripts/trace_processor_shell")
       tp = TraceProcessor(config=config)
       qr_it = tp.query(sql_query)
       qr_df = qr_it.as_pandas_dataframe()
