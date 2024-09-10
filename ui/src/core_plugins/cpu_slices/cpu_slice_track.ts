@@ -308,7 +308,7 @@ export class CpuSliceTrack implements Track {
     }
 
     const selection = globals.selectionManager.legacySelection;
-    const details = globals.sliceDetails;
+    const details = globals.selectionManager.selectedSlice;
     if (selection !== null && selection.kind === 'SCHED_SLICE') {
       const [startIndex, endIndex] = searchEq(data.ids, selection.id);
       if (startIndex !== endIndex) {
@@ -327,7 +327,7 @@ export class CpuSliceTrack implements Track {
         ctx.strokeRect(rectStart, MARGIN_TOP - 1.5, rectWidth, RECT_HEIGHT + 3);
         ctx.closePath();
         // Draw arrow from wakeup time of current slice.
-        if (details.wakeupTs) {
+        if (details?.wakeupTs) {
           const wakeupPos = timescale.timeToPx(details.wakeupTs);
           const latencyWidth = rectStart - wakeupPos;
           drawDoubleHeadedArrow(
@@ -361,7 +361,7 @@ export class CpuSliceTrack implements Track {
       }
 
       // Draw diamond if the track being drawn is the cpu of the waker.
-      if (this.cpu === details.wakerCpu && details.wakeupTs) {
+      if (details && this.cpu === details.wakerCpu && details.wakeupTs) {
         const wakeupPos = Math.floor(timescale.timeToPx(details.wakeupTs));
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);

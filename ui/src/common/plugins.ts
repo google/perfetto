@@ -36,7 +36,6 @@ import {Workspace, WorkspaceManager} from '../public/workspace';
 import {Migrate, Store} from '../base/store';
 import {LegacyDetailsPanel} from '../public/details_panel';
 import {scrollTo, ScrollToArgs} from '../public/scroll_helper';
-import {LegacySelection, SelectionOpts} from '../public/selection';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -96,7 +95,6 @@ class PluginContextTraceImpl implements Trace, Disposable {
   private alive = true;
   readonly commands;
   readonly engine: Engine;
-  readonly selection;
   readonly sidebar;
   readonly tabs;
   readonly tracks;
@@ -184,18 +182,6 @@ class PluginContextTraceImpl implements Trace, Disposable {
         thiz.trash.use(globals.sidebarMenuItems.register(menuItem));
       },
     };
-
-    this.selection = {
-      get selection() {
-        return globals.selectionManager.selection;
-      },
-      setLegacy(args: LegacySelection, opts?: SelectionOpts) {
-        globals.selectionManager.setLegacy(args, opts);
-      },
-      clear() {
-        globals.selectionManager.clear();
-      },
-    };
   }
 
   addQueryResultsTab(query: string, title: string) {
@@ -234,6 +220,10 @@ class PluginContextTraceImpl implements Trace, Disposable {
 
   get workspace(): Workspace {
     return globals.workspace;
+  }
+
+  get selection() {
+    return globals.selectionManager;
   }
 
   [Symbol.dispose]() {

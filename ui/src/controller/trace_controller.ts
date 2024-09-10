@@ -67,10 +67,6 @@ import {
 } from './flow_events_controller';
 import {LoadingManager} from './loading_manager';
 import {PivotTableController} from './pivot_table_controller';
-import {
-  SelectionController,
-  SelectionControllerArgs,
-} from './selection_controller';
 import {TraceErrorController} from './trace_error_controller';
 import {
   TraceBufferStream,
@@ -248,11 +244,6 @@ export class TraceController extends Controller<States> {
         // At this point we are ready to serve queries and handle tracks.
         const engine = assertExists(this.engine);
         const childControllers: Children = [];
-
-        const selectionArgs: SelectionControllerArgs = {engine};
-        childControllers.push(
-          Child('selection', SelectionController, selectionArgs),
-        );
 
         const flowEventsArgs: FlowEventsControllerArgs = {engine};
         childControllers.push(

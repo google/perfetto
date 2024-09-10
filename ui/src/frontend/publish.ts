@@ -17,15 +17,7 @@ import {AggregateData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {raf} from '../core/raf_scheduler';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-import {
-  Flow,
-  globals,
-  QuantizedLoad,
-  SliceDetails,
-  ThreadDesc,
-  ThreadStateDetails,
-} from './globals';
-import {findCurrentSelection} from './keyboard_event_handler';
+import {Flow, globals, QuantizedLoad, ThreadDesc} from './globals';
 
 export function publishOverviewData(data: {
   [key: string]: QuantizedLoad | QuantizedLoad[];
@@ -115,21 +107,6 @@ export function publishThreads(data: ThreadDesc[]) {
   data.forEach((thread) => {
     globals.threads.set(thread.utid, thread);
   });
-  globals.publishRedraw();
-}
-
-export function publishSliceDetails(sliceDetails: SliceDetails) {
-  globals.sliceDetails = sliceDetails;
-  const id = sliceDetails.id;
-  if (id !== undefined && id === globals.state.pendingScrollId) {
-    findCurrentSelection();
-    globals.dispatch(Actions.clearPendingScrollId({id: undefined}));
-  }
-  globals.publishRedraw();
-}
-
-export function publishThreadStateDetails(click: ThreadStateDetails) {
-  globals.threadStateDetails = click;
   globals.publishRedraw();
 }
 
