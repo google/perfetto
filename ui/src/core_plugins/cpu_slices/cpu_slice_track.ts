@@ -308,7 +308,7 @@ export class CpuSliceTrack implements Track {
     }
 
     const selection = globals.selectionManager.legacySelection;
-    const details = globals.selectionManager.selectedSlice;
+    const details = globals.selectionManager.legacySelectionDetails;
     if (selection !== null && selection.kind === 'SCHED_SLICE') {
       const [startIndex, endIndex] = searchEq(data.ids, selection.id);
       if (startIndex !== endIndex) {

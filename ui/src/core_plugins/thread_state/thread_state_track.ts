@@ -14,7 +14,6 @@
 
 import {colorForState} from '../../core/colorizer';
 import {LegacySelection} from '../../public/selection';
-import {translateState} from '../../common/thread_state';
 import {
   BASE_ROW,
   BaseSliceTrack,
@@ -28,6 +27,7 @@ import {
 import {NewTrackArgs} from '../../frontend/track';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
+import {translateState} from '../../trace_processor/sql_utils/thread_state';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,

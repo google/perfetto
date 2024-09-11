@@ -31,7 +31,6 @@ import {
 import {
   getThreadState,
   getThreadStateFromConstraints,
-  goToSchedSlice,
   ThreadState,
 } from '../trace_processor/sql_utils/thread_state';
 import {DurationWidget, renderDuration} from './widgets/duration';
@@ -48,6 +47,7 @@ import {
   CRITICAL_PATH_CMD,
   CRITICAL_PATH_LITE_CMD,
 } from '../public/exposed_commands';
+import {goToSchedSlice} from './widgets/sched';
 
 interface ThreadStateTabConfig {
   // Id into |thread_state| sql table.
