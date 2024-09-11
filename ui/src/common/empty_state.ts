@@ -130,5 +130,6 @@ export function createEmptyState(): State {
     plugins: {},
 
     trackFilterTerm: undefined,
+    forceRunControllers: 0,
   };
 }

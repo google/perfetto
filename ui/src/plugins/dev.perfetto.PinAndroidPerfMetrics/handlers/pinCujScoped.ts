@@ -21,6 +21,9 @@ import {
 import {NUM} from '../../../trace_processor/query_result';
 import {Trace} from '../../../public/trace';
 import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
+
+// TODO(primiano): make deps check stricter, we shouldn't allow plugins to
+// depend on each other.
 import {
   addAndPinSliceTrack,
   focusOnSlice,

@@ -260,14 +260,6 @@ export const StateActions = {
     state.lastLoadedConfig = args.configType || {type: 'NONE'};
   },
 
-  setPendingScrollId(state: StateDraft, args: {pendingScrollId: number}): void {
-    state.pendingScrollId = args.pendingScrollId;
-  },
-
-  clearPendingScrollId(state: StateDraft, _: {}): void {
-    state.pendingScrollId = undefined;
-  },
-
   startRecording(state: StateDraft, _: {}): void {
     state.recordingInProgress = true;
     state.lastRecordingError = undefined;
@@ -464,6 +456,10 @@ export const StateActions = {
     args: {filterTerm: string | undefined},
   ) {
     state.trackFilterTerm = args.filterTerm;
+  },
+
+  runControllers(state: StateDraft, _args: {}) {
+    state.forceRunControllers++;
   },
 };
 

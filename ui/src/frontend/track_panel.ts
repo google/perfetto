@@ -692,15 +692,17 @@ export function renderWakeupVertical(
   size: Size2D,
 ) {
   const currentSelection = globals.selectionManager.legacySelection;
+  const sliceDetails = globals.selectionManager.selectedSlice;
   if (currentSelection !== null) {
     if (
       currentSelection.kind === 'SCHED_SLICE' &&
-      globals.sliceDetails.wakeupTs !== undefined
+      exists(sliceDetails) &&
+      sliceDetails.wakeupTs !== undefined
     ) {
       drawVerticalLineAtTime(
         ctx,
         timescale,
-        globals.sliceDetails.wakeupTs,
+        sliceDetails.wakeupTs,
         size.height,
         `black`,
       );

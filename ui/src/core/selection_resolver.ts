@@ -15,13 +15,8 @@
 import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Optional} from '../base/utils';
-import {Args, ArgValue} from '../common/arg_types';
+import {Args, ArgValue} from './selection_arg_types';
 import {THREAD_SLICE_TRACK_KIND} from '../public/track_kinds';
-import {globals, SliceDetails, ThreadStateDetails} from '../frontend/globals';
-import {
-  publishSliceDetails,
-  publishThreadStateDetails,
-} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
 import {
   durationFromSql,
@@ -33,12 +28,12 @@ import {
   timeFromSql,
 } from '../trace_processor/query_result';
 import {fromNumNull} from '../trace_processor/sql_utils';
-import {Controller} from './controller';
-import {SelectionKind, ThreadSliceSelection} from '../public/selection';
-
-export interface SelectionControllerArgs {
-  engine: Engine;
-}
+import {LegacySelection, ThreadSliceSelection} from '../public/selection';
+import {
+  SelectedSliceDetails,
+  SelectedThreadStateDetails,
+} from './selection_manager';
+import {TrackManagerImpl} from './track_manager';
 
 interface ThreadDetails {
   tid: number;
@@ -55,48 +50,29 @@ interface ProcessDetails {
 
 // This class queries the TP for the details on a specific slice that has
 // been clicked.
-export class SelectionController extends Controller<'main'> {
-  private lastSelectedId?: number | string;
-  private lastSelectedKind?: string;
-  constructor(private args: SelectionControllerArgs) {
-    super('main');
-  }
+export class SelectionResolver {
+  constructor(
+    private engine: Engine,
+    private trackManager: TrackManagerImpl,
+  ) {}
 
-  run() {
-    const selection = globals.selectionManager.legacySelection;
-    if (!selection) return;
-
-    const selectWithId: SelectionKind[] = [
-      'SLICE',
-      'SCHED_SLICE',
-      'HEAP_PROFILE',
-      'THREAD_STATE',
-    ];
-    if (
-      !selectWithId.includes(selection.kind) ||
-      (selectWithId.includes(selection.kind) &&
-        selection.id === this.lastSelectedId &&
-        selection.kind === this.lastSelectedKind)
-    ) {
-      return;
-    }
-    const selectedId = selection.id;
-    const selectedKind = selection.kind;
-    this.lastSelectedId = selectedId;
-    this.lastSelectedKind = selectedKind;
-
-    if (selectedId === undefined) return;
-
+  async resolveSelection(
+    selection: LegacySelection,
+  ): Promise<Optional<SelectedSliceDetails>> {
     if (selection.kind === 'SCHED_SLICE') {
-      this.schedSliceDetails(selectedId as number);
+      return this.schedSliceDetails(selection.id);
     } else if (selection.kind === 'THREAD_STATE') {
-      this.threadStateDetails(selection.id);
+      return this.threadStateDetails(selection.id);
     } else if (selection.kind === 'SLICE') {
-      this.sliceDetails(selection);
+      return this.sliceDetails(selection);
     }
+
+    return undefined;
   }
 
-  async sliceDetails(selection: ThreadSliceSelection) {
+  private async sliceDetails(
+    selection: ThreadSliceSelection,
+  ): Promise<Optional<SelectedSliceDetails>> {
     const selectedId = selection.id;
     const table = selection.table;
 
@@ -108,7 +84,7 @@ export class SelectionController extends Controller<'main'> {
       leafTable = 'annotation_slice';
       promisedArgs = Promise.resolve(new Map());
     } else {
-      const result = await this.args.engine.query(`
+      const result = await this.engine.query(`
         SELECT
           type as leafTable,
           arg_set_id as argSetId
@@ -128,7 +104,7 @@ export class SelectionController extends Controller<'main'> {
       promisedArgs = this.getArgs(argSetId);
     }
 
-    const promisedDetails = this.args.engine.query(`
+    const promisedDetails = this.engine.query(`
       SELECT *, ABS_TIME_STR(ts) as absTime FROM ${leafTable} WHERE id = ${selectedId};
     `);
 
@@ -204,7 +180,7 @@ export class SelectionController extends Controller<'main'> {
       }
     }
 
-    const selected: SliceDetails = {
+    const selected: SelectedSliceDetails = {
       id: selectedId,
       ts,
       threadTs,
@@ -213,12 +189,11 @@ export class SelectionController extends Controller<'main'> {
       threadDur,
       name,
       category,
-      args,
     };
 
     if (trackId !== undefined) {
       const columnInfo = (
-        await this.args.engine.query(`
+        await this.engine.query(`
         WITH
            leafTrackTable AS (SELECT type FROM track WHERE id = ${trackId}),
            cols AS (
@@ -237,7 +212,7 @@ export class SelectionController extends Controller<'main'> {
 
       if (hasUtid) {
         const utid = (
-          await this.args.engine.query(`
+          await this.engine.query(`
             SELECT utid
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
@@ -248,7 +223,7 @@ export class SelectionController extends Controller<'main'> {
         Object.assign(selected, await this.computeThreadDetails(utid));
       } else if (hasUpid) {
         const upid = (
-          await this.args.engine.query(`
+          await this.engine.query(`
             SELECT upid
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
@@ -261,12 +236,10 @@ export class SelectionController extends Controller<'main'> {
     }
 
     // Check selection is still the same on completion of query.
-    if (selection === globals.selectionManager.legacySelection) {
-      publishSliceDetails(selected);
-    }
+    return selected;
   }
 
-  async getArgs(argId: number): Promise<Args> {
+  private async getArgs(argId: number): Promise<Args> {
     const args = new Map<string, ArgValue>();
     const query = `
       select
@@ -275,7 +248,7 @@ export class SelectionController extends Controller<'main'> {
       FROM args
       WHERE arg_set_id = ${argId}
     `;
-    const result = await this.args.engine.query(query);
+    const result = await this.engine.query(query);
     const it = result.iter({
       name: STR,
       value: STR_NULL,
@@ -298,19 +271,18 @@ export class SelectionController extends Controller<'main'> {
     return args;
   }
 
-  async getDestTrackUri(sliceId: string): Promise<string> {
+  private async getDestTrackUri(sliceId: string): Promise<string> {
     const trackIdQuery = `select track_id as trackId from slice
     where slice_id = ${sliceId}`;
-    const result = await this.args.engine.query(trackIdQuery);
+    const result = await this.engine.query(trackIdQuery);
     const trackId = result.firstRow({trackId: NUM}).trackId;
     // TODO(hjd): If we had a consistent mapping from TP track_id
     // UI track id for slice tracks this would be unnecessary.
-    for (const track of globals.workspace.flatTracks) {
-      const trackInfo = globals.trackManager.getTrack(track.uri);
+    for (const trackInfo of this.trackManager.getAllTracks()) {
       if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
         const trackIds = trackInfo?.tags?.trackIds;
         if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
-          return track.uri;
+          return trackInfo.uri;
         }
       }
     }
@@ -320,7 +292,9 @@ export class SelectionController extends Controller<'main'> {
   // TODO(altimin): We currently rely on the ThreadStateDetails for supporting
   // marking the area (the rest goes is handled by ThreadStateTab
   // directly. Refactor it to be plugin-friendly and remove this.
-  async threadStateDetails(id: number) {
+  private async threadStateDetails(
+    id: number,
+  ): Promise<Optional<SelectedThreadStateDetails>> {
     const query = `
       SELECT
         ts,
@@ -328,23 +302,24 @@ export class SelectionController extends Controller<'main'> {
       from thread_state
       where thread_state.id = ${id}
     `;
-    const result = await this.args.engine.query(query);
+    const result = await this.engine.query(query);
 
-    const selection = globals.selectionManager.legacySelection;
-    if (result.numRows() > 0 && selection) {
+    if (result.numRows() > 0) {
       const row = result.firstRow({
         ts: LONG,
         dur: LONG,
       });
-      const selected: ThreadStateDetails = {
+      return {
         ts: Time.fromRaw(row.ts),
         dur: row.dur,
       };
-      publishThreadStateDetails(selected);
     }
+    return undefined;
   }
 
-  async schedSliceDetails(id: number) {
+  private async schedSliceDetails(
+    id: number,
+  ): Promise<Optional<SelectedSliceDetails>> {
     const sqlQuery = `
       SELECT
         ts,
@@ -356,54 +331,42 @@ export class SelectionController extends Controller<'main'> {
       FROM sched
       WHERE sched.id = ${id}
     `;
-    const result = await this.args.engine.query(sqlQuery);
-    // Check selection is still the same on completion of query.
-    const selection = globals.selectionManager.legacySelection;
-    if (result.numRows() > 0 && selection) {
-      const row = result.firstRow({
-        ts: LONG,
-        dur: LONG,
-        priority: NUM,
-        endState: STR_NULL,
-        utid: NUM,
-        cpu: NUM,
-      });
-      const ts = Time.fromRaw(row.ts);
-      const dur = row.dur;
-      const priority = row.priority;
-      const endState = row.endState;
-      const utid = row.utid;
-      const cpu = row.cpu;
-      const selected: SliceDetails = {
-        ts,
-        dur,
-        priority,
-        endState,
-        cpu,
-        id,
-        utid,
-      };
+    const result = await this.engine.query(sqlQuery);
+    if (result.numRows() <= 0) return undefined;
+    const row = result.firstRow({
+      ts: LONG,
+      dur: LONG,
+      priority: NUM,
+      endState: STR_NULL,
+      utid: NUM,
+      cpu: NUM,
+    });
+    const ts = Time.fromRaw(row.ts);
+    const dur = row.dur;
+    const priority = row.priority;
+    const endState = row.endState;
+    const utid = row.utid;
+    const cpu = row.cpu;
+    const selected: SelectedSliceDetails = {
+      ts,
+      dur,
+      priority,
+      endState,
+      cpu,
+      id,
+      utid,
+    };
 
-      selected.threadStateId = await getThreadStateForSchedSlice(
-        this.args.engine,
-        id,
-      );
+    selected.threadStateId = await getThreadStateForSchedSlice(this.engine, id);
 
-      Object.assign(selected, await this.computeThreadDetails(utid));
-
-      this.schedulingDetails(ts, utid)
-        .then((wakeResult) => {
-          Object.assign(selected, wakeResult);
-        })
-        .finally(() => {
-          publishSliceDetails(selected);
-        });
-    }
+    Object.assign(selected, await this.computeThreadDetails(utid));
+    Object.assign(selected, await this.schedulingDetails(ts, utid));
+    return selected;
   }
 
-  async schedulingDetails(ts: time, utid: number) {
+  private async schedulingDetails(ts: time, utid: number) {
     // Find the ts of the first wakeup before the current slice.
-    const wakeResult = await this.args.engine.query(`
+    const wakeResult = await this.engine.query(`
       select ts, waker_utid as wakerUtid
       from thread_state
       where utid = ${utid} and ts < ${ts} and state = 'R'
@@ -422,7 +385,7 @@ export class SelectionController extends Controller<'main'> {
     }
 
     // Find the previous sched slice for the current utid.
-    const prevSchedResult = await this.args.engine.query(`
+    const prevSchedResult = await this.engine.query(`
       select ts
       from sched
       where utid = ${utid} and ts < ${ts}
@@ -441,7 +404,7 @@ export class SelectionController extends Controller<'main'> {
 
     // Find the sched slice with the utid of the waker running when the
     // sched wakeup occurred. This is the waker.
-    const wakerResult = await this.args.engine.query(`
+    const wakerResult = await this.engine.query(`
       select cpu
       from sched
       where
@@ -457,10 +420,10 @@ export class SelectionController extends Controller<'main'> {
     return {wakeupTs, wakerUtid, wakerCpu: wakerRow.cpu};
   }
 
-  async computeThreadDetails(
+  private async computeThreadDetails(
     utid: number,
   ): Promise<ThreadDetails & ProcessDetails> {
-    const res = await this.args.engine.query(`
+    const res = await this.engine.query(`
       SELECT tid, name, upid
       FROM thread
       WHERE utid = ${utid};
@@ -481,8 +444,8 @@ export class SelectionController extends Controller<'main'> {
     return threadDetails;
   }
 
-  async computeProcessDetails(upid: number) {
-    const res = await this.args.engine.query(`
+  private async computeProcessDetails(upid: number) {
+    const res = await this.engine.query(`
       include perfetto module android.process_metadata;
       select
         p.pid,

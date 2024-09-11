@@ -280,7 +280,6 @@ export interface State {
   highlightedSliceId: number;
   focusedFlowIdLeft: number;
   focusedFlowIdRight: number;
-  pendingScrollId?: number;
 
   /**
    * Trace recording
@@ -310,6 +309,10 @@ export interface State {
   plugins: {[key: string]: any};
 
   trackFilterTerm: string | undefined;
+
+  // TODO(primiano): this is a hack to force-re-run controllers required for the
+  // controller->managers migration. Remove once controllers are gone.
+  forceRunControllers: number;
 }
 
 export declare type RecordMode =
