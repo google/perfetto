@@ -66,6 +66,7 @@ using ::testing::AllOf;
 using ::testing::DoAll;
 using ::testing::ElementsAre;
 using ::testing::InSequence;
+using ::testing::IsNull;
 using ::testing::NiceMock;
 using ::testing::ResultOf;
 using ::testing::Return;
@@ -964,6 +965,56 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
   TracingSession tracing_session_1 =
       TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
   PERFETTO_DS_TRACE(data_source_1, ctx) {}
+}
+
+TEST_F(SharedLibDataSourceTest, GetInstanceLockedSuccess) {
+  bool ignored = false;
+  void* const kInstancePtr = &ignored;
+  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, _, kDataSource2UserArg, _))
+      .WillOnce(Return(kInstancePtr));
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
+
+  void* arg = nullptr;
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    arg = PerfettoDsImplGetInstanceLocked(data_source_2.impl, ctx.impl.inst_id);
+    if (arg) {
+      PerfettoDsImplReleaseInstanceLocked(data_source_2.impl, ctx.impl.inst_id);
+    }
+  }
+
+  EXPECT_EQ(arg, kInstancePtr);
+}
+
+TEST_F(SharedLibDataSourceTest, GetInstanceLockedFailure) {
+  bool ignored = false;
+  void* const kInstancePtr = &ignored;
+  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, _, kDataSource2UserArg, _))
+      .WillOnce(Return(kInstancePtr));
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
+
+  WaitableEvent inside_tracing;
+  WaitableEvent stopped;
+
+  std::thread t([&] {
+    PERFETTO_DS_TRACE(data_source_2, ctx) {
+      inside_tracing.Notify();
+      stopped.WaitForNotification();
+      void* arg =
+          PerfettoDsImplGetInstanceLocked(data_source_2.impl, ctx.impl.inst_id);
+      if (arg) {
+        PerfettoDsImplReleaseInstanceLocked(data_source_2.impl,
+                                            ctx.impl.inst_id);
+      }
+      EXPECT_THAT(arg, IsNull());
+    }
+  });
+
+  inside_tracing.WaitForNotification();
+  tracing_session.StopBlocking();
+  stopped.Notify();
+  t.join();
 }
 
 // Regression test for a `PerfettoDsImplReleaseInstanceLocked()`. Under very
