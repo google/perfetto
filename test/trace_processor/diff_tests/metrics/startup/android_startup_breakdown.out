@@ -1,7 +1,6 @@
 android_startup {
   startup {
     startup_id: 0
-    cpu_count: 1
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
     zygote_new_process: true
