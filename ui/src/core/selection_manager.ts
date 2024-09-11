@@ -48,8 +48,7 @@ const INCOMPLETE_SLICE_DURATION = 30_000n;
 //    requires querying the SQL engine, which is an async operation.
 export class SelectionManagerImpl implements SelectionManager {
   private _selection: Selection = {kind: 'empty'};
-  private _selectedSlice?: SelectedSliceDetails;
-  private _selectedThreadState?: SelectedThreadStateDetails;
+  private _selectedDetails?: LegacySelectionDetails;
   private _selectionResolver?: SelectionResolver;
   private _pendingScrollId?: number;
   // Incremented every time _selection changes.
@@ -68,10 +67,7 @@ export class SelectionManagerImpl implements SelectionManager {
     },
   ) {
     if (_deps !== undefined) {
-      this._selectionResolver = new SelectionResolver(
-        _deps.engine,
-        _deps.trackManager,
-      );
+      this._selectionResolver = new SelectionResolver(_deps.engine);
       _deps.noteManager.onNoteDeleted = (noteId) => {
         if (this.selection.kind === 'note' && this.selection.id === noteId) {
           this.clear();
@@ -301,6 +297,10 @@ export class SelectionManagerImpl implements SelectionManager {
     return toLegacySelection(this._selection);
   }
 
+  get legacySelectionDetails(): LegacySelectionDetails | undefined {
+    return this._selectedDetails;
+  }
+
   private setSelection(selection: Selection, opts?: SelectionOpts) {
     if (this._deps === undefined) return;
     this._selection = selection;
@@ -321,8 +321,7 @@ export class SelectionManagerImpl implements SelectionManager {
     //    the selection.
     const clearOnTimeout = setTimeout(() => {
       if (this._selectionGeneration !== generation) return;
-      this._selectedSlice = undefined;
-      this._selectedThreadState = undefined;
+      this._selectedDetails = undefined;
       raf.scheduleFullRedraw();
     }, 50);
 
@@ -335,18 +334,13 @@ export class SelectionManagerImpl implements SelectionManager {
         await this._selectionResolver?.resolveSelection(legacySel);
       raf.scheduleFullRedraw();
       clearTimeout(clearOnTimeout);
-      this._selectedSlice = undefined;
-      this._selectedThreadState = undefined;
+      this._selectedDetails = undefined;
       if (details == undefined) return;
       if (this._selectionGeneration !== generation) return;
-      if (legacySel.kind === 'THREAD_STATE') {
-        this._selectedThreadState = details;
-      } else {
-        this._selectedSlice = details;
-        if (exists(details.id) && details.id === this._pendingScrollId) {
-          this._pendingScrollId = undefined;
-          this.scrollToCurrentSelection();
-        }
+      this._selectedDetails = details;
+      if (exists(legacySel.id) && legacySel.id === this._pendingScrollId) {
+        this._pendingScrollId = undefined;
+        this.scrollToCurrentSelection();
       }
     });
   }
@@ -403,10 +397,12 @@ export class SelectionManagerImpl implements SelectionManager {
       return undefined;
     }
 
-    if (legacySel.kind === 'SCHED_SLICE' || legacySel.kind === 'SLICE') {
-      return findTimeRangeOfSlice(this.selectedSlice ?? {});
-    } else if (legacySel.kind === 'THREAD_STATE') {
-      return findTimeRangeOfSlice(this._selectedThreadState ?? {});
+    if (
+      legacySel.kind === 'SCHED_SLICE' ||
+      legacySel.kind === 'SLICE' ||
+      legacySel.kind === 'THREAD_STATE'
+    ) {
+      return findTimeRangeOfSlice(this._selectedDetails ?? {});
     } else if (legacySel.kind === 'LOG') {
       // TODO(hjd): Make focus selection work for logs.
     } else if (legacySel.kind === 'GENERIC_SLICE') {
@@ -417,10 +413,6 @@ export class SelectionManagerImpl implements SelectionManager {
     }
 
     return undefined;
-  }
-
-  get selectedSlice(): Optional<SelectedSliceDetails> {
-    return this._selectedSlice;
   }
 }
 
@@ -464,34 +456,10 @@ function findTimeRangeOfSlice(slice: {ts?: time; dur?: duration}): TimeSpan {
   }
 }
 
-export interface SelectedSliceDetails {
+export interface LegacySelectionDetails {
   ts?: time;
-  absTime?: string;
   dur?: duration;
-  threadTs?: time;
-  threadDur?: duration;
-  priority?: number;
-  endState?: string | null;
-  cpu?: number;
-  id?: number;
-  threadStateId?: number;
-  utid?: number;
+  // Additional information for sched selection, used to draw the wakeup arrow.
   wakeupTs?: time;
-  wakerUtid?: number;
   wakerCpu?: number;
-  category?: string;
-  name?: string;
-  tid?: number;
-  threadName?: string;
-  pid?: number;
-  processName?: string;
-  uid?: number;
-  packageName?: string;
-  versionCode?: number;
-  description?: Map<string, string>;
-}
-
-export interface SelectedThreadStateDetails {
-  ts?: time;
-  dur?: duration;
 }

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {duration, Time, time} from '../../base/time';
-import {translateState} from '../../common/thread_state';
 import {Engine} from '../engine';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../query_result';
 import {
@@ -21,16 +20,66 @@ import {
   fromNumNull,
   SQLConstraints,
 } from '../sql_utils';
-import {globals} from '../../frontend/globals';
 import {
   asThreadStateSqlId,
   asUtid,
   SchedSqlId,
   ThreadStateSqlId,
 } from './core_types';
-import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadInfo, ThreadInfo} from './thread';
-import {scrollTo} from '../../public/scroll_helper';
+
+const states: {[key: string]: string} = {
+  'R': 'Runnable',
+  'S': 'Sleeping',
+  'D': 'Uninterruptible Sleep',
+  'T': 'Stopped',
+  't': 'Traced',
+  'X': 'Exit (Dead)',
+  'Z': 'Exit (Zombie)',
+  'x': 'Task Dead',
+  'I': 'Idle',
+  'K': 'Wake Kill',
+  'W': 'Waking',
+  'P': 'Parked',
+  'N': 'No Load',
+  '+': '(Preempted)',
+};
+
+export function translateState(
+  state: string | undefined | null,
+  ioWait: boolean | undefined = undefined,
+) {
+  if (state === undefined) return '';
+
+  // Self describing states
+  switch (state) {
+    case 'Running':
+    case 'Initialized':
+    case 'Deferred Ready':
+    case 'Transition':
+    case 'Stand By':
+    case 'Waiting':
+      return state;
+  }
+
+  if (state === null) {
+    return 'Unknown';
+  }
+  let result = states[state[0]];
+  if (ioWait === true) {
+    result += ' (IO)';
+  } else if (ioWait === false) {
+    result += ' (non-IO)';
+  }
+  for (let i = 1; i < state.length; i++) {
+    result += state[i] === '+' ? ' ' : ' + ';
+    result += states[state[i]];
+  }
+  // state is some string we don't know how to translate.
+  if (result === undefined) return state;
+
+  return result;
+}
 
 // Representation of a single thread state object, corresponding to
 // a row for the |thread_slice| table.
@@ -133,22 +182,4 @@ export async function getThreadState(
     return undefined;
   }
   return result[0];
-}
-
-export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
-  const track = globals.trackManager.findTrack(
-    (td) => td.tags?.kind === CPU_SLICE_TRACK_KIND && td.tags.cpu === cpu,
-  );
-  if (track === undefined) {
-    return;
-  }
-  globals.selectionManager.setLegacy({
-    kind: 'SCHED_SLICE',
-    id,
-    trackUri: track.uri,
-  });
-  scrollTo({
-    track: {uri: track.uri, expandGroup: true},
-    time: {start: ts},
-  });
 }

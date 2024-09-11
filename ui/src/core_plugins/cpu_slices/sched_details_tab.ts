@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {translateState} from '../../common/thread_state';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
@@ -35,6 +34,7 @@ import {
 } from '../../trace_processor/sql_utils/sched';
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
+import {translateState} from '../../trace_processor/sql_utils/thread_state';
 
 const MIN_NORMAL_SCHED_PRIORITY = 100;
 
