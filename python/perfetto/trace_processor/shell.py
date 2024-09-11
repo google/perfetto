@@ -20,6 +20,7 @@ import time
 from typing import List, Optional
 from urllib import request, error
 
+from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.platform import PlatformDelegate
 
 # Default port that trace_processor_shell runs on
@@ -32,6 +33,7 @@ def load_shell(bin_path: str,
                ingest_ftrace_in_raw: bool,
                enable_dev_features: bool,
                platform_delegate: PlatformDelegate,
+               load_timeout: int = 2,
                extra_flags: Optional[List[str]] = None):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
@@ -60,7 +62,7 @@ def load_shell(bin_path: str,
       stderr=None if verbose else subprocess.DEVNULL)
 
   success = False
-  for _ in range(3):
+  for _ in range(load_timeout + 1):
     try:
       if p.poll() is None:
         _ = request.urlretrieve(f'http://{url}/status')
@@ -70,7 +72,7 @@ def load_shell(bin_path: str,
       time.sleep(1)
 
   if not success:
-    raise Exception(
+    raise PerfettoException(
         "Trace processor failed to start. Try rerunning with "
         "verbose=True in TraceProcessorConfig for more detailed "
         "information and file a bug at https://goto.google.com/perfetto-bug "

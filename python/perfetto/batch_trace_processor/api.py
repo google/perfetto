@@ -24,6 +24,7 @@ from typing import Any, Callable, Dict, Tuple, List, Optional
 import pandas as pd
 
 from perfetto.batch_trace_processor.platform import PlatformDelegate
+from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.api import PLATFORM_DELEGATE as TP_PLATFORM_DELEGATE
 from perfetto.trace_processor.api import TraceProcessor
 from perfetto.trace_processor.api import TraceProcessorException
@@ -61,7 +62,7 @@ class FailureHandling(Enum):
 class BatchTraceProcessorConfig:
   tp_config: TraceProcessorConfig
   load_failure_handling: FailureHandling
-  query_failure_handling: FailureHandling
+  execute_failure_handling: FailureHandling
 
   def __init__(
       self,
@@ -367,7 +368,7 @@ class BatchTraceProcessor:
     try:
       return TraceProcessor(
           trace=trace.generator, config=self.config.tp_config), trace.metadata
-    except TraceProcessorException as ex:
+    except PerfettoException as ex:
       if self.config.load_failure_handling == FailureHandling.RAISE_EXCEPTION:
         raise ex
       self._stats.load_failures += 1
