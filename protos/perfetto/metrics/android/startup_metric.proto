@@ -352,6 +352,7 @@ message AndroidStartupMetric {
 
     optional int64 end_timestamp = 2;
 
+    // Deprecated as of 09/2024
     optional uint32 thread_utid = 3;
 
     optional string thread_name = 4;
