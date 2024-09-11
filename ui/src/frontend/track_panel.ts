@@ -692,7 +692,7 @@ export function renderWakeupVertical(
   size: Size2D,
 ) {
   const currentSelection = globals.selectionManager.legacySelection;
-  const sliceDetails = globals.selectionManager.selectedSlice;
+  const sliceDetails = globals.selectionManager.legacySelectionDetails;
   if (currentSelection !== null) {
     if (
       currentSelection.kind === 'SCHED_SLICE' &&
