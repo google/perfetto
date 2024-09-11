@@ -120,9 +120,6 @@ SELECT
       WHERE lp.startup_id =launches.startup_id
       LIMIT 1
     ),
-    'cpu_count', (
-      SELECT COUNT(DISTINCT cpu) from sched
-    ),
     'package_name', launches.package,
     'process_name', (
       SELECT p.name
