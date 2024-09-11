@@ -49,7 +49,7 @@ class BigtraceTest(unittest.TestCase):
     self.orchestrator.wait()
     del self.client
 
-  def test_valid_traces(self):
+  def test_simple_valid_request(self):
     result = self.client.query([
         f"/local/{self.root_dir}/test/data/api24_startup_cold.perfetto-trace",
         f"/local/{self.root_dir}/test/data/api24_startup_hot.perfetto-trace"
@@ -64,7 +64,17 @@ class BigtraceTest(unittest.TestCase):
                    f"/local/{self.root_dir}/test/data/"
                    "api24_startup_hot.perfetto-trace", 'count'].iloc[0], 5726)
 
-  def test_empty_traces(self):
+  def test_include_perfetto_module_query(self):
+    traces = [
+        f"/local/{self.root_dir}/test/data/android_startup_real.perfetto_trace"
+    ]
+    result = self.client.query(
+        traces, "INCLUDE PERFETTO MODULE android.binder; "
+        "SELECT client_process FROM android_binder_txns")
+    self.assertEqual(len(result), 15874)
+    self.assertEqual(len(result.columns), 2)
+
+  def test_empty_trace_list(self):
     with self.assertRaises(PerfettoException):
       result = self.client.query([], "SELECT count(1) FROM slice LIMIT 5")
 
@@ -75,7 +85,22 @@ class BigtraceTest(unittest.TestCase):
           f"/local/{self.root_dir}/test/data/api24_startup_hot.perfetto-trace"
       ], "")
 
-  def test_invalid_prefix(self):
+  def test_empty_trace_string(self):
+    with self.assertRaises(PerfettoException):
+      result = self.client.query([""], "SELECT count(1) FROM slice LIMIT 5")
+
+  def test_prefix_present_no_trace_path(self):
+    with self.assertRaises(PerfettoException):
+      result = self.client.query(["/local"],
+                                 "SELECT count(1) FROM slice LIMIT 5")
+
+  def test_invalid_prefix_format(self):
+    with self.assertRaises(PerfettoException):
+      result = self.client.query([
+          f"??{self.root_dir}/test/data/api24_startup_cold.perfetto-trace",
+      ], "")
+
+  def test_invalid_prefix_name(self):
     with self.assertRaises(PerfettoException):
       result = self.client.query([
           f"/badprefix/{self.root_dir}/test/data/"
@@ -85,5 +110,11 @@ class BigtraceTest(unittest.TestCase):
   def test_no_prefix(self):
     with self.assertRaises(PerfettoException):
       result = self.client.query(
-          [f"{self.root_dir}/test/data/api24_startup_cold.perfetto-trace"],
+          [f"/{self.root_dir}/test/data/api24_startup_cold.perfetto-trace"],
+          "SELECT count(1) FROM slice LIMIT 5")
+
+  def test_unauthenticated_gcs(self):
+    with self.assertRaises(PerfettoException):
+      result = self.client.query(
+          [f"/gcs/trace_bucket_example/o/api24_startup_cold.perfetto-trace"],
           "SELECT count(1) FROM slice LIMIT 5")
