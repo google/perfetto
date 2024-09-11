@@ -80,8 +80,10 @@ class RuntimeTable : public Table {
     void AddNonNullIntegerUnchecked(uint32_t idx, int64_t res) {
       std::get<IntStorage>(*storage_[idx]).Append(res);
     }
-    void AddNonNullIntegersUnchecked(uint32_t idx,
-                                     const std::vector<int64_t>& res);
+    void AddNonNullIntegersUnchecked(uint32_t idx, const std::vector<int64_t>&);
+    void AddNullIntegersUnchecked(uint32_t idx, const std::vector<int64_t>&);
+    void AddNonNullDoublesUnchecked(uint32_t idx, const std::vector<double>&);
+    void AddNullDoublesUnchecked(uint32_t idx, const std::vector<double>&);
 
     base::StatusOr<std::unique_ptr<RuntimeTable>> Build(uint32_t rows) &&;
 

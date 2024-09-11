@@ -19,9 +19,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <string>
 #include <utility>
 #include <variant>
@@ -31,11 +33,13 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/interval_intersector.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/types/counter.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h"
@@ -407,6 +411,55 @@ struct IntervalTreeIntervalsAgg
   }
 };
 
+struct CounterPerTrackAgg
+    : public SqliteAggregateFunction<perfetto_sql::PartitionedCounter> {
+  static constexpr char kName[] = "__intrinsic_counter_per_track_agg";
+  static constexpr int kArgCount = 4;
+  struct AggCtx : SqliteAggregateContext<AggCtx> {
+    perfetto_sql::PartitionedCounter tracks;
+  };
+
+  static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
+    auto argc = static_cast<uint32_t>(rargc);
+    PERFETTO_DCHECK(argc == kArgCount);
+    auto& tracks = AggCtx::GetOrCreateContextForStep(ctx).tracks;
+
+    // Fetch columns.
+    int64_t id = sqlite::value::Int64(argv[0]);
+    int64_t ts = sqlite::value::Int64(argv[1]);
+    int64_t track_id = static_cast<uint32_t>(sqlite::value::Int64(argv[2]));
+    double val = sqlite::value::Double(argv[3]);
+
+    auto* new_rows_track = tracks.partitions_map.Find(track_id);
+    if (!new_rows_track) {
+      new_rows_track = tracks.partitions_map.Insert(track_id, {}).first;
+    } else if (std::equal_to<double>()(new_rows_track->val.back(), val)) {
+      // TODO(mayzner): This algorithm is focused on "leading" counters - if the
+      // counter before had the same value we can safely remove the new one as
+      // it adds no value. In the future we should also support "lagging" - if
+      // the next one has the same value as the previous, we should remove the
+      // previous.
+      return;
+    }
+
+    new_rows_track->id.push_back(id);
+    new_rows_track->ts.push_back(ts);
+    new_rows_track->val.push_back(val);
+  }
+
+  static void Final(sqlite3_context* ctx) {
+    auto raw_agg_ctx = AggCtx::GetContextOrNullForFinal(ctx);
+    if (!raw_agg_ctx) {
+      return sqlite::result::Null(ctx);
+    }
+    return sqlite::result::UniquePointer(
+        ctx,
+        std::make_unique<perfetto_sql::PartitionedCounter>(
+            std::move(raw_agg_ctx.get()->tracks)),
+        perfetto_sql::PartitionedCounter::kName);
+  }
+};
+
 }  // namespace
 
 base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
@@ -417,6 +470,8 @@ base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
   RETURN_IF_ERROR(
       engine.RegisterSqliteAggregateFunction<IntervalTreeIntervalsAgg>(
           nullptr));
+  RETURN_IF_ERROR(
+      engine.RegisterSqliteAggregateFunction<CounterPerTrackAgg>(nullptr));
   return engine.RegisterSqliteAggregateFunction<NodeAgg>(nullptr);
 }
 
