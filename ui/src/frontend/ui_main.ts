@@ -41,11 +41,7 @@ import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
 import {AggregationsTabs} from './aggregation_tab';
-import {
-  findCurrentSelection,
-  focusOtherFlow,
-  moveByFocusedFlow,
-} from './keyboard_event_handler';
+import {focusOtherFlow, moveByFocusedFlow} from './keyboard_event_handler';
 import {publishPermalinkHash} from './publish';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';
@@ -198,7 +194,7 @@ export class UiMain implements m.ClassComponent {
     {
       id: 'perfetto.FocusSelection',
       name: 'Focus current selection',
-      callback: () => findCurrentSelection(),
+      callback: () => globals.selectionManager.scrollToCurrentSelection(),
       defaultHotkey: 'F',
     },
     {
@@ -213,7 +209,7 @@ export class UiMain implements m.ClassComponent {
       id: 'perfetto.SetTemporarySpanNote',
       name: 'Set the temporary span note based on the current selection',
       callback: async () => {
-        const range = await globals.findTimeRangeOfSelection();
+        const range = await globals.selectionManager.findTimeRangeOfSelection();
         if (range) {
           globals.noteManager.addSpanNote({
             start: range.start,
@@ -228,7 +224,7 @@ export class UiMain implements m.ClassComponent {
       id: 'perfetto.AddSpanNote',
       name: 'Add a new span note based on the current selection',
       callback: async () => {
-        const range = await globals.findTimeRangeOfSelection();
+        const range = await globals.selectionManager.findTimeRangeOfSelection();
         if (range) {
           globals.noteManager.addSpanNote({start: range.start, end: range.end});
         }

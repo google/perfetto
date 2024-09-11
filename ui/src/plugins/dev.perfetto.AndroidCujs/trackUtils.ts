@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {Trace} from '../../public/trace';
@@ -67,20 +66,20 @@ export function focusOnSlice(
   sqlSliceId: number,
   sqlTrackId: number,
 ) {
-  // Finds the TrackDescriptor associated to the given SQL `tracks(table).id`.
-  const track = ctx.tracks.findTrack((trackDescriptor) => {
+  // TODO(primiano): there should be probably a public API to select slices
+  // given their SQL details. We need to rationalize selection first.
+  const trackUri = ctx.tracks.findTrack((trackDescriptor) => {
     return trackDescriptor?.tags?.trackIds?.includes(sqlTrackId);
-  });
+  })?.uri;
   ctx.selection.setLegacy(
     {
       kind: 'SLICE',
       id: sqlSliceId,
-      trackUri: track?.uri,
+      trackUri,
       table: 'slice',
     },
     {
       pendingScrollId: sqlSliceId,
     },
   );
-  findCurrentSelection();
 }

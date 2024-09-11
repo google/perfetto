@@ -21,16 +21,64 @@ import {
   SelectionOpts,
   SelectionManager,
 } from '../public/selection';
-import {duration, time} from '../base/time';
+import {duration, Time, time, TimeSpan} from '../base/time';
 import {
   GenericSliceDetailsTabConfig,
   GenericSliceDetailsTabConfigBase,
 } from '../public/details_panel';
 import {raf} from './raf_scheduler';
+import {exists, Optional} from '../base/utils';
+import {TrackManagerImpl} from './track_manager';
+import {SelectionResolver} from './selection_resolver';
+import {Engine} from '../trace_processor/engine';
+import {ScrollHelper} from './scroll_helper';
+import {NoteManagerImpl} from './note_manager';
+import {AsyncLimiter} from '../base/async_limiter';
 
+const INSTANT_FOCUS_DURATION = 1n;
+const INCOMPLETE_SLICE_DURATION = 30_000n;
+
+// There are two selection-related states in this class.
+// 1. _selection: This is the "input" / locator of the selection, what other
+//    parts of the codebase specify (e.g., a tuple of trackUri + eventId) to say
+//    "please select this object if it exists".
+// 2. _selected{Slice,ThreadState}: This is the resolved selection, that is, the
+//    rich details about the object that has been selected. If the input
+//    `_selection` is valid, this is filled in the near future. Doing so
+//    requires querying the SQL engine, which is an async operation.
 export class SelectionManagerImpl implements SelectionManager {
   private _selection: Selection = {kind: 'empty'};
-  onSelectionChange?: (selection: Selection, opts: SelectionOpts) => void;
+  private _selectedSlice?: SelectedSliceDetails;
+  private _selectedThreadState?: SelectedThreadStateDetails;
+  private _selectionResolver?: SelectionResolver;
+  private _pendingScrollId?: number;
+  // Incremented every time _selection changes.
+  private _selectionGeneration = 0;
+  private _limiter = new AsyncLimiter();
+
+  // TODO(primiano): all the injected dependencies below should become mandatory
+  // once we get rid of globals.
+  constructor(
+    private _deps?: {
+      engine: Engine;
+      trackManager: TrackManagerImpl;
+      noteManager: NoteManagerImpl;
+      scrollHelper: ScrollHelper;
+      onSelectionChange: (s: Selection, opts: SelectionOpts) => void;
+    },
+  ) {
+    if (_deps !== undefined) {
+      this._selectionResolver = new SelectionResolver(
+        _deps.engine,
+        _deps.trackManager,
+      );
+      _deps.noteManager.onNoteDeleted = (noteId) => {
+        if (this.selection.kind === 'note' && this.selection.id === noteId) {
+          this.clear();
+        }
+      };
+    }
+  }
 
   clear(): void {
     this.setSelection({kind: 'empty'});
@@ -254,11 +302,125 @@ export class SelectionManagerImpl implements SelectionManager {
   }
 
   private setSelection(selection: Selection, opts?: SelectionOpts) {
+    if (this._deps === undefined) return;
     this._selection = selection;
-    if (this.onSelectionChange !== undefined) {
-      this.onSelectionChange(selection, opts ?? {});
-    }
+    this._pendingScrollId = opts?.pendingScrollId;
+    this._deps.onSelectionChange(selection, opts ?? {});
+    const generation = ++this._selectionGeneration;
     raf.scheduleFullRedraw();
+
+    // The code below is to avoid flickering while switching selection. There
+    // are three cases here:
+    // 1. The async code resolves the selection quickly. In this case we
+    //    "atomically" switch the _selectedSlice in one animation frame, without
+    //    flashing white. The continuation below will clear the timeout.
+    // 2. The async code resolves the selection but takes time. The timeout
+    //    below will kick in and clear the selection; later the async
+    //    continuation will set it to the current slice.
+    // 3. The async code below fails to resolve the seleciton. We just clear
+    //    the selection.
+    const clearOnTimeout = setTimeout(() => {
+      if (this._selectionGeneration !== generation) return;
+      this._selectedSlice = undefined;
+      this._selectedThreadState = undefined;
+      raf.scheduleFullRedraw();
+    }, 50);
+
+    if (!this._selectionResolver) return;
+    const legacySel = this.legacySelection;
+    if (!exists(legacySel)) return;
+
+    this._limiter.schedule(async () => {
+      const details =
+        await this._selectionResolver?.resolveSelection(legacySel);
+      raf.scheduleFullRedraw();
+      clearTimeout(clearOnTimeout);
+      this._selectedSlice = undefined;
+      this._selectedThreadState = undefined;
+      if (details == undefined) return;
+      if (this._selectionGeneration !== generation) return;
+      if (legacySel.kind === 'THREAD_STATE') {
+        this._selectedThreadState = details;
+      } else {
+        this._selectedSlice = details;
+        if (exists(details.id) && details.id === this._pendingScrollId) {
+          this._pendingScrollId = undefined;
+          this.scrollToCurrentSelection();
+        }
+      }
+    });
+  }
+
+  scrollToCurrentSelection() {
+    const selection = this.legacySelection;
+    if (!exists(selection)) return;
+    const uri = selection.trackUri;
+    this.findTimeRangeOfSelection().then((range) => {
+      if (this._deps === undefined) return;
+      // The selection changed meanwhile.
+      if (this.legacySelection !== selection) return;
+      this._deps.scrollHelper.scrollTo({
+        time: range ? {...range} : undefined,
+        track: uri ? {uri: uri, expandGroup: true} : undefined,
+      });
+    });
+  }
+
+  async findTimeRangeOfSelection(): Promise<Optional<TimeSpan>> {
+    if (this._deps === undefined) return undefined;
+    const sel = this.selection;
+    if (sel.kind === 'area') {
+      return new TimeSpan(sel.start, sel.end);
+    } else if (sel.kind === 'note') {
+      const selectedNote = this._deps.noteManager.getNote(sel.id);
+      if (selectedNote !== undefined) {
+        const kind = selectedNote.noteType;
+        switch (kind) {
+          case 'SPAN':
+            return new TimeSpan(selectedNote.start, selectedNote.end);
+          case 'DEFAULT':
+            return TimeSpan.fromTimeAndDuration(
+              selectedNote.timestamp,
+              INSTANT_FOCUS_DURATION,
+            );
+          default:
+            assertUnreachable(kind);
+        }
+      }
+    } else if (sel.kind === 'single') {
+      const uri = sel.trackUri;
+      const bounds = await this._deps.trackManager
+        .getTrack(uri)
+        ?.getEventBounds?.(sel.eventId);
+      if (bounds) {
+        return TimeSpan.fromTimeAndDuration(bounds.ts, bounds.dur);
+      }
+      return undefined;
+    }
+
+    const legacySel = this.legacySelection;
+    if (!exists(legacySel)) {
+      return undefined;
+    }
+
+    if (legacySel.kind === 'SCHED_SLICE' || legacySel.kind === 'SLICE') {
+      return findTimeRangeOfSlice(this.selectedSlice ?? {});
+    } else if (legacySel.kind === 'THREAD_STATE') {
+      return findTimeRangeOfSlice(this._selectedThreadState ?? {});
+    } else if (legacySel.kind === 'LOG') {
+      // TODO(hjd): Make focus selection work for logs.
+    } else if (legacySel.kind === 'GENERIC_SLICE') {
+      return findTimeRangeOfSlice({
+        ts: legacySel.start,
+        dur: legacySel.duration,
+      });
+    }
+
+    return undefined;
+  }
+
+  get selectedSlice(): Optional<SelectedSliceDetails> {
+    return this._selectedSlice;
   }
 }
 
@@ -283,4 +445,53 @@ function toLegacySelection(selection: Selection): LegacySelection | null {
       assertUnreachable(selection);
       return null;
   }
+}
+
+// Returns the start and end points of a slice-like object If slice is instant
+// or incomplete, dummy time will be returned which instead.
+function findTimeRangeOfSlice(slice: {ts?: time; dur?: duration}): TimeSpan {
+  if (exists(slice.ts) && exists(slice.dur)) {
+    if (slice.dur === -1n) {
+      return TimeSpan.fromTimeAndDuration(slice.ts, INCOMPLETE_SLICE_DURATION);
+    } else if (slice.dur === 0n) {
+      return TimeSpan.fromTimeAndDuration(slice.ts, INSTANT_FOCUS_DURATION);
+    } else {
+      return TimeSpan.fromTimeAndDuration(slice.ts, slice.dur);
+    }
+  } else {
+    // TODO(primiano): unclear why we dont return undefined here.
+    return new TimeSpan(Time.INVALID, Time.INVALID);
+  }
+}
+
+export interface SelectedSliceDetails {
+  ts?: time;
+  absTime?: string;
+  dur?: duration;
+  threadTs?: time;
+  threadDur?: duration;
+  priority?: number;
+  endState?: string | null;
+  cpu?: number;
+  id?: number;
+  threadStateId?: number;
+  utid?: number;
+  wakeupTs?: time;
+  wakerUtid?: number;
+  wakerCpu?: number;
+  category?: string;
+  name?: string;
+  tid?: number;
+  threadName?: string;
+  pid?: number;
+  processName?: string;
+  uid?: number;
+  packageName?: string;
+  versionCode?: number;
+  description?: Map<string, string>;
+}
+
+export interface SelectedThreadStateDetails {
+  ts?: time;
+  dur?: duration;
 }
