@@ -214,7 +214,6 @@ android_startup {
       trace_thread_sections {
         start_timestamp: 205000000000
         end_timestamp: 210000000000
-        thread_utid: 3
         thread_name: "com.google.android.calendar"
       }
     }

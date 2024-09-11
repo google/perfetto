@@ -46,7 +46,7 @@ CREATE OR REPLACE PERFETTO FUNCTION get_main_thread_time_for_launch_in_runnable_
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceThreadSection(
     'start_timestamp', ts, 'end_timestamp', ts + dur,
-    'thread_utid', utid, 'thread_name', thread_name))
+    'thread_name', thread_name))
   FROM (
     SELECT ts, dur, utid, thread_name
     FROM launch_threads_by_thread_state l
@@ -60,7 +60,7 @@ CREATE OR REPLACE PERFETTO FUNCTION get_main_thread_time_for_launch_and_state(
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceThreadSection(
     'start_timestamp', ts, 'end_timestamp', ts + dur,
-    'thread_utid', utid, 'thread_name', thread_name))
+    'thread_name', thread_name))
   FROM (
     SELECT ts, dur, utid, thread_name
     FROM launch_threads_by_thread_state l
@@ -74,7 +74,7 @@ CREATE OR REPLACE PERFETTO FUNCTION get_main_thread_time_for_launch_state_and_io
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceThreadSection(
     'start_timestamp', ts, 'end_timestamp', ts + dur,
-    'thread_utid', utid, 'thread_name', thread_name))
+    'thread_name', thread_name))
   FROM (
     SELECT ts, dur, utid, thread_name
     FROM launch_threads_by_thread_state l
@@ -89,7 +89,7 @@ CREATE OR REPLACE PERFETTO FUNCTION get_thread_time_for_launch_state_and_thread(
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceThreadSection(
     'start_timestamp', ts, 'end_timestamp', ts + dur,
-    'thread_utid', utid, 'thread_name', thread_name))
+    'thread_name', thread_name))
   FROM (
     SELECT ts, dur, utid, thread_name
     FROM launch_threads_by_thread_state l
