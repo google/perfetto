@@ -13,11 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Csv, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
-
 
 class ParsingSysStats(TestSuite):
 
@@ -101,3 +99,34 @@ class ParsingSysStats(TestSuite):
         71625871363623,"x86_pkg_temp",29.000000
         71626000387166,"x86_pkg_temp",31.000000
         """))
+
+  def test_gpufreq(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+    packet {
+      sys_stats {
+        gpufreq_mhz: 300
+      }
+      timestamp: 115835063108
+      trusted_packet_sequence_id: 2
+    }
+    packet {
+      sys_stats {
+        gpufreq_mhz: 350
+      }
+      timestamp: 115900182490
+      trusted_packet_sequence_id: 2
+    }
+    """),
+        query="""
+    SELECT c.ts,
+            t.name,
+            c.value
+    FROM counter_track t
+    JOIN counter c ON t.id = c.track_id
+    """,
+        out=Csv("""
+    "ts","name","value"
+    115835063108,"gpufreq",300.000000
+    115900182490,"gpufreq",350.000000
+    """))
