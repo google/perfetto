@@ -134,7 +134,9 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       num_softirq_total_name_id_(
           context->storage->InternString("num_softirq_total")),
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
-      thermal_unit_id_(context->storage->InternString("C")) {
+      thermal_unit_id_(context->storage->InternString("C")),
+      gpufreq_id(context->storage->InternString("gpufreq")),
+      gpufreq_unit_id(context->storage->InternString("MHz")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -474,6 +476,12 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 
   for (auto it = sys_stats.cpuidle_state(); it; ++it) {
     ParseCpuIdleStats(ts, *it);
+  }
+
+  for (auto it = sys_stats.gpufreq_mhz(); it; ++it, ++c) {
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kPower, gpufreq_id, {}, gpufreq_unit_id);
+    context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 }
 
