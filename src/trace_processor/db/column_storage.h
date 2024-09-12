@@ -137,6 +137,10 @@ class ColumnStorage<std::optional<T>> final : public ColumnStorageBase {
     data_.insert(data_.end(), count, val);
     valid_.Resize(valid_.size() + static_cast<uint32_t>(count), true);
   }
+  void Append(const std::vector<T>& vals) {
+    data_.insert(data_.end(), vals.begin(), vals.end());
+    valid_.Resize(valid_.size() + static_cast<uint32_t>(vals.size()), true);
+  }
   void Set(uint32_t idx, T val) {
     if (mode_ == Mode::kDense) {
       valid_.Set(idx);

@@ -22,6 +22,8 @@ source_set("functions") {
     "base64.cc",
     "base64.h",
     "clock_functions.h",
+    "counter_intervals.cc",
+    "counter_intervals.h",
     "create_function.cc",
     "create_function.h",
     "create_view_function.cc",
