@@ -312,6 +312,7 @@ class FtraceParser {
                               protozero::ConstBytes);
   void ParseGoogleIccEvent(int64_t timestamp, protozero::ConstBytes);
   void ParseGoogleIrmEvent(int64_t timestamp, protozero::ConstBytes);
+  void ParseDeviceFrequency(int64_t ts, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -423,6 +424,7 @@ class FtraceParser {
   const StringId suspend_resume_driver_arg_name_;
   const StringId suspend_resume_callback_phase_arg_name_;
   const StringId suspend_resume_event_type_arg_name_;
+  const StringId device_name_id_;
 
   std::vector<StringId> syscall_arg_name_ids_;
 
