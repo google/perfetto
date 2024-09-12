@@ -26,7 +26,5 @@ data:
           <path>/data/</path>
         </local_directory>
       </user_directories>
-      <user_defined_executable_functions_config>
-        /data/clickhouse/*_function.xml
-      </user_defined_executable_functions_config>
+      <user_scripts_path>/var/lib/perfetto-clickhouse</user_scripts_path>
     </clickhouse>
