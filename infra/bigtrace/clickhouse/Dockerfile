@@ -19,14 +19,15 @@ FROM clickhouse/clickhouse-server
 RUN apt update && apt install python3 pip curl git -y
 RUN pip install grpcio grpcio-tools protobuf perfetto==0.7.0 pandas numpy
 
+WORKDIR /tmp
 RUN git clone --depth 1 https://android.googlesource.com/platform/external/perfetto/
-WORKDIR /perfetto
+WORKDIR /tmp/perfetto
 RUN tools/install-build-deps --grpc
 RUN tools/gn gen out/dist '--args=is_clang=true enable_perfetto_grpc=true'
 RUN tools/ninja -C out/dist trace_processor_shell
 RUN tools/gen_clickhouse_bigtrace_protos.py
 
-RUN mkdir -p /var/lib/clickhouse/user_scripts/
-RUN cp /perfetto/out/dist/trace_processor_shell /var/lib/clickhouse/user_scripts/trace_processor_shell
-RUN cp -r /perfetto/python/perfetto/bigtrace_clickhouse/. /var/lib/clickhouse/user_scripts/
-RUN cp -r /perfetto/python/perfetto/bigtrace_clickhouse/protos/ /var/lib/clickhouse/user_scripts/
+RUN mkdir /var/lib/perfetto-clickhouse/
+RUN cp /tmp/perfetto/out/dist/trace_processor_shell /var/lib/perfetto-clickhouse/
+RUN cp -r /tmp/perfetto/python/perfetto/bigtrace_clickhouse/. /var/lib/perfetto-clickhouse/
+RUN cp -r /tmp/perfetto/python/perfetto/bigtrace_clickhouse/protos/ /var/lib/perfetto-clickhouse/
