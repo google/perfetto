@@ -49,5 +49,9 @@ SELECT TraceMetadata(
   'tracing_started_ns', (
     SELECT int_value FROM metadata
     WHERE name='tracing_started_ns'
+  ),
+  'android_sdk_version', (
+    SELECT int_value FROM metadata
+    WHERE name = 'android_sdk_version'
   )
 );
