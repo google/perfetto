@@ -47,17 +47,6 @@ class RowParser : public InstrumentsRowParser {
   base::FlatHashMap<BacktraceFrameId, FrameId> frame_to_frame_id_;
   base::FlatHashMap<BinaryId, VirtualMemoryMapping*> binary_to_mapping_;
   base::FlatHashMap<UniquePid, DummyMemoryMapping*> dummy_mappings_;
-
-  // Cache callsites by FrameId in a prefix tree, where children in the
-  // prefix tree are child frames at the callsite. This should be more
-  // efficient than looking up frame+parent pairs in a hashmap.
-  // TODO(leszeks): Verify that this is more efficient and share the code
-  // with other importers.
-  struct CallsiteTreeNode {
-    CallsiteId callsite_id{0};
-    base::FlatHashMap<FrameId, CallsiteTreeNode> next_frames{};
-  };
-  base::FlatHashMap<FrameId, CallsiteTreeNode> top_frames;
 };
 
 }  // namespace perfetto::trace_processor::instruments_importer
