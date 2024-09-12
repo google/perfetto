@@ -53,10 +53,11 @@ void RowParser::ParseInstrumentsRow(int64_t ts, instruments_importer::Row row) {
                                                     ThreadNamePriority::kOther);
   context_->process_tracker->SetProcessNameIfUnset(upid, process->fmt);
 
+  auto& stack_profile_tracker = *context_->stack_profile_tracker;
+
   Backtrace* backtrace = data_.GetBacktrace(row.backtrace);
   std::optional<CallsiteId> parent;
   uint32_t depth = 0;
-  base::FlatHashMap<FrameId, CallsiteTreeNode>* frame_to_callsite = &top_frames;
   auto leaf = backtrace->frames.rend() - 1;
   for (auto it = backtrace->frames.rbegin(); it != backtrace->frames.rend();
        ++it) {
@@ -98,17 +99,7 @@ void RowParser::ParseInstrumentsRow(int64_t ts, instruments_importer::Row row) {
     }
     FrameId frame_id = *frame_inserted.first;
 
-    // Lookup the frame id in the current callsite prefix tree node.
-    auto callsite_node_inserted =
-        frame_to_callsite->Insert(frame_id, CallsiteTreeNode{});
-    if (callsite_node_inserted.second) {
-      callsite_node_inserted.first->callsite_id =
-          context_->storage->mutable_stack_profile_callsite_table()
-              ->Insert({depth, parent, frame_id})
-              .id;
-    }
-    parent = callsite_node_inserted.first->callsite_id;
-    frame_to_callsite = &callsite_node_inserted.first->next_frames;
+    parent = stack_profile_tracker.InternCallsite(parent, frame_id, depth);
     depth++;
   }
 
