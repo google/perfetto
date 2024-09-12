@@ -120,25 +120,23 @@ export class NotesPanel extends Panel {
 
     private renderCustomButtons(): m.Vnode<any, any>[] {
       const mithrilButtons: m.Vnode<any, any>[] = [];
-      const values = customButtonRegistry.values();
-      let result = values.next();
-      while (!result.done) {
-        if (!result.value) {
-          break;
+      for (const customButton of customButtonRegistry.values()) {
+        if (customButton.isVisible && !customButton.isVisible()) {
+          // This button is not to be shown at this time
+          continue;
         }
-        const savedValue = result.value;
+
         const htmlButton = m(
           'button',
           {
               onclick: (e: Event) => {
                   e.preventDefault();
-                  savedValue.callback();
+                  customButton.callback();
               },
           },
-          m('i.material-icons', {title: result.value.title}, result.value.icon),
+          m('i.material-icons', {title: customButton.title}, customButton.icon),
         );
         mithrilButtons.push(htmlButton);
-        result =values.next();
       }
       return mithrilButtons;
     }
