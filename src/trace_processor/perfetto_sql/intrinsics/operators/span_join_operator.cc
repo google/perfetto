@@ -226,14 +226,6 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
     auto col = cols[i];
     if (IsRequiredColumn(col.second)) {
       ++required_columns_found;
-      if (col.first != SqlValue::Type::kLong &&
-          col.first != SqlValue::Type::kNull) {
-        return base::ErrStatus(
-            "SPAN_JOIN: Invalid type for column '%s' in table %s: expect LONG "
-            "or NULL, but %s found",
-            col.second.c_str(), desc.name.c_str(),
-            sqlite::utils::SqlValueTypeToString(col.first));
-      }
     }
     if (base::Contains(col.second, ",")) {
       return base::ErrStatus("SPAN_JOIN: column '%s' cannot contain any ','",
