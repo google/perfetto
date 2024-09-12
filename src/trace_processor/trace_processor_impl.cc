@@ -71,6 +71,7 @@
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
@@ -813,6 +814,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   }
   {
     base::Status status = perfetto_sql::RegisterIntervalIntersectFunctions(
+        *engine_, context_.storage->mutable_string_pool());
+  }
+  {
+    base::Status status = perfetto_sql::RegisterCounterIntervalsFunctions(
         *engine_, context_.storage->mutable_string_pool());
   }
 
