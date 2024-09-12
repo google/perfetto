@@ -146,6 +146,7 @@ class CounterPlugin implements PerfettoPlugin {
     await this.addCounterTracks(ctx);
     await this.addGpuFrequencyTracks(ctx);
     await this.addCpuFreqLimitCounterTracks(ctx);
+    await this.addCpuTimeCounterTracks(ctx);
     await this.addCpuPerfCounterTracks(ctx);
     await this.addThreadCounterTracks(ctx);
     await this.addProcessCounterTracks(ctx);
@@ -216,6 +217,17 @@ class CounterPlugin implements PerfettoPlugin {
     `;
 
     this.addCpuCounterTracks(ctx, cpuFreqLimitCounterTracksSql, 'cpuFreqLimit');
+  }
+
+  async addCpuTimeCounterTracks(ctx: Trace): Promise<void> {
+    const cpuTimeCounterTracksSql = `
+      select name, id
+      from cpu_counter_track
+      join _counter_track_summary using (id)
+      where name glob "cpu.times.*"
+      order by name asc
+    `;
+    this.addCpuCounterTracks(ctx, cpuTimeCounterTracksSql, 'cpuTime');
   }
 
   async addCpuPerfCounterTracks(ctx: Trace): Promise<void> {
