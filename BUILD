@@ -2438,6 +2438,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/base64.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.cc",
@@ -2567,6 +2569,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_types_types",
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/types/array.h",
+        "src/trace_processor/perfetto_sql/intrinsics/types/counter.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/node.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h",
