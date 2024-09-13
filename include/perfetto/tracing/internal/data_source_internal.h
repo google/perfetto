@@ -152,11 +152,16 @@ struct DataSourceStaticState {
   // this data source.
   std::atomic<uint32_t> incremental_state_generation{};
 
+  // The caller must be sure that `n` was a valid instance at some point (either
+  // through a previous read of `valid_instances` or because the instance lock
+  // is held).
+  DataSourceState* GetUnsafe(size_t n) {
+    return reinterpret_cast<DataSourceState*>(&instances[n]);
+  }
+
   // Can be used with a cached |valid_instances| bitmap.
   DataSourceState* TryGetCached(uint32_t cached_bitmap, size_t n) {
-    return cached_bitmap & (1 << n)
-               ? reinterpret_cast<DataSourceState*>(&instances[n])
-               : nullptr;
+    return cached_bitmap & (1 << n) ? GetUnsafe(n) : nullptr;
   }
 
   DataSourceState* TryGet(size_t n) {
