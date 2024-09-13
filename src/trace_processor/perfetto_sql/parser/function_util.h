@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_FUNCTION_UTIL_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_FUNCTION_UTIL_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_FUNCTION_UTIL_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_FUNCTION_UTIL_H_
 
 #include <sqlite3.h>
 #include <optional>
@@ -64,4 +64,4 @@ base::Status MaybeBindIntArgument(sqlite3_stmt*,
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_FUNCTION_UTIL_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_FUNCTION_UTIL_H_

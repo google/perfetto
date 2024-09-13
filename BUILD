@@ -267,6 +267,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_rpc_rpc",
@@ -2419,12 +2420,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
         "src/trace_processor/perfetto_sql/engine/created_function.h",
-        "src/trace_processor/perfetto_sql/engine/function_util.cc",
-        "src/trace_processor/perfetto_sql/engine/function_util.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
-        "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.cc",
-        "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.cc",
@@ -2576,6 +2573,17 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/struct.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/value.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/parser:parser
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_parser_parser",
+    srcs = [
+        "src/trace_processor/perfetto_sql/parser/function_util.cc",
+        "src/trace_processor/perfetto_sql/parser/function_util.h",
+        "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.cc",
+        "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h",
     ],
 )
 
@@ -6318,6 +6326,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_sorter_sorter",
@@ -6511,6 +6520,7 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_rpc_httpd",
@@ -6761,6 +6771,7 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_sorter_sorter",

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 
 #include <cstdint>
 #include <variant>
@@ -22,7 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_test_utils.h"
+#include "src/trace_processor/perfetto_sql/parser/perfetto_sql_test_utils.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
