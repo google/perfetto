@@ -966,6 +966,84 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
   PERFETTO_DS_TRACE(data_source_1, ctx) {}
 }
 
+// Regression test for a `PerfettoDsImplReleaseInstanceLocked()`. Under very
+// specific circumstances, that depends on the implementation details of
+// `TracingMuxerImpl`, the following events can happen:
+// * `PerfettoDsImplGetInstanceLocked()` is called after
+//   `TracingMuxerImpl::StopDataSource_AsyncBeginImpl`, but before
+//   `TracingMuxerImpl::StopDataSource_AsyncEnd`.
+//   `PerfettoDsImplGetInstanceLocked()` succeeds and returns a valid instance.
+// * `TracingMuxerImpl::StopDataSource_AsyncEnd()` is called.
+//   `DataSourceStaticState::valid_instances` is reset.
+// * `PerfettoDsImplReleaseInstanceLocked()` is called.
+//
+// In this case `PerfettoDsImplReleaseInstanceLocked()` should work even though
+// the instance is not there in the valid_instances bitmap anymore.
+//
+// In order to reproduce the specific failure, the test makes assumptions about
+// the internal implementation (that valid_instance is changed outside of the
+// lock). If that were to change and the test would fail, the test should be
+// changed/deleted.
+TEST_F(SharedLibDataSourceTest, GetInstanceLockedStopBeforeRelease) {
+  bool ignored = false;
+  void* const kInstancePtr = &ignored;
+  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, _, kDataSource2UserArg, _))
+      .WillOnce(Return(kInstancePtr));
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
+
+  WaitableEvent inside_tracing;
+  WaitableEvent stopping;
+  WaitableEvent locked;
+  WaitableEvent fully_stopped;
+
+  std::thread t([&] {
+    PERFETTO_DS_TRACE(data_source_2, ctx) {
+      inside_tracing.Notify();
+      stopping.WaitForNotification();
+      void* arg =
+          PerfettoDsImplGetInstanceLocked(data_source_2.impl, ctx.impl.inst_id);
+      EXPECT_EQ(arg, kInstancePtr);
+      locked.Notify();
+      fully_stopped.WaitForNotification();
+      if (arg) {
+        PerfettoDsImplReleaseInstanceLocked(data_source_2.impl,
+                                            ctx.impl.inst_id);
+      }
+    }
+  });
+
+  inside_tracing.WaitForNotification();
+
+  struct PerfettoDsAsyncStopper* stopper = nullptr;
+
+  EXPECT_CALL(ds2_callbacks_, OnStop(_, _, kDataSource2UserArg, _, _))
+      .WillOnce([&](struct PerfettoDsImpl*, PerfettoDsInstanceIndex, void*,
+                    void*, struct PerfettoDsOnStopArgs* args) {
+        stopper = PerfettoDsOnStopArgsPostpone(args);
+        stopping.Notify();
+      });
+
+  tracing_session.StopAsync();
+
+  locked.WaitForNotification();
+  PerfettoDsStopDone(stopper);
+  // Wait for PerfettoDsImplTraceIterateBegin to return a nullptr tracer. This
+  // means that the valid_instances bitmap has been reset.
+  for (;;) {
+    PerfettoDsImplTracerIterator iterator =
+        PerfettoDsImplTraceIterateBegin(data_source_2.impl);
+    if (iterator.tracer == nullptr) {
+      break;
+    }
+    PerfettoDsImplTraceIterateBreak(data_source_2.impl, &iterator);
+    std::this_thread::yield();
+  }
+  fully_stopped.Notify();
+  tracing_session.WaitForStopped();
+  t.join();
+}
+
 class SharedLibProducerTest : public testing::Test {
  protected:
   void SetUp() override {
