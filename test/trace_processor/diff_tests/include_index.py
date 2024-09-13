@@ -126,8 +126,6 @@ from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
-from diff_tests.stdlib.metasql.column_list import ColumnListTests
-from diff_tests.stdlib.metasql.table_list import TableListTests
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
@@ -303,10 +301,6 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                               'StdlibCounterIntervals').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
-      *ColumnListTests(index_path, 'stdlib/column_list',
-                       'ColumnListTests').fetch(),
-      *TableListTests(index_path, 'stdlib/table_list',
-                      'TableListTests').fetch(),
       *Memory(index_path, 'stdlib/linux', 'Memory').fetch(),
       *PreludeMathFunctions(index_path, 'stdlib/prelude',
                             'PreludeMathFunctions').fetch(),

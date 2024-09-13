@@ -86,6 +86,7 @@ source_set("functions") {
     "../../../util:sql_argument",
     "../../../util:stdlib",
     "../../engine",
+    "../../parser",
     "../types",
   ]
   public_deps = [ ":interface" ]

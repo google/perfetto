@@ -1,4 +1,4 @@
-# Copyright (C) 2024 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,43 +16,48 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-source_set("preprocessor") {
+source_set("parser") {
   sources = [
-    "perfetto_sql_preprocessor.cc",
-    "perfetto_sql_preprocessor.h",
+    "function_util.cc",
+    "function_util.h",
+    "perfetto_sql_parser.cc",
+    "perfetto_sql_parser.h",
   ]
   deps = [
-    ":grammar",
+    "../..:metatrace",
     "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
     "../../../base",
     "../../sqlite",
     "../../util",
+    "../../util:sql_argument",
+    "../preprocessor",
   ]
-}
-
-source_set("grammar") {
-  sources = [
-    "preprocessor_grammar.c",
-    "preprocessor_grammar.h",
-    "preprocessor_grammar_interface.h",
-  ]
-  deps = [ "../../../../gn:default_deps" ]
-  visibility = [ ":preprocessor" ]
-  if (perfetto_build_standalone) {
-    configs -= [ "//gn/standalone:extra_warnings" ]
-  }
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "perfetto_sql_preprocessor_unittest.cc" ]
+  sources = [ "perfetto_sql_parser_unittest.cc" ]
   deps = [
-    ":preprocessor",
+    ":parser",
+    ":test_utils",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../../gn:sqlite",
     "../../../base",
     "../../sqlite",
-    "../parser:test_utils",
+  ]
+}
+
+perfetto_unittest_source_set("test_utils") {
+  testonly = true
+  sources = [ "perfetto_sql_test_utils.h" ]
+  deps = [
+    ":parser",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../gn:sqlite",
+    "../../../base",
+    "../../sqlite",
   ]
 }

@@ -21,8 +21,8 @@
 #include <stack>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
