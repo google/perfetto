@@ -540,7 +540,7 @@ static void yy_destructor(
 /********* Begin destructor definitions ***************************************/
     case 17: /* applylist */
 {
- OnPreprocessorFreeApplyList((yypminor->yy2)); 
+ OnPreprocessorFreeApplyList(state, (yypminor->yy2)); 
 }
       break;
 /********* End destructor definitions *****************************************/

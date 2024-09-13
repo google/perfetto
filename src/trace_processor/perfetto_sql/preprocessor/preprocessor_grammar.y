@@ -48,7 +48,7 @@ apply ::= APPLY COMMA|AND(J) TRUE|FALSE(P) ID(X) LP applylist(Y) RP LP applylist
 }
 
 %type applylist {struct PreprocessorGrammarApplyList*}
-%destructor applylist { OnPreprocessorFreeApplyList($$); }
+%destructor applylist { OnPreprocessorFreeApplyList(state, $$); }
 applylist(A) ::= applylist(F) COMMA tokenlist(X). {
   A = OnPreprocessorAppendApplyList(F, &X);
 }
