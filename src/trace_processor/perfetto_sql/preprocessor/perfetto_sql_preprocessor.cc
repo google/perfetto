@@ -19,53 +19,126 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <list>
+#include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar_interface.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 namespace {
 
-enum IntrinsicMacro {
-  kStringify,
-  kTokenZipJoin,
-  kPrefixedTokenZipJoin,
-  kTokenApply,
-  kTokenMapJoin,
-  kTokenMapJoinWithCapture,
-  kComma,
-  kOther
+using State = PreprocessorGrammarState;
+
+struct Preprocessor {
+ public:
+  explicit Preprocessor(State* state)
+      : parser_(PreprocessorGrammarParseAlloc(malloc, state)) {}
+  ~Preprocessor() { PreprocessorGrammarParseFree(parser_, free); }
+
+  void Parse(int token_type, PreprocessorGrammarToken token) {
+    PreprocessorGrammarParse(parser_, token_type, token);
+  }
+
+ private:
+  void* parser_;
 };
 
-IntrinsicMacro MacroNameToEnum(const std::string& macro_name) {
-  if (macro_name == "__intrinsic_stringify")
-    return kStringify;
-  if (macro_name == "__intrinsic_token_zip_join")
-    return kTokenZipJoin;
-  if (macro_name == "__intrinsic_prefixed_token_zip_join")
-    return kPrefixedTokenZipJoin;
-  if (macro_name == "__intrinsic_token_apply")
-    return kTokenApply;
-  if (macro_name == "__intrinsic_token_map_join")
-    return kTokenMapJoin;
-  if (macro_name == "__intrinsic_token_map_join_with_capture")
-    return kTokenMapJoinWithCapture;
-  if (macro_name == "__intrinsic_token_comma")
-    return kComma;
+struct Stringify {
+  bool ignore_table;
+};
+struct Apply {
+  int join_token;
+  int prefix_token;
+};
+using MacroImpl =
+    std::variant<PerfettoSqlPreprocessor::Macro*, Stringify, Apply>;
 
-  return kOther;
+// Synthetic "stackframe" representing the processing of a single piece of SQL.
+struct Frame {
+  struct Root {};
+  struct Rewrite {
+    SqliteTokenizer& tokenizer;
+    SqlSource::Rewriter& rewriter;
+    SqliteTokenizer::Token start;
+    SqliteTokenizer::Token end;
+  };
+  struct Append {
+    std::vector<SqlSource>& result;
+  };
+  using Type = std::variant<Root, Rewrite, Append>;
+  struct ActiveMacro {
+    std::string name;
+    MacroImpl impl;
+    std::vector<SqlSource> args;
+    uint32_t nested_macro_count;
+    std::unordered_set<std::string> seen_variables;
+  };
+  enum VariableHandling { kLookup, kLookupOrIgnore, kIgnore };
+
+  explicit Frame(Type _type,
+                 VariableHandling _var_handling,
+                 State* s,
+                 const SqlSource& source)
+      : type(_type),
+        var_handling(_var_handling),
+        preprocessor(s),
+        tokenizer(source),
+        rewriter(source),
+        substituitions(&owned_substituitions) {}
+  Frame(const Frame&) = delete;
+  Frame& operator=(const Frame&) = delete;
+  Frame(Frame&&) = delete;
+  Frame& operator=(Frame&&) = delete;
+
+  Type type;
+  VariableHandling var_handling;
+  Preprocessor preprocessor;
+  SqliteTokenizer tokenizer;
+
+  bool seen_semicolon = false;
+  SqlSource::Rewriter rewriter;
+  bool ignore_rewrite = false;
+
+  std::optional<ActiveMacro> active_macro;
+
+  base::FlatHashMap<std::string, SqlSource> owned_substituitions;
+  base::FlatHashMap<std::string, SqlSource>* substituitions;
+};
+
+struct ErrorToken {
+  SqliteTokenizer::Token token;
+  std::string message;
+};
+
+extern "C" struct PreprocessorGrammarState {
+  std::list<Frame> stack;
+  const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>& macros;
+  std::optional<ErrorToken> error;
+};
+
+extern "C" struct PreprocessorGrammarApplyList {
+  std::vector<PreprocessorGrammarTokenBounds> args;
+};
+
+SqliteTokenizer::Token GrammarTokenToTokenizerToken(
+    const PreprocessorGrammarToken& token) {
+  return SqliteTokenizer::Token{std::string_view(token.ptr, token.n),
+                                SqliteTokenType::TK_ILLEGAL};
 }
 
 base::Status ErrorAtToken(const SqliteTokenizer& tokenizer,
@@ -75,115 +148,298 @@ base::Status ErrorAtToken(const SqliteTokenizer& tokenizer,
   return base::ErrStatus("%s%s", traceback.c_str(), error);
 }
 
-struct InvocationArg {
-  std::optional<SqlSource> arg;
-  bool has_more;
-};
-
-base::StatusOr<InvocationArg> ParseMacroInvocationArg(
-    SqliteTokenizer& tokenizer,
-    SqliteTokenizer::Token& tok,
-    bool has_prev_args) {
-  uint32_t nested_parens = 0;
-  bool seen_token_in_arg = false;
-  auto start = tokenizer.NextNonWhitespace();
-  for (tok = start;; tok = tokenizer.NextNonWhitespace()) {
-    if (tok.IsTerminal()) {
-      if (tok.token_type == SqliteTokenType::TK_SEMI) {
-        // TODO(b/290185551): add a link to macro documentation.
-        return ErrorAtToken(tokenizer, tok,
-                            "Semi-colon is not allowed in macro invocation");
-      }
-      // TODO(b/290185551): add a link to macro documentation.
-      return ErrorAtToken(tokenizer, tok, "Macro invocation not complete");
-    }
-
-    bool is_arg_terminator = tok.token_type == SqliteTokenType::TK_RP ||
-                             tok.token_type == SqliteTokenType::TK_COMMA;
-    if (nested_parens == 0 && is_arg_terminator) {
-      bool token_required =
-          has_prev_args || tok.token_type != SqliteTokenType::TK_RP;
-      if (!seen_token_in_arg && token_required) {
-        // TODO(b/290185551): add a link to macro documentation.
-        return ErrorAtToken(tokenizer, tok, "Macro arg is empty");
-      }
-      return InvocationArg{
-          seen_token_in_arg ? std::make_optional(tokenizer.Substr(start, tok))
-                            : std::optional<SqlSource>(std::nullopt),
-          tok.token_type == SqliteTokenType::TK_COMMA,
-      };
-    }
-    seen_token_in_arg = true;
-
-    if (tok.token_type == SqliteTokenType::TK_LP) {
-      nested_parens++;
-      continue;
-    }
-    if (tok.token_type == SqliteTokenType::TK_RP) {
-      nested_parens--;
-      continue;
-    }
+std::vector<std::string> SqlSourceVectorToString(
+    const std::vector<SqlSource>& vec) {
+  std::vector<std::string> pieces;
+  pieces.reserve(vec.size());
+  for (const auto& list : vec) {
+    pieces.emplace_back(list.sql());
   }
+  return pieces;
 }
 
-base::StatusOr<std::optional<SqlSource>> ExecuteStringify(
-    const SqliteTokenizer& tokenizer,
-    const SqliteTokenizer::Token& name_token,
-    const std::vector<SqlSource>& args) {
-  if (args.empty()) {
-    return ErrorAtToken(tokenizer, name_token,
-                        "stringify: stringify must not be empty");
-  }
-
-  // Track the set of variables that, even if we see during stringify, we ignore
-  // and stringify them anyway.
-  std::unordered_set<std::string> ignored_variables;
-  for (uint32_t i = 1; i < args.size(); ++i) {
-    ignored_variables.emplace(args[i].sql());
-  }
-
-  // Ensure that we don't stringifiy any SQL variables present (unless they were
-  // explcitily marked as ignored).
-  SqliteTokenizer t(args[0]);
-  for (auto tok = t.NextNonWhitespace(); !tok.IsTerminal();
-       tok = t.NextNonWhitespace()) {
-    if (tok.token_type == SqliteTokenType::TK_VARIABLE &&
-        !ignored_variables.count(std::string(tok.str.substr(1)))) {
-      return {std::nullopt};
-    }
-  }
-  std::string res = "'" + args[0].sql() + "'";
-  return {SqlSource::FromTraceProcessorImplementation(std::move(res))};
+std::string_view BoundsToStringView(const PreprocessorGrammarTokenBounds& b) {
+  return {b.start.ptr, static_cast<size_t>(b.end.ptr + b.end.n - b.start.ptr)};
 }
 
-void RewriteIntrinsicMacro(const std::string& macro_name,
-                           std::optional<SqlSource>& res,
-                           std::vector<SqlSource>& token_list,
-                           SqliteTokenizer& tokenizer,
-                           SqlSource::Rewriter& rewriter,
-                           SqliteTokenizer::Token prev,
-                           SqliteTokenizer::Token tok) {
-  if (res) {
-    tokenizer.Rewrite(rewriter, prev, tok, *std::move(res),
-                      SqliteTokenizer::EndToken::kInclusive);
+void RewriteIntrinsicMacro(Frame& frame,
+                           SqliteTokenizer::Token name,
+                           SqliteTokenizer::Token rp) {
+  const auto& macro = *frame.active_macro;
+  frame.tokenizer.Rewrite(
+      frame.rewriter, name, rp,
+      SqlSource::FromTraceProcessorImplementation(
+          macro.name + "!(" +
+          base::Join(SqlSourceVectorToString(macro.args), ", ") + ")"),
+      SqliteTokenizer::EndToken::kInclusive);
+}
+
+void ExecuteSqlMacro(State* state,
+                     Frame& frame,
+                     Frame::ActiveMacro& macro,
+                     SqliteTokenizer::Token name,
+                     SqliteTokenizer::Token rp) {
+  auto& sql_macro = std::get<PerfettoSqlPreprocessor::Macro*>(macro.impl);
+  if (macro.args.size() != sql_macro->args.size()) {
+    state->error = ErrorToken{
+        name,
+        base::ErrStatus(
+            "wrong number of macro arguments, expected %zu actual %zu",
+            sql_macro->args.size(), macro.args.size())
+            .message(),
+    };
     return;
   }
-
-  // We failed to rewrite because a variable was still present in SQL.
-  // Just readd the stringify SQL with newly expanded token list.
-  std::vector<std::string> pieces;
-  pieces.reserve(token_list.size());
-  for (const auto& list : token_list) {
-    if (base::TrimWhitespace(list.sql()) == ",") {
-      pieces.emplace_back("__intrinsic_token_comma!()");
-    } else {
-      pieces.emplace_back(list.sql());
-    }
+  state->stack.emplace_back(
+      Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp}, Frame::kLookup,
+      state, sql_macro->sql);
+  auto& macro_frame = state->stack.back();
+  for (uint32_t i = 0; i < sql_macro->args.size(); ++i) {
+    macro_frame.owned_substituitions.Insert(sql_macro->args[i],
+                                            std::move(macro.args[i]));
   }
-  tokenizer.Rewrite(rewriter, prev, tok,
-                    SqlSource::FromTraceProcessorImplementation(
-                        macro_name + "!(" + base::Join(pieces, ", ") + ")"),
-                    SqliteTokenizer::EndToken::kInclusive);
+}
+
+void ExecuteStringify(State* state,
+                      Frame& frame,
+                      Frame::ActiveMacro& macro,
+                      SqliteTokenizer::Token name,
+                      SqliteTokenizer::Token rp) {
+  auto& stringify = std::get<Stringify>(macro.impl);
+  if (macro.args.size() != 1) {
+    state->error = ErrorToken{
+        name,
+        base::ErrStatus(
+            "stringify: must specify exactly 1 argument, actual %zu",
+            macro.args.size())
+            .message(),
+    };
+    return;
+  }
+  bool can_stringify =
+      macro.seen_variables.empty() ||
+      (stringify.ignore_table && macro.seen_variables.size() == 1 &&
+       macro.seen_variables.count("table"));
+  if (!can_stringify) {
+    RewriteIntrinsicMacro(frame, name, rp);
+    return;
+  }
+  auto res = SqlSource::FromTraceProcessorImplementation(
+      "'" + macro.args[0].sql() + "'");
+  frame.tokenizer.Rewrite(frame.rewriter, name, rp, std::move(res),
+                          SqliteTokenizer::EndToken::kInclusive);
+}
+
+void ExecuteApply(State* state,
+                  Frame& frame,
+                  Frame::ActiveMacro& macro,
+                  SqliteTokenizer::Token name,
+                  SqliteTokenizer::Token rp) {
+  auto& apply = std::get<Apply>(macro.impl);
+  if (!macro.seen_variables.empty()) {
+    RewriteIntrinsicMacro(frame, name, rp);
+    return;
+  }
+  state->stack.emplace_back(
+      Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp},
+      Frame::VariableHandling::kIgnore, state,
+      SqlSource::FromTraceProcessorImplementation(
+          base::Join(SqlSourceVectorToString(macro.args), " ")));
+
+  auto& expansion_frame = state->stack.back();
+  expansion_frame.preprocessor.Parse(
+      PPTK_APPLY, PreprocessorGrammarToken{nullptr, 0, PPTK_APPLY});
+  expansion_frame.preprocessor.Parse(
+      apply.join_token, PreprocessorGrammarToken{nullptr, 0, apply.join_token});
+  expansion_frame.preprocessor.Parse(
+      apply.prefix_token,
+      PreprocessorGrammarToken{nullptr, 0, apply.prefix_token});
+  expansion_frame.ignore_rewrite = true;
+}
+
+extern "C" void OnPreprocessorSyntaxError(State* state,
+                                          PreprocessorGrammarToken* token) {
+  state->error = {GrammarTokenToTokenizerToken(*token),
+                  "preprocessor syntax error"};
+}
+
+extern "C" void OnPreprocessorApply(PreprocessorGrammarState* state,
+                                    PreprocessorGrammarToken* name,
+                                    PreprocessorGrammarToken* join,
+                                    PreprocessorGrammarToken* prefix,
+                                    PreprocessorGrammarApplyList* raw_a,
+                                    PreprocessorGrammarApplyList* raw_b) {
+  std::unique_ptr<PreprocessorGrammarApplyList> a(raw_a);
+  std::unique_ptr<PreprocessorGrammarApplyList> b(raw_b);
+  auto& frame = state->stack.back();
+  size_t size = std::min(a->args.size(), b ? b->args.size() : a->args.size());
+  if (size == 0) {
+    auto& rewrite = std::get<Frame::Rewrite>(frame.type);
+    rewrite.tokenizer.Rewrite(rewrite.rewriter, rewrite.start, rewrite.end,
+                              SqlSource::FromTraceProcessorImplementation(""),
+                              SqliteTokenizer::EndToken::kInclusive);
+    return;
+  }
+  std::string macro(name->ptr, name->n);
+  std::vector<std::string> args;
+  for (uint32_t i = 0; i < size; ++i) {
+    std::string arg = macro;
+    arg.append("!(").append(BoundsToStringView(a->args[i]));
+    if (b) {
+      arg.append(",").append(BoundsToStringView(b->args[i]));
+    }
+    arg.append(")");
+    args.emplace_back(std::move(arg));
+  }
+  std::string joiner = join->major == PPTK_AND ? " AND " : " , ";
+  std::string res = prefix->major == PPTK_TRUE ? joiner : "";
+  res.append(base::Join(args, joiner));
+  state->stack.emplace_back(
+      frame.type, Frame::VariableHandling::kLookupOrIgnore, state,
+      SqlSource::FromTraceProcessorImplementation(std::move(res)));
+}
+
+extern "C" void OnPreprocessorVariable(State* state,
+                                       PreprocessorGrammarToken* var) {
+  if (var->n == 0 || var->ptr[0] != '$') {
+    state->error = {GrammarTokenToTokenizerToken(*var),
+                    "variable must start with '$'"};
+    return;
+  }
+  auto& frame = state->stack.back();
+  if (frame.active_macro) {
+    std::string name(var->ptr + 1, var->n - 1);
+    if (!frame.substituitions->Find(name)) {
+      frame.active_macro->seen_variables.insert(name);
+    }
+    return;
+  }
+  switch (frame.var_handling) {
+    case Frame::kLookup:
+    case Frame::kLookupOrIgnore: {
+      auto* it =
+          frame.substituitions->Find(std::string(var->ptr + 1, var->n - 1));
+      if (!it) {
+        if (frame.var_handling == Frame::kLookup) {
+          state->error = {GrammarTokenToTokenizerToken(*var),
+                          "variable not defined"};
+        }
+        return;
+      }
+      frame.tokenizer.RewriteToken(frame.rewriter,
+                                   GrammarTokenToTokenizerToken(*var), *it);
+      break;
+    }
+    case Frame::kIgnore:
+      break;
+  }
+}
+
+extern "C" void OnPreprocessorMacroId(State* state,
+                                      PreprocessorGrammarToken* name_tok) {
+  auto& invocation = state->stack.back();
+  if (invocation.active_macro) {
+    invocation.active_macro->nested_macro_count++;
+    return;
+  }
+  std::string name(name_tok->ptr, name_tok->n);
+  MacroImpl impl;
+  if (name == "__intrinsic_stringify") {
+    impl = Stringify();
+  } else if (name == "__intrinsic_stringify_ignore_table") {
+    impl = Stringify{true};
+  } else if (name == "__intrinsic_token_apply") {
+    impl = Apply{PPTK_COMMA, PPTK_FALSE};
+  } else if (name == "__intrinsic_token_apply_prefix") {
+    impl = Apply{PPTK_COMMA, PPTK_TRUE};
+  } else if (name == "__intrinsic_token_apply_and") {
+    impl = Apply{PPTK_AND, PPTK_FALSE};
+  } else if (name == "__intrinsic_token_apply_and_prefix") {
+    impl = Apply{PPTK_AND, PPTK_TRUE};
+  } else {
+    auto* sql_macro = state->macros.Find(name);
+    if (!sql_macro) {
+      state->error = {GrammarTokenToTokenizerToken(*name_tok),
+                      "no such macro defined"};
+      return;
+    }
+    impl = sql_macro;
+  }
+  invocation.active_macro =
+      Frame::ActiveMacro{std::move(name), impl, {}, 0, {}};
+}
+
+extern "C" void OnPreprocessorMacroArg(State* state,
+                                       PreprocessorGrammarTokenBounds* arg) {
+  auto& frame = state->stack.back();
+  auto& macro = *frame.active_macro;
+  if (macro.nested_macro_count > 0) {
+    return;
+  }
+  auto start_token = GrammarTokenToTokenizerToken(arg->start);
+  auto end_token = GrammarTokenToTokenizerToken(arg->end);
+  state->stack.emplace_back(
+      Frame::Append{macro.args}, frame.var_handling, state,
+      frame.tokenizer.Substr(start_token, end_token,
+                             SqliteTokenizer::EndToken::kInclusive));
+
+  auto& arg_frame = state->stack.back();
+  arg_frame.substituitions = frame.substituitions;
+}
+
+extern "C" void OnPreprocessorMacroEnd(State* state,
+                                       PreprocessorGrammarToken* name,
+                                       PreprocessorGrammarToken* rp) {
+  auto& frame = state->stack.back();
+  auto& macro = *frame.active_macro;
+  if (macro.nested_macro_count > 0) {
+    --macro.nested_macro_count;
+    return;
+  }
+  switch (macro.impl.index()) {
+    case base::variant_index<MacroImpl, PerfettoSqlPreprocessor::Macro*>():
+      ExecuteSqlMacro(state, frame, macro, GrammarTokenToTokenizerToken(*name),
+                      GrammarTokenToTokenizerToken(*rp));
+      break;
+    case base::variant_index<MacroImpl, Stringify>():
+      ExecuteStringify(state, frame, macro, GrammarTokenToTokenizerToken(*name),
+                       GrammarTokenToTokenizerToken(*rp));
+      break;
+    case base::variant_index<MacroImpl, Apply>():
+      ExecuteApply(state, frame, macro, GrammarTokenToTokenizerToken(*name),
+                   GrammarTokenToTokenizerToken(*rp));
+      break;
+    default:
+      PERFETTO_FATAL("Unknown variant type");
+  }
+  frame.active_macro = std::nullopt;
+}
+
+extern "C" void OnPreprocessorEnd(State* state) {
+  auto& frame = state->stack.back();
+  PERFETTO_CHECK(!frame.active_macro);
+
+  if (frame.ignore_rewrite) {
+    return;
+  }
+  switch (frame.type.index()) {
+    case base::variant_index<Frame::Type, Frame::Append>(): {
+      auto& append = std::get<Frame::Append>(frame.type);
+      append.result.push_back(std::move(frame.rewriter).Build());
+      break;
+    }
+    case base::variant_index<Frame::Type, Frame::Rewrite>(): {
+      auto& rewrite = std::get<Frame::Rewrite>(frame.type);
+      rewrite.tokenizer.Rewrite(rewrite.rewriter, rewrite.start, rewrite.end,
+                                std::move(frame.rewriter).Build(),
+                                SqliteTokenizer::EndToken::kInclusive);
+      break;
+    }
+    case base::variant_index<Frame::Type, Frame::Root>():
+      break;
+    default:
+      PERFETTO_FATAL("Unknown frame type");
+  }
 }
 
 }  // namespace
@@ -211,398 +467,71 @@ bool PerfettoSqlPreprocessor::NextStatement() {
   SqlSource stmt =
       global_tokenizer_.Substr(tok, global_tokenizer_.NextTerminal(),
                                SqliteTokenizer::EndToken::kInclusive);
-  auto stmt_or = RewriteInternal(stmt, {});
-  if (stmt_or.ok()) {
-    statement_ = std::move(*stmt_or);
-    return true;
+  State s{{}, *macros_, {}};
+  s.stack.emplace_back(Frame::Root(), Frame::kIgnore, &s, std::move(stmt));
+  for (;;) {
+    auto* frame = &s.stack.back();
+    auto& tk = frame->tokenizer;
+    SqliteTokenizer::Token t = tk.NextNonWhitespace();
+    int token_type;
+    if (t.str.empty()) {
+      token_type = frame->seen_semicolon ? 0 : PPTK_SEMI;
+      frame->seen_semicolon = true;
+    } else if (t.token_type == SqliteTokenType::TK_SEMI) {
+      token_type = PPTK_SEMI;
+      frame->seen_semicolon = true;
+    } else if (t.token_type == SqliteTokenType::TK_ILLEGAL) {
+      if (t.str.size() == 1 && t.str[0] == '!') {
+        token_type = PPTK_EXCLAIM;
+      } else {
+        status_ = ErrorAtToken(tk, t, "illegal token");
+        return false;
+      }
+    } else if (t.token_type == SqliteTokenType::TK_ID) {
+      token_type = PPTK_ID;
+    } else if (t.token_type == SqliteTokenType::TK_LP) {
+      token_type = PPTK_LP;
+    } else if (t.token_type == SqliteTokenType::TK_RP) {
+      token_type = PPTK_RP;
+    } else if (t.token_type == SqliteTokenType::TK_COMMA) {
+      token_type = PPTK_COMMA;
+    } else if (t.token_type == SqliteTokenType::TK_VARIABLE) {
+      token_type = PPTK_VARIABLE;
+    } else {
+      token_type = PPTK_OPAQUE;
+    }
+    frame->preprocessor.Parse(
+        token_type,
+        PreprocessorGrammarToken{t.str.data(), t.str.size(), token_type});
+    if (s.error) {
+      status_ = ErrorAtToken(tk, s.error->token, s.error->message.c_str());
+      return false;
+    }
+    if (token_type == 0) {
+      if (s.stack.size() == 1) {
+        statement_ = std::move(frame->rewriter).Build();
+        return true;
+      }
+      s.stack.pop_back();
+      frame = &s.stack.back();
+    }
   }
-  status_ = stmt_or.status();
-  return false;
 }
 
-base::StatusOr<SqlSource> PerfettoSqlPreprocessor::RewriteInternal(
-    const SqlSource& source,
-    const std::unordered_map<std::string, SqlSource>& arg_bindings) {
-  SqlSource::Rewriter rewriter(source);
-  SqliteTokenizer tokenizer(source);
-  for (SqliteTokenizer::Token tok = tokenizer.NextNonWhitespace(), prev;;
-       prev = tok, tok = tokenizer.NextNonWhitespace()) {
-    if (tok.IsTerminal()) {
-      break;
-    }
-    if (tok.token_type == SqliteTokenType::TK_VARIABLE &&
-        !seen_macros_.empty()) {
-      PERFETTO_CHECK(tok.str.size() >= 2);
-      if (tok.str[0] != '$') {
-        return ErrorAtToken(tokenizer, tok, "Variables must start with $");
-      }
-      auto binding_it = arg_bindings.find(std::string(tok.str.substr(1)));
-      if (binding_it == arg_bindings.end()) {
-        // TODO(lalitm): reenable making this an error once we actually pass
-        // macros around in graph_scan instead of bare-SQL.
-        // return ErrorAtToken(tokenizer, tok, "Variable not found");
-        continue;
-      }
-      tokenizer.RewriteToken(rewriter, tok, binding_it->second);
-      continue;
-    }
-    if (tok.token_type != SqliteTokenType::TK_ILLEGAL || tok.str != "!") {
-      continue;
-    }
-
-    const auto& name_token = prev;
-    if (name_token.token_type == SqliteTokenType::TK_VARIABLE) {
-      // TODO(b/290185551): add a link to macro documentation.
-      return ErrorAtToken(tokenizer, name_token,
-                          "Macro name cannot be a variable");
-    }
-    if (name_token.token_type != SqliteTokenType::TK_ID) {
-      // TODO(b/290185551): add a link to macro documentation.
-      return ErrorAtToken(tokenizer, name_token, "Macro invocation is invalid");
-    }
-
-    // Go to the opening parenthesis of the macro invocation.
-    tok = tokenizer.NextNonWhitespace();
-
-    std::string macro_name(name_token.str);
-    IntrinsicMacro macro_enum = MacroNameToEnum(macro_name);
-    ASSIGN_OR_RETURN(std::vector<SqlSource> token_list,
-                     ParseTokenList(tokenizer, tok, arg_bindings));
-
-    // Non intrinsic macro.
-    if (macro_enum == kOther) {
-      ASSIGN_OR_RETURN(SqlSource invocation,
-                       ExecuteMacroInvocation(tokenizer, prev, macro_name,
-                                              std::move(token_list)));
-      tokenizer.Rewrite(rewriter, prev, tok, std::move(invocation),
-                        SqliteTokenizer::EndToken::kInclusive);
-      continue;
-    }
-
-    // Token comma instrinsic macro requires special handling.
-    if (macro_enum == kComma) {
-      if (!token_list.empty()) {
-        return ErrorAtToken(tokenizer, name_token,
-                            "token_comma: no arguments allowd");
-      }
-      tokenizer.Rewrite(rewriter, prev, tok,
-                        SqlSource::FromTraceProcessorImplementation(","),
-                        SqliteTokenizer::EndToken::kInclusive);
-      continue;
-    }
-
-    // Intrinsic macros.
-    std::optional<SqlSource> res;
-    switch (macro_enum) {
-      case kStringify: {
-        ASSIGN_OR_RETURN(res,
-                         ExecuteStringify(tokenizer, name_token, token_list));
-        break;
-      }
-      case kTokenZipJoin: {
-        ASSIGN_OR_RETURN(
-            res, ExecuteTokenZipJoin(tokenizer, name_token, token_list, false));
-        break;
-      }
-      case kPrefixedTokenZipJoin: {
-        ASSIGN_OR_RETURN(
-            res, ExecuteTokenZipJoin(tokenizer, name_token, token_list, true));
-        break;
-      }
-      case kTokenMapJoin: {
-        ASSIGN_OR_RETURN(
-            res, ExecuteTokenMapJoin(tokenizer, name_token, token_list));
-        break;
-      }
-      case kTokenMapJoinWithCapture: {
-        ASSIGN_OR_RETURN(res, ExecuteTokenMapJoinWithCapture(
-                                  tokenizer, name_token, token_list));
-
-        break;
-      }
-
-      case kTokenApply: {
-        ASSIGN_OR_RETURN(res,
-                         ExecuteTokenApply(tokenizer, name_token, token_list));
-        break;
-      }
-      case kComma:
-      case kOther:
-        PERFETTO_FATAL("Shouldn't be reached");
-    }
-    RewriteIntrinsicMacro(macro_name, res, token_list, tokenizer, rewriter,
-                          prev, tok);
-  }
-  return std::move(rewriter).Build();
+extern "C" PreprocessorGrammarApplyList* OnPreprocessorCreateApplyList() {
+  return std::make_unique<PreprocessorGrammarApplyList>().release();
 }
 
-base::StatusOr<std::vector<SqlSource>> PerfettoSqlPreprocessor::ParseTokenList(
-    SqliteTokenizer& tokenizer,
-    SqliteTokenizer::Token& tok,
-    const std::unordered_map<std::string, SqlSource>& bindings) {
-  if (tok.token_type != SqliteTokenType::TK_LP) {
-    return ErrorAtToken(tokenizer, tok, "( expected to open token list");
-  }
-  std::vector<SqlSource> tokens;
-  bool has_more = true;
-  while (has_more) {
-    ASSIGN_OR_RETURN(InvocationArg invocation_arg,
-                     ParseMacroInvocationArg(tokenizer, tok, !tokens.empty()));
-    if (invocation_arg.arg) {
-      ASSIGN_OR_RETURN(SqlSource res,
-                       RewriteInternal(invocation_arg.arg.value(), bindings));
-      tokens.emplace_back(std::move(res));
-    }
-    has_more = invocation_arg.has_more;
-  }
-  return tokens;
+extern "C" PreprocessorGrammarApplyList* OnPreprocessorAppendApplyList(
+    PreprocessorGrammarApplyList* list,
+    PreprocessorGrammarTokenBounds* bounds) {
+  list->args.push_back(*bounds);
+  return list;
 }
 
-base::StatusOr<SqlSource> PerfettoSqlPreprocessor::ExecuteMacroInvocation(
-    const SqliteTokenizer& tokenizer,
-    const SqliteTokenizer::Token& name_token,
-    const std::string& macro_name,
-    std::vector<SqlSource> token_list) {
-  Macro* macro = macros_->Find(macro_name);
-  if (!macro) {
-    // TODO(b/290185551): add a link to macro documentation.
-    base::StackString<1024> err("Macro %s does not exist", macro_name.c_str());
-    return ErrorAtToken(tokenizer, name_token, err.c_str());
-  }
-  if (seen_macros_.count(macro_name)) {
-    // TODO(b/290185551): add a link to macro documentation.
-    return ErrorAtToken(tokenizer, name_token,
-                        "Macros cannot be recursive or mutually recursive");
-  }
-  if (token_list.size() < macro->args.size()) {
-    // TODO(lalitm): add a link to macro documentation.
-    return ErrorAtToken(tokenizer, name_token,
-                        "Macro invoked with too few args");
-  }
-  if (token_list.size() > macro->args.size()) {
-    // TODO(lalitm): add a link to macro documentation.
-    return ErrorAtToken(tokenizer, name_token,
-                        "Macro invoked with too many args");
-  }
-  std::unordered_map<std::string, SqlSource> inner_bindings;
-  for (auto& t : token_list) {
-    inner_bindings.emplace(macro->args[inner_bindings.size()], std::move(t));
-  }
-  PERFETTO_CHECK(inner_bindings.size() == macro->args.size());
-
-  seen_macros_.emplace(macro->name);
-  ASSIGN_OR_RETURN(SqlSource res, RewriteInternal(macro->sql, inner_bindings));
-  seen_macros_.erase(macro->name);
-  return res;
-}
-
-base::StatusOr<std::optional<SqlSource>>
-PerfettoSqlPreprocessor::ExecuteTokenZipJoin(
-    const SqliteTokenizer& tokenizer,
-    const SqliteTokenizer::Token& name_token,
-    std::vector<SqlSource> token_list,
-    bool prefixed) {
-  if (token_list.size() != 4) {
-    return ErrorAtToken(tokenizer, name_token,
-                        "token_zip_join: must have exactly four args");
-  }
-
-  SqliteTokenizer first_tokenizer(std::move(token_list[0]));
-  SqliteTokenizer::Token inner_tok = first_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-  ASSIGN_OR_RETURN(std::vector<SqlSource> first_sources,
-                   ParseTokenList(first_tokenizer, inner_tok, {}));
-
-  SqliteTokenizer second_tokenizer(std::move(token_list[1]));
-  inner_tok = second_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-  ASSIGN_OR_RETURN(std::vector<SqlSource> second_sources,
-                   ParseTokenList(second_tokenizer, inner_tok, {}));
-
-  SqliteTokenizer name_tokenizer(token_list[2]);
-  inner_tok = name_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-
-  size_t zip_count = std::min(first_sources.size(), second_sources.size());
-  std::vector<std::string> res;
-  for (uint32_t i = 0; i < zip_count; ++i) {
-    ASSIGN_OR_RETURN(
-        SqlSource invocation_res,
-        ExecuteMacroInvocation(tokenizer, name_token, token_list[2].sql(),
-                               {first_sources[i], second_sources[i]}));
-    res.push_back(invocation_res.sql());
-  }
-
-  if (res.empty()) {
-    return {SqlSource::FromTraceProcessorImplementation("")};
-  }
-
-  std::string zipped = base::Join(res, " " + token_list[3].sql() + " ");
-  if (prefixed) {
-    zipped = " " + token_list[3].sql() + " " + zipped;
-  }
-  return {SqlSource::FromTraceProcessorImplementation(zipped)};
-}
-
-base::StatusOr<std::optional<SqlSource>>
-PerfettoSqlPreprocessor::ExecuteTokenApply(
-    const SqliteTokenizer& tokenizer,
-    const SqliteTokenizer::Token& name_token,
-    std::vector<SqlSource> token_list) {
-  if (token_list.size() != 3) {
-    return ErrorAtToken(tokenizer, name_token,
-                        "token_apply: must have exactly three args");
-  }
-
-  SqliteTokenizer arg_list_tokenizer(token_list[0]);
-  SqliteTokenizer::Token inner_tok = arg_list_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-  ASSIGN_OR_RETURN(std::vector<SqlSource> arg_list_sources,
-                   ParseTokenList(arg_list_tokenizer, inner_tok, {}));
-
-  SqliteTokenizer name_tokenizer(token_list[1]);
-  inner_tok = name_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-
-  std::vector<std::string> res;
-  for (const auto& arg_list_source : arg_list_sources) {
-    SqliteTokenizer args_tokenizer(arg_list_source);
-    inner_tok = args_tokenizer.NextNonWhitespace();
-    if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-      return {std::nullopt};
-    }
-
-    ASSIGN_OR_RETURN(std::vector<SqlSource> args_sources,
-                     ParseTokenList(args_tokenizer, inner_tok, {}));
-
-    ASSIGN_OR_RETURN(SqlSource invocation_res,
-                     ExecuteMacroInvocation(tokenizer, name_token,
-                                            token_list[1].sql(), args_sources));
-    res.push_back(invocation_res.sql());
-  }
-
-  if (res.empty()) {
-    return {SqlSource::FromTraceProcessorImplementation("")};
-  }
-
-  std::string zipped = base::Join(res, " " + token_list[2].sql() + " ");
-  return {SqlSource::FromTraceProcessorImplementation(zipped)};
-}
-
-base::StatusOr<std::optional<SqlSource>>
-PerfettoSqlPreprocessor::ExecuteTokenMapJoin(
-    const SqliteTokenizer& tokenizer,
-    const SqliteTokenizer::Token& name_token,
-    std::vector<SqlSource> token_list) {
-  if (token_list.size() != 3) {
-    return ErrorAtToken(tokenizer, name_token,
-                        "token_map_join: must have exactly three args");
-  }
-
-  SqliteTokenizer arg_list_tokenizer(token_list[0]);
-  SqliteTokenizer::Token inner_tok = arg_list_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-  ASSIGN_OR_RETURN(std::vector<SqlSource> arg_list_sources,
-                   ParseTokenList(arg_list_tokenizer, inner_tok, {}));
-
-  SqliteTokenizer name_tokenizer(token_list[1]);
-  inner_tok = name_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-
-  std::vector<std::string> res;
-  for (const auto& arg_list_source : arg_list_sources) {
-    SqliteTokenizer args_tokenizer(arg_list_source);
-    inner_tok = args_tokenizer.NextNonWhitespace();
-    if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-      return {std::nullopt};
-    }
-
-    ASSIGN_OR_RETURN(
-        SqlSource invocation_res,
-        ExecuteMacroInvocation(tokenizer, name_token, token_list[1].sql(),
-                               {arg_list_source}));
-    res.push_back(invocation_res.sql());
-  }
-
-  if (res.empty()) {
-    return {SqlSource::FromTraceProcessorImplementation("")};
-  }
-
-  std::string zipped = base::Join(res, " " + token_list[2].sql() + " ");
-  return {SqlSource::FromTraceProcessorImplementation(zipped)};
-}
-
-base::StatusOr<std::optional<SqlSource>>
-PerfettoSqlPreprocessor::ExecuteTokenMapJoinWithCapture(
-    const SqliteTokenizer& tokenizer,
-    const SqliteTokenizer::Token& name_token,
-    std::vector<SqlSource> token_list) {
-  if (token_list.size() != 4) {
-    return ErrorAtToken(
-        tokenizer, name_token,
-        "token_map_join_with_capture: must have exactly four args");
-  }
-
-  SqliteTokenizer arg_list_tokenizer(token_list[0]);
-  SqliteTokenizer::Token inner_tok = arg_list_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-  ASSIGN_OR_RETURN(std::vector<SqlSource> arg_list_sources,
-                   ParseTokenList(arg_list_tokenizer, inner_tok, {}));
-
-  SqliteTokenizer name_tokenizer(token_list[1]);
-  inner_tok = name_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-
-  SqliteTokenizer capture_tokenizer(token_list[2]);
-  inner_tok = capture_tokenizer.NextNonWhitespace();
-  if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
-  }
-  ASSIGN_OR_RETURN(std::vector<SqlSource> captured_args,
-                   ParseTokenList(capture_tokenizer, inner_tok, {}));
-
-  std::vector<std::string> res;
-  for (const auto& arg_list_source : arg_list_sources) {
-    SqliteTokenizer args_tokenizer(arg_list_source);
-    inner_tok = args_tokenizer.NextNonWhitespace();
-    if (inner_tok.token_type == SqliteTokenType::TK_VARIABLE) {
-      return {std::nullopt};
-    }
-
-    std::vector<SqlSource> macro_args{arg_list_source};
-    macro_args.insert(macro_args.end(), captured_args.begin(),
-                      captured_args.end());
-    ASSIGN_OR_RETURN(
-        SqlSource invocation_res,
-        ExecuteMacroInvocation(tokenizer, name_token, token_list[1].sql(),
-                               std::move(macro_args)));
-    res.push_back(invocation_res.sql());
-  }
-
-  if (res.empty()) {
-    return {SqlSource::FromTraceProcessorImplementation("")};
-  }
-
-  std::string zipped = base::Join(res, " " + token_list[3].sql() + " ");
-  return {SqlSource::FromTraceProcessorImplementation(zipped)};
+extern "C" void OnPreprocessorFreeApplyList(
+    PreprocessorGrammarApplyList* list) {
+  delete list;
 }
 
 }  // namespace perfetto::trace_processor

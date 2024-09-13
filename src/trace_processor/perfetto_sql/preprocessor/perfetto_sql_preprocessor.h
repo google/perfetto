@@ -19,13 +19,11 @@
 
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 
@@ -68,42 +66,6 @@ class PerfettoSqlPreprocessor {
   SqlSource& statement() { return *statement_; }
 
  private:
-  base::StatusOr<SqlSource> RewriteInternal(
-      const SqlSource&,
-      const std::unordered_map<std::string, SqlSource>& arg_bindings);
-
-  base::StatusOr<std::vector<SqlSource>> ParseTokenList(
-      SqliteTokenizer& tokenizer,
-      SqliteTokenizer::Token& token,
-      const std::unordered_map<std::string, SqlSource>& arg_bindings);
-
-  base::StatusOr<SqlSource> ExecuteMacroInvocation(
-      const SqliteTokenizer& tokenizer,
-      const SqliteTokenizer::Token& name_token,
-      const std::string& macro_name,
-      std::vector<SqlSource> token_list);
-
-  base::StatusOr<std::optional<SqlSource>> ExecuteTokenZipJoin(
-      const SqliteTokenizer& tokenizer,
-      const SqliteTokenizer::Token& name_token,
-      std::vector<SqlSource> token_list,
-      bool prefixed);
-
-  base::StatusOr<std::optional<SqlSource>> ExecuteTokenApply(
-      const SqliteTokenizer& tokenizer,
-      const SqliteTokenizer::Token& name_token,
-      std::vector<SqlSource> token_list);
-
-  base::StatusOr<std::optional<SqlSource>> ExecuteTokenMapJoin(
-      const SqliteTokenizer& tokenizer,
-      const SqliteTokenizer::Token& name_token,
-      std::vector<SqlSource> token_list);
-
-  base::StatusOr<std::optional<SqlSource>> ExecuteTokenMapJoinWithCapture(
-      const SqliteTokenizer& tokenizer,
-      const SqliteTokenizer::Token& name_token,
-      std::vector<SqlSource> token_list);
-
   SqliteTokenizer global_tokenizer_;
   const base::FlatHashMap<std::string, Macro>* macros_ = nullptr;
   std::unordered_set<std::string> seen_macros_;

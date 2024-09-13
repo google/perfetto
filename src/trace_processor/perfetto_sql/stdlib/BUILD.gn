@@ -29,7 +29,6 @@ perfetto_amalgamated_sql_header("stdlib") {
     "graphs",
     "intervals",
     "linux",
-    "metasql",
     "pkvm",
     "prelude",
     "sched",

@@ -51,11 +51,10 @@ RETURNS TableOrSubquery AS
 (
   select
     c0 as id,
-    __intrinsic_token_zip_join!(
-      (c1, c2, c3, c4, c5, c6, c7),
-      $scan_columns,
+    __intrinsic_token_apply!(
       _graph_scan_select,
-      __intrinsic_token_comma!()
+      (c1, c2, c3, c4, c5, c6, c7),
+      $scan_columns
     )
   from  __intrinsic_table_ptr(__intrinsic_graph_scan(
     (
@@ -65,24 +64,22 @@ RETURNS TableOrSubquery AS
     (
       select __intrinsic_row_dataframe_agg(
         'id', init_table.id,
-        __intrinsic_token_zip_join!(
-          $scan_columns,
-          $scan_columns,
+        __intrinsic_token_apply!(
           _graph_scan_df_agg,
-          __intrinsic_token_comma!()
+          $scan_columns,
+          $scan_columns
         )
       )
       from $init_table AS init_table
     ),
-    __intrinsic_stringify!($step_query, table),
+    __intrinsic_stringify_ignore_table!($step_query),
     __intrinsic_stringify!($scan_columns)
   )) result
   where __intrinsic_table_ptr_bind(result.c0, 'id')
-    and __intrinsic_token_zip_join!(
-          (c1, c2, c3, c4, c5, c6, c7),
-          $scan_columns,
+    and __intrinsic_token_apply_and!(
           _graph_scan_bind,
-          AND
+          (c1, c2, c3, c4, c5, c6, c7),
+          $scan_columns
         )
 );
 
@@ -113,11 +110,10 @@ RETURNS TableOrSubquery AS
 (
   select
     c0 as id,
-    __intrinsic_token_zip_join!(
-      (c1, c2, c3, c4, c5, c6, c7),
-      $agg_columns,
+    __intrinsic_token_apply!(
       _graph_scan_select,
-      __intrinsic_token_comma!()
+      (c1, c2, c3, c4, c5, c6, c7),
+      $agg_columns
     )
   from  __intrinsic_table_ptr(__intrinsic_graph_aggregating_scan(
     (
@@ -127,23 +123,21 @@ RETURNS TableOrSubquery AS
     (
       select __intrinsic_row_dataframe_agg(
         'id', init_table.id,
-        __intrinsic_token_zip_join!(
-          $agg_columns,
-          $agg_columns,
+        __intrinsic_token_apply!(
           _graph_scan_df_agg,
-          __intrinsic_token_comma!()
+          $agg_columns,
+          $agg_columns
         )
       )
       from $init_table AS init_table
     ),
-    __intrinsic_stringify!($agg_query, table),
+    __intrinsic_stringify_ignore_table!($agg_query),
     __intrinsic_stringify!($agg_columns)
   )) result
   where __intrinsic_table_ptr_bind(result.c0, 'id')
-    and __intrinsic_token_zip_join!(
-          (c1, c2, c3, c4, c5, c6, c7),
-          $agg_columns,
+    and __intrinsic_token_apply_and!(
           _graph_scan_bind,
-          AND
+          (c1, c2, c3, c4, c5, c6, c7),
+          $agg_columns
         )
 );
