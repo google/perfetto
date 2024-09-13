@@ -471,8 +471,9 @@ def CheckAbsolutePathsInGn(input_api, output_api):
         x,
         files_to_check=[r'.*\.gni?$'],
         files_to_skip=[
-            '^.gn$', '^gn/.*', '^buildtools/.*',
-            'src/trace_processor/perfetto_sql/preprocessor/BUILD.gn'
+            '^.gn$',
+            '^gn/.*',
+            '^buildtools/.*',
         ])
 
   error_lines = []

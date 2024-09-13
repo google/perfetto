@@ -40,7 +40,12 @@ source_set("grammar") {
   deps = [ "../../../../gn:default_deps" ]
   visibility = [ ":preprocessor" ]
   if (perfetto_build_standalone) {
-    configs -= [ "//gn/standalone:extra_warnings" ]
+    configs -= [ "//gn/standalone:extra_warnings" ]  # nogncheck
+  } else {
+    cflags_c = [
+      "-Wno-unused-parameter",
+      "-Wno-unreachable-code",
+    ]
   }
 }
 
