@@ -14,10 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_TEST_UTILS_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_TEST_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_TEST_UTILS_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_TEST_UTILS_H_
 
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
+#include <cstddef>
+#include <cstdint>
+#include <ostream>
+#include <string>
+#include <tuple>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
@@ -138,4 +146,4 @@ inline SqlSource FindSubstr(const SqlSource& source,
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_TEST_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_TEST_UTILS_H_
