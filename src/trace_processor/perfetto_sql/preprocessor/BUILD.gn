@@ -22,11 +22,25 @@ source_set("preprocessor") {
     "perfetto_sql_preprocessor.h",
   ]
   deps = [
+    ":grammar",
     "../../../../gn:default_deps",
     "../../../base",
     "../../sqlite",
     "../../util",
   ]
+}
+
+source_set("grammar") {
+  sources = [
+    "preprocessor_grammar.c",
+    "preprocessor_grammar.h",
+    "preprocessor_grammar_interface.h",
+  ]
+  deps = [ "../../../../gn:default_deps" ]
+  visibility = [ ":preprocessor" ]
+  if (perfetto_build_standalone) {
+    configs -= [ "//gn/standalone:extra_warnings" ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {

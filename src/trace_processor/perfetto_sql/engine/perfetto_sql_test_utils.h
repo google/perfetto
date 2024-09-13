@@ -17,6 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_TEST_UTILS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_TEST_UTILS_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <ostream>
+#include <string>
+#include <tuple>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"

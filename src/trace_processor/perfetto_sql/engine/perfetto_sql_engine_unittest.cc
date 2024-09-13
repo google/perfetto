@@ -54,7 +54,7 @@ TEST_F(PerfettoSqlEngineTest, Function_Create) {
 
   res = engine_.Execute(
       SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
-                                  "RETURNS INT AS select :x + :y"));
+                                  "RETURNS INT AS select $x + $y"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
