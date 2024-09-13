@@ -67,6 +67,15 @@ grpc::Status ExecuteQueryOnTrace(
   response.set_trace(trace_response.trace());
   for (const protos::QueryResult& query_result : trace_response.result()) {
     response.add_result()->CopyFrom(query_result);
+    if (query_result.has_error()) {
+      // TODO(b/366410502) Add a mode of operation where some traces are allowed
+      // to be dropped and a corresponding message is displayed to the user
+      // alongside partial results
+      std::lock_guard<std::mutex> status_guard(worker_lock);
+      query_status = grpc::Status(grpc::StatusCode::INTERNAL,
+                                  "[" + trace + "]: " + query_result.error());
+      break;
+    }
   }
   std::lock_guard<std::mutex> buffer_guard(worker_lock);
   response_buffer.emplace_back(std::move(response));
