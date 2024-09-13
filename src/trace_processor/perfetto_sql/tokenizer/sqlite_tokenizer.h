@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_TOKENIZER_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_TOKENIZER_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_TOKENIZER_SQLITE_TOKENIZER_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_TOKENIZER_SQLITE_TOKENIZER_H_
 
 #include <optional>
 #include <string_view>
@@ -166,4 +166,4 @@ class SqliteTokenizer {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_TOKENIZER_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_TOKENIZER_SQLITE_TOKENIZER_H_
