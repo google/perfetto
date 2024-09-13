@@ -36,8 +36,8 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar_interface.h"
+#include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
 #include "src/trace_processor/sqlite/sql_source.h"
-#include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 
 namespace perfetto::trace_processor {
 namespace {

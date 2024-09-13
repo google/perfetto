@@ -46,6 +46,7 @@ source_set("engine") {
     "../../util:stdlib",
     "../parser",
     "../preprocessor",
+    "../tokenizer",
   ]
 }
 

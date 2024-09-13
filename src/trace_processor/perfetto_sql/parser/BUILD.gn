@@ -32,6 +32,7 @@ source_set("parser") {
     "../../util",
     "../../util:sql_argument",
     "../preprocessor",
+    "../tokenizer",
   ]
 }
 

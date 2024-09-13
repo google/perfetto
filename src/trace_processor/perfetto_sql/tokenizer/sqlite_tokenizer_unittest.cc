@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/sqlite_tokenizer.h"
+#include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
 #include <vector>
 
 #include "perfetto/base/logging.h"

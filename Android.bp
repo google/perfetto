@@ -2512,6 +2512,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
+        ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -13430,6 +13431,14 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_parser_test_utils",
 }
 
+// GN: //src/trace_processor/perfetto_sql/parser:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_parser_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/perfetto_sql/preprocessor:grammar
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
@@ -13602,6 +13611,22 @@ genrule {
     ],
 }
 
+// GN: //src/trace_processor/perfetto_sql/tokenizer:tokenizer
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+    srcs: [
+        "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/tokenizer:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_tokenizer_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/rpc:httpd
 filegroup {
     name: "perfetto_src_trace_processor_rpc_httpd",
@@ -13666,7 +13691,6 @@ filegroup {
         "src/trace_processor/sqlite/sql_source.cc",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sqlite_engine.cc",
-        "src/trace_processor/sqlite/sqlite_tokenizer.cc",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/stats_table.cc",
     ],
@@ -13678,7 +13702,6 @@ filegroup {
     srcs: [
         "src/trace_processor/sqlite/db_sqlite_table_unittest.cc",
         "src/trace_processor/sqlite/sql_source_unittest.cc",
-        "src/trace_processor/sqlite/sqlite_tokenizer_unittest.cc",
         "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
     ],
 }
@@ -15570,9 +15593,12 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_parser_test_utils",
+        ":perfetto_src_trace_processor_perfetto_sql_parser_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":perfetto_src_trace_processor_perfetto_sql_tokenizer_unittests",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_unittests",
         ":perfetto_src_trace_processor_sorter_sorter",
@@ -16621,6 +16647,7 @@ cc_binary {
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
+        ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_stdiod",
@@ -17035,6 +17062,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
+        ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",

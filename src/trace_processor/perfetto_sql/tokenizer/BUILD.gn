@@ -16,44 +16,30 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-source_set("preprocessor") {
+source_set("tokenizer") {
   sources = [
-    "perfetto_sql_preprocessor.cc",
-    "perfetto_sql_preprocessor.h",
+    "sqlite_tokenizer.cc",
+    "sqlite_tokenizer.h",
   ]
   deps = [
-    ":grammar",
     "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
     "../../../base",
     "../../sqlite",
-    "../../util",
-    "../tokenizer",
   ]
-}
-
-source_set("grammar") {
-  sources = [
-    "preprocessor_grammar.c",
-    "preprocessor_grammar.h",
-    "preprocessor_grammar_interface.h",
-  ]
-  deps = [ "../../../../gn:default_deps" ]
-  visibility = [ ":preprocessor" ]
-  if (perfetto_build_standalone) {
-    configs -= [ "//gn/standalone:extra_warnings" ]
-  }
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "perfetto_sql_preprocessor_unittest.cc" ]
+  sources = [ "sqlite_tokenizer_unittest.cc" ]
   deps = [
-    ":preprocessor",
+    ":tokenizer",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../../gn:sqlite",
     "../../../base",
+    "../../../base:test_support",
     "../../sqlite",
-    "../parser:test_utils",
+    "../../util",
   ]
 }
