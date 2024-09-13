@@ -79,7 +79,8 @@ struct PreprocessorGrammarApplyList* OnPreprocessorCreateApplyList();
 struct PreprocessorGrammarApplyList* OnPreprocessorAppendApplyList(
     struct PreprocessorGrammarApplyList*,
     struct PreprocessorGrammarTokenBounds*);
-void OnPreprocessorFreeApplyList(struct PreprocessorGrammarApplyList*);
+void OnPreprocessorFreeApplyList(struct PreprocessorGrammarState*,
+                                 struct PreprocessorGrammarApplyList*);
 
 #ifdef __cplusplus
 }

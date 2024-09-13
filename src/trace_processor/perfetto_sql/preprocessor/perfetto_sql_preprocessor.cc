@@ -530,6 +530,7 @@ extern "C" PreprocessorGrammarApplyList* OnPreprocessorAppendApplyList(
 }
 
 extern "C" void OnPreprocessorFreeApplyList(
+    PreprocessorGrammarState*,
     PreprocessorGrammarApplyList* list) {
   delete list;
 }
