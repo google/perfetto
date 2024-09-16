@@ -437,7 +437,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
               title: 'Delay',
               render: (flow: Flow) =>
                 m(DurationWidget, {
-                  dur: flow.end.sliceEndTs - flow.end.sliceStartTs,
+                  dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
                 }),
             },
             {
