@@ -83,6 +83,10 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
     raf.scheduleRedraw();
   }
 
+  override isLoading() {
+    return this.details === undefined;
+  }
+
   getTitle(): string {
     return `Sched ${this.config.id}`;
   }
