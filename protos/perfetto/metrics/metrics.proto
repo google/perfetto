@@ -31,6 +31,7 @@ import "protos/perfetto/metrics/android/anr_metric.proto";
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto";
 import "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto";
+import "protos/perfetto/metrics/android/android_blocking_calls_cuj_per_frame_metric.proto";
 import "protos/perfetto/metrics/android/android_blocking_calls_unagg.proto";
 import "protos/perfetto/metrics/android/codec_metrics.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
@@ -352,6 +353,9 @@ message TraceMetrics {
   optional AndroidGarbageCollectionStats android_garbage_collection_stats = 76;
 
   optional CloneDuration clone_duration = 77;
+
+  // Per-frame blocking calls (e.g. binder calls) during CUJs (important UI transitions).
+  optional AndroidCujBlockingCallsPerFrameMetric android_blocking_calls_cuj_per_frame_metric = 78;
 
   // Android
   // Demo extensions.
