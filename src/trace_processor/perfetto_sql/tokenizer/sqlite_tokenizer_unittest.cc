@@ -15,18 +15,16 @@
  */
 
 #include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
+
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using Token = SqliteTokenizer::Token;
-using Type = SqliteTokenType;
 
 class SqliteTokenizerTest : public ::testing::Test {
  protected:
@@ -47,30 +45,29 @@ TEST_F(SqliteTokenizerTest, EmptyString) {
 }
 
 TEST_F(SqliteTokenizerTest, OnlySpace) {
-  ASSERT_THAT(Tokenize(" "), testing::ElementsAre(Token{" ", Type::TK_SPACE}));
+  ASSERT_THAT(Tokenize(" "), testing::ElementsAre(Token{" ", TK_SPACE}));
 }
 
 TEST_F(SqliteTokenizerTest, SpaceColon) {
-  ASSERT_THAT(Tokenize(" ;"), testing::ElementsAre(Token{" ", Type::TK_SPACE},
-                                                   Token{";", Type::TK_SEMI}));
+  ASSERT_THAT(Tokenize(" ;"),
+              testing::ElementsAre(Token{" ", TK_SPACE}, Token{";", TK_SEMI}));
 }
 
 TEST_F(SqliteTokenizerTest, Select) {
   ASSERT_THAT(
       Tokenize("SELECT * FROM slice;"),
-      testing::ElementsAre(
-          Token{"SELECT", Type::TK_GENERIC_KEYWORD}, Token{" ", Type::TK_SPACE},
-          Token{"*", Type::TK_STAR}, Token{" ", Type::TK_SPACE},
-          Token{"FROM", Type::TK_GENERIC_KEYWORD}, Token{" ", Type::TK_SPACE},
-          Token{"slice", Type::TK_ID}, Token{";", Type::TK_SEMI}));
+      testing::ElementsAre(Token{"SELECT", TK_SELECT}, Token{" ", TK_SPACE},
+                           Token{"*", TK_STAR}, Token{" ", TK_SPACE},
+                           Token{"FROM", TK_FROM}, Token{" ", TK_SPACE},
+                           Token{"slice", TK_ID}, Token{";", TK_SEMI}));
 }
 
 TEST_F(SqliteTokenizerTest, PastEndErrorToken) {
   tokenizer_.Reset(SqlSource::FromTraceProcessorImplementation("S"));
-  ASSERT_EQ(tokenizer_.Next(), (Token{"S", Type::TK_ID}));
+  ASSERT_EQ(tokenizer_.Next(), (Token{"S", TK_ID}));
 
   auto end_token = tokenizer_.Next();
-  ASSERT_EQ(end_token, (Token{"", Type::TK_ILLEGAL}));
+  ASSERT_EQ(end_token, (Token{"", TK_ILLEGAL}));
   ASSERT_EQ(tokenizer_.AsTraceback(end_token),
             "  Trace Processor Internal line 1 col 2\n"
             "    S\n"
@@ -78,5 +75,4 @@ TEST_F(SqliteTokenizerTest, PastEndErrorToken) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
