@@ -17,52 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_TOKENIZER_SQLITE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_TOKENIZER_SQLITE_TOKENIZER_H_
 
-#include <optional>
+#include <cstdint>
 #include <string_view>
+#include <utility>
+
+#include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
-namespace perfetto {
-namespace trace_processor {
-
-// List of token types returnable by |SqliteTokenizer|
-// 1:1 matches the defintions in SQLite.
-enum class SqliteTokenType : uint32_t {
-  TK_SEMI = 1,
-  TK_LP = 22,
-  TK_RP = 23,
-  TK_COMMA = 25,
-  TK_NE = 52,
-  TK_EQ = 53,
-  TK_GT = 54,
-  TK_LE = 55,
-  TK_LT = 56,
-  TK_GE = 57,
-  TK_ID = 59,
-  TK_BITAND = 102,
-  TK_BITOR = 103,
-  TK_LSHIFT = 104,
-  TK_RSHIFT = 105,
-  TK_PLUS = 106,
-  TK_MINUS = 107,
-  TK_STAR = 108,
-  TK_SLASH = 109,
-  TK_REM = 110,
-  TK_CONCAT = 111,
-  TK_PTR = 112,
-  TK_BITNOT = 114,
-  TK_STRING = 117,
-  TK_DOT = 141,
-  TK_FLOAT = 153,
-  TK_BLOB = 154,
-  TK_INTEGER = 155,
-  TK_VARIABLE = 156,
-  TK_SPACE = 183,
-  TK_ILLEGAL = 184,
-
-  // Generic constant which replaces all the keywords in SQLite as we do not
-  // care about the distinguishing between the vast majority of them.
-  TK_GENERIC_KEYWORD = 1000,
-};
+namespace perfetto::trace_processor {
 
 // Tokenizes SQL statements according to SQLite SQL language specification:
 // https://www2.sqlite.org/hlr40000.html
@@ -80,16 +42,14 @@ class SqliteTokenizer {
     std::string_view str;
 
     // The type of the token.
-    SqliteTokenType token_type = SqliteTokenType::TK_ILLEGAL;
+    int token_type = TK_ILLEGAL;
 
     bool operator==(const Token& o) const {
       return str == o.str && token_type == o.token_type;
     }
 
     // Returns if the token is empty or semicolon.
-    bool IsTerminal() {
-      return token_type == SqliteTokenType::TK_SEMI || str.empty();
-    }
+    bool IsTerminal() const { return token_type == TK_SEMI || str.empty(); }
   };
 
   enum class EndToken {
@@ -99,6 +59,12 @@ class SqliteTokenizer {
 
   // Creates a tokenizer which tokenizes |sql|.
   explicit SqliteTokenizer(SqlSource sql);
+
+  SqliteTokenizer(const SqliteTokenizer&) = delete;
+  SqliteTokenizer& operator=(const SqliteTokenizer&) = delete;
+
+  SqliteTokenizer(SqliteTokenizer&&) = delete;
+  SqliteTokenizer& operator=(SqliteTokenizer&&) = delete;
 
   // Returns the next SQL token.
   Token Next();
@@ -153,17 +119,10 @@ class SqliteTokenizer {
   }
 
  private:
-  SqliteTokenizer(const SqliteTokenizer&) = delete;
-  SqliteTokenizer& operator=(const SqliteTokenizer&) = delete;
-
-  SqliteTokenizer(SqliteTokenizer&&) = delete;
-  SqliteTokenizer& operator=(SqliteTokenizer&&) = delete;
-
   SqlSource source_;
   uint32_t offset_ = 0;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_TOKENIZER_SQLITE_TOKENIZER_H_
