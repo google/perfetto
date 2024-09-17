@@ -23,6 +23,8 @@ extern "C" {
 
 #include <ctype.h>
 
+#include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h"
+
 typedef unsigned char u8;
 
 #define SQLITE_OK 0
