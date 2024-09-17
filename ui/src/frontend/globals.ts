@@ -741,8 +741,18 @@ class Globals {
     }
   }
 
-  addEngineReadyObserver(observer: (engine: EngineConfig) => void): void {
-      this._engineReadyObservers.push(observer);
+  /** Register an engine ready observer.
+   *
+   * returns a cleanup function, to be called to unregister.
+   */
+  addEngineReadyObserver(observer: (engine: EngineConfig) => void): ()=>void {
+    this._engineReadyObservers.push(observer);
+    return ()=> {
+      const index = this._engineReadyObservers.indexOf(observer);
+      if (index >= 0) {
+        this._engineReadyObservers.splice(index, 1);
+      }
+    };
   }
 
   /**
