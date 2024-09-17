@@ -20,31 +20,80 @@ import shutil
 import sys
 import tempfile
 
+GRAMMAR_FOOTER = '''
+%token SPACE ILLEGAL.
+'''
+
+KEYWORDHASH_HEADER = '''
+#include "src/trace_processor/perfetto_sql/grammar/perfettosql_keywordhash_helper.h"
+'''
+
+
+def copy_tokenizer(args: argparse.Namespace):
+  shutil.copy(args.sqlite_tokenize, args.sqlite_tokenize_out)
+
+  with open(args.sqlite_tokenize_out, 'r+', encoding='utf-8') as fp:
+    res: str = fp.read()
+    idx = res.find('/*\n** Run the parser on the given SQL string.')
+    assert idx != -1
+    res = res[0:idx]
+    res = res.replace(
+        '#include "sqliteInt.h"',
+        '#include "src/trace_processor/perfetto_sql/tokenizer/tokenize_internal_helper.h"',
+    )
+    res = res.replace('#include "keywordhash.h"\n', '')
+    fp.seek(0)
+    fp.write(res)
+    fp.truncate()
+
 
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--lemon',
-      default=os.path.join(
-          os.path.normpath('buildtools/sqlite_src/tool/lemon.c')))
+      '--lemon', default=os.path.normpath('buildtools/sqlite_src/tool/lemon.c'))
+  parser.add_argument(
+      '--mkkeywordhash',
+      default=os.path.normpath('buildtools/sqlite_src/tool/mkkeywordhash.c'))
   parser.add_argument(
       '--lemon-template',
-      default=os.path.join(
-          os.path.normpath('buildtools/sqlite_src/tool/lempar.c')))
+      default=os.path.normpath('buildtools/sqlite_src/tool/lempar.c'))
   parser.add_argument(
-      '--clang',
-      default=os.path.join(
-          os.path.normpath('buildtools/linux64/clang/bin/clang')))
+      '--clang', default=os.path.normpath('buildtools/linux64/clang/bin/clang'))
   parser.add_argument(
       '--preprocessor-grammar',
+      default=os.path.normpath(
+          'src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.y'
+      ),
+  )
+  parser.add_argument(
+      '--sqlite-grammar',
+      default=os.path.normpath('buildtools/sqlite_src/src/parse.y'),
+  )
+  parser.add_argument(
+      '--perfettosql-grammar-include',
+      default=os.path.normpath(
+          'src/trace_processor/perfetto_sql/grammar/perfettosql_include.y'),
+  )
+  parser.add_argument(
+      '--grammar-out',
+      default=os.path.join(
+          os.path.normpath('src/trace_processor/perfetto_sql/grammar/')),
+  )
+  parser.add_argument(
+      '--sqlite-tokenize',
+      default=os.path.normpath('buildtools/sqlite_src/src/tokenize.c'),
+  )
+  parser.add_argument(
+      '--sqlite-tokenize-out',
       default=os.path.join(
           os.path.normpath(
-              'src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.y'
-          )),
+              'src/trace_processor/perfetto_sql/tokenizer/tokenize_internal.c')
+      ),
   )
   args = parser.parse_args()
 
   with tempfile.TemporaryDirectory() as tmp:
+    # Preprocessor grammar
     subprocess.check_call([
         args.clang,
         os.path.join(args.lemon), '-o',
@@ -58,6 +107,46 @@ def main():
         '-l',
         '-s',
     ])
+
+    # PerfettoSQL keywords
+    keywordhash_tmp = os.path.join(tmp, 'mkkeywordhash.c')
+    shutil.copy(args.mkkeywordhash, keywordhash_tmp)
+    subprocess.check_call([
+        args.clang,
+        os.path.join(keywordhash_tmp), '-o',
+        os.path.join(tmp, 'mkkeywordhash')
+    ])
+    keywordhash_res = subprocess.check_output(
+        [os.path.join(tmp, 'mkkeywordhash')]).decode()
+    with open(os.path.join(args.grammar_out, "perfettosql_keywordhash.h"),
+              "w") as g:
+      idx = keywordhash_res.find('#define SQLITE_N_KEYWORD 147')
+      assert idx != -1
+      keywordhash_res = keywordhash_res[0:idx]
+      g.write(KEYWORDHASH_HEADER)
+      g.write(keywordhash_res)
+
+    # PerfettoSQL grammar
+    sqlite_grammar = subprocess.check_output([
+        os.path.join(tmp, 'lemon'),
+        args.sqlite_grammar,
+        '-g',
+    ]).decode()
+    with open(os.path.join(args.grammar_out, "perfettosql_grammar.y"),
+              "w") as g:
+      with open(args.perfettosql_grammar_include, 'r') as i:
+        g.write(i.read())
+      g.write(sqlite_grammar)
+      g.write(GRAMMAR_FOOTER)
+    subprocess.check_call([
+        os.path.join(tmp, 'lemon'),
+        os.path.join(args.grammar_out, "perfettosql_grammar.y"),
+        '-q',
+        '-l',
+        '-s',
+    ])
+
+  copy_tokenizer(args)
 
   return 0
 

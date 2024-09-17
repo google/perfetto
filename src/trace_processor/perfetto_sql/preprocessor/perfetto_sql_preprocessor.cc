@@ -138,7 +138,7 @@ extern "C" struct PreprocessorGrammarApplyList {
 SqliteTokenizer::Token GrammarTokenToTokenizerToken(
     const PreprocessorGrammarToken& token) {
   return SqliteTokenizer::Token{std::string_view(token.ptr, token.n),
-                                SqliteTokenType::TK_ILLEGAL};
+                                TK_ILLEGAL};
 }
 
 base::Status ErrorAtToken(const SqliteTokenizer& tokenizer,
@@ -454,13 +454,13 @@ bool PerfettoSqlPreprocessor::NextStatement() {
 
   // Skip through any number of semi-colons (representing empty statements).
   SqliteTokenizer::Token tok = global_tokenizer_.NextNonWhitespace();
-  while (tok.token_type == SqliteTokenType::TK_SEMI) {
+  while (tok.token_type == TK_SEMI) {
     tok = global_tokenizer_.NextNonWhitespace();
   }
 
   // If we still see a terminal token at this point, we must have hit EOF.
   if (tok.IsTerminal()) {
-    PERFETTO_DCHECK(tok.token_type != SqliteTokenType::TK_SEMI);
+    PERFETTO_DCHECK(tok.token_type != TK_SEMI);
     return false;
   }
 
@@ -477,25 +477,25 @@ bool PerfettoSqlPreprocessor::NextStatement() {
     if (t.str.empty()) {
       token_type = frame->seen_semicolon ? 0 : PPTK_SEMI;
       frame->seen_semicolon = true;
-    } else if (t.token_type == SqliteTokenType::TK_SEMI) {
+    } else if (t.token_type == TK_SEMI) {
       token_type = PPTK_SEMI;
       frame->seen_semicolon = true;
-    } else if (t.token_type == SqliteTokenType::TK_ILLEGAL) {
+    } else if (t.token_type == TK_ILLEGAL) {
       if (t.str.size() == 1 && t.str[0] == '!') {
         token_type = PPTK_EXCLAIM;
       } else {
         status_ = ErrorAtToken(tk, t, "illegal token");
         return false;
       }
-    } else if (t.token_type == SqliteTokenType::TK_ID) {
+    } else if (t.token_type == TK_ID) {
       token_type = PPTK_ID;
-    } else if (t.token_type == SqliteTokenType::TK_LP) {
+    } else if (t.token_type == TK_LP) {
       token_type = PPTK_LP;
-    } else if (t.token_type == SqliteTokenType::TK_RP) {
+    } else if (t.token_type == TK_RP) {
       token_type = PPTK_RP;
-    } else if (t.token_type == SqliteTokenType::TK_COMMA) {
+    } else if (t.token_type == TK_COMMA) {
       token_type = PPTK_COMMA;
-    } else if (t.token_type == SqliteTokenType::TK_VARIABLE) {
+    } else if (t.token_type == TK_VARIABLE) {
       token_type = PPTK_VARIABLE;
     } else {
       token_type = PPTK_OPAQUE;

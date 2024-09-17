@@ -16,31 +16,22 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-source_set("tokenizer") {
+source_set("grammar") {
   sources = [
-    "sqlite_tokenizer.cc",
-    "sqlite_tokenizer.h",
+    "perfettosql_grammar.c",
+    "perfettosql_grammar.h",
+    "perfettosql_keywordhash.h",
+    "perfettosql_keywordhash_helper.h",
   ]
   deps = [
-    ":tokenize_internal",
     "../../../../gn:default_deps",
-    "../../../../gn:sqlite",
     "../../../base",
-    "../../sqlite",
-    "../grammar",
   ]
-}
-
-source_set("tokenize_internal") {
-  sources = [
-    "tokenize_internal.c",
-    "tokenize_internal_helper.h",
+  visibility = [
+    "../parser",
+    "../tokenizer",
+    "../tokenizer:tokenize_internal",
   ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../grammar",
-  ]
-  visibility = [ ":tokenizer" ]
   if (perfetto_build_standalone) {
     configs -= [ "//gn/standalone:extra_warnings" ]  # nogncheck
   } else {
@@ -49,19 +40,4 @@ source_set("tokenize_internal") {
       "-Wno-unreachable-code",
     ]
   }
-}
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [ "sqlite_tokenizer_unittest.cc" ]
-  deps = [
-    ":tokenizer",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../../../gn:sqlite",
-    "../../../base",
-    "../../../base:test_support",
-    "../../sqlite",
-    "../../util",
-  ]
 }
