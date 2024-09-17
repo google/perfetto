@@ -124,3 +124,11 @@ perfetto_py_library("batch_trace_processor") {
     "../gn:tp_vendor_py",
   ]
 }
+
+perfetto_py_library("sql_processing") {
+  sources = [
+    "generators/sql_processing/docs_extractor.py",
+    "generators/sql_processing/docs_parse.py",
+    "generators/sql_processing/utils.py",
+  ]
+}
