@@ -21,6 +21,7 @@
 extern "C" {
 #endif
 
+#include <assert.h>
 #include <ctype.h>
 
 #include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h"
