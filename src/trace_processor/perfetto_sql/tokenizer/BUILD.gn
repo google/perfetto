@@ -45,6 +45,8 @@ source_set("tokenize_internal") {
     configs -= [ "//gn/standalone:extra_warnings" ]  # nogncheck
   } else {
     cflags_c = [
+      "-Wno-implicit-fallthrough",
+      "-Wno-unused-function",
       "-Wno-unused-parameter",
       "-Wno-unreachable-code",
     ]
