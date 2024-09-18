@@ -32,6 +32,12 @@
     position: absolute;
     text-overflow: unset;
     pointer-events: none;
+
+    visibility: hidden;
+
+    &.show-popup {
+      visibility: visible;
+    }
   }
 
   &:hover .popup.show-popup {
@@ -209,6 +215,7 @@
 
     .chip {
       background-color: #bed6ff;
+      color: rgb(60, 75, 93);
       border-radius: $pf-border-radius;
       font-size: smaller;
       padding: 0 0.1rem;
