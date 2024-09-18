@@ -179,7 +179,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           {
             ref: attrs.title,
           },
-          m('.popup', attrs.title, chips),
+          m('.popup', attrs.title),
           m(MiddleEllipsis, {text: attrs.title}, chips),
         ),
         m(
