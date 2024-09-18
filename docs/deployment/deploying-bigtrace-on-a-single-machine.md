@@ -1,5 +1,7 @@
 # Deploying Bigtrace one a single machine
 
+NOTE: This doc is designed for administrators of Bigtrace services NOT Bigtrace users. This is also designed for non-Googlers - Googlers should look at `go/bigtrace` instead.
+
 There are multiple ways to deploy Bigtrace on a single machine:
 
 1. Running the Orchestrator and Worker executables manually
