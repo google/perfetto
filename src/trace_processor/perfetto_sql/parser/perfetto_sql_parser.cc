@@ -56,17 +56,6 @@ enum class State {
   kStmtStart,
 };
 
-bool KeywordEqual(std::string_view expected, std::string_view actual) {
-  PERFETTO_DCHECK(std::all_of(expected.begin(), expected.end(), islower));
-  return std::equal(expected.begin(), expected.end(), actual.begin(),
-                    actual.end(),
-                    [](char a, char b) { return a == tolower(b); });
-}
-
-bool TokenIsCustomKeyword(std::string_view keyword, SqliteTokenizer::Token t) {
-  return t.token_type == TK_ID && KeywordEqual(keyword, t.str);
-}
-
 bool IsValidModuleWord(const std::string& word) {
   for (const char& c : word) {
     if (!std::isalnum(c) && (c != '_') && !std::islower(c)) {
@@ -151,7 +140,7 @@ bool PerfettoSqlParser::Next() {
       case State::kStmtStart:
         if (token.token_type == TK_CREATE) {
           state = State::kCreate;
-        } else if (TokenIsCustomKeyword("include", token)) {
+        } else if (token.token_type == TK_INCLUDE) {
           state = State::kInclude;
         } else if (token.token_type == TK_DROP) {
           state = State::kDrop;
@@ -160,7 +149,7 @@ bool PerfettoSqlParser::Next() {
         }
         break;
       case State::kInclude:
-        if (TokenIsCustomKeyword("perfetto", token)) {
+        if (token.token_type == TK_PERFETTO) {
           state = State::kIncludePerfetto;
         } else {
           return ErrorAtToken(token,
@@ -168,14 +157,14 @@ bool PerfettoSqlParser::Next() {
         }
         break;
       case State::kIncludePerfetto:
-        if (TokenIsCustomKeyword("module", token)) {
+        if (token.token_type == TK_MODULE) {
           return ParseIncludePerfettoModule(*first_non_space_token);
         } else {
           return ErrorAtToken(token,
                               "Use 'INCLUDE PERFETTO MODULE {include_key}'.");
         }
       case State::kDrop:
-        if (TokenIsCustomKeyword("perfetto", token)) {
+        if (token.token_type == TK_PERFETTO) {
           state = State::kDropPerfetto;
         } else {
           state = State::kPassthrough;
@@ -194,7 +183,7 @@ bool PerfettoSqlParser::Next() {
           return ErrorAtToken(
               token, "Creating triggers is not supported in PerfettoSQL.");
         }
-        if (TokenIsCustomKeyword("perfetto", token)) {
+        if (token.token_type == TK_PERFETTO) {
           state = State::kCreatePerfetto;
         } else if (token.token_type == TK_OR) {
           state = State::kCreateOr;
@@ -207,14 +196,14 @@ bool PerfettoSqlParser::Next() {
                                                : State::kPassthrough;
         break;
       case State::kCreateOrReplace:
-        state = TokenIsCustomKeyword("perfetto", token)
+        state = token.token_type == TK_PERFETTO
                     ? State::kCreateOrReplacePerfetto
                     : State::kPassthrough;
         break;
       case State::kCreateOrReplacePerfetto:
       case State::kCreatePerfetto:
         bool replace = state == State::kCreateOrReplacePerfetto;
-        if (TokenIsCustomKeyword("function", token)) {
+        if (token.token_type == TK_FUNCTION) {
           return ParseCreatePerfettoFunction(replace, *first_non_space_token);
         }
         if (token.token_type == TK_TABLE) {
@@ -225,7 +214,7 @@ bool PerfettoSqlParser::Next() {
           return ParseCreatePerfettoTableOrView(replace, *first_non_space_token,
                                                 TableOrView::kView);
         }
-        if (TokenIsCustomKeyword("macro", token)) {
+        if (token.token_type == TK_MACRO) {
           return ParseCreatePerfettoMacro(replace);
         }
         if (token.token_type == TK_INDEX) {
@@ -441,7 +430,7 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction(
   }
 
   if (Token returns = tokenizer_.NextNonWhitespace();
-      !TokenIsCustomKeyword("returns", returns)) {
+      returns.token_type != TK_RETURNS) {
     // TODO(lalitm): add a link to create function documentation.
     return ErrorAtToken(returns, "Expected keyword 'returns'");
   }
@@ -511,7 +500,7 @@ bool PerfettoSqlParser::ParseCreatePerfettoMacro(bool replace) {
   }
 
   if (Token returns = tokenizer_.NextNonWhitespace();
-      !TokenIsCustomKeyword("returns", returns)) {
+      returns.token_type != TK_RETURNS) {
     // TODO(lalitm): add a link to create macro documentation.
     return ErrorAtToken(returns, "Expected keyword 'returns'");
   }
@@ -579,7 +568,8 @@ bool PerfettoSqlParser::ParseRawArguments(std::vector<RawArgument>& args) {
       return true;
     }
 
-    if (tok.token_type != TK_ID && tok.token_type != TK_KEY) {
+    if (tok.token_type != TK_ID && tok.token_type != TK_KEY &&
+        tok.token_type != TK_FUNCTION) {
       // TODO(lalitm): add a link to documentation.
       base::StackString<1024> err("%.*s is not a valid argument name",
                                   static_cast<int>(tok.str.size()),

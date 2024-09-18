@@ -28,6 +28,20 @@ KEYWORDHASH_HEADER = '''
 #include "src/trace_processor/perfetto_sql/grammar/perfettosql_keywordhash_helper.h"
 '''
 
+KEYWORD_END = '''
+  { "WITHOUT",          "TK_WITHOUT",      ALWAYS,           1      },
+};'''
+
+KEYWORD_END_REPLACE = '''
+  { "WITHOUT",          "TK_WITHOUT",      ALWAYS,           1      },
+  { "PERFETTO",         "TK_PERFETTO",     ALWAYS,           1      },
+  { "MACRO",            "TK_MACRO",        ALWAYS,           1      },
+  { "INCLUDE",          "TK_INCLUDE",      ALWAYS,           1      },
+  { "MODULE",           "TK_MODULE",       ALWAYS,           1      },
+  { "RETURNS",          "TK_RETURNS",      ALWAYS,           1      },
+  { "FUNCTION",         "TK_FUNCTION",     ALWAYS,           1      },
+};'''
+
 
 def copy_tokenizer(args: argparse.Namespace):
   shutil.copy(args.sqlite_tokenize, args.sqlite_tokenize_out)
@@ -111,6 +125,14 @@ def main():
     # PerfettoSQL keywords
     keywordhash_tmp = os.path.join(tmp, 'mkkeywordhash.c')
     shutil.copy(args.mkkeywordhash, keywordhash_tmp)
+
+    with open(keywordhash_tmp, "r+") as fp:
+      keyword_source = fp.read()
+      assert keyword_source.find(KEYWORD_END) != -1
+      fp.seek(0)
+      fp.write(keyword_source.replace(KEYWORD_END, KEYWORD_END_REPLACE))
+      fp.truncate()
+
     subprocess.check_call([
         args.clang,
         os.path.join(keywordhash_tmp), '-o',
@@ -118,9 +140,10 @@ def main():
     ])
     keywordhash_res = subprocess.check_output(
         [os.path.join(tmp, 'mkkeywordhash')]).decode()
+
     with open(os.path.join(args.grammar_out, "perfettosql_keywordhash.h"),
               "w") as g:
-      idx = keywordhash_res.find('#define SQLITE_N_KEYWORD 147')
+      idx = keywordhash_res.find('#define SQLITE_N_KEYWORD')
       assert idx != -1
       keywordhash_res = keywordhash_res[0:idx]
       g.write(KEYWORDHASH_HEADER)
