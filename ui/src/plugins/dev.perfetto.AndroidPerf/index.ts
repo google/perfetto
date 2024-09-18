@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {getTimeSpanOfSelectionOrVisibleWindow} from '../../frontend/globals';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
@@ -154,6 +155,35 @@ class AndroidPerf implements PerfettoPlugin {
            ORDER BY dur DESC
           LIMIT 50`,
           `top 50 sched latency slice for tid ${tid}`,
+        );
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AndroidPerf#SchedLatencyInSelectedWindow',
+      name: 'Top 50 sched latency in selected time window',
+      callback: async () => {
+        const window = await getTimeSpanOfSelectionOrVisibleWindow();
+        ctx.addQueryResultsTab(
+          `
+          SELECT
+            ts.*,
+            t.tid,
+            t.name AS thread_name,
+            tt.id AS track_id,
+            p.name AS process_name
+          FROM thread_state ts
+          LEFT JOIN thread_track tt
+           USING (utid)
+          LEFT JOIN thread t
+           USING (utid)
+          LEFT JOIN process p
+           USING (upid)
+          WHERE ts.state IN ('R', 'R+')
+           AND ts.ts >= ${window.start} and ts.ts < ${window.end}
+          ORDER BY dur DESC
+          LIMIT 50`,
+          `top 50 sched latency slice in selcted time window`,
         );
       },
     });
