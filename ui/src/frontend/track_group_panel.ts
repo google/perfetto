@@ -137,7 +137,7 @@ export class TrackGroupPanel implements Panel {
             {
               ref: this.attrs.title,
             },
-            m('.popup', title, chips),
+            m('.popup', title),
             m(MiddleEllipsis, {text: title}, chips),
           ),
           collapsed && exists(subtitle) && m('h2.track-subtitle', subtitle),
