@@ -87,6 +87,7 @@ struct Frame {
     std::vector<SqlSource> args;
     uint32_t nested_macro_count;
     std::unordered_set<std::string> seen_variables;
+    std::unordered_set<std::string> expanded_variables;
   };
   enum VariableHandling { kLookup, kLookupOrIgnore, kIgnore };
 
@@ -190,9 +191,10 @@ void ExecuteSqlMacro(State* state,
     };
     return;
   }
+  // TODO(lalitm): switch back to kLookup once we have proper parser support.
   state->stack.emplace_back(
-      Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp}, Frame::kLookup,
-      state, sql_macro->sql);
+      Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp},
+      Frame::kLookupOrIgnore, state, sql_macro->sql);
   auto& macro_frame = state->stack.back();
   for (uint32_t i = 0; i < sql_macro->args.size(); ++i) {
     macro_frame.owned_substituitions.Insert(sql_macro->args[i],
@@ -216,12 +218,22 @@ void ExecuteStringify(State* state,
     };
     return;
   }
-  bool can_stringify =
+  bool can_stringify_outer =
       macro.seen_variables.empty() ||
       (stringify.ignore_table && macro.seen_variables.size() == 1 &&
        macro.seen_variables.count("table"));
-  if (!can_stringify) {
+  if (!can_stringify_outer) {
     RewriteIntrinsicMacro(frame, name, rp);
+    return;
+  }
+  if (!macro.expanded_variables.empty()) {
+    state->stack.emplace_back(
+        Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp},
+        Frame::kIgnore, state,
+        SqlSource::FromTraceProcessorImplementation(macro.name + "!(" +
+                                                    macro.args[0].sql() + ")"));
+    auto& expand_frame = state->stack.back();
+    expand_frame.substituitions = frame.substituitions;
     return;
   }
   auto res = SqlSource::FromTraceProcessorImplementation(
@@ -309,7 +321,9 @@ extern "C" void OnPreprocessorVariable(State* state,
   auto& frame = state->stack.back();
   if (frame.active_macro) {
     std::string name(var->ptr + 1, var->n - 1);
-    if (!frame.substituitions->Find(name)) {
+    if (frame.substituitions->Find(name)) {
+      frame.active_macro->expanded_variables.insert(name);
+    } else {
       frame.active_macro->seen_variables.insert(name);
     }
     return;
@@ -366,7 +380,7 @@ extern "C" void OnPreprocessorMacroId(State* state,
     impl = sql_macro;
   }
   invocation.active_macro =
-      Frame::ActiveMacro{std::move(name), impl, {}, 0, {}};
+      Frame::ActiveMacro{std::move(name), impl, {}, 0, {}, {}};
 }
 
 extern "C" void OnPreprocessorMacroArg(State* state,
@@ -467,6 +481,7 @@ bool PerfettoSqlPreprocessor::NextStatement() {
   SqlSource stmt =
       global_tokenizer_.Substr(tok, global_tokenizer_.NextTerminal(),
                                SqliteTokenizer::EndToken::kInclusive);
+
   State s{{}, *macros_, {}};
   s.stack.emplace_back(Frame::Root(), Frame::kIgnore, &s, std::move(stmt));
   for (;;) {
