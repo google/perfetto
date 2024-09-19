@@ -17,7 +17,7 @@ import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
-import {DragGestureHandler} from './drag_gesture_handler';
+import {DragGestureHandler} from '../base/drag_gesture_handler';
 import {globals} from './globals';
 import {DisposableStack} from '../base/disposable_stack';
 
