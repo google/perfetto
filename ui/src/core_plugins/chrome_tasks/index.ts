@@ -16,27 +16,22 @@ import {uuidv4} from '../../base/uuid';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {asUtid} from '../../trace_processor/sql_utils/core_types';
-import {
-  BottomTabToSCSAdapter,
-  NUM,
-  NUM_NULL,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  STR_NULL,
-} from '../../public';
-
+import {BottomTabToSCSAdapter} from '../../public/utils';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ChromeTasksDetailsTab} from './details';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
+import {GroupNode, TrackNode} from '../../public/workspace';
 
 class ChromeTasksPlugin implements PerfettoPlugin {
   onActivate() {}
 
-  async onTraceLoad(ctx: PluginContextTrace) {
+  async onTraceLoad(ctx: Trace) {
     await this.createTracks(ctx);
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'org.chromium.ChromeTasks.ShowChromeTasksTable',
       name: 'Show chrome_tasks table',
       callback: () =>
@@ -46,7 +41,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
     });
   }
 
-  async createTracks(ctx: PluginContextTrace) {
+  async createTracks(ctx: Trace) {
     const it = (
       await ctx.engine.query(`
       INCLUDE PERFETTO MODULE chrome.tasks;
@@ -99,15 +94,18 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       utid: NUM,
     });
 
+    const group = new GroupNode('Chrome Tasks');
     for (; it.valid(); it.next()) {
       const utid = it.utid;
       const uri = `org.chromium.ChromeTasks#thread.${utid}`;
-      ctx.registerTrackAndShowOnTraceLoad({
+      const title = `${it.threadName} ${it.tid}`;
+      ctx.tracks.registerTrack({
         uri,
         track: new ChromeTasksThreadTrack(ctx.engine, uri, asUtid(utid)),
-        tags: {groupName: `Chrome Tasks`},
-        title: `${it.threadName} ${it.tid}`,
+        title,
       });
+      group.insertChildInOrder(new TrackNode(uri, title));
+      ctx.workspace.insertChildInOrder(group);
     }
 
     ctx.registerDetailsPanel(

@@ -17,18 +17,19 @@ import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {drawTrackHoverTooltip} from '../../common/canvas_utils';
-import {Color} from '../../core/color';
+import {drawTrackHoverTooltip} from '../../base/canvas_utils';
+import {Color} from '../../public/color';
 import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Engine, Track} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {Track} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
-import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
-import {Vector} from '../../base/geom';
+import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
+import {Point2D} from '../../base/geom';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -54,7 +55,7 @@ export interface Config {
 }
 
 export class ProcessSchedulingTrack implements Track {
-  private mousePos?: Vector;
+  private mousePos?: Point2D;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private cpuCount: number;

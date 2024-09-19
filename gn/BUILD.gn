@@ -87,6 +87,7 @@ action("gen_buildflags") {
     "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
     "PERFETTO_TP_HTTPD=$enable_perfetto_trace_processor_httpd",
     "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
+    "PERFETTO_TP_INSTRUMENTS=$enable_perfetto_trace_processor_mac_instruments",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
     "PERFETTO_TRACED_PERF=$enable_perfetto_traced_perf",
@@ -360,6 +361,16 @@ config("sqlite_third_party_include_path") {
     include_dirs = [ "//third_party/sqlite/dev" ]
   } else {
     include_dirs = [ "//third_party/sqlite" ]
+  }
+}
+
+if (enable_perfetto_trace_processor_mac_instruments) {
+  group("expat") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:expat" ]
+    } else {
+      public_deps = [ "//third_party/expat:expat" ]
+    }
   }
 }
 

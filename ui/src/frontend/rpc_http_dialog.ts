@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {VERSION} from '../gen/perfetto_version';
@@ -21,7 +20,6 @@ import {StatusResult, TraceProcessorApiVersion} from '../protos';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {Router} from './router';
-
 import {globals} from './globals';
 import {publishHttpRpcState} from './publish';
 

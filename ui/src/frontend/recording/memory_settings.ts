@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {MeminfoCounters, VmstatCounters} from '../../protos';
 import {globals} from '../globals';
 import {
@@ -28,7 +27,6 @@ import {
   Toggle,
   ToggleAttrs,
 } from '../record_widgets';
-
 import {POLL_INTERVAL_MS, RecordingSectionAttrs} from './recording_sections';
 
 class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {

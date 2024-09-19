@@ -68,6 +68,10 @@ class MappingTracker {
   UserMemoryMapping& CreateUserMemoryMapping(UniquePid upid,
                                              CreateMappingParams params);
 
+  // Sometimes we just need a mapping and we are lacking trace data to create a
+  // proper one. Use this mapping in those cases.
+  DummyMemoryMapping& CreateDummyMapping(std::string name);
+
   // Create an "other" mapping. Returned reference will be valid for the
   // duration of this instance.
   VirtualMemoryMapping& InternMemoryMapping(CreateMappingParams params);
@@ -90,10 +94,6 @@ class MappingTracker {
   // deleted.
   // Jitted ranges will only be applied to UserMemoryMappings
   void AddJitRange(UniquePid upid, AddressRange range, JitCache* jit_cache);
-
-  // Sometimes we just need a mapping and we are lacking trace data to create a
-  // proper one. Use this mapping in those cases.
-  VirtualMemoryMapping* GetDummyMapping();
 
  private:
   template <typename MappingImpl>
@@ -140,8 +140,6 @@ class MappingTracker {
   KernelMemoryMapping* kernel_ = nullptr;
 
   base::FlatHashMap<UniquePid, AddressRangeMap<JitCache*>> jit_caches_;
-
-  VirtualMemoryMapping* dummy_mapping_ = nullptr;
 };
 
 }  // namespace trace_processor

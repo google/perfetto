@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {time, Time} from '../base/time';
 import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
-
 import {
   BACKGROUND_COLOR,
   FOREGROUND_COLOR,
@@ -24,11 +22,11 @@ import {
 } from './css_constants';
 import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
-import {Size} from '../base/geom';
+import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
-import {canvasClip} from '../common/canvas_utils';
-import {PxSpan, TimeScale} from './time_scale';
+import {canvasClip} from '../base/canvas_utils';
+import {TimeScale} from '../base/time_scale';
 
 export interface BBox {
   x: number;
@@ -141,7 +139,7 @@ export class TimeSelectionPanel implements Panel {
     return m('.time-selection-panel');
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
@@ -154,9 +152,12 @@ export class TimeSelectionPanel implements Panel {
     ctx.restore();
   }
 
-  private renderPanel(ctx: CanvasRenderingContext2D, size: Size): void {
+  private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
     const visibleWindow = globals.timeline.visibleWindow;
-    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: size.width,
+    });
     const timespan = visibleWindow.toTimeSpan();
 
     if (size.width > 0 && timespan.duration > 0n) {
@@ -172,7 +173,7 @@ export class TimeSelectionPanel implements Panel {
     }
 
     const localArea = globals.timeline.selectedArea;
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
     if (localArea !== undefined) {
       const start = Time.min(localArea.start, localArea.end);
       const end = Time.max(localArea.start, localArea.end);
@@ -192,7 +193,7 @@ export class TimeSelectionPanel implements Panel {
       );
     }
 
-    for (const note of Object.values(globals.state.notes)) {
+    for (const note of globals.noteManager.notes.values()) {
       const noteIsSelected =
         selection.kind === 'note' && selection.id === note.id;
       if (note.noteType === 'SPAN' && !noteIsSelected) {
@@ -206,7 +207,7 @@ export class TimeSelectionPanel implements Panel {
   renderHover(
     ctx: CanvasRenderingContext2D,
     timescale: TimeScale,
-    size: Size,
+    size: Size2D,
     ts: time,
   ) {
     const xPos = Math.floor(timescale.timeToPx(ts));
@@ -218,7 +219,7 @@ export class TimeSelectionPanel implements Panel {
   renderSpan(
     ctx: CanvasRenderingContext2D,
     timescale: TimeScale,
-    trackSize: Size,
+    trackSize: Size2D,
     start: time,
     end: time,
   ) {
@@ -238,7 +239,7 @@ export class TimeSelectionPanel implements Panel {
     );
   }
 
-  private getBBoxFromSize(size: Size): BBox {
+  private getBBoxFromSize(size: Size2D): BBox {
     return {
       x: 0,
       y: 0,
@@ -256,12 +257,16 @@ function stringifyTimestamp(time: time): string {
     case TimestampFormat.Timecode:
       const THIN_SPACE = '\u2009';
       return Time.toTimecode(time).toString(THIN_SPACE);
-    case TimestampFormat.Raw:
+    case TimestampFormat.TraceNs:
       return time.toString();
-    case TimestampFormat.RawLocale:
+    case TimestampFormat.TraceNsLocale:
       return time.toLocaleString();
     case TimestampFormat.Seconds:
       return Time.formatSeconds(time);
+    case TimestampFormat.Milliseoncds:
+      return Time.formatMilliseconds(time);
+    case TimestampFormat.Microseconds:
+      return Time.formatMicroseconds(time);
     default:
       const z: never = fmt;
       throw new Error(`Invalid timestamp ${z}`);

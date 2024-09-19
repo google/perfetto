@@ -92,6 +92,10 @@ message TraceMetadata {
   optional string trace_config_pbtxt = 9;
   optional int64 sched_duration_ns = 10;
   optional int64 tracing_started_ns = 11;
+  optional int64 android_sdk_version = 12;
+  optional int64 suspend_count = 13;
+  optional int64 data_loss_count = 14;
+  optional int64 error_count = 15;
 }
 
 // Stats counters for the trace.

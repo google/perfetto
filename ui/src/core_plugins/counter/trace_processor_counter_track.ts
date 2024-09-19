@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {globals} from '../../frontend/globals';
-import {LONG, LONG_NULL, NUM} from '../../public';
+import {LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
 import {
   BaseCounterTrack,
   BaseCounterTrackArgs,
 } from '../../frontend/base_counter_track';
-import {TrackMouseEvent} from '../../public/tracks';
+import {TrackMouseEvent} from '../../public/track';
 
 interface TraceProcessorCounterTrackArgs extends BaseCounterTrackArgs {
   trackId: number;
@@ -79,7 +79,7 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
         return;
       }
       const id = it.id;
-      globals.selectSingleEvent(this.uri, id);
+      globals.selectionManager.setEvent(this.uri, id);
     });
 
     return true;

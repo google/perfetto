@@ -14,8 +14,7 @@
 
 import {Time} from '../base/time';
 import {UNEXPECTED_PINK} from '../core/colorizer';
-import {Slice} from '../public';
-
+import {Slice} from '../public/track';
 import {filterVisibleSlicesForTesting as filterVisibleSlices} from './base_slice_track';
 
 function slice(start: number, duration: number, depth: number = 0): Slice {

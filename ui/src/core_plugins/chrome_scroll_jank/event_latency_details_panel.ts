@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Duration, duration, time} from '../../base/time';
 import {raf} from '../../core/raf_scheduler';
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
@@ -44,7 +43,6 @@ import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {Tree, TreeNode} from '../../widgets/tree';
-
 import {
   EventLatencyCauseThreadTracks,
   EventLatencyStage,
@@ -59,7 +57,7 @@ import {
   ScrollJankSlice,
 } from './scroll_jank_slice';
 import {sliceRef} from '../../frontend/widgets/slice';
-import {SCROLL_JANK_V3_TRACK_KIND} from '../../public';
+import {SCROLL_JANK_V3_TRACK_KIND} from '../../public/track_kinds';
 import {globals} from '../../frontend/globals';
 
 // Given a node in the slice tree, return a path from root to it.

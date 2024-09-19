@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../base/semantic_icons';
 import {Time, TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
@@ -26,7 +25,6 @@ import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
 import {Tree} from '../widgets/tree';
-
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {addDebugSliceTrack} from './debug_tracks/debug_tracks';
 import {Flow, FlowPoint, globals} from './globals';
@@ -156,7 +154,9 @@ const ITEMS: ContextMenuItem[] = [
             // plugin's context object.
             {
               engine,
-              registerTrack: (x) => globals.trackManager.registerTrack(x),
+              tracks: {
+                registerTrack: (x) => globals.trackManager.registerTrack(x),
+              },
             },
             {
               sqlSource: `
@@ -437,7 +437,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
               title: 'Delay',
               render: (flow: Flow) =>
                 m(DurationWidget, {
-                  dur: flow.end.sliceEndTs - flow.end.sliceStartTs,
+                  dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
                 }),
             },
             {

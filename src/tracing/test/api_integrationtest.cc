@@ -33,6 +33,7 @@
 
 #include "perfetto/tracing.h"
 #include "test/gtest_and_gmock.h"
+#include "test/integrationtest_initializer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>  // For CreateFile().
@@ -7223,6 +7224,28 @@ INSTANTIATE_TEST_SUITE_P(PerfettoStartupTracingApiTest,
                          PerfettoStartupTracingApiTest,
                          ::testing::Values(perfetto::kSystemBackend),
                          BackendTypeAsString());
+
+class PerfettoApiEnvironment : public ::testing::Environment {
+ public:
+  void TearDown() override {
+    // Test shutting down Perfetto only when all other tests have been run and
+    // no more tracing code will be executed.
+    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
+    perfetto::TracingInitArgs args;
+    args.backends = perfetto::kInProcessBackend;
+    perfetto::Tracing::Initialize(args);
+    perfetto::Tracing::Shutdown();
+    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
+    // Shutting down again is a no-op.
+    perfetto::Tracing::Shutdown();
+    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
+  }
+};
+
+int PERFETTO_UNUSED initializer =
+    perfetto::integration_tests::RegisterApiIntegrationTestInitializer([] {
+      ::testing::AddGlobalTestEnvironment(new PerfettoApiEnvironment);
+    });
 
 }  // namespace
 

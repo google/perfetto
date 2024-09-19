@@ -16,10 +16,10 @@ import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_descri
 import {
   ArgSetColumnSet,
   DurationColumn,
-  ProcessColumn,
+  ProcessColumnSet,
   SliceIdColumn,
   StandardColumn,
-  ThreadColumn,
+  ThreadColumnSet,
   TimestampColumn,
 } from '../../frontend/widgets/sql/table/well_known_columns';
 
@@ -40,11 +40,10 @@ export function getSliceTable(): SqlTableDescription {
         aggregationType: 'nominal',
         startsHidden: true,
       }),
-      new ThreadColumn('utid', {title: 'Thread'}),
-      new ProcessColumn('upid', {title: 'Process'}),
+      new ThreadColumnSet('utid', {title: 'utid'}),
+      new ProcessColumnSet('upid', {title: 'upid'}),
       new StandardColumn('depth', {title: 'Depth', startsHidden: true}),
       new SliceIdColumn('parent_id', {
-        title: 'Parent slice ID',
         startsHidden: true,
       }),
       new ArgSetColumnSet('arg_set_id'),

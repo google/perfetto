@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 class LargeScreensPerf implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerCommand({
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.LargeScreensPerf#PinUnfoldLatencyTracks',
       name: 'Pin: Unfold latency tracks',
       callback: () => {
-        ctx.timeline.workspace.flatTracks.forEach((track) => {
+        ctx.workspace.flatTracks.forEach((track) => {
           if (
             !!track.displayName.includes('UnfoldTransition') ||
             track.displayName.includes('Screen on blocked') ||

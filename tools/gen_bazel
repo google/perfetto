@@ -144,6 +144,7 @@ buildflags_dir = 'include/perfetto/base/build_configs/bazel'
 external_deps = {
     '//gn:default_deps': [],
     '//gn:base_platform': ['PERFETTO_CONFIG.deps.base_platform'],
+    '//gn:expat': ['PERFETTO_CONFIG.deps.expat'],
     '//gn:jsoncpp': ['PERFETTO_CONFIG.deps.jsoncpp'],
     '//gn:linenoise': ['PERFETTO_CONFIG.deps.linenoise'],
     '//gn:protobuf_full': ['PERFETTO_CONFIG.deps.protobuf_full'],
@@ -173,6 +174,7 @@ default_python_targets = [
     '//python:experimental_slice_breakdown_bin',
     '//python:trace_processor_table_generator',
     '//python:trace_processor_py_example',
+    '//python:sql_processing',
 ]
 
 # Internal equivalents for third-party Python libraries.

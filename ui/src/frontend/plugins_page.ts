@@ -13,13 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
-
 import {exists} from '../base/utils';
-import {PluginDescriptor} from '../public';
+import {PluginDescriptor} from '../public/plugin';
 import {createPage} from './pages';
 import {defaultPlugins} from '../core/default_plugins';
 import {Intent} from '../widgets/common';
@@ -29,6 +27,12 @@ export const PluginsPage = createPage({
     return m(
       '.pf-plugins-page',
       m('h1', 'Plugins'),
+      pluginManager.needsRestart &&
+        m(
+          'h3.restart_needed',
+          'Some plugins have been disabled. ' +
+            'Please reload your page to apply the changes.',
+        ),
       m(
         '.pf-plugins-topbar',
         m(Button, {
@@ -36,7 +40,7 @@ export const PluginsPage = createPage({
           label: 'Disable All',
           onclick: async () => {
             for (const plugin of pluginRegistry.values()) {
-              await pluginManager.disablePlugin(plugin.pluginId, true);
+              await pluginManager.disablePlugin(plugin.pluginId);
               raf.scheduleFullRedraw();
             }
           },
@@ -46,7 +50,7 @@ export const PluginsPage = createPage({
           label: 'Enable All',
           onclick: async () => {
             for (const plugin of pluginRegistry.values()) {
-              await pluginManager.enablePlugin(plugin.pluginId, true);
+              await pluginManager.enablePlugin(plugin.pluginId);
               raf.scheduleFullRedraw();
             }
           },
@@ -55,7 +59,7 @@ export const PluginsPage = createPage({
           intent: Intent.Primary,
           label: 'Restore Defaults',
           onclick: async () => {
-            await pluginManager.restoreDefaults(true);
+            await pluginManager.restoreDefaults();
             raf.scheduleFullRedraw();
           },
         }),
@@ -95,13 +99,13 @@ function renderPluginRow(plugin: PluginDescriptor): m.Children {
       ? m('.pf-tag.pf-active', 'Active')
       : m('.pf-tag.pf-inactive', 'Inactive'),
     m(Button, {
-      label: isActive ? 'Disable' : 'Enable',
+      label: isEnabled ? 'Disable' : 'Enable',
       intent: Intent.Primary,
       onclick: async () => {
-        if (isActive) {
-          await pluginManager.disablePlugin(pluginId, true);
+        if (isEnabled) {
+          await pluginManager.disablePlugin(pluginId);
         } else {
-          await pluginManager.enablePlugin(pluginId, true);
+          await pluginManager.enablePlugin(pluginId);
         }
         raf.scheduleFullRedraw();
       },

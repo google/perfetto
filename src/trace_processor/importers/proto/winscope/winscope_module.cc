@@ -49,6 +49,23 @@ WinscopeModule::WinscopeModule(TraceProcessorContext* context)
                                  kWinscopeDescriptor.size());
 }
 
+ModuleResult WinscopeModule::TokenizePacket(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    TraceBlobView* /*packet*/,
+    int64_t /*packet_timestamp*/,
+    RefPtr<PacketSequenceStateGeneration> /*state*/,
+    uint32_t field_id) {
+
+  switch (field_id) {
+    case TracePacket::kProtologViewerConfigFieldNumber:
+      protolog_parser_.ParseAndAddViewerConfigToMessageDecoder(
+          decoder.protolog_viewer_config());
+      return ModuleResult::Handled();
+  }
+
+  return ModuleResult::Ignored();
+}
+
 void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
                                           int64_t timestamp,
                                           const TracePacketData& data,
@@ -72,10 +89,6 @@ void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
     case TracePacket::kProtologMessageFieldNumber:
       protolog_parser_.ParseProtoLogMessage(
           data.sequence_state.get(), decoder.protolog_message(), timestamp);
-      return;
-    case TracePacket::kProtologViewerConfigFieldNumber:
-      protolog_parser_.ParseProtoLogViewerConfig(
-          decoder.protolog_viewer_config());
       return;
     case TracePacket::kWinscopeExtensionsFieldNumber:
       ParseWinscopeExtensionsData(decoder.winscope_extensions(), timestamp,

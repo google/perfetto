@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {GenericSliceDetailsTabConfig} from '../core/generic_slice_details_types';
+import {GenericSliceDetailsTabConfig} from '../public/details_panel';
 import {raf} from '../core/raf_scheduler';
 import {ColumnType} from '../trace_processor/query_result';
 import {sqlValueToReadableString} from '../trace_processor/sql_utils';
@@ -23,7 +22,6 @@ import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {dictToTree, Tree, TreeNode} from '../widgets/tree';
-
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 
 export {
@@ -31,7 +29,7 @@ export {
   Columns,
   GenericSliceDetailsTabConfig,
   GenericSliceDetailsTabConfigBase,
-} from '../core/generic_slice_details_types';
+} from '../public/details_panel';
 
 // A details tab, which fetches slice-like object from a given SQL table by id
 // and renders it according to the provided config, specifying which columns

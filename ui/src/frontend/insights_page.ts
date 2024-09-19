@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {createPage} from './pages';
 
 export const InsightsPage = createPage({

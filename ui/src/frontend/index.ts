@@ -17,10 +17,8 @@ import '../base/disposable_polyfill';
 import '../base/static_initializers';
 import '../gen/all_plugins';
 import '../gen/all_core_plugins';
-
 import {Draft} from 'immer';
 import m from 'mithril';
-
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {Store} from '../base/store';
@@ -35,8 +33,7 @@ import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
 import {setScheduleFullRedraw} from '../widgets/raf';
-
-import {App} from './app';
+import {UiMain} from './ui_main';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
@@ -160,6 +157,47 @@ function setupContentSecurityPolicy() {
   document.head.appendChild(meta);
 }
 
+function setupExtentionPort(extensionLocalChannel: MessageChannel) {
+  // We proxy messages between the extension and the controller because the
+  // controller's worker can't access chrome.runtime.
+  const extensionPort =
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    window.chrome && chrome.runtime
+      ? chrome.runtime.connect(EXTENSION_ID)
+      : undefined;
+
+  setExtensionAvailability(extensionPort !== undefined);
+
+  if (extensionPort) {
+    // Send messages to keep-alive the extension port.
+    const interval = setInterval(() => {
+      extensionPort.postMessage({
+        method: 'ExtensionVersion',
+      });
+    }, 25000);
+    extensionPort.onDisconnect.addListener((_) => {
+      setExtensionAvailability(false);
+      clearInterval(interval);
+      void chrome.runtime.lastError; // Needed to not receive an error log.
+    });
+    // This forwards the messages from the extension to the controller.
+    extensionPort.onMessage.addListener(
+      (message: object, _port: chrome.runtime.Port) => {
+        if (isGetCategoriesResponse(message)) {
+          globals.dispatch(Actions.setChromeCategories(message));
+          return;
+        }
+        extensionLocalChannel.port2.postMessage(message);
+      },
+    );
+  }
+
+  // This forwards the messages from the controller to the extension
+  extensionLocalChannel.port2.onmessage = ({data}) => {
+    if (extensionPort) extensionPort.postMessage(data);
+  };
+}
+
 function main() {
   // Wire up raf for widgets.
   setScheduleFullRedraw(() => raf.scheduleFullRedraw());
@@ -216,37 +254,7 @@ function main() {
   globals.store.subscribe(scheduleRafAndRunControllersOnStateChange);
   globals.publishRedraw = () => raf.scheduleFullRedraw();
 
-  // We proxy messages between the extension and the controller because the
-  // controller's worker can't access chrome.runtime.
-  const extensionPort =
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    window.chrome && chrome.runtime
-      ? chrome.runtime.connect(EXTENSION_ID)
-      : undefined;
-
-  setExtensionAvailability(extensionPort !== undefined);
-
-  if (extensionPort) {
-    extensionPort.onDisconnect.addListener((_) => {
-      setExtensionAvailability(false);
-      void chrome.runtime.lastError; // Needed to not receive an error log.
-    });
-    // This forwards the messages from the extension to the controller.
-    extensionPort.onMessage.addListener(
-      (message: object, _port: chrome.runtime.Port) => {
-        if (isGetCategoriesResponse(message)) {
-          globals.dispatch(Actions.setChromeCategories(message));
-          return;
-        }
-        extensionLocalChannel.port2.postMessage(message);
-      },
-    );
-  }
-
-  // This forwards the messages from the controller to the extension
-  extensionLocalChannel.port2.onmessage = ({data}) => {
-    if (extensionPort) extensionPort.postMessage(data);
-  };
+  setupExtentionPort(extensionLocalChannel);
 
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
@@ -289,7 +297,7 @@ function onCssLoaded() {
   router.onRouteChanged = routeChange;
 
   raf.domRedraw = () => {
-    m.render(document.body, m(App, router.resolve()));
+    m.render(document.body, m(UiMain, router.resolve()));
   };
 
   if (
@@ -356,7 +364,7 @@ function onCssLoaded() {
   });
 
   // Force one initial render to get everything in place
-  m.render(document.body, m(App, router.resolve()));
+  m.render(document.body, m(UiMain, router.resolve()));
 
   // Initialize plugins, now that we are ready to go
   pluginManager.initialize();

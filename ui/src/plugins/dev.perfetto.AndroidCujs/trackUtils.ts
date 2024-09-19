@@ -12,29 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../frontend/globals';
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
-import {
-  addDebugSliceTrack,
-  PluginContextTrace,
-  TrackDescriptor,
-} from '../../public';
-import {findCurrentSelection} from '../../frontend/keyboard_event_handler';
-import {time, Time} from '../../base/time';
-import {BigintMath} from '../../base/bigint_math';
-import {scrollToTrackAndTimeSpan} from '../../frontend/scroll_helper';
+import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {Trace} from '../../public/trace';
 
 /**
  * Adds debug tracks from SimpleSliceTrackConfig
  * Static tracks cannot be added on command
  * TODO: b/349502258 - To be removed later
  *
- * @param {PluginContextTrace} ctx Context for trace methods and properties
+ * @param {Trace} ctx Context for trace methods and properties
  * @param {SimpleSliceTrackConfig} config Track config to add
  * @param {string} trackName Track name to display
  */
 export function addDebugTrackOnCommand(
-  ctx: PluginContextTrace,
+  ctx: Trace,
   config: SimpleSliceTrackConfig,
   trackName: string,
 ) {
@@ -50,13 +42,13 @@ export function addDebugTrackOnCommand(
 /**
  * Registers and pins tracks on traceload or command
  *
- * @param {PluginContextTrace} ctx Context for trace methods and properties
+ * @param {Trace} ctx Context for trace methods and properties
  * @param {SimpleSliceTrackConfig} config Track config to add
  * @param {string} trackName Track name to display
  * type 'static' expects caller to pass uri string
  */
 export function addAndPinSliceTrack(
-  ctx: PluginContextTrace,
+  ctx: Trace,
   config: SimpleSliceTrackConfig,
   trackName: string,
 ) {
@@ -64,87 +56,30 @@ export function addAndPinSliceTrack(
 }
 
 /**
- * Interface for slice identifier
- */
-export interface SliceIdentifier {
-  sliceId?: number;
-  trackId?: number;
-  ts?: time;
-  dur?: bigint;
-}
-
-/**
  * Sets focus on a specific slice within the trace data.
  *
  * Takes and adds desired slice to current selection
  * Retrieves the track key and scrolls to the desired slice
- *
- * @param {SliceIdentifier} slice slice to focus on with trackId and sliceId
  */
-
-export function focusOnSlice(slice: SliceIdentifier) {
-  if (slice.sliceId == undefined || slice.trackId == undefined) {
-    return;
-  }
-  const trackId = slice.trackId;
-  const track = getTrackForTrackId(trackId);
-  globals.setLegacySelection(
+export function focusOnSlice(
+  ctx: Trace,
+  sqlSliceId: number,
+  sqlTrackId: number,
+) {
+  // TODO(primiano): there should be probably a public API to select slices
+  // given their SQL details. We need to rationalize selection first.
+  const trackUri = ctx.tracks.findTrack((trackDescriptor) => {
+    return trackDescriptor?.tags?.trackIds?.includes(sqlTrackId);
+  })?.uri;
+  ctx.selection.setLegacy(
     {
       kind: 'SLICE',
-      id: slice.sliceId,
-      trackUri: track?.uri,
+      id: sqlSliceId,
+      trackUri,
       table: 'slice',
     },
     {
-      clearSearch: true,
-      pendingScrollId: slice.sliceId,
-      switchToCurrentSelectionTab: true,
+      pendingScrollId: sqlSliceId,
     },
-  );
-  findCurrentSelection;
-}
-
-/**
- * Given the trackId of the track, retrieves its corresponding TrackDescriptor.
- *
- * @param trackId track_id of the track
- */
-function getTrackForTrackId(trackId: number): TrackDescriptor | undefined {
-  return globals.trackManager.getAllTracks().find((trackDescriptor) => {
-    return trackDescriptor?.tags?.trackIds?.includes(trackId);
-  });
-}
-
-/**
- * Sets focus on a specific time span and a track
- *
- * Takes a row object pans the view to that time span
- * Retrieves the track key and scrolls to the desired track
- *
- * @param {SliceIdentifier} slice slice to focus on with trackId and time data
- */
-
-export async function focusOnTimeAndTrack(slice: SliceIdentifier) {
-  if (
-    slice.trackId == undefined ||
-    slice.ts == undefined ||
-    slice.dur == undefined
-  ) {
-    return;
-  }
-  const trackId = slice.trackId;
-  const sliceStart = slice.ts;
-  // row.dur can be negative. Clamp to 1ns.
-  const sliceDur = BigintMath.max(slice.dur, 1n);
-  const track = getTrackForTrackId(trackId);
-  // true for whether to expand the process group the track belongs to
-  if (track == undefined) {
-    return;
-  }
-  scrollToTrackAndTimeSpan(
-    track.uri,
-    sliceStart,
-    Time.add(sliceStart, sliceDur),
-    true,
   );
 }

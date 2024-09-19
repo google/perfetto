@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
 import {PLUGIN_ID} from './pluginId';
@@ -42,8 +39,8 @@ class PinAndroidPerfMetrics implements PerfettoPlugin {
     this.metrics = this.getMetricsFromHash();
   }
 
-  async onTraceReady(ctx: PluginContextTrace) {
-    ctx.registerCommand({
+  async onTraceReady(ctx: Trace) {
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.PinAndroidPerfMetrics#PinAndroidPerfMetrics',
       name: 'Add and Pin: Jank Metric Slice',
       callback: async (metric) => {
@@ -58,7 +55,7 @@ class PinAndroidPerfMetrics implements PerfettoPlugin {
     }
   }
 
-  private async callHandlers(metricsList: string[], ctx: PluginContextTrace) {
+  private async callHandlers(metricsList: string[], ctx: Trace) {
     // List of metrics that actually match some handler
     const metricsToShow: MetricHandlerMatch[] =
       this.getMetricsToShow(metricsList);

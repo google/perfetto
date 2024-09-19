@@ -22,6 +22,7 @@
 #include <optional>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/perf/mmap_record.h"
 #include "src/trace_processor/importers/perf/record.h"
@@ -31,6 +32,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class DummyMemoryMapping;
 class MappingTracker;
 class TraceProcessorContext;
 
@@ -66,8 +68,11 @@ class RecordParser : public PerfRecordParser {
 
   UniquePid GetUpid(const CommonMmapRecordFields& fields) const;
 
-  TraceProcessorContext* const context_ = nullptr;
+  DummyMemoryMapping* GetDummyMapping(UniquePid upid);
+
+  TraceProcessorContext* const context_;
   MappingTracker* const mapping_tracker_;
+  base::FlatHashMap<UniquePid, DummyMemoryMapping*> dummy_mappings_;
 };
 
 }  // namespace perf_importer

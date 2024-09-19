@@ -58,9 +58,9 @@ constexpr uint64_t kWatchdogDefaultMemorySlack = 32 * 1024 * 1024;  // 32 MiB.
 constexpr uint32_t kWatchdogDefaultMemoryWindow = 30 * 1000;  // 30 seconds.
 
 inline void RunTaskWithWatchdogGuard(const std::function<void()>& task) {
-  // Maximum time a single task can take in a TaskRunner before the
-  // program suicides.
-  constexpr int64_t kWatchdogMillis = 30000;  // 30s
+  // The longest duration allowed for a single task within the TaskRunner.
+  // Exceeding this limit will trigger program termination.
+  constexpr int64_t kWatchdogMillis = 180000;  // 180s
 
   Watchdog::Timer handle = base::Watchdog::GetInstance()->CreateFatalTimer(
       kWatchdogMillis, WatchdogCrashReason::kTaskRunnerHung);

@@ -13,16 +13,26 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {HTMLInputAttrs} from './common';
+
+type TextInputAttrs = HTMLInputAttrs & {
+  // Whether the input should autofocus when it is created.
+  autofocus?: boolean;
+};
 
 // For now, this component is just a simple wrapper around a plain old input
 // element, which does no more than specify a class. However, in the future we
 // might want to add more features such as an optional icon or button (e.g. a
 // clear button), at which point the benefit of having this as a component would
 // become more apparent.
-export class TextInput implements m.ClassComponent<HTMLInputAttrs> {
-  view({attrs}: m.CVnode<HTMLInputAttrs>) {
+export class TextInput implements m.ClassComponent<TextInputAttrs> {
+  oncreate(vnode: m.CVnodeDOM<TextInputAttrs>) {
+    if (vnode.attrs.autofocus) {
+      (vnode.dom as HTMLElement).focus();
+    }
+  }
+
+  view({attrs}: m.CVnode<TextInputAttrs>) {
     return m('input.pf-text-input', attrs);
   }
 }

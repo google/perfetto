@@ -14,12 +14,10 @@
 
 import {produce} from 'immer';
 import m from 'mithril';
-
 import {Actions} from '../../common/actions';
 import {RecordMode} from '../../common/state';
 import {globals} from '../globals';
 import {Slider, SliderAttrs} from '../record_widgets';
-
 import {RecordingSectionAttrs} from './recording_sections';
 
 export class RecordingSettings

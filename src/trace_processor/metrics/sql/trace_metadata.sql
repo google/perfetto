@@ -13,6 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
+INCLUDE PERFETTO MODULE android.suspend;
 
 DROP VIEW IF EXISTS trace_metadata_output;
 CREATE PERFETTO VIEW trace_metadata_output AS
@@ -49,5 +50,22 @@ SELECT TraceMetadata(
   'tracing_started_ns', (
     SELECT int_value FROM metadata
     WHERE name='tracing_started_ns'
+  ),
+  'android_sdk_version', (
+    SELECT int_value FROM metadata
+    WHERE name = 'android_sdk_version'
+  ),
+  'suspend_count', (
+    SELECT COUNT() FROM android_suspend_state WHERE power_state = 'suspended'
+  ),
+  'data_loss_count', (
+      SELECT COUNT()
+      FROM stats
+      WHERE severity = 'data_loss' AND value > 0
+  ),
+  'error_count', (
+      SELECT COUNT()
+      FROM stats
+      WHERE severity = 'error' AND value > 0
   )
 );

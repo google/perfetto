@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import {ColumnDef} from '../../common/aggregation_data';
-import {Area, Sorting} from '../../common/state';
+import {Sorting} from '../../common/state';
+import {Area} from '../../public/selection';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
-
 import {AggregationController} from './aggregation_controller';
 import {
   ASYNC_SLICE_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
-} from '../../core/track_kinds';
+} from '../../public/track_kinds';
 
 export function getSelectedTrackKeys(area: Area): number[] {
   const selectedTrackKeys: number[] = [];

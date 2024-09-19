@@ -25,7 +25,6 @@ import {couldNotClaimInterface} from '../../frontend/recording/reset_interface_m
 import {TraceConfig} from '../../protos';
 import {Actions} from '../actions';
 import {TRACE_SUFFIX} from '../constants';
-
 import {genTraceConfig} from './recording_config_utils';
 import {RecordingError, showRecordingModal} from './recording_error_handling';
 import {

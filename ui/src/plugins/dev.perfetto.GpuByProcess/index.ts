@@ -12,21 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NUM_NULL,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  STR_NULL,
-  Slice,
-} from '../../public';
+import {NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {Slice} from '../../public/track';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
   NAMED_ROW,
   NamedRow,
   NamedSliceTrack,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-
+import {TrackNode} from '../../public/workspace';
 class GpuPidTrack extends NamedSliceTrack {
   upid: number;
 
@@ -53,7 +49,7 @@ class GpuPidTrack extends NamedSliceTrack {
 }
 
 class GpuByProcess implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     // Find all unique upid values in gpu_slices and join with process table.
     const results = await ctx.engine.query(`
       WITH slice_upids AS (
@@ -83,15 +79,17 @@ class GpuByProcess implements PerfettoPlugin {
       }
 
       const uri = `dev.perfetto.GpuByProcess#${upid}`;
-      ctx.registerTrackAndShowOnTraceLoad({
+      const title = `GPU ${processName}`;
+      ctx.tracks.registerTrack({
         uri,
-        title: `GPU ${processName}`,
+        title,
         track: new GpuPidTrack({engine: ctx.engine, uri}, upid),
       });
+      ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
     }
   }
 
-  async onTraceUnload(_: PluginContextTrace): Promise<void> {}
+  async onTraceUnload(_: Trace): Promise<void> {}
 }
 
 export const plugin: PluginDescriptor = {

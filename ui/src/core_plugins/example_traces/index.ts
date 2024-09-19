@@ -14,7 +14,8 @@
 
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
-import {PerfettoPlugin, PluginContext, PluginDescriptor} from '../../public';
+import {App} from '../../public/app';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 const EXAMPLE_ANDROID_TRACE_URL =
   'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';
@@ -28,17 +29,17 @@ function openTraceUrl(url: string): void {
 }
 
 class ExampleTracesPlugin implements PerfettoPlugin {
-  onActivate(ctx: PluginContext) {
+  onActivate(ctx: App) {
     const OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID =
       'perfetto.CoreCommands#openExampleAndroidTrace';
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID,
       name: 'Open Android example',
       callback: () => {
         openTraceUrl(EXAMPLE_ANDROID_TRACE_URL);
       },
     });
-    ctx.addSidebarMenuItem({
+    ctx.sidebar.addMenuItem({
       commandId: OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID,
       group: 'example_traces',
       icon: 'description',
@@ -46,14 +47,14 @@ class ExampleTracesPlugin implements PerfettoPlugin {
 
     const OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID =
       'perfetto.CoreCommands#openExampleChromeTrace';
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID,
       name: 'Open Chrome example',
       callback: () => {
         openTraceUrl(EXAMPLE_CHROME_TRACE_URL);
       },
     });
-    ctx.addSidebarMenuItem({
+    ctx.sidebar.addMenuItem({
       commandId: OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID,
       group: 'example_traces',
       icon: 'description',

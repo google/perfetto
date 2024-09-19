@@ -15,9 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import {Browser, Page} from 'puppeteer';
-
 import {assertExists} from '../base/logging';
-
 import {
   compareScreenshots,
   failIfTraceProcessorHttpdIsActive,
@@ -88,7 +86,7 @@ describe('android_trace_30s', () => {
 
   test('expand_camera', async () => {
     await page.click('.pf-overlay');
-    await page.click('h1[title="com.google.android.GoogleCamera 5506"]');
+    await page.click('h1[ref="com.google.android.GoogleCamera 5506"]');
     await page.evaluate(() => {
       document.querySelector('.scrolling-panel-container')!.scrollTo(0, 400);
     });
@@ -116,7 +114,7 @@ describe('chrome_rendering_desktop', () => {
   test('expand_browser_proc', async () => {
     const page = await getPage();
     await page.click('.pf-overlay');
-    await page.click('h1[title="Browser 12685"]');
+    await page.click('h1[ref="Browser 12685"]');
     await waitForPerfettoIdle(page);
   });
 
@@ -349,7 +347,7 @@ describe('features', () => {
     );
     await waitForPerfettoIdle(page);
     await page.hover(
-      'h1[title="androidx.benchmark.integration.macrobenchmark.test 7527"]',
+      'h1[ref="androidx.benchmark.integration.macrobenchmark.test 7527"]',
     );
     await waitForPerfettoIdle(page);
   });

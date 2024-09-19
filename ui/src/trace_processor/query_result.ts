@@ -49,9 +49,7 @@
 
 // Ensure protobuf is initialized.
 import '../base/static_initializers';
-
 import protobuf from 'protobufjs/minimal';
-
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';

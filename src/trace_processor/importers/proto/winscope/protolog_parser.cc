@@ -35,7 +35,6 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h"
-#include "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -66,7 +65,7 @@ void ProtoLogParser::ParseProtoLogMessage(
 
   std::vector<int64_t> sint64_params;
   for (auto it = protolog_message.sint64_params(); it; ++it) {
-    sint64_params.emplace_back(*it);
+    sint64_params.emplace_back(it->as_sint64());
   }
 
   std::vector<double> double_params;
@@ -134,33 +133,19 @@ void ProtoLogParser::ParseProtoLogMessage(
         row_id, decoded_message.log_level, decoded_message.group_tag,
         decoded_message.message, stacktrace, location);
   } else {
-    // Viewer config used to decode messages not yet processed for this message.
-    // Delaying decoding...
-    auto* protolog_message_tracker =
-        ProtoLogMessagesTracker::GetOrCreate(context_);
-
-    protolog_message_tracker->TrackMessage(
-        ProtoLogMessagesTracker::TrackedProtoLogMessage{
-            protolog_message.message_id(), std::move(sint64_params),
-            std::move(double_params), std::move(boolean_params),
-            std::move(string_params), stacktrace, row_id, timestamp});
+    // Failed to fully decode the message.
+    // This shouldn't happen since we should have processed all viewer config
+    // messages in the tokenization state, and process the protolog messages
+    // only in the parsing state.
+    context_->storage->IncrementStats(
+        stats::winscope_protolog_message_decoding_failed);
   }
 }
 
-void ProtoLogParser::ParseProtoLogViewerConfig(protozero::ConstBytes blob) {
+void ProtoLogParser::ParseAndAddViewerConfigToMessageDecoder(
+    protozero::ConstBytes blob) {
   protos::pbzero::ProtoLogViewerConfig::Decoder protolog_viewer_config(blob);
 
-  AddViewerConfigToMessageDecoder(protolog_viewer_config);
-
-  for (auto it = protolog_viewer_config.messages(); it; ++it) {
-    protos::pbzero::ProtoLogViewerConfig::MessageData::Decoder message_data(
-        *it);
-    ProcessPendingMessagesWithId(message_data.message_id());
-  }
-}
-
-void ProtoLogParser::AddViewerConfigToMessageDecoder(
-    protos::pbzero::ProtoLogViewerConfig::Decoder& protolog_viewer_config) {
   auto* protolog_message_decoder =
       ProtoLogMessageDecoder::GetOrCreate(context_);
 
@@ -183,38 +168,6 @@ void ProtoLogParser::AddViewerConfigToMessageDecoder(
         static_cast<ProtoLogLevel>(message_data.level()),
         message_data.group_id(), message_data.message().ToStdString(),
         location);
-  }
-}
-
-void ProtoLogParser::ProcessPendingMessagesWithId(uint64_t message_id) {
-  auto* protolog_message_decoder =
-      ProtoLogMessageDecoder::GetOrCreate(context_);
-  auto* protolog_message_tracker =
-      ProtoLogMessagesTracker::GetOrCreate(context_);
-
-  auto tracked_messages_opt =
-      protolog_message_tracker->GetTrackedMessagesByMessageId(message_id);
-
-  if (tracked_messages_opt.has_value()) {
-    // There are undecoded messages that can now be docoded to populate the
-    // table.
-    for (const auto& tracked_message : *tracked_messages_opt.value()) {
-      auto message = protolog_message_decoder
-                         ->Decode(tracked_message.message_id,
-                                  tracked_message.sint64_params,
-                                  tracked_message.double_params,
-                                  tracked_message.boolean_params,
-                                  tracked_message.string_params)
-                         .value();
-
-      std::optional<std::string> location = message.location;
-      PopulateReservedRowWithMessage(
-          tracked_message.table_row_id, message.log_level, message.group_tag,
-          message.message, tracked_message.stacktrace, location);
-    }
-
-    // Clear to avoid decoding again
-    protolog_message_tracker->ClearTrackedMessagesForMessageId(message_id);
   }
 }
 

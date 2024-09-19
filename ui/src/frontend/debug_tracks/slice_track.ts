@@ -18,7 +18,7 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../tracks/custom_sql_table_slice_track';
-import {TrackContext} from '../../public';
+import {TrackContext} from '../../public/track';
 import {Engine} from '../../trace_processor/engine';
 import {DebugSliceDetailsTab} from './details_tab';
 import {Button} from '../../widgets/button';

@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {createStore, Store} from '../../base/store';
 import {exists} from '../../base/utils';
-import {
-  createStore,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  Store,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 interface State {
   counter: number;
@@ -43,15 +39,15 @@ class ExampleState implements PerfettoPlugin {
     }
   }
 
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     this.store = ctx.mountStore((init: unknown) => this.migrate(init));
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.ExampleState#ShowCounter',
       name: 'Show ExampleState counter',
       callback: () => {
         const counter = this.store.state.counter;
-        ctx.tabs.openQuery(
+        ctx.addQueryResultsTab(
           `SELECT ${counter} as counter;`,
           `Show counter ${counter}`,
         );
@@ -62,7 +58,7 @@ class ExampleState implements PerfettoPlugin {
     });
   }
 
-  async onTraceUnload(_: PluginContextTrace): Promise<void> {
+  async onTraceUnload(_: Trace): Promise<void> {
     this.store[Symbol.dispose]();
   }
 }

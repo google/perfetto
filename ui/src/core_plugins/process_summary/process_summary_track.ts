@@ -19,10 +19,11 @@ import {colorForTid} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {Engine, Track} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
-import {TrackRenderContext} from '../../public/tracks';
+import {TrackRenderContext} from '../../public/track';
 
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 

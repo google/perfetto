@@ -401,8 +401,10 @@ void* PerfettoDsImplGetInstanceLocked(struct PerfettoDsImpl* ds_impl,
 
 void PerfettoDsImplReleaseInstanceLocked(struct PerfettoDsImpl* ds_impl,
                                          PerfettoDsInstanceIndex idx) {
-  auto* internal_state = ds_impl->cpp_type.static_state()->TryGet(idx);
-  PERFETTO_CHECK(internal_state);
+  // The `valid_instances` bitmap might have changed since the lock has been
+  // taken, but the instance must still be alive (we were holding the lock on
+  // it).
+  auto* internal_state = ds_impl->cpp_type.static_state()->GetUnsafe(idx);
   internal_state->lock.unlock();
 }
 

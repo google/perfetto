@@ -581,7 +581,7 @@ Examples:
 - [dev.perfetto.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleState/index.ts).
 
 ## Guide to the plugin API
-The plugin interfaces are defined in [ui/src/public/index.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public/index.ts).
+The plugin interfaces are defined in [ui/src/public/](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public).
 
 ## Default plugins
 Some plugins are enabled by default.

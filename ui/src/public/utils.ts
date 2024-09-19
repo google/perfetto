@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {LegacySelection} from '../common/state';
+import {LegacySelection} from '../public/selection';
 import {BottomTab} from '../frontend/bottom_tab';
-
-import {LegacyDetailsPanel, Tab} from '.';
+import {Tab} from './tab';
 import {exists} from '../base/utils';
+import {LegacyDetailsPanel} from './details_panel';
 
 export function getTrackName(
   args: Partial<{

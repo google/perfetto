@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Brand} from '../../../../base/brand';
 import {Time} from '../../../../base/time';
 import {exists} from '../../../../base/utils';
 import {raf} from '../../../../core/raf_scheduler';
-import {Engine} from '../../../../public';
+import {Engine} from '../../../../trace_processor/engine';
 import {Row} from '../../../../trace_processor/query_result';
 import {
   SqlValue,

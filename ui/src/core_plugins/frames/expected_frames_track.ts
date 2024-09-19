@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor} from '../../core/color';
+import {HSLColor} from '../../public/color';
 import {makeColorScheme} from '../../core/colorizer';
 import {
   NAMED_ROW,
@@ -20,7 +20,8 @@ import {
   NamedSliceTrack,
 } from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
-import {Engine, Slice} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {Slice} from '../../public/track';
 
 const GREEN = makeColorScheme(new HSLColor('#4CAF50')); // Green 500
 

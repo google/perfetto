@@ -72,6 +72,8 @@ from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.graphics.tests import GraphicsParser
 from diff_tests.parser.graphics.tests_drm_related_ftrace_events import GraphicsDrmRelatedFtraceEvents
 from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
+from diff_tests.parser.gzip.tests import Gzip
+from diff_tests.parser.instruments.tests import Instruments
 from diff_tests.parser.json.tests import JsonParser
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
@@ -124,8 +126,6 @@ from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
-from diff_tests.stdlib.metasql.column_list import ColumnListTests
-from diff_tests.stdlib.metasql.table_list import TableListTests
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
@@ -238,6 +238,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Zip(index_path, 'parser/zip', 'Zip').fetch(),
       *AndroidInputEvent(index_path, 'parser/android',
                          'AndroidInputEvent').fetch(),
+      *Instruments(index_path, 'parser/instruments', 'Instruments').fetch(),
+      *Gzip(index_path, 'parser/gzip', 'Gzip').fetch(),
   ]
 
   metrics_tests = [
@@ -299,10 +301,6 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                               'StdlibCounterIntervals').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
-      *ColumnListTests(index_path, 'stdlib/column_list',
-                       'ColumnListTests').fetch(),
-      *TableListTests(index_path, 'stdlib/table_list',
-                      'TableListTests').fetch(),
       *Memory(index_path, 'stdlib/linux', 'Memory').fetch(),
       *PreludeMathFunctions(index_path, 'stdlib/prelude',
                             'PreludeMathFunctions').fetch(),

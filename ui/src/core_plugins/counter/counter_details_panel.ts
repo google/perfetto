@@ -15,14 +15,14 @@
 import {AsyncLimiter} from '../../base/async_limiter';
 import {Time, duration, time} from '../../base/time';
 import {raf} from '../../core/raf_scheduler';
+import {Engine} from '../../trace_processor/engine';
 import {
-  Engine,
   LONG,
   LONG_NULL,
   NUM,
   NUM_NULL,
-  TrackSelectionDetailsPanel,
-} from '../../public';
+} from '../../trace_processor/query_result';
+import {TrackSelectionDetailsPanel} from '../../public/details_panel';
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';

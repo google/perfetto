@@ -18,7 +18,7 @@ import {
   JankType,
   MetricHandler,
 } from './metricUtils';
-import {PluginContextTrace} from '../../../public';
+import {Trace} from '../../../public/trace';
 import {addAndPinSliceTrack} from '../../dev.perfetto.AndroidCujs/trackUtils';
 import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
 
@@ -47,13 +47,10 @@ class FullTraceJankMetricHandler implements MetricHandler {
    * Adds the debug track for full trace jank metrics
    *
    * @param {FullTraceMetricData} metricData Parsed metric data for the full trace jank
-   * @param {PluginContextTrace} ctx PluginContextTrace for trace related properties and methods
+   * @param {Trace} ctx PluginContextTrace for trace related properties and methods
    * @returns {void} Adds one track for Jank slice
    */
-  public async addMetricTrack(
-    metricData: FullTraceMetricData,
-    ctx: PluginContextTrace,
-  ) {
+  public async addMetricTrack(metricData: FullTraceMetricData, ctx: Trace) {
     const INCLUDE_PREQUERY = `
     INCLUDE PERFETTO MODULE android.frames.jank_type;
     INCLUDE PERFETTO MODULE slices.slices;
@@ -69,13 +66,16 @@ class FullTraceJankMetricHandler implements MetricHandler {
     trackName: string;
   } {
     let jankTypeFilter;
-    let jankTypeDisplayName = 'all';
+    let jankTypeDisplayName;
     if (metricData.jankType?.includes('app')) {
       jankTypeFilter = ' android_is_app_jank_type(display_value)';
       jankTypeDisplayName = 'app';
     } else if (metricData.jankType?.includes('sf')) {
       jankTypeFilter = ' android_is_sf_jank_type(display_value)';
       jankTypeDisplayName = 'sf';
+    } else {
+      jankTypeFilter = " display_value != 'None'";
+      jankTypeDisplayName = 'all';
     }
     const processName = metricData.process;
 

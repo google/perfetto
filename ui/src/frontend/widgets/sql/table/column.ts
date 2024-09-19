@@ -13,9 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {SqlValue} from '../../../../trace_processor/query_result';
-import {Engine} from '../../../../public';
+import {Engine} from '../../../../trace_processor/engine';
 import {SortDirection} from '../../../../base/comparison_utils';
 import {arrayEquals} from '../../../../base/array_utils';
 
@@ -179,8 +178,7 @@ export abstract class TableColumnSet {
   abstract discover(manager: TableManager): Promise<
     {
       key: string;
-      // TODO(altimin): This probably should allow returning TableColumnSet as well.
-      column: TableColumn;
+      column: TableColumn | TableColumnSet;
     }[]
   >;
 }

@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {NUM} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 // List of tracks to pin
 const TRACKS_TO_PIN: string[] = [
@@ -33,7 +30,7 @@ const SYSTEM_UI_PROCESS: string = 'com.android.systemui';
 
 // Plugin that pins the tracks relevant to System UI
 class PinSysUITracks implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     // Find the upid for the sysui process
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;
@@ -50,11 +47,11 @@ class PinSysUITracks implements PerfettoPlugin {
       upid: NUM,
     }).upid;
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.PinSysUITracks#PinSysUITracks',
       name: 'Pin: System UI Related Tracks',
       callback: () => {
-        ctx.timeline.workspace.flatTracks.forEach((track) => {
+        ctx.workspace.flatTracks.forEach((track) => {
           // Ensure we only grab tracks that are in the SysUI process group
           if (!track.uri.startsWith(`/process_${sysuiUpid}`)) return;
           if (
@@ -68,7 +65,7 @@ class PinSysUITracks implements PerfettoPlugin {
         });
 
         // expand the sysui process tracks group
-        ctx.timeline.workspace.flatGroups.forEach((group) => {
+        ctx.workspace.flatGroups.forEach((group) => {
           if (group.displayName.startsWith(SYSTEM_UI_PROCESS)) {
             group.expand();
           }

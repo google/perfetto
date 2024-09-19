@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {ErrorDetails} from '../base/logging';
 import {EXTENSION_URL} from '../common/recordingV2/recording_utils';
 import {GcsUploader} from '../common/gcs_uploader';
@@ -72,6 +71,11 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
 
   if (err.message.includes('(ERR:rpc_seq)')) {
     showRpcSequencingError();
+    return;
+  }
+
+  if (err.message.includes('(ERR:ws)')) {
+    showWebsocketConnectionIssue(err.message);
     return;
   }
 
@@ -443,7 +447,11 @@ export function showExtensionNotInstalled(): void {
 export function showWebsocketConnectionIssue(message: string): void {
   showModal({
     title: 'Unable to connect to the device via websocket',
-    content: m('div', m('span', message), m('br')),
+    content: m(
+      'div',
+      m('div', 'trace_processor_shell --httpd is unreachable or crashed.'),
+      m('pre', message),
+    ),
   });
 }
 

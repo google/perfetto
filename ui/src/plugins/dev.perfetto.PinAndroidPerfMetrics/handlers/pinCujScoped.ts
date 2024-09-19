@@ -18,15 +18,16 @@ import {
   MetricHandler,
   JankType,
 } from './metricUtils';
-import {LONG, NUM} from '../../../trace_processor/query_result';
-import {PluginContextTrace} from '../../../public';
+import {NUM} from '../../../trace_processor/query_result';
+import {Trace} from '../../../public/trace';
 import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
+
+// TODO(primiano): make deps check stricter, we shouldn't allow plugins to
+// depend on each other.
 import {
   addAndPinSliceTrack,
   focusOnSlice,
-  SliceIdentifier,
 } from '../../dev.perfetto.AndroidCujs/trackUtils';
-import {Time} from '../../../base/time';
 
 const ENABLE_FOCUS_ON_FIRST_JANK = true;
 
@@ -57,13 +58,10 @@ class PinCujScopedJank implements MetricHandler {
    * Adds the debug tracks for cuj Scoped jank metrics.
    *
    * @param {CujScopedMetricData} metricData Parsed metric data for the cuj scoped jank
-   * @param {PluginContextTrace} ctx PluginContextTrace for trace related properties and methods
+   * @param {Trace} ctx PluginContextTrace for trace related properties and methods
    * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
    */
-  public async addMetricTrack(
-    metricData: CujScopedMetricData,
-    ctx: PluginContextTrace,
-  ) {
+  public async addMetricTrack(metricData: CujScopedMetricData, ctx: Trace) {
     // TODO: b/349502258 - Refactor to single API
     const {
       config: cujScopedJankSlice,
@@ -78,7 +76,7 @@ class PinCujScopedJank implements MetricHandler {
 
   private async cujScopedTrackConfig(
     metricData: CujScopedMetricData,
-    ctx: PluginContextTrace,
+    ctx: Trace,
   ): Promise<{
     config: SimpleSliceTrackConfig;
     trackName: string;
@@ -105,7 +103,7 @@ class PinCujScopedJank implements MetricHandler {
       f.ts AS ts,
       f.dur as dur
     FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
-    WHERE cuj.process_name = "${processName}" 
+    WHERE cuj.process_name = "${processName}"
     AND cuj_name = "${cuj}" ${jankTypeFilter}
     `;
 
@@ -134,12 +132,9 @@ class PinCujScopedJank implements MetricHandler {
     };
   }
 
-  private async findFirstJank(
-    ctx: PluginContextTrace,
-    tableWithJankyFramesName: string,
-  ): Promise<SliceIdentifier | undefined> {
+  private async focusOnFirstJank(ctx: Trace, tableWithJankyFramesName: string) {
     const queryForFirstJankyFrame = `
-        SELECT slice_id, track_id, ts, dur
+        SELECT slice_id, track_id
         FROM slice
         WHERE type = "actual_frame_timeline_slice"
           AND name =
@@ -149,31 +144,13 @@ class PinCujScopedJank implements MetricHandler {
     `;
     const queryResult = await ctx.engine.query(queryForFirstJankyFrame);
     if (queryResult.numRows() === 0) {
-      return undefined;
+      return;
     }
     const row = queryResult.firstRow({
       slice_id: NUM,
       track_id: NUM,
-      ts: LONG,
-      dur: LONG,
     });
-    const slice: SliceIdentifier = {
-      sliceId: row.slice_id,
-      trackId: row.track_id,
-      ts: Time.fromRaw(row.ts),
-      dur: row.dur,
-    };
-    return slice;
-  }
-
-  private async focusOnFirstJank(
-    ctx: PluginContextTrace,
-    tableWithJankyFramesName: string,
-  ) {
-    const slice = await this.findFirstJank(ctx, tableWithJankyFramesName);
-    if (slice) {
-      focusOnSlice(slice);
-    }
+    focusOnSlice(ctx, row.slice_id, row.track_id);
   }
 }
 

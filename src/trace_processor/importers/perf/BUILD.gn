@@ -59,6 +59,18 @@ source_set("perf") {
   sources = [
     "attrs_section_reader.cc",
     "attrs_section_reader.h",
+    "aux_data_tokenizer.cc",
+    "aux_data_tokenizer.h",
+    "aux_record.cc",
+    "aux_record.h",
+    "aux_stream_manager.cc",
+    "aux_stream_manager.h",
+    "auxtrace_info_record.cc",
+    "auxtrace_info_record.h",
+    "auxtrace_record.cc",
+    "auxtrace_record.h",
+    "etm_tokenizer.cc",
+    "etm_tokenizer.h",
     "features.cc",
     "features.h",
     "mmap_record.cc",
@@ -70,6 +82,9 @@ source_set("perf") {
     "record_parser.h",
     "sample.cc",
     "sample.h",
+    "sample_id.cc",
+    "sample_id.h",
+    "util.h",
   ]
   public_deps = [ ":record" ]
   deps = [
@@ -93,6 +108,7 @@ source_set("perf") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "aux_stream_manager_unittest.cc",
     "perf_session_unittest.cc",
     "reader_unittest.cc",
   ]

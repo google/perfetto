@@ -14,15 +14,12 @@
 
 import {hex} from 'color-convert';
 import m from 'mithril';
-
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {TimeSpan} from '../base/time';
-import {Actions} from '../common/actions';
-import {TrackCacheEntry} from '../common/track_manager';
+import {TrackRenderer} from '../core/track_manager';
 import {raf} from '../core/raf_scheduler';
-import {Track, TrackTags} from '../public';
-
+import {Track, TrackTags} from '../public/track';
 import {checkerboard} from './checkerboard';
 import {
   SELECTION_FILL_COLOR,
@@ -31,22 +28,22 @@ import {
 } from './css_constants';
 import {globals} from './globals';
 import {generateTicks, TickType, getMaxMajorTicks} from './gridline_helper';
-import {Size, VerticalBounds} from '../base/geom';
+import {Size2D, VerticalBounds} from '../base/geom';
 import {Panel} from './panel_container';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {classNames} from '../base/classnames';
 import {Button, ButtonBar} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
-import {canvasClip} from '../common/canvas_utils';
-import {PxSpan, TimeScale} from './time_scale';
-import {getLegacySelection} from '../common/state';
+import {canvasClip} from '../base/canvas_utils';
+import {TimeScale} from '../base/time_scale';
 import {exists, Optional} from '../base/utils';
 import {Intent} from '../widgets/common';
-import {TrackRenderContext} from '../public/tracks';
+import {TrackRenderContext} from '../public/track';
 import {calculateResolution} from '../common/resolution';
 import {featureFlags} from '../core/feature_flags';
 import {Tree, TreeNode} from '../widgets/tree';
-import {TrackNode} from './workspace';
+import {TrackNode} from '../public/workspace';
+import {MiddleEllipsis} from '../widgets/middle_ellipsis';
 
 export const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   id: 'showTrackDetailsButton',
@@ -76,7 +73,7 @@ export function getTitleFontSize(title: string): string | undefined {
 }
 
 function isTrackSelected(track: TrackNode) {
-  const selection = globals.state.selection;
+  const selection = globals.selectionManager.selection;
   if (selection.kind !== 'area') return false;
   return selection.trackUris.includes(track.uri);
 }
@@ -130,7 +127,7 @@ export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
 }
 
 interface TrackShellAttrs {
-  readonly title: m.Children;
+  readonly title: string;
   readonly buttons: m.Children;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
@@ -148,16 +145,18 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     // The shell should be highlighted if the current search result is inside
     // this track.
     let highlightClass = undefined;
-    const searchIndex = globals.state.searchIndex;
-    if (searchIndex !== -1) {
-      const uri = globals.currentSearchResults.trackUris[searchIndex];
+    const searchIndex = globals.searchManager.resultIndex;
+    const searchResults = globals.searchManager.searchResults;
+    if (searchIndex !== -1 && searchResults !== undefined) {
+      const uri = searchResults.trackUris[searchIndex];
       if (uri === attrs.track.uri) {
         highlightClass = 'flash';
       }
     }
 
-    const currentSelection = globals.state.selection;
+    const currentSelection = globals.selectionManager.selection;
     const pinned = attrs.track.isPinned;
+    const chips = attrs.chips && renderChips(attrs.chips);
 
     return m(
       `.track-shell[draggable=true]`,
@@ -178,10 +177,10 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         m(
           'h1',
           {
-            title: attrs.title,
+            ref: attrs.title,
           },
-          attrs.title,
-          attrs.chips && renderChips(attrs.chips),
+          m('.popup', attrs.title),
+          m(MiddleEllipsis, {text: attrs.title}, chips),
         ),
         m(
           ButtonBar,
@@ -203,10 +202,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           currentSelection.kind === 'area'
             ? m(Button, {
                 onclick: (e: MouseEvent) => {
-                  globals.dispatch(
-                    Actions.toggleTrackAreaSelection({
-                      key: attrs.track.uri,
-                    }),
+                  globals.selectionManager.toggleTrackAreaSelection(
+                    attrs.track.uri,
                   );
                   e.stopPropagation();
                 },
@@ -338,10 +335,10 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
 
   private getTargetTimeScale(event: MouseEvent): TimeScale {
     const timeWindow = globals.timeline.visibleWindow;
-    return new TimeScale(
-      timeWindow,
-      new PxSpan(0, this.getTargetContainerSize(event)),
-    );
+    return new TimeScale(timeWindow, {
+      left: 0,
+      right: this.getTargetContainerSize(event),
+    });
   }
 
   view(node: m.CVnode<TrackContentAttrs>) {
@@ -414,7 +411,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
 
 interface TrackComponentAttrs {
   readonly heightPx?: number;
-  readonly title: m.Children;
+  readonly title: string;
   readonly buttons?: m.Children;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
@@ -471,9 +468,9 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 
   oncreate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
     const {attrs} = vnode;
-    if (globals.scrollToTrackUri === attrs.trackNode.uri) {
+    if (globals.trackManager.scrollToTrackUriOnCreate === attrs.trackNode.uri) {
       vnode.dom.scrollIntoView();
-      globals.scrollToTrackUri = undefined;
+      globals.trackManager.scrollToTrackUriOnCreate = undefined;
     }
     this.onupdate(vnode);
 
@@ -484,14 +481,30 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 
   onupdate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
     vnode.attrs.track?.onFullRedraw?.();
+    this.decidePopupRequired(vnode.dom);
+  }
+
+  // Works out whether to display a title popup on hover, based on whether the
+  // current title is truncated.
+  private decidePopupRequired(dom: Element) {
+    const popupElement = dom.querySelector('.popup') as HTMLElement;
+    const titleElement = dom.querySelector(
+      '.pf-middle-ellipsis',
+    ) as HTMLElement;
+
+    if (popupElement.clientWidth >= titleElement.clientWidth) {
+      popupElement.classList.add('show-popup');
+    } else {
+      popupElement.classList.remove('show-popup');
+    }
   }
 }
 
 interface TrackPanelAttrs {
-  readonly title: m.Children;
+  readonly title: string;
   readonly tags?: TrackTags;
   readonly chips?: ReadonlyArray<string>;
-  readonly trackFSM?: TrackCacheEntry;
+  readonly trackRenderer?: TrackRenderer;
   readonly revealOnCreate?: boolean;
   readonly pluginId?: string;
   readonly track: TrackNode;
@@ -510,12 +523,12 @@ export class TrackPanel implements Panel {
   render(): m.Children {
     const attrs = this.attrs;
 
-    if (attrs.trackFSM) {
-      if (attrs.trackFSM.getError()) {
+    if (attrs.trackRenderer) {
+      if (attrs.trackRenderer.getError()) {
         return m(TrackComponent, {
           title: attrs.title,
-          error: attrs.trackFSM.getError(),
-          track: attrs.trackFSM.track,
+          error: attrs.trackRenderer.getError(),
+          track: attrs.trackRenderer.track,
           chips: attrs.chips,
           pluginId: attrs.pluginId,
           trackNode: attrs.track,
@@ -523,11 +536,11 @@ export class TrackPanel implements Panel {
       }
       return m(TrackComponent, {
         title: attrs.title,
-        heightPx: attrs.trackFSM.track.getHeight(),
-        buttons: attrs.trackFSM.track.getTrackShellButtons?.(),
+        heightPx: attrs.trackRenderer.track.getHeight(),
+        buttons: attrs.trackRenderer.track.getTrackShellButtons?.(),
         tags: attrs.tags,
-        track: attrs.trackFSM.track,
-        error: attrs.trackFSM.getError(),
+        track: attrs.trackRenderer.track,
+        error: attrs.trackRenderer.getError(),
         revealOnCreate: attrs.revealOnCreate,
         chips: attrs.chips,
         pluginId: attrs.pluginId,
@@ -547,9 +560,9 @@ export class TrackPanel implements Panel {
   highlightIfTrackSelected(
     ctx: CanvasRenderingContext2D,
     timescale: TimeScale,
-    size: Size,
+    size: Size2D,
   ) {
-    const selection = globals.state.selection;
+    const selection = globals.selectionManager.selection;
     if (selection.kind !== 'area') {
       return;
     }
@@ -565,7 +578,7 @@ export class TrackPanel implements Panel {
     }
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
 
     ctx.save();
@@ -574,17 +587,17 @@ export class TrackPanel implements Panel {
 
     const visibleWindow = globals.timeline.visibleWindow;
     const timespan = visibleWindow.toTimeSpan();
-    const timescale = new TimeScale(
-      visibleWindow,
-      new PxSpan(0, trackSize.width),
-    );
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: trackSize.width,
+    });
     drawGridLines(ctx, timespan, timescale, trackSize);
 
-    const track = this.attrs.trackFSM;
+    const track = this.attrs.trackRenderer;
 
     if (track !== undefined) {
       const trackRenderCtx: TrackRenderContext = {
-        trackUri: track.trackUri,
+        trackUri: track.desc.uri,
         visibleWindow,
         size: trackSize,
         resolution: calculateResolution(visibleWindow, trackSize.width),
@@ -610,10 +623,10 @@ export class TrackPanel implements Panel {
   }
 
   getSliceVerticalBounds(depth: number): Optional<VerticalBounds> {
-    if (this.attrs.trackFSM === undefined) {
+    if (this.attrs.trackRenderer === undefined) {
       return undefined;
     }
-    return this.attrs.trackFSM.track.getSliceVerticalBounds?.(depth);
+    return this.attrs.trackRenderer.track.getSliceVerticalBounds?.(depth);
   }
 }
 
@@ -621,7 +634,7 @@ export function drawGridLines(
   ctx: CanvasRenderingContext2D,
   timespan: TimeSpan,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ): void {
   ctx.strokeStyle = TRACK_BORDER_COLOR;
   ctx.lineWidth = 1;
@@ -644,7 +657,7 @@ export function drawGridLines(
 export function renderHoveredCursorVertical(
   ctx: CanvasRenderingContext2D,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ) {
   if (globals.state.hoverCursorTimestamp !== -1n) {
     drawVerticalLineAtTime(
@@ -660,7 +673,7 @@ export function renderHoveredCursorVertical(
 export function renderHoveredNoteVertical(
   ctx: CanvasRenderingContext2D,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ) {
   if (globals.state.hoveredNoteTimestamp !== -1n) {
     drawVerticalLineAtTime(
@@ -676,18 +689,20 @@ export function renderHoveredNoteVertical(
 export function renderWakeupVertical(
   ctx: CanvasRenderingContext2D,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ) {
-  const currentSelection = getLegacySelection(globals.state);
+  const currentSelection = globals.selectionManager.legacySelection;
+  const sliceDetails = globals.selectionManager.legacySelectionDetails;
   if (currentSelection !== null) {
     if (
       currentSelection.kind === 'SCHED_SLICE' &&
-      globals.sliceDetails.wakeupTs !== undefined
+      exists(sliceDetails) &&
+      sliceDetails.wakeupTs !== undefined
     ) {
       drawVerticalLineAtTime(
         ctx,
         timescale,
-        globals.sliceDetails.wakeupTs,
+        sliceDetails.wakeupTs,
         size.height,
         `black`,
       );
@@ -698,11 +713,11 @@ export function renderWakeupVertical(
 export function renderNoteVerticals(
   ctx: CanvasRenderingContext2D,
   timescale: TimeScale,
-  size: Size,
+  size: Size2D,
 ) {
   // All marked areas should have semi-transparent vertical lines
   // marking the start and end.
-  for (const note of Object.values(globals.state.notes)) {
+  for (const note of globals.noteManager.notes.values()) {
     if (note.noteType === 'SPAN') {
       const transparentNoteColor =
         'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';

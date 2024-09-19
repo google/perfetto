@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine, TrackContext} from '../public';
+import {Engine} from '../trace_processor/engine';
+import {TrackContext} from '../public/track';
 import {BaseCounterTrack, CounterOptions} from './base_counter_track';
 import {CounterColumns, SqlDataSource} from './debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {isString} from '../base/object_utils';
 import {Icons} from '../base/semantic_icons';
 import {sqliteString} from '../base/string_utils';
@@ -24,7 +23,6 @@ import {addVisualisedArgTracks} from './visualized_args_tracks';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {TreeNode} from '../widgets/tree';
-
 import {Arg} from '../trace_processor/sql_utils/args';
 import {globals} from './globals';
 import {addSqlTableTab} from './sql_table_tab_command';
@@ -116,7 +114,9 @@ function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
           addVisualisedArgTracks(
             {
               engine,
-              registerTrack: (t) => globals.trackManager.registerTrack(t),
+              tracks: {
+                registerTrack: (t) => globals.trackManager.registerTrack(t),
+              },
             },
             fullKey,
           );

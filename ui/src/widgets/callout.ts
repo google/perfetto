@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {HTMLAttrs} from './common';
 import {Icon} from './icon';
 

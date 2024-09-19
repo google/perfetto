@@ -14,12 +14,10 @@
 
 import {produce} from 'immer';
 import m from 'mithril';
-
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
 import {getSchema} from '../common/schema';
 import {raf} from '../core/raf_scheduler';
-
 import {globals} from './globals';
 
 declare global {

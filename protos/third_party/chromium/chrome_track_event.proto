@@ -768,9 +768,10 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_LOW_PRIORITY_SCRIPT_EXECUTION = 81;
     TASK_TYPE_STORAGE = 82;
     TASK_TYPE_NETWORKING_UNFREEZABLE_RENDER_BLOCKING_LOADING = 83;
-    TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_LOW_PRIORITY = 84;
+    TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_USER_VISIBLE = 84;
     TASK_TYPE_CLIPBOARD = 85;
     TASK_TYPE_MACHINE_LEARNING = 86;
+    TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_BEST_EFFORT = 87;
   }
 
   enum FrameType {
@@ -978,7 +979,8 @@ message SequenceManagerTask {
     UI_BEFORE_UNLOAD_BROWSER_RESPONSE_TQ = 54;
     IO_BEFORE_UNLOAD_BROWSER_RESPONSE_TQ = 55;
 
-    V8_LOW_PRIORITY_TQ = 56;
+    V8_USER_VISIBLE_TQ = 56;
+    V8_BEST_EFFORT_TQ = 57;
   }
 
   optional Priority priority = 1;
@@ -1397,7 +1399,7 @@ message ChromeGraphicsPipeline {
     STEP_RECEIVE_COMPOSITOR_FRAME = 5;
     STEP_RECEIVE_BEGIN_FRAME = 6;
     STEP_RECEIVE_BEGIN_FRAME_DISCARD = 7;
-    STEP_SEND_BEGIN_MAIN_FRAME = 8;
+    STEP_SEND_BEGIN_MAIN_FRAME = 8 [deprecated = true];
     STEP_SUBMIT_COMPOSITOR_FRAME = 9;
     STEP_SURFACE_AGGREGATION = 10;
     STEP_SEND_BUFFER_SWAP = 11;
@@ -1448,7 +1450,11 @@ message ChromeGraphicsPipeline {
   }
   optional StepName step = 1;
   optional FrameSinkId frame_sink_id = 2;
+
+  // Id used to link `ChromeGraphicsPipeline`s corresponding to work done
+  // on creating and presenting one frame.
   optional int64 display_trace_id = 3;
+
   optional LocalSurfaceId local_surface_id = 4;
   optional int64 frame_sequence = 5;
   optional FrameSkippedReason frame_skipped_reason = 6;
@@ -1922,13 +1928,194 @@ message AnimationFrameScriptTimingInfo {
     GOOGLE_ADS_LIBRARIES = 14;
     FUNDING_CHOICES = 15;
     ELEMENTOR = 16;
+    SLIDER_REVOLUTION = 17;
   }
   optional ThirdPartyTechnology third_party_technology = 10;
 }
 
+message BeginFrameId {
+  optional uint64 source_id = 1;
+  optional uint64 sequence_number = 2;
+}
+
+message MainFramePipeline {
+  enum Step {
+    UNKNOWN = 0;
+    SEND_BEGIN_MAIN_FRAME = 1;
+    BEGIN_MAIN_FRAME = 2;
+    ABORTED_ON_MAIN = 3;
+    COMMIT_ON_MAIN = 4;
+    READY_TO_COMMIT_ON_IMPL = 5;
+    COMMIT_ON_IMPL = 6;
+    COMMIT_COMPLETE = 7;
+    READY_TO_ACTIVATE = 8;
+    ACTIVATE = 9;
+    DRAW = 10;
+    UPDATE_DISPLAY_TREE = 11;
+  }
+
+  // Id connecting the steps of the pipeline together.
+  optional uint64 main_frame_id = 1;
+  optional Step step = 2;
+
+  // Id for the BeginFrame, which triggered this main frame.
+  // Set for the SEND_BEGIN_MAIN_FRAME step.
+  optional BeginFrameId begin_frame_id = 3;
+
+  // If the step is ABORTED_ON_MAIN, this field will contain the reason.
+  enum AbortedOnMainReason {
+    ABORTED_MAIN_REASON_UNKNOWN = 0;
+    NOT_VISIBLE = 1;
+    DEFERRED_UPDATE = 2;
+    DEFERRED_COMMIT_ABORTED = 3;
+    NO_UPDATE = 4;
+  }
+  optional AbortedOnMainReason aborted_on_main_reason = 4;
+
+  // Id of the last begin frame id issued by renderer compositor by the time
+  // this main frame is drawn for the first time.
+  // The difference between `begin_frame_id` and
+  // `last_begin_frame_id_during_first_draw` can be used to reason about the
+  // main frame latency. Set for the first DRAW step.
+  optional BeginFrameId last_begin_frame_id_during_first_draw = 5;
+}
+
+message ChromeLatencyInfo2 {
+  optional int64 trace_id = 1;
+
+  // NEXT ID: 12
+  // All step are optional but the enum is ordered (not by number) below in the
+  // order we expect them to appear if they are emitted in trace in a blocking
+  // fashion.
+  enum Step {
+    STEP_UNSPECIFIED = 0;
+    // Emitted on the browser main thread.
+    STEP_SEND_INPUT_EVENT_UI = 3;
+    // Happens on the renderer's compositor.
+    STEP_HANDLE_INPUT_EVENT_IMPL = 5;
+    STEP_DID_HANDLE_INPUT_AND_OVERSCROLL = 8;
+    // Occurs on the Renderer's main thread.
+    STEP_HANDLE_INPUT_EVENT_MAIN = 4;
+    STEP_MAIN_THREAD_SCROLL_UPDATE = 2;
+    STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT = 1;
+    // Could be emitted on both the renderer's main OR compositor.
+    STEP_HANDLED_INPUT_EVENT_MAIN_OR_IMPL = 9;
+    // Optionally sometimes HANDLED_INPUT_EVENT_MAIN_OR_IMPL will proxy to the
+    // renderer's compositor and this will be emitted.
+    STEP_HANDLED_INPUT_EVENT_IMPL = 10;
+    // Renderer's compositor.
+    STEP_SWAP_BUFFERS = 6;
+    // Happens on the VizCompositor in the GPU process.
+    STEP_DRAW_AND_SWAP = 7 [deprecated = true];
+    // Happens on the GPU main thread after the swap has completed.
+    STEP_FINISHED_SWAP_BUFFERS = 11 [deprecated = true];
+    // See above for NEXT ID, enum steps are not ordered by tag number.
+  };
+
+  optional Step step = 2;
+  optional int32 frame_tree_node_id = 3;
+
+  // This enum is a copy of LatencyComponentType enum in Chrome, located in
+  // ui/latency/latency_info.h, modulo added UNKNOWN value per protobuf
+  // practices.
+  enum LatencyComponentType {
+    COMPONENT_UNSPECIFIED = 0;
+    COMPONENT_INPUT_EVENT_LATENCY_BEGIN_RWH = 1;
+    COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_ORIGINAL = 2;
+    COMPONENT_INPUT_EVENT_LATENCY_FIRST_SCROLL_UPDATE_ORIGINAL = 3;
+    COMPONENT_INPUT_EVENT_LATENCY_ORIGINAL = 4;
+    COMPONENT_INPUT_EVENT_LATENCY_UI = 5;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERER_MAIN = 6;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERING_SCHEDULED_MAIN = 7;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERING_SCHEDULED_IMPL = 8;
+    COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_LAST_EVENT = 9;
+    COMPONENT_INPUT_EVENT_LATENCY_ACK_RWH = 10;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERER_SWAP = 11;
+    COMPONENT_DISPLAY_COMPOSITOR_RECEIVED_FRAME = 12;
+    COMPONENT_INPUT_EVENT_GPU_SWAP_BUFFER = 13;
+    COMPONENT_INPUT_EVENT_LATENCY_FRAME_SWAP = 14;
+  }
+
+  message ComponentInfo {
+    optional LatencyComponentType component_type = 1;
+
+    // Microsecond timestamp in CLOCK_MONOTONIC domain
+    optional uint64 time_us = 2;
+  };
+
+  repeated ComponentInfo component_info = 4;
+  optional bool is_coalesced = 5;
+  optional int64 gesture_scroll_id = 6;
+  optional int64 touch_id = 7;
+
+  enum InputType {
+    UNSPECIFIED_OR_OTHER = 0;
+    TOUCH_MOVED = 1;
+    GESTURE_SCROLL_BEGIN = 2;
+    GESTURE_SCROLL_UPDATE = 3;
+    GESTURE_SCROLL_END = 4;
+    GESTURE_TAP = 5;
+    GESTURE_TAP_CANCEL = 6;
+  }
+
+  // The type of input corresponding to this `ChromeLatencyInfo`.
+  optional InputType input_type = 8;
+}
+
+message EventTiming {
+  optional bool cancelable = 1;
+  optional string frame = 2;
+  optional uint32 interaction_id = 3;
+  optional uint32 interaction_offset = 4;
+  optional int64 node_id = 5;
+  optional int64 key_code = 6;
+  optional int32 pointer_id = 7;
+  optional uint64 fallback_time_us = 8;
+  enum EventType {
+    UNDEFINED = 0;
+    AUX_CLICK_EVENT = 1;
+    CLICK_EVENT = 2;
+    CONTEXT_MENU_EVENT = 3;
+    DOUBLE_CLICK_EVENT = 4;
+    MOUSE_DOWN_EVENT = 5;
+    MOUSE_ENTER_EVENT = 6;
+    MOUSE_LEAVE_EVENT = 7;
+    MOUSE_OUT_EVENT = 9;
+    MOUSE_OVER_EVENT = 10;
+    MOUSE_UP_EVENT = 11;
+    POINTER_OVER_EVENT = 12;
+    POINTER_ENTER_EVENT = 13;
+    POINTER_DOWN_EVENT = 14;
+    POINTER_UP_EVENT = 15;
+    POINTER_CANCEL_EVENT = 16;
+    POINTER_OUT_EVENT = 17;
+    POINTER_LEAVE_EVENT = 18;
+    GOT_POINTER_CAPTURE_EVENT = 19;
+    LOST_POINTER_CAPTURE_EVENT = 20;
+    TOUCH_START_EVENT = 21;
+    TOUCH_END_EVENT = 22;
+    TOUCH_CANCEL_EVENT = 23;
+    KEY_DOWN_EVENT = 24;
+    KEY_PRESS_EVENT = 25;
+    KEY_UP_EVENT = 26;
+    BEFORE_INPUT_EVENT = 27;
+    INPUT_EVENT = 28;
+    COMPOSITION_START_EVENT = 29;
+    COMPOSITION_UPDATE_EVENT = 30;
+    COMPOSITION_END_EVENT = 31;
+    DRAG_START_EVENT = 32;
+    DRAG_END_EVENT = 33;
+    DRAG_ENTER_EVENT = 34;
+    DRAG_LEAVE_EVENT = 35;
+    DRAG_OVER_EVENT = 36;
+    DROP_EVENT = 37;
+  }
+  optional EventType type = 9;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1067
+  // Next ID: 1070
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -2070,5 +2257,11 @@ message ChromeTrackEvent {
         1065;
 
     optional ScrollMetrics scroll_metrics = 1066;
+
+    optional MainFramePipeline main_frame_pipeline = 1067;
+
+    optional ChromeLatencyInfo2 chrome_latency_info = 1068;
+
+    optional EventTiming event_timing = 1069;
   }
 }

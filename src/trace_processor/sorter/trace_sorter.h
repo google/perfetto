@@ -38,6 +38,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
@@ -128,6 +129,15 @@ class TraceSorter {
                          machine_id);
   }
 
+  inline void PushInstrumentsRow(
+      int64_t timestamp,
+      instruments_importer::Row row,
+      std::optional<MachineId> machine_id = std::nullopt) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(row));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kInstrumentsRow, id,
+                         machine_id);
+  }
+
   inline void PushTracePacket(
       int64_t timestamp,
       TracePacketData data,
@@ -147,7 +157,21 @@ class TraceSorter {
                     machine_id);
   }
 
-  inline void PushJsonValue(int64_t timestamp, std::string json_value) {
+  inline void PushJsonValue(int64_t timestamp,
+                            std::string json_value,
+                            std::optional<int64_t> dur = std::nullopt) {
+    if (dur.has_value()) {
+      // We need to account for slices with duration by sorting them first: this requires us to
+      // use the slower comparator which takes this into account.
+      use_slow_sorting_ = true;
+
+      TraceTokenBuffer::Id id =
+          token_buffer_.Append(JsonWithDurEvent{*dur, std::move(json_value)});
+      AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kJsonValueWithDur,
+                           id);
+      return;
+    }
+
     TraceTokenBuffer::Id id =
         token_buffer_.Append(JsonEvent{std::move(json_value)});
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kJsonValue, id);
@@ -182,7 +206,8 @@ class TraceSorter {
     TraceTokenBuffer::Id id =
         token_buffer_.Append(TracePacketData{std::move(tbv), std::move(state)});
     auto* queue = GetQueue(cpu + 1, machine_id);
-    queue->Append(timestamp, TimestampedEvent::Type::kEtwEvent, id);
+    queue->Append(timestamp, TimestampedEvent::Type::kEtwEvent, id,
+                  use_slow_sorting_);
     UpdateAppendMaxTs(queue);
   }
 
@@ -195,7 +220,23 @@ class TraceSorter {
     TraceTokenBuffer::Id id =
         token_buffer_.Append(TracePacketData{std::move(tbv), std::move(state)});
     auto* queue = GetQueue(cpu + 1, machine_id);
-    queue->Append(timestamp, TimestampedEvent::Type::kFtraceEvent, id);
+    queue->Append(timestamp, TimestampedEvent::Type::kFtraceEvent, id,
+                  use_slow_sorting_);
+    UpdateAppendMaxTs(queue);
+  }
+
+  inline void PushLegacyV8CpuProfileEvent(
+      int64_t timestamp,
+      uint64_t session_id,
+      uint32_t pid,
+      uint32_t tid,
+      uint32_t callsite_id,
+      std::optional<MachineId> machine_id = std::nullopt) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(
+        LegacyV8CpuProfileEvent{session_id, pid, tid, callsite_id});
+    auto* queue = GetQueue(0, machine_id);
+    queue->Append(timestamp, TimestampedEvent::Type::kLegacyV8CpuProfileEvent,
+                  id, use_slow_sorting_);
     UpdateAppendMaxTs(queue);
   }
 
@@ -214,7 +255,8 @@ class TraceSorter {
     TraceTokenBuffer::Id id =
         token_buffer_.Append(std::move(inline_sched_switch));
     auto* queue = GetQueue(cpu + 1, machine_id);
-    queue->Append(timestamp, TimestampedEvent::Type::kInlineSchedSwitch, id);
+    queue->Append(timestamp, TimestampedEvent::Type::kInlineSchedSwitch, id,
+                  use_slow_sorting_);
     UpdateAppendMaxTs(queue);
   }
 
@@ -226,7 +268,8 @@ class TraceSorter {
     TraceTokenBuffer::Id id =
         token_buffer_.Append(std::move(inline_sched_waking));
     auto* queue = GetQueue(cpu + 1, machine_id);
-    queue->Append(timestamp, TimestampedEvent::Type::kInlineSchedWaking, id);
+    queue->Append(timestamp, TimestampedEvent::Type::kInlineSchedWaking, id,
+                  use_slow_sorting_);
     UpdateAppendMaxTs(queue);
   }
 
@@ -264,16 +307,19 @@ class TraceSorter {
     enum class Type : uint8_t {
       kFtraceEvent,
       kPerfRecord,
+      kInstrumentsRow,
       kTracePacket,
       kInlineSchedSwitch,
       kInlineSchedWaking,
       kJsonValue,
+      kJsonValueWithDur,
       kFuchsiaRecord,
       kTrackEvent,
       kSystraceLine,
       kEtwEvent,
       kAndroidLogEvent,
-      kMax = kAndroidLogEvent,
+      kLegacyV8CpuProfileEvent,
+      kMax = kLegacyV8CpuProfileEvent,
     };
 
     // Number of bits required to store the max element in |Type|.
@@ -298,6 +344,8 @@ class TraceSorter {
       return BumpAllocator::AllocId{chunk_index, chunk_offset};
     }
 
+    Type type() const { return static_cast<Type>(event_type); }
+
     // For std::lower_bound().
     static inline bool Compare(const TimestampedEvent& x, int64_t ts) {
       return x.ts < ts;
@@ -308,6 +356,26 @@ class TraceSorter {
       return std::tie(ts, chunk_index, chunk_offset) <
              std::tie(evt.ts, evt.chunk_index, evt.chunk_offset);
     }
+
+    struct SlowOperatorLess {
+      // For std::sort() in slow mode.
+      inline bool operator()(const TimestampedEvent& a,
+                             const TimestampedEvent& b) const {
+        int64_t a_key =
+            a.type() == Type::kJsonValueWithDur
+                ? std::numeric_limits<int64_t>::max() -
+                      buffer.Get<JsonWithDurEvent>(GetTokenBufferId(a))->dur
+                : std::numeric_limits<int64_t>::max();
+        int64_t b_key =
+            b.type() == Type::kJsonValueWithDur
+                ? std::numeric_limits<int64_t>::max() -
+                      buffer.Get<JsonWithDurEvent>(GetTokenBufferId(b))->dur
+                : std::numeric_limits<int64_t>::max();
+        return std::tie(a.ts, a_key, a.chunk_index, a.chunk_offset) <
+               std::tie(b.ts, b_key, b.chunk_index, b.chunk_offset);
+      }
+      TraceTokenBuffer& buffer;
+    };
   };
 
   static_assert(sizeof(TimestampedEvent) == 16,
@@ -324,7 +392,8 @@ class TraceSorter {
   struct Queue {
     void Append(int64_t ts,
                 TimestampedEvent::Type type,
-                TraceTokenBuffer::Id id) {
+                TraceTokenBuffer::Id id,
+                bool use_slow_sorting) {
       {
         TimestampedEvent event;
         event.ts = ts;
@@ -335,7 +404,8 @@ class TraceSorter {
       }
 
       // Events are often seen in order.
-      if (PERFETTO_LIKELY(ts >= max_ts_)) {
+      if (PERFETTO_LIKELY(ts > max_ts_ ||
+                          (!use_slow_sorting && ts == max_ts_))) {
         max_ts_ = ts;
       } else {
         // The event is breaking ordering. The first time it happens, keep
@@ -357,7 +427,7 @@ class TraceSorter {
     }
 
     bool needs_sorting() const { return sort_start_idx_ != 0; }
-    void Sort();
+    void Sort(TraceTokenBuffer&, bool use_slow_sorting);
 
     base::CircularQueue<TimestampedEvent> events_;
     int64_t min_ts_ = std::numeric_limits<int64_t>::max();
@@ -396,7 +466,7 @@ class TraceSorter {
       TraceTokenBuffer::Id id,
       std::optional<MachineId> machine_id = std::nullopt) {
     Queue* queue = GetQueue(0, machine_id);
-    queue->Append(ts, event_type, id);
+    queue->Append(ts, event_type, id, use_slow_sorting_);
     UpdateAppendMaxTs(queue);
   }
 
@@ -463,6 +533,10 @@ class TraceSorter {
 
   // max(e.ts for e pushed to next stage)
   int64_t latest_pushed_event_ts_ = std::numeric_limits<int64_t>::min();
+
+  // Whether when std::sorting the queues, we should use the slow
+  // sorting algorithm
+  bool use_slow_sorting_ = false;
 };
 
 }  // namespace perfetto::trace_processor

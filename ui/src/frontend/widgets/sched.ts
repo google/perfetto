@@ -18,8 +18,8 @@ import {duration, time} from '../../base/time';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
-import {CPU_SLICE_TRACK_KIND} from '../../core/track_kinds';
-import {scrollToTrackAndTs} from '../scroll_helper';
+import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {scrollTo} from '../../public/scroll_helper';
 
 interface SchedRefAttrs {
   id: SchedSqlId;
@@ -36,14 +36,9 @@ interface SchedRefAttrs {
 }
 
 export function findSchedTrack(cpu: number): string | undefined {
-  for (const trackInfo of Object.values(globals.trackManager.getAllTracks())) {
-    if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-      if (trackInfo?.tags?.cpu === cpu) {
-        return trackInfo.uri;
-      }
-    }
-  }
-  return undefined;
+  return globals.trackManager.findTrack((t) => {
+    return t.tags?.kind === CPU_SLICE_TRACK_KIND && t.tags.cpu === cpu;
+  })?.uri;
 }
 
 export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
@@ -51,20 +46,15 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   if (trackUri === undefined) {
     return;
   }
-  globals.setLegacySelection(
-    {
-      kind: 'SCHED_SLICE',
-      id,
-      trackUri,
-    },
-    {
-      clearSearch: true,
-      pendingScrollId: undefined,
-      switchToCurrentSelectionTab: true,
-    },
-  );
-
-  scrollToTrackAndTs(trackUri, ts);
+  globals.selectionManager.setLegacy({
+    kind: 'SCHED_SLICE',
+    id,
+    trackUri,
+  });
+  scrollTo({
+    track: {uri: trackUri, expandGroup: true},
+    time: {start: ts},
+  });
 }
 
 export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
@@ -77,21 +67,21 @@ export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
           const trackUri = findSchedTrack(vnode.attrs.cpu);
           if (trackUri === undefined) return;
 
-          globals.setLegacySelection(
+          globals.selectionManager.setLegacy(
             {
               kind: 'SCHED_SLICE',
               id: vnode.attrs.id,
               trackUri,
             },
             {
-              clearSearch: true,
-              pendingScrollId: undefined,
               switchToCurrentSelectionTab:
                 vnode.attrs.switchToCurrentSelectionTab ?? true,
             },
           );
-
-          scrollToTrackAndTs(trackUri, vnode.attrs.ts, true);
+          scrollTo({
+            track: {uri: trackUri, expandGroup: true},
+            time: {start: vnode.attrs.ts},
+          });
         },
       },
       vnode.attrs.name ?? `Sched ${vnode.attrs.id}`,

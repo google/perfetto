@@ -21,9 +21,9 @@ import {duration, time} from '../../base/time';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
-import {THREAD_STATE_TRACK_KIND} from '../../core/track_kinds';
-import {scrollToTrackAndTs} from '../scroll_helper';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {ThreadState} from '../../trace_processor/sql_utils/thread_state';
+import {scrollTo} from '../../public/scroll_helper';
 
 interface ThreadStateRefAttrs {
   id: ThreadStateSqlId;
@@ -56,21 +56,21 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
 
           if (trackDescriptor === undefined) return;
 
-          globals.setLegacySelection(
+          globals.selectionManager.setLegacy(
             {
               kind: 'THREAD_STATE',
               id: vnode.attrs.id,
               trackUri: trackDescriptor.uri,
             },
             {
-              clearSearch: true,
-              pendingScrollId: undefined,
               switchToCurrentSelectionTab:
-                vnode.attrs.switchToCurrentSelectionTab ?? true,
+                vnode.attrs.switchToCurrentSelectionTab,
             },
           );
-
-          scrollToTrackAndTs(trackDescriptor.uri, vnode.attrs.ts, true);
+          scrollTo({
+            track: {uri: trackDescriptor.uri, expandGroup: true},
+            time: {start: vnode.attrs.ts},
+          });
         },
       },
       vnode.attrs.name ?? `Thread State ${vnode.attrs.id}`,

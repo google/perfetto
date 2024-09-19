@@ -13,17 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {uuidv4} from '../../../base/uuid';
-import {addBottomTab} from '../../../common/addEphemeralTab';
-import {Engine} from '../../../public';
+import {addBottomTab} from '../../../common/add_ephemeral_tab';
+import {Engine} from '../../../trace_processor/engine';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {Spinner} from '../../../widgets/spinner';
 import {VegaView} from '../../../widgets/vega_view';
 import {BottomTab, NewBottomTabArgs} from '../../bottom_tab';
 import {Filter, filterTitle} from '../../widgets/sql/table/column';
-
 import {HistogramState} from './state';
 
 interface HistogramTabConfig {

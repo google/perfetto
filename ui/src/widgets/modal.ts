@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {defer} from '../base/deferred';
-
 import {scheduleFullRedraw} from './raf';
 
 // This module deals with modal dialogs. Unlike most components, here we want to

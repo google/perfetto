@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import {time} from '../base/time';
-
-import {TimeScale} from './time_scale';
+import {TimeScale} from '../base/time_scale';
 
 export function drawVerticalLineAtTime(
   ctx: CanvasRenderingContext2D,

@@ -13,26 +13,28 @@
 // limitations under the License.
 
 import {removeFalsyValues} from '../../base/array_utils';
-import {ASYNC_SLICE_TRACK_KIND} from '../../public';
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {globals} from '../../frontend/globals';
+import {GroupNode, TrackNode} from '../../public/workspace';
+import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
-
 import {AsyncSliceTrack} from './async_slice_track';
+import {
+  getOrCreateGroupForProcess,
+  getOrCreateGroupForThread,
+} from '../../public/standard_groups';
 
 class AsyncSlicePlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addGlobalAsyncTracks(ctx);
     await this.addProcessAsyncSliceTracks(ctx);
     await this.addThreadAsyncSliceTracks(ctx);
     await this.addUserAsyncSliceTracks(ctx);
   }
 
-  async addGlobalAsyncTracks(ctx: PluginContextTrace): Promise<void> {
+  async addGlobalAsyncTracks(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks_grouped as (
@@ -71,7 +73,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const maxDepth = it.maxDepth;
 
       const uri = `/async_slices_${rawName}_${it.parentId}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -81,10 +83,13 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         },
         track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIds),
       });
+      const trackNode = new TrackNode(uri, displayName);
+      trackNode.sortOrder = -25;
+      ctx.workspace.insertChildInOrder(trackNode);
     }
   }
 
-  async addProcessAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
+  async addProcessAsyncSliceTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       select
         upid,
@@ -125,7 +130,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       });
 
       const uri = `/process_${upid}/async_slices_${rawTrackIds}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -140,10 +145,14 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           trackIds,
         ),
       });
+      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = 30;
+      group.insertChildInOrder(track);
     }
   }
 
-  async addThreadAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
+  async addThreadAsyncSliceTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       include perfetto module viz.summary.slices;
       include perfetto module viz.summary.threads;
@@ -198,7 +207,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       });
 
       const uri = `/${getThreadUriPrefix(upid, utid)}_slice_${rawTrackIds}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
@@ -217,10 +226,14 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           trackIds,
         ),
       });
+      const group = getOrCreateGroupForThread(ctx.workspace, utid);
+      const track = new TrackNode(uri, displayName);
+      track.sortOrder = 20;
+      group.insertChildInOrder(track);
     }
   }
 
-  async addUserAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
+  async addUserAsyncSliceTracks(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
       with grouped_packages as materialized (
@@ -249,40 +262,47 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       maxDepth: NUM_NULL,
     });
 
-    for (; it.valid(); it.next()) {
-      const kind = ASYNC_SLICE_TRACK_KIND;
-      const rawName = it.name === null ? undefined : it.name;
-      const uid = it.uid === null ? undefined : it.uid;
-      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
-      const rawTrackIds = it.trackIds;
-      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const maxDepth = it.maxDepth;
+    const groupMap = new Map<string, GroupNode>();
 
-      // If there are no slices in this track, skip it.
-      if (maxDepth === null) {
+    for (; it.valid(); it.next()) {
+      const {trackIds, name, uid, maxDepth} = it;
+      if (name == null || uid == null || maxDepth === null) {
         continue;
       }
 
+      const kind = ASYNC_SLICE_TRACK_KIND;
+      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
+      const trackIdList = trackIds.split(',').map((v) => Number(v));
+
       const displayName = getTrackName({
-        name: rawName,
+        name,
         uid,
         userName,
         kind,
         uidTrack: true,
       });
 
-      const uri = `/async_slices_${rawName}_${uid}`;
-      ctx.registerTrack({
+      const uri = `/async_slices_${name}_${uid}`;
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         tags: {
-          trackIds,
+          trackIds: trackIdList,
           kind: ASYNC_SLICE_TRACK_KIND,
-          scope: 'user',
-          rawName, // Defines grouping
         },
-        track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIds),
+        track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIdList),
       });
+
+      const track = new TrackNode(uri, displayName);
+      const existingGroup = groupMap.get(name);
+      if (existingGroup) {
+        existingGroup.insertChildInOrder(track);
+      } else {
+        const group = new GroupNode(name);
+        globals.workspace.insertChildInOrder(group);
+        groupMap.set(name, group);
+        group.insertChildInOrder(track);
+      }
     }
   }
 }

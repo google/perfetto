@@ -101,6 +101,7 @@ template("protozero_library") {
                              "defines",
                              "generator_plugin_options",
                              "include_dirs",
+                             "proto_data_sources",
                              "proto_in_dir",
                              "proto_out_dir",
                              "sources",

@@ -65,6 +65,38 @@ function columnTitle(column: TableColumn): string {
   return sqlColumnId(column.primaryColumn());
 }
 
+interface AddColumnMenuItemAttrs {
+  table: SqlTable;
+  state: SqlTableState;
+  index: number;
+}
+
+// This is separated into a separate class to store the index of the column to be
+// added and increment it when multiple columns are added from the same popup menu.
+class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
+  // Index where the new column should be inserted.
+  // In the regular case, a click would close the popup (destroying this class) and
+  // the `index` would not change during its lifetime.
+  // However, for mod-click, we want to keep adding columns to the right of the recently
+  // added column, so to achieve that we keep track of the index and increment it for
+  // each new column added.
+  index: number;
+
+  constructor({attrs}: m.Vnode<AddColumnMenuItemAttrs>) {
+    this.index = attrs.index;
+  }
+
+  view({attrs}: m.Vnode<AddColumnMenuItemAttrs>) {
+    return m(
+      MenuItem,
+      {label: 'Add column', icon: Icons.AddColumn},
+      attrs.table.renderAddColumnOptions((column) => {
+        attrs.state.addColumn(column, this.index++);
+      }),
+    );
+  }
+}
+
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
 
@@ -210,13 +242,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       // Menu items before divider apply to selected column
       m(MenuDivider),
       // Menu items after divider apply to entire table
-      m(
-        MenuItem,
-        {label: 'Add column', icon: Icons.AddColumn},
-        this.renderAddColumnOptions((column) => {
-          this.state.addColumn(column, index);
-        }),
-      ),
+      m(AddColumnMenuItem, {table: this, state: this.state, index}),
     );
   }
 

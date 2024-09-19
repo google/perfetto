@@ -13,15 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {time, Time, TimeSpan} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {raf} from '../../core/raf_scheduler';
 import {DetailsShell} from '../../widgets/details_shell';
-
 import {globals} from '../../frontend/globals';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {Engine, LONG, NUM, NUM_NULL, Store, STR} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Monitor} from '../../base/monitor';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
@@ -31,6 +30,7 @@ import {TextInput} from '../../widgets/text_input';
 import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
 import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
+import {Store} from '../../base/store';
 
 const ROW_H = 20;
 

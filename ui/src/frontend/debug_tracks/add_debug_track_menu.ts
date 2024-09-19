@@ -13,14 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {findRef} from '../../base/dom_utils';
 import {raf} from '../../core/raf_scheduler';
 import {Engine} from '../../trace_processor/engine';
 import {Form, FormLabel} from '../../widgets/form';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
-
 import {
   CounterColumns,
   SliceColumns,
@@ -194,7 +192,10 @@ export class AddDebugTrackMenu
                 addPivotedTracks(
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                    tracks: {
+                      registerTrack: (x) =>
+                        globals.trackManager.registerTrack(x),
+                    },
                   },
                   vnode.attrs.dataSource,
                   this.name,
@@ -215,7 +216,10 @@ export class AddDebugTrackMenu
                   // point we can just use the plugin's context object.
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                    tracks: {
+                      registerTrack: (x) =>
+                        globals.trackManager.registerTrack(x),
+                    },
                   },
                   vnode.attrs.dataSource,
                   this.name,
@@ -234,7 +238,10 @@ export class AddDebugTrackMenu
                 addPivotedTracks(
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                    tracks: {
+                      registerTrack: (x) =>
+                        globals.trackManager.registerTrack(x),
+                    },
                   },
                   vnode.attrs.dataSource,
                   this.name,
@@ -249,7 +256,10 @@ export class AddDebugTrackMenu
                   // point we can just use the plugin's context object.
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                    tracks: {
+                      registerTrack: (x) =>
+                        globals.trackManager.registerTrack(x),
+                    },
                   },
                   vnode.attrs.dataSource,
                   this.name,

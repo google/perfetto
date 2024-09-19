@@ -13,21 +13,16 @@
 // limitations under the License.
 
 import {v4 as uuidv4} from 'uuid';
-
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {
-  BottomTabToSCSAdapter,
-  PerfettoPlugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-
+import {BottomTabToSCSAdapter} from '../../public/utils';
+import {Trace} from '../../public/trace';
+import {App} from '../../public/app';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
 import {WebContentInteractionPanel} from './web_content_interaction_details_panel';
 import {CriticalUserInteractionTrack} from './critical_user_interaction_track';
-import {TrackNode} from '../../frontend/workspace';
+import {TrackNode} from '../../public/workspace';
 import {globals} from '../../frontend/globals';
 
 function addCriticalUserInteractionTrack() {
@@ -35,13 +30,13 @@ function addCriticalUserInteractionTrack() {
     CriticalUserInteractionTrack.kind,
     'Chrome Interactions',
   );
-  globals.workspace.addChild(track);
+  globals.workspace.insertChildInOrder(track);
   track.pin();
 }
 
 class CriticalUserInteractionPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerTrack({
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.tracks.registerTrack({
       uri: CriticalUserInteractionTrack.kind,
       tags: {
         kind: CriticalUserInteractionTrack.kind,
@@ -112,8 +107,8 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
     );
   }
 
-  onActivate(ctx: PluginContext): void {
-    ctx.registerCommand({
+  onActivate(ctx: App): void {
+    ctx.commands.registerCommand({
       id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
       name: 'Add track: Chrome interactions',
       callback: () => addCriticalUserInteractionTrack(),

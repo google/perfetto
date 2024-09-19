@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
-import {LegacySelection, ProfileType} from '../../common/state';
 import {
   BASE_ROW,
   BaseSliceTrack,
@@ -21,9 +19,13 @@ import {
   OnSliceOverArgs,
 } from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
-import {profileType} from '../../frontend/legacy_flamegraph_panel';
 import {NewTrackArgs} from '../../frontend/track';
-import {Slice} from '../../public';
+import {
+  LegacySelection,
+  ProfileType,
+  profileType,
+} from '../../public/selection';
+import {Slice} from '../../public/track';
 import {STR} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
@@ -99,13 +101,9 @@ export class HeapProfileTrack extends BaseSliceTrack<
 
   rowToSlice(row: HeapProfileRow): HeapProfileSlice {
     const slice = this.rowToSliceBase(row);
-    let type = row.type;
-    if (type === 'heap_profile:libc.malloc,com.android.art') {
-      type = 'heap_profile:com.android.art,libc.malloc';
-    }
     return {
       ...slice,
-      type: profileType(type),
+      type: profileType(row.type),
     };
   }
 
@@ -114,14 +112,12 @@ export class HeapProfileTrack extends BaseSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    globals.makeSelection(
-      Actions.selectHeapProfile({
-        id: args.slice.id,
-        upid: this.upid,
-        ts: args.slice.ts,
-        type: args.slice.type,
-      }),
-    );
+    globals.selectionManager.setHeapProfile({
+      id: args.slice.id,
+      upid: this.upid,
+      ts: args.slice.ts,
+      type: args.slice.type,
+    });
   }
 
   protected isSelectionHandled(selection: LegacySelection): boolean {

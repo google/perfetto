@@ -20,14 +20,8 @@ source_set("engine") {
   sources = [
     "created_function.cc",
     "created_function.h",
-    "function_util.cc",
-    "function_util.h",
     "perfetto_sql_engine.cc",
     "perfetto_sql_engine.h",
-    "perfetto_sql_parser.cc",
-    "perfetto_sql_parser.h",
-    "perfetto_sql_preprocessor.cc",
-    "perfetto_sql_preprocessor.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
     "table_pointer_module.cc",
@@ -50,17 +44,15 @@ source_set("engine") {
     "../../util",
     "../../util:sql_argument",
     "../../util:stdlib",
+    "../parser",
+    "../preprocessor",
+    "../tokenizer",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [
-    "perfetto_sql_engine_unittest.cc",
-    "perfetto_sql_parser_unittest.cc",
-    "perfetto_sql_preprocessor_unittest.cc",
-    "perfetto_sql_test_utils.h",
-  ]
+  sources = [ "perfetto_sql_engine_unittest.cc" ]
   deps = [
     ":engine",
     "../../../../gn:default_deps",

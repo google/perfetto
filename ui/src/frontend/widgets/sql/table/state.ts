@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../../../public';
+import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {
   tableColumnAlias,
@@ -106,8 +106,15 @@ export class SqlTableState {
       this.columns.push(...args.initialColumns);
     } else {
       for (const column of this.config.columns) {
-        if (column instanceof TableColumn && column.startsHidden !== true) {
-          this.columns.push(column);
+        if (column instanceof TableColumn) {
+          if (column.startsHidden !== true) {
+            this.columns.push(column);
+          }
+        } else {
+          const cols = column.initialColumns?.();
+          for (const col of cols ?? []) {
+            this.columns.push(col);
+          }
         }
       }
       if (args?.additionalColumns !== undefined) {

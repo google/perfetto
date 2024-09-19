@@ -17,24 +17,24 @@ import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {Duration, duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {getLegacySelection} from '../../common/state';
 import {
   drawDoubleHeadedArrow,
   drawIncompleteSlice,
   drawTrackHoverTooltip,
-} from '../../common/canvas_utils';
+} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
-import {Color} from '../../core/color';
+import {Color} from '../../public/color';
 import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Vector} from '../../base/geom';
-import {Engine, Track} from '../../public';
+import {Point2D} from '../../base/geom';
+import {Engine} from '../../trace_processor/engine';
+import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
-import {TrackMouseEvent, TrackRenderContext} from '../../public/tracks';
+import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -54,7 +54,7 @@ const CPU_SLICE_FLAGS_INCOMPLETE = 1;
 const CPU_SLICE_FLAGS_REALTIME = 2;
 
 export class CpuSliceTrack implements Track {
-  private mousePos?: Vector;
+  private mousePos?: Point2D;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
@@ -307,8 +307,8 @@ export class CpuSliceTrack implements Track {
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
-    const selection = getLegacySelection(globals.state);
-    const details = globals.sliceDetails;
+    const selection = globals.selectionManager.legacySelection;
+    const details = globals.selectionManager.legacySelectionDetails;
     if (selection !== null && selection.kind === 'SCHED_SLICE') {
       const [startIndex, endIndex] = searchEq(data.ids, selection.id);
       if (startIndex !== endIndex) {
@@ -327,7 +327,7 @@ export class CpuSliceTrack implements Track {
         ctx.strokeRect(rectStart, MARGIN_TOP - 1.5, rectWidth, RECT_HEIGHT + 3);
         ctx.closePath();
         // Draw arrow from wakeup time of current slice.
-        if (details.wakeupTs) {
+        if (details?.wakeupTs) {
           const wakeupPos = timescale.timeToPx(details.wakeupTs);
           const latencyWidth = rectStart - wakeupPos;
           drawDoubleHeadedArrow(
@@ -361,7 +361,7 @@ export class CpuSliceTrack implements Track {
       }
 
       // Draw diamond if the track being drawn is the cpu of the waker.
-      if (this.cpu === details.wakerCpu && details.wakeupTs) {
+      if (details && this.cpu === details.wakerCpu && details.wakeupTs) {
         const wakeupPos = Math.floor(timescale.timeToPx(details.wakeupTs));
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
@@ -434,18 +434,11 @@ export class CpuSliceTrack implements Track {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.utidHoveredInThisTrack === -1) return false;
 
-    globals.setLegacySelection(
-      {
-        kind: 'SCHED_SLICE',
-        id,
-        trackUri: this.uri,
-      },
-      {
-        clearSearch: true,
-        pendingScrollId: undefined,
-        switchToCurrentSelectionTab: true,
-      },
-    );
+    globals.selectionManager.setLegacy({
+      kind: 'SCHED_SLICE',
+      id,
+      trackUri: this.uri,
+    });
 
     return true;
   }

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {
   Probe,
   ProbeAttrs,
@@ -22,7 +21,6 @@ import {
   Textarea,
   TextareaAttrs,
 } from '../record_widgets';
-
 import {RecordingSectionAttrs} from './recording_sections';
 
 const PLACEHOLDER_TEXT = `Filters for processes to profile, one per line e.g.:
@@ -46,7 +44,7 @@ export class LinuxPerfSettings
         {
           title: 'Callstack sampling',
           img: 'rec_profiling.png',
-          descr: `Periodically records the current callstack (chain of 
+          descr: `Periodically records the current callstack (chain of
               function calls) of processes.`,
           setEnabled: (cfg, val) => (cfg.tracePerf = val),
           isEnabled: (cfg) => cfg.tracePerf,

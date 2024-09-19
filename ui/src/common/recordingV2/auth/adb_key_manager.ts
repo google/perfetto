@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {globals} from '../../../frontend/globals';
-
 import {AdbKey} from './adb_auth';
 
 function isPasswordCredential(

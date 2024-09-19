@@ -88,9 +88,8 @@ JOB_CONFIGS = {
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
         'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
-    'linux-clang-x86-asan_lsan': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_asan=true is_lsan=true '
-                                 'target_cpu="x86"',
+    'linux-clang-x86-release': {
+        'PERFETTO_TEST_GN_ARGS': 'is_debug=false target_cpu="x86"',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
         'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {PluginContextTrace} from '../../../public';
+import {Trace} from '../../../public/trace';
 
 /**
  * Represents data for a Full trace metric
@@ -90,10 +90,10 @@ export interface MetricHandler {
    * Add debug track for parsed metric data.
    *
    * @param {MetricData} metricData The parsed metric data.
-   * @param {PluginContextTrace} ctx context for trace methods and properties
+   * @param {Trace} ctx context for trace methods and properties
    * @returns {void}
    */
-  addMetricTrack(metricData: MetricData, ctx: PluginContextTrace): void;
+  addMetricTrack(metricData: MetricData, ctx: Trace): void;
 }
 
 // Pair for matching metric and its handler
@@ -113,6 +113,8 @@ export function expandProcessName(metricProcessName: string): string {
     return 'com.android.systemui';
   } else if (metricProcessName.includes('launcher')) {
     return 'com.google.android.apps.nexuslauncher';
+  } else if (metricProcessName.includes('surfaceflinger')) {
+    return '/system/bin/surfaceflinger';
   } else {
     return metricProcessName;
   }

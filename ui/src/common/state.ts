@@ -19,26 +19,8 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
-
-import {
-  selectionToLegacySelection,
-  Selection,
-  LegacySelection,
-} from '../core/selection_manager';
-
-export {
-  Selection,
-  SelectionKind,
-  NoteSelection,
-  SliceSelection,
-  HeapProfileSelection,
-  PerfSamplesSelection,
-  LegacySelection,
-  AreaSelection,
-  ProfileType,
-  ThreadSliceSelection,
-  CpuProfileSampleSelection,
-} from '../core/selection_manager';
+import {Area} from '../public/selection';
+import {TraceSource} from '../public/trace_info';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -52,20 +34,6 @@ export interface ObjectById<Class extends {id: string}> {
 // Same as ObjectById but the key parameter is called `key` rather than `id`.
 export interface ObjectByKey<Class extends {key: string}> {
   [key: string]: Class;
-}
-
-export type OmniboxMode = 'SEARCH' | 'COMMAND';
-
-export interface OmniboxState {
-  omnibox: string;
-  mode: OmniboxMode;
-  force?: boolean;
-}
-
-export interface Area {
-  start: time;
-  end: time;
-  trackUris: string[];
 }
 
 export const MAX_TIME = 180;
@@ -145,48 +113,6 @@ export type EngineMode = 'WASM' | 'HTTP_RPC';
 
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
 
-export interface TraceFileSource {
-  type: 'FILE';
-  file: File;
-}
-
-export interface TraceArrayBufferSource {
-  type: 'ARRAY_BUFFER';
-  buffer: ArrayBuffer;
-  title: string;
-  url?: string;
-  fileName?: string;
-
-  // |uuid| is set only when loading via ?local_cache_key=1234. When set,
-  // this matches global.state.traceUuid, with the exception of the following
-  // time window: When a trace T1 is loaded and the user loads another trace T2,
-  // this |uuid| will be == T2, but the globals.state.traceUuid will be
-  // temporarily == T1 until T2 has been loaded (consistently to what happens
-  // with all other state fields).
-  uuid?: string;
-  // if |localOnly| is true then the trace should not be shared or downloaded.
-  localOnly?: boolean;
-
-  // The set of extra args, keyed by plugin, that can be passed when opening the
-  // trace via postMessge deep-linking. See post_message_handler.ts for details.
-  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
-}
-
-export interface TraceUrlSource {
-  type: 'URL';
-  url: string;
-}
-
-export interface TraceHttpRpcSource {
-  type: 'HTTP_RPC';
-}
-
-export type TraceSource =
-  | TraceFileSource
-  | TraceArrayBufferSource
-  | TraceUrlSource
-  | TraceHttpRpcSource;
-
 export interface EngineConfig {
   id: string;
   mode?: EngineMode; // Is undefined until |ready| is true.
@@ -204,23 +130,6 @@ export interface QueryConfig {
 export interface Status {
   msg: string;
   timestamp: number; // Epoch in seconds (Date.now() / 1000).
-}
-
-export interface Note {
-  noteType: 'DEFAULT';
-  id: string;
-  timestamp: time;
-  color: string;
-  text: string;
-}
-
-export interface SpanNote {
-  noteType: 'SPAN';
-  id: string;
-  start: time;
-  end: time;
-  color: string;
-  text: string;
 }
 
 export interface Pagination {
@@ -331,11 +240,6 @@ export interface PendingDeeplinkState {
   visEnd?: string;
 }
 
-export interface TabsV2State {
-  openTabs: string[];
-  currentTab: string;
-}
-
 export interface State {
   version: number;
   nextId: string;
@@ -358,9 +262,7 @@ export interface State {
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
-  notes: ObjectById<Note | SpanNote>;
   status: Status;
-  selection: Selection;
   traceConversionInProgress: boolean;
   flamegraphModalDismissed: boolean;
 
@@ -378,11 +280,6 @@ export interface State {
   highlightedSliceId: number;
   focusedFlowIdLeft: number;
   focusedFlowIdRight: number;
-  pendingScrollId?: number;
-
-  searchIndex: number;
-
-  tabs: TabsV2State;
 
   /**
    * Trace recording
@@ -403,9 +300,6 @@ export interface State {
   // be serialized at the moment, such as ES6 Set and Map.
   nonSerializableState: NonSerializableState;
 
-  // Omnibox info.
-  omniboxState: OmniboxState;
-
   // Pending deeplink which will happen when we first finish opening a
   // trace.
   pendingDeeplink?: PendingDeeplinkState;
@@ -415,6 +309,10 @@ export interface State {
   plugins: {[key: string]: any};
 
   trackFilterTerm: string | undefined;
+
+  // TODO(primiano): this is a hack to force-re-run controllers required for the
+  // controller->managers migration. Remove once controllers are gone.
+  forceRunControllers: number;
 }
 
 export declare type RecordMode =
@@ -777,8 +675,4 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-worker.scheduler',
     'disabled-by-default-xr.debug',
   ];
-}
-
-export function getLegacySelection(state: State): LegacySelection | null {
-  return selectionToLegacySelection(state.selection);
 }

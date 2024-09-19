@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Draft} from 'immer';
-
 import {createStore} from './store';
 import {exists} from './utils';
 

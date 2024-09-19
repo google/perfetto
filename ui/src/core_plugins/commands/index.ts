@@ -17,23 +17,18 @@ import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {openInOldUIWithSizeCheck} from '../../frontend/legacy_trace_viewer';
-import {
-  PerfettoPlugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {App} from '../../public/app';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
 } from '../../frontend/legacy_trace_viewer';
-import {DisposableStack} from '../../base/disposable_stack';
 import {ADD_SQL_TABLE_TAB_COMMAND_ID} from '../../frontend/sql_table_tab_command';
 import {
   addSqlTableTabImpl,
   SqlTableTabConfig,
 } from '../../frontend/sql_table_tab';
-import {Workspace} from '../../frontend/workspace';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -102,10 +97,8 @@ order by total_self_size desc
 limit 100;`;
 
 class CoreCommandsPlugin implements PerfettoPlugin {
-  private readonly disposable = new DisposableStack();
-
-  onActivate(ctx: PluginContext) {
-    ctx.registerCommand({
+  onActivate(ctx: App) {
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#ToggleLeftSidebar',
       name: 'Toggle left sidebar',
       callback: () => {
@@ -132,12 +125,9 @@ class CoreCommandsPlugin implements PerfettoPlugin {
     input.style.display = 'none';
     input.addEventListener('change', onInputElementFileSelectionChanged);
     document.body.appendChild(input);
-    this.disposable.defer(() => {
-      document.body.removeChild(input);
-    });
 
     const OPEN_TRACE_COMMAND_ID = 'perfetto.CoreCommands#openTrace';
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: OPEN_TRACE_COMMAND_ID,
       name: 'Open trace file',
       callback: () => {
@@ -146,7 +136,7 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       },
       defaultHotkey: '!Mod+O',
     });
-    ctx.addSidebarMenuItem({
+    ctx.sidebar.addMenuItem({
       commandId: OPEN_TRACE_COMMAND_ID,
       group: 'navigation',
       icon: 'folder_open',
@@ -154,7 +144,7 @@ class CoreCommandsPlugin implements PerfettoPlugin {
 
     const OPEN_LEGACY_TRACE_COMMAND_ID =
       'perfetto.CoreCommands#openTraceInLegacyUi';
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: OPEN_LEGACY_TRACE_COMMAND_ID,
       name: 'Open with legacy UI',
       callback: () => {
@@ -162,97 +152,97 @@ class CoreCommandsPlugin implements PerfettoPlugin {
         input.click();
       },
     });
-    ctx.addSidebarMenuItem({
+    ctx.sidebar.addMenuItem({
       commandId: OPEN_LEGACY_TRACE_COMMAND_ID,
       group: 'navigation',
       icon: 'filter_none',
     });
   }
 
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerCommand({
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#RunQueryAllProcesses',
       name: 'Run query: All processes',
       callback: () => {
-        ctx.tabs.openQuery(ALL_PROCESSES_QUERY, 'All Processes');
+        ctx.addQueryResultsTab(ALL_PROCESSES_QUERY, 'All Processes');
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
-        ctx.tabs.openQuery(CPU_TIME_FOR_PROCESSES, 'CPU time by process');
+        ctx.addQueryResultsTab(CPU_TIME_FOR_PROCESSES, 'CPU time by process');
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
-        ctx.tabs.openQuery(
+        ctx.addQueryResultsTab(
           CYCLES_PER_P_STATE_PER_CPU,
           'Cycles by p-state by CPU',
         );
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
-        ctx.tabs.openQuery(
+        ctx.addQueryResultsTab(
           CPU_TIME_BY_CPU_BY_PROCESS,
           'CPU time by CPU by process',
         );
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
-        ctx.tabs.openQuery(
+        ctx.addQueryResultsTab(
           HEAP_GRAPH_BYTES_PER_TYPE,
           'Heap graph bytes per type',
         );
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
-        ctx.tabs.openQuery(SQL_STATS, 'Recent SQL queries');
+        ctx.addQueryResultsTab(SQL_STATS, 'Recent SQL queries');
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#UnpinAllTracks',
       name: 'Unpin all pinned tracks',
       callback: () => {
-        const workspace = ctx.timeline.workspace;
+        const workspace = ctx.workspace;
         workspace.pinnedTracks.forEach((t) => workspace.unpinTrack(t));
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#ExpandAllGroups',
       name: 'Expand all track groups',
       callback: () => {
-        ctx.timeline.workspace.flatGroups.forEach((g) => g.expand());
+        ctx.workspace.flatGroups.forEach((g) => g.expand());
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#CollapseAllGroups',
       name: 'Collapse all track groups',
       callback: () => {
-        ctx.timeline.workspace.flatGroups.forEach((g) => g.collapse());
+        ctx.workspace.flatGroups.forEach((g) => g.collapse());
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#PanToTimestamp',
       name: 'Pan to timestamp',
       callback: (tsRaw: unknown) => {
@@ -271,7 +261,7 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#ShowCurrentSelectionTab',
       name: 'Show current selection tab',
       callback: () => {
@@ -279,7 +269,7 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: ADD_SQL_TABLE_TAB_COMMAND_ID,
       name: 'Open SQL table viewer',
       callback: (args: unknown) => {
@@ -295,46 +285,39 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'createNewEmptyWorkspace',
       name: 'Create new empty workspace',
       callback: async () => {
-        try {
-          const name = await ctx.prompt('Give it a name...');
-          const newWorkspace = new Workspace(name);
-          globals.workspaces.push(newWorkspace);
-          globals.switchWorkspace(newWorkspace);
-        } finally {
-        }
+        const name = await ctx.omnibox.prompt('Give it a name...');
+        if (name === undefined || name === '') return;
+        globals.workspaceManager.switchWorkspace(
+          globals.workspaceManager.createEmptyWorkspace(name),
+        );
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'switchWorkspace',
       name: 'Switch workspace',
       callback: async () => {
-        try {
-          const options = globals.workspaces.map((ws) => {
-            return {key: ws.uuid, displayName: ws.displayName};
-          });
-          const workspaceUuid = await ctx.prompt(
-            'Choose a workspace...',
-            options,
-          );
-          const workspace = globals.workspaces.find(
-            (ws) => ws.uuid === workspaceUuid,
-          );
-          if (workspace) {
-            globals.switchWorkspace(workspace);
-          }
-        } finally {
+        const workspaceManager = globals.workspaceManager;
+        const options = workspaceManager.all.map((ws) => {
+          return {key: ws.uuid, displayName: ws.displayName};
+        });
+        const workspaceUuid = await ctx.omnibox.prompt(
+          'Choose a workspace...',
+          options,
+        );
+        if (workspaceUuid === undefined) return;
+        const workspace = workspaceManager.all.find(
+          (ws) => ws.uuid === workspaceUuid,
+        );
+        if (workspace) {
+          workspaceManager.switchWorkspace(workspace);
         }
       },
     });
-  }
-
-  onDeactivate(_: PluginContext): void {
-    this.disposable[Symbol.dispose]();
   }
 }
 

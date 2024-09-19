@@ -14,19 +14,16 @@
 
 import {uuidv4} from '../../base/uuid';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {
-  BottomTabToSCSAdapter,
-  NUM,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-
+import {TrackNode} from '../../public/workspace';
+import {BottomTabToSCSAdapter} from '../../public/utils';
+import {NUM} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ScreenshotTab} from './screenshot_panel';
 import {ScreenshotsTrack} from './screenshots_track';
 
 class ScreenshotsPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.screenshots;
       select
@@ -38,7 +35,7 @@ class ScreenshotsPlugin implements PerfettoPlugin {
     if (count > 0) {
       const displayName = 'Screenshots';
       const uri = '/screenshots';
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: displayName,
         track: new ScreenshotsTrack({
@@ -49,6 +46,9 @@ class ScreenshotsPlugin implements PerfettoPlugin {
           kind: ScreenshotsTrack.kind,
         },
       });
+      const trackNode = new TrackNode(uri, displayName);
+      trackNode.sortOrder = -60;
+      ctx.workspace.insertChildInOrder(trackNode);
 
       ctx.registerDetailsPanel(
         new BottomTabToSCSAdapter({

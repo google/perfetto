@@ -17,44 +17,47 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
-import {
-  Engine,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../core/track_kinds';
+import {Engine} from '../../trace_processor/engine';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
 import {hasWattsonSupport} from '../../core/trace_config_utils';
+import {GroupNode, TrackNode} from '../../public/workspace';
 
 class Wattson implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     // Short circuit if Wattson is not supported for this Perfetto trace
     if (!(await hasWattsonSupport(ctx.engine))) return;
 
     ctx.engine.query(`INCLUDE PERFETTO MODULE wattson.curves.ungrouped;`);
+
+    const group = new GroupNode('Wattson');
+    ctx.workspace.insertChildInOrder(group);
 
     // CPUs estimate as part of CPU subsystem
     const cpus = globals.traceContext.cpus;
     for (const cpu of cpus) {
       const queryKey = `cpu${cpu}_curve`;
       const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
-      ctx.registerTrackAndShowOnTraceLoad({
+      const displayName = `Cpu${cpu} Estimate`;
+      ctx.tracks.registerTrack({
         uri,
-        title: `Cpu${cpu} Estimate`,
+        title: displayName,
         track: new CpuSubsystemEstimateTrack(ctx.engine, uri, queryKey),
-
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
           wattson: `CPU${cpu}`,
           groupName: `Wattson`,
         },
       });
+      group.insertChildInOrder(new TrackNode(uri, displayName));
     }
 
     const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
-    ctx.registerTrackAndShowOnTraceLoad({
+    const displayName = `DSU/SCU Estimate`;
+    ctx.tracks.registerTrack({
       uri,
-      title: `DSU/SCU Estimate`,
+      title: displayName,
       track: new CpuSubsystemEstimateTrack(ctx.engine, uri, `dsu_scu`),
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
@@ -62,6 +65,7 @@ class Wattson implements PerfettoPlugin {
         groupName: `Wattson`,
       },
     });
+    group.insertChildInOrder(new TrackNode(uri, displayName));
   }
 }
 

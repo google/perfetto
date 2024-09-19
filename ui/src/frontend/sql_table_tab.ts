@@ -13,16 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {copyToClipboard} from '../base/clipboard';
 import {Icons} from '../base/semantic_icons';
 import {exists} from '../base/utils';
 import {uuidv4} from '../base/uuid';
-import {addBottomTab} from '../common/addEphemeralTab';
+import {addBottomTab} from '../common/add_ephemeral_tab';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Popup, PopupPosition} from '../widgets/popup';
-
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {AddDebugTrackMenu} from './debug_tracks/add_debug_track_menu';
 import {getEngine} from './get_engine';

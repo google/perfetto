@@ -13,11 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
-import {addEphemeralTab} from '../../common/addEphemeralTab';
+import {addEphemeralTab} from '../../common/add_ephemeral_tab';
 import {
   getThreadInfo,
   getThreadName,

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Time, duration, time} from '../../base/time';
 import {
   asSliceSqlId,
@@ -22,13 +21,13 @@ import {
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
-import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
 import {BigintMath} from '../../base/bigint_math';
 import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
 import {
   createSqlIdRefRenderer,
   sqlIdRegistry,
 } from './sql/details/sql_ref_renderer_registry';
+import {scrollTo} from '../../public/scroll_helper';
 
 interface SliceRefAttrs {
   readonly id: SliceSqlId;
@@ -45,25 +44,30 @@ interface SliceRefAttrs {
 
 export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
   view(vnode: m.Vnode<SliceRefAttrs>) {
-    const switchTab = vnode.attrs.switchToCurrentSelectionTab ?? true;
     return m(
       Anchor,
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          const track = globals.trackManager.getAllTracks().find((td) => {
+          const track = globals.trackManager.findTrack((td) => {
             return td.tags?.trackIds?.includes(vnode.attrs.sqlTrackId);
           });
           if (track === undefined) return;
-          verticalScrollToTrack(track.uri, true);
+          scrollTo({
+            track: {
+              uri: track.uri,
+              expandGroup: true,
+            },
+          });
           // Clamp duration to 1 - i.e. for instant events
           const dur = BigintMath.max(1n, vnode.attrs.dur);
-          focusHorizontalRange(
-            vnode.attrs.ts,
-            Time.fromRaw(vnode.attrs.ts + dur),
-          );
-
-          globals.setLegacySelection(
+          scrollTo({
+            time: {
+              start: vnode.attrs.ts,
+              end: Time.fromRaw(vnode.attrs.ts + dur),
+            },
+          });
+          globals.selectionManager.setLegacy(
             {
               kind: 'SLICE',
               id: vnode.attrs.id,
@@ -71,9 +75,8 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
               table: 'slice',
             },
             {
-              clearSearch: true,
-              pendingScrollId: undefined,
-              switchToCurrentSelectionTab: switchTab,
+              switchToCurrentSelectionTab:
+                vnode.attrs.switchToCurrentSelectionTab,
             },
           );
         },

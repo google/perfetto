@@ -139,9 +139,15 @@ proto_groups = {
         ]
     },
     'config': {
-        'types': ['filegroup'],
+        'types': ['lite', 'filegroup'],
         'targets': [
             '//protos/perfetto/config:source_set',
+        ]
+    },
+    'metrics': {
+        'types': ['python'],
+        'targets': [
+            '//protos/perfetto/metrics:source_set',
         ]
     },
 }
@@ -280,6 +286,7 @@ additional_args = {
         }),
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
+        ('export_shared_lib_headers', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
     ],
     'libperfetto_c': [
@@ -382,6 +389,16 @@ def enable_zlib(module):
     module.shared_libs.add('libz')
 
 
+def enable_expat(module):
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libexpat')
+  elif module.host_supported:
+    module.android.shared_libs.add('libexpat')
+    module.host.static_libs.add('libexpat')
+  else:
+    module.shared_libs.add('libexpat')
+
+
 def enable_uapi_headers(module):
   module.include_dirs.add('bionic/libc/kernel')
 
@@ -417,6 +434,8 @@ builtin_deps = {
         enable_sqlite,
     '//gn:zlib':
         enable_zlib,
+    '//gn:expat':
+        enable_expat,
     '//gn:bionic_kernel_uapi_headers':
         enable_uapi_headers,
     '//src/profiling/memory:bionic_libc_platform_headers_on_android':
@@ -523,6 +542,7 @@ class Module(object):
     self.main: Optional[str] = None
     self.comment = 'GN: ' + gn_utils.label_without_toolchain(gn_target)
     self.shared_libs = set()
+    self.export_shared_lib_headers = set()
     self.static_libs = set()
     self.whole_static_libs = set()
     self.runtime_libs = set()
@@ -572,6 +592,7 @@ class Module(object):
     self._output_field(output, 'name')
     self._output_field(output, 'srcs')
     self._output_field(output, 'shared_libs')
+    self._output_field(output, 'export_shared_lib_headers')
     self._output_field(output, 'static_libs')
     self._output_field(output, 'whole_static_libs')
     self._output_field(output, 'runtime_libs')
@@ -996,6 +1017,13 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
       module = Module('java_library', name, name)
       module.comment = f'''GN: [{', '.join(target_names)}]'''
       module.proto = {'type': 'lite', 'canonical_path_from_root': False}
+      module.srcs = module_sources
+      blueprint.add_module(module)
+    elif type == 'python':
+      name = label_to_module_name(module_name) + '_python_protos'
+      module = Module('python_library_host', name, name)
+      module.comment = f'''GN: [{', '.join(target_names)}]'''
+      module.proto = {'canonical_path_from_root': False}
       module.srcs = module_sources
       blueprint.add_module(module)
     else:

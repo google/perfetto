@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  LONG,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {LONG} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {
   SimpleSliceTrack,
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
-
+import {TrackNode} from '../../public/workspace';
 class AndroidStartup implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`include perfetto module android.startup.startups;`);
 
@@ -45,11 +42,13 @@ class AndroidStartup implements PerfettoPlugin {
       argColumns: [],
     };
     const uri = `/android_startups`;
-    ctx.registerTrackAndShowOnTraceLoad({
+    const title = 'Android App Startups';
+    ctx.tracks.registerTrack({
       uri,
       title: 'Android App Startups',
       track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
     });
+    ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
   }
 }
 

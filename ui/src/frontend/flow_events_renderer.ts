@@ -13,14 +13,13 @@
 // limitations under the License.
 
 import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
-import {Size, Vector} from '../base/geom';
+import {Size2D, Point2D} from '../base/geom';
 import {Optional} from '../base/utils';
-
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, globals} from './globals';
 import {RenderedPanelInfo} from './panel_container';
-import {PxSpan, TimeScale} from './time_scale';
-import {TrackNode} from './workspace';
+import {TimeScale} from '../base/time_scale';
+import {TrackNode} from '../public/workspace';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
@@ -38,8 +37,8 @@ const FOCUSED_FLOW_INTENSITY = 55;
 const DEFAULT_FLOW_INTENSITY = 70;
 
 type VerticalEdgeOrPoint =
-  | ({kind: 'vertical_edge'} & Vector)
-  | ({kind: 'point'} & Vector);
+  | ({kind: 'vertical_edge'} & Point2D)
+  | ({kind: 'point'} & Point2D);
 
 /**
  * Renders the flows overlay on top of the timeline, given the set of panels and
@@ -54,13 +53,13 @@ type VerticalEdgeOrPoint =
  */
 export function renderFlows(
   ctx: CanvasRenderingContext2D,
-  size: Size,
+  size: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
 ): void {
-  const timescale = new TimeScale(
-    globals.timeline.visibleWindow,
-    new PxSpan(0, size.width),
-  );
+  const timescale = new TimeScale(globals.timeline.visibleWindow, {
+    left: 0,
+    right: size.width,
+  });
 
   // Create indexes for the tracks and groups by key for quick access
   const trackPanelsByKey = new Map(

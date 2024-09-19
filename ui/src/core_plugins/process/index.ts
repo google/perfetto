@@ -14,17 +14,14 @@
 
 import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getProcessTable} from './table';
 
 class ProcessPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace) {
+  async onTraceLoad(ctx: Trace) {
     sqlTableRegistry['process'] = getProcessTable();
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'perfetto.ShowTable.process',
       name: 'Open table: process',
       callback: () => {

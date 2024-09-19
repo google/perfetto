@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
@@ -31,14 +30,13 @@ import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
-
 import {
   EventLatencySlice,
   getEventLatencyDescendantSlice,
   getEventLatencySlice,
   getSliceForTrack,
 } from './scroll_jank_slice';
-import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public';
+import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public/track_kinds';
 
 interface Data {
   name: string;

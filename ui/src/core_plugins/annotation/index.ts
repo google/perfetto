@@ -12,24 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  COUNTER_TRACK_KIND,
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
-import {THREAD_SLICE_TRACK_KIND} from '../../public';
+import {THREAD_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {GroupNode, TrackNode, Workspace} from '../../public/workspace';
+import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 
 class AnnotationPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addAnnotationTracks(ctx);
     await this.addAnnotationCounterTracks(ctx);
   }
 
-  private async addAnnotationTracks(ctx: PluginContextTrace) {
+  private async addAnnotationTracks(ctx: Trace) {
     const {engine} = ctx;
 
     const result = await engine.query(`
@@ -49,18 +48,19 @@ class AnnotationPlugin implements PerfettoPlugin {
       groupName: STR_NULL,
     });
 
+    const groups = new Map<string, GroupNode>();
+
     for (; it.valid(); it.next()) {
       const {id, name, upid, groupName} = it;
 
       const uri = `/annotation_${id}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: name,
         tags: {
           kind: THREAD_SLICE_TRACK_KIND,
           scope: 'annotation',
           upid,
-          ...(groupName && {groupName}),
         },
         chips: ['metric'],
         track: new ThreadSliceTrack(
@@ -73,10 +73,37 @@ class AnnotationPlugin implements PerfettoPlugin {
           'annotation_slice',
         ),
       });
+
+      // We want to try and find a group to put this track in. If groupName is
+      // defined, create a new group or place in existing one if it already
+      // exists Otherwise, try upid to see if we can put this in a process
+      // group
+
+      let container: Workspace | GroupNode;
+      if (groupName) {
+        const existingGroup = groups.get(groupName);
+        if (!existingGroup) {
+          const group = new GroupNode(groupName);
+          group.headerTrackUri = uri;
+          container = group;
+          groups.set(groupName, group);
+          ctx.workspace.insertChildInOrder(group);
+        } else {
+          container = existingGroup;
+        }
+      } else {
+        if (upid !== 0) {
+          container = getOrCreateGroupForProcess(ctx.workspace, upid);
+        } else {
+          container = ctx.workspace;
+        }
+      }
+
+      container.insertChildInOrder(new TrackNode(uri, name));
     }
   }
 
-  private async addAnnotationCounterTracks(ctx: PluginContextTrace) {
+  private async addAnnotationCounterTracks(ctx: Trace) {
     const {engine} = ctx;
     const counterResult = await engine.query(`
       SELECT
@@ -99,7 +126,7 @@ class AnnotationPlugin implements PerfettoPlugin {
       const {id: trackId, name, upid} = counterIt;
 
       const uri = `/annotation_counter_${trackId}`;
-      ctx.registerTrack({
+      ctx.tracks.registerTrack({
         uri,
         title: name,
         tags: {
@@ -115,6 +142,9 @@ class AnnotationPlugin implements PerfettoPlugin {
           rootTable: 'annotation_counter',
         }),
       });
+
+      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
+      group.insertChildInOrder(new TrackNode(uri, name));
     }
   }
 }

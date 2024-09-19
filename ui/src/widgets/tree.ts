@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {classNames} from '../base/classnames';
 import {hasChildren} from '../base/mithril_utils';
-
 import {scheduleFullRedraw} from './raf';
 
 // Heirachical tree layout with left and right values.

@@ -15,17 +15,16 @@
 import {globals} from '../../frontend/globals';
 import {NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {SCROLL_JANK_V3_TRACK_KIND, Slice} from '../../public';
+import {SCROLL_JANK_V3_TRACK_KIND} from '../../public/track_kinds';
+import {Slice} from '../../public/track';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-
 import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {getColorForSlice} from '../../core/colorizer';
-import {getLegacySelection} from '../../common/state';
 import {ScrollJankPluginState} from './common';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
@@ -96,7 +95,7 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack {
 
   onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
-      const currentSelection = getLegacySelection(globals.state);
+      const currentSelection = globals.selectionManager.legacySelection;
       const isSelected =
         currentSelection &&
         currentSelection.kind === 'GENERIC_SLICE' &&

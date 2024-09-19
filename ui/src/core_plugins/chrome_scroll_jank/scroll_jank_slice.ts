@@ -13,12 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Icons} from '../../base/semantic_icons';
 import {duration, time, Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
-import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
 import {SliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
@@ -27,12 +24,12 @@ import {
   SQLConstraints,
 } from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
-
 import {ScrollJankPluginState, ScrollJankTrackSpec} from './common';
 import {
   CHROME_EVENT_LATENCY_TRACK_KIND,
   SCROLL_JANK_V3_TRACK_KIND,
-} from '../../public';
+} from '../../public/track_kinds';
+import {scrollTo} from '../../public/scroll_helper';
 
 interface BasicSlice {
   // ID of slice.
@@ -183,18 +180,19 @@ export class ScrollJankSliceRef
 
           const trackUri = track.key;
 
-          globals.makeSelection(
-            Actions.selectGenericSlice({
-              id: vnode.attrs.id,
-              sqlTableName: track.sqlTableName,
-              start: vnode.attrs.ts,
-              duration: vnode.attrs.dur,
-              trackUri,
-              detailsPanelConfig: track.detailsPanelConfig,
-            }),
-          );
+          globals.selectionManager.setGenericSlice({
+            id: vnode.attrs.id,
+            sqlTableName: track.sqlTableName,
+            start: vnode.attrs.ts,
+            duration: vnode.attrs.dur,
+            trackUri,
+            detailsPanelConfig: track.detailsPanelConfig,
+          });
 
-          scrollToTrackAndTs(trackUri, vnode.attrs.ts, true);
+          scrollTo({
+            track: {uri: trackUri, expandGroup: true},
+            time: {start: vnode.attrs.ts},
+          });
         },
       },
       vnode.attrs.name,

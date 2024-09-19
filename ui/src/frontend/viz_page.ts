@@ -13,12 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
 import {Editor} from '../widgets/editor';
 import {VegaView} from '../widgets/vega_view';
-
 import {globals} from './globals';
 import {createPage} from './pages';
 

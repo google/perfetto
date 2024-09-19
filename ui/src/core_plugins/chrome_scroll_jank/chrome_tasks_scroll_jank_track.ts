@@ -18,7 +18,7 @@ import {
   NamedSliceTrack,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {Slice} from '../../public';
+import {Slice} from '../../public/track';
 
 export class ChromeTasksScrollJankTrack extends NamedSliceTrack {
   constructor(args: NewTrackArgs) {

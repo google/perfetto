@@ -41,6 +41,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/profiling/memory/heapprofd_producer.h"
 #include "test/gtest_and_gmock.h"
+#include "test/integrationtest_initializer.h"
 #include "test/test_helper.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -53,6 +54,7 @@
 #include "protos/perfetto/trace/profiling/profile_packet.gen.h"
 
 namespace perfetto {
+
 namespace profiling {
 namespace {
 
@@ -277,7 +279,7 @@ base::Subprocess ForkContinuousAlloc(AllocatorMode mode,
   return child;
 }
 
-void __attribute__((constructor(1024))) RunContinuousMalloc() {
+void RunContinuousMalloc() {
   const char* a0 = getenv("HEAPPROFD_TESTING_RUN_MALLOC_ARG0");
   const char* a1 = getenv("HEAPPROFD_TESTING_RUN_MALLOC_ARG1");
   const char* a2 = getenv("HEAPPROFD_TESTING_RUN_MALLOC_ARG2");
@@ -296,7 +298,7 @@ void __attribute__((constructor(1024))) RunContinuousMalloc() {
   exit(0);
 }
 
-void __attribute__((constructor(1024))) RunAccurateMalloc() {
+void PERFETTO_NO_INLINE RunAccurateMalloc() {
   const char* a0 = getenv("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC");
   if (a0 == nullptr)
     return;
@@ -377,7 +379,7 @@ void __attribute__((noreturn)) RunAccurateMallocWithVforkCommon() {
   }
 }
 
-void __attribute__((constructor(1024))) RunAccurateSample() {
+void RunAccurateSample() {
   const char* a0 = getenv("HEAPPROFD_TESTING_RUN_ACCURATE_SAMPLE");
   if (a0 == nullptr)
     return;
@@ -416,14 +418,14 @@ void __attribute__((constructor(1024))) RunAccurateSample() {
   }
 }
 
-void __attribute__((constructor(1024))) RunAccurateMallocWithVfork() {
+void RunAccurateMallocWithVfork() {
   const char* a0 = getenv("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK");
   if (a0 == nullptr)
     return;
   RunAccurateMallocWithVforkCommon();
 }
 
-void __attribute__((constructor(1024))) RunAccurateMallocWithVforkThread() {
+void RunAccurateMallocWithVforkThread() {
   const char* a0 =
       getenv("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK_THREAD");
   if (a0 == nullptr)
@@ -432,7 +434,7 @@ void __attribute__((constructor(1024))) RunAccurateMallocWithVforkThread() {
   th.join();
 }
 
-void __attribute__((constructor(1024))) RunReInit() {
+void RunReInit() {
   const char* a0 = getenv("HEAPPROFD_TESTING_RUN_REINIT_ARG0");
   if (a0 == nullptr)
     return;
@@ -467,7 +469,7 @@ void __attribute__((constructor(1024))) RunReInit() {
   PERFETTO_FATAL("Should be unreachable");
 }
 
-void __attribute__((constructor(1024))) RunCustomLifetime() {
+void RunCustomLifetime() {
   const char* a0 = getenv("HEAPPROFD_TESTING_RUN_LIFETIME_ARG0");
   const char* a1 = getenv("HEAPPROFD_TESTING_RUN_LIFETIME_ARG1");
   if (a0 == nullptr)
@@ -524,6 +526,32 @@ void __attribute__((constructor(1024))) RunCustomLifetime() {
     sleep(1);
   }
 }
+
+void MainInitializer() {
+  // *** TRICKY ***
+  //
+  // The tests want to launch another binary and attach heapprofd to it.
+  // Carrying another binary is difficult, so another approach is taken:
+  // * The test execute its own binary with special environment variables.
+  // * If these environment variables are detected, instead of running the
+  //   gtest tests, the binary just need to do some allocation an exit.
+
+  // This is run before all the gtest tests are executed.
+  //
+  // If one of these function recognizes the environment variable, it will do
+  // its job and exit().
+  RunContinuousMalloc();
+  RunAccurateMalloc();
+  RunAccurateMallocWithVfork();
+  RunAccurateMallocWithVforkThread();
+  RunReInit();
+  RunCustomLifetime();
+  RunAccurateSample();
+}
+
+int PERFETTO_UNUSED initializer =
+    integration_tests::RegisterHeapprofdEndToEndTestInitializer(
+        MainInitializer);
 
 class TraceProcessorTestHelper : public TestHelper {
  public:

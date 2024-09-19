@@ -97,9 +97,8 @@ RecordParser::~RecordParser() = default;
 
 void RecordParser::ParsePerfRecord(int64_t ts, Record record) {
   if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
-    context_->storage->IncrementStats(record.header.type == PERF_RECORD_SAMPLE
-                                          ? stats::perf_samples_skipped
-                                          : stats::perf_record_skipped);
+    context_->storage->IncrementIndexedStats(
+        stats::perf_record_skipped, static_cast<int>(record.header.type));
   }
 }
 
@@ -225,7 +224,7 @@ std::optional<CallsiteId> RecordParser::InternCallchain(
       context_->storage->IncrementStats(stats::perf_dummy_mapping_used);
       // Simpleperf will not create mappings for anonymous executable mappings
       // which are used by JITted code (e.g. V8 JavaScript).
-      mapping = mapping_tracker_->GetDummyMapping();
+      mapping = GetDummyMapping(upid);
     }
 
     const FrameId frame_id =
@@ -344,6 +343,16 @@ base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
         .AddCount(sample.trace_ts, static_cast<double>(entry.value));
   }
   return base::OkStatus();
+}
+
+DummyMemoryMapping* RecordParser::GetDummyMapping(UniquePid upid) {
+  if (auto it = dummy_mappings_.Find(upid); it) {
+    return *it;
+  }
+
+  DummyMemoryMapping* mapping = &mapping_tracker_->CreateDummyMapping("");
+  dummy_mappings_.Insert(upid, mapping);
+  return mapping;
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

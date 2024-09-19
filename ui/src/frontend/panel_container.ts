@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {assertExists, assertFalse} from '../base/logging';
 import {
@@ -25,19 +24,18 @@ import {
   runningStatStr,
 } from '../core/perf';
 import {raf} from '../core/raf_scheduler';
-
 import {SimpleResizeObserver} from '../base/resize_observer';
-import {canvasClip} from '../common/canvas_utils';
+import {canvasClip} from '../base/canvas_utils';
 import {
   SELECTION_STROKE_COLOR,
   TOPBAR_HEIGHT,
   TRACK_SHELL_WIDTH,
 } from './css_constants';
 import {globals} from './globals';
-import {Rect, Size, VerticalBounds} from '../base/geom';
+import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
-import {PxSpan, TimeScale} from './time_scale';
+import {TimeScale} from '../base/time_scale';
 import {Optional} from '../base/utils';
 
 const CANVAS_OVERDRAW_PX = 100;
@@ -48,7 +46,7 @@ export interface Panel {
   readonly selectable: boolean;
   readonly trackUri?: string; // Defined if this panel represents are track
   readonly groupUri?: string; // Defined if this panel represents a group - i.e. a group summary track
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size): void;
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D): void;
   getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
 }
 
@@ -70,7 +68,7 @@ export interface PanelContainerAttrs {
   // caller the opportunity to render an overlay on top of the panels.
   renderOverlay?(
     ctx: CanvasRenderingContext2D,
-    size: Size,
+    size: Size2D,
     panels: ReadonlyArray<RenderedPanelInfo>,
   ): void;
 }
@@ -86,7 +84,7 @@ interface PanelInfo {
 
 export interface RenderedPanelInfo {
   panel: Panel;
-  rect: Rect;
+  rect: Bounds2D;
 }
 
 export class PanelContainer
@@ -173,10 +171,10 @@ export class PanelContainer
     // right now, that's a job for our parent, but we can put one together so we
     // don't have to refactor this entire bit right now...
 
-    const visibleTimeScale = new TimeScale(
-      globals.timeline.visibleWindow,
-      new PxSpan(0, this.virtualCanvas!.size.width - TRACK_SHELL_WIDTH),
-    );
+    const visibleTimeScale = new TimeScale(globals.timeline.visibleWindow, {
+      left: 0,
+      right: this.virtualCanvas!.size.width - TRACK_SHELL_WIDTH,
+    });
 
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
@@ -194,9 +192,7 @@ export class PanelContainer
         continue;
       }
       if (panel.groupUri !== undefined) {
-        const trackGroup = globals.workspace.flatGroups.find(
-          (g) => g.uri === panel.groupUri,
-        );
+        const trackGroup = globals.workspace.getGroupByUri(panel.groupUri);
         // Only select a track group and all child tracks if it is closed.
         if (trackGroup && trackGroup.collapsed) {
           tracks.push(panel.groupUri);
@@ -489,10 +485,10 @@ export class PanelContainer
     // right now, that's a job for our parent, but we can put one together so we
     // don't have to refactor this entire bit right now...
 
-    const visibleTimeScale = new TimeScale(
-      globals.timeline.visibleWindow,
-      new PxSpan(0, vc.size.width - TRACK_SHELL_WIDTH),
-    );
+    const visibleTimeScale = new TimeScale(globals.timeline.visibleWindow, {
+      left: 0,
+      right: vc.size.width - TRACK_SHELL_WIDTH,
+    });
 
     const startX = visibleTimeScale.timeToPx(area.start);
     const endX = visibleTimeScale.timeToPx(area.end);
@@ -522,7 +518,7 @@ export class PanelContainer
     panel: Panel,
     renderTime: number,
     ctx: CanvasRenderingContext2D,
-    size: Size,
+    size: Size2D,
   ) {
     if (!perfDebug()) return;
     let renderStats = this.panelPerfStats.get(panel);

@@ -78,7 +78,6 @@ android_startup {
       trace_thread_sections {
         start_timestamp: 103
         end_timestamp: 107
-        thread_utid: 3
         thread_name: "com.google.android.calendar"
       }
     }
@@ -163,7 +162,6 @@ android_startup {
       trace_thread_sections {
         start_timestamp: 203
         end_timestamp: 207
-        thread_utid: 4
         thread_name: "com.google.android.calendar"
       }
     }

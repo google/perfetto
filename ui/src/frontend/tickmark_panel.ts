@@ -13,14 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
-import {Size} from '../base/geom';
+import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {PxSpan, TimeScale} from './time_scale';
-import {canvasClip} from '../common/canvas_utils';
+import {TimeScale} from '../base/time_scale';
+import {canvasClip} from '../base/canvas_utils';
 
 // This is used to display the summary of search results.
 export class TickmarkPanel implements Panel {
@@ -31,7 +30,7 @@ export class TickmarkPanel implements Panel {
     return m('.tickbar');
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D): void {
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
@@ -43,9 +42,12 @@ export class TickmarkPanel implements Panel {
     ctx.restore();
   }
 
-  private renderTrack(ctx: CanvasRenderingContext2D, size: Size): void {
+  private renderTrack(ctx: CanvasRenderingContext2D, size: Size2D): void {
     const visibleWindow = globals.timeline.visibleWindow;
-    const timescale = new TimeScale(visibleWindow, new PxSpan(0, size.width));
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: size.width,
+    });
     const timespan = visibleWindow.toTimeSpan();
 
     if (size.width > 0 && timespan.duration > 0n) {

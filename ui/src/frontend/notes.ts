@@ -13,9 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {globals} from './globals';
-import {NotesManager} from './notes_manager';
+import {NotesListEditor} from './notes_list_editor';
 import {NotesEditorTab} from './notes_panel';
 import {DisposableStack} from '../base/disposable_stack';
 
@@ -39,7 +38,7 @@ export class Notes implements Disposable {
         isEphemeral: false,
         content: {
           getTitle: () => 'Notes & markers',
-          render: () => m(NotesManager),
+          render: () => m(NotesListEditor),
         },
       }),
     );

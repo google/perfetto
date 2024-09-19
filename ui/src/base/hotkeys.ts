@@ -281,3 +281,26 @@ export type Platform = 'Mac' | 'PC';
 export function getPlatform(): Platform {
   return window.navigator.platform.indexOf('Mac') !== -1 ? 'Mac' : 'PC';
 }
+
+// Returns a cross-platform check for whether the event has "Mod" key pressed
+// (e.g. as a part of Mod-Click UX pattern).
+// On Mac, Mod-click is actually Command-click and on PC it's Control-click,
+// so this function handles this for all platforms.
+export function hasModKey(event: {
+  readonly metaKey: boolean;
+  readonly ctrlKey: boolean;
+}): boolean {
+  if (getPlatform() === 'Mac') {
+    return event.metaKey;
+  } else {
+    return event.ctrlKey;
+  }
+}
+
+export function modKey(): {metaKey?: boolean; ctrlKey?: boolean} {
+  if (getPlatform() === 'Mac') {
+    return {metaKey: true};
+  } else {
+    return {ctrlKey: true};
+  }
+}

@@ -13,16 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
-import {Actions} from '../common/actions';
-import {TrackCacheEntry} from '../common/track_manager';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {TrackTags} from '../public';
-
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {NotesPanel} from './notes_panel';
@@ -41,18 +36,17 @@ import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
-import {TrackPanel, getTitleFontSize} from './track_panel';
+import {TrackPanel} from './track_panel';
 import {assertExists} from '../base/logging';
-import {PxSpan, TimeScale} from './time_scale';
-import {GroupNode, Node, TrackNode} from './workspace';
-import {fuzzyMatch, FuzzySegment} from '../base/fuzzy';
-
-import {exists, Optional} from '../base/utils';
+import {TimeScale} from '../base/time_scale';
+import {GroupNode, Node, TrackNode} from '../public/workspace';
+import {fuzzyMatch} from '../base/fuzzy';
+import {Optional} from '../base/utils';
 import {EmptyState} from '../widgets/empty_state';
 import {removeFalsyValues} from '../base/array_utils';
 import {renderFlows} from './flow_events_renderer';
-import {Size} from '../base/geom';
-import {canvasClip, canvasSave} from '../common/canvas_utils';
+import {Size2D} from '../base/geom';
+import {canvasClip, canvasSave} from '../base/canvas_utils';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -67,7 +61,7 @@ function onTimeRangeBoundary(
   timescale: TimeScale,
   mousePos: number,
 ): 'START' | 'END' | null {
-  const selection = globals.state.selection;
+  const selection = globals.selectionManager.selection;
   if (selection.kind === 'area') {
     // If frontend selectedArea exists then we are in the process of editing the
     // time range and need to use that value instead.
@@ -118,10 +112,10 @@ class TraceViewer implements m.ClassComponent {
         if (this.timelineWidthPx === undefined) return;
 
         this.keepCurrentSelection = true;
-        const timescale = new TimeScale(
-          timeline.visibleWindow,
-          new PxSpan(0, this.timelineWidthPx),
-        );
+        const timescale = new TimeScale(timeline.visibleWindow, {
+          left: 0,
+          right: this.timelineWidthPx,
+        });
         const tDelta = timescale.pxToDuration(pannedPx);
         timeline.panVisibleWindow(tDelta);
 
@@ -141,10 +135,10 @@ class TraceViewer implements m.ClassComponent {
       },
       editSelection: (currentPx: number) => {
         if (this.timelineWidthPx === undefined) return false;
-        const timescale = new TimeScale(
-          globals.timeline.visibleWindow,
-          new PxSpan(0, this.timelineWidthPx),
-        );
+        const timescale = new TimeScale(globals.timeline.visibleWindow, {
+          left: 0,
+          right: this.timelineWidthPx,
+        });
         return onTimeRangeBoundary(timescale, currentPx) !== null;
       },
       onSelection: (
@@ -166,13 +160,13 @@ class TraceViewer implements m.ClassComponent {
         const timespan = visibleWindow.toTimeSpan();
         this.keepCurrentSelection = true;
 
-        const timescale = new TimeScale(
-          timeline.visibleWindow,
-          new PxSpan(0, this.timelineWidthPx),
-        );
+        const timescale = new TimeScale(timeline.visibleWindow, {
+          left: 0,
+          right: this.timelineWidthPx,
+        });
 
         if (editing) {
-          const selection = globals.state.selection;
+          const selection = globals.selectionManager.selection;
           if (selection.kind === 'area') {
             const area = globals.timeline.selectedArea
               ? globals.timeline.selectedArea
@@ -221,12 +215,12 @@ class TraceViewer implements m.ClassComponent {
         // If we are editing we need to pass the current id through to ensure
         // the marked area with that id is also updated.
         if (edit) {
-          const selection = globals.state.selection;
+          const selection = globals.selectionManager.selection;
           if (selection.kind === 'area' && area) {
-            globals.dispatch(Actions.selectArea({...area}));
+            globals.selectionManager.setArea({...area});
           }
         } else if (area) {
-          globals.makeSelection(Actions.selectArea({...area}));
+          globals.selectionManager.setArea({...area});
         }
         // Now the selection has ended we stored the final selected area in the
         // global state and can remove the in progress selection from the
@@ -257,7 +251,7 @@ class TraceViewer implements m.ClassComponent {
               this.keepCurrentSelection = false;
               return;
             }
-            globals.clearSelection();
+            globals.selectionManager.clear();
           },
         },
         m(
@@ -277,15 +271,15 @@ class TraceViewer implements m.ClassComponent {
         m(PanelContainer, {
           className: 'pinned-panel-container',
           panels: globals.workspace.pinnedTracks.map((track) => {
-            const trackBundle = resolveTrack(track.uri, track.displayName);
+            const tr = globals.trackManager.getTrackRenderer(track.uri);
             return new TrackPanel({
               track: track,
-              title: trackBundle.displayName,
-              tags: trackBundle.tags,
-              trackFSM: trackBundle.trackFSM,
+              title: track.displayName,
+              tags: tr?.desc.tags,
+              trackRenderer: tr,
               revealOnCreate: true,
-              chips: trackBundle.chips,
-              pluginId: trackBundle.pluginId,
+              chips: tr?.desc.chips,
+              pluginId: tr?.desc.pluginId,
             });
           }),
         }),
@@ -316,7 +310,7 @@ class TraceViewer implements m.ClassComponent {
 
 function renderOverlay(
   ctx: CanvasRenderingContext2D,
-  canvasSize: Size,
+  canvasSize: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
 ): void {
   const size = {
@@ -328,13 +322,6 @@ function renderOverlay(
   ctx.translate(TRACK_SHELL_WIDTH, 0);
   canvasClip(ctx, 0, 0, size.width, size.height);
   renderFlows(ctx, size, panels);
-}
-
-// Given a set of fuzzy matched results, render the matching segments in bold
-function renderFuzzyMatchedTrackTitle(title: FuzzySegment[]): m.Children {
-  return title.map(({matching, value}) => {
-    return matching ? m('b', value) : value;
-  });
 }
 
 function filterTermIsValid(
@@ -376,12 +363,7 @@ function renderNodes(
             return {
               kind: 'group',
               collapsed: node.collapsed,
-              header: renderGroupHeaderPanel(
-                node,
-                true,
-                node.collapsed,
-                renderFuzzyMatchedTrackTitle(match.segments),
-              ),
+              header: renderGroupHeaderPanel(node, true, node.collapsed),
               childPanels: node.collapsed ? [] : renderNodes(node.children),
             };
           } else {
@@ -412,10 +394,7 @@ function renderNodes(
         const tokens = tokenizeFilterTerm(filterTerm);
         const match = fuzzyMatch(node.displayName, ...tokens);
         if (match.matches) {
-          return renderTrackPanel(
-            node,
-            renderFuzzyMatchedTrackTitle(match.segments),
-          );
+          return renderTrackPanel(node);
         } else {
           return [];
         }
@@ -426,23 +405,15 @@ function renderNodes(
   });
 }
 
-function renderTrackPanel(track: TrackNode, title?: m.Children) {
-  const trackBundle = resolveTrack(track.uri, track.displayName);
+function renderTrackPanel(track: TrackNode) {
+  const tr = globals.trackManager.getTrackRenderer(track.uri);
   return new TrackPanel({
     track: track,
-    title: m(
-      'span',
-      {
-        style: {
-          'font-size': getTitleFontSize(trackBundle.displayName),
-        },
-      },
-      Boolean(title) ? title : trackBundle.displayName,
-    ),
-    tags: trackBundle.tags,
-    trackFSM: trackBundle.trackFSM,
-    chips: trackBundle.chips,
-    pluginId: trackBundle.pluginId,
+    title: track.displayName,
+    tags: tr?.desc.tags,
+    trackRenderer: tr,
+    chips: tr?.desc.chips,
+    pluginId: tr?.desc.pluginId,
   });
 }
 
@@ -450,59 +421,27 @@ function renderGroupHeaderPanel(
   group: GroupNode,
   collapsable: boolean,
   collapsed: boolean,
-  title?: m.Children,
 ): TrackGroupPanel {
   if (group.headerTrackUri !== undefined) {
-    const trackBundle = resolveTrack(group.headerTrackUri, group.displayName);
+    const tr = globals.trackManager.getTrackRenderer(group.headerTrackUri);
     return new TrackGroupPanel({
       groupNode: group,
-      trackFSM: trackBundle.trackFSM,
-      subtitle: trackBundle.subtitle,
-      tags: trackBundle.tags,
-      chips: trackBundle.chips,
+      trackRenderer: tr,
+      subtitle: tr?.desc.subtitle,
+      tags: tr?.desc.tags,
+      chips: tr?.desc.chips,
       collapsed,
-      title: exists(title) ? title : group.displayName,
-      tooltip: group.displayName,
+      title: group.displayName,
       collapsable,
     });
   } else {
     return new TrackGroupPanel({
       groupNode: group,
       collapsed,
-      title: exists(title) ? title : group.displayName,
-      tooltip: group.displayName,
+      title: group.displayName,
       collapsable,
     });
   }
-}
-
-// Resolve a track and its metadata through the track cache
-function resolveTrack(uri: string, displayName: string): TrackBundle {
-  const trackDesc = globals.trackManager.getTrack(uri);
-  const trackCacheEntry =
-    trackDesc && globals.trackManager.getTrackRenderer(trackDesc);
-  const trackFSM = trackCacheEntry;
-  const tags = trackCacheEntry?.desc.tags;
-  const subtitle = trackCacheEntry?.desc.subtitle;
-  const chips = trackCacheEntry?.desc.chips;
-  const plugin = trackCacheEntry?.desc.pluginId;
-  return {
-    displayName,
-    subtitle,
-    tags,
-    trackFSM,
-    chips,
-    pluginId: plugin,
-  };
-}
-
-interface TrackBundle {
-  readonly displayName: string;
-  readonly subtitle?: string;
-  readonly trackFSM?: TrackCacheEntry;
-  readonly tags?: TrackTags;
-  readonly chips?: ReadonlyArray<string>;
-  readonly pluginId?: string;
 }
 
 export const ViewerPage = createPage({

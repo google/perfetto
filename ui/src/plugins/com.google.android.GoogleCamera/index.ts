@@ -12,21 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  PerfettoPlugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-
+import {Trace} from '../../public/trace';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import * as cameraConstants from './googleCameraConstants';
 
 class GoogleCamera implements PerfettoPlugin {
-  private ctx!: PluginContextTrace;
+  private ctx!: Trace;
 
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  async onTraceLoad(ctx: Trace): Promise<void> {
     this.ctx = ctx;
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'com.google.android.GoogleCamera#LoadGoogleCameraStartupView',
       name: 'Load google camera startup view',
       callback: () => {
@@ -34,7 +30,7 @@ class GoogleCamera implements PerfettoPlugin {
       },
     });
 
-    ctx.registerCommand({
+    ctx.commands.registerCommand({
       id: 'com.google.android.GoogleCamera#PinCameraRelatedTracks',
       name: 'Pin camera related tracks',
       callback: (trackNames) => {
@@ -58,10 +54,12 @@ class GoogleCamera implements PerfettoPlugin {
   }
 
   private pinTracks(trackNames: ReadonlyArray<string>) {
-    this.ctx.timeline.workspace.flatTracks.forEach((track) => {
-      if (trackNames.includes(track.displayName)) {
-        track.pin();
-      }
+    this.ctx.workspace.flatTracks.forEach((track) => {
+      trackNames.forEach((trackName) => {
+        if (track.displayName.match(trackName)) {
+          track.pin();
+        }
+      });
     });
   }
 }

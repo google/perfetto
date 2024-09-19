@@ -108,3 +108,10 @@ message SchedMigrateTaskFtraceEvent {
   optional int32 running = 6;
   optional uint32 load = 7;
 }
+message SchedWakeupTaskAttrFtraceEvent {
+  optional int32 pid = 1;
+  optional uint64 cpu_affinity = 2;
+  optional uint64 task_util = 3;
+  optional uint64 uclamp_min = 4;
+  optional uint64 vruntime = 5;
+}

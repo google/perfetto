@@ -242,11 +242,6 @@ RULES = [
         r"/core_plugins/.*",
         "core code should not depend on plugins.",
     ),
-    #NoDirectDep(
-    #    r'/tracks/.*',
-    #    r'/core/.*',
-    #    'instead tracks should depend on the API exposed at ui/src/public.',
-    #),
     NoDep(
         r'/core/.*',
         r'/plugins/.*',

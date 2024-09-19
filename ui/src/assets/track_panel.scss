@@ -19,10 +19,32 @@
   max-height: 30px;
   overflow: hidden;
   text-align: left;
-  overflow-wrap: break-word;
   font-family: "Roboto Condensed", sans-serif;
   font-weight: 300;
   line-break: anywhere;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  .popup {
+    border-radius: 2px;
+    color: rgba(0,0,0,0);
+    background: rgba(255, 255, 255, 0);
+    position: absolute;
+    text-overflow: unset;
+    pointer-events: none;
+
+    visibility: hidden;
+
+    &.show-popup {
+      visibility: visible;
+    }
+  }
+
+  &:hover .popup.show-popup {
+    box-shadow: 1px 1px 2px 2px var(--track-border-color);
+    background: white;
+    color: black;
+  }
 }
 
 .track-content.pf-track-content-error {
@@ -43,7 +65,7 @@
 .track {
   display: grid;
   grid-template-columns: auto 1fr;
-  grid-template-rows: 1fr 0;
+  grid-template-rows: 1fr;
   container-type: size;
 
   &::after {
@@ -193,6 +215,7 @@
 
     .chip {
       background-color: #bed6ff;
+      color: rgb(60, 75, 93);
       border-radius: $pf-border-radius;
       font-size: smaller;
       padding: 0 0.1rem;

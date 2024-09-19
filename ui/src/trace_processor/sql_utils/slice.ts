@@ -26,7 +26,6 @@ import {
   Upid,
   Utid,
 } from './core_types';
-
 import {Arg, getArgs} from './args';
 import {getThreadInfo, ThreadInfo} from './thread';
 import {getProcessInfo, ProcessInfo} from './process';

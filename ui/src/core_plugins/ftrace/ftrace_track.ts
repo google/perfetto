@@ -15,15 +15,15 @@
 import {duration, Time, time} from '../../base/time';
 import {colorForFtrace} from '../../core/colorizer';
 import {LIMIT} from '../../common/track_data';
-import {TimelineFetcher} from '../../common/track_helper';
+import {Store, TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {TrackData} from '../../common/track_data';
-import {Engine, Track} from '../../public';
+import {Engine} from '../../trace_processor/engine';
+import {Track} from '../../public/track';
 import {LONG, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
-import {Store} from '../../public';
 import {Monitor} from '../../base/monitor';
-import {TrackRenderContext} from '../../public/tracks';
+import {TrackRenderContext} from '../../public/track';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;

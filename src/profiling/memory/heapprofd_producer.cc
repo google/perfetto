@@ -385,8 +385,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   }
 
   if (data_sources_.find(id) != data_sources_.end()) {
-    PERFETTO_DFATAL_OR_ELOG(
-        "Received duplicated data source instance id: %" PRIu64, id);
+    PERFETTO_ELOG("Received duplicated data source instance id: %" PRIu64, id);
     return;
   }
 
@@ -519,16 +518,15 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
     // This is expected in child heapprofd, where we reject uninteresting data
     // sources in SetupDataSource.
     if (mode_ == HeapprofdMode::kCentral) {
-      PERFETTO_DFATAL_OR_ELOG(
-          "Received invalid data source instance to start: %" PRIu64, id);
+      PERFETTO_ELOG("Received invalid data source instance to start: %" PRIu64,
+                    id);
     }
     return;
   }
 
   DataSource& data_source = it->second;
   if (data_source.started) {
-    PERFETTO_DFATAL_OR_ELOG(
-        "Trying to start already started data-source: %" PRIu64, id);
+    PERFETTO_ELOG("Trying to start already started data-source: %" PRIu64, id);
     return;
   }
   const HeapprofdConfig& heapprofd_config = data_source.config;
@@ -568,8 +566,7 @@ void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
   if (it == data_sources_.end()) {
     endpoint_->NotifyDataSourceStopped(id);
     if (mode_ == HeapprofdMode::kCentral)
-      PERFETTO_DFATAL_OR_ELOG(
-          "Trying to stop non existing data source: %" PRIu64, id);
+      PERFETTO_ELOG("Trying to stop non existing data source: %" PRIu64, id);
     return;
   }
 
@@ -773,8 +770,7 @@ void HeapprofdProducer::Flush(FlushRequestID flush_id,
   for (size_t i = 0; i < num_ids; ++i) {
     auto it = data_sources_.find(ids[i]);
     if (it == data_sources_.end()) {
-      PERFETTO_DFATAL_OR_ELOG("Trying to flush unknown data-source %" PRIu64,
-                              ids[i]);
+      PERFETTO_ELOG("Trying to flush unknown data-source %" PRIu64, ids[i]);
       flush_in_progress--;
       continue;
     }
@@ -801,8 +797,7 @@ void HeapprofdProducer::Flush(FlushRequestID flush_id,
 void HeapprofdProducer::FinishDataSourceFlush(FlushRequestID flush_id) {
   auto it = flushes_in_progress_.find(flush_id);
   if (it == flushes_in_progress_.end()) {
-    PERFETTO_DFATAL_OR_ELOG("FinishDataSourceFlush id invalid: %" PRIu64,
-                            flush_id);
+    PERFETTO_ELOG("FinishDataSourceFlush id invalid: %" PRIu64, flush_id);
     return;
   }
   size_t& flush_in_progress = it->second;
@@ -815,7 +810,7 @@ void HeapprofdProducer::FinishDataSourceFlush(FlushRequestID flush_id) {
 void HeapprofdProducer::SocketDelegate::OnDisconnect(base::UnixSocket* self) {
   auto it = producer_->pending_processes_.find(self->peer_pid_linux());
   if (it == producer_->pending_processes_.end()) {
-    PERFETTO_DFATAL_OR_ELOG("Unexpected disconnect.");
+    PERFETTO_ELOG("Unexpected disconnect.");
     return;
   }
 
@@ -838,7 +833,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     base::UnixSocket* self) {
   auto it = producer_->pending_processes_.find(self->peer_pid_linux());
   if (it == producer_->pending_processes_.end()) {
-    PERFETTO_DFATAL_OR_ELOG("Unexpected data.");
+    PERFETTO_ELOG("Unexpected data.");
     return;
   }
 
@@ -910,8 +905,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
         .PostHandoffSocket(std::move(handoff_data));
     producer_->pending_processes_.erase(it);
   } else if (fds[kHandshakeMaps] || fds[kHandshakeMem]) {
-    PERFETTO_DFATAL_OR_ELOG("%d: Received partial FDs.",
-                            self->peer_pid_linux());
+    PERFETTO_ELOG("%d: Received partial FDs.", self->peer_pid_linux());
     producer_->pending_processes_.erase(it);
   } else {
     PERFETTO_ELOG("%d: Received no FDs.", self->peer_pid_linux());
@@ -976,7 +970,7 @@ void HeapprofdProducer::HandleClientConnection(
 
   pid_t peer_pid = new_connection->peer_pid_linux();
   if (peer_pid != process.pid) {
-    PERFETTO_DFATAL_OR_ELOG("Invalid PID connected.");
+    PERFETTO_ELOG("Invalid PID connected.");
     return;
   }
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {Engine} from '../../../../public';
+import {Engine} from '../../../../trace_processor/engine';
 import type {RenderedValue, SqlIdRefRenderer} from './details';
 
 // Type-safe helper to create a SqlIdRefRenderer, which ensures that the

@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
 import {colorForState} from '../../core/colorizer';
-import {LegacySelection} from '../../common/state';
-import {translateState} from '../../common/thread_state';
+import {LegacySelection} from '../../public/selection';
 import {
   BASE_ROW,
   BaseSliceTrack,
@@ -28,7 +26,8 @@ import {
 } from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
-import {Slice} from '../../public';
+import {Slice} from '../../public/track';
+import {translateState} from '../../trace_processor/sql_utils/thread_state';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,
@@ -86,12 +85,10 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
   }
 
   onSliceClick(args: OnSliceClickArgs<Slice>) {
-    globals.makeSelection(
-      Actions.selectThreadState({
-        id: args.slice.id,
-        trackUri: this.uri,
-      }),
-    );
+    globals.selectionManager.setThreadState({
+      id: args.slice.id,
+      trackUri: this.uri,
+    });
   }
 
   protected isSelectionHandled(selection: LegacySelection): boolean {

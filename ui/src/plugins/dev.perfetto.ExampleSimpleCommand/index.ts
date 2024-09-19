@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin, PluginContext, PluginDescriptor} from '../../public';
+import {App} from '../../public/app';
+import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
 // This is just an example plugin, used to prove that the plugin system works.
 class ExampleSimpleCommand implements PerfettoPlugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.registerCommand({
+  onActivate(ctx: App): void {
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
       name: 'Log "Hello, world!"',
       callback: () => console.log('Hello, world!'),

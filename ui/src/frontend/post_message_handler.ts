@@ -13,15 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {Time} from '../base/time';
 import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
 import {showModal} from '../widgets/modal';
-
 import {initCssConstants} from './css_constants';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {focusHorizontalRange} from './scroll_helper';
+import {scrollTo} from '../public/scroll_helper';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -284,7 +282,9 @@ async function scrollToTimeRange(
   } else {
     const start = Time.fromSeconds(postedScrollToRange.timeStart);
     const end = Time.fromSeconds(postedScrollToRange.timeEnd);
-    focusHorizontalRange(start, end, postedScrollToRange.viewPercentage);
+    scrollTo({
+      time: {start, end, viewPercentage: postedScrollToRange.viewPercentage},
+    });
   }
 }
 

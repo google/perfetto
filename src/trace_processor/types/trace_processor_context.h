@@ -46,7 +46,9 @@ class FtraceModule;
 class FuchsiaRecordParser;
 class GlobalArgsTracker;
 class HeapGraphTracker;
+class InstrumentsRowParser;
 class JsonTraceParser;
+class LegacyV8CpuProfileTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -129,6 +131,7 @@ class TraceProcessorContext {
   std::unique_ptr<MetadataTracker> metadata_tracker;
   std::unique_ptr<CpuTracker> cpu_tracker;
   std::unique_ptr<TraceFileTracker> trace_file_tracker;
+  std::unique_ptr<LegacyV8CpuProfileTracker> legacy_v8_cpu_profile_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -136,25 +139,26 @@ class TraceProcessorContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> android_probes_tracker;    // AndroidProbesTracker
-  std::unique_ptr<Destructible> binder_tracker;            // BinderTracker
-  std::unique_ptr<Destructible> heap_graph_tracker;        // HeapGraphTracker
-  std::unique_ptr<Destructible> syscall_tracker;           // SyscallTracker
-  std::unique_ptr<Destructible> system_info_tracker;       // SystemInfoTracker
-  std::unique_ptr<Destructible> v4l2_tracker;              // V4l2Tracker
-  std::unique_ptr<Destructible> virtio_video_tracker;      // VirtioVideoTracker
-  std::unique_ptr<Destructible> systrace_parser;           // SystraceParser
-  std::unique_ptr<Destructible> thread_state_tracker;      // ThreadStateTracker
-  std::unique_ptr<Destructible> i2c_tracker;               // I2CTracker
-  std::unique_ptr<Destructible> perf_data_tracker;         // PerfDataTracker
-  std::unique_ptr<Destructible> content_analyzer;          // ProtoContentAnalyzer
-  std::unique_ptr<Destructible> shell_transitions_tracker; // ShellTransitionsTracker
-  std::unique_ptr<Destructible> protolog_messages_tracker; // ProtoLogMessagesTracker
-  std::unique_ptr<Destructible> ftrace_sched_tracker;      // FtraceSchedEventTracker
-  std::unique_ptr<Destructible> v8_tracker;                // V8Tracker
-  std::unique_ptr<Destructible> jit_tracker;               // JitTracker
-  std::unique_ptr<Destructible> perf_dso_tracker;          // DsoTracker
-  std::unique_ptr<Destructible> protolog_message_decoder;  // ProtoLogMessageDecoder
+  std::unique_ptr<Destructible> android_probes_tracker;       // AndroidProbesTracker
+  std::unique_ptr<Destructible> binder_tracker;               // BinderTracker
+  std::unique_ptr<Destructible> heap_graph_tracker;           // HeapGraphTracker
+  std::unique_ptr<Destructible> syscall_tracker;              // SyscallTracker
+  std::unique_ptr<Destructible> system_info_tracker;          // SystemInfoTracker
+  std::unique_ptr<Destructible> v4l2_tracker;                 // V4l2Tracker
+  std::unique_ptr<Destructible> virtio_video_tracker;         // VirtioVideoTracker
+  std::unique_ptr<Destructible> systrace_parser;              // SystraceParser
+  std::unique_ptr<Destructible> thread_state_tracker;         // ThreadStateTracker
+  std::unique_ptr<Destructible> i2c_tracker;                  // I2CTracker
+  std::unique_ptr<Destructible> perf_data_tracker;            // PerfDataTracker
+  std::unique_ptr<Destructible> content_analyzer;             // ProtoContentAnalyzer
+  std::unique_ptr<Destructible> shell_transitions_tracker;    // ShellTransitionsTracker
+  std::unique_ptr<Destructible> protolog_messages_tracker;    // ProtoLogMessagesTracker
+  std::unique_ptr<Destructible> ftrace_sched_tracker;         // FtraceSchedEventTracker
+  std::unique_ptr<Destructible> v8_tracker;                   // V8Tracker
+  std::unique_ptr<Destructible> jit_tracker;                  // JitTracker
+  std::unique_ptr<Destructible> perf_dso_tracker;             // DsoTracker
+  std::unique_ptr<Destructible> protolog_message_decoder;     // ProtoLogMessageDecoder
+  std::unique_ptr<Destructible> instruments_row_data_tracker; // RowDataTracker
   // clang-format on
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;
@@ -165,6 +169,7 @@ class TraceProcessorContext {
   std::unique_ptr<JsonTraceParser> json_trace_parser;
   std::unique_ptr<FuchsiaRecordParser> fuchsia_record_parser;
   std::unique_ptr<PerfRecordParser> perf_record_parser;
+  std::unique_ptr<InstrumentsRowParser> instruments_row_parser;
   std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
 
   // This field contains the list of proto descriptors that can be used by

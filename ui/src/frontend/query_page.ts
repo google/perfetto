@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {QueryResponse, runQuery} from '../common/queries';
@@ -21,7 +20,6 @@ import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
 import {Callout} from '../widgets/callout';
 import {Editor} from '../widgets/editor';
-
 import {globals} from './globals';
 import {createPage} from './pages';
 import {QueryHistoryComponent, queryHistoryStorage} from './query_history';

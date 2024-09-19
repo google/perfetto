@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {TimeScale} from '../time_scale';
+import {TimeScale} from '../../base/time_scale';
 import {DragStrategy} from './drag_strategy';
 
 export class InnerDragStrategy extends DragStrategy {

@@ -23,7 +23,7 @@ const JOB_TYPES = [
   { id: 'linux-clang-x86_64-tsan', label: 'tsan' },
   { id: 'linux-clang-x86_64-msan', label: 'msan' },
   { id: 'linux-clang-x86_64-asan_lsan', label: '{a,l}san' },
-  { id: 'linux-clang-x86-asan_lsan', label: 'x86 {a,l}san' },
+  { id: 'linux-clang-x86-release', label: 'x86 rel' },
   { id: 'linux-clang-x86_64-libfuzzer', label: 'fuzzer' },
   { id: 'linux-clang-x86_64-bazel', label: 'bazel' },
   { id: 'ui-clang-x86_64-release', label: 'rel' },

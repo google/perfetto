@@ -92,6 +92,8 @@ class PerfEventAttr : public RefCounted {
     event_name_ = std::move(event_name);
   }
 
+  size_t sample_id_size() const { return sample_id_size_; }
+
   PerfCounter& GetOrCreateCounter(uint32_t cpu);
 
  private:
@@ -110,6 +112,7 @@ class PerfEventAttr : public RefCounted {
   std::optional<size_t> time_offset_from_end_;
   std::optional<size_t> id_offset_from_start_;
   std::optional<size_t> id_offset_from_end_;
+  size_t sample_id_size_;
   std::unordered_map<uint32_t, PerfCounter> counters_;
   std::string event_name_;
 };
