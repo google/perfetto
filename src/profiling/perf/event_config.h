@@ -143,7 +143,15 @@ class EventConfig {
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
   }
+  const std::vector<perf_event_attr>& perf_attr_followers() const {
+    return perf_event_followers_;
+  }
   const PerfCounter& timebase_event() const { return timebase_event_; }
+
+  const std::vector<PerfCounter>& follower_events() const {
+    return follower_events_;
+  }
+
   const std::vector<std::string>& target_installed_by() const {
     return target_installed_by_;
   }
@@ -151,8 +159,10 @@ class EventConfig {
 
  private:
   EventConfig(const DataSourceConfig& raw_ds_config,
-              const perf_event_attr& pe,
+              const perf_event_attr& pe_timebase,
+              std::vector<perf_event_attr> pe_followers,
               const PerfCounter& timebase_event,
+              std::vector<PerfCounter> follower_events,
               bool user_frames,
               bool kernel_frames,
               TargetFilter target_filter,
@@ -164,13 +174,18 @@ class EventConfig {
               uint64_t max_enqueued_footprint_bytes,
               std::vector<std::string> target_installed_by);
 
-  // Parameter struct for the leader (timebase) perf_event_open syscall.
+  // Parameter struct for the timebase perf_event_open syscall.
   perf_event_attr perf_event_attr_ = {};
 
-  // Leader event, which is already described by |perf_event_attr_|. But this
+  std::vector<perf_event_attr> perf_event_followers_ = {};
+
+  // Timebase event, which is already described by |perf_event_attr_|. But this
   // additionally carries a tracepoint filter if that needs to be set via an
   // ioctl after creating the event.
   const PerfCounter timebase_event_;
+
+  // Timebase event, which are already described by |perf_event_followers_|.
+  std::vector<PerfCounter> follower_events_;
 
   // If true, include userspace frames in sampled callstacks.
   const bool user_frames_;

@@ -1739,6 +1739,19 @@ message PerfEvents {
   }
 }
 
+// Additional events associated with a leader.
+// Configuration is similar to Timebase event. Because data acquisition is
+// driven by the leader there is no option to configure the clock or the
+// frequency.
+message FollowerEvent {
+  oneof event {
+    PerfEvents.Counter counter = 1;
+    PerfEvents.Tracepoint tracepoint = 2;
+    PerfEvents.RawEvent raw_event = 3;
+  }
+  optional string name = 4;
+}
+
 // End of protos/perfetto/common/perf_events.proto
 
 // Begin of protos/perfetto/config/profiling/perf_event_config.proto
@@ -1759,11 +1772,14 @@ message PerfEvents {
 //     }
 //   }
 //
-// Next id: 19
+// Next id: 20
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
   optional PerfEvents.Timebase timebase = 15;
+
+  // Other events associated with the leader described in the timebase.
+  repeated FollowerEvent followers = 19;
 
   // If set, the profiler will sample userspace processes' callstacks at the
   // interval specified by the |timebase|.
