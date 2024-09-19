@@ -1739,6 +1739,19 @@ message PerfEvents {
   }
 }
 
+// Additional events associated with a leader.
+// Configuration is similar to Timebase event. Because data acquisition is
+// driven by the leader there is no option to configure the clock or the
+// frequency.
+message FollowerEvent {
+  oneof event {
+    PerfEvents.Counter counter = 1;
+    PerfEvents.Tracepoint tracepoint = 2;
+    PerfEvents.RawEvent raw_event = 3;
+  }
+  optional string name = 4;
+}
+
 // End of protos/perfetto/common/perf_events.proto
 
 // Begin of protos/perfetto/config/profiling/perf_event_config.proto
@@ -1759,11 +1772,14 @@ message PerfEvents {
 //     }
 //   }
 //
-// Next id: 19
+// Next id: 20
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
   optional PerfEvents.Timebase timebase = 15;
+
+  // Other events associated with the leader described in the timebase.
+  repeated FollowerEvent followers = 19;
 
   // If set, the profiler will sample userspace processes' callstacks at the
   // interval specified by the |timebase|.
@@ -14046,6 +14062,9 @@ message PerfSample {
   // Value of the timebase counter (since the event was configured, no deltas).
   optional uint64 timebase_count = 6;
 
+  // Value of the followers counter (since the event was configured, no deltas).
+  repeated uint64 follower_counts = 7;
+
   // Unwound callstack. Might be partial, in which case a synthetic "error"
   // frame is appended, and |unwind_error| is set accordingly.
   optional uint64 callstack_iid = 4;
@@ -14098,6 +14117,9 @@ message PerfSampleDefaults {
   // The sampling timebase. Might not be identical to the data source config if
   // the implementation decided to default/override some parameters.
   optional PerfEvents.Timebase timebase = 1;
+
+  // Description of followers event
+  repeated FollowerEvent followers = 4;
 
   // If the config requested process sharding, report back the count and which
   // of those bins was selected. Never changes for the duration of a trace.
