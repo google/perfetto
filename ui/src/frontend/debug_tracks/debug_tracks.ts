@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4, uuidv4Sql} from '../../base/uuid';
 import {globals} from '../globals';
 import {TrackDescriptor} from '../../public/track';
 import {DebugSliceTrack} from './slice_track';
@@ -26,6 +25,8 @@ import {DebugCounterTrack} from './counter_track';
 import {ARG_PREFIX} from './details_tab';
 import {TrackNode} from '../../public/workspace';
 import {raf} from '../../core/raf_scheduler';
+
+let trackCounter = 0; // For reproducible ids.
 
 // We need to add debug tracks from the core and from plugins. In order to add a
 // debug track we need to pass a context through with we can add the track. This
@@ -119,9 +120,10 @@ export async function addDebugSliceTrack(
   sliceColumns: SliceColumns,
   argColumns: string[],
 ): Promise<void> {
+  const cnt = trackCounter++;
   // Create a new table from the debug track definition. This will be used as
   // the backing data source for our track and its details panel.
-  const tableName = `__debug_slice_${uuidv4Sql()}`;
+  const tableName = `__debug_slice_${cnt}`;
 
   // TODO(stevegolton): Right now we ignore the AsyncDisposable that this
   // function returns, and so never clean up this table. The problem is we have
@@ -137,7 +139,7 @@ export async function addDebugSliceTrack(
     createDebugSliceTrackTableExpr(data, sliceColumns, argColumns),
   );
 
-  const uri = `debug.slice.${uuidv4()}`;
+  const uri = `debug.slice.${cnt}`;
   ctx.tracks.registerTrack({
     uri,
     title: trackName,
@@ -201,9 +203,10 @@ export async function addDebugCounterTrack(
   trackName: string,
   columns: CounterColumns,
 ): Promise<void> {
+  const cnt = trackCounter++;
   // Create a new table from the debug track definition. This will be used as
   // the backing data source for our track and its details panel.
-  const tableName = `__debug_counter_${uuidv4Sql()}`;
+  const tableName = `__debug_counter_${cnt}`;
 
   // TODO(stevegolton): Right now we ignore the AsyncDisposable that this
   // function returns, and so never clean up this table. The problem is we have
@@ -219,7 +222,7 @@ export async function addDebugCounterTrack(
     createDebugCounterTrackTableExpr(data, columns),
   );
 
-  const uri = `debug.counter.${uuidv4()}`;
+  const uri = `debug.counter.${cnt}`;
   ctx.tracks.registerTrack({
     uri,
     title: trackName,

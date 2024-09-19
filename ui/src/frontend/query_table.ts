@@ -241,6 +241,10 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       return 'Query - running';
     }
     const result = resp.error ? 'error' : `${resp.rows.length} rows`;
+    if (globals.testing) {
+      // Omit the duration in tests, they cause screenshot diff failures.
+      return `Query result (${result})`;
+    }
     return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 
