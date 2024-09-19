@@ -24,7 +24,7 @@ import {BorderDragStrategy} from './drag/border_drag_strategy';
 import {DragStrategy} from './drag/drag_strategy';
 import {InnerDragStrategy} from './drag/inner_drag_strategy';
 import {OuterDragStrategy} from './drag/outer_drag_strategy';
-import {DragGestureHandler} from './drag_gesture_handler';
+import {DragGestureHandler} from '../base/drag_gesture_handler';
 import {globals} from './globals';
 import {
   getMaxMajorTicks,
