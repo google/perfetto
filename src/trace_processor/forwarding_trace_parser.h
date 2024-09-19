@@ -35,7 +35,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
-  void NotifyEndOfFile() override;
+  [[nodiscard]] base::Status NotifyEndOfFile() override;
 
   TraceType trace_type() const { return trace_type_; }
 

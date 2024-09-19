@@ -15,50 +15,65 @@
  */
 
 #include "perfetto/ext/trace_processor/export_json.h"
-#include "src/trace_processor/export_json.h"
-
-#include <stdio.h>
-#include <sstream>
 
 #include <algorithm>
-#include <cinttypes>
 #include <cmath>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <map>
 #include <memory>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/json/json_utils.h"
+#include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/export_json.h"
 #include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/status_macros.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#include <json/config.h>
 #include <json/reader.h>
+#include <json/value.h>
 #include <json/writer.h>
 #endif
 
-namespace perfetto {
-namespace trace_processor {
-namespace json {
+namespace perfetto::trace_processor::json {
 
 namespace {
 
 class FileWriter : public OutputWriter {
  public:
-  FileWriter(FILE* file) : file_(file) {}
+  explicit FileWriter(FILE* file) : file_(file) {}
   ~FileWriter() override { fflush(file_); }
 
-  util::Status AppendString(const std::string& s) override {
+  base::Status AppendString(const std::string& s) override {
     size_t written =
         fwrite(s.data(), sizeof(std::string::value_type), s.size(), file_);
     if (written != s.size())
-      return util::ErrStatus("Error writing to file: %d", ferror(file_));
-    return util::OkStatus();
+      return base::ErrStatus("Error writing to file: %d", ferror(file_));
+    return base::OkStatus();
   }
 
  private:
@@ -101,54 +116,24 @@ class JsonExporter {
                LabelFilterPredicate label_filter)
       : storage_(storage),
         args_builder_(storage_),
-        writer_(output, argument_filter, metadata_filter, label_filter) {}
+        writer_(output,
+                std::move(argument_filter),
+                std::move(metadata_filter),
+                std::move(label_filter)) {}
 
-  util::Status Export() {
-    util::Status status = MapUniquePidsAndTids();
-    if (!status.ok())
-      return status;
-
-    status = ExportThreadNames();
-    if (!status.ok())
-      return status;
-
-    status = ExportProcessNames();
-    if (!status.ok())
-      return status;
-
-    status = ExportProcessUptimes();
-    if (!status.ok())
-      return status;
-
-    status = ExportSlices();
-    if (!status.ok())
-      return status;
-
-    status = ExportFlows();
-    if (!status.ok())
-      return status;
-
-    status = ExportRawEvents();
-    if (!status.ok())
-      return status;
-
-    status = ExportCpuProfileSamples();
-    if (!status.ok())
-      return status;
-
-    status = ExportMetadata();
-    if (!status.ok())
-      return status;
-
-    status = ExportStats();
-    if (!status.ok())
-      return status;
-
-    status = ExportMemorySnapshots();
-    if (!status.ok())
-      return status;
-
-    return util::OkStatus();
+  base::Status Export() {
+    RETURN_IF_ERROR(MapUniquePidsAndTids());
+    RETURN_IF_ERROR(ExportThreadNames());
+    RETURN_IF_ERROR(ExportProcessNames());
+    RETURN_IF_ERROR(ExportProcessUptimes());
+    RETURN_IF_ERROR(ExportSlices());
+    RETURN_IF_ERROR(ExportFlows());
+    RETURN_IF_ERROR(ExportRawEvents());
+    RETURN_IF_ERROR(ExportCpuProfileSamples());
+    RETURN_IF_ERROR(ExportMetadata());
+    RETURN_IF_ERROR(ExportStats());
+    RETURN_IF_ERROR(ExportMemorySnapshots());
+    return base::OkStatus();
   }
 
  private:
@@ -159,9 +144,9 @@ class JsonExporter {
                       MetadataFilterPredicate metadata_filter,
                       LabelFilterPredicate label_filter)
         : output_(output),
-          argument_filter_(argument_filter),
-          metadata_filter_(metadata_filter),
-          label_filter_(label_filter),
+          argument_filter_(std::move(argument_filter)),
+          metadata_filter_(std::move(metadata_filter)),
+          label_filter_(std::move(label_filter)),
           first_event_(true) {
       Json::StreamWriterBuilder b;
       b.settings_["indentation"] = "";
@@ -520,12 +505,12 @@ class JsonExporter {
         args_sets_.resize(1, empty_value_);
         return;
       }
-      args_sets_.resize(arg_table.arg_set_id()[count - 1] + 1, empty_value_);
+      args_sets_.resize(arg_table[count - 1].arg_set_id() + 1, empty_value_);
 
-      for (uint32_t i = 0; i < count; ++i) {
-        ArgSetId set_id = arg_table.arg_set_id()[i];
-        const char* key = arg_table.key().GetString(i).c_str();
-        Variadic value = storage_->GetArgValue(i);
+      for (auto it = arg_table.IterateRows(); it; ++it) {
+        ArgSetId set_id = it.arg_set_id();
+        const char* key = storage->GetString(it.key()).c_str();
+        Variadic value = storage_->GetArgValue(it.row_number().row_number());
         AppendArg(set_id, key, VariadicToJson(value));
       }
       PostprocessArgs();
@@ -591,11 +576,11 @@ class JsonExporter {
         }
         std::string key_part = parts.cur_token();
         size_t bracketpos = key_part.find('[');
-        if (bracketpos == key_part.npos) {  // A single item
+        if (bracketpos == std::string::npos) {  // A single item
           target = &(*target)[key_part];
         } else {  // A list item
           target = &(*target)[key_part.substr(0, bracketpos)];
-          while (bracketpos != key_part.npos) {
+          while (bracketpos != std::string::npos) {
             // We constructed this string from an int earlier in trace_processor
             // so it shouldn't be possible for this (or the StringToUInt32
             // below) to fail.
@@ -667,10 +652,11 @@ class JsonExporter {
     const Json::Value neg_inf_value_;
   };
 
-  util::Status MapUniquePidsAndTids() {
+  base::Status MapUniquePidsAndTids() {
     const auto& process_table = storage_->process_table();
-    for (UniquePid upid = 0; upid < process_table.row_count(); upid++) {
-      uint32_t exported_pid = process_table.pid()[upid];
+    for (auto it = process_table.IterateRows(); it; ++it) {
+      UniquePid upid = it.id().value;
+      uint32_t exported_pid = it.pid();
       auto it_and_inserted =
           exported_pids_to_upids_.emplace(exported_pid, upid);
       if (!it_and_inserted.second) {
@@ -681,16 +667,18 @@ class JsonExporter {
     }
 
     const auto& thread_table = storage_->thread_table();
-    for (UniqueTid utid = 0; utid < thread_table.row_count(); utid++) {
+    for (auto it = thread_table.IterateRows(); it; ++it) {
+      UniqueTid utid = it.id().value;
+
       uint32_t exported_pid = 0;
-      std::optional<UniquePid> upid = thread_table.upid()[utid];
+      std::optional<UniquePid> upid = it.upid();
       if (upid) {
         auto exported_pid_it = upids_to_exported_pids_.find(*upid);
         PERFETTO_DCHECK(exported_pid_it != upids_to_exported_pids_.end());
         exported_pid = exported_pid_it->second;
       }
 
-      uint32_t exported_tid = thread_table.tid()[utid];
+      uint32_t exported_tid = it.tid();
       auto it_and_inserted = exported_pids_and_tids_to_utids_.emplace(
           std::make_pair(exported_pid, exported_tid), utid);
       if (!it_and_inserted.second) {
@@ -701,81 +689,76 @@ class JsonExporter {
       utids_to_exported_pids_and_tids_.emplace(
           utid, std::make_pair(exported_pid, exported_tid));
     }
-
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
-  util::Status ExportThreadNames() {
+  base::Status ExportThreadNames() {
     const auto& thread_table = storage_->thread_table();
-    for (UniqueTid utid = 0; utid < thread_table.row_count(); ++utid) {
-      auto opt_name = thread_table.name()[utid];
+    for (auto it = thread_table.IterateRows(); it; ++it) {
+      auto opt_name = it.name();
       if (opt_name.has_value()) {
+        UniqueTid utid = it.id().value;
         const char* thread_name = GetNonNullString(storage_, opt_name);
         auto pid_and_tid = UtidToPidAndTid(utid);
         writer_.WriteMetadataEvent("thread_name", "name", thread_name,
                                    pid_and_tid.first, pid_and_tid.second);
       }
     }
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
-  util::Status ExportProcessNames() {
+  base::Status ExportProcessNames() {
     const auto& process_table = storage_->process_table();
-    for (UniquePid upid = 0; upid < process_table.row_count(); ++upid) {
-      auto opt_name = process_table.name()[upid];
+    for (auto it = process_table.IterateRows(); it; ++it) {
+      auto opt_name = it.name();
       if (opt_name.has_value()) {
+        UniquePid upid = it.id().value;
         const char* process_name = GetNonNullString(storage_, opt_name);
         writer_.WriteMetadataEvent("process_name", "name", process_name,
                                    UpidToPid(upid), /*tid=*/0);
       }
     }
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
   // For each process it writes an approximate uptime, based on the process'
   // start time and the last slice in the entire trace. This same last slice is
   // used with all processes, so the process could have ended earlier.
-  util::Status ExportProcessUptimes() {
+  base::Status ExportProcessUptimes() {
     int64_t last_timestamp_ns = FindLastSliceTimestamp();
     if (last_timestamp_ns <= 0)
-      return util::OkStatus();
+      return base::OkStatus();
 
     const auto& process_table = storage_->process_table();
-    for (UniquePid upid = 0; upid < process_table.row_count(); ++upid) {
-      std::optional<int64_t> start_timestamp_ns =
-          process_table.start_ts()[upid];
-      if (!start_timestamp_ns.has_value())
+    for (auto it = process_table.IterateRows(); it; ++it) {
+      std::optional<int64_t> start_timestamp_ns = it.start_ts();
+      if (!start_timestamp_ns.has_value()) {
         continue;
+      }
 
+      UniquePid upid = it.id().value;
       int64_t process_uptime_seconds =
           (last_timestamp_ns - start_timestamp_ns.value()) /
-          (1000 * 1000 * 1000);
-
+          (1000l * 1000 * 1000);
       writer_.WriteMetadataEvent("process_uptime_seconds", "uptime",
                                  std::to_string(process_uptime_seconds).c_str(),
                                  UpidToPid(upid), /*tid=*/0);
     }
 
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
   // Returns the last slice's end timestamp for the entire trace. If no slices
   // are found 0 is returned.
   int64_t FindLastSliceTimestamp() {
     int64_t last_ts = 0;
-    const auto& slices = storage_->slice_table();
-    for (uint32_t i = 0; i < slices.row_count(); ++i) {
-      int64_t duration_ns = slices.dur()[i];
-      int64_t timestamp_ns = slices.ts()[i];
-
-      if (duration_ns + timestamp_ns > last_ts) {
-        last_ts = duration_ns + timestamp_ns;
-      }
+    for (auto it = storage_->slice_table().IterateRows(); it; ++it) {
+      last_ts = std::max(last_ts, it.ts() + it.dur());
     }
     return last_ts;
   }
 
-  util::Status ExportSlices() {
+  base::Status ExportSlices() {
     const auto& slices = storage_->slice_table();
     for (auto it = slices.IterateRows(); it; ++it) {
       // Skip slices with empty category - these are ftrace/system slices that
@@ -865,11 +848,10 @@ class JsonExporter {
         }
       }
 
-      auto opt_thread_track_row = thread_track.id().IndexOf(TrackId{track_id});
-
-      if (opt_thread_track_row && !is_child_track) {
+      auto tt_rr = thread_track.FindById(track_id);
+      if (tt_rr && !is_child_track) {
         // Synchronous (thread) slice or instant event.
-        UniqueTid utid = thread_track.utid()[*opt_thread_track_row];
+        UniqueTid utid = tt_rr->utid();
         auto pid_and_tid = UtidToPidAndTid(utid);
         event["pid"] = Json::Int(pid_and_tid.first);
         event["tid"] = Json::Int(pid_and_tid.second);
@@ -915,12 +897,12 @@ class JsonExporter {
       } else if (is_child_track ||
                  (legacy_chrome_track && track_args->isMember("trace_id"))) {
         // Async event slice.
-        auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
+        auto pt_rr = process_track.FindById(track_id);
         if (legacy_chrome_track) {
           // Legacy async tracks are always process-associated and have args.
-          PERFETTO_DCHECK(opt_process_row);
+          PERFETTO_DCHECK(pt_rr);
           PERFETTO_DCHECK(track_args);
-          uint32_t upid = process_track.upid()[*opt_process_row];
+          UniquePid upid = pt_rr->upid();
           uint32_t exported_pid = UpidToPid(upid);
           event["pid"] = Json::Int(exported_pid);
           event["tid"] =
@@ -949,14 +931,14 @@ class JsonExporter {
             event["id"] = base::Uint64ToHexString(trace_id);
           }
         } else {
-          if (opt_thread_track_row) {
-            UniqueTid utid = thread_track.utid()[*opt_thread_track_row];
+          if (tt_rr) {
+            UniqueTid utid = tt_rr->utid();
             auto pid_and_tid = UtidToPidAndTid(utid);
             event["pid"] = Json::Int(pid_and_tid.first);
             event["tid"] = Json::Int(pid_and_tid.second);
             event["id2"]["local"] = base::Uint64ToHexString(track_id.value);
-          } else if (opt_process_row) {
-            uint32_t upid = process_track.upid()[*opt_process_row];
+          } else if (pt_rr) {
+            uint32_t upid = pt_rr->upid();
             uint32_t exported_pid = UpidToPid(upid);
             event["pid"] = Json::Int(exported_pid);
             event["tid"] =
@@ -1035,9 +1017,9 @@ class JsonExporter {
             event["ph"] = legacy_phase;
           }
 
-          auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
-          if (opt_process_row.has_value()) {
-            uint32_t upid = process_track.upid()[*opt_process_row];
+          auto pt_rr = process_track.FindById(track_id);
+          if (pt_rr.has_value()) {
+            UniquePid upid = pt_rr->upid();
             uint32_t exported_pid = UpidToPid(upid);
             event["pid"] = Json::Int(exported_pid);
             event["tid"] =
@@ -1051,31 +1033,30 @@ class JsonExporter {
         }
       }
     }
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
   std::optional<Json::Value> CreateFlowEventV1(uint32_t flow_id,
                                                SliceId slice_id,
-                                               std::string name,
-                                               std::string cat,
+                                               const std::string& name,
+                                               const std::string& cat,
                                                Json::Value args,
                                                bool flow_begin) {
     const auto& slices = storage_->slice_table();
     const auto& thread_tracks = storage_->thread_track_table();
 
-    auto opt_slice_idx = slices.id().IndexOf(slice_id);
-    if (!opt_slice_idx)
+    auto opt_slice_rr = slices.FindById(slice_id);
+    if (!opt_slice_rr)
       return std::nullopt;
-    uint32_t slice_idx = opt_slice_idx.value();
+    auto slice_rr = opt_slice_rr.value();
 
-    TrackId track_id = storage_->slice_table().track_id()[slice_idx];
-    auto opt_thread_track_idx = thread_tracks.id().IndexOf(track_id);
+    TrackId track_id = slice_rr.track_id();
+    auto opt_ttrr = thread_tracks.FindById(track_id);
     // catapult only supports flow events attached to thread-track slices
-    if (!opt_thread_track_idx)
+    if (!opt_ttrr)
       return std::nullopt;
 
-    UniqueTid utid = thread_tracks.utid()[opt_thread_track_idx.value()];
-    auto pid_and_tid = UtidToPidAndTid(utid);
+    auto pid_and_tid = UtidToPidAndTid(opt_ttrr->utid());
     Json::Value event;
     event["id"] = flow_id;
     event["pid"] = Json::Int(pid_and_tid.first);
@@ -1083,7 +1064,7 @@ class JsonExporter {
     event["cat"] = cat;
     event["name"] = name;
     event["ph"] = (flow_begin ? "s" : "f");
-    event["ts"] = Json::Int64(slices.ts()[slice_idx] / 1000);
+    event["ts"] = Json::Int64(slice_rr.ts() / 1000);
     if (!flow_begin) {
       event["bp"] = "e";
     }
@@ -1091,13 +1072,13 @@ class JsonExporter {
     return std::move(event);
   }
 
-  util::Status ExportFlows() {
+  base::Status ExportFlows() {
     const auto& flow_table = storage_->flow_table();
     const auto& slice_table = storage_->slice_table();
-    for (uint32_t i = 0; i < flow_table.row_count(); i++) {
-      SliceId slice_out = flow_table.slice_out()[i];
-      SliceId slice_in = flow_table.slice_in()[i];
-      uint32_t arg_set_id = flow_table.arg_set_id()[i];
+    for (auto it = flow_table.IterateRows(); it; ++it) {
+      SliceId slice_out = it.slice_out();
+      SliceId slice_in = it.slice_in();
+      uint32_t arg_set_id = it.arg_set_id();
 
       std::string cat;
       std::string name;
@@ -1110,16 +1091,13 @@ class JsonExporter {
         args.removeMember("name");
         args.removeMember("cat");
       } else {
-        auto opt_slice_out_idx = slice_table.id().IndexOf(slice_out);
-        PERFETTO_DCHECK(opt_slice_out_idx.has_value());
-        std::optional<StringId> cat_id =
-            slice_table.category()[opt_slice_out_idx.value()];
-        std::optional<StringId> name_id =
-            slice_table.name()[opt_slice_out_idx.value()];
-        cat = GetNonNullString(storage_, cat_id);
-        name = GetNonNullString(storage_, name_id);
+        auto rr = slice_table.FindById(slice_out);
+        PERFETTO_DCHECK(rr.has_value());
+        cat = GetNonNullString(storage_, rr->category());
+        name = GetNonNullString(storage_, rr->name());
       }
 
+      uint32_t i = it.row_number().row_number();
       auto out_event = CreateFlowEventV1(i, slice_out, name, cat, args,
                                          /* flow_begin = */ true);
       auto in_event = CreateFlowEventV1(i, slice_in, name, cat, std::move(args),
@@ -1130,23 +1108,22 @@ class JsonExporter {
         writer_.WriteCommonEvent(in_event.value());
       }
     }
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
-  Json::Value ConvertLegacyRawEventToJson(uint32_t index) {
-    const auto& events = storage_->raw_table();
-
+  Json::Value ConvertLegacyRawEventToJson(
+      const tables::RawTable::ConstIterator& it) {
     Json::Value event;
-    event["ts"] = Json::Int64(events.ts()[index] / 1000);
+    event["ts"] = Json::Int64(it.ts() / 1000);
 
-    UniqueTid utid = static_cast<UniqueTid>(events.utid()[index]);
+    UniqueTid utid = static_cast<UniqueTid>(it.utid());
     auto pid_and_tid = UtidToPidAndTid(utid);
     event["pid"] = Json::Int(pid_and_tid.first);
     event["tid"] = Json::Int(pid_and_tid.second);
 
     // Raw legacy events store all other params in the arg set. Make a copy of
     // the converted args here, parse, and then remove the legacy params.
-    event["args"] = args_builder_.GetArgs(events.arg_set_id()[index]);
+    event["args"] = args_builder_.GetArgs(it.arg_set_id());
     const Json::Value& legacy_args = event["args"][kLegacyEventArgsKey];
 
     PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventCategoryKey));
@@ -1210,7 +1187,7 @@ class JsonExporter {
     return event;
   }
 
-  util::Status ExportRawEvents() {
+  base::Status ExportRawEvents() {
     std::optional<StringId> raw_legacy_event_key_id =
         storage_->string_pool().GetId("track_event.legacy_event");
     std::optional<StringId> raw_legacy_system_trace_event_id =
@@ -1221,34 +1198,40 @@ class JsonExporter {
         storage_->string_pool().GetId("chrome_event.metadata");
 
     const auto& events = storage_->raw_table();
-    for (uint32_t i = 0; i < events.row_count(); ++i) {
-      if (raw_legacy_event_key_id &&
-          events.name()[i] == *raw_legacy_event_key_id) {
-        Json::Value event = ConvertLegacyRawEventToJson(i);
+    for (auto it = events.IterateRows(); it; ++it) {
+      if (raw_legacy_event_key_id && it.name() == *raw_legacy_event_key_id) {
+        Json::Value event = ConvertLegacyRawEventToJson(it);
         writer_.WriteCommonEvent(event);
       } else if (raw_legacy_system_trace_event_id &&
-                 events.name()[i] == *raw_legacy_system_trace_event_id) {
-        Json::Value args = args_builder_.GetArgs(events.arg_set_id()[i]);
+                 it.name() == *raw_legacy_system_trace_event_id) {
+        Json::Value args = args_builder_.GetArgs(it.arg_set_id());
         PERFETTO_DCHECK(args.isMember("data"));
         writer_.AddSystemTraceData(args["data"].asString());
       } else if (raw_legacy_user_trace_event_id &&
-                 events.name()[i] == *raw_legacy_user_trace_event_id) {
-        Json::Value args = args_builder_.GetArgs(events.arg_set_id()[i]);
+                 it.name() == *raw_legacy_user_trace_event_id) {
+        Json::Value args = args_builder_.GetArgs(it.arg_set_id());
         PERFETTO_DCHECK(args.isMember("data"));
         writer_.AddUserTraceData(args["data"].asString());
       } else if (raw_chrome_metadata_event_id &&
-                 events.name()[i] == *raw_chrome_metadata_event_id) {
-        Json::Value args = args_builder_.GetArgs(events.arg_set_id()[i]);
+                 it.name() == *raw_chrome_metadata_event_id) {
+        Json::Value args = args_builder_.GetArgs(it.arg_set_id());
         writer_.MergeMetadata(args);
       }
     }
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
   class MergedProfileSamplesEmitter {
    public:
     // The TraceFormatWriter must outlive this instance.
-    MergedProfileSamplesEmitter(TraceFormatWriter& writer) : writer_(writer) {}
+    explicit MergedProfileSamplesEmitter(TraceFormatWriter& writer)
+        : writer_(writer) {}
+
+    MergedProfileSamplesEmitter(const MergedProfileSamplesEmitter&) = delete;
+    MergedProfileSamplesEmitter& operator=(const MergedProfileSamplesEmitter&) =
+        delete;
+    MergedProfileSamplesEmitter& operator=(
+        MergedProfileSamplesEmitter&& value) = delete;
 
     uint64_t AddEventForUtid(UniqueTid utid,
                              int64_t ts,
@@ -1290,14 +1273,20 @@ class JsonExporter {
       Sample(TraceFormatWriter& writer,
              CallsiteId callsite_id,
              int64_t ts,
-             const Json::Value& event)
+             Json::Value event)
           : writer_(writer),
             callsite_id_(callsite_id),
             begin_ts_(ts),
             end_ts_(ts),
-            event_(event),
+            event_(std::move(event)),
             event_id_(MergedProfileSamplesEmitter::GenerateNewEventId()),
             sample_count_(1) {}
+
+      Sample(const Sample&) = delete;
+      Sample& operator=(const Sample&) = delete;
+
+      Sample(Sample&&) = delete;
+      Sample& operator=(Sample&& value) = delete;
 
       ~Sample() {
         // No point writing a merged event if we only got a single sample
@@ -1341,11 +1330,6 @@ class JsonExporter {
       uint64_t event_id() const { return event_id_; }
       CallsiteId callsite_id() const { return callsite_id_; }
 
-     public:
-      Sample(const Sample&) = delete;
-      Sample& operator=(const Sample&) = delete;
-      Sample& operator=(Sample&& value) = delete;
-
       TraceFormatWriter& writer_;
       CallsiteId callsite_id_;
       int64_t begin_ts_;
@@ -1355,26 +1339,20 @@ class JsonExporter {
       size_t sample_count_;
     };
 
-    MergedProfileSamplesEmitter(const MergedProfileSamplesEmitter&) = delete;
-    MergedProfileSamplesEmitter& operator=(const MergedProfileSamplesEmitter&) =
-        delete;
-    MergedProfileSamplesEmitter& operator=(
-        MergedProfileSamplesEmitter&& value) = delete;
-
     std::unordered_map<UniqueTid, Sample> current_events_;
     TraceFormatWriter& writer_;
   };
 
-  util::Status ExportCpuProfileSamples() {
+  base::Status ExportCpuProfileSamples() {
     MergedProfileSamplesEmitter merged_sample_emitter(writer_);
 
     const tables::CpuProfileStackSampleTable& samples =
         storage_->cpu_profile_stack_sample_table();
-    for (uint32_t i = 0; i < samples.row_count(); ++i) {
+    for (auto it = samples.IterateRows(); it; ++it) {
       Json::Value event;
-      event["ts"] = Json::Int64(samples.ts()[i] / 1000);
+      event["ts"] = Json::Int64(it.ts() / 1000);
 
-      UniqueTid utid = static_cast<UniqueTid>(samples.utid()[i]);
+      UniqueTid utid = static_cast<UniqueTid>(it.utid());
       auto pid_and_tid = UtidToPidAndTid(utid);
       event["pid"] = Json::Int(pid_and_tid.first);
       event["tid"] = Json::Int(pid_and_tid.second);
@@ -1394,38 +1372,38 @@ class JsonExporter {
       const auto& mappings = storage_->stack_profile_mapping_table();
 
       std::vector<std::string> callstack;
-      std::optional<CallsiteId> opt_callsite_id = samples.callsite_id()[i];
+      std::optional<CallsiteId> opt_callsite_id = it.callsite_id();
 
       while (opt_callsite_id) {
         CallsiteId callsite_id = *opt_callsite_id;
-        uint32_t callsite_row = *callsites.id().IndexOf(callsite_id);
+        auto callsite_row = *callsites.FindById(callsite_id);
 
-        FrameId frame_id = callsites.frame_id()[callsite_row];
-        uint32_t frame_row = *frames.id().IndexOf(frame_id);
+        FrameId frame_id = callsite_row.frame_id();
+        auto frame_row = *frames.FindById(frame_id);
 
-        MappingId mapping_id = frames.mapping()[frame_row];
-        uint32_t mapping_row = *mappings.id().IndexOf(mapping_id);
+        MappingId mapping_id = frame_row.mapping();
+        auto mapping_row = *mappings.FindById(mapping_id);
 
         NullTermStringView symbol_name;
-        auto opt_symbol_set_id = frames.symbol_set_id()[frame_row];
+        auto opt_symbol_set_id = frame_row.symbol_set_id();
         if (opt_symbol_set_id) {
           symbol_name = storage_->GetString(
-              storage_->symbol_table().name()[*opt_symbol_set_id]);
+              storage_->symbol_table()[*opt_symbol_set_id].name());
         }
 
         base::StackString<1024> frame_entry(
             "%s - %s [%s]\n",
             (symbol_name.empty()
                  ? base::Uint64ToHexString(
-                       static_cast<uint64_t>(frames.rel_pc()[frame_row]))
+                       static_cast<uint64_t>(frame_row.rel_pc()))
                        .c_str()
                  : symbol_name.c_str()),
-            GetNonNullString(storage_, mappings.name()[mapping_row]),
-            GetNonNullString(storage_, mappings.build_id()[mapping_row]));
+            GetNonNullString(storage_, mapping_row.name()),
+            GetNonNullString(storage_, mapping_row.build_id()));
 
         callstack.emplace_back(frame_entry.ToStdString());
 
-        opt_callsite_id = callsites.parent_id()[callsite_row];
+        opt_callsite_id = callsite_row.parent_id();
       }
 
       std::string merged_callstack;
@@ -1435,7 +1413,7 @@ class JsonExporter {
       }
 
       event["args"]["frames"] = merged_callstack;
-      event["args"]["process_priority"] = samples.process_priority()[i];
+      event["args"]["process_priority"] = it.process_priority();
 
       // TODO(oysteine): Used for backwards compatibility with the memlog
       // pipeline, should remove once we've switched to looking directly at the
@@ -1446,12 +1424,11 @@ class JsonExporter {
       // For now, only do this when the trace has already been symbolized i.e.
       // are not directly output by Chrome, to avoid interfering with other
       // processing pipelines.
-      std::optional<CallsiteId> opt_current_callsite_id =
-          samples.callsite_id()[i];
+      std::optional<CallsiteId> opt_current_callsite_id = it.callsite_id();
 
       if (opt_current_callsite_id && storage_->symbol_table().row_count() > 0) {
         uint64_t parent_event_id = merged_sample_emitter.AddEventForUtid(
-            utid, samples.ts()[i], *opt_current_callsite_id, event);
+            utid, it.ts(), *opt_current_callsite_id, event);
         event["id"] = base::Uint64ToHexString(parent_event_id);
       } else {
         event["id"] = base::Uint64ToHexString(
@@ -1461,14 +1438,11 @@ class JsonExporter {
       writer_.WriteCommonEvent(event);
     }
 
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
-  util::Status ExportMetadata() {
+  base::Status ExportMetadata() {
     const auto& trace_metadata = storage_->metadata_table();
-    const auto& keys = trace_metadata.name();
-    const auto& int_values = trace_metadata.int_value();
-    const auto& str_values = trace_metadata.str_value();
 
     // Create a mapping from key string ids to keys.
     std::unordered_map<StringId, metadata::KeyId> key_map;
@@ -1477,8 +1451,8 @@ class JsonExporter {
       key_map[id] = static_cast<metadata::KeyId>(i);
     }
 
-    for (uint32_t pos = 0; pos < trace_metadata.row_count(); pos++) {
-      auto key_it = key_map.find(keys[pos]);
+    for (auto it = trace_metadata.IterateRows(); it; ++it) {
+      auto key_it = key_map.find(it.name());
       // Skip exporting dynamic entries; the cr-xxx entries that come from
       // the ChromeMetadata proto message are already exported from the raw
       // table.
@@ -1491,45 +1465,48 @@ class JsonExporter {
       switch (static_cast<size_t>(key)) {
         case metadata::benchmark_description:
           writer_.AppendTelemetryMetadataString(
-              "benchmarkDescriptions", str_values.GetString(pos).c_str());
+              "benchmarkDescriptions",
+              storage_->string_pool().Get(*it.str_value()).c_str());
           break;
 
         case metadata::benchmark_name:
           writer_.AppendTelemetryMetadataString(
-              "benchmarks", str_values.GetString(pos).c_str());
+              "benchmarks",
+              storage_->string_pool().Get(*it.str_value()).c_str());
           break;
 
         case metadata::benchmark_start_time_us:
           writer_.SetTelemetryMetadataTimestamp("benchmarkStart",
-                                                *int_values[pos]);
+                                                *it.int_value());
           break;
 
         case metadata::benchmark_had_failures:
-          writer_.AppendTelemetryMetadataBool("hadFailures", *int_values[pos]);
+          writer_.AppendTelemetryMetadataBool("hadFailures", *it.int_value());
           break;
 
         case metadata::benchmark_label:
           writer_.AppendTelemetryMetadataString(
-              "labels", str_values.GetString(pos).c_str());
+              "labels", storage_->string_pool().Get(*it.str_value()).c_str());
           break;
 
         case metadata::benchmark_story_name:
           writer_.AppendTelemetryMetadataString(
-              "stories", str_values.GetString(pos).c_str());
+              "stories", storage_->string_pool().Get(*it.str_value()).c_str());
           break;
 
         case metadata::benchmark_story_run_index:
           writer_.AppendTelemetryMetadataInt("storysetRepeats",
-                                             *int_values[pos]);
+                                             *it.int_value());
           break;
 
         case metadata::benchmark_story_run_time_us:
-          writer_.SetTelemetryMetadataTimestamp("traceStart", *int_values[pos]);
+          writer_.SetTelemetryMetadataTimestamp("traceStart", *it.int_value());
           break;
 
         case metadata::benchmark_story_tags:  // repeated
           writer_.AppendTelemetryMetadataString(
-              "storyTags", str_values.GetString(pos).c_str());
+              "storyTags",
+              storage_->string_pool().Get(*it.str_value()).c_str());
           break;
 
         default:
@@ -1537,10 +1514,10 @@ class JsonExporter {
           break;
       }
     }
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
-  util::Status ExportStats() {
+  base::Status ExportStats() {
     const auto& stats = storage_->stats();
 
     for (size_t idx = 0; idx < stats::kNumKeys; idx++) {
@@ -1552,59 +1529,54 @@ class JsonExporter {
       }
     }
 
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
-  util::Status ExportMemorySnapshots() {
+  base::Status ExportMemorySnapshots() {
     const auto& memory_snapshots = storage_->memory_snapshot_table();
     std::optional<StringId> private_footprint_id =
         storage_->string_pool().GetId("chrome.private_footprint_kb");
     std::optional<StringId> peak_resident_set_id =
         storage_->string_pool().GetId("chrome.peak_resident_set_kb");
 
-    for (uint32_t memory_index = 0; memory_index < memory_snapshots.row_count();
-         ++memory_index) {
+    for (auto sit = memory_snapshots.IterateRows(); sit; ++sit) {
       Json::Value event_base;
 
       event_base["ph"] = "v";
       event_base["cat"] = "disabled-by-default-memory-infra";
-      auto snapshot_id = memory_snapshots.id()[memory_index].value;
-      event_base["id"] = base::Uint64ToHexString(snapshot_id);
-      int64_t snapshot_ts = memory_snapshots.timestamp()[memory_index];
+      auto snapshot_id = sit.id();
+      event_base["id"] = base::Uint64ToHexString(snapshot_id.value);
+      int64_t snapshot_ts = sit.timestamp();
       event_base["ts"] = Json::Int64(snapshot_ts / 1000);
       // TODO(crbug:1116359): Add dump type to the snapshot proto
       // to properly fill event_base["name"]
       event_base["name"] = "periodic_interval";
-      event_base["args"]["dumps"]["level_of_detail"] = GetNonNullString(
-          storage_, memory_snapshots.detail_level()[memory_index]);
+      event_base["args"]["dumps"]["level_of_detail"] =
+          GetNonNullString(storage_, sit.detail_level());
 
       // Export OS dump events for processes with relevant data.
       const auto& process_table = storage_->process_table();
-      for (UniquePid upid = 0; upid < process_table.row_count(); ++upid) {
-        Json::Value event =
-            FillInProcessEventDetails(event_base, process_table.pid()[upid]);
+      for (auto pit = process_table.IterateRows(); pit; ++pit) {
+        Json::Value event = FillInProcessEventDetails(event_base, pit.pid());
         Json::Value& totals = event["args"]["dumps"]["process_totals"];
 
         const auto& process_counters = storage_->process_counter_track_table();
 
-        for (uint32_t counter_index = 0;
-             counter_index < process_counters.row_count(); ++counter_index) {
-          if (process_counters.upid()[counter_index] != upid)
+        for (auto it = process_counters.IterateRows(); it; ++it) {
+          if (it.upid() != pit.id().value)
             continue;
-          TrackId track_id = process_counters.id()[counter_index];
-          if (private_footprint_id && (process_counters.name()[counter_index] ==
-                                       private_footprint_id)) {
+          TrackId track_id = it.id();
+          if (private_footprint_id && (it.name() == private_footprint_id)) {
             totals["private_footprint_bytes"] = base::Uint64ToHexStringNoPrefix(
                 GetCounterValue(track_id, snapshot_ts));
           } else if (peak_resident_set_id &&
-                     (process_counters.name()[counter_index] ==
-                      peak_resident_set_id)) {
+                     (it.name() == peak_resident_set_id)) {
             totals["peak_resident_set_size"] = base::Uint64ToHexStringNoPrefix(
                 GetCounterValue(track_id, snapshot_ts));
           }
         }
 
-        auto process_args_id = process_table.arg_set_id()[upid];
+        auto process_args_id = pit.arg_set_id();
         if (process_args_id) {
           const Json::Value* process_args =
               &args_builder_.GetArgs(process_args_id);
@@ -1621,49 +1593,33 @@ class JsonExporter {
             smaps_table.row_count() > 0
                 ? &event["args"]["dumps"]["process_mmaps"]["vm_regions"]
                 : nullptr;
-        for (uint32_t smaps_index = 0; smaps_index < smaps_table.row_count();
-             ++smaps_index) {
-          if (smaps_table.upid()[smaps_index] != upid)
+        for (auto it = smaps_table.IterateRows(); it; ++it) {
+          if (it.upid() != pit.id().value)
             continue;
-          if (smaps_table.ts()[smaps_index] != snapshot_ts)
+          if (it.ts() != snapshot_ts)
             continue;
           Json::Value region;
-          region["mf"] =
-              GetNonNullString(storage_, smaps_table.file_name()[smaps_index]);
-          region["pf"] =
-              Json::Int64(smaps_table.protection_flags()[smaps_index]);
+          region["mf"] = GetNonNullString(storage_, it.file_name());
+          region["pf"] = Json::Int64(it.protection_flags());
           region["sa"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(smaps_table.start_address()[smaps_index]));
+              static_cast<uint64_t>(it.start_address()));
           region["sz"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(smaps_table.size_kb()[smaps_index]) * 1024);
-          region["ts"] =
-              Json::Int64(smaps_table.module_timestamp()[smaps_index]);
-          region["id"] = GetNonNullString(
-              storage_, smaps_table.module_debugid()[smaps_index]);
-          region["df"] = GetNonNullString(
-              storage_, smaps_table.module_debug_path()[smaps_index]);
+              static_cast<uint64_t>(it.size_kb()) * 1024);
+          region["ts"] = Json::Int64(it.module_timestamp());
+          region["id"] = GetNonNullString(storage_, it.module_debugid());
+          region["df"] = GetNonNullString(storage_, it.module_debug_path());
           region["bs"]["pc"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(
-                  smaps_table.private_clean_resident_kb()[smaps_index]) *
-              1024);
+              static_cast<uint64_t>(it.private_clean_resident_kb()) * 1024);
           region["bs"]["pd"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(
-                  smaps_table.private_dirty_kb()[smaps_index]) *
-              1024);
+              static_cast<uint64_t>(it.private_dirty_kb()) * 1024);
           region["bs"]["pss"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(
-                  smaps_table.proportional_resident_kb()[smaps_index]) *
-              1024);
+              static_cast<uint64_t>(it.proportional_resident_kb()) * 1024);
           region["bs"]["sc"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(
-                  smaps_table.shared_clean_resident_kb()[smaps_index]) *
-              1024);
+              static_cast<uint64_t>(it.shared_clean_resident_kb()) * 1024);
           region["bs"]["sd"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(
-                  smaps_table.shared_dirty_resident_kb()[smaps_index]) *
-              1024);
+              static_cast<uint64_t>(it.shared_dirty_resident_kb()) * 1024);
           region["bs"]["sw"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(smaps_table.swap_kb()[smaps_index]) * 1024);
+              static_cast<uint64_t>(it.swap_kb()) * 1024);
           smaps->append(region);
         }
 
@@ -1675,23 +1631,22 @@ class JsonExporter {
       // snapshot.
       const auto& process_snapshots = storage_->process_memory_snapshot_table();
 
-      for (uint32_t process_index = 0;
-           process_index < process_snapshots.row_count(); ++process_index) {
-        if (process_snapshots.snapshot_id()[process_index].value != snapshot_id)
+      for (auto psit = process_snapshots.IterateRows(); psit; ++psit) {
+        if (psit.snapshot_id() != snapshot_id)
           continue;
 
-        auto process_snapshot_id = process_snapshots.id()[process_index].value;
-        uint32_t pid = UpidToPid(process_snapshots.upid()[process_index]);
+        auto process_snapshot_id = psit.id();
+        uint32_t pid = UpidToPid(psit.upid());
 
         // Shared memory nodes are imported into a fake process with pid 0.
         // Catapult expects them to be associated with one of the real processes
         // of the snapshot, so we choose the first one we can find and replace
         // the pid.
         if (pid == 0) {
-          for (uint32_t i = 0; i < process_snapshots.row_count(); ++i) {
-            if (process_snapshots.snapshot_id()[i].value != snapshot_id)
+          for (auto iit = process_snapshots.IterateRows(); iit; ++iit) {
+            if (iit.snapshot_id() != snapshot_id)
               continue;
-            uint32_t new_pid = UpidToPid(process_snapshots.upid()[i]);
+            uint32_t new_pid = UpidToPid(iit.upid());
             if (new_pid != 0) {
               pid = new_pid;
               break;
@@ -1701,31 +1656,25 @@ class JsonExporter {
 
         Json::Value event = FillInProcessEventDetails(event_base, pid);
 
-        const auto& snapshot_nodes = storage_->memory_snapshot_node_table();
+        const auto& sn = storage_->memory_snapshot_node_table();
 
-        for (uint32_t node_index = 0; node_index < snapshot_nodes.row_count();
-             ++node_index) {
-          if (snapshot_nodes.process_snapshot_id()[node_index].value !=
-              process_snapshot_id) {
+        for (auto it = sn.IterateRows(); it; ++it) {
+          if (it.process_snapshot_id() != process_snapshot_id) {
             continue;
           }
-          const char* path =
-              GetNonNullString(storage_, snapshot_nodes.path()[node_index]);
+          const char* path = GetNonNullString(storage_, it.path());
           event["args"]["dumps"]["allocators"][path]["guid"] =
               base::Uint64ToHexStringNoPrefix(
-                  static_cast<uint64_t>(snapshot_nodes.id()[node_index].value));
-          if (snapshot_nodes.size()[node_index]) {
-            AddAttributeToMemoryNode(&event, path, "size",
-                                     snapshot_nodes.size()[node_index],
-                                     "bytes");
+                  static_cast<uint64_t>(it.id().value));
+          if (it.size()) {
+            AddAttributeToMemoryNode(&event, path, "size", it.size(), "bytes");
           }
-          if (snapshot_nodes.effective_size()[node_index]) {
-            AddAttributeToMemoryNode(
-                &event, path, "effective_size",
-                snapshot_nodes.effective_size()[node_index], "bytes");
+          if (it.effective_size()) {
+            AddAttributeToMemoryNode(&event, path, "effective_size",
+                                     it.effective_size(), "bytes");
           }
 
-          auto node_args_id = snapshot_nodes.arg_set_id()[node_index];
+          auto node_args_id = it.arg_set_id();
           if (!node_args_id)
             continue;
           const Json::Value* node_args =
@@ -1748,32 +1697,26 @@ class JsonExporter {
         }
 
         const auto& snapshot_edges = storage_->memory_snapshot_edge_table();
+        for (auto it = snapshot_edges.IterateRows(); it; ++it) {
+          SnapshotNodeId source_node_id = it.source_node_id();
+          auto source_node_rr = *sn.FindById(source_node_id);
 
-        for (uint32_t edge_index = 0; edge_index < snapshot_edges.row_count();
-             ++edge_index) {
-          SnapshotNodeId source_node_id =
-              snapshot_edges.source_node_id()[edge_index];
-          uint32_t source_node_row =
-              *snapshot_nodes.id().IndexOf(source_node_id);
-
-          if (snapshot_nodes.process_snapshot_id()[source_node_row].value !=
-              process_snapshot_id) {
+          if (source_node_rr.process_snapshot_id() != process_snapshot_id) {
             continue;
           }
           Json::Value edge;
-          edge["source"] = base::Uint64ToHexStringNoPrefix(
-              snapshot_edges.source_node_id()[edge_index].value);
-          edge["target"] = base::Uint64ToHexStringNoPrefix(
-              snapshot_edges.target_node_id()[edge_index].value);
-          edge["importance"] =
-              Json::Int(snapshot_edges.importance()[edge_index]);
+          edge["source"] =
+              base::Uint64ToHexStringNoPrefix(it.source_node_id().value);
+          edge["target"] =
+              base::Uint64ToHexStringNoPrefix(it.target_node_id().value);
+          edge["importance"] = Json::Int(it.importance());
           edge["type"] = "ownership";
           event["args"]["dumps"]["allocators_graph"].append(edge);
         }
         writer_.WriteCommonEvent(event);
       }
     }
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
   uint32_t UpidToPid(UniquePid upid) {
@@ -1798,33 +1741,32 @@ class JsonExporter {
 
   bool IsValidPidOrTid(uint32_t pid_or_tid) {
     const auto& process_table = storage_->process_table();
-    for (UniquePid upid = 0; upid < process_table.row_count(); upid++) {
-      if (process_table.pid()[upid] == pid_or_tid)
+    for (auto it = process_table.IterateRows(); it; ++it) {
+      if (it.pid() == pid_or_tid)
         return true;
     }
 
     const auto& thread_table = storage_->thread_table();
-    for (UniqueTid utid = 0; utid < thread_table.row_count(); utid++) {
-      if (thread_table.tid()[utid] == pid_or_tid)
+    for (auto it = thread_table.IterateRows(); it; ++it) {
+      if (it.tid() == pid_or_tid)
         return true;
     }
-
     return false;
   }
 
-  Json::Value FillInProcessEventDetails(const Json::Value& event,
-                                        uint32_t pid) {
+  static Json::Value FillInProcessEventDetails(const Json::Value& event,
+                                               uint32_t pid) {
     Json::Value output = event;
     output["pid"] = Json::Int(pid);
     output["tid"] = Json::Int(-1);
     return output;
   }
 
-  void AddAttributeToMemoryNode(Json::Value* event,
-                                const std::string& path,
-                                const std::string& key,
-                                int64_t value,
-                                const std::string& units) {
+  static void AddAttributeToMemoryNode(Json::Value* event,
+                                       const std::string& path,
+                                       const std::string& key,
+                                       int64_t value,
+                                       const std::string& units) {
     (*event)["args"]["dumps"]["allocators"][path]["attrs"][key]["value"] =
         base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(value));
     (*event)["args"]["dumps"]["allocators"][path]["attrs"][key]["type"] =
@@ -1833,11 +1775,11 @@ class JsonExporter {
         units;
   }
 
-  void AddAttributeToMemoryNode(Json::Value* event,
-                                const std::string& path,
-                                const std::string& key,
-                                const std::string& value,
-                                const std::string& units = "") {
+  static void AddAttributeToMemoryNode(Json::Value* event,
+                                       const std::string& path,
+                                       const std::string& key,
+                                       const std::string& value,
+                                       const std::string& units = "") {
     (*event)["args"]["dumps"]["allocators"][path]["attrs"][key]["value"] =
         value;
     (*event)["args"]["dumps"]["allocators"][path]["attrs"][key]["type"] =
@@ -1862,8 +1804,9 @@ class JsonExporter {
     for (; it < end; ++it) {
       if ((*it).AsLong() != ts)
         break;
-      if (counter_table.track_id()[it.row()].value == track_id.value)
-        return static_cast<uint64_t>(counter_table.value()[it.row()]);
+      if (auto rr = counter_table[it.row()]; rr.track_id() == track_id) {
+        return static_cast<uint64_t>(rr.value());
+      }
     }
     return 0;
   }
@@ -1894,7 +1837,7 @@ class JsonExporter {
 OutputWriter::OutputWriter() = default;
 OutputWriter::~OutputWriter() = default;
 
-util::Status ExportJson(const TraceStorage* storage,
+base::Status ExportJson(const TraceStorage* storage,
                         OutputWriter* output,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
@@ -1909,11 +1852,11 @@ util::Status ExportJson(const TraceStorage* storage,
   perfetto::base::ignore_result(argument_filter);
   perfetto::base::ignore_result(metadata_filter);
   perfetto::base::ignore_result(label_filter);
-  return util::ErrStatus("JSON support is not compiled in this build");
+  return base::ErrStatus("JSON support is not compiled in this build");
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
-util::Status ExportJson(TraceProcessorStorage* tp,
+base::Status ExportJson(TraceProcessorStorage* tp,
                         OutputWriter* output,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
@@ -1921,15 +1864,13 @@ util::Status ExportJson(TraceProcessorStorage* tp,
   const TraceStorage* storage = reinterpret_cast<TraceProcessorStorageImpl*>(tp)
                                     ->context()
                                     ->storage.get();
-  return ExportJson(storage, output, argument_filter, metadata_filter,
-                    label_filter);
+  return ExportJson(storage, output, std::move(argument_filter),
+                    std::move(metadata_filter), std::move(label_filter));
 }
 
-util::Status ExportJson(const TraceStorage* storage, FILE* output) {
+base::Status ExportJson(const TraceStorage* storage, FILE* output) {
   FileWriter writer(output);
   return ExportJson(storage, &writer, nullptr, nullptr, nullptr);
 }
 
-}  // namespace json
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::json

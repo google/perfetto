@@ -20,7 +20,6 @@ import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
-import {SqlTables} from '../frontend/well_known_sql_tables';
 
 import {NonSerializableState, State, STATE_VERSION} from './state';
 
@@ -58,19 +57,27 @@ export function createEmptyNonSerializableState(): NonSerializableState {
     pivotTable: {
       queryResult: null,
       selectedPivots: [
-        {kind: 'regular', table: SqlTables.slice.name, column: 'name'},
+        {
+          kind: 'regular',
+          table: '_slice_with_thread_and_process_info',
+          column: 'name',
+        },
       ],
       selectedAggregations: [
         {
           aggregationFunction: 'SUM',
-          column: {kind: 'regular', table: SqlTables.slice.name, column: 'dur'},
+          column: {
+            kind: 'regular',
+            table: '_slice_with_thread_and_process_info',
+            column: 'dur',
+          },
           sortDirection: 'DESC',
         },
         {
           aggregationFunction: 'SUM',
           column: {
             kind: 'regular',
-            table: SqlTables.slice.name,
+            table: '_slice_with_thread_and_process_info',
             column: 'thread_dur',
           },
         },
@@ -87,12 +94,7 @@ export function createEmptyState(): State {
     version: STATE_VERSION,
     nextId: '-1',
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
-    tracks: {},
-    utidToThreadSortKey: {},
     aggregatePreferences: {},
-    trackGroups: {},
-    pinnedTracks: [],
-    scrollingTracks: [],
     queries: {},
     notes: {},
 
@@ -142,5 +144,7 @@ export function createEmptyState(): State {
 
     // Somewhere to store plugins' persistent state.
     plugins: {},
+
+    trackFilterTerm: undefined,
   };
 }

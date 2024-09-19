@@ -30,7 +30,9 @@ void FuzzTraceProcessor(const uint8_t* data, size_t size) {
   util::Status status = processor->Parse(std::move(buf), size);
   if (!status.ok())
     return;
-  processor->NotifyEndOfFile();
+  if (auto s = processor->NotifyEndOfFile(); !s.ok()) {
+    return;
+  }
 }
 
 }  // namespace trace_processor

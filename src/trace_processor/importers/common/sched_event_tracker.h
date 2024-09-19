@@ -17,15 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_TRACKER_H_
 
-#include "src/trace_processor/importers/common/event_tracker.h"
+#include <cstdint>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Tracks per-cpu scheduling events, storing them as slices in the |sched|
 // table.
@@ -51,7 +53,7 @@ class SchedEventTracker : public Destructible {
     auto row_and_id = sched->Insert(
         {ts, /* duration */ -1, next_utid, kNullStringId, next_prio, ucpu});
     SchedId sched_id = row_and_id.id;
-    return *sched->id().IndexOf(sched_id);
+    return sched->FindById(sched_id)->ToRowNumber().row_number();
   }
 
   PERFETTO_ALWAYS_INLINE
@@ -75,21 +77,15 @@ class SchedEventTracker : public Destructible {
                          int64_t ts,
                          StringId prev_state) {
     auto* slices = context_->storage->mutable_sched_slice_table();
-
-    int64_t duration = ts - slices->ts()[pending_slice_idx];
-    slices->mutable_dur()->Set(pending_slice_idx, duration);
-
-    // We store the state as a uint16 as we only consider values up to 2048
-    // when unpacking the information inside; this allows savings of 48 bits
-    // per slice.
-    slices->mutable_end_state()->Set(pending_slice_idx, prev_state);
+    auto r = (*slices)[pending_slice_idx];
+    r.set_dur(ts - r.ts());
+    r.set_end_state(prev_state);
   }
 
  private:
   TraceProcessorContext* const context_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_TRACKER_H_

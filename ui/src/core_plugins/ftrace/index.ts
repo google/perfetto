@@ -17,7 +17,7 @@ import m from 'mithril';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {
   Engine,
-  Plugin,
+  PerfettoPlugin,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -36,7 +36,7 @@ const DEFAULT_STATE: FtracePluginState = {
   },
 };
 
-class FtraceRawPlugin implements Plugin {
+class FtraceRawPlugin implements PerfettoPlugin {
   private trash = new DisposableStack();
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -64,16 +64,14 @@ class FtraceRawPlugin implements Plugin {
     for (const cpuNum of cpus) {
       const uri = `/ftrace/cpu${cpuNum}`;
 
-      ctx.registerStaticTrack({
+      ctx.registerTrackAndShowOnTraceLoad({
         uri,
-        groupName: 'Ftrace Events',
         title: `Ftrace Track for CPU ${cpuNum}`,
         tags: {
           cpu: cpuNum,
+          groupName: 'Ftrace Events',
         },
-        trackFactory: () => {
-          return new FtraceRawTrack(ctx.engine, cpuNum, filterStore);
-        },
+        track: new FtraceRawTrack(ctx.engine, cpuNum, filterStore),
       });
     }
 

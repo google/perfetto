@@ -60,6 +60,7 @@ import {VizPage} from './viz_page';
 import {WidgetsPage} from './widgets_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
+import {initAnalytics} from './analytics';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -208,7 +209,7 @@ function main() {
   globals.embeddedMode = route.args.mode === 'embedded';
   globals.hideSidebar = route.args.hideSidebar === true;
 
-  globals.initialize(stateActionDispatcher);
+  globals.initialize(stateActionDispatcher, initAnalytics);
 
   globals.serviceWorkerController.install();
 
@@ -264,8 +265,6 @@ function main() {
   if (globals.testing) {
     document.body.classList.add('testing');
   }
-
-  pluginManager.initialize();
 }
 
 function onCssLoaded() {
@@ -355,6 +354,12 @@ function onCssLoaded() {
     // cases.
     routeChange(route);
   });
+
+  // Force one initial render to get everything in place
+  m.render(document.body, m(App, router.resolve()));
+
+  // Initialize plugins, now that we are ready to go
+  pluginManager.initialize();
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.

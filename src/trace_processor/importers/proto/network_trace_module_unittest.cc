@@ -14,8 +14,21 @@
  * limitations under the License.
  */
 
+#include <cstdint>
+#include <memory>
+#include <vector>
+
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/trace/android/network_trace.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
@@ -27,35 +40,42 @@
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
+
 using ::perfetto::protos::pbzero::TrafficDirection;
 
 class NetworkTraceModuleTest : public testing::Test {
  public:
   NetworkTraceModuleTest() {
-    context_.storage.reset(new TraceStorage());
+    context_.storage = std::make_shared<TraceStorage>();
     storage_ = context_.storage.get();
 
-    context_.track_tracker.reset(new TrackTracker(&context_));
-    context_.slice_tracker.reset(new SliceTracker(&context_));
-    context_.args_tracker.reset(new ArgsTracker(&context_));
-    context_.global_args_tracker.reset(new GlobalArgsTracker(storage_));
-    context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
-    context_.process_track_translation_table.reset(
-        new ProcessTrackTranslationTable(storage_));
-    context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
-    context_.proto_trace_parser.reset(new ProtoTraceParserImpl(&context_));
-    context_.sorter.reset(
-        new TraceSorter(&context_, TraceSorter::SortingMode::kFullSort));
+    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
+    context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
+    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
+    context_.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(storage_);
+    context_.slice_translation_table =
+        std::make_unique<SliceTranslationTable>(storage_);
+    context_.process_track_translation_table =
+        std::make_unique<ProcessTrackTranslationTable>(storage_);
+    context_.args_translation_table =
+        std::make_unique<ArgsTranslationTable>(storage_);
+    context_.async_track_set_tracker =
+        std::make_unique<AsyncTrackSetTracker>(&context_);
+    context_.proto_trace_parser =
+        std::make_unique<ProtoTraceParserImpl>(&context_);
+    context_.sorter = std::make_shared<TraceSorter>(
+        &context_, TraceSorter::SortingMode::kFullSort);
   }
 
-  util::Status TokenizeAndParse() {
+  base::Status TokenizeAndParse() {
     context_.chunk_readers.push_back(
         std::make_unique<ProtoTraceReader>(&context_));
 
@@ -114,7 +134,7 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
 
   const auto& slices = storage_->slice_table();
   ASSERT_EQ(slices.row_count(), 1u);
-  EXPECT_EQ(slices.ts()[0], 123);
+  EXPECT_EQ(slices[0].ts(), 123);
 
   EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::Integer(72)));
   EXPECT_TRUE(HasArg(1u, "socket_uid", Variadic::Integer(1010)));
@@ -153,8 +173,8 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
 
   const auto& slices = storage_->slice_table();
   ASSERT_EQ(slices.row_count(), 2u);
-  EXPECT_EQ(slices.ts()[0], 123);
-  EXPECT_EQ(slices.ts()[1], 133);
+  EXPECT_EQ(slices[0].ts(), 123);
+  EXPECT_EQ(slices[1].ts(), 133);
 
   EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::Integer(72)));
   EXPECT_TRUE(HasArg(2u, "packet_length", Variadic::Integer(100)));
@@ -178,13 +198,12 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
 
   const auto& slices = storage_->slice_table();
   ASSERT_EQ(slices.row_count(), 1u);
-  EXPECT_EQ(slices.ts()[0], 123);
-  EXPECT_EQ(slices.dur()[0], 10);
+  EXPECT_EQ(slices[0].ts(), 123);
+  EXPECT_EQ(slices[0].dur(), 10);
 
   EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::Integer(172)));
   EXPECT_TRUE(HasArg(1u, "packet_count", Variadic::Integer(2)));
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

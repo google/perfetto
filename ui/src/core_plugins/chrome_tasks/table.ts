@@ -13,80 +13,29 @@
 // limitations under the License.
 
 import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
+import {
+  ArgSetColumnSet,
+  DurationColumn,
+  SliceIdColumn,
+  StandardColumn,
+  TimestampColumn,
+} from '../../frontend/widgets/sql/table/well_known_columns';
 
 export const chromeTasksTable: SqlTableDescription = {
   imports: ['chrome.tasks'],
   name: 'chrome_tasks',
   columns: [
-    {
-      name: 'id',
-      title: 'ID',
-      display: {
-        type: 'slice_id',
-        ts: 'ts',
-        dur: 'dur',
-        trackId: 'track_id',
-      },
-    },
-    {
-      name: 'ts',
-      title: 'Timestamp',
-      display: {
-        type: 'timestamp',
-      },
-    },
-    {
-      name: 'dur',
-      title: 'Duration',
-      display: {
-        type: 'duration',
-      },
-    },
-    {
-      name: 'thread_dur',
-      title: 'Thread duration',
-      display: {
-        type: 'thread_duration',
-      },
-    },
-    {
-      name: 'category',
-      title: 'Category',
-    },
-    {
-      name: 'name',
-      title: 'Name',
-    },
-    {
-      name: 'track_id',
-      title: 'Track ID',
-      startsHidden: true,
-    },
-    {
-      name: 'track_name',
-      title: 'Track name',
-      startsHidden: true,
-    },
-    {
-      name: 'thread_name',
-      title: 'Thread name',
-    },
-    {
-      name: 'utid',
-      startsHidden: true,
-    },
-    {
-      name: 'process_name',
-      title: 'Process name',
-    },
-    {
-      name: 'upid',
-      startsHidden: true,
-    },
-    {
-      name: 'arg_set_id',
-      title: 'Arg',
-      type: 'arg_set_id',
-    },
+    new SliceIdColumn('id', {title: 'ID'}),
+    new TimestampColumn('ts', {title: 'Timestamp'}),
+    new DurationColumn('dur', {title: 'Duration'}),
+    new DurationColumn('thread_dur', {title: 'Thread duration'}),
+    new StandardColumn('name', {title: 'Name'}),
+    new StandardColumn('track_id', {title: 'Track ID', startsHidden: true}),
+    new StandardColumn('thread_name', {title: 'Thread name'}),
+    new StandardColumn('utid', {startsHidden: true}),
+    new StandardColumn('tid'),
+    new StandardColumn('process_name', {title: 'Process name'}),
+    new StandardColumn('upid', {startsHidden: true}),
+    new ArgSetColumnSet('arg_set_id'),
   ],
 };

@@ -15,18 +15,18 @@
  */
 
 #include "src/trace_processor/types/trace_processor_context.h"
+
 #include <memory>
 #include <optional>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
-#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
-#include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
@@ -41,20 +41,16 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/android_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
-#include "src/trace_processor/importers/proto/track_event_module.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
-#include "src/trace_processor/types/destructible.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
     : config(args.config), storage(args.storage) {
@@ -114,6 +110,10 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
 TraceProcessorContext::TraceProcessorContext() = default;
 TraceProcessorContext::~TraceProcessorContext() = default;
 
+TraceProcessorContext::TraceProcessorContext(TraceProcessorContext&&) = default;
+TraceProcessorContext& TraceProcessorContext::operator=(
+    TraceProcessorContext&&) = default;
+
 std::optional<MachineId> TraceProcessorContext::machine_id() const {
   if (!machine_tracker) {
     // Doesn't require that |machine_tracker| is initialzed, e.g. in unit tests.
@@ -122,5 +122,4 @@ std::optional<MachineId> TraceProcessorContext::machine_id() const {
   return machine_tracker->machine_id();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

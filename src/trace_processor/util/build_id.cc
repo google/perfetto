@@ -83,6 +83,10 @@ std::string HexToBinary(base::StringView hex) {
   }
 
   while (it != hex.end()) {
+    if (*it == '-') {
+      ++it;
+      continue;
+    }
     int v = (HexToBinary(*it++) << 4);
     v += HexToBinary(*it++);
     res.push_back(static_cast<char>(v));

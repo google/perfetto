@@ -180,14 +180,18 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   if (!per_cpu_seen_first_bundle_[cpu]) {
     per_cpu_seen_first_bundle_[cpu] = true;
 
-    // if this cpu's timestamp is the new max, update the metadata table entry
-    if (decoder.has_last_read_event_timestamp()) {
+    // If this cpu's timestamp is the new max, update the metadata table entry.
+    // previous_bundle_end_timestamp is the replacement for
+    // last_read_event_timestamp on perfetto v47+, at most one will be set.
+    if (decoder.has_previous_bundle_end_timestamp() ||
+        decoder.has_last_read_event_timestamp()) {
+      uint64_t raw_ts = decoder.has_previous_bundle_end_timestamp()
+                            ? decoder.previous_bundle_end_timestamp()
+                            : decoder.last_read_event_timestamp();
       int64_t timestamp = 0;
       ASSIGN_OR_RETURN(
           timestamp,
-          ResolveTraceTime(
-              context_, clock_id,
-              static_cast<int64_t>(decoder.last_read_event_timestamp())));
+          ResolveTraceTime(context_, clock_id, static_cast<int64_t>(raw_ts)));
 
       std::optional<SqlValue> curr_latest_timestamp =
           context_->metadata_tracker->GetMetadata(

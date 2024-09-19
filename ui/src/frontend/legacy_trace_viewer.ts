@@ -19,6 +19,7 @@ import {isString} from '../base/object_utils';
 import {showModal} from '../widgets/modal';
 import {globals} from './globals';
 import {utf8Decode} from '../base/string_utils';
+import {convertToJson} from './trace_converter';
 
 const CTRACE_HEADER = 'TRACE:\n';
 
@@ -120,7 +121,7 @@ export async function openFileWithLegacyTraceViewer(file: File) {
   }
 }
 
-export function openBufferWithLegacyTraceViewer(
+function openBufferWithLegacyTraceViewer(
   name: string,
   data: ArrayBuffer | string,
   size: number,
@@ -169,6 +170,66 @@ export function openBufferWithLegacyTraceViewer(
       },
     ],
   });
+}
+
+export function openInOldUIWithSizeCheck(trace: Blob) {
+  // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
+  if (trace.size < 1024 * 1024 * 50) {
+    convertToJson(trace, openBufferWithLegacyTraceViewer);
+    return;
+  }
+
+  // Give the user the option to truncate larger perfetto traces.
+  const size = Math.round(trace.size / (1024 * 1024));
+  showModal({
+    title: 'Legacy UI may fail to open this trace',
+    content: m(
+      'div',
+      m(
+        'p',
+        `This trace is ${size}mb, opening it in the legacy UI ` + `may fail.`,
+      ),
+      m(
+        'p',
+        'More options can be found at ',
+        m(
+          'a',
+          {
+            href: 'https://goto.google.com/opening-large-traces',
+            target: '_blank',
+          },
+          'go/opening-large-traces',
+        ),
+        '.',
+      ),
+    ),
+    buttons: [
+      {
+        text: 'Open full trace (not recommended)',
+        action: () => convertToJson(trace, openBufferWithLegacyTraceViewer),
+      },
+      {
+        text: 'Open beginning of trace',
+        action: () =>
+          convertToJson(
+            trace,
+            openBufferWithLegacyTraceViewer,
+            /* truncate*/ 'start',
+          ),
+      },
+      {
+        text: 'Open end of trace',
+        primary: true,
+        action: () =>
+          convertToJson(
+            trace,
+            openBufferWithLegacyTraceViewer,
+            /* truncate*/ 'end',
+          ),
+      },
+    ],
+  });
+  return;
 }
 
 // TraceViewer method that we wire up to trigger the file load.

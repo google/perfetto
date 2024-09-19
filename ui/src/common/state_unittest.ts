@@ -12,34 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PrimaryTrackSortKey} from '../public';
-
 import {createEmptyState} from './empty_state';
-import {getContainingGroupKey, State} from './state';
+import {State} from './state';
 
 test('createEmptyState', () => {
   const state: State = createEmptyState();
   expect(state.engine).toEqual(undefined);
-});
-
-test('getContainingTrackId', () => {
-  const state: State = createEmptyState();
-  state.tracks['a'] = {
-    key: 'a',
-    uri: 'Foo',
-    name: 'a track',
-    trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-  };
-
-  state.tracks['b'] = {
-    key: 'b',
-    uri: 'Foo',
-    name: 'b track',
-    trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-    trackGroup: 'containsB',
-  };
-
-  expect(getContainingGroupKey(state, 'z')).toEqual(null);
-  expect(getContainingGroupKey(state, 'a')).toEqual(null);
-  expect(getContainingGroupKey(state, 'b')).toEqual('containsB');
 });

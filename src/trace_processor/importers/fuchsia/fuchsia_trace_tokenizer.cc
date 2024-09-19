@@ -20,6 +20,7 @@
 #include <limits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
@@ -625,7 +626,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
 
           UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(obj_id),
                                                static_cast<uint32_t>(pid));
-          storage->mutable_thread_table()->mutable_name()->Set(utid, name);
+          auto& tt = *storage->mutable_thread_table();
+          tt[utid].set_name(name);
           break;
         }
         default: {
@@ -848,7 +850,9 @@ void FuchsiaTraceTokenizer::RegisterProvider(uint32_t provider_id,
   providers_[provider_id] = std::move(provider);
 }
 
-void FuchsiaTraceTokenizer::NotifyEndOfFile() {}
+base::Status FuchsiaTraceTokenizer::NotifyEndOfFile() {
+  return base::OkStatus();
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto

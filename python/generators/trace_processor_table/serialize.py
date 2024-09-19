@@ -80,7 +80,7 @@ class ColumnSerializer:
 
   def const_row_ref_getter(self) -> Optional[str]:
     return f'''ColumnType::{self.name}::type {self.name}() const {{
-      return table_->{self.name}()[row_number_];
+      return table()->{self.name}()[row_number_];
     }}'''
 
   def row_ref_getter(self) -> Optional[str]:
@@ -169,21 +169,10 @@ class ColumnSerializer:
     name = self.name
     return f'''
     ColumnType::{self.name}::type {name}() const {{
-      const auto& col = table_->{name}();
+      const auto& col = table()->{name}();
       return col.GetAtIdx(
         iterator_.StorageIndexForColumn(col.index_in_table()));
     }}
-    '''
-
-  def iterator_setter(self) -> Optional[str]:
-    if self.is_implicit_id or self.is_implicit_type:
-      return None
-    return f'''
-      void set_{self.name}(ColumnType::{self.name}::non_optional_type v) {{
-        auto* col = mutable_table_->mutable_{self.name}();
-        col->SetAtIdx(
-          iterator_.StorageIndexForColumn(col->index_in_table()), v);
-      }}
     '''
 
   def static_schema(self) -> Optional[str]:
@@ -242,7 +231,7 @@ class ColumnSerializer:
     if self.is_ancestor:
       return None
     return f'''
-  RefPtr<column::DataLayer> {self.name}_storage_layer_;
+  RefPtr<column::StorageLayer> {self.name}_storage_layer_;
   '''
 
   def null_layer(self) -> Optional[str]:
@@ -251,7 +240,7 @@ class ColumnSerializer:
     if not self.is_optional or self.is_string:
       return f''
     return f'''
-  RefPtr<column::DataLayer> {self.name}_null_layer_;
+  RefPtr<column::OverlayLayer> {self.name}_null_layer_;
   '''
 
   def storage_layer_create(self) -> str:
@@ -396,7 +385,7 @@ class TableSerializer(object):
 
    private:
     {self.table_name}* mutable_table() const {{
-      return const_cast<{self.table_name}*>(table_);
+      return const_cast<{self.table_name}*>(table());
     }}
   }};
   static_assert(std::is_trivially_destructible_v<RowReference>,
@@ -502,25 +491,18 @@ class TableSerializer(object):
       '''
 
   def iterator(self) -> str:
-    iterator_setters = self.foreach_col(
-        ColumnSerializer.iterator_setter, delimiter='\n')
     return f'''
   class Iterator : public ConstIterator {{
     public:
-     {iterator_setters}
-
      RowReference row_reference() const {{
-       return RowReference(mutable_table_, CurrentRowNumber());
+       return {{const_cast<{self.table_name}*>(table()), CurrentRowNumber()}};
      }}
 
     private:
      friend class {self.table_name};
 
      explicit Iterator({self.table_name}* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)),
-          mutable_table_(table) {{}}
-
-     {self.table_name}* mutable_table_ = nullptr;
+        : ConstIterator(table, std::move(iterator)) {{}}
   }};
       '''
 
@@ -533,15 +515,15 @@ class TableSerializer(object):
         ColumnSerializer.extend_parent_param_arg, delimiter=', ')
     delim = ',' if params else ''
     return f'''
-  static std::unique_ptr<Table> ExtendParent(
+  static std::unique_ptr<{self.table_name}> ExtendParent(
       const {self.parent_class_name}& parent{delim}
       {params}) {{
-    return std::unique_ptr<Table>(new {self.table_name}(
+    return std::unique_ptr<{self.table_name}>(new {self.table_name}(
         parent.string_pool(), parent, RowMap(0, parent.row_count()){delim}
         {args}));
   }}
 
-  static std::unique_ptr<Table> SelectAndExtendParent(
+  static std::unique_ptr<{self.table_name}> SelectAndExtendParent(
       const {self.parent_class_name}& parent,
       std::vector<{self.parent_class_name}::RowNumber> parent_overlay{delim}
       {params}) {{
@@ -549,7 +531,7 @@ class TableSerializer(object):
     for (uint32_t i = 0; i < parent_overlay.size(); ++i) {{
       prs_untyped[i] = parent_overlay[i].row_number();
     }}
-    return std::unique_ptr<Table>(new {self.table_name}(
+    return std::unique_ptr<{self.table_name}>(new {self.table_name}(
         parent.string_pool(), parent, RowMap(std::move(prs_untyped)){delim}
         {args}));
   }}
@@ -586,7 +568,7 @@ class TableSerializer(object):
     {self.foreach_col(ColumnSerializer.static_assert_flags)}
     {self.foreach_col(ColumnSerializer.extend_nullable_vector)}
 
-    std::vector<RefPtr<column::DataLayer>> overlay_layers(OverlayCount(&parent) + 1);
+    std::vector<RefPtr<column::OverlayLayer>> overlay_layers(OverlayCount(&parent) + 1);
     for (uint32_t i = 0; i < overlay_layers.size(); ++i) {{
       if (overlays()[i].row_map().IsIndexVector()) {{
         overlay_layers[i].reset(new column::ArrangementOverlay(
@@ -675,16 +657,26 @@ class {self.table_name} : public macros_internal::MacroTable {{
   Iterator IterateRows() {{ return Iterator(this, Table::IterateRows()); }}
 
   ConstIterator FilterToIterator(const Query& q) const {{
-    return ConstIterator(
-      this, ApplyAndIterateRows(QueryToRowMap(q)));
+    return ConstIterator(this, QueryToIterator(q));
   }}
 
   Iterator FilterToIterator(const Query& q) {{
-    return Iterator(this, ApplyAndIterateRows(QueryToRowMap(q)));
+    return Iterator(this, QueryToIterator(q));
   }}
 
   void ShrinkToFit() {{
     {self.foreach_col(ColumnSerializer.shrink_to_fit)}
+  }}
+
+  ConstRowReference operator[](uint32_t r) const {{
+    return ConstRowReference(this, r);
+  }}
+  RowReference operator[](uint32_t r) {{ return RowReference(this, r); }}
+  ConstRowReference operator[](RowNumber r) const {{
+    return ConstRowReference(this, r.row_number());
+  }}
+  RowReference operator[](RowNumber r) {{
+    return RowReference(this, r.row_number());
   }}
 
   std::optional<ConstRowReference> FindById(Id find_id) const {{

@@ -226,29 +226,24 @@ export class SliceDetailsPanel extends SlicePanel {
       return;
     }
 
-    let trackKey: string | number | undefined;
-    for (const track of Object.values(globals.state.tracks)) {
-      const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
-      // TODO(stevegolton): Handle v2.
-      if (
-        trackDesc &&
-        trackDesc.tags?.kind === THREAD_STATE_TRACK_KIND &&
-        trackDesc.tags?.utid === threadInfo.utid
-      ) {
-        trackKey = track.key;
-      }
-    }
+    const trackDescriptor = globals.trackManager
+      .getAllTracks()
+      .find(
+        (td) =>
+          td.tags?.kind === THREAD_STATE_TRACK_KIND &&
+          td.tags?.utid === threadInfo.utid,
+      );
 
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (trackKey && sliceInfo.threadStateId) {
+    if (trackDescriptor && sliceInfo.threadStateId) {
       globals.makeSelection(
         Actions.selectThreadState({
           id: sliceInfo.threadStateId,
-          trackKey: trackKey.toString(),
+          trackUri: trackDescriptor.uri,
         }),
       );
 
-      scrollToTrackAndTs(trackKey, sliceInfo.ts, true);
+      scrollToTrackAndTs(trackDescriptor.uri, sliceInfo.ts, true);
     }
   }
 

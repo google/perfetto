@@ -1,0 +1,3838 @@
+wattson_trace_threads {
+  metric_version: 2
+  task_info {
+    estimated_mws: 34.415016
+    estimated_mw: 3.979049
+    thread_name: "swapper"
+    thread_id: 0
+    process_id: 0
+  }
+  task_info {
+    estimated_mws: 19.853703
+    estimated_mw: 2.295476
+    thread_name: "RenderThread"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1986
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 17.530441
+    estimated_mw: 2.026862
+    thread_name: "Jit thread pool"
+    process_name: "system_server"
+    thread_id: 1344
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 16.980274
+    estimated_mw: 1.963252
+    thread_name: "surfaceflinger"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 755
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 14.908094
+    estimated_mw: 1.723667
+    thread_name: ".wearable.sysui"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1926
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 13.373355
+    estimated_mw: 1.546221
+    thread_name: "binder:685_3"
+    process_name: "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
+    thread_id: 804
+    process_id: 685
+  }
+  task_info {
+    estimated_mws: 6.747261
+    estimated_mw: 0.780115
+    thread_name: "binder:1302_7"
+    process_name: "system_server"
+    thread_id: 1671
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 6.504173
+    estimated_mw: 0.752010
+    thread_name: "binder:1302_A"
+    process_name: "system_server"
+    thread_id: 2015
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 4.858775
+    estimated_mw: 0.561769
+    thread_name: "android.anim"
+    process_name: "system_server"
+    thread_id: 1419
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 4.769800
+    estimated_mw: 0.551482
+    thread_name: "RenderEngine"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 788
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 4.672233
+    estimated_mw: 0.540201
+    thread_name: "kswapd0"
+    process_name: "kswapd0"
+    thread_id: 63
+    process_id: 63
+  }
+  task_info {
+    estimated_mws: 4.314495
+    estimated_mw: 0.498840
+    thread_name: "lowpool[2]"
+    process_name: "com.google.android.gms"
+    thread_id: 3525
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 4.117818
+    estimated_mw: 0.476100
+    thread_name: "logd.writer"
+    process_name: "/system/bin/logd"
+    thread_id: 221
+    process_id: 211
+  }
+  task_info {
+    estimated_mws: 4.108276
+    estimated_mw: 0.474997
+    thread_name: "binder:1302_17"
+    process_name: "system_server"
+    thread_id: 5202
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 3.723955
+    estimated_mw: 0.430562
+    thread_name: "binder:1302_6"
+    process_name: "system_server"
+    thread_id: 1662
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 3.666289
+    estimated_mw: 0.423895
+    thread_name: "e.watchface.rwf"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 1999
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 3.524869
+    estimated_mw: 0.407544
+    thread_name: "killall"
+    process_name: "/system/bin/sh"
+    thread_id: 5620
+    process_id: 5620
+  }
+  task_info {
+    estimated_mws: 3.495762
+    estimated_mw: 0.404178
+    thread_name: "CachedAppOptimi"
+    process_name: "system_server"
+    thread_id: 1773
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 3.459922
+    estimated_mw: 0.400035
+    thread_name: "logcat"
+    process_name: "logcat"
+    thread_id: 1230
+    process_id: 1230
+  }
+  task_info {
+    estimated_mws: 3.429554
+    estimated_mw: 0.396524
+    thread_name: "system_server"
+    process_name: "system_server"
+    thread_id: 1302
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 3.300661
+    estimated_mw: 0.381621
+    thread_name: "crtc_commit:80"
+    process_name: "crtc_commit:80"
+    thread_id: 244
+    process_id: 244
+  }
+  task_info {
+    estimated_mws: 3.194881
+    estimated_mw: 0.369391
+    thread_name: "InputDispatcher"
+    process_name: "system_server"
+    thread_id: 1783
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 3.011913
+    estimated_mw: 0.348236
+    thread_name: "binder:755_1"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 782
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 3.006022
+    estimated_mw: 0.347555
+    thread_name: "android.display"
+    process_name: "system_server"
+    thread_id: 1418
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 2.856301
+    estimated_mw: 0.330244
+    thread_name: "binder:524_2"
+    process_name: "/vendor/bin/mcu_mgmtd"
+    thread_id: 524
+    process_id: 524
+  }
+  task_info {
+    estimated_mws: 2.712443
+    estimated_mw: 0.313611
+    thread_name: "traced_probes"
+    process_name: "/system/bin/traced_probes"
+    thread_id: 904
+    process_id: 904
+  }
+  task_info {
+    estimated_mws: 2.550916
+    estimated_mw: 0.294936
+    thread_name: "kworker/u8:0"
+    process_name: "kworker/u8:0"
+    thread_id: 8
+    process_id: 8
+  }
+  task_info {
+    estimated_mws: 2.487099
+    estimated_mw: 0.287557
+    thread_name: "surfaceflinger"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 883
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 2.386123
+    estimated_mw: 0.275883
+    thread_name: "binder:1302_15"
+    process_name: "system_server"
+    thread_id: 3754
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 2.258779
+    estimated_mw: 0.261159
+    thread_name: "logd.reader.per"
+    process_name: "/system/bin/logd"
+    thread_id: 1274
+    process_id: 211
+  }
+  task_info {
+    estimated_mws: 2.171289
+    estimated_mw: 0.251044
+    thread_name: "RenderThread"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 2301
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 2.143151
+    estimated_mw: 0.247790
+    thread_name: "InputReader"
+    process_name: "system_server"
+    thread_id: 1784
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 2.091430
+    estimated_mw: 0.241810
+    thread_name: "rcu_preempt"
+    process_name: "rcu_preempt"
+    thread_id: 14
+    process_id: 14
+  }
+  task_info {
+    estimated_mws: 2.048920
+    estimated_mw: 0.236895
+    thread_name: "binder:1926_4"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2262
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 1.914560
+    estimated_mw: 0.221361
+    thread_name: "arable.systemui"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2171
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 1.854433
+    estimated_mw: 0.214409
+    thread_name: "android.ui"
+    process_name: "system_server"
+    thread_id: 1416
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 1.777087
+    estimated_mw: 0.205466
+    thread_name: "kworker/u8:4"
+    process_name: "kworker/u8:4"
+    thread_id: 431
+    process_id: 431
+  }
+  task_info {
+    estimated_mws: 1.773777
+    estimated_mw: 0.205083
+    thread_name: "TimerDispatch"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 865
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 1.760400
+    estimated_mw: 0.203537
+    thread_name: "ActivityManager"
+    process_name: "system_server"
+    thread_id: 1431
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 1.733169
+    estimated_mw: 0.200388
+    thread_name: "PowerManagerSer"
+    process_name: "system_server"
+    thread_id: 1506
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 1.639501
+    estimated_mw: 0.189558
+    thread_name: "WifiHandlerThre"
+    process_name: "system_server"
+    thread_id: 1818
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 1.631037
+    estimated_mw: 0.188580
+    thread_name: "binder:755_5"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 1987
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 1.605931
+    estimated_mw: 0.185677
+    thread_name: "kgsl_dispatcher"
+    process_name: "kgsl_dispatcher"
+    thread_id: 111
+    process_id: 111
+  }
+  task_info {
+    estimated_mws: 1.564964
+    estimated_mw: 0.180940
+    thread_name: "binder:1302_8"
+    process_name: "system_server"
+    thread_id: 1679
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 1.476619
+    estimated_mw: 0.170726
+    thread_name: "lowpool[5]"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 3489
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 1.470155
+    estimated_mw: 0.169979
+    thread_name: "-Executor] idle"
+    process_name: "com.google.android.gms"
+    thread_id: 5591
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 1.469958
+    estimated_mw: 0.169956
+    thread_name: "binder:1302_B"
+    process_name: "system_server"
+    thread_id: 2033
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 1.390635
+    estimated_mw: 0.160785
+    thread_name: "binder:755_4"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 1125
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 1.327049
+    estimated_mw: 0.153433
+    thread_name: "batterystats-ha"
+    process_name: "system_server"
+    thread_id: 1484
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 1.312721
+    estimated_mw: 0.151776
+    thread_name: "statsd.writer"
+    process_name: "/apex/com.android.os.statsd/bin/statsd"
+    thread_id: 980
+    process_id: 545
+  }
+  task_info {
+    estimated_mws: 1.252738
+    estimated_mw: 0.144841
+    thread_name: "kworker/u8:2"
+    process_name: "kworker/u8:2"
+    thread_id: 62
+    process_id: 62
+  }
+  task_info {
+    estimated_mws: 1.251944
+    estimated_mw: 0.144749
+    thread_name: "app"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 867
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 1.233674
+    estimated_mw: 0.142637
+    thread_name: "system_server"
+    process_name: "system_server"
+    thread_id: 1343
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 1.228813
+    estimated_mw: 0.142075
+    thread_name: "irq/33-4520300."
+    process_name: "irq/33-4520300.qcom,bwmon-ddr"
+    thread_id: 95
+    process_id: 95
+  }
+  task_info {
+    estimated_mws: 1.068197
+    estimated_mw: 0.123504
+    thread_name: "logd.klogd"
+    process_name: "/system/bin/logd"
+    thread_id: 234
+    process_id: 211
+  }
+  task_info {
+    estimated_mws: 1.007070
+    estimated_mw: 0.116437
+    thread_name: "android.fg"
+    process_name: "system_server"
+    thread_id: 1415
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.969980
+    estimated_mw: 0.112149
+    thread_name: "rcuog/0"
+    process_name: "rcuog/0"
+    thread_id: 15
+    process_id: 15
+  }
+  task_info {
+    estimated_mws: 0.952077
+    estimated_mw: 0.110079
+    thread_name: "binder:1926_3"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1940
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.946746
+    estimated_mw: 0.109462
+    thread_name: "gle.android.gms"
+    process_name: "com.google.android.gms"
+    thread_id: 2856
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.930774
+    estimated_mw: 0.107616
+    thread_name: "crtc_event:80"
+    process_name: "crtc_event:80"
+    thread_id: 245
+    process_id: 245
+  }
+  task_info {
+    estimated_mws: 0.907425
+    estimated_mw: 0.104916
+    thread_name: "binder:755_3"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 1124
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.897620
+    estimated_mw: 0.103782
+    thread_name: "init"
+    process_name: "/system/bin/init"
+    thread_id: 143
+    process_id: 1
+  }
+  task_info {
+    estimated_mws: 0.880853
+    estimated_mw: 0.101844
+    thread_name: "wmshell.main"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2260
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.870598
+    estimated_mw: 0.100658
+    thread_name: "Primes-1"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1944
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.847641
+    estimated_mw: 0.098004
+    thread_name: "init"
+    process_name: "/system/bin/init"
+    thread_id: 1
+    process_id: 1
+  }
+  task_info {
+    estimated_mws: 0.846054
+    estimated_mw: 0.097820
+    thread_name: "binder:1302_D"
+    process_name: "system_server"
+    thread_id: 2043
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.844958
+    estimated_mw: 0.097694
+    thread_name: "surfaceflinger"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 786
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.833920
+    estimated_mw: 0.096417
+    thread_name: "kworker/u8:5"
+    process_name: "kworker/u8:5"
+    thread_id: 5304
+    process_id: 5304
+  }
+  task_info {
+    estimated_mws: 0.780835
+    estimated_mw: 0.090280
+    thread_name: "kworker/2:4"
+    process_name: "kworker/2:4"
+    thread_id: 4995
+    process_id: 4995
+  }
+  task_info {
+    estimated_mws: 0.747755
+    estimated_mw: 0.086455
+    thread_name: "binder:2171_4"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2374
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.746488
+    estimated_mw: 0.086309
+    thread_name: "binder:1999_5"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 3678
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 0.744159
+    estimated_mw: 0.086039
+    thread_name: "servicemanager"
+    process_name: "/system/bin/servicemanager"
+    thread_id: 213
+    process_id: 213
+  }
+  task_info {
+    estimated_mws: 0.717520
+    estimated_mw: 0.082959
+    thread_name: "wmshell.anim"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2269
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.699681
+    estimated_mw: 0.080897
+    thread_name: "GoogleApiHandle"
+    process_name: "com.google.android.gms"
+    thread_id: 3208
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.675997
+    estimated_mw: 0.078159
+    thread_name: "binder:1302_4"
+    process_name: "system_server"
+    thread_id: 1592
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.647999
+    estimated_mw: 0.074921
+    thread_name: "batterystats-wo"
+    process_name: "system_server"
+    thread_id: 1487
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.640576
+    estimated_mw: 0.074063
+    thread_name: ".gms.persistent"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 1949
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.631830
+    estimated_mw: 0.073052
+    thread_name: "binder:1926_6"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 5211
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.627672
+    estimated_mw: 0.072571
+    thread_name: "DisplayOffloadB"
+    process_name: "system_server"
+    thread_id: 1512
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.627487
+    estimated_mw: 0.072550
+    thread_name: "binder:682_2"
+    process_name: "/vendor/bin/hw/vendor.qti.hardware.display.allocator-service"
+    thread_id: 682
+    process_id: 682
+  }
+  task_info {
+    estimated_mws: 0.624294
+    estimated_mw: 0.072181
+    thread_name: "rcuog/2"
+    process_name: "rcuog/2"
+    thread_id: 37
+    process_id: 37
+  }
+  task_info {
+    estimated_mws: 0.623909
+    estimated_mw: 0.072136
+    thread_name: "kworker/0:6"
+    process_name: "kworker/0:6"
+    thread_id: 586
+    process_id: 586
+  }
+  task_info {
+    estimated_mws: 0.597177
+    estimated_mw: 0.069045
+    thread_name: "diag-router"
+    process_name: "/vendor/bin/diag-router"
+    thread_id: 634
+    process_id: 634
+  }
+  task_info {
+    estimated_mws: 0.582498
+    estimated_mw: 0.067348
+    thread_name: "HeapTaskDaemon"
+    process_name: "com.google.android.gms"
+    thread_id: 2882
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.579675
+    estimated_mw: 0.067022
+    thread_name: "FileWatcherThre"
+    process_name: "/vendor/bin/hw/android.hardware.thermal-service.pixel"
+    thread_id: 1411
+    process_id: 1404
+  }
+  task_info {
+    estimated_mws: 0.568415
+    estimated_mw: 0.065720
+    thread_name: "TaskSnapshotPer"
+    process_name: "system_server"
+    thread_id: 1913
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.565566
+    estimated_mw: 0.065390
+    thread_name: "lmkd"
+    process_name: "/system/bin/lmkd"
+    thread_id: 212
+    process_id: 212
+  }
+  task_info {
+    estimated_mws: 0.554734
+    estimated_mw: 0.064138
+    thread_name: "binder:1949_8"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 3269
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.517529
+    estimated_mw: 0.059836
+    thread_name: "appSf"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 868
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.514221
+    estimated_mw: 0.059454
+    thread_name: "kworker/1:1"
+    process_name: "kworker/1:1"
+    thread_id: 47
+    process_id: 47
+  }
+  task_info {
+    estimated_mws: 0.507581
+    estimated_mw: 0.058686
+    thread_name: "android.hardwar"
+    process_name: "/vendor/bin/hw/android.hardware.usb-service.qti"
+    thread_id: 1861
+    process_id: 665
+  }
+  task_info {
+    estimated_mws: 0.504068
+    estimated_mw: 0.058280
+    thread_name: "Primes-Jank"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2389
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.493578
+    estimated_mw: 0.057067
+    thread_name: "binder:2171_3"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2235
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.490345
+    estimated_mw: 0.056694
+    thread_name: "traced"
+    process_name: "/system/bin/traced"
+    thread_id: 905
+    process_id: 905
+  }
+  task_info {
+    estimated_mws: 0.468415
+    estimated_mw: 0.054158
+    thread_name: "eduling.default"
+    process_name: "system_server"
+    thread_id: 1761
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.462913
+    estimated_mw: 0.053522
+    thread_name: "binder:545_2"
+    process_name: "/apex/com.android.os.statsd/bin/statsd"
+    thread_id: 553
+    process_id: 545
+  }
+  task_info {
+    estimated_mws: 0.462537
+    estimated_mw: 0.053478
+    thread_name: "User"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2234
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.454063
+    estimated_mw: 0.052499
+    thread_name: "putmethod.latin"
+    process_name: "com.google.android.inputmethod.latin"
+    thread_id: 4997
+    process_id: 4997
+  }
+  task_info {
+    estimated_mws: 0.450612
+    estimated_mw: 0.052100
+    thread_name: "ueventd"
+    process_name: "/system/bin/ueventd"
+    thread_id: 145
+    process_id: 145
+  }
+  task_info {
+    estimated_mws: 0.448044
+    estimated_mw: 0.051803
+    thread_name: "wpa_supplicant"
+    process_name: "/vendor/bin/hw/wpa_supplicant"
+    thread_id: 5214
+    process_id: 5214
+  }
+  task_info {
+    estimated_mws: 0.431304
+    estimated_mw: 0.049867
+    thread_name: "rcuop/0"
+    process_name: "rcuop/0"
+    thread_id: 16
+    process_id: 16
+  }
+  task_info {
+    estimated_mws: 0.416635
+    estimated_mw: 0.048171
+    thread_name: "Jit thread pool"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1933
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.404592
+    estimated_mw: 0.046779
+    thread_name: "pixelstats-vend"
+    process_name: "/vendor/bin/pixelstats-vendor"
+    thread_id: 267
+    process_id: 255
+  }
+  task_info {
+    estimated_mws: 0.396838
+    estimated_mw: 0.045882
+    thread_name: "irq/236-NVT-ts"
+    process_name: "irq/236-NVT-ts"
+    thread_id: 505
+    process_id: 505
+  }
+  task_info {
+    estimated_mws: 0.393249
+    estimated_mw: 0.045467
+    thread_name: "nanohub"
+    process_name: "nanohub"
+    thread_id: 297
+    process_id: 297
+  }
+  task_info {
+    estimated_mws: 0.376686
+    estimated_mw: 0.043552
+    thread_name: "android.bg"
+    process_name: "system_server"
+    thread_id: 1430
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.375869
+    estimated_mw: 0.043458
+    thread_name: "chre"
+    process_name: "/vendor/bin/chre"
+    thread_id: 1041
+    process_id: 1041
+  }
+  task_info {
+    estimated_mws: 0.373520
+    estimated_mw: 0.043186
+    thread_name: "lowpool[1]"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 2279
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.366001
+    estimated_mw: 0.042317
+    thread_name: "TracingMuxer"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 783
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.359494
+    estimated_mw: 0.041565
+    thread_name: "kgsl-events"
+    process_name: "kgsl-events"
+    thread_id: 109
+    process_id: 109
+  }
+  task_info {
+    estimated_mws: 0.359130
+    estimated_mw: 0.041522
+    thread_name: "IpClient.wlan0"
+    process_name: "com.android.networkstack.process"
+    thread_id: 5216
+    process_id: 2049
+  }
+  task_info {
+    estimated_mws: 0.346517
+    estimated_mw: 0.040064
+    thread_name: "binder:257_5"
+    process_name: "/system/bin/hw/android.system.suspend-service"
+    thread_id: 1491
+    process_id: 257
+  }
+  task_info {
+    estimated_mws: 0.341200
+    estimated_mw: 0.039449
+    thread_name: "binder:1901_3"
+    process_name: "/vendor/bin/hw/android.hardware.wifi-service-lazy"
+    thread_id: 1905
+    process_id: 1901
+  }
+  task_info {
+    estimated_mws: 0.335534
+    estimated_mw: 0.038794
+    thread_name: "binder:740_1"
+    process_name: "/system/bin/audioserver"
+    thread_id: 821
+    process_id: 740
+  }
+  task_info {
+    estimated_mws: 0.331405
+    estimated_mw: 0.038317
+    thread_name: "BG"
+    process_name: "com.google.wear.services"
+    thread_id: 2023
+    process_id: 1948
+  }
+  task_info {
+    estimated_mws: 0.326344
+    estimated_mw: 0.037732
+    thread_name: "kworker/0:5H"
+    process_name: "kworker/0:5H"
+    thread_id: 1337
+    process_id: 1337
+  }
+  task_info {
+    estimated_mws: 0.322384
+    estimated_mw: 0.037274
+    thread_name: "binder:755_2"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 784
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.319511
+    estimated_mw: 0.036942
+    thread_name: "audioserver"
+    process_name: "/system/bin/audioserver"
+    thread_id: 740
+    process_id: 740
+  }
+  task_info {
+    estimated_mws: 0.310996
+    estimated_mw: 0.035957
+    thread_name: "binder:1949_2"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 1978
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.302115
+    estimated_mw: 0.034930
+    thread_name: "-Executor] idle"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 5602
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.301578
+    estimated_mw: 0.034868
+    thread_name: "pool-11-thread-"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 3329
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.299169
+    estimated_mw: 0.034590
+    thread_name: "android.io"
+    process_name: "system_server"
+    thread_id: 1417
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.296825
+    estimated_mw: 0.034319
+    thread_name: "binder:1901_3"
+    process_name: "/vendor/bin/hw/android.hardware.wifi-service-lazy"
+    thread_id: 5205
+    process_id: 1901
+  }
+  task_info {
+    estimated_mws: 0.294242
+    estimated_mw: 0.034020
+    thread_name: "rcuop/1"
+    process_name: "rcuop/1"
+    thread_id: 30
+    process_id: 30
+  }
+  task_info {
+    estimated_mws: 0.286642
+    estimated_mw: 0.033141
+    thread_name: "binder:1948_6"
+    process_name: "com.google.wear.services"
+    thread_id: 5315
+    process_id: 1948
+  }
+  task_info {
+    estimated_mws: 0.285983
+    estimated_mw: 0.033065
+    thread_name: "AssistantHandle"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4081
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.283378
+    estimated_mw: 0.032764
+    thread_name: "binder:1999_1"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 2016
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 0.279959
+    estimated_mw: 0.032369
+    thread_name: "binder:2182_7"
+    process_name: "com.android.phone"
+    thread_id: 2694
+    process_id: 2182
+  }
+  task_info {
+    estimated_mws: 0.279816
+    estimated_mw: 0.032352
+    thread_name: "kworker/3:2H"
+    process_name: "kworker/3:2H"
+    thread_id: 226
+    process_id: 226
+  }
+  task_info {
+    estimated_mws: 0.277230
+    estimated_mw: 0.032053
+    thread_name: "BG"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 3005
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.274735
+    estimated_mw: 0.031765
+    thread_name: "lowpool[3]"
+    process_name: "com.google.android.gms"
+    thread_id: 3527
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.267749
+    estimated_mw: 0.030957
+    thread_name: "hvdcp_opti"
+    process_name: "/vendor/bin/hvdcp_opti"
+    thread_id: 1276
+    process_id: 1270
+  }
+  task_info {
+    estimated_mws: 0.262081
+    estimated_mw: 0.030302
+    thread_name: "binder:1926_3"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2022
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.259248
+    estimated_mw: 0.029974
+    thread_name: "kworker/3:5"
+    process_name: "kworker/3:5"
+    thread_id: 104
+    process_id: 104
+  }
+  task_info {
+    estimated_mws: 0.256714
+    estimated_mw: 0.029681
+    thread_name: "binder:257_2"
+    process_name: "/system/bin/hw/android.system.suspend-service"
+    thread_id: 264
+    process_id: 257
+  }
+  task_info {
+    estimated_mws: 0.247037
+    estimated_mw: 0.028562
+    thread_name: "SDM_EventThread"
+    process_name: "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
+    thread_id: 727
+    process_id: 685
+  }
+  task_info {
+    estimated_mws: 0.244112
+    estimated_mw: 0.028224
+    thread_name: "POSIX timer 2"
+    process_name: "/vendor/bin/hw/android.hardware.sensors-service.multihal"
+    thread_id: 1600
+    process_id: 664
+  }
+  task_info {
+    estimated_mws: 0.242754
+    estimated_mw: 0.028067
+    thread_name: "binder:2856_4"
+    process_name: "com.google.android.gms"
+    thread_id: 3679
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.241348
+    estimated_mw: 0.027905
+    thread_name: "pool-2-thread-1"
+    process_name: "com.android.networkstack.process"
+    thread_id: 2416
+    process_id: 2049
+  }
+  task_info {
+    estimated_mws: 0.231145
+    estimated_mw: 0.026725
+    thread_name: "rcuop/3"
+    process_name: "rcuop/3"
+    thread_id: 45
+    process_id: 45
+  }
+  task_info {
+    estimated_mws: 0.230341
+    estimated_mw: 0.026632
+    thread_name: "f2fs_ckpt-254:4"
+    process_name: "f2fs_ckpt-254:43"
+    thread_id: 347
+    process_id: 347
+  }
+  task_info {
+    estimated_mws: 0.229722
+    estimated_mw: 0.026560
+    thread_name: "OomAdjuster"
+    process_name: "system_server"
+    thread_id: 1482
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.226417
+    estimated_mw: 0.026178
+    thread_name: "binder:740_6"
+    process_name: "/system/bin/audioserver"
+    thread_id: 2639
+    process_id: 740
+  }
+  task_info {
+    estimated_mws: 0.226007
+    estimated_mw: 0.026131
+    thread_name: "rcuop/2"
+    process_name: "rcuop/2"
+    thread_id: 38
+    process_id: 38
+  }
+  task_info {
+    estimated_mws: 0.225133
+    estimated_mw: 0.026030
+    thread_name: "kworker/0:7"
+    process_name: "kworker/0:7"
+    thread_id: 598
+    process_id: 598
+  }
+  task_info {
+    estimated_mws: 0.212788
+    estimated_mw: 0.024602
+    thread_name: "queued-work-loo"
+    process_name: "system_server"
+    thread_id: 1886
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.202562
+    estimated_mw: 0.023420
+    thread_name: "pool-13-thread-"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 3327
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.201687
+    estimated_mw: 0.023319
+    thread_name: "WearSdkThread"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2207
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.201119
+    estimated_mw: 0.023253
+    thread_name: "qrtr_ns"
+    process_name: "qrtr_ns"
+    thread_id: 88
+    process_id: 88
+  }
+  task_info {
+    estimated_mws: 0.200639
+    estimated_mw: 0.023198
+    thread_name: "binder:740_7"
+    process_name: "/system/bin/audioserver"
+    thread_id: 5206
+    process_id: 740
+  }
+  task_info {
+    estimated_mws: 0.196587
+    estimated_mw: 0.022729
+    thread_name: "binder:4997_4"
+    process_name: "com.google.android.inputmethod.latin"
+    thread_id: 5122
+    process_id: 4997
+  }
+  task_info {
+    estimated_mws: 0.194754
+    estimated_mw: 0.022517
+    thread_name: "m.android.phone"
+    process_name: "com.android.phone"
+    thread_id: 2182
+    process_id: 2182
+  }
+  task_info {
+    estimated_mws: 0.192336
+    estimated_mw: 0.022238
+    thread_name: "HwcAsyncWorker"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 835
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.190522
+    estimated_mw: 0.022028
+    thread_name: "binder:636_2"
+    process_name: "/vendor/bin/hw/android.hardware.audio.service"
+    thread_id: 636
+    process_id: 636
+  }
+  task_info {
+    estimated_mws: 0.188908
+    estimated_mw: 0.021841
+    thread_name: "SettingsProvide"
+    process_name: "system_server"
+    thread_id: 1771
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.181172
+    estimated_mw: 0.020947
+    thread_name: "binder:1302_2"
+    process_name: "system_server"
+    thread_id: 1350
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.177579
+    estimated_mw: 0.020532
+    thread_name: "RegSampIdle"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 872
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.168738
+    estimated_mw: 0.019509
+    thread_name: "ice] processing"
+    process_name: "com.google.android.gms"
+    thread_id: 3238
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.162808
+    estimated_mw: 0.018824
+    thread_name: "binder:682_3"
+    process_name: "/vendor/bin/hw/vendor.qti.hardware.display.allocator-service"
+    thread_id: 2308
+    process_id: 682
+  }
+  task_info {
+    estimated_mws: 0.158857
+    estimated_mw: 0.018367
+    thread_name: "binder:678_3"
+    process_name: "/apex/com.google.wearable.wac.whshal/bin/hw/vendor.google.wearable.wac.whshal@2.0-service"
+    thread_id: 1884
+    process_id: 678
+  }
+  task_info {
+    estimated_mws: 0.158692
+    estimated_mw: 0.018348
+    thread_name: "binder:650_4"
+    process_name: "/vendor/bin/hw/android.hardware.gnss-aidl-service-qti"
+    thread_id: 5498
+    process_id: 650
+  }
+  task_info {
+    estimated_mws: 0.157956
+    estimated_mw: 0.018263
+    thread_name: "vndservicemanag"
+    process_name: "/vendor/bin/vndservicemanager"
+    thread_id: 215
+    process_id: 215
+  }
+  task_info {
+    estimated_mws: 0.153600
+    estimated_mw: 0.017759
+    thread_name: "GoogleLocationS"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 3355
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.153038
+    estimated_mw: 0.017694
+    thread_name: "TransportThread"
+    process_name: "/vendor/bin/chre"
+    thread_id: 1078
+    process_id: 1041
+  }
+  task_info {
+    estimated_mws: 0.152058
+    estimated_mw: 0.017581
+    thread_name: "kworker/2:1H"
+    process_name: "kworker/2:1H"
+    thread_id: 123
+    process_id: 123
+  }
+  task_info {
+    estimated_mws: 0.148559
+    estimated_mw: 0.017176
+    thread_name: "BG"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2120
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.148352
+    estimated_mw: 0.017152
+    thread_name: "vendor.google.w"
+    process_name: "/apex/com.google.wearable.wac.whshal/bin/hw/vendor.google.wearable.wac.whshal@2.0-service"
+    thread_id: 1881
+    process_id: 678
+  }
+  task_info {
+    estimated_mws: 0.140864
+    estimated_mw: 0.016287
+    thread_name: "NetworkStats"
+    process_name: "system_server"
+    thread_id: 1814
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.138579
+    estimated_mw: 0.016022
+    thread_name: "binder:969_2"
+    process_name: "/system/vendor/bin/cnd"
+    thread_id: 1011
+    process_id: 969
+  }
+  task_info {
+    estimated_mws: 0.134607
+    estimated_mw: 0.015563
+    thread_name: "dmabuf-deferred"
+    process_name: "dmabuf-deferred-free-worker"
+    thread_id: 69
+    process_id: 69
+  }
+  task_info {
+    estimated_mws: 0.129449
+    estimated_mw: 0.014967
+    thread_name: "highpool[5]"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 3354
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.126973
+    estimated_mw: 0.014681
+    thread_name: "ice] processing"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 2363
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.126830
+    estimated_mw: 0.014664
+    thread_name: "ediator.Toggler"
+    process_name: "system_server"
+    thread_id: 1910
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.125742
+    estimated_mw: 0.014538
+    thread_name: "surfaceflinger"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 875
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.123833
+    estimated_mw: 0.014317
+    thread_name: "wificond"
+    process_name: "/system/bin/wificond"
+    thread_id: 964
+    process_id: 964
+  }
+  task_info {
+    estimated_mws: 0.123248
+    estimated_mw: 0.014250
+    thread_name: "MobileDataStats"
+    process_name: "system_server"
+    thread_id: 1912
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.119885
+    estimated_mw: 0.013861
+    thread_name: "GlobalScheduler"
+    process_name: "com.google.android.gms"
+    thread_id: 3156
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.119479
+    estimated_mw: 0.013814
+    thread_name: "RenderThread"
+    thread_id: 5599
+  }
+  task_info {
+    estimated_mws: 0.119243
+    estimated_mw: 0.013787
+    thread_name: "TouchTimer"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 866
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.114249
+    estimated_mw: 0.013209
+    thread_name: "binder:4038_1"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4050
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.112705
+    estimated_mw: 0.013031
+    thread_name: "displayoffload@"
+    process_name: "/vendor/bin/hw/vendor.google_clockwork.displayoffload@2.0-service.1p"
+    thread_id: 937
+    process_id: 937
+  }
+  task_info {
+    estimated_mws: 0.111279
+    estimated_mw: 0.012866
+    thread_name: "adbd"
+    process_name: "/apex/com.android.adbd/bin/adbd"
+    thread_id: 5544
+    process_id: 5544
+  }
+  task_info {
+    estimated_mws: 0.108114
+    estimated_mw: 0.012500
+    thread_name: "kworker/1:2H"
+    process_name: "kworker/1:2H"
+    thread_id: 300
+    process_id: 300
+  }
+  task_info {
+    estimated_mws: 0.107442
+    estimated_mw: 0.012422
+    thread_name: "RenderThread"
+    thread_id: 5584
+  }
+  task_info {
+    estimated_mws: 0.105863
+    estimated_mw: 0.012240
+    thread_name: "Primes-2"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1946
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.104306
+    estimated_mw: 0.012060
+    thread_name: "iptables-restor"
+    process_name: "/system/bin/iptables-restore"
+    thread_id: 558
+    process_id: 558
+  }
+  task_info {
+    estimated_mws: 0.104093
+    estimated_mw: 0.012035
+    thread_name: "RenderThread"
+    process_name: "system_server"
+    thread_id: 5223
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.102912
+    estimated_mw: 0.011899
+    thread_name: "irq/168-nanohub"
+    process_name: "irq/168-nanohub-irq1"
+    thread_id: 296
+    process_id: 296
+  }
+  task_info {
+    estimated_mws: 0.102167
+    estimated_mw: 0.011812
+    thread_name: "RenderThread"
+    thread_id: 5604
+  }
+  task_info {
+    estimated_mws: 0.101945
+    estimated_mw: 0.011787
+    thread_name: "ksoftirqd/2"
+    process_name: "ksoftirqd/2"
+    thread_id: 34
+    process_id: 34
+  }
+  task_info {
+    estimated_mws: 0.101282
+    estimated_mw: 0.011710
+    thread_name: "PhotonicModulat"
+    process_name: "system_server"
+    thread_id: 1899
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.100285
+    estimated_mw: 0.011595
+    thread_name: "ip6tables-resto"
+    process_name: "/system/bin/ip6tables-restore"
+    thread_id: 559
+    process_id: 559
+  }
+  task_info {
+    estimated_mws: 0.099432
+    estimated_mw: 0.011496
+    thread_name: "init"
+    process_name: "/system/bin/init"
+    thread_id: 144
+    process_id: 144
+  }
+  task_info {
+    estimated_mws: 0.096314
+    estimated_mw: 0.011136
+    thread_name: "FrameworkReceiv"
+    process_name: ".qtidataservices"
+    thread_id: 2793
+    process_id: 2118
+  }
+  task_info {
+    estimated_mws: 0.095442
+    estimated_mw: 0.011035
+    thread_name: "Jit thread pool"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 1969
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.094448
+    estimated_mw: 0.010920
+    thread_name: "pool-14-thread-"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 3314
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.093937
+    estimated_mw: 0.010861
+    thread_name: "binder:1926_2"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1939
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.093621
+    estimated_mw: 0.010824
+    thread_name: "ChreMsgHandler"
+    process_name: "/vendor/bin/chre"
+    thread_id: 1080
+    process_id: 1041
+  }
+  task_info {
+    estimated_mws: 0.091738
+    estimated_mw: 0.010607
+    thread_name: "DispatcherModul"
+    process_name: "/vendor/bin/hw/qcrilNrd"
+    thread_id: 1673
+    process_id: 1062
+  }
+  task_info {
+    estimated_mws: 0.091698
+    estimated_mw: 0.010602
+    thread_name: "irq/234-pixart_"
+    process_name: "irq/234-pixart_pat9126_irq"
+    thread_id: 500
+    process_id: 500
+  }
+  task_info {
+    estimated_mws: 0.090883
+    estimated_mw: 0.010508
+    thread_name: "scheduler_threa"
+    process_name: "scheduler_thread"
+    thread_id: 5198
+    process_id: 5198
+  }
+  task_info {
+    estimated_mws: 0.089001
+    estimated_mw: 0.010290
+    thread_name: "binder:2085_4"
+    process_name: "com.google.android.bluetooth"
+    thread_id: 2713
+    process_id: 2085
+  }
+  task_info {
+    estimated_mws: 0.086934
+    estimated_mw: 0.010051
+    thread_name: "binder:3028_5"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 5434
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.085941
+    estimated_mw: 0.009936
+    thread_name: "binder:2670_6"
+    process_name: "com.android.nfc"
+    thread_id: 3159
+    process_id: 2670
+  }
+  task_info {
+    estimated_mws: 0.083859
+    estimated_mw: 0.009696
+    thread_name: "psimon"
+    process_name: "psimon"
+    thread_id: 1480
+    process_id: 1480
+  }
+  task_info {
+    estimated_mws: 0.083773
+    estimated_mw: 0.009686
+    thread_name: "binder:233_2"
+    process_name: "/system/bin/vold"
+    thread_id: 252
+    process_id: 233
+  }
+  task_info {
+    estimated_mws: 0.080959
+    estimated_mw: 0.009360
+    thread_name: "binder:2049_2"
+    process_name: "com.android.networkstack.process"
+    thread_id: 2068
+    process_id: 2049
+  }
+  task_info {
+    estimated_mws: 0.080298
+    estimated_mw: 0.009284
+    thread_name: "netd"
+    process_name: "/system/bin/netd"
+    thread_id: 568
+    process_id: 546
+  }
+  task_info {
+    estimated_mws: 0.080265
+    estimated_mw: 0.009280
+    thread_name: "UEventObserver"
+    process_name: "system_server"
+    thread_id: 1857
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.079337
+    estimated_mw: 0.009173
+    thread_name: "RenderThread"
+    thread_id: 5619
+  }
+  task_info {
+    estimated_mws: 0.078696
+    estimated_mw: 0.009099
+    thread_name: "pool-8-thread-1"
+    process_name: "com.google.android.gms"
+    thread_id: 3102
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.077362
+    estimated_mw: 0.008945
+    thread_name: "mcu_mgmtd"
+    process_name: "/vendor/bin/mcu_mgmtd"
+    thread_id: 594
+    process_id: 524
+  }
+  task_info {
+    estimated_mws: 0.074501
+    estimated_mw: 0.008614
+    thread_name: "spi0"
+    process_name: "spi0"
+    thread_id: 295
+    process_id: 295
+  }
+  task_info {
+    estimated_mws: 0.073914
+    estimated_mw: 0.008546
+    thread_name: "com.android.nfc"
+    process_name: "com.android.nfc"
+    thread_id: 2670
+    process_id: 2670
+  }
+  task_info {
+    estimated_mws: 0.072671
+    estimated_mw: 0.008402
+    thread_name: "rcu_exp_gp_kthr"
+    process_name: "rcu_exp_gp_kthread_worker"
+    thread_id: 19
+    process_id: 19
+  }
+  task_info {
+    estimated_mws: 0.070587
+    estimated_mw: 0.008161
+    thread_name: "adbd"
+    process_name: "/apex/com.android.adbd/bin/adbd"
+    thread_id: 5546
+    process_id: 5544
+  }
+  task_info {
+    estimated_mws: 0.070105
+    estimated_mw: 0.008105
+    thread_name: "servicemanager"
+    thread_id: 5598
+  }
+  task_info {
+    estimated_mws: 0.069214
+    estimated_mw: 0.008002
+    thread_name: "android.imms"
+    process_name: "system_server"
+    thread_id: 1791
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.068600
+    estimated_mw: 0.007931
+    thread_name: "lowpool[2]"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 2321
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.068467
+    estimated_mw: 0.007916
+    thread_name: "FileObserver"
+    process_name: "com.google.android.gms"
+    thread_id: 3035
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.068316
+    estimated_mw: 0.007899
+    thread_name: "binder:546_3"
+    process_name: "/system/bin/netd"
+    thread_id: 546
+    process_id: 546
+  }
+  task_info {
+    estimated_mws: 0.066410
+    estimated_mw: 0.007678
+    thread_name: "pool-51-thread-"
+    process_name: "com.google.android.gms"
+    thread_id: 4215
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.064761
+    estimated_mw: 0.007488
+    thread_name: "AudioService"
+    process_name: "system_server"
+    thread_id: 1844
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.064339
+    estimated_mw: 0.007439
+    thread_name: "adbd"
+    process_name: "/apex/com.android.adbd/bin/adbd"
+    thread_id: 5545
+    process_id: 5544
+  }
+  task_info {
+    estimated_mws: 0.063188
+    estimated_mw: 0.007306
+    thread_name: "droid.bluetooth"
+    process_name: "com.google.android.bluetooth"
+    thread_id: 2085
+    process_id: 2085
+  }
+  task_info {
+    estimated_mws: 0.061069
+    estimated_mw: 0.007061
+    thread_name: "msm_irqbalance"
+    process_name: "/vendor/bin/msm_irqbalance"
+    thread_id: 2466
+    process_id: 2466
+  }
+  task_info {
+    estimated_mws: 0.060920
+    estimated_mw: 0.007044
+    thread_name: "BackgroundInsta"
+    process_name: "system_server"
+    thread_id: 1875
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.059901
+    estimated_mw: 0.006926
+    thread_name: "ConnectivitySer"
+    process_name: "system_server"
+    thread_id: 1827
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.059295
+    estimated_mw: 0.006856
+    thread_name: "pool-1-thread-1"
+    process_name: "system_server"
+    thread_id: 1873
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.059196
+    estimated_mw: 0.006844
+    thread_name: "binder:3028_1"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 3049
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.058807
+    estimated_mw: 0.006799
+    thread_name: "roid.apps.scone"
+    process_name: "com.google.android.apps.scone"
+    thread_id: 5245
+    process_id: 5245
+  }
+  task_info {
+    estimated_mws: 0.057400
+    estimated_mw: 0.006637
+    thread_name: "android.hardwar"
+    process_name: "/vendor/bin/hw/android.hardware.health-service.eos"
+    thread_id: 1271
+    process_id: 1271
+  }
+  task_info {
+    estimated_mws: 0.056947
+    estimated_mw: 0.006584
+    thread_name: "bgres-controlle"
+    process_name: "system_server"
+    thread_id: 1495
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.056879
+    estimated_mw: 0.006576
+    thread_name: "netd"
+    process_name: "/system/bin/netd"
+    thread_id: 569
+    process_id: 546
+  }
+  task_info {
+    estimated_mws: 0.055771
+    estimated_mw: 0.006448
+    thread_name: "UsbFfs-worker"
+    process_name: "/apex/com.android.adbd/bin/adbd"
+    thread_id: 5560
+    process_id: 5544
+  }
+  task_info {
+    estimated_mws: 0.055642
+    estimated_mw: 0.006433
+    thread_name: "system_server"
+    thread_id: 5590
+  }
+  task_info {
+    estimated_mws: 0.054764
+    estimated_mw: 0.006332
+    thread_name: "binder:2049_4"
+    process_name: "com.android.networkstack.process"
+    thread_id: 2083
+    process_id: 2049
+  }
+  task_info {
+    estimated_mws: 0.053127
+    estimated_mw: 0.006142
+    thread_name: "binder:1949_4"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 2302
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.052984
+    estimated_mw: 0.006126
+    thread_name: "oid.grilservice"
+    process_name: "com.google.android.grilservice"
+    thread_id: 2129
+    process_id: 2129
+  }
+  task_info {
+    estimated_mws: 0.052980
+    estimated_mw: 0.006126
+    thread_name: "binder:2856_9"
+    process_name: "com.google.android.gms"
+    thread_id: 5585
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.052715
+    estimated_mw: 0.006095
+    thread_name: "StateService"
+    process_name: "com.google.android.apps.scone"
+    thread_id: 5269
+    process_id: 5245
+  }
+  task_info {
+    estimated_mws: 0.052232
+    estimated_mw: 0.006039
+    thread_name: "vndservicemanag"
+    thread_id: 5597
+  }
+  task_info {
+    estimated_mws: 0.052027
+    estimated_mw: 0.006015
+    thread_name: "binder:1949_9"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 3359
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.051717
+    estimated_mw: 0.005979
+    thread_name: "Ipc-5004:1"
+    process_name: "/vendor/bin/hw/android.hardware.gnss-aidl-service-qti"
+    thread_id: 5483
+    process_id: 650
+  }
+  task_info {
+    estimated_mws: 0.049546
+    estimated_mw: 0.005729
+    thread_name: "PackageManager"
+    process_name: "system_server"
+    thread_id: 1530
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.048227
+    estimated_mw: 0.005576
+    thread_name: "android.hardwar"
+    process_name: "/vendor/bin/hw/android.hardware.power-service"
+    thread_id: 660
+    process_id: 660
+  }
+  task_info {
+    estimated_mws: 0.047454
+    estimated_mw: 0.005487
+    thread_name: "BluetoothScanMa"
+    process_name: "com.google.android.bluetooth"
+    thread_id: 2609
+    process_id: 2085
+  }
+  task_info {
+    estimated_mws: 0.046472
+    estimated_mw: 0.005373
+    thread_name: "subsystem_ramdu"
+    process_name: "/system/vendor/bin/subsystem_ramdump"
+    thread_id: 816
+    process_id: 799
+  }
+  task_info {
+    estimated_mws: 0.046295
+    estimated_mw: 0.005353
+    thread_name: "Ipc-5004:2"
+    process_name: "/vendor/bin/hw/android.hardware.gnss-aidl-service-qti"
+    thread_id: 5484
+    process_id: 650
+  }
+  task_info {
+    estimated_mws: 0.045805
+    estimated_mw: 0.005296
+    thread_name: "binder:975_2"
+    process_name: "/vendor/bin/imsdaemon"
+    thread_id: 1047
+    process_id: 975
+  }
+  task_info {
+    estimated_mws: 0.045282
+    estimated_mw: 0.005235
+    thread_name: ".healthservices"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 3028
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.045087
+    estimated_mw: 0.005213
+    thread_name: "queued-work-loo"
+    process_name: "com.google.android.gms"
+    thread_id: 3236
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.043921
+    estimated_mw: 0.005078
+    thread_name: "powerstateservi"
+    process_name: "/vendor/bin/hw/vendor.qti.hardware.powerstateservice@1.0-service"
+    thread_id: 276
+    process_id: 269
+  }
+  task_info {
+    estimated_mws: 0.043653
+    estimated_mw: 0.005047
+    thread_name: "wlan_logging_th"
+    process_name: "wlan_logging_thread"
+    thread_id: 368
+    process_id: 368
+  }
+  task_info {
+    estimated_mws: 0.043574
+    estimated_mw: 0.005038
+    thread_name: "FlpThread"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 3279
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.043436
+    estimated_mw: 0.005022
+    thread_name: "Light-P0-2"
+    process_name: "com.google.android.inputmethod.latin"
+    thread_id: 5071
+    process_id: 4997
+  }
+  task_info {
+    estimated_mws: 0.042985
+    estimated_mw: 0.004970
+    thread_name: "binder:5245_4"
+    process_name: "com.google.android.apps.scone"
+    thread_id: 5270
+    process_id: 5245
+  }
+  task_info {
+    estimated_mws: 0.042946
+    estimated_mw: 0.004965
+    thread_name: "HWC_UeventThrea"
+    process_name: "/vendor/bin/hw/vendor.qti.hardware.display.composer-service"
+    thread_id: 717
+    process_id: 685
+  }
+  task_info {
+    estimated_mws: 0.042762
+    estimated_mw: 0.004944
+    thread_name: "pool-12-thread-"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2371
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.042752
+    estimated_mw: 0.004943
+    thread_name: "android.hardwar"
+    process_name: "/vendor/bin/hw/android.hardware.contexthub-service.wac"
+    thread_id: 668
+    process_id: 644
+  }
+  task_info {
+    estimated_mws: 0.042468
+    estimated_mw: 0.004910
+    thread_name: "binder:1948_3"
+    process_name: "com.google.wear.services"
+    thread_id: 1976
+    process_id: 1948
+  }
+  task_info {
+    estimated_mws: 0.042220
+    estimated_mw: 0.004881
+    thread_name: "netlink socket"
+    process_name: "/system/vendor/bin/ipacm"
+    thread_id: 538
+    process_id: 523
+  }
+  task_info {
+    estimated_mws: 0.040507
+    estimated_mw: 0.004683
+    thread_name: "RegionSampling"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 871
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.040385
+    estimated_mw: 0.004669
+    thread_name: "TransportThread"
+    process_name: "/vendor/bin/hw/android.hardware.sensors-service.multihal"
+    thread_id: 794
+    process_id: 664
+  }
+  task_info {
+    estimated_mws: 0.040349
+    estimated_mw: 0.004665
+    thread_name: "binder:2856_1"
+    process_name: "com.google.android.gms"
+    thread_id: 2898
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.040180
+    estimated_mw: 0.004646
+    thread_name: "servicemanager"
+    thread_id: 5595
+  }
+  task_info {
+    estimated_mws: 0.039525
+    estimated_mw: 0.004570
+    thread_name: "pd-mapper"
+    process_name: "/vendor/bin/pd-mapper"
+    thread_id: 752
+    process_id: 725
+  }
+  task_info {
+    estimated_mws: 0.039196
+    estimated_mw: 0.004532
+    thread_name: "vndservicemanag"
+    thread_id: 5618
+  }
+  task_info {
+    estimated_mws: 0.039101
+    estimated_mw: 0.004521
+    thread_name: "vndservicemanag"
+    thread_id: 5605
+  }
+  task_info {
+    estimated_mws: 0.038960
+    estimated_mw: 0.004505
+    thread_name: "WifiScanningSer"
+    process_name: "system_server"
+    thread_id: 1823
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.038580
+    estimated_mw: 0.004461
+    thread_name: "cnss-daemon"
+    process_name: "/system/vendor/bin/cnss-daemon"
+    thread_id: 5204
+    process_id: 1009
+  }
+  task_info {
+    estimated_mws: 0.038053
+    estimated_mw: 0.004400
+    thread_name: "shell svc 5620"
+    process_name: "/apex/com.android.adbd/bin/adbd"
+    thread_id: 5622
+    process_id: 5544
+  }
+  task_info {
+    estimated_mws: 0.037116
+    estimated_mw: 0.004291
+    thread_name: "rmt_storage"
+    process_name: "/vendor/bin/rmt_storage"
+    thread_id: 758
+    process_id: 758
+  }
+  task_info {
+    estimated_mws: 0.036357
+    estimated_mw: 0.004204
+    thread_name: "halt_drain_rqs"
+    process_name: "halt_drain_rqs"
+    thread_id: 105
+    process_id: 105
+  }
+  task_info {
+    estimated_mws: 0.035907
+    estimated_mw: 0.004152
+    thread_name: "BG Thread #2"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4106
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.035876
+    estimated_mw: 0.004148
+    thread_name: "-Executor] idle"
+    process_name: "com.google.android.gms"
+    thread_id: 5592
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.035444
+    estimated_mw: 0.004098
+    thread_name: "tftp_server"
+    process_name: "/vendor/bin/tftp_server"
+    thread_id: 759
+    process_id: 759
+  }
+  task_info {
+    estimated_mws: 0.035386
+    estimated_mw: 0.004091
+    thread_name: "FinalizerWatchd"
+    process_name: "com.google.android.gms"
+    thread_id: 2887
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.035171
+    estimated_mw: 0.004066
+    thread_name: "servicemanager"
+    thread_id: 5606
+  }
+  task_info {
+    estimated_mws: 0.035157
+    estimated_mw: 0.004065
+    thread_name: "Blocking Thread"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 5587
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.035034
+    estimated_mw: 0.004051
+    thread_name: "vndservicemanag"
+    thread_id: 5611
+  }
+  task_info {
+    estimated_mws: 0.034307
+    estimated_mw: 0.003967
+    thread_name: "vndservicemanag"
+    thread_id: 5593
+  }
+  task_info {
+    estimated_mws: 0.034030
+    estimated_mw: 0.003935
+    thread_name: "servicemanager"
+    thread_id: 5621
+  }
+  task_info {
+    estimated_mws: 0.032631
+    estimated_mw: 0.003773
+    thread_name: "binder:685_3"
+    thread_id: 5586
+  }
+  task_info {
+    estimated_mws: 0.031847
+    estimated_mw: 0.003682
+    thread_name: "radioext@1.0-se"
+    process_name: "/vendor/bin/hw/vendor.google.radioext@1.0-service"
+    thread_id: 676
+    process_id: 676
+  }
+  task_info {
+    estimated_mws: 0.031818
+    estimated_mw: 0.003679
+    thread_name: "BgBroadcastRegi"
+    process_name: "com.google.wear.services"
+    thread_id: 2017
+    process_id: 1948
+  }
+  task_info {
+    estimated_mws: 0.031204
+    estimated_mw: 0.003608
+    thread_name: "DefaultExecutor"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 5600
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 0.030138
+    estimated_mw: 0.003484
+    thread_name: "Light-P0-1"
+    process_name: "com.google.android.inputmethod.latin"
+    thread_id: 5064
+    process_id: 4997
+  }
+  task_info {
+    estimated_mws: 0.029778
+    estimated_mw: 0.003443
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1368
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.029627
+    estimated_mw: 0.003425
+    thread_name: "atchdog.monitor"
+    process_name: "system_server"
+    thread_id: 1414
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.029590
+    estimated_mw: 0.003421
+    thread_name: "UsfHalWorker"
+    process_name: "/vendor/bin/hw/android.hardware.sensors-service.multihal"
+    thread_id: 792
+    process_id: 664
+  }
+  task_info {
+    estimated_mws: 0.028316
+    estimated_mw: 0.003274
+    thread_name: "binder:1999_5"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 4985
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 0.028097
+    estimated_mw: 0.003249
+    thread_name: "SatelliteContro"
+    process_name: "com.android.phone"
+    thread_id: 2382
+    process_id: 2182
+  }
+  task_info {
+    estimated_mws: 0.027797
+    estimated_mw: 0.003214
+    thread_name: "pm-service"
+    process_name: "/vendor/bin/pm-service"
+    thread_id: 745
+    process_id: 730
+  }
+  task_info {
+    estimated_mws: 0.027301
+    estimated_mw: 0.003157
+    thread_name: "-Executor] idle"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 5603
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.027287
+    estimated_mw: 0.003155
+    thread_name: "perfetto"
+    process_name: "perfetto"
+    thread_id: 5581
+    process_id: 5581
+  }
+  task_info {
+    estimated_mws: 0.026942
+    estimated_mw: 0.003115
+    thread_name: "ExeSeq-P10-1"
+    process_name: "com.google.android.inputmethod.latin"
+    thread_id: 5074
+    process_id: 4997
+  }
+  task_info {
+    estimated_mws: 0.026776
+    estimated_mw: 0.003096
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1364
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.026328
+    estimated_mw: 0.003044
+    thread_name: "HwBinder:2129_1"
+    process_name: "com.google.android.grilservice"
+    thread_id: 3649
+    process_id: 2129
+  }
+  task_info {
+    estimated_mws: 0.026013
+    estimated_mw: 0.003008
+    thread_name: "DefaultExecutor"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 5588
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 0.025701
+    estimated_mw: 0.002972
+    thread_name: "rkstack.process"
+    process_name: "com.android.networkstack.process"
+    thread_id: 2049
+    process_id: 2049
+  }
+  task_info {
+    estimated_mws: 0.024843
+    estimated_mw: 0.002872
+    thread_name: "hwuiTask1"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1997
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.024811
+    estimated_mw: 0.002869
+    thread_name: "pool-1-thread-1"
+    process_name: "com.google.android.apps.scone"
+    thread_id: 5271
+    process_id: 5245
+  }
+  task_info {
+    estimated_mws: 0.024633
+    estimated_mw: 0.002848
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1360
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.023564
+    estimated_mw: 0.002724
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1366
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.023405
+    estimated_mw: 0.002706
+    thread_name: "cnss-daemon"
+    process_name: "/system/vendor/bin/cnss-daemon"
+    thread_id: 5613
+    process_id: 1009
+  }
+  task_info {
+    estimated_mws: 0.023393
+    estimated_mw: 0.002705
+    thread_name: "servicemanager"
+    thread_id: 5608
+  }
+  task_info {
+    estimated_mws: 0.022813
+    estimated_mw: 0.002638
+    thread_name: "android.hardwar"
+    process_name: "/vendor/bin/hw/android.hardware.contexthub-service.wac"
+    thread_id: 644
+    process_id: 644
+  }
+  task_info {
+    estimated_mws: 0.022774
+    estimated_mw: 0.002633
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1362
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.022714
+    estimated_mw: 0.002626
+    thread_name: "binder:685_3"
+    thread_id: 5594
+  }
+  task_info {
+    estimated_mws: 0.022642
+    estimated_mw: 0.002618
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1358
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.022617
+    estimated_mw: 0.002615
+    thread_name: "vndservicemanag"
+    thread_id: 5607
+  }
+  task_info {
+    estimated_mws: 0.021814
+    estimated_mw: 0.002522
+    thread_name: "it.FitbitMobile"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5377
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.021313
+    estimated_mw: 0.002464
+    thread_name: "irq/199-dwc3"
+    process_name: "irq/199-dwc3"
+    thread_id: 5559
+    process_id: 5559
+  }
+  task_info {
+    estimated_mws: 0.021307
+    estimated_mw: 0.002463
+    thread_name: "SysUiBg"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2294
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.020941
+    estimated_mw: 0.002421
+    thread_name: "-Executor] idle"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 5623
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.020393
+    estimated_mw: 0.002358
+    thread_name: "vndservicemanag"
+    thread_id: 5582
+  }
+  task_info {
+    estimated_mws: 0.019946
+    estimated_mw: 0.002306
+    thread_name: "qcom,system-poo"
+    process_name: "qcom,system-pool-refill-thread"
+    thread_id: 81
+    process_id: 81
+  }
+  task_info {
+    estimated_mws: 0.019901
+    estimated_mw: 0.002301
+    thread_name: "binder:2129_9"
+    process_name: "com.google.android.grilservice"
+    thread_id: 5203
+    process_id: 2129
+  }
+  task_info {
+    estimated_mws: 0.019723
+    estimated_mw: 0.002280
+    thread_name: "servicemanager"
+    thread_id: 5610
+  }
+  task_info {
+    estimated_mws: 0.019537
+    estimated_mw: 0.002259
+    thread_name: "cnss-daemon"
+    process_name: "/system/vendor/bin/cnss-daemon"
+    thread_id: 1009
+    process_id: 1009
+  }
+  task_info {
+    estimated_mws: 0.019390
+    estimated_mw: 0.002242
+    thread_name: "pool-9-thread-1"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 2073
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 0.019219
+    estimated_mw: 0.002222
+    thread_name: "binder:1302_3"
+    process_name: "system_server"
+    thread_id: 1433
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.019059
+    estimated_mw: 0.002204
+    thread_name: "mcu_mgmtd"
+    process_name: "/vendor/bin/mcu_mgmtd"
+    thread_id: 587
+    process_id: 524
+  }
+  task_info {
+    estimated_mws: 0.018619
+    estimated_mw: 0.002153
+    thread_name: "WCMTelemetryLog"
+    process_name: "system_server"
+    thread_id: 1906
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.018508
+    estimated_mw: 0.002140
+    thread_name: "droid.tethering"
+    process_name: "com.android.networkstack.process"
+    thread_id: 2158
+    process_id: 2049
+  }
+  task_info {
+    estimated_mws: 0.018055
+    estimated_mw: 0.002087
+    thread_name: "DefaultWallpape"
+    process_name: "com.google.android.wearable.watchface.rwf"
+    thread_id: 2082
+    process_id: 1999
+  }
+  task_info {
+    estimated_mws: 0.017725
+    estimated_mw: 0.002049
+    thread_name: "HeapTaskDaemon"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5386
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.017125
+    estimated_mw: 0.001980
+    thread_name: "WearConnectionT"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2172
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.016887
+    estimated_mw: 0.001952
+    thread_name: "wear-services-w"
+    process_name: "com.google.wear.services"
+    thread_id: 2029
+    process_id: 1948
+  }
+  task_info {
+    estimated_mws: 0.016252
+    estimated_mw: 0.001879
+    thread_name: "BG Thread #1"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4080
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.016215
+    estimated_mw: 0.001875
+    thread_name: "GlobalScheduler"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 2276
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.016141
+    estimated_mw: 0.001866
+    thread_name: "pool-31-thread-"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 5617
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.016069
+    estimated_mw: 0.001858
+    thread_name: "servicemanager"
+    thread_id: 5583
+  }
+  task_info {
+    estimated_mws: 0.015376
+    estimated_mw: 0.001778
+    thread_name: "RenderEngine"
+    process_name: "/system/bin/surfaceflinger"
+    thread_id: 5601
+    process_id: 755
+  }
+  task_info {
+    estimated_mws: 0.015374
+    estimated_mw: 0.001777
+    thread_name: "pool-11-thread-"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 5596
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.015097
+    estimated_mw: 0.001745
+    thread_name: "dsi_err_workq"
+    process_name: "dsi_err_workq"
+    thread_id: 5589
+    process_id: 5589
+  }
+  task_info {
+    estimated_mws: 0.015062
+    estimated_mw: 0.001741
+    thread_name: "InteractionJank"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2300
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.015034
+    estimated_mw: 0.001738
+    thread_name: "vndservicemanag"
+    thread_id: 5609
+  }
+  task_info {
+    estimated_mws: 0.014592
+    estimated_mw: 0.001687
+    thread_name: "hwuiTask0"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1996
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.014520
+    estimated_mw: 0.001679
+    thread_name: "tworkPolicy.uid"
+    process_name: "system_server"
+    thread_id: 1817
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.014278
+    estimated_mw: 0.001651
+    thread_name: "highpool[10]"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 3417
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.014123
+    estimated_mw: 0.001633
+    thread_name: "LowMemThread"
+    process_name: "system_server"
+    thread_id: 1481
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.014026
+    estimated_mw: 0.001622
+    thread_name: "pixelstats-vend"
+    process_name: "/vendor/bin/pixelstats-vendor"
+    thread_id: 266
+    process_id: 255
+  }
+  task_info {
+    estimated_mws: 0.013579
+    estimated_mw: 0.001570
+    thread_name: "kworker/u9:0"
+    process_name: "kworker/u9:0"
+    thread_id: 64
+    process_id: 64
+  }
+  task_info {
+    estimated_mws: 0.013322
+    estimated_mw: 0.001540
+    thread_name: "migration/1"
+    process_name: "migration/1"
+    thread_id: 25
+    process_id: 25
+  }
+  task_info {
+    estimated_mws: 0.013321
+    estimated_mw: 0.001540
+    thread_name: "GlobalDispatchi"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 2290
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.013127
+    estimated_mw: 0.001518
+    thread_name: "main"
+    process_name: "/vendor/bin/hw/qcrilNrd"
+    thread_id: 1568
+    process_id: 1062
+  }
+  task_info {
+    estimated_mws: 0.012863
+    estimated_mw: 0.001487
+    thread_name: "servicemanager"
+    thread_id: 5612
+  }
+  task_info {
+    estimated_mws: 0.012835
+    estimated_mw: 0.001484
+    thread_name: "qtidataservices"
+    process_name: ".qtidataservices"
+    thread_id: 2846
+    process_id: 2118
+  }
+  task_info {
+    estimated_mws: 0.012734
+    estimated_mw: 0.001472
+    thread_name: "shortcut"
+    process_name: "system_server"
+    thread_id: 1874
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.012433
+    estimated_mw: 0.001438
+    thread_name: "irq/25-mmc0"
+    process_name: "irq/25-mmc0"
+    thread_id: 120
+    process_id: 120
+  }
+  task_info {
+    estimated_mws: 0.012244
+    estimated_mw: 0.001416
+    thread_name: "GlobalDispatchi"
+    process_name: "com.google.android.gms"
+    thread_id: 3155
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.012130
+    estimated_mw: 0.001402
+    thread_name: "ConnectivityThr"
+    process_name: "com.google.android.gms"
+    thread_id: 4172
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.011932
+    estimated_mw: 0.001380
+    thread_name: "RenderThread"
+    thread_id: 5616
+  }
+  task_info {
+    estimated_mws: 0.011783
+    estimated_mw: 0.001362
+    thread_name: "AGMIPC@1.0-serv"
+    process_name: "/vendor/bin/hw/vendor.qti.hardware.AGMIPC@1.0-service"
+    thread_id: 1454
+    process_id: 1446
+  }
+  task_info {
+    estimated_mws: 0.011706
+    estimated_mw: 0.001353
+    thread_name: "binder:2171_2"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2209
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.011675
+    estimated_mw: 0.001350
+    thread_name: "radioext@1.0-se"
+    process_name: "/vendor/bin/hw/vendor.google.radioext@1.0-service"
+    thread_id: 714
+    process_id: 676
+  }
+  task_info {
+    estimated_mws: 0.011615
+    estimated_mw: 0.001343
+    thread_name: "servicemanager"
+    thread_id: 5615
+  }
+  task_info {
+    estimated_mws: 0.011467
+    estimated_mw: 0.001326
+    thread_name: "LocApiMsgTask"
+    process_name: "/vendor/bin/hw/android.hardware.gnss-aidl-service-qti"
+    thread_id: 694
+    process_id: 650
+  }
+  task_info {
+    estimated_mws: 0.011318
+    estimated_mw: 0.001309
+    thread_name: "LocApiMsgTask"
+    process_name: "xtra-daemon"
+    thread_id: 1090
+    process_id: 1031
+  }
+  task_info {
+    estimated_mws: 0.011273
+    estimated_mw: 0.001303
+    thread_name: "vndservicemanag"
+    thread_id: 5614
+  }
+  task_info {
+    estimated_mws: 0.011024
+    estimated_mw: 0.001275
+    thread_name: "TimerThread"
+    process_name: "/system/bin/audioserver"
+    thread_id: 1486
+    process_id: 740
+  }
+  task_info {
+    estimated_mws: 0.010869
+    estimated_mw: 0.001257
+    thread_name: "irq/26-4744000."
+    process_name: "irq/26-4744000.sdhci"
+    thread_id: 117
+    process_id: 117
+  }
+  task_info {
+    estimated_mws: 0.010764
+    estimated_mw: 0.001245
+    thread_name: "SurfaceSyncGrou"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1994
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.010731
+    estimated_mw: 0.001241
+    thread_name: "migration/3"
+    process_name: "migration/3"
+    thread_id: 40
+    process_id: 40
+  }
+  task_info {
+    estimated_mws: 0.010156
+    estimated_mw: 0.001174
+    thread_name: "id.wearable.app"
+    process_name: "com.google.android.wearable.app"
+    thread_id: 3857
+    process_id: 3857
+  }
+  task_info {
+    estimated_mws: 0.009691
+    estimated_mw: 0.001121
+    thread_name: "ksoftirqd/0"
+    process_name: "ksoftirqd/0"
+    thread_id: 13
+    process_id: 13
+  }
+  task_info {
+    estimated_mws: 0.009668
+    estimated_mw: 0.001118
+    thread_name: "cnss-daemon"
+    process_name: "/system/vendor/bin/cnss-daemon"
+    thread_id: 1052
+    process_id: 1009
+  }
+  task_info {
+    estimated_mws: 0.009639
+    estimated_mw: 0.001114
+    thread_name: "kworker/u9:2"
+    process_name: "kworker/u9:2"
+    thread_id: 338
+    process_id: 338
+  }
+  task_info {
+    estimated_mws: 0.009404
+    estimated_mw: 0.001087
+    thread_name: "binder:2856_3"
+    process_name: "com.google.android.gms"
+    thread_id: 3157
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.009364
+    estimated_mw: 0.001083
+    thread_name: "binder:969_3"
+    process_name: "/system/vendor/bin/cnd"
+    thread_id: 1013
+    process_id: 969
+  }
+  task_info {
+    estimated_mws: 0.008837
+    estimated_mw: 0.001022
+    thread_name: "binder:2118_2"
+    process_name: ".qtidataservices"
+    thread_id: 2142
+    process_id: 2118
+  }
+  task_info {
+    estimated_mws: 0.008775
+    estimated_mw: 0.001015
+    thread_name: "thermal-engine-"
+    process_name: "/vendor/bin/thermal-engine-v2"
+    thread_id: 2520
+    process_id: 2493
+  }
+  task_info {
+    estimated_mws: 0.008724
+    estimated_mw: 0.001009
+    thread_name: "binder:2856_7"
+    process_name: "com.google.android.gms"
+    thread_id: 4825
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.008275
+    estimated_mw: 0.000957
+    thread_name: "binder:2856_6"
+    process_name: "com.google.android.gms"
+    thread_id: 4824
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.008136
+    estimated_mw: 0.000941
+    thread_name: "binder:3857_3"
+    process_name: "com.google.android.wearable.app"
+    thread_id: 3872
+    process_id: 3857
+  }
+  task_info {
+    estimated_mws: 0.007913
+    estimated_mw: 0.000915
+    thread_name: "binder:975_3"
+    process_name: "/vendor/bin/imsdaemon"
+    thread_id: 1630
+    process_id: 975
+  }
+  task_info {
+    estimated_mws: 0.007892
+    estimated_mw: 0.000913
+    thread_name: "time_daemon"
+    process_name: "/vendor/bin/time_daemon"
+    thread_id: 525
+    process_id: 522
+  }
+  task_info {
+    estimated_mws: 0.007750
+    estimated_mw: 0.000896
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1044
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.007591
+    estimated_mw: 0.000878
+    thread_name: "binder:2856_5"
+    process_name: "com.google.android.gms"
+    thread_id: 3681
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.007392
+    estimated_mw: 0.000855
+    thread_name: "binder:2182_1"
+    process_name: "com.android.phone"
+    thread_id: 2231
+    process_id: 2182
+  }
+  task_info {
+    estimated_mws: 0.007384
+    estimated_mw: 0.000854
+    thread_name: "binder:2171_5"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2638
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.007245
+    estimated_mw: 0.000838
+    thread_name: "qrtr_rx"
+    process_name: "qrtr_rx"
+    thread_id: 1556
+    process_id: 1556
+  }
+  task_info {
+    estimated_mws: 0.007086
+    estimated_mw: 0.000819
+    thread_name: "radioext@1.0-se"
+    process_name: "/vendor/bin/hw/vendor.google.radioext@1.0-service"
+    thread_id: 1605
+    process_id: 676
+  }
+  task_info {
+    estimated_mws: 0.006850
+    estimated_mw: 0.000792
+    thread_name: "hwservicemanage"
+    process_name: "/system/system_ext/bin/hwservicemanager"
+    thread_id: 214
+    process_id: 214
+  }
+  task_info {
+    estimated_mws: 0.006731
+    estimated_mw: 0.000778
+    thread_name: "rcub/0"
+    process_name: "rcub/0"
+    thread_id: 17
+    process_id: 17
+  }
+  task_info {
+    estimated_mws: 0.006663
+    estimated_mw: 0.000770
+    thread_name: "binder:2856_8"
+    process_name: "com.google.android.gms"
+    thread_id: 4826
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.006650
+    estimated_mw: 0.000769
+    thread_name: "kthreadd"
+    process_name: "kthreadd"
+    thread_id: 2
+    process_id: 2
+  }
+  task_info {
+    estimated_mws: 0.006574
+    estimated_mw: 0.000760
+    thread_name: "binder:233_2"
+    process_name: "/system/bin/vold"
+    thread_id: 233
+    process_id: 233
+  }
+  task_info {
+    estimated_mws: 0.006115
+    estimated_mw: 0.000707
+    thread_name: "cds_ol_rx_threa"
+    process_name: "cds_ol_rx_thread"
+    thread_id: 5199
+    process_id: 5199
+  }
+  task_info {
+    estimated_mws: 0.005829
+    estimated_mw: 0.000674
+    thread_name: "NsdService"
+    process_name: "system_server"
+    thread_id: 1831
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.005734
+    estimated_mw: 0.000663
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1367
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.005699
+    estimated_mw: 0.000659
+    thread_name: "Scheduled BG"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2895
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.005530
+    estimated_mw: 0.000639
+    thread_name: "binder:2856_2"
+    process_name: "com.google.android.gms"
+    thread_id: 2903
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.005484
+    estimated_mw: 0.000634
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1361
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.005366
+    estimated_mw: 0.000620
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1357
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.005364
+    estimated_mw: 0.000620
+    thread_name: "FileObserver"
+    process_name: "system_server"
+    thread_id: 1498
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.005278
+    estimated_mw: 0.000610
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1359
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.005261
+    estimated_mw: 0.000608
+    thread_name: "Lite Thread #0"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4109
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.005011
+    estimated_mw: 0.000579
+    thread_name: "kworker/3:1H"
+    process_name: "kworker/3:1H"
+    thread_id: 122
+    process_id: 122
+  }
+  task_info {
+    estimated_mws: 0.004996
+    estimated_mw: 0.000578
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1365
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.004986
+    estimated_mw: 0.000576
+    thread_name: "Scheduled BG"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2890
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.004877
+    estimated_mw: 0.000564
+    thread_name: "perfetto_hprof_"
+    process_name: "com.google.android.gms"
+    thread_id: 2880
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.004761
+    estimated_mw: 0.000550
+    thread_name: "backup-0"
+    process_name: "system_server"
+    thread_id: 2660
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.004757
+    estimated_mw: 0.000550
+    thread_name: "tts-player-0"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4209
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.004444
+    estimated_mw: 0.000514
+    thread_name: "Signal Catcher"
+    process_name: "com.google.android.gms"
+    thread_id: 2878
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.004331
+    estimated_mw: 0.000501
+    thread_name: "binder:978_2"
+    process_name: "/system/vendor/bin/nicmd"
+    thread_id: 1363
+    process_id: 978
+  }
+  task_info {
+    estimated_mws: 0.004292
+    estimated_mw: 0.000496
+    thread_name: "f2fs_discard-25"
+    process_name: "f2fs_discard-254:43"
+    thread_id: 349
+    process_id: 349
+  }
+  task_info {
+    estimated_mws: 0.004283
+    estimated_mw: 0.000495
+    thread_name: "irq/24-glink-na"
+    process_name: "irq/24-glink-native-rpm-glink"
+    thread_id: 86
+    process_id: 86
+  }
+  task_info {
+    estimated_mws: 0.004252
+    estimated_mw: 0.000492
+    thread_name: "pool-4-thread-1"
+    process_name: "system_server"
+    thread_id: 1774
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.004010
+    estimated_mw: 0.000464
+    thread_name: "PasspointProvis"
+    process_name: "system_server"
+    thread_id: 1821
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.003934
+    estimated_mw: 0.000455
+    thread_name: "binder:5377_5"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5573
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.003880
+    estimated_mw: 0.000449
+    thread_name: "BG Thread #3"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4107
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.003872
+    estimated_mw: 0.000448
+    thread_name: "TransportThread"
+    process_name: "/vendor/bin/mcu_mgmtd"
+    thread_id: 3540
+    process_id: 524
+  }
+  task_info {
+    estimated_mws: 0.003835
+    estimated_mw: 0.000443
+    thread_name: "kworker/1:1H"
+    process_name: "kworker/1:1H"
+    thread_id: 127
+    process_id: 127
+  }
+  task_info {
+    estimated_mws: 0.003754
+    estimated_mw: 0.000434
+    thread_name: "watchdog"
+    process_name: "system_server"
+    thread_id: 1421
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.003628
+    estimated_mw: 0.000419
+    thread_name: "PackageInstalle"
+    process_name: "system_server"
+    thread_id: 1744
+    process_id: 1302
+  }
+  task_info {
+    estimated_mws: 0.003469
+    estimated_mw: 0.000401
+    thread_name: "Lite Thread #1"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4118
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.003393
+    estimated_mw: 0.000392
+    thread_name: "FinalizerWatchd"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5389
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.003365
+    estimated_mw: 0.000389
+    thread_name: "DFacilitator-1"
+    process_name: "com.google.android.inputmethod.latin"
+    thread_id: 5128
+    process_id: 4997
+  }
+  task_info {
+    estimated_mws: 0.003243
+    estimated_mw: 0.000375
+    thread_name: "pool-8-thread-1"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 3308
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.002873
+    estimated_mw: 0.000332
+    thread_name: "lowpool[1]"
+    process_name: "com.google.android.gms"
+    thread_id: 3503
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.002842
+    estimated_mw: 0.000329
+    thread_name: "ReferenceQueueD"
+    process_name: "com.google.android.gms"
+    thread_id: 2883
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.002778
+    estimated_mw: 0.000321
+    thread_name: "ipacm-diag"
+    process_name: "/system/vendor/bin/ipacm-diag"
+    thread_id: 976
+    process_id: 976
+  }
+  task_info {
+    estimated_mws: 0.002739
+    estimated_mw: 0.000317
+    thread_name: "migration/2"
+    process_name: "migration/2"
+    thread_id: 32
+    process_id: 32
+  }
+  task_info {
+    estimated_mws: 0.002654
+    estimated_mw: 0.000307
+    thread_name: "qrtr_rx"
+    process_name: "qrtr_rx"
+    thread_id: 564
+    process_id: 564
+  }
+  task_info {
+    estimated_mws: 0.002601
+    estimated_mw: 0.000301
+    thread_name: "card0-crtc0"
+    process_name: "card0-crtc0"
+    thread_id: 247
+    process_id: 247
+  }
+  task_info {
+    estimated_mws: 0.002574
+    estimated_mw: 0.000298
+    thread_name: "pool-7-thread-3"
+    process_name: "com.google.android.wearable.healthservices"
+    thread_id: 5435
+    process_id: 3028
+  }
+  task_info {
+    estimated_mws: 0.002458
+    estimated_mw: 0.000284
+    thread_name: "RenderThread"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2319
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.002443
+    estimated_mw: 0.000283
+    thread_name: "highpool[0]"
+    process_name: "com.google.android.gms"
+    thread_id: 3154
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.002437
+    estimated_mw: 0.000282
+    thread_name: "lowpool[0]"
+    process_name: "com.google.android.gms"
+    thread_id: 3478
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.002241
+    estimated_mw: 0.000259
+    thread_name: "queued-work-loo"
+    process_name: "com.google.android.gms.persistent"
+    thread_id: 3533
+    process_id: 1949
+  }
+  task_info {
+    estimated_mws: 0.002222
+    estimated_mw: 0.000257
+    thread_name: "arch_disk_io_2"
+    process_name: "com.google.android.gms"
+    thread_id: 4174
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.002160
+    estimated_mw: 0.000250
+    thread_name: "binder:523_2"
+    process_name: "/system/vendor/bin/ipacm"
+    thread_id: 537
+    process_id: 523
+  }
+  task_info {
+    estimated_mws: 0.002129
+    estimated_mw: 0.000246
+    thread_name: "Jit thread pool"
+    process_name: "com.google.android.gms"
+    thread_id: 2881
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.002082
+    estimated_mw: 0.000241
+    thread_name: "pool-48-thread-"
+    process_name: "com.google.android.gms"
+    thread_id: 4110
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.002071
+    estimated_mw: 0.000239
+    thread_name: "RenderThread"
+    process_name: "com.google.android.inputmethod.latin"
+    thread_id: 5120
+    process_id: 4997
+  }
+  task_info {
+    estimated_mws: 0.002020
+    estimated_mw: 0.000234
+    thread_name: "arch_disk_io_0"
+    process_name: "com.google.android.gms"
+    thread_id: 4031
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.001985
+    estimated_mw: 0.000229
+    thread_name: "arch_disk_io_1"
+    process_name: "com.google.android.gms"
+    thread_id: 4034
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.001856
+    estimated_mw: 0.000215
+    thread_name: "BG Thread #0"
+    process_name: "com.google.android.wearable.assistant"
+    thread_id: 4061
+    process_id: 4038
+  }
+  task_info {
+    estimated_mws: 0.001782
+    estimated_mw: 0.000206
+    thread_name: "binder:1926_1"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 1938
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.001776
+    estimated_mw: 0.000205
+    thread_name: "highpool[3]"
+    process_name: "com.google.android.gms"
+    thread_id: 3470
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.001776
+    estimated_mw: 0.000205
+    thread_name: "migration/0"
+    process_name: "migration/0"
+    thread_id: 21
+    process_id: 21
+  }
+  task_info {
+    estimated_mws: 0.001772
+    estimated_mw: 0.000205
+    thread_name: "AsyncTask #2"
+    process_name: "com.google.android.gms"
+    thread_id: 4164
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.001720
+    estimated_mw: 0.000199
+    thread_name: "arch_disk_io_3"
+    process_name: "com.google.android.gms"
+    thread_id: 4175
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.001562
+    estimated_mw: 0.000181
+    thread_name: "POSIX timer 0"
+    process_name: "/vendor/bin/hw/android.hardware.sensors-service.multihal"
+    thread_id: 850
+    process_id: 664
+  }
+  task_info {
+    estimated_mws: 0.001520
+    estimated_mw: 0.000176
+    thread_name: "ksoftirqd/3"
+    process_name: "ksoftirqd/3"
+    thread_id: 42
+    process_id: 42
+  }
+  task_info {
+    estimated_mws: 0.001401
+    estimated_mw: 0.000162
+    thread_name: "Primes-1"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5394
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.001320
+    estimated_mw: 0.000153
+    thread_name: "binder:5377_3"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5392
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.001316
+    estimated_mw: 0.000152
+    thread_name: "msm-watchdog"
+    process_name: "msm-watchdog"
+    thread_id: 76
+    process_id: 76
+  }
+  task_info {
+    estimated_mws: 0.001222
+    estimated_mw: 0.000141
+    thread_name: "Lite Thread #1"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5421
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.001220
+    estimated_mw: 0.000141
+    thread_name: "Signal Catcher"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5382
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.001179
+    estimated_mw: 0.000136
+    thread_name: "GoogleApiHandle"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5398
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.001127
+    estimated_mw: 0.000130
+    thread_name: "binder:2171_6"
+    process_name: "com.google.android.apps.wearable.systemui"
+    thread_id: 2678
+    process_id: 2171
+  }
+  task_info {
+    estimated_mws: 0.001103
+    estimated_mw: 0.000128
+    thread_name: "Blocking Thread"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5574
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.001055
+    estimated_mw: 0.000122
+    thread_name: "WM.task-3"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5430
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000990
+    estimated_mw: 0.000114
+    thread_name: "highpool[1]"
+    process_name: "com.google.android.gms"
+    thread_id: 3373
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.000984
+    estimated_mw: 0.000114
+    thread_name: "Primes-nativecr"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5397
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000961
+    estimated_mw: 0.000111
+    thread_name: "binder:740_4"
+    process_name: "/system/bin/audioserver"
+    thread_id: 2183
+    process_id: 740
+  }
+  task_info {
+    estimated_mws: 0.000954
+    estimated_mw: 0.000110
+    thread_name: "Lite Thread #0"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5404
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000927
+    estimated_mw: 0.000107
+    thread_name: "BG Thread #0"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5395
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000926
+    estimated_mw: 0.000107
+    thread_name: "FinalizerDaemon"
+    process_name: "com.google.android.gms"
+    thread_id: 2885
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.000887
+    estimated_mw: 0.000103
+    thread_name: "BG Thread #1"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5396
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000865
+    estimated_mw: 0.000100
+    thread_name: "Jit thread pool"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5385
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000858
+    estimated_mw: 0.000099
+    thread_name: "highpool[2]"
+    process_name: "com.google.android.gms"
+    thread_id: 3375
+    process_id: 2856
+  }
+  task_info {
+    estimated_mws: 0.000855
+    estimated_mw: 0.000099
+    thread_name: "ConnectivityThr"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5423
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000828
+    estimated_mw: 0.000096
+    thread_name: "Profile Saver"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5393
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000808
+    estimated_mw: 0.000093
+    thread_name: "ReferenceQueueD"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5387
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000803
+    estimated_mw: 0.000093
+    thread_name: "binder:5377_4"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5433
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000783
+    estimated_mw: 0.000091
+    thread_name: "ksoftirqd/1"
+    process_name: "ksoftirqd/1"
+    thread_id: 27
+    process_id: 27
+  }
+  task_info {
+    estimated_mws: 0.000782
+    estimated_mw: 0.000090
+    thread_name: "HsConnectionMan"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5422
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000769
+    estimated_mw: 0.000089
+    thread_name: "ADB-JDWP Connec"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5384
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000742
+    estimated_mw: 0.000086
+    thread_name: "Scheduler Threa"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5428
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000733
+    estimated_mw: 0.000085
+    thread_name: "WM.task-2"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5429
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000730
+    estimated_mw: 0.000084
+    thread_name: "Scheduled BG"
+    process_name: "com.google.android.wearable.sysui"
+    thread_id: 2896
+    process_id: 1926
+  }
+  task_info {
+    estimated_mws: 0.000727
+    estimated_mw: 0.000084
+    thread_name: "DefaultDispatch"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5431
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000726
+    estimated_mw: 0.000084
+    thread_name: "BG Thread #3"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5400
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000724
+    estimated_mw: 0.000084
+    thread_name: "WM.task-1"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5427
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000718
+    estimated_mw: 0.000083
+    thread_name: "binder:5377_1"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5390
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000689
+    estimated_mw: 0.000080
+    thread_name: "DefaultDispatch"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5432
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000669
+    estimated_mw: 0.000077
+    thread_name: "BG Thread #2"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5399
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000630
+    estimated_mw: 0.000073
+    thread_name: "binder:5377_2"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5391
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000583
+    estimated_mw: 0.000067
+    thread_name: "perfetto_hprof_"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5383
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000507
+    estimated_mw: 0.000059
+    thread_name: "Primes-2"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5444
+    process_id: 5377
+  }
+  task_info {
+    estimated_mws: 0.000403
+    estimated_mw: 0.000047
+    thread_name: "FinalizerDaemon"
+    process_name: "com.fitbit.FitbitMobile"
+    thread_id: 5388
+    process_id: 5377
+  }
+}

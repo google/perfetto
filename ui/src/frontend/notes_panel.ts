@@ -22,19 +22,20 @@ import {randomColor} from '../core/colorizer';
 import {SpanNote, Note, Selection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';
+import {TextInput} from '../widgets/text_input';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size} from '../base/geom';
 import {Panel} from './panel_container';
-import {isTraceLoaded} from './sidebar';
 import {Timestamp} from './widgets/timestamp';
 import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public';
 import {PxSpan, TimeScale} from './time_scale';
 import {canvasClip} from '../common/canvas_utils';
+import {isTraceLoaded} from './trace_attrs';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -64,9 +65,7 @@ export class NotesPanel implements Panel {
   private hoveredX: null | number = null;
 
   render(): m.Children {
-    const allCollapsed = Object.values(globals.state.trackGroups).every(
-      (group) => group.collapsed,
-    );
+    const allCollapsed = globals.workspace.flatGroups.every((n) => n.collapsed);
 
     return m(
       '.notes-panel',
@@ -98,11 +97,11 @@ export class NotesPanel implements Panel {
               e.preventDefault();
               if (allCollapsed) {
                 globals.commandManager.runCommand(
-                  'dev.perfetto.CoreCommands#ExpandAllGroups',
+                  'perfetto.CoreCommands#ExpandAllGroups',
                 );
               } else {
                 globals.commandManager.runCommand(
-                  'dev.perfetto.CoreCommands#CollapseAllGroups',
+                  'perfetto.CoreCommands#CollapseAllGroups',
                 );
               }
             },
@@ -113,11 +112,34 @@ export class NotesPanel implements Panel {
           m(Button, {
             onclick: (e: Event) => {
               e.preventDefault();
-              globals.dispatch(Actions.clearAllPinnedTracks({}));
+              globals.workspace.pinnedTracks.forEach((t) =>
+                globals.workspace.unpinTrack(t),
+              );
+              raf.scheduleFullRedraw();
             },
             title: 'Clear all pinned tracks',
             icon: 'clear_all',
             compact: true,
+          }),
+          m(TextInput, {
+            placeholder: 'Filter tracks...',
+            title:
+              'Track filter - enter one or more comma-separated search terms',
+            value: globals.state.trackFilterTerm,
+            oninput: (e: Event) => {
+              const filterTerm = (e.target as HTMLInputElement).value;
+              globals.dispatch(Actions.setTrackFilterTerm({filterTerm}));
+            },
+          }),
+          m(Button, {
+            type: 'reset',
+            icon: 'backspace',
+            onclick: () => {
+              globals.dispatch(
+                Actions.setTrackFilterTerm({filterTerm: undefined}),
+              );
+            },
+            title: 'Clear track filter',
           }),
         ),
     );

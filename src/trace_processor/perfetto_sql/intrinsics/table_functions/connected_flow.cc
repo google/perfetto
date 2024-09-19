@@ -30,6 +30,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/db/typed_column.h"
@@ -209,14 +210,15 @@ base::StatusOr<std::unique_ptr<Table>> ConnectedFlow::ComputeTable(
 
   if (arguments[0].type == SqlValue::Type::kNull) {
     // Nothing matches a null id so return an empty table.
-    return tables::ConnectedFlowTable::SelectAndExtendParent(flow, {}, {});
+    return std::unique_ptr<Table>(
+        tables::ConnectedFlowTable::SelectAndExtendParent(flow, {}, {}));
   }
   if (arguments[0].type != SqlValue::Type::kLong) {
     return base::ErrStatus("start id should be an integer.");
   }
 
   SliceId start_id{static_cast<uint32_t>(arguments[0].AsLong())};
-  if (!slice.id().IndexOf(start_id)) {
+  if (!slice.FindById(start_id)) {
     return base::ErrStatus("invalid slice id %" PRIu32 "",
                            static_cast<uint32_t>(start_id.value));
   }
@@ -243,8 +245,9 @@ base::StatusOr<std::unique_ptr<Table>> ConnectedFlow::ComputeTable(
   for (size_t i = 0; i < result_rows.size(); i++) {
     start_ids.Append(start_id.value);
   }
-  return tables::ConnectedFlowTable::SelectAndExtendParent(
-      flow, result_rows, std::move(start_ids));
+  return std::unique_ptr<Table>(
+      tables::ConnectedFlowTable::SelectAndExtendParent(flow, result_rows,
+                                                        std::move(start_ids)));
 }
 
 Table::Schema ConnectedFlow::CreateSchema() {

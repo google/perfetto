@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {Engine} from '../../trace_processor/engine';
 import {
   SimpleSliceTrack,
@@ -23,6 +27,7 @@ import {
   SimpleCounterTrack,
   SimpleCounterTrackConfig,
 } from '../../frontend/simple_counter_track';
+import {globals} from '../../frontend/globals';
 
 interface ContainedTrace {
   uuid: string;
@@ -1146,7 +1151,7 @@ const BT_ACTIVITY = `
   from step2
 `;
 
-class AndroidLongBatteryTracing implements Plugin {
+class AndroidLongBatteryTracing implements PerfettoPlugin {
   addSliceTrack(
     ctx: PluginContextTrace,
     name: string,
@@ -1169,13 +1174,11 @@ class AndroidLongBatteryTracing implements Plugin {
     } else {
       uri = `/long_battery_tracing_${name}`;
     }
-    ctx.registerStaticTrack({
+    ctx.registerTrackAndShowOnTraceLoad({
       uri,
       title: name,
-      trackFactory: (trackCtx) => {
-        return new SimpleSliceTrack(ctx.engine, trackCtx, config);
-      },
-      groupName,
+      track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
+      tags: {groupName},
     });
   }
 
@@ -1202,13 +1205,11 @@ class AndroidLongBatteryTracing implements Plugin {
       uri = `/long_battery_tracing_${name}`;
     }
 
-    ctx.registerStaticTrack({
+    ctx.registerTrackAndShowOnTraceLoad({
       uri,
       title: name,
-      trackFactory: (trackCtx) => {
-        return new SimpleCounterTrack(ctx.engine, trackCtx, config);
-      },
-      groupName,
+      track: new SimpleCounterTrack(ctx.engine, {trackUri: uri}, config),
+      tags: {groupName},
     });
   }
 
@@ -1462,6 +1463,41 @@ class AndroidLongBatteryTracing implements Plugin {
       );
 
     const e = ctx.engine;
+
+    if (
+      globals.extraSqlPackages.find((x) => x.name === 'google3') !== undefined
+    ) {
+      await e.query(
+        `INCLUDE PERFETTO MODULE
+            google3.wireless.android.telemetry.trace_extractor.modules.modem_tea_metrics`,
+      );
+      const counters = await e.query(
+        `select distinct name from pixel_modem_counters`,
+      );
+      const countersIt = counters.iter({name: 'str'});
+      for (; countersIt.valid(); countersIt.next()) {
+        this.addCounterTrack(
+          ctx,
+          countersIt.name,
+          `select ts, value from pixel_modem_counters where name = '${countersIt.name}'`,
+          groupName,
+        );
+      }
+      const slices = await e.query(
+        `select distinct track_name from pixel_modem_slices`,
+      );
+      const slicesIt = slices.iter({track_name: 'str'});
+      for (; slicesIt.valid(); slicesIt.next()) {
+        this.addSliceTrack(
+          ctx,
+          it.name,
+          `select ts dur, slice_name as name from pixel_modem_counters
+              where track_name = '${slicesIt.track_name}'`,
+          groupName,
+        );
+      }
+    }
+
     await e.query(MODEM_RIL_STRENGTH);
     await e.query(MODEM_RIL_CHANNELS_PREAMBLE);
 

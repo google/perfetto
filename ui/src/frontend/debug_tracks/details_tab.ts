@@ -19,10 +19,12 @@ import {raf} from '../../core/raf_scheduler';
 import {BottomTab, NewBottomTabArgs} from '../bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../generic_slice_details_tab';
 import {hasArgs, renderArguments} from '../slice_args';
-import {getSlice, SliceDetails, sliceRef} from '../sql/slice';
-import {asSliceSqlId, Utid} from '../sql_types';
-import {getProcessName, getThreadName} from '../thread_and_process_info';
-import {getThreadState, ThreadState, threadStateRef} from '../thread_state';
+import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
+import {asSliceSqlId, Utid} from '../../trace_processor/sql_utils/core_types';
+import {
+  getThreadState,
+  ThreadState,
+} from '../../trace_processor/sql_utils/thread_state';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
 import {
@@ -37,6 +39,10 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {dictToTree, dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
+import {threadStateRef} from '../widgets/thread_state';
+import {getThreadName} from '../../trace_processor/sql_utils/thread';
+import {getProcessName} from '../../trace_processor/sql_utils/process';
+import {sliceRef} from '../widgets/slice';
 
 export const ARG_PREFIX = 'arg_';
 

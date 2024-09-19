@@ -32,11 +32,13 @@
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -222,7 +224,18 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         resp.Send(rpc_response_fn_);
       } else {
         protozero::ConstBytes args = req.query_args();
-        auto it = QueryInternal(args.data, args.size);
+        protos::pbzero::QueryArgs::Decoder query(args.data, args.size);
+        std::string sql = query.sql_query().ToStdString();
+
+        PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
+                          [&](metatrace::Record* r) {
+                            r->AddArg("SQL", sql);
+                            if (query.has_tag()) {
+                              r->AddArg("tag", query.tag());
+                            }
+                          });
+
+        auto it = trace_processor_->ExecuteQuery(sql);
         QueryResultSerializer serializer(std::move(it));
         for (bool has_more = true; has_more;) {
           const auto seq_id = tx_seq_id_++;
@@ -311,6 +324,16 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_REGISTER_SQL_MODULE: {
+      Response resp(tx_seq_id_++, req_type);
+      base::Status status = RegisterSqlModule(req.register_sql_module_args());
+      auto* res = resp->set_register_sql_module_result();
+      if (!status.ok()) {
+        res->set_error(status.message());
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unkown request" response, so the client can do feature
@@ -348,13 +371,14 @@ base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   return trace_processor_->Parse(std::move(data_copy), len);
 }
 
-void Rpc::NotifyEndOfFile() {
+base::Status Rpc::NotifyEndOfFile() {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE,
                     "RPC_NOTIFY_END_OF_FILE");
 
-  trace_processor_->NotifyEndOfFile();
   eof_ = true;
+  RETURN_IF_ERROR(trace_processor_->NotifyEndOfFile());
   MaybePrintProgress();
+  return base::OkStatus();
 }
 
 void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
@@ -386,6 +410,18 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
   ResetTraceProcessorInternal(config);
 }
 
+base::Status Rpc::RegisterSqlModule(protozero::ConstBytes bytes) {
+  protos::pbzero::RegisterSqlModuleArgs::Decoder args(bytes);
+  SqlModule module;
+  module.name = args.top_level_package_name().ToStdString();
+  module.allow_module_override = args.allow_module_override();
+  for (auto it = args.modules(); it; ++it) {
+    protos::pbzero::RegisterSqlModuleArgs::Module::Decoder m(*it);
+    module.files.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
+  }
+  return trace_processor_->RegisterSqlModule(module);
+}
+
 void Rpc::MaybePrintProgress() {
   if (eof_ || bytes_parsed_ - bytes_last_progress_ > kProgressUpdateBytes) {
     bytes_last_progress_ = bytes_parsed_;
@@ -403,18 +439,6 @@ void Rpc::MaybePrintProgress() {
 void Rpc::Query(const uint8_t* args,
                 size_t len,
                 const QueryResultBatchCallback& result_callback) {
-  auto it = QueryInternal(args, len);
-  QueryResultSerializer serializer(std::move(it));
-
-  std::vector<uint8_t> res;
-  for (bool has_more = true; has_more;) {
-    has_more = serializer.Serialize(&res);
-    result_callback(res.data(), res.size(), has_more);
-    res.clear();
-  }
-}
-
-Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
   protos::pbzero::QueryArgs::Decoder query(args, len);
   std::string sql = query.sql_query().ToStdString();
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
@@ -425,7 +449,16 @@ Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
                       }
                     });
 
-  return trace_processor_->ExecuteQuery(sql);
+  auto it = trace_processor_->ExecuteQuery(sql);
+
+  QueryResultSerializer serializer(std::move(it));
+
+  std::vector<uint8_t> res;
+  for (bool has_more = true; has_more;) {
+    has_more = serializer.Serialize(&res);
+    result_callback(res.data(), res.size(), has_more);
+    res.clear();
+  }
 }
 
 void Rpc::RestoreInitialTables() {

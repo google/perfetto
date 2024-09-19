@@ -27,8 +27,6 @@ import {Slice} from '../../public';
 import {STR} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
-export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
-
 const HEAP_PROFILE_ROW = {
   ...BASE_ROW,
   type: STR,

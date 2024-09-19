@@ -52,12 +52,10 @@ import {
 } from './keyboard_event_handler';
 import {publishPermalinkHash} from './publish';
 import {OmniboxMode, PromptOption} from './omnibox_manager';
-import {Utid} from './sql_types';
-import {getThreadInfo} from './thread_and_process_info';
+import {Utid} from '../trace_processor/sql_utils/core_types';
 import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 import {DisposableStack} from '../base/disposable_stack';
-import {addSqlTableTab} from './sql_table_tab';
-import {SqlTables} from './well_known_sql_tables';
+import {getThreadInfo} from '../trace_processor/sql_utils/thread';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;
@@ -135,13 +133,9 @@ export class App implements m.ClassComponent {
   private getFirstUtidOfSelectionOrVisibleWindow(): number {
     const selection = globals.state.selection;
     if (selection.kind === 'area') {
-      const firstThreadStateTrack = selection.tracks.find((trackId) => {
-        return globals.state.tracks[trackId];
-      });
+      for (const trackUri of selection.trackUris) {
+        const trackDesc = globals.trackManager.getTrack(trackUri);
 
-      if (firstThreadStateTrack) {
-        const trackInfo = globals.state.tracks[firstThreadStateTrack];
-        const trackDesc = globals.trackManager.resolveTrackInfo(trackInfo.uri);
         if (
           trackDesc?.tags?.kind === THREAD_STATE_TRACK_KIND &&
           trackDesc?.tags?.utid !== undefined
@@ -317,16 +311,6 @@ export class App implements m.ClassComponent {
       },
     },
     {
-      id: 'perfetto.ShowSliceTable',
-      name: 'Open new slice table tab',
-      callback: () => {
-        addSqlTableTab({
-          table: SqlTables.slice,
-          displayName: 'slice',
-        });
-      },
-    },
-    {
       id: 'perfetto.TogglePerformanceMetrics',
       name: 'Toggle performance metrics',
       callback: () => {
@@ -364,7 +348,6 @@ export class App implements m.ClassComponent {
       id: 'perfetto.RunQuery',
       name: 'Run query',
       callback: () => globals.omnibox.setMode(OmniboxMode.Query),
-      defaultHotkey: '!Mod+O',
     },
     {
       id: 'perfetto.Search',
@@ -397,7 +380,6 @@ export class App implements m.ClassComponent {
       id: 'perfetto.Deselect',
       name: 'Deselect',
       callback: () => {
-        globals.timeline.deselectArea();
         globals.clearSelection();
         globals.dispatch(Actions.removeNote({id: '0'}));
       },
@@ -495,22 +477,22 @@ export class App implements m.ClassComponent {
             // If the current selection is an area which does not cover the
             // entire time range, preserve the list of selected tracks and
             // expand the time range.
-            tracksToSelect = selection.tracks;
+            tracksToSelect = selection.trackUris;
           } else {
             // If the entire time range is already covered, update the selection
             // to cover all tracks.
-            tracksToSelect = Object.keys(globals.state.tracks);
+            tracksToSelect = globals.workspace.flatTracks.map((t) => t.uri);
           }
         } else {
           // If the current selection is not an area, select all.
-          tracksToSelect = Object.keys(globals.state.tracks);
+          tracksToSelect = globals.workspace.flatTracks.map((t) => t.uri);
         }
         const {start, end} = globals.traceContext;
         globals.dispatch(
           Actions.selectArea({
             start,
             end,
-            tracks: tracksToSelect,
+            trackUris: tracksToSelect,
           }),
         );
       },

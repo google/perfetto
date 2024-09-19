@@ -51,7 +51,7 @@ MACHINE_TABLE = Table(
 PROCESS_TABLE = Table(
     python_module=__file__,
     class_name='ProcessTable',
-    sql_name='internal_process',
+    sql_name='__intrinsic_process',
     columns=[
         C('upid', Alias(underlying_column='id')),
         C('pid', CppUint32()),
@@ -129,7 +129,7 @@ PROCESS_TABLE = Table(
 THREAD_TABLE = Table(
     python_module=__file__,
     class_name='ThreadTable',
-    sql_name='internal_thread',
+    sql_name='__intrinsic_thread',
     columns=[
         C('utid', Alias(underlying_column='id')),
         C('tid', CppUint32()),
@@ -291,7 +291,7 @@ FTRACE_EVENT_TABLE = Table(
 ARG_TABLE = Table(
     python_module=__file__,
     class_name='ArgTable',
-    sql_name='internal_args',
+    sql_name='__intrinsic_args',
     columns=[
         C('arg_set_id', CppUint32(), flags=ColumnFlag.SORTED),
         C('flat_key', CppString()),

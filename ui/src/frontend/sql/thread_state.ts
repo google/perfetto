@@ -23,7 +23,7 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {TreeNode} from '../../widgets/tree';
-import {Utid} from '../sql_types';
+import {Utid} from '../../trace_processor/sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 
 // An individual node of the thread state breakdown tree.

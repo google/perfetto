@@ -33,7 +33,7 @@ class PixelModemParser {
   ~PixelModemParser();
 
   base::Status SetDatabase(protozero::ConstBytes);
-  base::Status ParseEvent(int64_t, protozero::ConstBytes);
+  base::Status ParseEvent(int64_t, uint64_t, protozero::ConstBytes);
 
  private:
   TraceProcessorContext* context_ = nullptr;
@@ -41,6 +41,7 @@ class PixelModemParser {
 
   const StringId template_id_;
   const StringId token_id_;
+  const StringId packet_timestamp_id_;
 };
 
 }  // namespace trace_processor

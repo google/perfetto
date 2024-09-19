@@ -13,6 +13,16 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+DROP TABLE IF EXISTS power_profile;
+CREATE TABLE power_profile(
+  device STRING,
+  cpu INT,
+  cluster INT,
+  freq INT,
+  power DOUBLE,
+  UNIQUE(device, cpu, cluster, freq)
+);
+
 SELECT RUN_METRIC('android/power_profile_data/marlin.sql');
 SELECT RUN_METRIC('android/power_profile_data/walleye.sql');
 SELECT RUN_METRIC('android/power_profile_data/taimen.sql');

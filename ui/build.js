@@ -575,9 +575,10 @@ function genServiceWorkerManifestJson() {
 }
 
 function startServer() {
+  const host = cfg.httpServerListenHost == '127.0.0.1' ? 'localhost' : cfg.httpServerListenHost;
   console.log(
       'Starting HTTP server on',
-      `http://${cfg.httpServerListenHost}:${cfg.httpServerListenPort}`);
+      `http://${host}:${cfg.httpServerListenPort}`);
   http.createServer(function(req, res) {
         console.debug(req.method, req.url);
         let uri = req.url.split('?', 1)[0];

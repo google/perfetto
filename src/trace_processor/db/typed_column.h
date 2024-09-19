@@ -17,11 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_TYPED_COLUMN_H_
 #define SRC_TRACE_PROCESSOR_DB_TYPED_COLUMN_H_
 
+#include <cstdint>
+#include <optional>
+#include <type_traits>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/typed_column_internal.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // TypedColumn<T>
 //
@@ -81,21 +90,17 @@ class TypedColumn : public ColumnLegacy {
   template <bool is_string = TH::is_string>
   typename std::enable_if<is_string, NullTermStringView>::type GetString(
       uint32_t row) const {
-    return GetStringAtIdx(overlay().Get(row));
+    return string_pool().Get(storage().Get((overlay().Get(row))));
   }
 
   // Sets the data in the column at index |row|.
   void Set(uint32_t row, non_optional_type v) {
-    SetAtIdx(overlay().Get(row), v);
+    auto serialized = Serializer::Serialize(v);
+    mutable_storage()->Set(overlay().Get(row), serialized);
   }
 
   // Inserts the value at the end of the column.
   void Append(T v) { mutable_storage()->Append(Serializer::Serialize(v)); }
-
-  // Returns the row containing the given value in the Column.
-  std::optional<uint32_t> IndexOf(sql_value_type v) const {
-    return ColumnLegacy::IndexOf(ToSqlValue(v));
-  }
 
   std::vector<T> ToVectorForTesting() const {
     std::vector<T> result(overlay().size());
@@ -131,36 +136,6 @@ class TypedColumn : public ColumnLegacy {
 
   // Cast a Column to TypedColumn or crash if that is unsafe.
   static TypedColumn<T>* FromColumn(ColumnLegacy* column) {
-    return FromColumnInternal<TypedColumn<T>>(column);
-  }
-
-  // Cast a Column to TypedColumn or crash if that is unsafe.
-  static const TypedColumn<T>* FromColumn(const ColumnLegacy* column) {
-    return FromColumnInternal<const TypedColumn<T>>(column);
-  }
-
-  // Public for use by macro tables.
-  void SetAtIdx(uint32_t idx, non_optional_type v) {
-    auto serialized = Serializer::Serialize(v);
-    mutable_storage()->Set(idx, serialized);
-  }
-
-  // Public for use by macro tables.
-  T GetAtIdx(uint32_t idx) const {
-    return Serializer::Deserialize(TH::Get(storage(), idx));
-  }
-
-  template <bool is_string = TH::is_string>
-  typename std::enable_if<is_string, NullTermStringView>::type GetStringAtIdx(
-      uint32_t idx) const {
-    return string_pool().Get(storage().Get(idx));
-  }
-
- private:
-  friend class Table;
-
-  template <typename Output, typename Input>
-  static Output* FromColumnInternal(Input* column) {
     // While casting from a base to derived without constructing as a derived is
     // technically UB, in practice, this is at the heart of protozero (see
     // Message::BeginNestedMessage) so we use it here.
@@ -169,12 +144,20 @@ class TypedColumn : public ColumnLegacy {
 
     if (column->template IsColumnType<stored_type>() &&
         (column->IsNullable() == TH::is_optional) && !column->IsId()) {
-      return static_cast<Output*>(column);
+      return static_cast<TypedColumn<T>*>(column);
     } else {
       PERFETTO_FATAL("Unsafe to convert Column TypedColumn (%s)",
                      column->name());
     }
   }
+
+  // Public for use by macro tables.
+  T GetAtIdx(uint32_t idx) const {
+    return Serializer::Deserialize(TH::Get(storage(), idx));
+  }
+
+ private:
+  friend class Table;
 
   const ColumnStorage<stored_type>& storage() const {
     return ColumnLegacy::storage<stored_type>();
@@ -203,23 +186,6 @@ class IdColumn : public ColumnLegacy {
   // Public for use by macro tables.
   Id GetAtIdx(uint32_t idx) const { return Id(idx); }
 
-  // Static cast a Column to IdColumn or crash if that is likely to be
-  // unsafe.
-  static const IdColumn<Id>* FromColumn(const ColumnLegacy* column) {
-    // While casting from a base to derived without constructing as a derived is
-    // technically UB, in practice, this is at the heart of protozero (see
-    // Message::BeginNestedMessage) so we use it here.
-    static_assert(sizeof(IdColumn<Id>) == sizeof(ColumnLegacy),
-                  "TypedColumn cannot introduce extra state.");
-
-    if (column->IsId()) {
-      return static_cast<const IdColumn<Id>*>(column);
-    } else {
-      PERFETTO_FATAL("Unsafe to convert Column to IdColumn (%s)",
-                     column->name());
-    }
-  }
-
   // Helper functions to create constraints for the given value.
   Constraint eq(uint32_t v) const { return eq_value(SqlValue::Long(v)); }
   Constraint gt(uint32_t v) const { return gt_value(SqlValue::Long(v)); }
@@ -232,7 +198,6 @@ class IdColumn : public ColumnLegacy {
   friend class Table;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_DB_TYPED_COLUMN_H_

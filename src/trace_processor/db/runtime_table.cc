@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -30,6 +31,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -38,7 +40,9 @@
 #include "src/trace_processor/db/column/id_storage.h"
 #include "src/trace_processor/db/column/null_overlay.h"
 #include "src/trace_processor/db/column/numeric_storage.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
 #include "src/trace_processor/db/column/selector_overlay.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/string_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage.h"
@@ -65,8 +69,8 @@ void CreateNonNullableIntsColumn(
     uint32_t col_idx,
     const char* col_name,
     ColumnStorage<int64_t>* ints_storage,
-    std::vector<RefPtr<column::DataLayer>>& storage_layers,
-    std::vector<RefPtr<column::DataLayer>>& overlay_layers,
+    std::vector<RefPtr<column::StorageLayer>>& storage_layers,
+    std::vector<RefPtr<column::OverlayLayer>>& overlay_layers,
     std::vector<ColumnLegacy>& legacy_columns,
     std::vector<ColumnStorageOverlay>& legacy_overlays) {
   const std::vector<int64_t>& values = ints_storage->vector();
@@ -137,9 +141,9 @@ RuntimeTable::RuntimeTable(
     uint32_t row_count,
     std::vector<ColumnLegacy> columns,
     std::vector<ColumnStorageOverlay> overlays,
-    std::vector<RefPtr<column::DataLayer>> storage_layers,
-    std::vector<RefPtr<column::DataLayer>> null_layers,
-    std::vector<RefPtr<column::DataLayer>> overlay_layers)
+    std::vector<RefPtr<column::StorageLayer>> storage_layers,
+    std::vector<RefPtr<column::OverlayLayer>> null_layers,
+    std::vector<RefPtr<column::OverlayLayer>> overlay_layers)
     : Table(pool, row_count, std::move(columns), std::move(overlays)) {
   OnConstructionCompleted(std::move(storage_layers), std::move(null_layers),
                           std::move(overlay_layers));
@@ -367,8 +371,8 @@ void RuntimeTable::Builder::AddNonNullIntegersUnchecked(
 
 base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
     uint32_t rows) && {
-  std::vector<RefPtr<column::DataLayer>> storage_layers(col_names_.size() + 1);
-  std::vector<RefPtr<column::DataLayer>> null_layers(col_names_.size() + 1);
+  std::vector<RefPtr<column::StorageLayer>> storage_layers(col_names_.size() + 1);
+  std::vector<RefPtr<column::OverlayLayer>> null_layers(col_names_.size() + 1);
 
   std::vector<ColumnLegacy> legacy_columns;
   std::vector<ColumnStorageOverlay> legacy_overlays;
@@ -380,7 +384,7 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
   // one overlay per column.
   legacy_overlays.reserve(col_names_.size() + 1);
   legacy_overlays.emplace_back(rows);
-  std::vector<RefPtr<column::DataLayer>> overlay_layers(1);
+  std::vector<RefPtr<column::OverlayLayer>> overlay_layers(1);
 
   for (uint32_t i = 0; i < col_names_.size(); ++i) {
     auto* col = storage_[i].get();

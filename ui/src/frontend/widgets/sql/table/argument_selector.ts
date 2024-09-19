@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,73 +15,54 @@
 import m from 'mithril';
 
 import {raf} from '../../../../core/raf_scheduler';
-import {Engine} from '../../../../trace_processor/engine';
-import {STR} from '../../../../trace_processor/query_result';
-import {
-  constraintsToQueryPrefix,
-  constraintsToQuerySuffix,
-  SQLConstraints,
-} from '../../../../trace_processor/sql_utils';
 import {FilterableSelect} from '../../../../widgets/select';
 import {Spinner} from '../../../../widgets/spinner';
 
-import {argColumn} from './column';
-import {ArgSetIdColumn} from './table_description';
+import {
+  TableColumn,
+  tableColumnId,
+  TableColumnSet,
+  TableManager,
+} from './column';
 
 const MAX_ARGS_TO_DISPLAY = 15;
 
 interface ArgumentSelectorAttrs {
-  engine: Engine;
-  argSetId: ArgSetIdColumn;
-  tableName: string;
-  constraints: SQLConstraints;
-  // List of aliases for existing columns by the table.
-  alreadySelectedColumns: Set<string>;
-  onArgumentSelected: (argument: string) => void;
+  tableManager: TableManager;
+  columnSet: TableColumnSet;
+  alreadySelectedColumnIds: Set<string>;
+  onArgumentSelected: (column: TableColumn) => void;
 }
 
-// A widget which allows the user to select a new argument to display.
-// Dinamically queries Trace Processor to find the relevant set of arg_set_ids
-// and which args are present in these arg sets.
+// This class is responsible for rendering a menu which allows user to select which column out of ColumnSet to add.
 export class ArgumentSelector
   implements m.ClassComponent<ArgumentSelectorAttrs>
 {
-  argList?: string[];
+  columns?: {[key: string]: TableColumn};
 
   constructor({attrs}: m.Vnode<ArgumentSelectorAttrs>) {
     this.load(attrs);
   }
 
   private async load(attrs: ArgumentSelectorAttrs) {
-    const queryResult = await attrs.engine.query(`
-      -- Encapsulate the query in a CTE to avoid clashes between filters
-      -- and columns of the 'args' table.
-      WITH arg_sets AS (
-        ${constraintsToQueryPrefix(attrs.constraints)}
-        SELECT DISTINCT ${attrs.tableName}.${attrs.argSetId.name} as arg_set_id
-        FROM ${attrs.tableName}
-        ${constraintsToQuerySuffix(attrs.constraints)}
-      )
-      SELECT
-        DISTINCT args.key as key
-      FROM arg_sets
-      JOIN args USING (arg_set_id)
-    `);
-    this.argList = [];
-    const it = queryResult.iter({key: STR});
-    for (; it.valid(); it.next()) {
-      const arg = argColumn(attrs.tableName, attrs.argSetId, it.key);
-      if (attrs.alreadySelectedColumns.has(arg.alias)) continue;
-      this.argList.push(it.key);
-    }
+    const potentialColumns = await attrs.columnSet.discover(attrs.tableManager);
+    this.columns = Object.fromEntries(
+      potentialColumns
+        .filter(
+          ({column}) =>
+            !attrs.alreadySelectedColumnIds.has(tableColumnId(column)),
+        )
+        .map(({key, column}) => [key, column]),
+    );
     raf.scheduleFullRedraw();
   }
 
   view({attrs}: m.Vnode<ArgumentSelectorAttrs>) {
-    if (this.argList === undefined) return m(Spinner);
+    const columns = this.columns;
+    if (columns === undefined) return m(Spinner);
     return m(FilterableSelect, {
-      values: this.argList,
-      onSelected: (value: string) => attrs.onArgumentSelected(value),
+      values: Object.keys(columns),
+      onSelected: (value: string) => attrs.onArgumentSelected(columns[value]),
       maxDisplayedItems: MAX_ARGS_TO_DISPLAY,
       autofocusInput: true,
     });

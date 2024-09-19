@@ -28,56 +28,57 @@ export class ThreadAggregationController extends AggregationController {
 
   setThreadStateUtids(tracks: string[]) {
     this.utids = [];
-    for (const trackId of tracks) {
-      const track = globals.state.tracks[trackId];
-      // Track will be undefined for track groups.
-      if (track?.uri) {
-        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.tags?.kind === THREAD_STATE_TRACK_KIND) {
-          exists(trackInfo.tags.utid) && this.utids.push(trackInfo.tags.utid);
-        }
+    for (const trackUri of tracks) {
+      const trackInfo = globals.trackManager.getTrack(trackUri);
+      if (trackInfo?.tags?.kind === THREAD_STATE_TRACK_KIND) {
+        exists(trackInfo.tags.utid) && this.utids.push(trackInfo.tags.utid);
       }
     }
   }
 
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
-    this.setThreadStateUtids(area.tracks);
+    this.setThreadStateUtids(area.trackUris);
     if (this.utids === undefined || this.utids.length === 0) return false;
 
-    const query = `
-      create view ${this.kind} as
-      SELECT
+    await engine.query(`
+      create or replace perfetto table ${this.kind} as
+      select
         process.name as process_name,
-        pid,
+        process.pid,
         thread.name as thread_name,
-        tid,
-        state || ',' || IFNULL(io_wait, 'NULL') as concat_state,
-        sum(dur) AS total_dur,
-        sum(dur)/count(1) as avg_dur,
-        count(1) as occurrences
-      FROM thread
-      JOIN thread_state USING(utid)
-      LEFT JOIN process USING(upid)
-      WHERE utid IN (${this.utids}) AND
-      thread_state.ts + thread_state.dur > ${area.start} AND
-      thread_state.ts < ${area.end}
-      GROUP BY utid, concat_state
-    `;
-
-    await engine.query(query);
+        thread.tid,
+        tstate.state || ',' || ifnull(tstate.io_wait, 'NULL') as concat_state,
+        sum(tstate.dur) AS total_dur,
+        sum(tstate.dur) / count() as avg_dur,
+        count() as occurrences
+      from thread_state tstate
+      join thread using (utid)
+      left join process using (upid)
+      where
+        utid in (${this.utids})
+        and ts + dur > ${area.start}
+        and ts < ${area.end}
+      group by utid, concat_state
+    `);
     return true;
   }
 
   async getExtra(engine: Engine, area: Area): Promise<ThreadStateExtra | void> {
-    this.setThreadStateUtids(area.tracks);
+    this.setThreadStateUtids(area.trackUris);
     if (this.utids === undefined || this.utids.length === 0) return;
 
-    const query = `select state, io_wait as ioWait, sum(dur) as totalDur
-      FROM thread JOIN thread_state USING(utid)
-      WHERE utid IN (${this.utids}) AND thread_state.ts + thread_state.dur > ${area.start} AND
-      thread_state.ts < ${area.end}
-      GROUP BY state, io_wait`;
+    const query = `
+      select
+        state,
+        io_wait as ioWait,
+        sum(dur) as totalDur
+      from thread
+      join thread_state using (utid)
+      where utid in (${this.utids})
+        and thread_state.ts + thread_state.dur > ${area.start}
+        and thread_state.ts < ${area.end}
+      group by state, io_wait
+    `;
     const result = await engine.query(query);
 
     const it = result.iter({

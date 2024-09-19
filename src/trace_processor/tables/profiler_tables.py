@@ -209,39 +209,22 @@ STACK_PROFILE_CALLSITE_TABLE = Table(
                 '''Frame at this position in the callstack.'''
         }))
 
-STACK_SAMPLE_TABLE = Table(
-    python_module=__file__,
-    class_name='StackSampleTable',
-    sql_name='stack_sample',
-    columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
-        C('callsite_id', CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
-    ],
-    tabledoc=TableDoc(
-        doc='''
-          Root table for timestamped stack samples.
-        ''',
-        group='Callstack profilers',
-        columns={
-            'ts': '''timestamp of the sample.''',
-            'callsite_id': '''unwound callstack.'''
-        }))
-
 CPU_PROFILE_STACK_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='CpuProfileStackSampleTable',
     sql_name='cpu_profile_stack_sample',
     columns=[
+        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
+        C('callsite_id', CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
         C('utid', CppUint32()),
         C('process_priority', CppInt32()),
     ],
-    parent=STACK_SAMPLE_TABLE,
     tabledoc=TableDoc(
-        doc='''
-          Samples from the Chromium stack sampler.
-        ''',
+        doc='Table containing stack samples from CPU profiling.',
         group='Callstack profilers',
         columns={
+            'ts': '''timestamp of the sample.''',
+            'callsite_id': '''unwound callstack.''',
             'utid': '''thread that was active when the sample was taken.''',
             'process_priority': ''''''
         }))
@@ -254,9 +237,7 @@ PERF_SESSION_TABLE = Table(
         C('cmdline', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
-        doc='''
-          Perf sessions.
-        ''',
+        doc='''Perf sessions.''',
         group='Callstack profilers',
         columns={
             'cmdline': '''Command line used to collect the data.''',
@@ -276,9 +257,7 @@ PERF_SAMPLE_TABLE = Table(
         C('perf_session_id', CppTableId(PERF_SESSION_TABLE)),
     ],
     tabledoc=TableDoc(
-        doc='''
-          Samples from the traced_perf profiler.
-        ''',
+        doc='''Samples from the traced_perf profiler.''',
         group='Callstack profilers',
         columns={
             'ts':
@@ -667,7 +646,6 @@ ALL_TABLES = [
     STACK_PROFILE_CALLSITE_TABLE,
     STACK_PROFILE_FRAME_TABLE,
     STACK_PROFILE_MAPPING_TABLE,
-    STACK_SAMPLE_TABLE,
     SYMBOL_TABLE,
     VULKAN_MEMORY_ALLOCATIONS_TABLE,
     PERF_COUNTER_TRACK_TABLE,

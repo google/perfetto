@@ -59,7 +59,8 @@ enum TraceProcessorApiVersion {
   // 11. Removal of experimental module from stdlib.
   // 12. Changed UI to be more aggresive about version matching.
   //     Added version_code.
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 12;
+  // 13. Added TPM_REGISTER_SQL_MODULE method.
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 13;
 }
 
 // At lowest level, the wire-format of the RPC protocol is a linear sequence of
@@ -101,6 +102,7 @@ message TraceProcessorRpc {
     TPM_DISABLE_AND_READ_METATRACE = 9;
     TPM_GET_STATUS = 10;
     TPM_RESET_TRACE_PROCESSOR = 11;
+    TPM_REGISTER_SQL_MODULE = 12;
   }
 
   oneof type {
@@ -132,6 +134,8 @@ message TraceProcessorRpc {
     EnableMetatraceArgs enable_metatrace_args = 106;
     // For TPM_RESET_TRACE_PROCESSOR.
     ResetTraceProcessorArgs reset_trace_processor_args = 107;
+    // For TPM_REGISTER_SQL_MODULE.
+    RegisterSqlModuleArgs register_sql_module_args = 108;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -146,6 +150,8 @@ message TraceProcessorRpc {
     DisableAndReadMetatraceResult metatrace = 209;
     // For TPM_GET_STATUS.
     StatusResult status = 210;
+    // For TPM_REGISTER_SQL_MODULE.
+    RegisterSqlModuleResult register_sql_module_result = 211;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -327,4 +333,17 @@ message ResetTraceProcessorArgs {
   optional bool ingest_ftrace_in_raw_table = 2;
   optional bool analyze_trace_proto_content = 3;
   optional bool ftrace_drop_until_all_cpus_valid = 4;
+}
+
+message RegisterSqlModuleArgs {
+  message Module {
+    optional string name = 1;
+    optional string sql = 2;
+  }
+  optional string top_level_package_name = 1;
+  repeated Module modules = 2;
+  optional bool allow_module_override = 3;
+}
+message RegisterSqlModuleResult {
+  optional string error = 1;
 }

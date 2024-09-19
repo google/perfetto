@@ -66,8 +66,10 @@ struct FileToSql {
 
 
 def filename_to_variable(filename: str):
-  return "k" + "".join(
-      [x.capitalize() for x in filename.replace(os.path.sep, '_').split("_")])
+  return "k" + "".join([
+      x.capitalize()
+      for x in filename.replace(os.path.sep, '_').replace('-', '_').split("_")
+  ])
 
 
 def main():

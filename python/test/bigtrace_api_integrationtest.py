@@ -76,9 +76,3 @@ class BigtraceTest(unittest.TestCase):
           f"{self.root_dir}/test/data/api24_startup_cold.perfetto-trace",
           f"{self.root_dir}/test/data/api24_startup_hot.perfetto-trace"
       ], "")
-
-  def test_message_limit_exceeded(self):
-    with self.assertRaises(PerfettoException):
-      result = self.client.query(
-          [f"{self.root_dir}/test/data/long_task_tracking_trace"],
-          "SELECT * FROM slice")

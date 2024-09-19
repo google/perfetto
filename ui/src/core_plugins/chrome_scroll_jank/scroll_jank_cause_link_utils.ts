@@ -23,7 +23,7 @@ import {
   focusHorizontalRange,
   verticalScrollToTrack,
 } from '../../frontend/scroll_helper';
-import {SliceSqlId} from '../../frontend/sql_types';
+import {SliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
@@ -179,19 +179,20 @@ async function getChromeCauseTracks(
 
 export function getCauseLink(
   threadTracks: EventLatencyCauseThreadTracks,
+  tracksByTrackId: Map<number, string>,
   ts: time | undefined,
   dur: duration | undefined,
 ): m.Child {
-  const trackKeys: string[] = [];
+  const trackUris: string[] = [];
   for (const trackId of threadTracks.trackIds) {
-    const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
-    if (trackKey === undefined) {
+    const track = tracksByTrackId.get(trackId);
+    if (track === undefined) {
       return `Could not locate track ${trackId} for thread ${threadTracks.thread} in the global state`;
     }
-    trackKeys.push(trackKey);
+    trackUris.push(track);
   }
 
-  if (trackKeys.length == 0) {
+  if (trackUris.length == 0) {
     return `No valid tracks for thread ${threadTracks.thread}.`;
   }
 
@@ -204,16 +205,15 @@ export function getCauseLink(
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          verticalScrollToTrack(trackKeys[0], true);
+          verticalScrollToTrack(trackUris[0], true);
           if (exists(ts) && exists(dur)) {
             focusHorizontalRange(ts, Time.fromRaw(ts + dur), 0.3);
-            globals.timeline.selectArea(ts, Time.fromRaw(ts + dur), trackKeys);
 
             globals.dispatch(
               Actions.selectArea({
                 start: ts,
                 end: Time.fromRaw(ts + dur),
-                tracks: trackKeys,
+                trackUris,
               }),
             );
           }

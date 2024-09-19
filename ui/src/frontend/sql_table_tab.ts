@@ -17,46 +17,34 @@ import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
 import {Icons} from '../base/semantic_icons';
 import {exists} from '../base/utils';
+import {uuidv4} from '../base/uuid';
+import {addBottomTab} from '../common/addEphemeralTab';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Popup, PopupPosition} from '../widgets/popup';
 
-import {Filter, SqlTableState} from './widgets/sql/table/state';
-import {SqlTable} from './widgets/sql/table/table';
-import {
-  SqlTableDescription,
-  tableDisplayName,
-} from './widgets/sql/table/table_description';
-import {Engine} from '../public';
-import {assertExists} from '../base/logging';
-import {uuidv4} from '../base/uuid';
-import {addEphemeralTab} from '../common/addEphemeralTab';
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
-import {globals} from './globals';
 import {AddDebugTrackMenu} from './debug_tracks/add_debug_track_menu';
+import {getEngine} from './get_engine';
+import {Filter} from './widgets/sql/table/column';
+import {SqlTableState} from './widgets/sql/table/state';
+import {SqlTable} from './widgets/sql/table/table';
+import {SqlTableDescription} from './widgets/sql/table/table_description';
 
-interface SqlTableTabConfig {
+export interface SqlTableTabConfig {
   table: SqlTableDescription;
-  displayName?: string;
   filters?: Filter[];
   imports?: string[];
 }
 
-export function addSqlTableTab(config: SqlTableTabConfig): void {
+export function addSqlTableTabImpl(config: SqlTableTabConfig): void {
   const queryResultsTab = new SqlTableTab({
     config,
-    engine: getEngine(),
+    engine: getEngine('QueryResult'),
     uuid: uuidv4(),
   });
 
-  addEphemeralTab(queryResultsTab, 'sqlTable');
-}
-
-// TODO(stevegolton): Find a way to make this more elegant.
-function getEngine(): Engine {
-  const engConfig = globals.getCurrentEngine();
-  const engineId = assertExists(engConfig).id;
-  return assertExists(globals.engines.get(engineId)).getProxy('QueryResult');
+  addBottomTab(queryResultsTab, 'sqlTable');
 }
 
 export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
@@ -67,12 +55,10 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   constructor(args: NewBottomTabArgs<SqlTableTabConfig>) {
     super(args);
 
-    this.state = new SqlTableState(
-      this.engine,
-      this.config.table,
-      this.config.filters,
-      this.config.imports,
-    );
+    this.state = new SqlTableState(this.engine, this.config.table, {
+      filters: this.config.filters,
+      imports: this.config.imports,
+    });
   }
 
   static create(args: NewBottomTabArgs<SqlTableTabConfig>): SqlTableTab {
@@ -97,7 +83,10 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
         onclick: () => this.state.goForward(),
       }),
     ];
-    const {selectStatement, columns} = this.state.buildSqlSelectStatement();
+    const {selectStatement, columns} = this.state.getCurrentRequest();
+    const debugTrackColumns = Object.values(columns).filter(
+      (c) => !c.startsWith('__'),
+    );
     const addDebugTrack = m(
       Popup,
       {
@@ -106,8 +95,8 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
       },
       m(AddDebugTrackMenu, {
         dataSource: {
-          sqlSource: selectStatement,
-          columns: columns,
+          sqlSource: `SELECT ${debugTrackColumns.join(', ')} FROM (${selectStatement})`,
+          columns: debugTrackColumns,
         },
         engine: this.engine,
       }),
@@ -141,7 +130,7 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   }
 
   private getDisplayName(): string {
-    return this.config.displayName ?? tableDisplayName(this.config.table);
+    return this.config.table.displayName ?? this.config.table.name;
   }
 
   isLoading(): boolean {

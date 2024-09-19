@@ -26,12 +26,13 @@
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for String columns.
-class StringStorage final : public DataLayer {
+class StringStorage final : public StorageLayer {
  public:
   StringStorage(StringPool* string_pool,
                 const std::vector<StringPool::Id>* data,
@@ -39,6 +40,7 @@ class StringStorage final : public DataLayer {
   ~StringStorage() override;
 
   std::unique_ptr<DataLayerChain> MakeChain();
+  StoragePtr GetStoragePtr() override;
 
  private:
   class ChainImpl : public DataLayerChain {
@@ -68,11 +70,7 @@ class StringStorage final : public DataLayer {
 
     std::optional<Token> MinElement(Indices&) const override;
 
-    std::unique_ptr<DataLayer> Flatten(std::vector<uint32_t>&) const override;
-
     SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
-
-    void Serialize(StorageProto*) const override;
 
     uint32_t size() const override {
       return static_cast<uint32_t>(data_->size());

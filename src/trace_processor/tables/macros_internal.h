@@ -24,15 +24,14 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
+#include "src/trace_processor/db/column/overlay_layer.h"
+#include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/table.h"
@@ -86,61 +85,27 @@ class MacroTable : public Table {
   // Constructors for tables created by the regular constructor.
   PERFETTO_NO_INLINE explicit MacroTable(StringPool* pool,
                                          std::vector<ColumnLegacy> columns,
-                                         const MacroTable* parent)
-      : Table(pool, 0u, std::move(columns), EmptyOverlaysFromParent(parent)),
-        allow_inserts_(true),
-        parent_(parent) {}
+                                         const MacroTable* parent);
 
   // Constructor for tables created by SelectAndExtendParent.
   MacroTable(StringPool* pool,
              std::vector<ColumnLegacy> columns,
              const MacroTable& parent,
-             const RowMap& parent_overlay)
-      : Table(pool,
-              parent_overlay.size(),
-              std::move(columns),
-              SelectedOverlaysFromParent(parent, parent_overlay)),
-        allow_inserts_(false),
-        parent_(&parent) {}
+             const RowMap& parent_overlay);
 
   ~MacroTable() override;
 
-  PERFETTO_NO_INLINE void UpdateOverlaysAfterParentInsert() {
-    CopyLastInsertFrom(parent_->overlays());
-  }
+  PERFETTO_NO_INLINE void UpdateOverlaysAfterParentInsert();
 
-  PERFETTO_NO_INLINE void UpdateSelfOverlayAfterInsert() {
-    IncrementRowCountAndAddToLastOverlay();
-  }
+  PERFETTO_NO_INLINE void UpdateSelfOverlayAfterInsert();
 
   PERFETTO_NO_INLINE static std::vector<ColumnLegacy>
   CopyColumnsFromParentOrAddRootColumns(MacroTable* self,
-                                        const MacroTable* parent) {
-    std::vector<ColumnLegacy> columns;
-    if (parent) {
-      for (const ColumnLegacy& col : parent->columns()) {
-        columns.emplace_back(col, col.index_in_table(), col.overlay_index());
-      }
-    } else {
-      columns.emplace_back(ColumnLegacy::IdColumn(0, 0));
-      columns.emplace_back("type", &self->type_, ColumnLegacy::kNonNull, 1, 0);
-    }
-    return columns;
-  }
+                                        const MacroTable* parent);
 
   PERFETTO_NO_INLINE void OnConstructionCompletedRegularConstructor(
-      std::initializer_list<RefPtr<column::DataLayer>> storage_layers,
-      std::initializer_list<RefPtr<column::DataLayer>> null_layers) {
-    std::vector<RefPtr<column::DataLayer>> overlay_layers(
-        OverlayCount(parent_) + 1);
-    for (uint32_t i = 0; i < overlay_layers.size() - 1; ++i) {
-      PERFETTO_CHECK(overlays()[i].row_map().IsBitVector());
-      overlay_layers[i].reset(new column::SelectorOverlay(
-          overlays()[i].row_map().GetIfBitVector()));
-    }
-    Table::OnConstructionCompleted(storage_layers, null_layers,
-                                   std::move(overlay_layers));
-  }
+      std::initializer_list<RefPtr<column::StorageLayer>> storage_layers,
+      std::initializer_list<RefPtr<column::OverlayLayer>> null_layers);
 
   template <typename T>
   PERFETTO_NO_INLINE static void AddColumnToVector(
@@ -178,28 +143,24 @@ class MacroTable : public Table {
 
  private:
   PERFETTO_NO_INLINE static std::vector<ColumnStorageOverlay>
-  EmptyOverlaysFromParent(const MacroTable* parent) {
-    std::vector<ColumnStorageOverlay> overlays(
-        parent ? parent->overlays().size() : 0);
-    for (auto& overlay : overlays) {
-      overlay = ColumnStorageOverlay(BitVector());
-    }
-    overlays.emplace_back();
-    return overlays;
-  }
+  EmptyOverlaysFromParent(const MacroTable* parent);
   PERFETTO_NO_INLINE static std::vector<ColumnStorageOverlay>
   SelectedOverlaysFromParent(const macros_internal::MacroTable& parent,
-                             const RowMap& rm) {
-    std::vector<ColumnStorageOverlay> overlays;
-    for (const auto& overlay : parent.overlays()) {
-      overlays.emplace_back(overlay.SelectRows(rm));
-      PERFETTO_DCHECK(overlays.back().size() == rm.size());
-    }
-    overlays.emplace_back(rm.size());
-    return overlays;
-  }
+                             const RowMap& rm);
 
   const MacroTable* parent_ = nullptr;
+};
+
+class BaseConstIterator {
+ public:
+  explicit operator bool() const;
+  BaseConstIterator& operator++();
+
+ protected:
+  explicit BaseConstIterator(const MacroTable* table, Table::Iterator iterator);
+
+  Table::Iterator iterator_;
+  const MacroTable* table_;
 };
 
 // Abstract iterator class for macro tables.
@@ -208,13 +169,10 @@ template <typename Iterator,
           typename MacroTable,
           typename RowNumber,
           typename ConstRowReference>
-class AbstractConstIterator {
+class AbstractConstIterator : public BaseConstIterator {
  public:
-  explicit operator bool() const { return bool(iterator_); }
-
   Iterator& operator++() {
-    ++iterator_;
-    return *this_it();
+    return static_cast<Iterator&>(BaseConstIterator::operator++());
   }
 
   // Returns a RowNumber for the current row.
@@ -224,23 +182,37 @@ class AbstractConstIterator {
 
   // Returns a ConstRowReference to the current row.
   ConstRowReference row_reference() const {
-    return ConstRowReference(table_, this_it()->CurrentRowNumber());
+    return ConstRowReference(table(), this_it()->CurrentRowNumber());
   }
 
  protected:
   explicit AbstractConstIterator(const MacroTable* table,
                                  Table::Iterator iterator)
-      : iterator_(std::move(iterator)), table_(table) {
-    static_assert(std::is_base_of<Table, MacroTable>::value,
-                  "Template param should be a subclass of Table.");
-  }
+      : BaseConstIterator(table, std::move(iterator)) {}
 
-  Table::Iterator iterator_;
-  const MacroTable* table_;
+  const MacroTable* table() const {
+    return static_cast<const MacroTable*>(table_);
+  }
 
  private:
   Iterator* this_it() { return static_cast<Iterator*>(this); }
   const Iterator* this_it() const { return static_cast<const Iterator*>(this); }
+};
+
+class BaseRowNumber {
+ public:
+  // Converts this object to the underlying int value.
+  uint32_t row_number() const { return row_number_; }
+
+  // Allows sorting + storage in a map/set.
+  bool operator<(const BaseRowNumber& other) const {
+    return row_number_ < other.row_number_;
+  }
+
+ protected:
+  explicit BaseRowNumber(uint32_t row_number) : row_number_(row_number) {}
+
+  uint32_t row_number_ = 0;
 };
 
 // Abstract RowNumber class for macro tables.
@@ -248,13 +220,12 @@ class AbstractConstIterator {
 template <typename MacroTable,
           typename ConstRowReference,
           typename RowReference = void>
-class AbstractRowNumber {
+class AbstractRowNumber : public BaseRowNumber {
  public:
   // Converts this RowNumber to a RowReference for the given |table|.
-  template <
-      typename RR = RowReference,
-      typename = typename std::enable_if<!std::is_same<RR, void>::value>::type>
+  template <typename RR = RowReference>
   RR ToRowReference(MacroTable* table) const {
+    static_assert(!std::is_same_v<RR, void>);
     return RR(table, row_number_);
   }
 
@@ -263,36 +234,34 @@ class AbstractRowNumber {
     return ConstRowReference(&table, row_number_);
   }
 
-  // Converts this object to the underlying int value.
-  uint32_t row_number() const { return row_number_; }
-
-  // Allows sorting + storage in a map/set.
-  bool operator<(const AbstractRowNumber& other) const {
-    return row_number_ < other.row_number_;
-  }
-
  protected:
-  explicit AbstractRowNumber(uint32_t row_number) : row_number_(row_number) {}
+  explicit AbstractRowNumber(uint32_t row_number) : BaseRowNumber(row_number) {}
+};
 
- private:
+class BaseRowReference {
+ protected:
+  BaseRowReference(const MacroTable* table, uint32_t row_number);
+
+  const MacroTable* table_ = nullptr;
   uint32_t row_number_ = 0;
 };
 
 // Abstract ConstRowReference class for macro tables.
 // Extracted to allow sharing with view code.
 template <typename MacroTable, typename RowNumber>
-class AbstractConstRowReference {
+class AbstractConstRowReference : public BaseRowReference {
  public:
   // Converts this RowReference to a RowNumber object which is more memory
   // efficient to store.
   RowNumber ToRowNumber() { return RowNumber(row_number_); }
 
  protected:
-  AbstractConstRowReference(const MacroTable* table, uint32_t row_number)
-      : table_(table), row_number_(row_number) {}
+  const MacroTable* table() const {
+    return static_cast<const MacroTable*>(table_);
+  }
 
-  const MacroTable* table_ = nullptr;
-  uint32_t row_number_ = 0;
+  AbstractConstRowReference(const MacroTable* table, uint32_t row_number)
+      : BaseRowReference(table, row_number) {}
 };
 
 }  // namespace perfetto::trace_processor::macros_internal

@@ -1,0 +1,64 @@
+/*
+ * Copyright (C) 2024 The Android Open Source Project
+ *
+ * Licensed under the Apache License; Version 2.0 (the "License")= ;
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing; software
+ * distributed under the License is distributed on an "AS IS" BASIS;
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND; either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+message AndroidWattsonTimePeriodMetric {
+  optional int32 metric_version = 1;
+  repeated AndroidWattsonEstimateInfo period_info = 2;
+}
+
+message AndroidWattsonEstimateInfo {
+  optional int32 period_id = 1;
+  optional int64 period_dur = 2;
+  optional AndroidWattsonCpuSubsystemEstimate cpu_subsystem = 3;
+}
+
+message AndroidWattsonCpuSubsystemEstimate {
+  // estimates and estimates of subrails
+  optional float estimated_mw = 1;
+  optional AndroidWattsonPolicyEstimate policy0 = 2;
+  optional AndroidWattsonPolicyEstimate policy1 = 3;
+  optional AndroidWattsonPolicyEstimate policy2 = 4;
+  optional AndroidWattsonPolicyEstimate policy3 = 5;
+  optional AndroidWattsonPolicyEstimate policy4 = 6;
+  optional AndroidWattsonPolicyEstimate policy5 = 7;
+  optional AndroidWattsonPolicyEstimate policy6 = 8;
+  optional AndroidWattsonPolicyEstimate policy7 = 9;
+  optional AndroidWattsonDsuScuEstimate dsu_scu = 10;
+}
+
+message AndroidWattsonPolicyEstimate {
+  optional float estimated_mw = 1;
+  optional AndroidWattsonCpuEstimate cpu0 = 2;
+  optional AndroidWattsonCpuEstimate cpu1 = 3;
+  optional AndroidWattsonCpuEstimate cpu2 = 4;
+  optional AndroidWattsonCpuEstimate cpu3 = 5;
+  optional AndroidWattsonCpuEstimate cpu4 = 6;
+  optional AndroidWattsonCpuEstimate cpu5 = 7;
+  optional AndroidWattsonCpuEstimate cpu6 = 8;
+  optional AndroidWattsonCpuEstimate cpu7 = 9;
+}
+
+message AndroidWattsonCpuEstimate {
+  optional float estimated_mw = 1;
+}
+
+message AndroidWattsonDsuScuEstimate {
+  optional float estimated_mw = 1;
+}

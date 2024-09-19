@@ -24,7 +24,7 @@ export interface CurrentSearchResults {
   eventIds: Float64Array;
   tses: BigInt64Array;
   utids: Float64Array;
-  trackKeys: string[];
+  trackUris: string[];
   sources: SearchSource[];
   totalResults: number;
 }

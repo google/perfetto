@@ -24,7 +24,7 @@ import subprocess
 import textwrap
 
 
-def write_cpp_header(gendir, target, descriptor_bytes):
+def write_cpp_header(gendir, target, namespace, descriptor_bytes):
   _, target_name = os.path.split(target)
 
   proto_name = target_name[:-len('.descriptor.h')].title().replace("_", "")
@@ -66,12 +66,12 @@ def write_cpp_header(gendir, target, descriptor_bytes):
 #include <stdint.h>
 #include <array>
 
-namespace perfetto {{
+namespace {namespace} {{
 
-constexpr std::array<uint8_t, {size}> k{proto_name}Descriptor{{
+inline constexpr std::array<uint8_t, {size}> k{proto_name}Descriptor{{
 {binary}}};
 
-}}  // namespace perfetto
+}}  // namespace {namespace}
 
 #endif  // {include_guard}
 """.format(
@@ -79,6 +79,7 @@ constexpr std::array<uint8_t, {size}> k{proto_name}Descriptor{{
         size=len(descriptor_bytes),
         binary=binary,
         include_guard=include_guard,
+        namespace=namespace,
     ).encode())
 
 
@@ -86,12 +87,13 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--cpp_out', required=True)
   parser.add_argument('--gen_dir', default='')
+  parser.add_argument('--namespace', default='perfetto')
   parser.add_argument('descriptor')
   args = parser.parse_args()
 
   with open(args.descriptor, 'rb') as fdescriptor:
     s = fdescriptor.read()
-    write_cpp_header(args.gen_dir, args.cpp_out, s)
+    write_cpp_header(args.gen_dir, args.cpp_out, args.namespace, s)
 
   return 0
 

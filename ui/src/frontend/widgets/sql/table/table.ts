@@ -13,47 +13,72 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {isString} from '../../../../base/object_utils';
+import {SqlTableState} from './state';
+import {
+  filterTitle,
+  SqlColumn,
+  sqlColumnId,
+  TableColumn,
+  tableColumnId,
+  TableManager,
+} from './column';
+import {Button} from '../../../../widgets/button';
+import {Intent} from '../../../../widgets/common';
+import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
+import {ArgumentSelector} from './argument_selector';
+import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
-import {Engine} from '../../../../trace_processor/engine';
-import {Row} from '../../../../trace_processor/query_result';
 import {Anchor} from '../../../../widgets/anchor';
 import {BasicTable} from '../../../../widgets/basic_table';
-import {Button} from '../../../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
 import {Spinner} from '../../../../widgets/spinner';
-
-import {ArgumentSelector} from './argument_selector';
-import {argColumn, Column, columnFromSqlTableColumn} from './column';
-import {renderCell} from './render_cell';
-import {SqlTableState} from './state';
-import {isArgSetIdColumn, SqlTableDescription} from './table_description';
-import {Intent} from '../../../../widgets/common';
+import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {addHistogramTab} from '../../../charts/histogram/tab';
+import {SqlTableDescription} from './table_description';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
 }
 
+function renderCell(
+  column: TableColumn,
+  row: Row,
+  state: SqlTableState,
+): m.Children {
+  const {columns} = state.getCurrentRequest();
+  const sqlValue = row[columns[sqlColumnId(column.primaryColumn())]];
+
+  const additionalValues: {[key: string]: SqlValue} = {};
+  const dependentColumns =
+    column.dependentColumns !== undefined ? column.dependentColumns() : {};
+  for (const [key, col] of Object.entries(dependentColumns)) {
+    additionalValues[key] = row[columns[sqlColumnId(col)]];
+  }
+
+  return column.renderCell(sqlValue, getTableManager(state), additionalValues);
+}
+
+function columnTitle(column: TableColumn): string {
+  if (column.getTitle !== undefined) {
+    const title = column.getTitle();
+    if (title !== undefined) return title;
+  }
+  return sqlColumnId(column.primaryColumn());
+}
+
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
-  private readonly engine: Engine;
 
   private state: SqlTableState;
 
   constructor(vnode: m.Vnode<SqlTableConfig>) {
     this.state = vnode.attrs.state;
-    this.table = this.state.table;
-    this.engine = this.state.engine;
+    this.table = this.state.config;
   }
 
   renderFilters(): m.Children {
     const filters: m.Child[] = [];
     for (const filter of this.state.getFilters()) {
-      const label = isString(filter)
-        ? filter
-        : `Arg(${filter.argName}) ${filter.op}`;
+      const label = filterTitle(filter);
       filters.push(
         m(Button, {
           label,
@@ -68,52 +93,51 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     return filters;
   }
 
-  renderAddColumnOptions(addColumn: (column: Column) => void): m.Children {
+  renderAddColumnOptions(addColumn: (column: TableColumn) => void): m.Children {
     // We do not want to add columns which already exist, so we track the
     // columns which we are already showing here.
     // TODO(altimin): Theoretically a single table can have two different
     // arg_set_ids, so we should track (arg_set_id_column, arg_name) pairs here.
-    const existingColumns = new Set<string>();
+    const existingColumnIds = new Set<string>();
 
     for (const column of this.state.getSelectedColumns()) {
-      existingColumns.add(column.alias);
+      existingColumnIds.add(tableColumnId(column));
     }
 
     const result = [];
     for (const column of this.table.columns) {
-      if (existingColumns.has(column.name)) continue;
-      if (isArgSetIdColumn(column)) {
+      if (column instanceof TableColumn) {
+        if (existingColumnIds.has(tableColumnId(column))) continue;
+        result.push(
+          m(MenuItem, {
+            label: columnTitle(column),
+            onclick: () => addColumn(column),
+          }),
+        );
+      } else {
         result.push(
           m(
             MenuItem,
             {
-              label: column.name,
+              label: column.getTitle(),
             },
             m(ArgumentSelector, {
-              engine: this.engine,
-              argSetId: column,
-              tableName: this.table.name,
-              constraints: this.state.getQueryConstraints(),
-              alreadySelectedColumns: existingColumns,
-              onArgumentSelected: (argument: string) => {
-                addColumn(argColumn(this.table.name, column, argument));
+              alreadySelectedColumnIds: existingColumnIds,
+              tableManager: getTableManager(this.state),
+              columnSet: column,
+              onArgumentSelected: (column: TableColumn) => {
+                addColumn(column);
               },
             }),
           ),
         );
         continue;
       }
-      result.push(
-        m(MenuItem, {
-          label: column.name,
-          onclick: () => addColumn(columnFromSqlTableColumn(column)),
-        }),
-      );
     }
     return result;
   }
 
-  renderColumnHeader(column: Column, index: number) {
+  renderColumnHeader(column: TableColumn, index: number) {
     const sorted = this.state.isSortedBy(column);
     const icon =
       sorted === 'ASC'
@@ -124,14 +148,17 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     return m(
       PopupMenu2,
       {
-        trigger: m(Anchor, {icon}, column.title),
+        trigger: m(Anchor, {icon}, columnTitle(column)),
       },
       sorted !== 'DESC' &&
         m(MenuItem, {
           label: 'Sort: highest first',
           icon: Icons.SortedDesc,
           onclick: () => {
-            this.state.sortBy({column, direction: 'DESC'});
+            this.state.sortBy({
+              column: column.primaryColumn(),
+              direction: 'DESC',
+            });
           },
         }),
       sorted !== 'ASC' &&
@@ -139,7 +166,10 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           label: 'Sort: lowest first',
           icon: Icons.SortedAsc,
           onclick: () => {
-            this.state.sortBy({column, direction: 'ASC'});
+            this.state.sortBy({
+              column: column.primaryColumn(),
+              direction: 'ASC',
+            });
           },
         }),
       sorted !== undefined &&
@@ -158,15 +188,22 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         label: 'Create histogram',
         icon: Icons.Chart,
         onclick: () => {
+          const columnAlias =
+            this.state.getCurrentRequest().columns[
+              sqlColumnId(column.primaryColumn())
+            ];
           addHistogramTab(
             {
-              sqlColumn: column.alias,
-              columnTitle: column.title,
+              sqlColumn: columnAlias,
+              columnTitle: columnTitle(column),
               filters: this.state.getFilters(),
-              tableDisplay: this.table.displayName,
-              query: this.state.buildSqlSelectStatement().selectStatement,
+              tableDisplay: this.table.displayName ?? this.table.name,
+              query: this.state.getSqlQuery(
+                Object.fromEntries([[columnAlias, column.primaryColumn()]]),
+              ),
+              aggregationType: column.aggregation?.().dataType,
             },
-            this.engine,
+            this.state.engine,
           );
         },
       }),
@@ -188,7 +225,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     return [
       m('div', this.renderFilters()),
-      m(BasicTable, {
+      m(BasicTable<Row>, {
         data: rows,
         columns: this.state.getSelectedColumns().map((column, i) => ({
           title: this.renderColumnHeader(column, i),
@@ -202,4 +239,18 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   }
 }
 
-export {SqlTableDescription};
+function getTableManager(state: SqlTableState): TableManager {
+  return {
+    addFilter: (filter) => {
+      state.addFilter(filter);
+    },
+    engine: state.engine,
+    getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+      buildSqlQuery({
+        table: state.config.name,
+        columns,
+        filters: state.getFilters(),
+        orderBy: state.getOrderedBy(),
+      }),
+  };
+}

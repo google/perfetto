@@ -87,7 +87,7 @@ export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
       {
         kind: 'SLICE',
         id: args.slice.id,
-        trackKey: this.trackKey,
+        trackUri: this.uri,
         table: this.tableName,
       },
       {

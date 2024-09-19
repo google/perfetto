@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {TrackContext} from '../../public';
 import {Engine} from '../../trace_processor/engine';
+import {Button} from '../../widgets/button';
+import {globals} from '../globals';
+import {Icons} from '../../base/semantic_icons';
 
 export class DebugCounterTrack extends BaseCounterTrack {
   private readonly sqlTableName: string;
@@ -22,12 +26,23 @@ export class DebugCounterTrack extends BaseCounterTrack {
   constructor(engine: Engine, ctx: TrackContext, tableName: string) {
     super({
       engine,
-      trackKey: ctx.trackKey,
+      uri: ctx.trackUri,
     });
     this.sqlTableName = tableName;
   }
 
   getSqlSource(): string {
     return `select * from ${this.sqlTableName}`;
+  }
+
+  getTrackShellButtons(): m.Children {
+    return m(Button, {
+      onclick: () => {
+        globals.workspace.getTrackByUri(this.uri)?.remove();
+      },
+      icon: Icons.Close,
+      title: 'Close',
+      compact: true,
+    });
   }
 }

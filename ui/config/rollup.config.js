@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
-const {uglify} = require('rollup-plugin-uglify')
+const {uglify} = require('rollup-plugin-uglify');
 const commonjs = require('@rollup/plugin-commonjs');
 const nodeResolve = require('@rollup/plugin-node-resolve');
 const path = require('path');
@@ -61,12 +60,16 @@ function defBundle(tsRoot, bundle, distDir) {
       sourcemaps(),
     ].concat(maybeUglify()),
     onwarn: function (warning, warn) {
-      // Ignore circular dependency warnings coming from third party code.
-      if (
-        warning.code === 'CIRCULAR_DEPENDENCY' &&
-        warning.message.includes('node_modules')
-      ) {
-        return;
+      if (warning.code === 'CIRCULAR_DEPENDENCY') {
+        // Ignore circular dependency warnings coming from third party code.
+        if (warning.message.includes('node_modules')) {
+          return;
+        }
+
+        // Treat all other circular dependency warnings as errors.
+        throw new Error(
+          `Circular dependency detected in ${warning.importer}:\n\n  ${warning.cycle.join('\n  ')}`,
+        );
       }
 
       // Call the default warning handler for all remaining warnings.

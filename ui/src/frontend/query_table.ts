@@ -30,7 +30,7 @@ import {queryResponseToClipboard} from './clipboard';
 import {downloadData} from './download_utils';
 import {globals} from './globals';
 import {Router} from './router';
-import {reveal} from './scroll_helper';
+import {scrollToTrackAndTimeSpan} from './scroll_helper';
 
 interface QueryTableRowAttrs {
   row: Row;
@@ -149,24 +149,31 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const sliceStart = Time.fromRaw(BigInt(row.ts));
     // row.dur can be negative. Clamp to 1ns.
     const sliceDur = BigintMath.max(BigInt(row.dur), 1n);
-    const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
-    if (trackKey !== undefined) {
-      reveal(trackKey, sliceStart, Time.add(sliceStart, sliceDur), true);
+    const trackUri = globals.trackManager
+      .getAllTracks()
+      .find((td) => td.tags?.trackIds?.includes(trackId))?.uri;
+    if (trackUri !== undefined) {
+      scrollToTrackAndTimeSpan(
+        trackUri,
+        sliceStart,
+        Time.add(sliceStart, sliceDur),
+        true,
+      );
       const sliceId = getSliceId(row);
       if (sliceId !== undefined) {
-        this.selectSlice(sliceId, trackKey, switchToCurrentSelectionTab);
+        this.selectSlice(sliceId, trackUri, switchToCurrentSelectionTab);
       }
     }
   }
 
   private selectSlice(
     sliceId: number,
-    trackKey: string,
+    trackUuid: string,
     switchToCurrentSelectionTab: boolean,
   ) {
     const action = Actions.selectSlice({
       id: sliceId,
-      trackKey,
+      trackUri: trackUuid,
       table: 'slice',
     });
     globals.makeSelection(action, {switchToCurrentSelectionTab});

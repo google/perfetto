@@ -21,6 +21,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
@@ -480,8 +481,8 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
 
       for (const FrameId frame_id : frame_ids) {
         auto* frames = context_->storage->mutable_stack_profile_frame_table();
-        uint32_t frame_row = *frames->id().IndexOf(frame_id);
-        frames->mutable_symbol_set_id()->Set(frame_row, symbol_set_id);
+        auto rr = *frames->FindById(frame_id);
+        rr.set_symbol_set_id(symbol_set_id);
         frame_found = true;
       }
     }
@@ -542,10 +543,9 @@ void ProfileModule::ParseDeobfuscationMapping(int64_t,
       for (tables::StackProfileFrameTable::Id frame_id : frames) {
         auto* frames_tbl =
             context_->storage->mutable_stack_profile_frame_table();
-        frames_tbl->mutable_deobfuscated_name()->Set(
-            *frames_tbl->id().IndexOf(frame_id),
-            context_->storage->InternString(
-                base::StringView(merged_deobfuscated)));
+        auto rr = *frames_tbl->FindById(frame_id);
+        rr.set_deobfuscated_name(context_->storage->InternString(
+            base::StringView(merged_deobfuscated)));
       }
       obfuscated_to_deobfuscated_members[context_->storage->InternString(
           member.obfuscated_name())] =

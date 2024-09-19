@@ -26,27 +26,32 @@ export type KeyLookup<T> = (x: T) => string;
 
 // Finds approx matching in arbitrary lists of items.
 export class FuzzyFinder<T> {
-  private items: T[];
-  private keyLookup: KeyLookup<T>;
+  private readonly items: ReadonlyArray<T>;
+  private readonly keyLookup: KeyLookup<T>;
 
   // Because we operate on arbitrary lists, a key lookup function is required to
   // so we know which part of the list is to be be searched. It should return
   // the relevant search string for each item.
-  constructor(items: ArrayLike<T>, keyLookup: KeyLookup<T>) {
-    this.items = Array.from(items);
+  constructor(items: ReadonlyArray<T>, keyLookup: KeyLookup<T>) {
+    this.items = items;
     this.keyLookup = keyLookup;
   }
 
-  // Return a list of all items that match the serch term.
-  find(searchTerm: string): FuzzyResult<T>[] {
+  // Return a list of items that match any of the search terms.
+  find(...searchTerms: string[]): FuzzyResult<T>[] {
     const result: FuzzyResult<T>[] = [];
-    const indicies: number[] = new Array(searchTerm.length);
 
     for (const item of this.items) {
       const key = this.keyLookup(item);
-      if (match(searchTerm, key, indicies)) {
-        const segments = indiciesToSegments(indicies, key);
-        result.push({item, segments});
+      for (const searchTerm of searchTerms) {
+        const indicies: number[] = new Array(searchTerm.length);
+        if (match(searchTerm, key, indicies)) {
+          const segments = indiciesToSegments(indicies, key);
+          result.push({item, segments});
+
+          // Don't try to match any more...
+          break;
+        }
       }
     }
 
@@ -118,4 +123,32 @@ function match(searchTerm: string, text: string, indicies: number[]): boolean {
   }
 
   return success;
+}
+
+export interface FuzzyMatch {
+  matches: boolean;
+  segments: FuzzySegment[];
+}
+
+// Fuzzy match a single piece of text against several search terms.
+// If any of the terms match, the result of the match is true.
+export function fuzzyMatch(
+  text: string,
+  ...searchTerms: ReadonlyArray<string>
+): FuzzyMatch {
+  for (const searchTerm of searchTerms) {
+    const indicies: number[] = new Array(searchTerm.length);
+    if (match(searchTerm, text, indicies)) {
+      const segments = indiciesToSegments(indicies, text);
+      return {
+        matches: true,
+        segments,
+      };
+    }
+  }
+
+  return {
+    matches: false,
+    segments: [],
+  };
 }

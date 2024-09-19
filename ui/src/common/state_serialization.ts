@@ -81,7 +81,7 @@ export function serializeAppState(): SerializedAppState {
   if (stateSel.kind === 'single') {
     selection.push({
       kind: 'TRACK_EVENT',
-      trackKey: stateSel.trackKey,
+      trackKey: stateSel.trackUri,
       eventId: stateSel.eventId.toString(),
     });
   } else if (stateSel.kind === 'legacy') {
@@ -123,7 +123,7 @@ export function serializeAppState(): SerializedAppState {
 
   return {
     version: SERIALIZED_STATE_VERSION,
-    pinnedTracks: globals.state.pinnedTracks,
+    pinnedTracks: globals.workspace.pinnedTracks.map((t) => t.uri),
     viewport: {
       start: vizWindow.start,
       end: vizWindow.end,
@@ -186,16 +186,16 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
       new TimeSpan(appState.viewport.start, appState.viewport.end),
     );
   }
-  globals.store.edit((draft) => {
-    // Restore the pinned tracks, if they exist.
-    const tracksToPin: string[] = [];
-    for (const trackKey of appState.pinnedTracks) {
-      if (trackKey in globals.state.tracks) {
-        tracksToPin.push(trackKey);
-      }
-    }
-    draft.pinnedTracks = tracksToPin;
 
+  // Restore the pinned tracks, if they exist.
+  for (const uri of appState.pinnedTracks) {
+    const track = globals.workspace.getTrackByUri(uri);
+    if (track) {
+      track.pin();
+    }
+  }
+
+  globals.store.edit((draft) => {
     // Restore notes.
     for (const note of appState.notes) {
       const commonArgs = {
@@ -226,7 +226,7 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
         case 'TRACK_EVENT':
           draft.selection = {
             kind: 'single',
-            trackKey: sel.trackKey,
+            trackUri: sel.trackKey,
             eventId: parseInt(sel.eventId),
           };
           break;

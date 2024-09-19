@@ -46,6 +46,7 @@ class TraceProcessorConfig:
   ingest_ftrace_in_raw: bool
   enable_dev_features: bool
   resolver_registry: Optional[ResolverRegistry]
+  extra_flags: Optional[List[str]]
 
   def __init__(self,
                bin_path: Optional[str] = None,
@@ -53,13 +54,15 @@ class TraceProcessorConfig:
                verbose: bool = False,
                ingest_ftrace_in_raw: bool = False,
                enable_dev_features=False,
-               resolver_registry: Optional[ResolverRegistry] = None):
+               resolver_registry: Optional[ResolverRegistry] = None,
+               extra_flags: Optional[List[str]] = None):
     self.bin_path = bin_path
     self.unique_port = unique_port
     self.verbose = verbose
     self.ingest_ftrace_in_raw = ingest_ftrace_in_raw
     self.enable_dev_features = enable_dev_features
     self.resolver_registry = resolver_registry
+    self.extra_flags = extra_flags
 
 
 class TraceProcessor:
@@ -187,7 +190,8 @@ class TraceProcessor:
                                       self.config.verbose,
                                       self.config.ingest_ftrace_in_raw,
                                       self.config.enable_dev_features,
-                                      self.platform_delegate)
+                                      self.platform_delegate,
+                                      self.config.extra_flags)
     return TraceProcessorHttp(url, protos=self.protos)
 
   def _parse_trace(self, trace: TraceReference):

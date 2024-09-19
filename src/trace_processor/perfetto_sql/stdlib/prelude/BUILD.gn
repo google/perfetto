@@ -18,7 +18,9 @@ perfetto_sql_source_set("prelude") {
   sources = [
     "casts.sql",
     "slices.sql",
+    "tables.sql",
     "tables_views.sql",
     "trace_bounds.sql",
+    "views.sql",
   ]
 }

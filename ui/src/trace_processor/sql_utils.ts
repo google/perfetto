@@ -196,7 +196,7 @@ export async function createPerfettoTable(
  *
  * @param engine - The database engine to execute the query.
  * @param viewName - The name of the view to be created.
- * @param expression - The SQL expression to define the table.
+ * @param as - The SQL expression to define the table.
  * @returns An AsyncDisposable which drops the created table when disposed.
  *
  * @example
@@ -214,9 +214,9 @@ export async function createPerfettoTable(
 export async function createView(
   engine: Engine,
   viewName: string,
-  expression: string,
+  as: string,
 ): Promise<AsyncDisposable> {
-  await engine.query(`CREATE VIEW ${viewName} AS ${expression}`);
+  await engine.query(`CREATE VIEW ${viewName} AS ${as}`);
   return {
     [Symbol.asyncDispose]: async () => {
       await engine.tryQuery(`DROP VIEW IF EXISTS ${viewName}`);
@@ -233,6 +233,40 @@ export async function createVirtualTable(
   return {
     [Symbol.asyncDispose]: async () => {
       await engine.tryQuery(`DROP TABLE IF EXISTS ${tableName}`);
+    },
+  };
+}
+
+/**
+ * Asynchronously creates a 'perfetto' index using the given engine and returns
+ * an disposable object to handle its cleanup.
+ *
+ * @param engine - The database engine to execute the query.
+ * @param indexName - The name of the index to be created.
+ * @param expression - The SQL expression containing the table and columns.
+ * @returns An AsyncDisposable which drops the created table when disposed.
+ *
+ * @example
+ * const engine = new Engine();
+ * const indexName = 'my_perfetto_index';
+ * const expression = 'my_perfetto_table(foo)';
+ *
+ * const index = await createPerfettoIndex(engine, indexName, expression);
+ *
+ * // Use the index...
+ *
+ * // Cleanup the index when done
+ * await index[Symbol.asyncDispose]();
+ */
+export async function createPerfettoIndex(
+  engine: Engine,
+  indexName: string,
+  expression: string,
+): Promise<AsyncDisposable> {
+  await engine.query(`create perfetto index ${indexName} on ${expression}`);
+  return {
+    [Symbol.asyncDispose]: async () => {
+      await engine.tryQuery(`drop perfetto index ${indexName}`);
     },
   };
 }

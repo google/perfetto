@@ -37,7 +37,10 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
@@ -174,8 +177,10 @@ std::string GetTokenNamesAllowedInMacro() {
 
 }  // namespace
 
-PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
-    : pool_(pool), engine_(new SqliteEngine()) {
+PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
+    : pool_(pool),
+      enable_extra_checks_(enable_extra_checks),
+      engine_(new SqliteEngine()) {
   // Initialize `perfetto_tables` table, which will contain the names of all of
   // the registered tables.
   char* errmsg_raw = nullptr;
@@ -457,13 +462,112 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
                                   std::move(sql));
 }
 
+base::StatusOr<std::unique_ptr<RuntimeTable>>
+PerfettoSqlEngine::CreateTableImpl(
+    const char* tag,
+    const std::string& name,
+    SqliteEngine::PreparedStatement source,
+    const std::vector<std::string>& column_names,
+    const std::vector<sql_argument::ArgumentDefinition>& schema,
+    CreateTableType create_table_type) {
+  size_t column_count = column_names.size();
+  RuntimeTable::Builder builder(pool_, column_names);
+  uint32_t rows = 0;
+
+  int res;
+  for (res = sqlite3_step(source.sqlite_stmt()); res == SQLITE_ROW;
+       ++rows, res = sqlite3_step(source.sqlite_stmt())) {
+    for (uint32_t i = 0; i < column_count; ++i) {
+      int int_i = static_cast<int>(i);
+      switch (sqlite3_column_type(source.sqlite_stmt(), int_i)) {
+        case SQLITE_NULL:
+          RETURN_IF_ERROR(builder.AddNull(i));
+          break;
+        case SQLITE_INTEGER:
+          RETURN_IF_ERROR(builder.AddInteger(
+              i, sqlite3_column_int64(source.sqlite_stmt(), int_i)));
+          break;
+        case SQLITE_FLOAT:
+          RETURN_IF_ERROR(builder.AddFloat(
+              i, sqlite3_column_double(source.sqlite_stmt(), int_i)));
+          break;
+        case SQLITE_TEXT: {
+          RETURN_IF_ERROR(builder.AddText(
+              i, reinterpret_cast<const char*>(
+                     sqlite3_column_text(source.sqlite_stmt(), int_i))));
+          break;
+        }
+        case SQLITE_BLOB:
+          if (create_table_type == CreateTableType::kValidateOnly) {
+            RETURN_IF_ERROR(builder.AddNull(i));
+            break;
+          } else {
+            return base::ErrStatus(
+                "%s on column '%s' in table '%s': bytes "
+                "columns are not supported",
+                tag, sqlite3_column_name(source.sqlite_stmt(), int_i),
+                name.c_str());
+          }
+      }
+    }
+  }
+  if (res != SQLITE_DONE) {
+    return base::ErrStatus(
+        "%s: SQLite error while creating body for table '%s': %s", tag,
+        name.c_str(), sqlite3_errmsg(engine_->db()));
+  }
+
+  ASSIGN_OR_RETURN(auto table, std::move(builder).Build(rows));
+
+  std::vector<std::string> errors;
+
+  // Validate the column types.
+  if (!schema.empty()) {
+    auto actual_schema = table->schema();
+    for (size_t i = 0; i < column_count; ++i) {
+      SqlValue::Type type = actual_schema.columns[i].type;
+      sql_argument::Type declared_type = schema[i].type();
+      SqlValue::Type effective_declared_type =
+          sql_argument::TypeToSqlValueType(declared_type);
+      if (type != SqlValue::kNull && type != effective_declared_type) {
+        errors.push_back(
+            base::StackString<1024>(
+                "column '%s' declared as %s (%s) in the "
+                "schema, but %s found",
+                column_names[i].c_str(),
+                sql_argument::TypeToHumanFriendlyString(declared_type),
+                sqlite::utils::SqlValueTypeToString(effective_declared_type),
+                sqlite::utils::SqlValueTypeToString(type))
+                .ToStdString());
+      }
+    }
+  }
+
+  // It's really annoying to have errors one-by-one when multiple columns have
+  // incorrect types, so we emit all errors together here.
+  if (!errors.empty()) {
+    if (errors.size() == 1) {
+      return base::ErrStatus("%s(%s): %s", tag, name.c_str(),
+                             errors.front().c_str());
+    }
+    for (std::string& error : errors) {
+      error = "  " + error;
+    }
+    return base::ErrStatus("%s(%s): %zu errors\n%s", tag, name.c_str(),
+                           errors.size(), base::Join(errors, "\n").c_str());
+  }
+
+  return std::move(table);
+}
+
 base::Status PerfettoSqlEngine::ExecuteCreateTable(
     const PerfettoSqlParser::CreateTable& create_table) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
-                    "CREATE_PERFETTO_TABLE",
+                    "CREATE PERFETTO TABLE",
                     [&create_table](metatrace::Record* record) {
-                      record->AddArg("Table", create_table.name);
+                      record->AddArg("table_name", create_table.name);
                     });
+
   auto stmt_or = engine_->PrepareStatement(create_table.sql);
   RETURN_IF_ERROR(stmt_or.status());
   SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
@@ -478,69 +582,11 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
           column_names, create_table.schema, "CREATE PERFETTO TABLE");
   RETURN_IF_ERROR(effective_schema.status());
 
-  size_t column_count = column_names.size();
-  RuntimeTable::Builder builder(pool_, column_names);
-  uint32_t rows = 0;
-
-  int res;
-  for (res = sqlite3_step(stmt.sqlite_stmt()); res == SQLITE_ROW;
-       ++rows, res = sqlite3_step(stmt.sqlite_stmt())) {
-    for (uint32_t i = 0; i < column_count; ++i) {
-      int int_i = static_cast<int>(i);
-      switch (sqlite3_column_type(stmt.sqlite_stmt(), int_i)) {
-        case SQLITE_NULL:
-          RETURN_IF_ERROR(builder.AddNull(i));
-          break;
-        case SQLITE_INTEGER:
-          RETURN_IF_ERROR(builder.AddInteger(
-              i, sqlite3_column_int64(stmt.sqlite_stmt(), int_i)));
-          break;
-        case SQLITE_FLOAT:
-          RETURN_IF_ERROR(builder.AddFloat(
-              i, sqlite3_column_double(stmt.sqlite_stmt(), int_i)));
-          break;
-        case SQLITE_TEXT: {
-          RETURN_IF_ERROR(builder.AddText(
-              i, reinterpret_cast<const char*>(
-                     sqlite3_column_text(stmt.sqlite_stmt(), int_i))));
-          break;
-        }
-        case SQLITE_BLOB:
-          return base::ErrStatus(
-              "CREATE PERFETTO TABLE on column '%s' in table '%s': bytes "
-              "columns are not supported",
-              sqlite3_column_name(stmt.sqlite_stmt(), int_i),
-              create_table.name.c_str());
-      }
-    }
-  }
-  if (res != SQLITE_DONE) {
-    return base::ErrStatus("%s: SQLite error while creating table body: %s",
-                           create_table.name.c_str(),
-                           sqlite3_errmsg(engine_->db()));
-  }
-
-  ASSIGN_OR_RETURN(auto table, std::move(builder).Build(rows));
-
-  // Validate the column types.
-  if (!effective_schema->empty()) {
-    auto actual_schema = table->schema();
-    for (size_t i = 0; i < column_count; ++i) {
-      SqlValue::Type type = actual_schema.columns[i].type;
-      sql_argument::Type declared_type = (*effective_schema)[i].type();
-      SqlValue::Type effective_declared_type =
-          sql_argument::TypeToSqlValueType(declared_type);
-      if (type != SqlValue::kNull && type != effective_declared_type) {
-        return base::ErrStatus(
-            "CREATE PERFETTO TABLE: column '%s' declared as %s (%s) in the "
-            "schema, but %s found",
-            column_names[i].c_str(),
-            sql_argument::TypeToHumanFriendlyString(declared_type),
-            sqlite::utils::SqlValueTypeToString(effective_declared_type),
-            sqlite::utils::SqlValueTypeToString(type));
-      }
-    }
-  }
+  ASSIGN_OR_RETURN(
+      auto table,
+      CreateTableImpl("CREATE PERFETTO TABLE", create_table.name,
+                      std::move(stmt), column_names, *effective_schema,
+                      CreateTableType::kCreateTable));
 
   // TODO(lalitm): unfortunately, in the (very unlikely) event that there is a
   // sqlite3_interrupt call between the DROP and CREATE, we can end up with the
@@ -585,6 +631,11 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
 
 base::Status PerfettoSqlEngine::ExecuteCreateView(
     const PerfettoSqlParser::CreateView& create_view) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "CREATE PERFETTO VIEW",
+                    [&create_view](metatrace::Record* record) {
+                      record->AddArg("view_name", create_view.name);
+                    });
+
   // Verify that the underlying SQL statement is valid.
   auto stmt = sqlite_engine()->PrepareStatement(create_view.select_sql);
   RETURN_IF_ERROR(stmt.status());
@@ -604,10 +655,20 @@ base::Status PerfettoSqlEngine::ExecuteCreateView(
     RETURN_IF_ERROR(maybe_column_names.status());
     std::vector<std::string> column_names = *maybe_column_names;
 
-    RETURN_IF_ERROR(ValidateAndGetEffectiveSchema(column_names,
-                                                  create_view.schema,
-                                                  "CREATE PERFETTO VIEW")
-                        .status());
+    base::StatusOr<std::vector<sql_argument::ArgumentDefinition>>
+        effective_schema = ValidateAndGetEffectiveSchema(
+            column_names, create_view.schema, "CREATE PERFETTO VIEW");
+    RETURN_IF_ERROR(effective_schema.status());
+
+    if (enable_extra_checks_) {
+      // If extra checks are enabled, materialize the view to ensure that its
+      // values are correct.
+      base::StatusOr<std::unique_ptr<RuntimeTable>> materialized =
+          CreateTableImpl("CREATE PERFETTO VIEW", create_view.name,
+                          std::move(stmt), column_names, *effective_schema,
+                          CreateTableType::kValidateOnly);
+      RETURN_IF_ERROR(materialized.status());
+    }
   }
 
   RETURN_IF_ERROR(Execute(create_view.create_view_sql).status());
@@ -629,10 +690,11 @@ base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
 base::Status PerfettoSqlEngine::ExecuteInclude(
     const PerfettoSqlParser::Include& include,
     const PerfettoSqlParser& parser) {
-  std::string key = include.key;
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "Include",
-                    [key](metatrace::Record* r) { r->AddArg("Module", key); });
+  PERFETTO_TP_TRACE(
+      metatrace::Category::QUERY_TIMELINE, "INCLUDE PERFETTO MODULE",
+      [&include](metatrace::Record* r) { r->AddArg("include", include.key); });
 
+  std::string key = include.key;
   if (key == "*") {
     for (auto moduleIt = modules_.GetIterator(); moduleIt; ++moduleIt) {
       RETURN_IF_ERROR(IncludeModuleImpl(moduleIt.value(), key, parser));
@@ -651,13 +713,19 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
 
 base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     const PerfettoSqlParser::CreateIndex& index) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                    "CREATE PERFETTO INDEX",
+                    [&index](metatrace::Record* record) {
+                      record->AddArg("index_name", index.name);
+                      record->AddArg("table_name", index.table_name);
+                      record->AddArg("cols", base::Join(index.col_names, ", "));
+                    });
+
   Table* t = GetMutableTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
   }
-
-  std::vector<Order> obs;
   std::vector<uint32_t> col_idxs;
   for (const std::string& col_name : index.col_names) {
     const std::optional<uint32_t> opt_col = t->ColumnIdxFromName(col_name);
@@ -666,30 +734,26 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
           "CREATE PERFETTO INDEX: Column '%s' not found in table '%s'",
           index.col_names.front().c_str(), index.table_name.c_str());
     }
-    Order o;
-    o.col_idx = *opt_col;
-    obs.push_back(o);
     col_idxs.push_back(*opt_col);
   }
-
-  Query q;
-  q.orders = obs;
-  RowMap sorted_rm = t->QueryToRowMap(q);
-
-  RETURN_IF_ERROR(t->SetIndex(index.name, std::move(col_idxs),
-                              std::move(sorted_rm).TakeAsIndexVector(),
-                              index.replace));
+  RETURN_IF_ERROR(
+      t->CreateIndex(index.name, std::move(col_idxs), index.replace));
   return base::OkStatus();
 }
 
 base::Status PerfettoSqlEngine::ExecuteDropIndex(
     const PerfettoSqlParser::DropIndex& index) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "DROP PERFETTO INDEX",
+                    [&index](metatrace::Record* record) {
+                      record->AddArg("index_name", index.name);
+                      record->AddArg("table_name", index.table_name);
+                    });
+
   Table* t = GetMutableTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("DROP PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
   }
-
   RETURN_IF_ERROR(t->DropIndex(index.name));
   return base::OkStatus();
 }
@@ -744,6 +808,14 @@ base::Status PerfettoSqlEngine::IncludeFileImpl(
 
 base::Status PerfettoSqlEngine::ExecuteCreateFunction(
     const PerfettoSqlParser::CreateFunction& cf) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                    "CREATE PERFETTO FUNCTION",
+                    [&cf](metatrace::Record* record) {
+                      record->AddArg("name", cf.prototype.function_name);
+                      record->AddArg("prototype", cf.prototype.ToString());
+                      record->AddArg("returns", cf.returns);
+                    });
+
   if (!cf.is_table) {
     return RegisterRuntimeFunction(cf.replace, cf.prototype, cf.returns,
                                    cf.sql);
@@ -871,6 +943,12 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
 
 base::Status PerfettoSqlEngine::ExecuteCreateMacro(
     const PerfettoSqlParser::CreateMacro& create_macro) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                    "CREATE PERFETTO MACRO",
+                    [&create_macro](metatrace::Record* record) {
+                      record->AddArg("name", create_macro.name.sql());
+                    });
+
   // Check that the argument types is one of the allowed types.
   for (const auto& [name, type] : create_macro.args) {
     if (!IsTokenAllowedInMacro(type.sql())) {

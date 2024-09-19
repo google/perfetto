@@ -33,7 +33,6 @@ import "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto";
 import "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto";
 import "protos/perfetto/trace/track_event/chrome_user_event.proto";
 import "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto";
-import "protos/perfetto/trace/track_event/pixel_modem.proto";
 import "protos/perfetto/trace/track_event/screenshot.proto";
 import "protos/perfetto/trace/track_event/source_location.proto";
 
@@ -258,7 +257,6 @@ message TrackEvent {
       43;
   optional ChromeActiveProcesses chrome_active_processes = 49;
   optional Screenshot screenshot = 50;
-  optional PixelModemEventInsight pixel_modem_event_insight = 51;
 
   // This field is used only if the source location represents the function that
   // executes during this event.
@@ -409,6 +407,8 @@ message TrackEvent {
   }
 
   optional LegacyEvent legacy_event = 6;
+
+  reserved 51;
 }
 
 // Default values for fields of all TrackEvents on the same packet sequence.

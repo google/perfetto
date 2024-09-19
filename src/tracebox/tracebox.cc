@@ -14,6 +14,16 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/subprocess.h"
@@ -25,10 +35,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_TRACED_PERF)
 #include "src/profiling/perf/traced_perf.h"
 #endif
-
-#include <stdio.h>
-
-#include <tuple>
 
 namespace perfetto {
 namespace {
@@ -77,6 +83,14 @@ See also:
 )");
 }
 
+void PrintTraceboxUsage() {
+  printf(R"(
+Tracebox-specific args
+  --system-sockets      : Forces the use of system-sockets when using autostart
+                          mode. Cannot be used in applet mode.
+)");
+}
+
 int TraceboxMain(int argc, char** argv) {
   // Manual mode: if either the 1st argument (argv[1]) or the exe name (argv[0])
   // match the name of an applet, directly invoke that without further
@@ -104,28 +118,39 @@ int TraceboxMain(int argc, char** argv) {
     return 1;
   }
 
-  auto pid_str = std::to_string(static_cast<uint64_t>(base::GetProcessId()));
+  auto* end = std::remove_if(argv, argv + argc, [](char* arg) {
+    return !strcmp(arg, "--system-sockets");
+  });
+  if (end < (argv + argc - 1)) {
+    PERFETTO_ELOG("Cannot specify --system-sockets multiple times");
+    return 1;
+  }
+  if (bool system_sockets = end == (argv + argc - 1); system_sockets) {
+    argc--;
+  } else {
+    auto pid_str = std::to_string(static_cast<uint64_t>(base::GetProcessId()));
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // Use an unlinked abstract domain socket on Linux/Android.
-  std::string consumer_socket = "@traced-c-" + pid_str;
-  std::string producer_socket = "@traced-p-" + pid_str;
+    // Use an unlinked abstract domain socket on Linux/Android.
+    std::string consumer_socket = "@traced-c-" + pid_str;
+    std::string producer_socket = "@traced-p-" + pid_str;
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-  std::string consumer_socket = "/tmp/traced-c-" + pid_str;
-  std::string producer_socket = "/tmp/traced-p-" + pid_str;
+    std::string consumer_socket = "/tmp/traced-c-" + pid_str;
+    std::string producer_socket = "/tmp/traced-p-" + pid_str;
 #else
-  PERFETTO_FATAL("The autostart mode is not supported on this platform");
+    PERFETTO_FATAL("The autostart mode is not supported on this platform");
 #endif
 
-  // If the caller has set the PERFETTO_*_SOCK_NAME, respect those.
-  const char* env;
-  if ((env = getenv("PERFETTO_CONSUMER_SOCK_NAME")))
-    consumer_socket = env;
-  if ((env = getenv("PERFETTO_PRODUCER_SOCK_NAME")))
-    producer_socket = env;
-
-  base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket);
-  base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket);
+    // If the caller has set the PERFETTO_*_SOCK_NAME, respect those.
+    if (const char* env = getenv("PERFETTO_CONSUMER_SOCK_NAME"); env) {
+      consumer_socket = env;
+    }
+    if (const char* env = getenv("PERFETTO_PRODUCER_SOCK_NAME"); env) {
+      producer_socket = env;
+    }
+    base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket);
+    base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket);
+  }
 
   PerfettoCmd perfetto_cmd;
 
@@ -135,8 +160,12 @@ int TraceboxMain(int argc, char** argv) {
   // the backgrounded cmdline client will also kill the other services, as they
   // will live in the same background session.
   auto opt_res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
-  if (opt_res.has_value())
+  if (opt_res.has_value()) {
+    if (*opt_res != 0) {
+      PrintTraceboxUsage();
+    }
     return *opt_res;
+  }
 
   std::string self_path = base::GetCurExecutablePath();
   base::Subprocess traced({self_path, "traced"});
@@ -206,8 +235,7 @@ int TraceboxMain(int argc, char** argv) {
   traced_perf_sync_pipe.wr.reset();
 
   std::string traced_perf_notify_msg;
-  base::ReadPlatformHandle(*traced_perf_sync_pipe.rd,
-                           &traced_perf_notify_msg);
+  base::ReadPlatformHandle(*traced_perf_sync_pipe.rd, &traced_perf_notify_msg);
   if (traced_perf_notify_msg != "1")
     PERFETTO_FATAL(
         "The traced_perf service failed unexpectedly. Check the logs");

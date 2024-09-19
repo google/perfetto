@@ -188,6 +188,10 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
   ps_config->set_name("linux.process_stats");
   ps_config->set_target_buffer(0);
 
+  auto* sysinfo_config = config->add_data_sources()->mutable_config();
+  sysinfo_config->set_name("linux.system_info");
+  sysinfo_config->set_target_buffer(0);
+
   return true;
 }
 

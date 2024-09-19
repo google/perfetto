@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {getThreadOrProcUri} from '../../public/utils';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 
@@ -28,7 +32,7 @@ import {
 } from './process_summary_track';
 
 // This plugin now manages both process "scheduling" and "summary" tracks.
-class ProcessSummaryPlugin implements Plugin {
+class ProcessSummaryPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
     await this.addKernelThreadSummary(ctx);
@@ -121,9 +125,7 @@ class ProcessSummaryPlugin implements Plugin {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
           chips,
-          trackFactory: () => {
-            return new ProcessSchedulingTrack(ctx.engine, config, cpuCount);
-          },
+          track: new ProcessSchedulingTrack(ctx.engine, config, cpuCount),
           subtitle,
         });
       } else {
@@ -140,7 +142,7 @@ class ProcessSummaryPlugin implements Plugin {
             kind: PROCESS_SUMMARY_TRACK,
           },
           chips,
-          trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
+          track: new ProcessSummaryTrack(ctx.engine, config),
           subtitle,
         });
       }
@@ -198,7 +200,7 @@ class ProcessSummaryPlugin implements Plugin {
       tags: {
         kind: PROCESS_SUMMARY_TRACK,
       },
-      trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
+      track: new ProcessSummaryTrack(ctx.engine, config),
     });
   }
 }

@@ -34,6 +34,7 @@ source_set("sorter") {
     "../importers/common:trace_parser_hdr",
     "../importers/fuchsia:fuchsia_record",
     "../importers/perf:record",
+    "../importers/proto:packet_sequence_state_generation_hdr",
     "../importers/systrace:systrace_line",
     "../storage",
     "../types",

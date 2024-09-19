@@ -264,7 +264,7 @@ PreprocessInliningInfo(trace_processor::TraceProcessor* tp,
     int64_t symbol_set_id = it.Get(0).AsLong();
     auto func_sysname = it.Get(1).is_null() ? "" : it.Get(1).AsString();
     auto filename = it.Get(2).is_null() ? "" : it.Get(2).AsString();
-    int64_t line_no = it.Get(3).AsLong();
+    int64_t line_no = it.Get(3).is_null() ? 0 : it.Get(3).AsLong();
 
     inlines[symbol_set_id].emplace_back(interner->InternString(func_sysname),
                                         interner->InternString(filename),

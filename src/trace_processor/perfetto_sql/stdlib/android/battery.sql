@@ -18,13 +18,13 @@ CREATE PERFETTO VIEW android_battery_charge(
   -- Timestamp.
   ts INT,
   -- Current average micro ampers.
-  current_avg_ua INT,
+  current_avg_ua DOUBLE,
   -- Current capacity percentage.
-  capacity_percent INT,
+  capacity_percent DOUBLE,
   -- Current charge in micro ampers.
-  charge_uah INT,
+  charge_uah DOUBLE,
   -- Current micro ampers.
-  current_ua INT
+  current_ua DOUBLE
 )  AS
 SELECT
   all_ts.ts,

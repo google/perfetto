@@ -53,9 +53,9 @@ class EventTrackerTest : public ::testing::Test {
 TEST_F(EventTrackerTest, CounterDuration) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
-  StringId name_id = kNullStringId;
 
-  TrackId track = context.track_tracker->InternCpuCounterTrack(name_id, cpu);
+  TrackId track = context.track_tracker->InternCpuCounterTrack(
+      TrackTracker::CpuCounterTrackType::kFrequency, cpu);
   context.event_tracker->PushCounter(timestamp, 1000, track);
   context.event_tracker->PushCounter(timestamp + 1, 4000, track);
   context.event_tracker->PushCounter(timestamp + 3, 5000, track);
@@ -63,15 +63,20 @@ TEST_F(EventTrackerTest, CounterDuration) {
 
   ASSERT_EQ(context.storage->counter_track_table().row_count(), 1ul);
 
-  ASSERT_EQ(context.storage->counter_table().row_count(), 4ul);
-  ASSERT_EQ(context.storage->counter_table().ts()[0], timestamp);
-  ASSERT_DOUBLE_EQ(context.storage->counter_table().value()[0], 1000);
+  const auto& counter = context.storage->counter_table();
+  ASSERT_EQ(counter.row_count(), 4ul);
 
-  ASSERT_EQ(context.storage->counter_table().ts()[1], timestamp + 1);
-  ASSERT_DOUBLE_EQ(context.storage->counter_table().value()[1], 4000);
+  auto rr = counter[0];
+  ASSERT_EQ(rr.ts(), timestamp);
+  ASSERT_DOUBLE_EQ(rr.value(), 1000);
 
-  ASSERT_EQ(context.storage->counter_table().ts()[2], timestamp + 3);
-  ASSERT_DOUBLE_EQ(context.storage->counter_table().value()[2], 5000);
+  rr = counter[1];
+  ASSERT_EQ(rr.ts(), timestamp + 1);
+  ASSERT_DOUBLE_EQ(rr.value(), 4000);
+
+  rr = counter[2];
+  ASSERT_EQ(rr.ts(), timestamp + 3);
+  ASSERT_DOUBLE_EQ(rr.value(), 5000);
 }
 
 }  // namespace

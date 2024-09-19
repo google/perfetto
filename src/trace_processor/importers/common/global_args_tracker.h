@@ -17,10 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 
+#include <cstdint>
+#include <type_traits>
+#include <vector>
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
@@ -123,19 +128,19 @@ class GlobalArgsTracker {
       hash.Update(ArgHasher()(args[i]));
     }
 
-    auto* arg_table = storage_->mutable_arg_table();
+    auto& arg_table = *storage_->mutable_arg_table();
 
     ArgSetHash digest = hash.digest();
     auto it_and_inserted =
-        arg_row_for_hash_.Insert(digest, arg_table->row_count());
+        arg_row_for_hash_.Insert(digest, arg_table.row_count());
     if (!it_and_inserted.second) {
       // Already inserted.
-      return arg_table->arg_set_id()[*it_and_inserted.first];
+      return arg_table[*it_and_inserted.first].arg_set_id();
     }
 
     // Taking size() after the Insert() ensures that nothing has an id == 0
     // (0 == kInvalidArgSetId).
-    ArgSetId id = static_cast<uint32_t>(arg_row_for_hash_.size());
+    auto id = static_cast<uint32_t>(arg_row_for_hash_.size());
     for (uint32_t i : valid_indexes) {
       const auto& arg = args[i];
 
@@ -169,7 +174,7 @@ class GlobalArgsTracker {
           break;
       }
       row.value_type = storage_->GetIdForVariadicType(arg.value.type);
-      arg_table->Insert(row);
+      arg_table.Insert(row);
     }
     return id;
   }

@@ -18,8 +18,7 @@
 
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 void TrackEventSequenceState::SetThreadDescriptor(
     const protos::pbzero::ThreadDescriptor::Decoder& decoder) {
@@ -33,5 +32,4 @@ void TrackEventSequenceState::SetThreadDescriptor(
   thread_instruction_count_ = decoder.reference_thread_instruction_count();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

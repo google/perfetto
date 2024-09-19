@@ -15,6 +15,6 @@
 import {Engine} from '../trace_processor/engine';
 
 export interface NewTrackArgs {
-  trackKey: string;
+  uri: string;
   engine: Engine;
 }

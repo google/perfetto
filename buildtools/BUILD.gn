@@ -1572,4 +1572,18 @@ if (enable_perfetto_grpc) {
       rebase_path("grpc/src/include", root_build_dir),
     ]
   }
+  config("cpp_httplib_config") {
+    visibility = _buildtools_visibility
+    cflags = [
+      perfetto_isystem_cflag,
+      rebase_path("cpp-httplib", root_build_dir),
+    ]
+  }
+
+  source_set("cpp_httplib") {
+    visibility = _buildtools_visibility
+    sources = [ "cpp-httplib/httplib.h" ]
+    public_configs = [ ":cpp_httplib_config" ]
+    deps = [ "//gn:default_deps" ]
+  }
 }

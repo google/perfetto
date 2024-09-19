@@ -43,6 +43,7 @@ struct DecodedMessage {
   ProtoLogLevel log_level;
   std::string group_tag;
   std::string message;
+  std::optional<std::string> location;
 };
 
 struct TrackedGroup {
@@ -53,6 +54,7 @@ struct TrackedMessage {
   ProtoLogLevel level;
   uint32_t group_id;
   std::string message;
+  std::optional<std::string> location;
 };
 
 class ProtoLogMessageDecoder : public Destructible {
@@ -80,7 +82,8 @@ class ProtoLogMessageDecoder : public Destructible {
   void TrackMessage(uint64_t message_id,
                     ProtoLogLevel level,
                     uint32_t group_id,
-                    const std::string& message);
+                    const std::string& message,
+                    const std::optional<std::string>& location);
 
  private:
   base::FlatHashMap<uint64_t, TrackedGroup> tracked_groups_;

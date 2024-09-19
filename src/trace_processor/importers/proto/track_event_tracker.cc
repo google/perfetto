@@ -16,15 +16,29 @@
 
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 
+#include <algorithm>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <optional>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
@@ -64,7 +78,6 @@ void TrackEventTracker::ReserveDescriptorProcessTrack(uint64_t uuid,
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return;
   }
-
   it->second.min_timestamp = std::min(it->second.min_timestamp, timestamp);
 }
 
@@ -190,9 +203,10 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrack(
   // Update the name of the track if unset and the track is not the primary
   // track of a process/thread or a counter track.
   auto* tracks = context_->storage->mutable_track_table();
-  uint32_t row = *tracks->id().IndexOf(*track_id);
-  if (!tracks->name()[row].is_null())
+  auto rr = *tracks->FindById(*track_id);
+  if (!rr.name().is_null()) {
     return track_id;
+  }
 
   // Check reservation for track type.
   auto reservation_it = reserved_descriptor_tracks_.find(uuid);
@@ -202,9 +216,8 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrack(
       reservation_it->second.is_counter) {
     return track_id;
   }
-  const StringId track_name =
-      context_->process_track_translation_table->TranslateName(event_name);
-  tracks->mutable_name()->Set(row, track_name);
+  rr.set_name(
+      context_->process_track_translation_table->TranslateName(event_name));
   return track_id;
 }
 
@@ -385,7 +398,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(
     // seen in the recursion.
     std::unique_ptr<std::vector<uint64_t>> owned_descendent_uuids;
     if (!descendent_uuids) {
-      owned_descendent_uuids.reset(new std::vector<uint64_t>());
+      owned_descendent_uuids = std::make_unique<std::vector<uint64_t>>();
       descendent_uuids = owned_descendent_uuids.get();
     }
     descendent_uuids->push_back(uuid);
@@ -633,5 +646,4 @@ TrackEventTracker::ResolvedDescriptorTrack::Global(bool is_counter,
   return track;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

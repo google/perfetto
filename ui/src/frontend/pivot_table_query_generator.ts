@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+import {assertExists} from '../base/logging';
 import {sqliteString} from '../base/string_utils';
 import {Area, PivotTableQuery, PivotTableState} from '../common/state';
 import {getSelectedTrackKeys} from '../controller/aggregation/slice_aggregation_controller';
 
 import {Aggregation, TableColumn} from './pivot_table_types';
-import {SqlTables} from './well_known_sql_tables';
+import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 
 export interface Table {
   name: string;
@@ -28,7 +29,7 @@ export interface Table {
 }
 
 export const sliceTable = {
-  name: SqlTables.slice.name,
+  name: '_slice_with_process_and_thread_info',
   displayName: 'slice',
   columns: [
     'type',
@@ -85,11 +86,19 @@ function aggregationAlias(aggregationIndex: number): string {
   return `agg_${aggregationIndex}`;
 }
 
-export function areaFilters(area: Area): string[] {
+export function areaFilters(
+  area: Area,
+): {op: (cols: string[]) => string; columns: string[]}[] {
   return [
-    `ts + dur > ${area.start}`,
-    `ts < ${area.end}`,
-    `track_id in (${getSelectedTrackKeys(area).join(', ')})`,
+    {
+      op: (cols) => `${cols[0]} + ${cols[1]} > ${area.start}`,
+      columns: ['ts', 'dur'],
+    },
+    {op: (cols) => `${cols[0]} < ${area.end}`, columns: ['ts']},
+    {
+      op: (cols) => `${cols[0]} in (${getSelectedTrackKeys(area).join(', ')})`,
+      columns: ['track_id'],
+    },
   ];
 }
 
@@ -98,7 +107,10 @@ export function expression(column: TableColumn): string {
     case 'regular':
       return `${column.table}.${column.column}`;
     case 'argument':
-      return extractArgumentExpression(column.argument, SqlTables.slice.name);
+      return extractArgumentExpression(
+        column.argument,
+        assertExists(getSqlTableDescription('slice')).name,
+      );
   }
 }
 
@@ -152,14 +164,16 @@ export function generateQueryFromState(
   }
 
   const whereClause = state.constrainToArea
-    ? `where ${areaFilters(state.selectionArea).join(' and\n')}`
+    ? `where ${areaFilters(state.selectionArea)
+        .map((f) => f.op(f.columns))
+        .join(' and\n')}`
     : '';
   const text = `
     INCLUDE PERFETTO MODULE slices.slices;
 
     select
       ${renderedPivots.concat(aggregations).join(',\n')}
-    from ${SqlTables.slice.name}
+    from ${assertExists(getSqlTableDescription('slice')).name}
     ${whereClause}
     group by ${renderedPivots.join(', ')}
     ${sortClauses.length > 0 ? 'order by ' + sortClauses.join(', ') : ''}

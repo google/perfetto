@@ -18,6 +18,7 @@
 
 #include <fcntl.h>
 
+#include <charconv>
 #include <cinttypes>
 #include <limits>
 #include <memory>
@@ -85,39 +86,27 @@ constexpr const char* kDefaultSymbolizer = "llvm-symbolizer";
 namespace perfetto {
 namespace profiling {
 
-std::vector<std::string> GetLines(
-    std::function<int64_t(char*, size_t)> fn_read) {
-  std::vector<std::string> lines;
+namespace {
+
+std::string GetLine(std::function<int64_t(char*, size_t)> fn_read) {
+  std::string line;
   char buffer[512];
   int64_t rd = 0;
-  // Cache the partial line of the previous read.
-  std::string last_line;
   while ((rd = fn_read(buffer, sizeof(buffer))) > 0) {
     std::string data(buffer, static_cast<size_t>(rd));
-    // Create stream buffer of last partial line + new data
-    std::stringstream stream(last_line + data);
-    std::string line;
-    last_line = "";
-    while (std::getline(stream, line)) {
-      // Return from reading when we read an empty line.
-      if (line.empty()) {
-        return lines;
-      } else if (stream.eof()) {
-        // Cache off the partial line when we hit end of stream.
-        last_line += line;
-        break;
-      } else {
-        lines.push_back(line);
-      }
+    line += data;
+    if (line.back() == '\n') {
+      break;
     }
+    // There should be no intermediate new lines in the read data.
+    PERFETTO_DCHECK(line.find('\n') == std::string::npos);
   }
   if (rd == -1) {
     PERFETTO_ELOG("Failed to read data from subprocess.");
   }
-  return lines;
+  return line;
 }
 
-namespace {
 bool InRange(const void* base,
              size_t total_size,
              const void* ptr,
@@ -127,7 +116,7 @@ bool InRange(const void* base,
 }
 
 template <typename E>
-std::optional<uint64_t> GetLoadBias(void* mem, size_t size) {
+std::optional<uint64_t> GetElfLoadBias(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
     PERFETTO_ELOG("Corrupted ELF.");
@@ -147,7 +136,7 @@ std::optional<uint64_t> GetLoadBias(void* mem, size_t size) {
 }
 
 template <typename E>
-std::optional<std::string> GetBuildId(void* mem, size_t size) {
+std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
     PERFETTO_ELOG("Corrupted ELF.");
@@ -213,13 +202,77 @@ bool IsElf(const char* mem, size_t size) {
           mem[EI_MAG2] == ELFMAG2 && mem[EI_MAG3] == ELFMAG3);
 }
 
-struct BuildIdAndLoadBias {
-  std::string build_id;
-  uint64_t load_bias;
+constexpr uint32_t kMachO64Magic = 0xfeedfacf;
+
+bool IsMachO64(const char* mem, size_t size) {
+  if (size < sizeof(kMachO64Magic))
+    return false;
+  return memcmp(mem, &kMachO64Magic, sizeof(kMachO64Magic)) == 0;
+}
+
+struct mach_header_64 {
+  uint32_t magic;      /* mach magic number identifier */
+  int32_t cputype;     /* cpu specifier */
+  int32_t cpusubtype;  /* machine specifier */
+  uint32_t filetype;   /* type of file */
+  uint32_t ncmds;      /* number of load commands */
+  uint32_t sizeofcmds; /* the size of all the load commands */
+  uint32_t flags;      /* flags */
+  uint32_t reserved;   /* reserved */
 };
 
-std::optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
-                                                        size_t size) {
+struct load_command {
+  uint32_t cmd;     /* type of load command */
+  uint32_t cmdsize; /* total size of command in bytes */
+};
+
+struct BinaryInfo {
+  std::string build_id;
+  uint64_t load_bias;
+  BinaryType type;
+};
+
+std::optional<std::string> GetMachOUuid(char* mem, size_t size) {
+  if (size < sizeof(mach_header_64))
+    return {};
+
+  mach_header_64 header;
+  memcpy(&header, mem, sizeof(mach_header_64));
+
+  if (size < sizeof(mach_header_64) + header.sizeofcmds)
+    return {};
+
+  char* cmd = mem + sizeof(mach_header_64);
+  char* cmds_end = cmd + header.sizeofcmds;
+  while (cmd < cmds_end) {
+    load_command cmd_header;
+    memcpy(&cmd_header, cmd, sizeof(load_command));
+
+    if (cmd_header.cmd == 0x1b) {
+      return std::string(cmd + sizeof(load_command),
+                         cmd_header.cmdsize - sizeof(load_command));
+    }
+
+    cmd += cmd_header.cmdsize;
+  }
+
+  return {};
+}
+
+std::optional<BinaryType> GetMachOBinaryType(char* mem, size_t size) {
+  if (size < sizeof(mach_header_64))
+    return {};
+
+  mach_header_64 header;
+  memcpy(&header, mem, sizeof(mach_header_64));
+
+  constexpr uint32_t MH_DSYM = 0xa;
+
+  return header.filetype == MH_DSYM ? BinaryType::kMachODsym
+                                    : BinaryType::kMachO;
+}
+
+std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
   static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
   if (size <= EI_CLASS)
     return std::nullopt;
@@ -230,25 +283,30 @@ std::optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
   }
   char* mem = static_cast<char*>(map.data());
 
-  if (!IsElf(mem, size))
-    return std::nullopt;
-
   std::optional<std::string> build_id;
   std::optional<uint64_t> load_bias;
-  switch (mem[EI_CLASS]) {
-    case ELFCLASS32:
-      build_id = GetBuildId<Elf32>(mem, size);
-      load_bias = GetLoadBias<Elf32>(mem, size);
-      break;
-    case ELFCLASS64:
-      build_id = GetBuildId<Elf64>(mem, size);
-      load_bias = GetLoadBias<Elf64>(mem, size);
-      break;
-    default:
-      return std::nullopt;
+  std::optional<BinaryType> type;
+  if (IsElf(mem, size)) {
+    switch (mem[EI_CLASS]) {
+      case ELFCLASS32:
+        build_id = GetElfBuildId<Elf32>(mem, size);
+        load_bias = GetElfLoadBias<Elf32>(mem, size);
+        break;
+      case ELFCLASS64:
+        build_id = GetElfBuildId<Elf64>(mem, size);
+        load_bias = GetElfLoadBias<Elf64>(mem, size);
+        break;
+      default:
+        return std::nullopt;
+    }
+    type = BinaryType::kElf;
+  } else if (IsMachO64(mem, size)) {
+    build_id = GetMachOUuid(mem, size);
+    load_bias = {0};
+    type = GetMachOBinaryType(mem, size);
   }
-  if (build_id && load_bias) {
-    return BuildIdAndLoadBias{*build_id, *load_bias};
+  if (build_id && load_bias && type) {
+    return BinaryInfo{*build_id, *load_bias, *type};
   }
   return std::nullopt;
 }
@@ -256,6 +314,7 @@ std::optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
 std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
   std::map<std::string, FoundBinary> result;
   WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
+    static_assert(EI_MAG3 + 1 == sizeof(kMachO64Magic));
     char magic[EI_MAG3 + 1];
     // Scope file access. On windows OpenFile opens an exclusive lock.
     // This lock needs to be released before mapping the file.
@@ -270,40 +329,286 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
         PERFETTO_PLOG("Failed to read %s", fname);
         return;
       }
-      if (!IsElf(magic, static_cast<size_t>(rd))) {
-        PERFETTO_DLOG("%s not an ELF.", fname);
+      if (!IsElf(magic, static_cast<size_t>(rd)) &&
+          !IsMachO64(magic, static_cast<size_t>(rd))) {
+        PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
         return;
       }
     }
-    std::optional<BuildIdAndLoadBias> build_id_and_load_bias =
-        GetBuildIdAndLoadBias(fname, size);
-    if (build_id_and_load_bias) {
-      result.emplace(build_id_and_load_bias->build_id,
-                     FoundBinary{fname, build_id_and_load_bias->load_bias});
+    std::optional<BinaryInfo> binary_info = GetBinaryInfo(fname, size);
+    if (!binary_info) {
+      PERFETTO_DLOG("Failed to extract build id from %s.", fname);
+      return;
+    }
+    auto it = result.emplace(
+        binary_info->build_id,
+        FoundBinary{fname, binary_info->load_bias, binary_info->type});
+
+    // If there was already an existing FoundBinary, the emplace wouldn't insert
+    // anything. But, for Mac binaries, we prefer dSYM files over the original
+    // binary, so make sure these overwrite the FoundBinary entry.
+    bool has_existing = it.second == false;
+    if (has_existing) {
+      if (it.first->second.type == BinaryType::kMachO &&
+          binary_info->type == BinaryType::kMachODsym) {
+        PERFETTO_LOG("Overwriting index entry for %s to %s.",
+                     base::ToHex(binary_info->build_id).c_str(), fname);
+        it.first->second =
+            FoundBinary{fname, binary_info->load_bias, binary_info->type};
+      } else {
+        PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
+                      base::ToHex(binary_info->build_id).c_str());
+      }
+    } else {
+      PERFETTO_LOG("Indexed: %s (%s)", fname,
+                   base::ToHex(binary_info->build_id).c_str());
     }
   });
   return result;
 }
 
+bool ParseJsonString(const char*& it, const char* end, std::string* out) {
+  *out = "";
+  if (it == end) {
+    return false;
+  }
+  if (*it++ != '"') {
+    return false;
+  }
+  while (true) {
+    if (it == end) {
+      return false;
+    }
+    char c = *it++;
+    if (c == '"') {
+      return true;
+    }
+    if (c == '\\') {
+      if (it == end) {
+        return false;
+      }
+      c = *it++;
+      switch (c) {
+        case '"':
+        case '\\':
+        case '/':
+          out->push_back(c);
+          break;
+        case 'b':
+          out->push_back('\b');
+          break;
+        case 'f':
+          out->push_back('\f');
+          break;
+        case 'n':
+          out->push_back('\n');
+          break;
+        case 'r':
+          out->push_back('\r');
+          break;
+        case 't':
+          out->push_back('\t');
+          break;
+        // Pass-through \u escape codes without re-encoding to utf-8, for
+        // simplicity.
+        case 'u':
+          out->push_back('\\');
+          out->push_back('u');
+          break;
+        default:
+          return false;
+      }
+    } else {
+      out->push_back(c);
+    }
+  }
+}
+
+bool ParseJsonNumber(const char*& it, const char* end, double* out) {
+  bool is_minus = false;
+  double ret = 0;
+  if (it == end) {
+    return false;
+  }
+  if (*it == '-') {
+    ++it;
+    is_minus = true;
+  }
+  while (true) {
+    if (it == end) {
+      return false;
+    }
+    char c = *it++;
+    if (isdigit(c)) {
+      ret = ret * 10 + (c - '0');
+    } else if (c == 'e') {
+      // Scientific syntax is not supported.
+      return false;
+    } else {
+      // Unwind the iterator to point at the end of the number.
+      it--;
+      break;
+    }
+  }
+  *out = is_minus ? -ret : ret;
+  return true;
+}
+
+bool ParseJsonArray(
+    const char*& it,
+    const char* end,
+    std::function<bool(const char*&, const char*)> process_value) {
+  if (it == end) {
+    return false;
+  }
+  char c = *it++;
+  if (c != '[') {
+    return false;
+  }
+  while (true) {
+    if (!process_value(it, end)) {
+      return false;
+    }
+    if (it == end) {
+      return false;
+    }
+    c = *it++;
+    if (c == ']') {
+      return true;
+    }
+    if (c != ',') {
+      return false;
+    }
+  }
+}
+
+bool ParseJsonObject(
+    const char*& it,
+    const char* end,
+    std::function<bool(const char*&, const char*, const std::string&)>
+        process_value) {
+  if (it == end) {
+    return false;
+  }
+  char c = *it++;
+  if (c != '{') {
+    return false;
+  }
+  while (true) {
+    std::string key;
+    if (!ParseJsonString(it, end, &key)) {
+      return false;
+    }
+    if (*it++ != ':') {
+      return false;
+    }
+    if (!process_value(it, end, key)) {
+      return false;
+    }
+    if (it == end) {
+      return false;
+    }
+    c = *it++;
+    if (c == '}') {
+      return true;
+    }
+    if (c != ',') {
+      return false;
+    }
+  }
+}
+
+bool SkipJsonValue(const char*& it, const char* end) {
+  if (it == end) {
+    return false;
+  }
+  char c = *it;
+  if (c == '"') {
+    std::string ignored;
+    return ParseJsonString(it, end, &ignored);
+  }
+  if (isdigit(c) || c == '-') {
+    double ignored;
+    return ParseJsonNumber(it, end, &ignored);
+  }
+  if (c == '[') {
+    return ParseJsonArray(it, end, [](const char*& it, const char* end) {
+      return SkipJsonValue(it, end);
+    });
+  }
+  if (c == '{') {
+    return ParseJsonObject(
+        it, end, [](const char*& it, const char* end, const std::string&) {
+          return SkipJsonValue(it, end);
+        });
+  }
+  return false;
+}
+
 }  // namespace
 
-bool ParseLlvmSymbolizerLine(const std::string& line,
-                             std::string* file_name,
-                             uint32_t* line_no) {
-  size_t col_pos = line.rfind(':');
-  if (col_pos == std::string::npos || col_pos == 0)
-    return false;
-  size_t row_pos = line.rfind(':', col_pos - 1);
-  if (row_pos == std::string::npos || row_pos == 0)
-    return false;
-  *file_name = line.substr(0, row_pos);
-  auto line_no_str = line.substr(row_pos + 1, col_pos - row_pos - 1);
-
-  std::optional<int32_t> opt_parsed_line_no = base::StringToInt32(line_no_str);
-  if (!opt_parsed_line_no || *opt_parsed_line_no < 0)
-    return false;
-  *line_no = static_cast<uint32_t>(*opt_parsed_line_no);
-  return true;
+bool ParseLlvmSymbolizerJsonLine(const std::string& line,
+                                 std::vector<SymbolizedFrame>* result) {
+  // Parse Json of the format:
+  // ```
+  // {"Address":"0x1b72f","ModuleName":"...","Symbol":[{"Column":0,
+  // "Discriminator":0,"FileName":"...","FunctionName":"...","Line":0,
+  // "StartAddress":"","StartFileName":"...","StartLine":0},...]}
+  // ```
+  const char* it = line.data();
+  const char* end = it + line.size();
+  return ParseJsonObject(
+      it, end, [&](const char*& it, const char* end, const std::string& key) {
+        if (key == "Symbol") {
+          return ParseJsonArray(it, end, [&](const char*& it, const char* end) {
+            SymbolizedFrame frame;
+            if (!ParseJsonObject(
+                    it, end,
+                    [&](const char*& it, const char* end,
+                        const std::string& key) {
+                      if (key == "FileName") {
+                        return ParseJsonString(it, end, &frame.file_name);
+                      }
+                      if (key == "FunctionName") {
+                        return ParseJsonString(it, end, &frame.function_name);
+                      }
+                      if (key == "Line") {
+                        double number;
+                        if (!ParseJsonNumber(it, end, &number)) {
+                          return false;
+                        }
+                        frame.line = static_cast<unsigned int>(number);
+                        return true;
+                      }
+                      return SkipJsonValue(it, end);
+                    })) {
+              return false;
+            }
+            // Use "??" for empty filenames, to match non-JSON output.
+            if (frame.file_name.empty()) {
+              frame.file_name = "??";
+            }
+            result->push_back(frame);
+            return true;
+          });
+        }
+        if (key == "Error") {
+          std::string message;
+          if (!ParseJsonObject(it, end,
+                               [&](const char*& it, const char* end,
+                                   const std::string& key) {
+                                 if (key == "Message") {
+                                   return ParseJsonString(it, end, &message);
+                                 }
+                                 return SkipJsonValue(it, end);
+                               })) {
+            return false;
+          }
+          PERFETTO_ELOG("Failed to symbolize: %s.", message.c_str());
+          return true;
+        }
+        return SkipJsonValue(it, end);
+      });
 }
 
 BinaryFinder::~BinaryFinder() = default;
@@ -336,6 +641,13 @@ std::optional<FoundBinary> LocalBinaryFinder::FindBinary(
 
   std::optional<FoundBinary>& cache_entry = p.first->second;
 
+  // Try the absolute path first.
+  if (base::StartsWith(abspath, "/")) {
+    cache_entry = IsCorrectFile(abspath, build_id);
+    if (cache_entry)
+      return cache_entry;
+  }
+
   for (const std::string& root_str : roots_) {
     cache_entry = FindBinaryInRoot(root_str, abspath, build_id);
     if (cache_entry)
@@ -367,14 +679,14 @@ std::optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
     return std::nullopt;
   }
 
-  std::optional<BuildIdAndLoadBias> build_id_and_load_bias =
-      GetBuildIdAndLoadBias(symbol_file.c_str(), size);
-  if (!build_id_and_load_bias)
+  std::optional<BinaryInfo> binary_info =
+      GetBinaryInfo(symbol_file.c_str(), size);
+  if (!binary_info)
     return std::nullopt;
-  if (build_id_and_load_bias->build_id != build_id) {
+  if (binary_info->build_id != build_id) {
     return std::nullopt;
   }
-  return FoundBinary{symbol_file, build_id_and_load_bias->load_bias};
+  return FoundBinary{symbol_file, binary_info->load_bias, binary_info->type};
 }
 
 std::optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
@@ -463,10 +775,10 @@ LocalBinaryFinder::~LocalBinaryFinder() = default;
 LLVMSymbolizerProcess::LLVMSymbolizerProcess(const std::string& symbolizer_path)
     :
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-      subprocess_(symbolizer_path, {}) {
+      subprocess_(symbolizer_path, {"--output-style=JSON"}) {
 }
 #else
-      subprocess_(symbolizer_path, {"llvm-symbolizer"}) {
+      subprocess_(symbolizer_path, {"llvm-symbolizer", "--output-style=JSON"}) {
 }
 #endif
 
@@ -480,34 +792,13 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
     PERFETTO_ELOG("Failed to write to llvm-symbolizer.");
     return result;
   }
-  auto lines = GetLines([&](char* read_buffer, size_t buffer_size) {
+  auto line = GetLine([&](char* read_buffer, size_t buffer_size) {
     return subprocess_.Read(read_buffer, buffer_size);
   });
-  // llvm-symbolizer writes out records in the form of
-  // Foo(Bar*)
-  // foo.cc:123
-  // This is why we should always get a multiple of two number of lines.
-  PERFETTO_DCHECK(lines.size() % 2 == 0);
-  result.resize(lines.size() / 2);
-  for (size_t i = 0; i < lines.size(); ++i) {
-    SymbolizedFrame& cur = result[i / 2];
-    if (i % 2 == 0) {
-      cur.function_name = lines[i];
-    } else {
-      if (!ParseLlvmSymbolizerLine(lines[i], &cur.file_name, &cur.line)) {
-        PERFETTO_ELOG("Failed to parse llvm-symbolizer line: %s",
-                      lines[i].c_str());
-        cur.file_name = "";
-        cur.line = 0;
-      }
-    }
-  }
-
-  for (auto it = result.begin(); it != result.end();) {
-    if (it->function_name == "??")
-      it = result.erase(it);
-    else
-      ++it;
+  // llvm-symbolizer writes out records as one JSON per line.
+  if (!ParseLlvmSymbolizerJsonLine(line, &result)) {
+    PERFETTO_ELOG("Failed to parse llvm-symbolizer JSON: %s", line.c_str());
+    return {};
   }
   return result;
 }

@@ -12,21 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export interface Rect {
-  readonly left: number;
-  readonly top: number;
-  readonly right: number;
-  readonly bottom: number;
-}
-
-export interface Size {
-  readonly width: number;
-  readonly height: number;
-}
-
+// Describes the location of a 2D object
 export interface Vector {
   readonly x: number;
   readonly y: number;
+}
+
+// Adds two vectors together
+export function vectorAdd(a: Vector, b: Vector): Vector {
+  return {x: a.x + b.x, y: a.y + b.y};
+}
+
+// Scales a vector by a scalar
+export function vectorScale(v: Vector, scale: number): Vector {
+  return {x: v.x * scale, y: v.y * scale};
+}
+
+// Describes the bounds of an object in the vertical axis
+export interface VerticalBounds {
+  readonly top: number;
+  readonly bottom: number;
+}
+
+// Describes the bounds of an object in the horizontal axis
+export interface HorizontalBounds {
+  readonly left: number;
+  readonly right: number;
+}
+
+// Describes the bounding box of an object in the 2D axes
+export interface Rect extends VerticalBounds, HorizontalBounds {}
+
+// Describes the size of an object
+export interface Size {
+  readonly width: number;
+  readonly height: number;
 }
 
 export function intersectRects(a: Rect, b: Rect): Rect {

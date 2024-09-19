@@ -18,11 +18,11 @@ import {Hotkey} from '../base/hotkeys';
 import {TimeSpan, duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
-import {PrimaryTrackSortKey} from '../common/state';
 import {Engine} from '../trace_processor/engine';
 import {PromptOption} from '../frontend/omnibox_manager';
 import {LegacyDetailsPanel, TrackDescriptor} from './tracks';
 import {TraceContext} from '../frontend/trace_context';
+import {Workspace} from '../frontend/workspace';
 
 export {Engine} from '../trace_processor/engine';
 export {
@@ -36,7 +36,6 @@ export {
 export {BottomTabToSCSAdapter} from './utils';
 export {createStore, Migrate, Store} from '../base/store';
 export {PromptOption} from '../frontend/omnibox_manager';
-export {PrimaryTrackSortKey} from '../common/state';
 
 export {addDebugSliceTrack} from '../frontend/debug_tracks/debug_tracks';
 export * from '../core/track_kinds';
@@ -45,7 +44,6 @@ export {
   Track,
   TrackContext,
   TrackTags,
-  SliceRect,
   DetailsPanel,
   LegacyDetailsPanel,
   TrackSelectionDetailsPanel,
@@ -133,6 +131,19 @@ export interface MetricVisualisation {
   path: string[];
 }
 
+export interface SidebarMenuItem {
+  readonly commandId: string;
+  readonly group:
+    | 'navigation'
+    | 'current_trace'
+    | 'convert_trace'
+    | 'example_traces'
+    | 'support';
+  when?(): boolean;
+  readonly icon: string;
+  readonly priority?: number;
+}
+
 // This interface defines a context for a plugin, which is an object passed to
 // most hooks within the plugin. It should be used to interact with Perfetto.
 export interface PluginContext {
@@ -146,17 +157,10 @@ export interface PluginContext {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): any;
 
-  // Control of the sidebar.
-  sidebar: {
-    // Show the sidebar.
-    show(): void;
-
-    // Hide the sidebar.
-    hide(): void;
-
-    // Returns true if the sidebar is visible.
-    isVisible(): boolean;
-  };
+  // Adds a new menu item to the sidebar.
+  // All entries must map to a command. This will allow the shortcut and
+  // optional shortcut to be displayed on the UI.
+  addSidebarMenuItem(menuItem: SidebarMenuItem): void;
 }
 
 export interface SliceTrackColNames {
@@ -215,37 +219,6 @@ export interface PluginContextTrace extends PluginContext {
 
   // Control over the main timeline.
   timeline: {
-    // Add a new track to the scrolling track section, returning the newly
-    // created track key.
-    addTrack(uri: string, displayName: string, params?: unknown): string;
-
-    // Remove a single track from the timeline.
-    removeTrack(key: string): void;
-
-    // Pin a single track.
-    pinTrack(key: string): void;
-
-    // Unpin a single track.
-    unpinTrack(key: string): void;
-
-    // Pin all tracks that match a predicate.
-    pinTracksByPredicate(predicate: TrackPredicate): void;
-
-    // Unpin all tracks that match a predicate.
-    unpinTracksByPredicate(predicate: TrackPredicate): void;
-
-    // Remove all tracks that match a predicate.
-    removeTracksByPredicate(predicate: TrackPredicate): void;
-
-    // Expand all groups that match a predicate.
-    expandGroupsByPredicate(predicate: GroupPredicate): void;
-
-    // Collapse all groups that match a predicate.
-    collapseGroupsByPredicate(predicate: GroupPredicate): void;
-
-    // Retrieve a list of tracks on the timeline.
-    tracks: TrackRef[];
-
     // Bring a timestamp into view.
     panToTimestamp(ts: time): void;
 
@@ -254,6 +227,10 @@ export interface PluginContextTrace extends PluginContext {
 
     // A span representing the current viewport location
     readonly viewport: TimeSpan;
+
+    // Access the default workspace - used for adding, removing and reorganizing
+    // tracks
+    readonly workspace: Workspace;
   };
 
   // Control over the bottom details pane.
@@ -268,23 +245,16 @@ export interface PluginContextTrace extends PluginContext {
     hideTab(uri: string): void;
   };
 
-  // Register a new track against a unique key known as a URI.
-  // Once a track is registered it can be referenced multiple times on the
-  // timeline with different params to allow customising each instance.
+  // Register a new track against a unique key known as a URI. The track is not
+  // shown by default and callers need to either manually add it to a
+  // Workspace or use registerTrackAndShowOnTraceLoad() below.
   registerTrack(trackDesc: TrackDescriptor): void;
 
-  // Add a new entry to the pool of default tracks. Default tracks are a list
-  // of track references that describe the list of tracks that should be added
-  // to the main timeline on startup.
-  // Default tracks are only used when a trace is first loaded, not when
-  // loading from a permalink, where the existing list of tracks from the
+  // Register a track and mark it as "automatically show on trace load".
+  // These tracks are shown only when the trace is loaded from scratch, not
+  // when loading from a permalink, where the existing list of tracks from the
   // shared state is used instead.
-  addDefaultTrack(track: TrackRef): void;
-
-  // Simultaneously register a track and add it as a default track in one go.
-  // This is simply a helper which calls registerTrack() and addDefaultTrack()
-  // with the same URI.
-  registerStaticTrack(track: TrackDescriptor & TrackRef): void;
+  registerTrackAndShowOnTraceLoad(track: TrackDescriptor): void;
 
   // Register a new tab for this plugin. Will be unregistered when the plugin
   // is deactivated or when the trace is unloaded.
@@ -310,10 +280,11 @@ export interface PluginContextTrace extends PluginContext {
   prompt(text: string, options?: PromptOption[]): Promise<string>;
 }
 
-export interface Plugin {
+export interface PerfettoPlugin {
   // Lifecycle methods.
   onActivate?(ctx: PluginContext): void;
   onTraceLoad?(ctx: PluginContextTrace): Promise<void>;
+  onTraceReady?(ctx: PluginContextTrace): Promise<void>;
   onTraceUnload?(ctx: PluginContextTrace): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
 
@@ -333,48 +304,11 @@ export interface Plugin {
 // ... which can then be passed around by class i.e. MyPlugin
 export interface PluginClass {
   // Instantiate the plugin.
-  new (): Plugin;
+  new (): PerfettoPlugin;
 }
-
-// Describes a reference to a registered track.
-export interface TrackRef {
-  // URI of the registered track.
-  readonly uri: string;
-
-  // A human readable name for this track - displayed in the track shell.
-  readonly title: string;
-
-  // Optional: Used to define default sort order for new traces.
-  // Note: This will be deprecated soon in favour of tags & sort rules.
-  readonly sortKey?: PrimaryTrackSortKey;
-
-  // Optional: Add tracks to a group with this name.
-  readonly groupName?: string;
-
-  // Optional: Track key
-  readonly key?: string;
-
-  // Optional: Whether the track is pinned
-  readonly isPinned?: boolean;
-}
-
-// A predicate for selecting a subset of tracks.
-export type TrackPredicate = (info: TrackDescriptor) => boolean;
-
-// Describes a reference to a group of tracks.
-export interface GroupRef {
-  // A human readable name for this track group.
-  displayName: string;
-
-  // True if the track is open else false.
-  collapsed: boolean;
-}
-
-// A predicate for selecting a subset of groups.
-export type GroupPredicate = (info: GroupRef) => boolean;
 
 // Plugins can be class refs or concrete plugin implementations.
-export type PluginFactory = PluginClass | Plugin;
+export type PluginFactory = PluginClass | PerfettoPlugin;
 
 export interface PluginDescriptor {
   // A unique string for your plugin. To ensure the name is unique you

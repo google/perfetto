@@ -1126,6 +1126,11 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
   const uint32_t kMsgCount = 10000;
   TraceConfig cfg = CreateTraceConfigForBugreportTest(
       /*score=*/1, /*add_filter=*/false, kMsgCount, /*msg_size=*/1024);
+
+  auto session_name = "bugreport_test_" +
+                      std::to_string(base::GetWallTimeNs().count() % 1000000);
+
+  cfg.set_unique_session_name(session_name);
   std::string cfg_str = cfg.SerializeAsString();
   Exec trace_proc = ExecPerfetto({"-o", base::kDevNull, "-c", "-"}, cfg_str);
   Exec perfetto_br_proc = ExecPerfetto({"--save-all-for-bugreport"});
@@ -1144,7 +1149,15 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
   // Wait that the tracing session is started.
   test_helper().ConnectConsumer();
   test_helper().WaitForConsumerConnect();
-  while (test_helper().QueryServiceStateAndWait().num_sessions_started() == 0) {
+  for (;;) {
+    auto state = test_helper().QueryServiceStateAndWait();
+    const auto& sessions = state.tracing_sessions();
+    if (std::count_if(sessions.begin(), sessions.end(),
+                      [&](const TracingServiceState::TracingSession& s) {
+                        return s.unique_session_name() == session_name;
+                      }) >= 1) {
+      break;
+    }
     base::SleepMicroseconds(100 * 1000);
   }
   test_helper().SyncAndWaitProducer();

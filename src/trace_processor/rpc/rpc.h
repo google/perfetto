@@ -27,6 +27,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
@@ -103,8 +104,7 @@ class Rpc {
   // the corresponding names in trace_processor.h . See that header for docs.
 
   base::Status Parse(const uint8_t*, size_t);
-  void NotifyEndOfFile();
-  void ResetTraceProcessor(const uint8_t*, size_t);
+  base::Status NotifyEndOfFile();
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t*, size_t);
   void EnableMetatrace(const uint8_t*, size_t);
@@ -130,6 +130,8 @@ class Rpc {
 
  private:
   void ParseRpcRequest(const uint8_t*, size_t);
+  void ResetTraceProcessor(const uint8_t*, size_t);
+  base::Status RegisterSqlModule(protozero::ConstBytes);
   void ResetTraceProcessorInternal(const Config&);
   void MaybePrintProgress();
   Iterator QueryInternal(const uint8_t*, size_t);

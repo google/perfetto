@@ -418,7 +418,7 @@ function RecordingNotes() {
   const msgWinEtw = m(
     '.note',
     `To trace with Etw on Windows from the Perfetto UI, you to run chrome with`,
-    `administrator permission and you need to install our `,
+    ` administrator permission and you need to install our `,
     m('a', {href: extensionURL, target: '_blank'}, 'Chrome extension'),
     ' and then reload this page.',
   );

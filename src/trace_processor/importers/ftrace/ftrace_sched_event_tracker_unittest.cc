@@ -15,14 +15,19 @@
  */
 
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
+#include <cstdint>
+#include <memory>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -36,15 +41,15 @@ using ::testing::Invoke;
 class SchedEventTrackerTest : public ::testing::Test {
  public:
   SchedEventTrackerTest() {
-    context.storage.reset(new TraceStorage());
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
-    context.args_tracker.reset(new ArgsTracker(&context));
-    context.event_tracker.reset(new EventTracker(&context));
-    context.process_tracker.reset(new ProcessTracker(&context));
-    context.machine_tracker.reset(new MachineTracker(&context, 0));
-    context.cpu_tracker.reset(new CpuTracker(&context));
-    context.sched_event_tracker.reset(new SchedEventTracker(&context));
+    context.storage = std::make_shared<TraceStorage>();
+    context.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context.storage.get());
+    context.args_tracker = std::make_unique<ArgsTracker>(&context);
+    context.event_tracker = std::make_unique<EventTracker>(&context);
+    context.process_tracker = std::make_unique<ProcessTracker>(&context);
+    context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+    context.cpu_tracker = std::make_unique<CpuTracker>(&context);
+    context.sched_event_tracker = std::make_unique<SchedEventTracker>(&context);
     sched_tracker = FtraceSchedEventTracker::GetOrCreate(&context);
   }
 
@@ -72,14 +77,15 @@ TEST_F(SchedEventTrackerTest, InsertSecondSched) {
 
   ASSERT_EQ(context.storage->sched_slice_table().row_count(), 2ul);
 
-  const auto& timestamps = context.storage->sched_slice_table().ts();
-  ASSERT_EQ(timestamps[0], timestamp);
-  ASSERT_EQ(context.storage->thread_table().start_ts()[1], std::nullopt);
+  const auto& sched = context.storage->sched_slice_table();
+  ASSERT_EQ(sched[0].ts(), timestamp);
+  ASSERT_EQ(context.storage->thread_table()[1].start_ts(), std::nullopt);
 
-  auto name = context.storage->thread_table().name().GetString(1);
+  auto name =
+      context.storage->GetString(*context.storage->thread_table()[1].name());
   ASSERT_STREQ(name.c_str(), kCommProc1);
-  ASSERT_EQ(context.storage->sched_slice_table().utid()[0], 1u);
-  ASSERT_EQ(context.storage->sched_slice_table().dur()[0], 1);
+  ASSERT_EQ(context.storage->sched_slice_table()[0].utid(), 1u);
+  ASSERT_EQ(context.storage->sched_slice_table()[0].dur(), 1);
 }
 
 TEST_F(SchedEventTrackerTest, InsertThirdSched_SameThread) {
@@ -90,30 +96,29 @@ TEST_F(SchedEventTrackerTest, InsertThirdSched_SameThread) {
   static const char kCommProc2[] = "process2";
   int32_t prio = 1024;
 
-  sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/4, kCommProc2, prio,
-                                 prev_state,
+  sched_tracker->PushSchedSwitch(cpu, timestamp, /*prev_pid=*/4, kCommProc2,
+                                 prio, prev_state,
                                  /*tid=*/2, kCommProc1, prio);
   ASSERT_EQ(context.storage->sched_slice_table().row_count(), 1u);
 
-  sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/2, kCommProc1,
+  sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*prev_pid=*/2, kCommProc1,
                                  prio, prev_state,
                                  /*tid=*/4, kCommProc2, prio);
-  sched_tracker->PushSchedSwitch(cpu, timestamp + 11, /*tid=*/4, kCommProc2,
-                                 prio, prev_state,
+  sched_tracker->PushSchedSwitch(cpu, timestamp + 11, /*prev_pid=*/4,
+                                 kCommProc2, prio, prev_state,
                                  /*tid=*/2, kCommProc1, prio);
   sched_tracker->PushSchedSwitch(cpu, timestamp + 31, /*tid=*/2, kCommProc1,
                                  prio, prev_state,
                                  /*tid=*/4, kCommProc2, prio);
   ASSERT_EQ(context.storage->sched_slice_table().row_count(), 4ul);
 
-  const auto& timestamps = context.storage->sched_slice_table().ts();
-  ASSERT_EQ(timestamps[0], timestamp);
-  ASSERT_EQ(context.storage->thread_table().start_ts()[1], std::nullopt);
-  ASSERT_EQ(context.storage->sched_slice_table().dur()[0], 1u);
-  ASSERT_EQ(context.storage->sched_slice_table().dur()[1], 11u - 1u);
-  ASSERT_EQ(context.storage->sched_slice_table().dur()[2], 31u - 11u);
-  ASSERT_EQ(context.storage->sched_slice_table().utid()[0],
-            context.storage->sched_slice_table().utid()[2]);
+  ASSERT_EQ(context.storage->sched_slice_table()[0].ts(), timestamp);
+  ASSERT_EQ(context.storage->thread_table()[1].start_ts(), std::nullopt);
+  ASSERT_EQ(context.storage->sched_slice_table()[0].dur(), 1u);
+  ASSERT_EQ(context.storage->sched_slice_table()[1].dur(), 11u - 1u);
+  ASSERT_EQ(context.storage->sched_slice_table()[2].dur(), 31u - 11u);
+  ASSERT_EQ(context.storage->sched_slice_table()[0].utid(),
+            context.storage->sched_slice_table()[2].utid());
 }
 
 TEST_F(SchedEventTrackerTest, UpdateThreadMatch) {
@@ -135,10 +140,10 @@ TEST_F(SchedEventTrackerTest, UpdateThreadMatch) {
                                               base::StringView());
   context.process_tracker->UpdateThread(4, 2);
 
-  ASSERT_EQ(context.storage->thread_table().tid()[1], 4u);
-  ASSERT_EQ(context.storage->thread_table().upid()[1].value(), 1u);
-  ASSERT_EQ(context.storage->process_table().pid()[1], 2u);
-  ASSERT_EQ(context.storage->process_table().start_ts()[1], std::nullopt);
+  ASSERT_EQ(context.storage->thread_table()[1].tid(), 4u);
+  ASSERT_EQ(context.storage->thread_table()[1].upid().value(), 1u);
+  ASSERT_EQ(context.storage->process_table()[1].pid(), 2u);
+  ASSERT_EQ(context.storage->process_table()[1].start_ts(), std::nullopt);
 }
 
 }  // namespace

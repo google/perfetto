@@ -112,14 +112,17 @@ base::StatusOr<std::unique_ptr<Table>> Ancestor::ComputeTable(
     // Nothing matches a null id so return an empty table.
     switch (type_) {
       case Type::kSlice:
-        return tables::AncestorSliceTable::SelectAndExtendParent(
-            storage_->slice_table(), {}, {});
+        return std::unique_ptr<Table>(
+            tables::AncestorSliceTable::SelectAndExtendParent(
+                storage_->slice_table(), {}, {}));
       case Type::kStackProfileCallsite:
-        return tables::AncestorStackProfileCallsiteTable::SelectAndExtendParent(
-            storage_->stack_profile_callsite_table(), {}, {});
+        return std::unique_ptr<Table>(
+            tables::AncestorStackProfileCallsiteTable::SelectAndExtendParent(
+                storage_->stack_profile_callsite_table(), {}, {}));
       case Type::kSliceByStack:
-        return tables::AncestorSliceByStackTable::SelectAndExtendParent(
-            storage_->slice_table(), {}, {});
+        return std::unique_ptr<Table>(
+            tables::AncestorSliceByStackTable::SelectAndExtendParent(
+                storage_->slice_table(), {}, {}));
     }
     return base::OkStatus();
   }

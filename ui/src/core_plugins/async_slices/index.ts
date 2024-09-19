@@ -12,17 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {removeFalsyValues} from '../../base/array_utils';
 import {ASYNC_SLICE_TRACK_KIND} from '../../public';
-import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {getTrackName} from '../../public/utils';
+import {
+  PerfettoPlugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
+import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
 import {AsyncSliceTrack} from './async_slice_track';
 
-class AsyncSlicePlugin implements Plugin {
+class AsyncSlicePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addGlobalAsyncTracks(ctx);
     await this.addProcessAsyncSliceTracks(ctx);
+    await this.addThreadAsyncSliceTracks(ctx);
     await this.addUserAsyncSliceTracks(ctx);
   }
 
@@ -37,7 +43,7 @@ class AsyncSlicePlugin implements Plugin {
           count() as trackCount
         from track t
         join _slice_track_summary using (id)
-        where t.type in ('track', 'gpu_track', '__intrinsic_cpu_track')
+        where t.type in ('__intrinsic_track', 'gpu_track', '__intrinsic_cpu_track')
         group by parent_id, name
       )
       select
@@ -64,16 +70,16 @@ class AsyncSlicePlugin implements Plugin {
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const maxDepth = it.maxDepth;
 
+      const uri = `/async_slices_${rawName}_${it.parentId}`;
       ctx.registerTrack({
-        uri: `/async_slices_${rawName}_${it.parentId}`,
+        uri,
         title: displayName,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
+          scope: 'global',
         },
-        trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
-        },
+        track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIds),
       });
     }
   }
@@ -118,20 +124,98 @@ class AsyncSlicePlugin implements Plugin {
         kind,
       });
 
+      const uri = `/process_${upid}/async_slices_${rawTrackIds}`;
       ctx.registerTrack({
-        uri: `/process_${upid}/async_slices_${rawTrackIds}`,
+        uri,
         title: displayName,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
+          scope: 'process',
+          upid,
         },
-        trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrack(
-            {engine: ctx.engine, trackKey},
-            maxDepth,
-            trackIds,
-          );
+        track: new AsyncSliceTrack(
+          {engine: ctx.engine, uri},
+          maxDepth,
+          trackIds,
+        ),
+      });
+    }
+  }
+
+  async addThreadAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
+    const result = await ctx.engine.query(`
+      include perfetto module viz.summary.slices;
+      include perfetto module viz.summary.threads;
+      include perfetto module viz.threads;
+
+      select
+        t.utid,
+        thread.upid,
+        t.name as trackName,
+        thread.name as threadName,
+        thread.tid as tid,
+        t.track_ids as trackIds,
+        __max_layout_depth(t.track_count, t.track_ids) as maxDepth,
+        k.is_main_thread as isMainThread,
+        k.is_kernel_thread AS isKernelThread
+      from _thread_track_summary_by_utid_and_name t
+      join _threads_with_kernel_flag k using(utid)
+      join thread using (utid)
+      where t.track_count > 1
+    `);
+
+    const it = result.iter({
+      utid: NUM,
+      upid: NUM_NULL,
+      trackName: STR_NULL,
+      trackIds: STR,
+      maxDepth: NUM,
+      isMainThread: NUM_NULL,
+      isKernelThread: NUM,
+      threadName: STR_NULL,
+      tid: NUM_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const {
+        utid,
+        upid,
+        trackName,
+        isMainThread,
+        isKernelThread,
+        maxDepth,
+        threadName,
+        tid,
+      } = it;
+      const rawTrackIds = it.trackIds;
+      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+      const displayName = getTrackName({
+        name: trackName,
+        utid,
+        tid,
+        threadName,
+        kind: 'Slices',
+      });
+
+      const uri = `/${getThreadUriPrefix(upid, utid)}_slice_${rawTrackIds}`;
+      ctx.registerTrack({
+        uri,
+        title: displayName,
+        tags: {
+          trackIds,
+          kind: ASYNC_SLICE_TRACK_KIND,
+          scope: 'thread',
+          utid,
+          upid: upid ?? undefined,
         },
+        chips: removeFalsyValues([
+          isKernelThread === 0 && isMainThread === 1 && 'main thread',
+        ]),
+        track: new AsyncSliceTrack(
+          {engine: ctx.engine, uri},
+          maxDepth,
+          trackIds,
+        ),
       });
     }
   }
@@ -187,16 +271,17 @@ class AsyncSlicePlugin implements Plugin {
         uidTrack: true,
       });
 
+      const uri = `/async_slices_${rawName}_${uid}`;
       ctx.registerTrack({
-        uri: `/async_slices_${rawName}_${uid}`,
+        uri,
         title: displayName,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
+          scope: 'user',
+          rawName, // Defines grouping
         },
-        trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
-        },
+        track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIds),
       });
     }
   }

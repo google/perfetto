@@ -17,14 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PARSER_TYPES_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PARSER_TYPES_H_
 
-#include <stdint.h>
+#include <array>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <string>
+#include <utility>
 
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 struct alignas(8) InlineSchedSwitch {
   int64_t prev_state;
@@ -33,6 +38,10 @@ struct alignas(8) InlineSchedSwitch {
   StringPool::Id next_comm;
 };
 
+// We enforce the exact size as it's critical for peak-memory use when sorting
+// data in trace processor that this struct is as small as possible.
+static_assert(sizeof(InlineSchedSwitch) == 24);
+
 struct alignas(8) InlineSchedWaking {
   int32_t pid;
   uint16_t target_cpu;
@@ -40,18 +49,23 @@ struct alignas(8) InlineSchedWaking {
   StringPool::Id comm;
   uint16_t common_flags;
 };
+
+// We enforce the exact size as it's critical for peak-memory use when sorting
+// data in trace processor that this struct is as small as possible.
 static_assert(sizeof(InlineSchedWaking) == 16);
 
 struct alignas(8) JsonEvent {
   std::string value;
 };
+static_assert(sizeof(JsonEvent) % 8 == 0);
 
-struct TracePacketData {
+struct alignas(8) TracePacketData {
   TraceBlobView packet;
   RefPtr<PacketSequenceStateGeneration> sequence_state;
 };
+static_assert(sizeof(TracePacketData) % 8 == 0);
 
-struct TrackEventData {
+struct alignas(8) TrackEventData {
   TrackEventData(TraceBlobView pv,
                  RefPtr<PacketSequenceStateGeneration> generation)
       : trace_packet_data{std::move(pv), std::move(generation)} {}
@@ -75,8 +89,8 @@ struct TrackEventData {
   double counter_value = 0;
   std::array<double, kMaxNumExtraCounters> extra_counter_values = {};
 };
+static_assert(sizeof(TracePacketData) % 8 == 0);
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PARSER_TYPES_H_

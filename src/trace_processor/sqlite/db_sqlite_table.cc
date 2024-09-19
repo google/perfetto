@@ -163,6 +163,13 @@ inline uint32_t ReadLetterAndInt(char letter, base::StringSplitter* splitter) {
   return *base::CStringToUInt32(splitter->cur_token() + 1);
 }
 
+inline uint64_t ReadLetterAndLong(char letter, base::StringSplitter* splitter) {
+  PERFETTO_CHECK(splitter->Next());
+  PERFETTO_DCHECK(splitter->cur_token_size() >= 2);
+  PERFETTO_DCHECK(splitter->cur_token()[0] == letter);
+  return *base::CStringToUInt64(splitter->cur_token() + 1);
+}
+
 int ReadIdxStrAndUpdateCursor(DbSqliteModule::Cursor* cursor,
                               const char* idx_str,
                               sqlite3_value** argv) {
@@ -201,6 +208,9 @@ int ReadIdxStrAndUpdateCursor(DbSqliteModule::Cursor* cursor,
   q.order_type =
       static_cast<Query::OrderType>(ReadLetterAndInt('D', &splitter));
 
+  // Cols used
+  q.cols_used = ReadLetterAndLong('U', &splitter);
+
   // LIMIT
   if (ReadLetterAndInt('L', &splitter)) {
     auto val_op = sqlite::utils::SqliteValueToSqlValue(argv[c_offset++]);
@@ -212,7 +222,7 @@ int ReadIdxStrAndUpdateCursor(DbSqliteModule::Cursor* cursor,
   }
 
   // OFFSET
-  if (ReadLetterAndInt('O', &splitter)) {
+  if (ReadLetterAndInt('F', &splitter)) {
     auto val_op = sqlite::utils::SqliteValueToSqlValue(argv[c_offset++]);
     if (val_op.type != SqlValue::kLong) {
       return sqlite::utils::SetError(cursor->pVtab,
@@ -556,17 +566,20 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   }
 
   // Create index string. It contains information query Trace Processor will
-  // have to run. It can be split into 3 segments: C (constraints), O (orders)
-  // and D (distinct). It can be directly mapped into `Query` type. The number
-  // after C and O signifies how many constraints/orders there are. The number
-  // after D maps to the Query::Distinct enum value.
-  // "C2,0,0,2,1,O1,0,1,D1,L0,O1" maps to:
+  // have to run. It can be split into 6 segments: C (constraints), O (orders),
+  // D (distinct), U (used), L (limit) and F (offset). It can be directly mapped
+  // into `Query` type. The number after C and O signifies how many
+  // constraints/orders there are. The number after D maps to the
+  // Query::Distinct enum value.
+  //
+  // "C2,0,0,2,1,O1,0,1,D1,U5,L0,F1" maps to:
   // - "C2,0,0,2,1" - two constraints: kEq on first column and kNe on third
   //   column.
   // - "O1,0,1" - one order by: descending on first column.
   // - "D1" - kUnsorted distinct.
+  // - "U5" - Columns 0 and 2 used.
   // - "L1" - LIMIT set. "L0" if no limit.
-  // - "O1" - OFFSET set. Can only be set if "L1".
+  // - "F1" - OFFSET set. Can only be set if "L1".
 
   // Constraints:
   std::string idx_str = "C";
@@ -624,6 +637,11 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   }
   idx_str += ",";
 
+  // Columns used.
+  idx_str += "U";
+  idx_str += std::to_string(info->colUsed);
+  idx_str += ",";
+
   // LIMIT. Save as "L1" if limit is present and "L0" if not.
   idx_str += "L";
   if (limit == -1 || has_unknown_constraint) {
@@ -636,8 +654,8 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   }
   idx_str += ",";
 
-  // OFFSET. Save as "O1" if offset is present and "O0" if not.
-  idx_str += "O";
+  // OFFSET. Save as "F1" if offset is present and "F0" if not.
+  idx_str += "F";
   if (offset == -1 || has_unknown_constraint) {
     idx_str += "0";
   } else {
@@ -804,6 +822,7 @@ int DbSqliteModule::Column(sqlite3_vtab_cursor* cursor,
   SqlValue value = c->mode == Cursor::Mode::kSingleRow
                        ? source_table->columns()[idx].Get(*c->single_row)
                        : c->iterator->Get(idx);
+
   // We can say kSqliteStatic for strings because all strings are expected
   // to come from the string pool. Thus they will be valid for the lifetime
   // of trace processor. Similarily, for bytes, we can also use

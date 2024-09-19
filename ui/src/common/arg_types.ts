@@ -14,5 +14,5 @@
 
 export type ArgValue =
   | string
-  | {kind: 'SCHED_SLICE'; trackId: string; sliceId: number; rawValue: string};
+  | {kind: 'SCHED_SLICE'; trackUri: string; sliceId: number; rawValue: string};
 export type Args = Map<string, ArgValue>;

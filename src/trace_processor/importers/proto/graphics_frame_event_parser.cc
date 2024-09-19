@@ -16,22 +16,26 @@
 
 #include "src/trace_processor/importers/proto/graphics_frame_event_parser.h"
 
-#include <cinttypes>
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/protozero/field.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
+#include "protos/perfetto/trace/android/graphics_frame_event.pbzero.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 constexpr char kQueueLostMessage[] =
     "Missing queue event. The slice is now a bit extended than it might "
@@ -163,11 +167,8 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
     } else if (event.type() == GraphicsFrameEvent::QUEUE) {
       auto it = dequeue_slice_ids_.find(event_key);
       if (it != dequeue_slice_ids_.end()) {
-        auto dequeue_slice_id = it->second;
-        uint32_t row_idx =
-            *graphics_frame_slice_table->id().IndexOf(dequeue_slice_id);
-        graphics_frame_slice_table->mutable_frame_number()->Set(row_idx,
-                                                                frame_number);
+        auto rr = graphics_frame_slice_table->FindById(it->second);
+        rr->set_frame_number(frame_number);
       }
     }
   }
@@ -182,19 +183,19 @@ void GraphicsFrameEventParser::InvalidatePhaseEvent(int64_t timestamp,
   if (opt_slice_id) {
     auto* graphics_frame_slice_table =
         context_->storage->mutable_graphics_frame_slice_table();
-    uint32_t row_idx = *graphics_frame_slice_table->id().IndexOf(*opt_slice_id);
+    auto rr = *graphics_frame_slice_table->FindById(*opt_slice_id);
     if (reset_name) {
       // Set the name (frame_number) to be 0 since there is no frame number
       // associated, example : dequeue event.
       StringId frame_name_id = context_->storage->InternString("0");
-      graphics_frame_slice_table->mutable_name()->Set(row_idx, frame_name_id);
-      graphics_frame_slice_table->mutable_frame_number()->Set(row_idx, 0);
+      rr.set_name(frame_name_id);
+      rr.set_frame_number(0);
     }
 
     // Set the duration to -1 so that this slice will be ignored by the
     // UI. Setting any other duration results in wrong data which we want
     // to avoid at all costs.
-    graphics_frame_slice_table->mutable_dur()->Set(row_idx, -1);
+    rr.set_dur(-1);
   }
 }
 
@@ -277,14 +278,10 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
               context_->storage->mutable_graphics_frame_slice_table();
           // Set the name of the slice to be the frame number since dequeue did
           // not have a frame number at that time.
-          uint32_t row_idx =
-              *graphics_frame_slice_table->id().IndexOf(*opt_slice_id);
-          StringId frame_name_id =
-              context_->storage->InternString(slice_name.GetStringView());
-          graphics_frame_slice_table->mutable_name()->Set(row_idx,
-                                                          frame_name_id);
-          graphics_frame_slice_table->mutable_frame_number()->Set(row_idx,
-                                                                  frame_number);
+          auto rr = *graphics_frame_slice_table->FindById(*opt_slice_id);
+          rr.set_name(
+              context_->storage->InternString(slice_name.GetStringView()));
+          rr.set_frame_number(frame_number);
           dequeue_map_.erase(dequeue_time);
         }
       }
@@ -394,19 +391,17 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
 
 void GraphicsFrameEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
                                                        ConstBytes blob) {
-  protos::pbzero::GraphicsFrameEvent_Decoder frame_event(blob.data, blob.size);
+  protos::pbzero::GraphicsFrameEvent::Decoder frame_event(blob);
   if (!frame_event.has_buffer_event()) {
     return;
   }
 
-  ConstBytes bufferBlob = frame_event.buffer_event();
-  protos::pbzero::GraphicsFrameEvent_BufferEvent_Decoder event(bufferBlob.data,
-                                                               bufferBlob.size);
+  protos::pbzero::GraphicsFrameEvent::BufferEvent::Decoder event(
+      frame_event.buffer_event());
   if (CreateBufferEvent(timestamp, event)) {
     // Create a phase event only if the buffer event finishes successfully
     CreatePhaseEvent(timestamp, event);
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

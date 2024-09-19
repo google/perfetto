@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Optional} from '../../base/utils';
+import {GroupNode, TrackNode} from '../../frontend/workspace';
 import {
-  Plugin,
+  PerfettoPlugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
-  TrackRef,
 } from '../../public';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
@@ -30,7 +31,7 @@ const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
  * and group name. When no match is found for a saved track, it tries again
  * without numbers.
  */
-class RestorePinnedTrack implements Plugin {
+class RestorePinnedTrack implements PerfettoPlugin {
   onActivate(_ctx: PluginContext): void {}
 
   private ctx!: PluginContextTrace;
@@ -54,12 +55,11 @@ class RestorePinnedTrack implements Plugin {
   }
 
   private saveTracks() {
-    const pinnedTracks = this.ctx.timeline.tracks.filter(
-      (trackRef) => trackRef.isPinned,
-    );
-    const tracksToSave: SavedPinnedTrack[] = pinnedTracks.map((trackRef) => ({
-      groupName: trackRef.groupName,
-      trackName: trackRef.title,
+    const workspace = this.ctx.timeline.workspace;
+    const pinnedTracks = workspace.pinnedTracks;
+    const tracksToSave: SavedPinnedTrack[] = pinnedTracks.map((track) => ({
+      groupName: groupName(track),
+      trackName: track.displayName,
     }));
     window.localStorage.setItem(SAVED_TRACKS_KEY, JSON.stringify(tracksToSave));
   }
@@ -71,19 +71,19 @@ class RestorePinnedTrack implements Plugin {
       return;
     }
     const tracksToRestore: SavedPinnedTrack[] = JSON.parse(savedTracks);
-    const tracks: TrackRef[] = this.ctx.timeline.tracks;
+    const workspace = this.ctx.timeline.workspace;
+    const tracks = workspace.flatTracks;
     tracksToRestore.forEach((trackToRestore) => {
       // Check for an exact match
       const exactMatch = tracks.find((track) => {
         return (
-          track.key &&
-          trackToRestore.trackName === track.title &&
-          trackToRestore.groupName === track.groupName
+          trackToRestore.trackName === track.displayName &&
+          trackToRestore.groupName === groupName(track)
         );
       });
 
       if (exactMatch) {
-        this.ctx.timeline.pinTrack(exactMatch.key!);
+        exactMatch.pin();
       } else {
         // We attempt a match after removing numbers to potentially pin a
         // "similar" track from a different trace. Removing numbers allows
@@ -96,16 +96,15 @@ class RestorePinnedTrack implements Plugin {
         // other process matching the package name is attempted.
         const fuzzyMatch = tracks.find((track) => {
           return (
-            track.key &&
             this.removeNumbers(trackToRestore.trackName) ===
-              this.removeNumbers(track.title) &&
+              this.removeNumbers(track.displayName) &&
             this.removeNumbers(trackToRestore.groupName) ===
-              this.removeNumbers(track.groupName)
+              this.removeNumbers(groupName(track))
           );
         });
 
         if (fuzzyMatch) {
-          this.ctx.timeline.pinTrack(fuzzyMatch.key!);
+          fuzzyMatch.pin();
         } else {
           console.warn(
             '[RestorePinnedTracks] No track found that matches',
@@ -119,6 +118,16 @@ class RestorePinnedTrack implements Plugin {
   private removeNumbers(inputString?: string): string | undefined {
     return inputString?.replace(/\d+/g, '');
   }
+}
+
+// Return the displayname of the containing group
+// If the track is a child of a workspace, return undefined...
+function groupName(track: TrackNode): Optional<string> {
+  const parent = track.parent;
+  if (parent instanceof GroupNode) {
+    return parent.displayName;
+  }
+  return undefined;
 }
 
 interface SavedPinnedTrack {

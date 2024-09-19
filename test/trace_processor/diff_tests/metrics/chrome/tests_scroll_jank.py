@@ -222,25 +222,25 @@ class ChromeScrollJankMetrics(TestSuite):
 
   def test_chrome_input_to_browser_intervals(self):
     return DiffTestBlueprint(
-        trace=DataPath('scrolling_with_blocked_nonblocked_frames.pftrace'),
+        trace=DataPath('scrolling_with_blocked_nonblocked_frames_new.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_input_to_browser_intervals.sql');
 
         SELECT
           *
         FROM chrome_input_to_browser_intervals
-        WHERE window_start_ts >= 60934320005158
-          AND window_start_ts <= 60934338798158;
+        WHERE window_start_ts >= 3882799776944846
+          AND window_start_ts <= 3882799783705731;
         """,
         out=Path('chrome_input_to_browser_intervals.out'))
 
   def test_chrome_scroll_jank_caused_by_scheduling(self):
     return DiffTestBlueprint(
-        trace=DataPath('fling_with_input_delay.pftrace'),
+        trace=DataPath('fling_with_input_delay_new.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_scroll_jank_caused_by_scheduling.sql',
           'dur_causes_jank_ms',
-        /* dur_causes_jank_ms = */ '5');
+        /* dur_causes_jank_ms = */ '4');
 
         SELECT
           full_name,
@@ -256,11 +256,11 @@ class ChromeScrollJankMetrics(TestSuite):
 
   def test_chrome_tasks_delaying_input_processing(self):
     return DiffTestBlueprint(
-        trace=DataPath('fling_with_input_delay.pftrace'),
+        trace=DataPath('fling_with_input_delay_new.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_tasks_delaying_input_processing.sql',
           'duration_causing_jank_ms',
-         /* duration_causing_jank_ms = */ '8');
+         /* duration_causing_jank_ms = */ '2');
 
         SELECT
           full_name,
@@ -293,11 +293,11 @@ class ChromeScrollJankMetrics(TestSuite):
   # long_task_tracking_trace_chrome_long_tasks_delaying_input_processing_compare_default_test.out
   def test_experimental_reliable_chrome_tasks_delaying_input_processing(self):
     return DiffTestBlueprint(
-        trace=DataPath('fling_with_input_delay.pftrace'),
+        trace=DataPath('fling_with_input_delay_new.pftrace'),
         query="""
         SELECT RUN_METRIC(
             'chrome/experimental_reliable_chrome_tasks_delaying_input_processing.sql',
-            'duration_causing_jank_ms', '8');
+            'duration_causing_jank_ms', '2');
 
         SELECT
           full_name,
