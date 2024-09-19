@@ -338,7 +338,10 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
     int64_t event_timestamp = timestamp_acc;
 
     // index into the interned string table
-    PERFETTO_DCHECK(*comm_it < string_table.size());
+    if (PERFETTO_UNLIKELY(*comm_it >= string_table.size())) {
+      parse_error = true;
+      break;
+    }
     event.next_comm = string_table[*comm_it];
 
     event.prev_state = *pstate_it;
@@ -390,7 +393,10 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
     int64_t event_timestamp = timestamp_acc;
 
     // index into the interned string table
-    PERFETTO_DCHECK(*comm_it < string_table.size());
+    if (PERFETTO_UNLIKELY(*comm_it >= string_table.size())) {
+      parse_error = true;
+      break;
+    }
     event.comm = string_table[*comm_it];
 
     event.pid = *pid_it;
