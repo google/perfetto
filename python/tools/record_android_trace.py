@@ -21,6 +21,7 @@ import http.server
 import os
 import re
 import shutil
+import signal
 import socketserver
 import subprocess
 import sys
@@ -212,6 +213,18 @@ def setup_arguments():
   return args
 
 
+class SignalException(Exception):
+  pass
+
+
+def signal_handler(sig, frame):
+  raise SignalException('Received signal ' + str(sig))
+
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+
 def start_trace(args, print_log=True):
   perfetto_cmd = 'perfetto'
   device_dir = '/data/misc/perfetto-traces/'
@@ -373,7 +386,7 @@ def start_trace(args, print_log=True):
         prt('Too many unrecoverable ADB failures, bailing out', ANSI.RED)
         sys.exit(1)
       time.sleep(2)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SignalException):
       sig = 'TERM' if ctrl_c_count == 0 else 'KILL'
       ctrl_c_count += 1
       if print_log:
