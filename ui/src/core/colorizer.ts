@@ -17,6 +17,7 @@ import {hash} from './hash';
 import {featureFlags} from './feature_flags';
 import {Color, HSLColor, HSLuvColor} from '../public/color';
 import {ColorScheme} from '../public/color_scheme';
+import {RandState, pseudoRand} from '../base/rand';
 
 // 128 would provide equal weighting between dark and light text.
 // However, we want to prefer light text for stylistic reasons.
@@ -41,6 +42,8 @@ const USE_CONSISTENT_COLORS = featureFlags.register({
   description: 'Use the same color palette for all timeline elements.',
   defaultValue: false,
 });
+
+const randColourState: RandState = {seed: 0};
 
 const MD_PALETTE_RAW: Color[] = [
   new HSLColor({h: 4, s: 90, l: 58}),
@@ -195,7 +198,7 @@ export function colorForCpu(cpu: number): Color {
 }
 
 export function randomColor(): string {
-  const rand = Math.random();
+  const rand = pseudoRand(randColourState);
   if (USE_CONSISTENT_COLORS.get()) {
     return materialColorScheme(rand.toString()).base.cssString;
   } else {

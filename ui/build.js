@@ -122,10 +122,6 @@ const RULES = [
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
   {r: /ui\/src\/assets\/.+[.]scss/, f: compileScss},
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
-  {
-    r: /ui\/src\/test\/diff_viewer\/(.+[.](?:html|js))/,
-    f: copyUiTestArtifactsAssets,
-  },
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
 ];
@@ -152,7 +148,6 @@ async function main() {
   parser.add_argument('--no-build', '-n', {action: 'store_true'});
   parser.add_argument('--no-wasm', '-W', {action: 'store_true'});
   parser.add_argument('--run-unittests', '-t', {action: 'store_true'});
-  parser.add_argument('--run-integrationtests', '-T', {action: 'store_true'});
   parser.add_argument('--debug', '-d', {action: 'store_true'});
   parser.add_argument('--bigtrace', {action: 'store_true'});
   parser.add_argument('--open-perfetto-trace', {action: 'store_true'});
@@ -255,7 +250,6 @@ async function main() {
     buildWasm(args.no_wasm);
     scanDir('ui/src/assets');
     scanDir('ui/src/chrome_extension');
-    scanDir('ui/src/test/diff_viewer');
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
     generateImports('ui/src/core_plugins', 'all_core_plugins.ts');
@@ -315,9 +309,6 @@ async function main() {
   }
   if (args.run_unittests) {
     runTests('jest.unittest.config.js');
-  }
-  if (args.run_integrationtests) {
-    runTests('jest.integrationtest.config.js');
   }
 }
 

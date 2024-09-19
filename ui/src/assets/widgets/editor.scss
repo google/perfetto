@@ -19,5 +19,10 @@
 
   .cm-editor {
     height: 100%;
+
+    .cm-scroller {
+      font-family: var(--monospace-font);
+      font-size: 13px;
+    }
   }
 }
