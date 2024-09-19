@@ -27,7 +27,7 @@
 
   .popup {
     border-radius: 2px;
-    color: rgba(0,0,0,0);
+    color: rgba(0, 0, 0, 0);
     background: rgba(255, 255, 255, 0);
     position: absolute;
     text-overflow: unset;
@@ -140,6 +140,7 @@
       height: 100%;
       align-items: center;
       font-size: 18px;
+      overflow: hidden;
     }
 
     &.flash {
@@ -240,6 +241,7 @@
       height: 100%;
       align-items: center;
       font-size: 18px;
+      overflow: hidden;
     }
 
     &.pf-clickable {

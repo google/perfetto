@@ -15,6 +15,8 @@
 
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
+export CI=1
+
 infra/perfetto.dev/build
 
 ui/build --out ${OUT_PATH}
@@ -24,6 +26,15 @@ cp -a ${OUT_PATH}/ui/dist/ /ci/artifacts/ui
 ui/run-unittests --out ${OUT_PATH} --no-build
 
 set +e
+
+# Install chrome
+(
+  mkdir /ci/ramdisk/chrome
+  cd /ci/ramdisk/chrome
+  CHROME_VERSION=128.0.6613.137
+  curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
+  dpkg-deb -x chrome.deb  .
+)
 ui/run-integrationtests --out ${OUT_PATH} --no-build
 RES=$?
 

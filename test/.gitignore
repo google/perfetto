@@ -6,8 +6,8 @@
 !/data/OWNERS
 
 !/data/ui-screenshots
-/data/ui-screenshots/*
-!/data/ui-screenshots/*.sha256
+/data/ui-screenshots/*.png
+/data/ui-screenshots/**/*.png
 
 !/data/chrome
 /data/chrome/*
