@@ -63,6 +63,8 @@
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/perf_events.gen.h"
+#include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
@@ -94,6 +96,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -303,6 +306,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+
+    context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
 
     RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);
@@ -3041,6 +3046,68 @@ TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
       context_.metadata_tracker->GetMetadata(metadata::trace_config_pbtxt)
           .value();
   EXPECT_THAT(value.string_value, HasSubstr("size_kb: 42"));
+}
+
+TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    packet->set_timestamp(3000);
+    auto* perf_sample_default =
+        packet->set_trace_packet_defaults()->set_perf_sample_defaults();
+
+    // leader description:
+    auto* timebase = perf_sample_default->set_timebase();
+    timebase->set_name("leader");
+    timebase->set_counter(
+        protos::pbzero::PerfEvents::Counter::SW_CONTEXT_SWITCHES);
+    timebase->set_frequency(1000);
+
+    // followers description:
+    auto* follower = perf_sample_default->add_followers();
+    follower->set_counter(protos::pbzero::PerfEvents::Counter::HW_CPU_CYCLES);
+    follower->set_name("cycle-follower");
+
+    follower = perf_sample_default->add_followers();
+    follower->set_counter(protos::pbzero::PerfEvents::Counter::HW_CACHE_MISSES);
+    follower->set_name("cache-follower");
+  }
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(3000);
+    auto* perf_sample = packet->set_perf_sample();
+    perf_sample->set_cpu(0);
+    perf_sample->set_pid(1);
+    perf_sample->set_tid(42);
+    perf_sample->set_cpu_mode(
+        ::perfetto::protos::pbzero::Profiling_CpuMode::MODE_USER);
+    perf_sample->set_timebase_count(512);
+    perf_sample->add_follower_counts(1024);
+    perf_sample->add_follower_counts(2048);
+  }
+
+  EXPECT_CALL(*event_, PushCounter(3000, testing::DoubleEq(512), TrackId{0u}));
+  EXPECT_CALL(*event_, PushCounter(3000, testing::DoubleEq(1024), TrackId{1u}));
+  EXPECT_CALL(*event_, PushCounter(3000, testing::DoubleEq(2048), TrackId{2u}));
+
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->track_table().row_count(), 3u);
+
+  // Validate the perf counter track table.
+  EXPECT_EQ(storage_->perf_counter_track_table().row_count(), 3u);
+
+  const auto& perf_counter_names = storage_->perf_counter_track_table().name();
+  EXPECT_EQ(perf_counter_names[0], storage_->InternString("leader"));
+  EXPECT_EQ(perf_counter_names[1], storage_->InternString("cycle-follower"));
+  EXPECT_EQ(perf_counter_names[2], storage_->InternString("cache-follower"));
+  const auto& cpu_ids = storage_->perf_counter_track_table().cpu();
+  EXPECT_EQ(cpu_ids[0], 0u);
+  EXPECT_EQ(cpu_ids[1], 0u);
+  EXPECT_EQ(cpu_ids[2], 0u);
 }
 
 }  // namespace
