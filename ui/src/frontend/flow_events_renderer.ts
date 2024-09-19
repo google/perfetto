@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
-import {Size2D, Point2D} from '../base/geom';
+import {Size2D, Point2D, HorizontalBounds} from '../base/geom';
 import {Optional} from '../base/utils';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, globals} from './globals';
@@ -93,11 +93,12 @@ export function renderFlows(
     const startX = timescale.timeToPx(flowStartTs);
     const endX = timescale.timeToPx(flowEndTs);
 
-    // If the flow is entirely outside the visible viewport don't render anything
-    if (
-      (startX < 0 || startX > size.width) &&
-      (endX < 0 || startX > size.width)
-    ) {
+    const flowBounds = {
+      left: Math.min(startX, endX),
+      right: Math.max(startX, endX),
+    };
+
+    if (!isInViewport(flowBounds, size)) {
       return;
     }
 
@@ -197,6 +198,12 @@ export function renderFlows(
       }
     }
   });
+}
+
+// Check if an object defined by the horizontal bounds |bounds| is inside the
+// viewport defined by |viewportSizeZ.
+function isInViewport(bounds: HorizontalBounds, viewportSize: Size2D): boolean {
+  return bounds.right >= 0 && bounds.left < viewportSize.width;
 }
 
 function drawArrow(
