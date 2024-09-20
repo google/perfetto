@@ -62,6 +62,14 @@ class SystemProbesParser {
   const StringId thermal_unit_id_;
   const StringId gpufreq_id;
   const StringId gpufreq_unit_id;
+
+  // Arm CPU identifier string IDs
+  const StringId arm_cpu_implementer;
+  const StringId arm_cpu_architecture;
+  const StringId arm_cpu_variant;
+  const StringId arm_cpu_part;
+  const StringId arm_cpu_revision;
+
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
 
