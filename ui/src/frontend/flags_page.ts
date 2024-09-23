@@ -16,7 +16,7 @@ import m from 'mithril';
 import {channelChanged, getNextChannel, setChannel} from '../common/channels';
 import {featureFlags, Flag, OverrideState} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {createPage} from './pages';
+import {PageAttrs} from './pages';
 import {Router} from './router';
 
 const RELEASE_PROCESS_URL =
@@ -100,7 +100,7 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
   }
 }
 
-export const FlagsPage = createPage({
+export class FlagsPage implements m.ClassComponent<PageAttrs> {
   view() {
     const needsReload = channelChanged();
     return m(
@@ -147,16 +147,15 @@ export const FlagsPage = createPage({
         featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
       ),
     );
-  },
+  }
 
-  oncreate(vnode: m.VnodeDOM) {
-    const route = Router.parseUrl(window.location.href);
-    const flagId = /[/](\w+)/.exec(route.subpage)?.slice(1, 2)[0];
+  oncreate(vnode: m.VnodeDOM<PageAttrs>) {
+    const flagId = /[/](\w+)/.exec(vnode.attrs.subpage ?? '')?.slice(1, 2)[0];
     if (flagId) {
       const flag = vnode.dom.querySelector(`#${flagId}`);
       if (flag) {
         flag.scrollIntoView({block: 'center'});
       }
     }
-  },
-});
+  }
+}

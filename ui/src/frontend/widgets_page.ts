@@ -43,7 +43,7 @@ import {TextInput} from '../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
 import {VegaView} from '../widgets/vega_view';
-import {createPage} from './pages';
+import {PageAttrs} from './pages';
 import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
 import {TreeTable, TreeTableAttrs} from './widgets/treetable';
@@ -645,7 +645,7 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
   };
 }
 
-export const WidgetsPage = createPage({
+export class WidgetsPage implements m.ClassComponent<PageAttrs> {
   view() {
     return m(
       '.widgets-page',
@@ -1291,8 +1291,9 @@ export const WidgetsPage = createPage({
         },
       }),
     );
-  },
-});
+  }
+}
+
 class ModalShowcase implements m.ClassComponent {
   private static counter = 0;
 
