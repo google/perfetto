@@ -80,21 +80,21 @@ class StartupMetrics(TestSuite):
               timestamp_ns: 20
               charge_counter_uah: 52
               capacity_percent: 0.2
-              current_ua: 10
+              current_ua: 990000
               current_avg_ua: 12
            }
            battery_counters {
               timestamp_ns: 52
               charge_counter_uah: 32
               capacity_percent: 0.8
-              current_ua: 8
+              current_ua: 710000
               current_avg_ua: 93
            }
            battery_counters {
               timestamp_ns: 80
               charge_counter_uah: 15
               capacity_percent: 0.5
-              current_ua: 9
+              current_ua: 510000
               current_avg_ua: 5
            }
            battery_counters {
@@ -102,6 +102,9 @@ class StartupMetrics(TestSuite):
               charge_counter_uah: 21
               capacity_percent: 0.3
               current_avg_ua: 25
+           }
+           battery_aggregates {
+              avg_power_mw: 9497.722222222223
            }
         }
         """))
