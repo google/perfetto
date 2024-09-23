@@ -370,6 +370,8 @@ export class NotesPanel implements Panel {
 }
 
 export class NotesEditorTab implements DetailsPanel {
+  readonly panelType = 'DetailsPanel';
+
   render(selection: Selection) {
     if (selection.kind !== 'note') {
       return undefined;
