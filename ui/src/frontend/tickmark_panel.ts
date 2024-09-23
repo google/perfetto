@@ -24,14 +24,13 @@ import {
   createSearchOverviewTrack,
   SearchOverviewTrack,
 } from './search_overview_track';
-import {Optional} from '../base/utils';
+import {TraceImpl} from '../core/app_trace_impl';
 
-// TODO(primiano): this should be moved into the TraceImpl object rather than
-// being a global.
-let lastOverviewTrack: Optional<{
-  readonly engineId: string;
-  readonly track: SearchOverviewTrack;
-}> = undefined;
+// We want to create the overview track only once per trace, but this
+// class can be delete and re-instantiated when switching between pages via
+// the sidebar. So we cache the overview track and bind it to the lifetime of
+// the TraceImpl object.
+const trackTraceMap = new WeakMap<TraceImpl, SearchOverviewTrack>();
 
 // This is used to display the summary of search results.
 export class TickmarkPanel implements Panel {
@@ -39,22 +38,11 @@ export class TickmarkPanel implements Panel {
   readonly selectable = false;
   private searchOverviewTrack?: SearchOverviewTrack;
 
-  constructor() {
-    // We want to create the overview track only once per trace, but this
-    // class can be delete and re-instantiated when switching between pages via
-    // the sidebar. So we cache globally the overview track, and re-instantiate
-    // it if the trace changes.
-    const curEngineId = globals.getCurrentEngine()?.id;
-    if (curEngineId === undefined) return;
-    if (lastOverviewTrack && curEngineId === lastOverviewTrack?.engineId) {
-      this.searchOverviewTrack = lastOverviewTrack.track;
-    } else {
-      // NOTE: SearchOverviewTrack is Disposable but we don't add it to the
-      // trash, as its dispose() tries to clean up tables in TraceProcessor.
-      // Doing so is useless and harmful, for the reasons described in the
-      // comment UiMain::onbeforeremove().
-      createSearchOverviewTrack(globals.trace).then((track) => {
-        lastOverviewTrack = {engineId: curEngineId, track};
+  constructor(trace: TraceImpl) {
+    this.searchOverviewTrack = trackTraceMap.get(trace);
+    if (this.searchOverviewTrack === undefined) {
+      createSearchOverviewTrack(trace).then((track) => {
+        trackTraceMap.set(trace, track);
         this.searchOverviewTrack = track;
       });
     }

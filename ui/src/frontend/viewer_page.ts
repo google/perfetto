@@ -22,7 +22,6 @@ import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
-import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {
   PanelContainer,
@@ -47,6 +46,7 @@ import {removeFalsyValues} from '../base/array_utils';
 import {renderFlows} from './flow_events_renderer';
 import {Size2D} from '../base/geom';
 import {canvasClip, canvasSave} from '../base/canvas_utils';
+import {PageWithTraceAttrs} from './pages';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -86,7 +86,7 @@ function onTimeRangeBoundary(
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
  */
-class TraceViewer implements m.ClassComponent {
+export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
   private zoomContent?: PanAndZoomHandler;
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
@@ -95,12 +95,16 @@ class TraceViewer implements m.ClassComponent {
   private timeAxisPanel = new TimeAxisPanel();
   private timeSelectionPanel = new TimeSelectionPanel();
   private notesPanel = new NotesPanel();
-  private tickmarkPanel = new TickmarkPanel();
+  private tickmarkPanel: TickmarkPanel;
   private timelineWidthPx?: number;
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
-  oncreate(vnode: m.CVnodeDOM) {
+  constructor(vnode: m.CVnode<PageWithTraceAttrs>) {
+    this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
+  }
+
+  oncreate(vnode: m.CVnodeDOM<PageWithTraceAttrs>) {
     const panZoomElRaw = findRef(vnode.dom, this.PAN_ZOOM_CONTENT_REF);
     const panZoomEl = toHTMLElement(assertExists(panZoomElRaw));
 
@@ -443,9 +447,3 @@ function renderGroupHeaderPanel(
     });
   }
 }
-
-export const ViewerPage = createPage({
-  view() {
-    return m(TraceViewer);
-  },
-});
