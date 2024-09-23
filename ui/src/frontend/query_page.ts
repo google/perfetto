@@ -17,14 +17,14 @@ import {SimpleResizeObserver} from '../base/resize_observer';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
-import {Engine} from '../trace_processor/engine';
 import {Callout} from '../widgets/callout';
 import {Editor} from '../widgets/editor';
-import {globals} from './globals';
-import {createPage} from './pages';
+import {PageWithTraceAttrs} from './pages';
 import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
 import {addQueryResultsTab} from './query_result_tab';
 import {QueryTable} from './query_table';
+import {Engine, EngineAttrs} from '../trace_processor/engine';
+import {assertExists} from '../base/logging';
 
 interface QueryPageState {
   enteredText: string;
@@ -40,47 +40,35 @@ const state: QueryPageState = {
   generation: 0,
 };
 
-function runManualQuery(query: string) {
+function runManualQuery(engine: Engine, query: string) {
   state.executedQuery = query;
   state.queryResult = undefined;
-  const engine = getEngine();
-  if (engine) {
-    runQuery(undoCommonChatAppReplacements(query), engine).then(
-      (resp: QueryResponse) => {
-        addQueryResultsTab(
-          {
-            query: query,
-            title: 'Standalone Query',
-            prefetchedResponse: resp,
-          },
-          'analyze_page_query',
-        );
-        // We might have started to execute another query. Ignore it in that
-        // case.
-        if (state.executedQuery !== query) {
-          return;
-        }
-        state.queryResult = resp;
-        raf.scheduleFullRedraw();
-      },
-    );
-  }
+  runQuery(undoCommonChatAppReplacements(query), engine).then(
+    (resp: QueryResponse) => {
+      addQueryResultsTab(
+        {
+          query: query,
+          title: 'Standalone Query',
+          prefetchedResponse: resp,
+        },
+        'analyze_page_query',
+      );
+      // We might have started to execute another query. Ignore it in that
+      // case.
+      if (state.executedQuery !== query) {
+        return;
+      }
+      state.queryResult = resp;
+      raf.scheduleFullRedraw();
+    },
+  );
   raf.scheduleDelayedFullRedraw();
 }
 
-function getEngine(): Engine | undefined {
-  const engineId = globals.getCurrentEngine()?.id;
-  if (engineId === undefined) {
-    return undefined;
-  }
-  const engine = globals.engines.get(engineId)?.getProxy('QueryPage');
-  return engine;
-}
-
-class QueryInput implements m.ClassComponent {
+class QueryInput implements m.ClassComponent<EngineAttrs> {
   private resize?: Disposable;
 
-  oncreate({dom}: m.CVnodeDOM): void {
+  oncreate({dom}: m.CVnodeDOM<EngineAttrs>): void {
     this.resize = new SimpleResizeObserver(dom, () => {
       state.heightPx = (dom as HTMLElement).style.height;
     });
@@ -94,7 +82,7 @@ class QueryInput implements m.ClassComponent {
     }
   }
 
-  view() {
+  view({attrs}: m.CVnode<EngineAttrs>) {
     return m(Editor, {
       generation: state.generation,
       initialText: state.enteredText,
@@ -104,7 +92,7 @@ class QueryInput implements m.ClassComponent {
           return;
         }
         queryHistoryStorage.saveQuery(text);
-        runManualQuery(text);
+        runManualQuery(attrs.engine, text);
       },
 
       onUpdate: (text: string) => {
@@ -115,8 +103,15 @@ class QueryInput implements m.ClassComponent {
   }
 }
 
-export const QueryPage = createPage({
+export class QueryPage implements m.ClassComponent<PageWithTraceAttrs> {
+  private engine?: Engine;
+
+  oninit({attrs}: m.CVnode<PageWithTraceAttrs>) {
+    this.engine = attrs.trace.engine.getProxy('QueryPage');
+  }
+
   view() {
+    const engine = assertExists(this.engine);
     return m(
       '.query-page',
       m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),
@@ -128,7 +123,7 @@ export const QueryPage = createPage({
             `define a string, please use ' (single quote) instead. Using double quotes ` +
             `can cause subtle problems which are very hard to debug.`,
         ),
-      m(QueryInput),
+      m(QueryInput, {engine}),
       state.executedQuery === undefined
         ? null
         : m(QueryTable, {
@@ -137,7 +132,7 @@ export const QueryPage = createPage({
             fillParent: false,
           }),
       m(QueryHistoryComponent, {
-        runQuery: runManualQuery,
+        runQuery: (q: string) => runManualQuery(engine, q),
         setQuery: (q: string) => {
           state.enteredText = q;
           state.generation++;
@@ -145,5 +140,5 @@ export const QueryPage = createPage({
         },
       }),
     );
-  },
-});
+  }
+}

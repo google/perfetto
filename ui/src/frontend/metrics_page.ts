@@ -29,20 +29,11 @@ import {STR} from '../trace_processor/query_result';
 import {Select} from '../widgets/select';
 import {Spinner} from '../widgets/spinner';
 import {VegaView} from '../widgets/vega_view';
-import {globals} from './globals';
-import {createPage} from './pages';
+import {PageWithTraceAttrs} from './pages';
+import {assertExists} from '../base/logging';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
-
-function getEngine(): Engine | undefined {
-  const engineId = globals.getCurrentEngine()?.id;
-  if (engineId === undefined) {
-    return undefined;
-  }
-  const engine = globals.engines.get(engineId)?.getProxy('MetricsPage');
-  return engine;
-}
 
 async function getMetrics(engine: Engine): Promise<string[]> {
   const metrics: string[] = [];
@@ -251,25 +242,19 @@ class MetricVizView implements m.ClassComponent<MetricVizViewAttrs> {
   }
 }
 
-class MetricPageContents implements m.ClassComponent {
-  controller?: MetricsController;
+export class MetricsPage implements m.ClassComponent<PageWithTraceAttrs> {
+  private controller?: MetricsController;
 
-  oncreate() {
-    const engine = getEngine();
-    if (engine !== undefined) {
-      this.controller = new MetricsController(pluginManager, engine);
-    }
+  oninit({attrs}: m.Vnode<PageWithTraceAttrs>) {
+    const engine = attrs.trace.engine.getProxy('MetricsPage');
+    this.controller = new MetricsController(pluginManager, engine);
   }
 
   view() {
-    const controller = this.controller;
-    if (controller === undefined) {
-      return m('');
-    }
-
+    const controller = assertExists(this.controller);
     const json = controller.resultAsJson;
-
-    return [
+    return m(
+      '.metrics-page',
       m(MetricPicker, {
         controller,
       }),
@@ -282,12 +267,6 @@ class MetricPageContents implements m.ClassComponent {
           return m(MetricVizView, {visualisation, data});
         }),
       m(MetricResultView, {result: controller.result}),
-    ];
+    );
   }
 }
-
-export const MetricsPage = createPage({
-  view() {
-    return m('.metrics-page', m(MetricPageContents));
-  },
-});

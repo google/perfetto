@@ -66,3 +66,17 @@ export interface Trace extends App {
   // present returns undefined.
   readonly openerPluginArgs?: {[key: string]: unknown};
 }
+
+/**
+ * A convenience interface to inject the App in Mithril components.
+ * Example usage:
+ *
+ * class MyComponent implements m.ClassComponent<TraceAttrs> {
+ *   oncreate({attrs}: m.CVnodeDOM<AppAttrs>): void {
+ *     attrs.trace.engine.runQuery(...);
+ *   }
+ * }
+ */
+export interface TraceAttrs {
+  trace: Trace;
+}
