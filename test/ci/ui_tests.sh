@@ -41,5 +41,10 @@ RES=$?
 # Copy the output of screenshots diff testing.
 if [ -d ${OUT_PATH}/ui-test-artifacts ]; then
   cp -a ${OUT_PATH}/ui-test-artifacts /ci/artifacts/ui-test-artifacts
+  echo "UI integration test report with screnshots:"
+  echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_TEST_JOB/ui-test-artifacts/index.html"
+  echo ""
+  echo "Perfetto UI build for this CL"
+  echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_TEST_JOB/ui/index.html"
   exit $RES
 fi
