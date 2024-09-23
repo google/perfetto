@@ -61,6 +61,8 @@ export interface TraceProcessorConfig {
 }
 
 export interface Engine {
+  readonly engineId: string;
+
   /**
    * Execute a query against the database, returning a promise that resolves
    * when the query has completed but rejected when the query fails for whatever
@@ -500,6 +502,10 @@ export abstract class EngineBase implements Engine {
     const buf = TraceProcessorRpcStream.encode(outerProto).finish();
     this.loadingTracker.beginLoading();
     this.rpcSendRequestBytes(buf);
+  }
+
+  get engineId(): string {
+    return this.id;
   }
 
   getProxy(tag: string): EngineProxy {

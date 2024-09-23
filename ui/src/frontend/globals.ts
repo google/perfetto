@@ -41,10 +41,6 @@ import {exists} from '../base/utils';
 import {OmniboxManagerImpl} from '../core/omnibox_manager';
 import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
-import {
-  createSearchOverviewTrack,
-  SearchOverviewTrack,
-} from './search_overview_track';
 import {TraceInfo} from '../public/trace_info';
 import {Registry} from '../base/registry';
 import {SidebarMenuItem} from '../public/sidebar';
@@ -205,8 +201,8 @@ class Globals {
   private _selectionManager = new SelectionManagerImpl();
   private _noteManager = new NoteManagerImpl();
   private _hasFtrace: boolean = false;
-  private _searchOverviewTrack?: SearchOverviewTrack;
   private _workspaceManager = new WorkspaceManagerImpl();
+  private _currentTraceId = '';
   readonly omnibox = new OmniboxManagerImpl();
 
   httpRpcState: HttpRpcState = {connected: false};
@@ -286,29 +282,11 @@ class Globals {
       },
     });
 
-    // TODO(stevegolton): Even though createSearchOverviewTrack() returns a
-    // disposable, we completely ignore it as we assume the dispose action
-    // includes just dropping some tables, and seeing as this object will live
-    // for the duration of the trace/engine, there's no need to drop anything as
-    // the tables will be dropped along with the trace anyway.
-    //
-    // Note that this is no worse than a lot of the rest of the app where tables
-    // are created with no way to drop them.
-    //
-    // Once we fix the story around loading new traces, we should tidy this up.
-    // We could for example have a matching globals.onTraceUnload() that
-    // performs any tear-down before the old engine is dropped. This might seem
-    // pointless, but it could at least block until any currently running update
-    // cycles complete, to avoid leaving promises open on old engines that will
-    // never resolve.
-    //
-    // Alternatively we could decide that we don't want to support switching
-    // traces at all, in which case we can ignore tear down entirely.
-    this._searchOverviewTrack = await createSearchOverviewTrack(
-      engine,
-      this.searchManager,
-      this.timeline,
-    );
+    // Incrementing this causes the root mithril component UiMain to be
+    // recreated. This is to linearize globals and UiMain and guarrantee that by
+    // the time UiMain gets created, it can consistently see the globals for the
+    // new trace.
+    this._currentTraceId = engine.engineId;
   }
 
   // Used for permalink load by trace_controller.ts.
@@ -488,8 +466,8 @@ class Globals {
     return this._hasFtrace;
   }
 
-  get searchOverviewTrack() {
-    return this._searchOverviewTrack;
+  get currentTraceId() {
+    return this._currentTraceId;
   }
 
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
