@@ -13,244 +13,15 @@
 // limitations under the License.
 
 import {Registry} from '../base/registry';
-import {TimeSpan, time} from '../base/time';
-import {globals} from '../frontend/globals';
-import {TrackDescriptor} from '../public/track';
 import {Trace} from '../public/trace';
 import {App} from '../public/app';
-import {SidebarMenuItem} from '../public/sidebar';
-import {TabDescriptor} from '../public/tab';
 import {MetricVisualisation} from '../public/plugin';
 import {PerfettoPlugin, PluginDescriptor} from '../public/plugin';
-import {Command} from '../public/command';
-import {EngineBase, Engine} from '../trace_processor/engine';
-import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Flag, featureFlags} from '../core/feature_flags';
-import {assertExists} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
-import {PromptOption} from '../public/omnibox';
-import {DisposableStack} from '../base/disposable_stack';
-import {TraceInfo} from '../public/trace_info';
-import {Workspace, WorkspaceManager} from '../public/workspace';
-import {Migrate, Store} from '../base/store';
-import {LegacyDetailsPanel} from '../public/details_panel';
-import {scrollTo, ScrollToArgs} from '../public/scroll_helper';
-
-// Every plugin gets its own PluginContext. This is how we keep track
-// what each plugin is doing and how we can blame issues on particular
-// plugins.
-// The PluginContext exists for the whole duration a plugin is active.
-export class PluginContextImpl implements App, Disposable {
-  private trash = new DisposableStack();
-  private alive = true;
-  readonly commands;
-  readonly sidebar;
-  readonly omnibox;
-
-  constructor(readonly pluginId: string) {
-    const thiz = this;
-    this.commands = {
-      registerCommand(cmd: Command): void {
-        // Silently ignore if context is dead.
-        if (!thiz.alive) return;
-
-        const disposable = globals.commandManager.registerCommand(cmd);
-        thiz.trash.use(disposable);
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      runCommand(id: string, ...args: any[]): any {
-        return globals.commandManager.runCommand(id, ...args);
-      },
-      hasCommand(commandId: string) {
-        return globals.commandManager.hasCommand(commandId);
-      },
-    };
-
-    this.sidebar = {
-      addMenuItem(menuItem: SidebarMenuItem): void {
-        thiz.trash.use(globals.sidebarMenuItems.register(menuItem));
-      },
-    };
-
-    this.omnibox = {
-      prompt(text: string, options?: PromptOption[]) {
-        return globals.omnibox.prompt(text, options);
-      },
-    };
-  }
-
-  [Symbol.dispose]() {
-    this.trash.dispose();
-    this.alive = false;
-  }
-}
-
-// This PluginContextTrace implementation provides the plugin access to trace
-// related resources, such as the engine and the store.
-// The PluginContextTrace exists for the whole duration a plugin is active AND a
-// trace is loaded.
-class PluginContextTraceImpl implements Trace, Disposable {
-  private trash = new DisposableStack();
-  private alive = true;
-  readonly commands;
-  readonly engine: Engine;
-  readonly sidebar;
-  readonly tabs;
-  readonly tracks;
-  readonly omnibox;
-
-  constructor(
-    private ctx: App,
-    engine: EngineBase,
-  ) {
-    const engineProxy = engine.getProxy(ctx.pluginId);
-    this.trash.use(engineProxy);
-    this.engine = engineProxy;
-    const thiz = this;
-
-    this.omnibox = ctx.omnibox;
-
-    this.commands = {
-      registerCommand(cmd: Command): void {
-        // Silently ignore if context is dead.
-        if (!thiz.alive) return;
-
-        const dispose = globals.commandManager.registerCommand(cmd);
-        thiz.trash.use(dispose);
-      },
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      runCommand(id: string, ...args: any[]): any {
-        return ctx.commands.runCommand(id, ...args);
-      },
-
-      hasCommand(commandId: string) {
-        return globals.commandManager.hasCommand(commandId);
-      },
-    };
-
-    this.tracks = {
-      registerTrack(trackDesc: TrackDescriptor): void {
-        // Silently ignore if context is dead.
-        if (!thiz.alive) return;
-
-        const dispose = globals.trackManager.registerTrack({
-          ...trackDesc,
-          pluginId: thiz.pluginId,
-        });
-        thiz.trash.use(dispose);
-      },
-      findTrack(predicate: (desc: TrackDescriptor) => boolean | undefined) {
-        return globals.trackManager.findTrack(predicate);
-      },
-      getAllTracks() {
-        return globals.trackManager.getAllTracks();
-      },
-      getTrack(uri: string) {
-        return globals.trackManager.getTrack(uri);
-      },
-    };
-
-    this.tabs = {
-      registerTab(desc: TabDescriptor): void {
-        if (!thiz.alive) return;
-
-        const unregister = globals.tabManager.registerTab(desc);
-        thiz.trash.use(unregister);
-      },
-
-      addDefaultTab(uri: string): void {
-        const remove = globals.tabManager.addDefaultTab(uri);
-        thiz.trash.use(remove);
-      },
-
-      showTab(uri: string): void {
-        globals.tabManager.showTab(uri);
-      },
-
-      hideTab(uri: string): void {
-        globals.tabManager.hideTab(uri);
-      },
-    };
-
-    this.sidebar = {
-      addMenuItem(menuItem: SidebarMenuItem): void {
-        // Silently ignore if context is dead.
-        if (!thiz.alive) return;
-
-        thiz.trash.use(globals.sidebarMenuItems.register(menuItem));
-      },
-    };
-  }
-
-  addQueryResultsTab(query: string, title: string) {
-    addQueryResultsTab({query, title});
-  }
-
-  registerDetailsPanel(detailsPanel: LegacyDetailsPanel): void {
-    if (!this.alive) return;
-
-    const tabMan = globals.tabManager;
-    const unregister = tabMan.registerLegacyDetailsPanel(detailsPanel);
-    this.trash.use(unregister);
-  }
-
-  scrollTo(args: ScrollToArgs): void {
-    scrollTo(args);
-  }
-
-  get pluginId(): string {
-    return this.ctx.pluginId;
-  }
-
-  readonly timeline = {
-    panToTimestamp(ts: time): void {
-      globals.timeline.panToTimestamp(ts);
-    },
-
-    setViewportTime(start: time, end: time): void {
-      globals.timeline.updateVisibleTime(new TimeSpan(start, end));
-    },
-
-    get visibleWindow() {
-      return globals.timeline.visibleWindow;
-    },
-  };
-
-  get workspace(): Workspace {
-    return globals.workspace;
-  }
-
-  get selection() {
-    return globals.selectionManager;
-  }
-
-  [Symbol.dispose]() {
-    this.trash.dispose();
-    this.alive = false;
-  }
-
-  mountStore<T>(migrate: Migrate<T>): Store<T> {
-    return globals.store.createSubStore(['plugins', this.pluginId], migrate);
-  }
-
-  get workspaces(): WorkspaceManager {
-    return globals.workspaceManager;
-  }
-
-  get traceInfo(): TraceInfo {
-    return globals.traceContext;
-  }
-
-  get openerPluginArgs(): {[key: string]: unknown} | undefined {
-    if (globals.state.engine?.source.type !== 'ARRAY_BUFFER') {
-      return undefined;
-    }
-    const pluginArgs = globals.state.engine?.source.pluginArgs;
-    return (pluginArgs ?? {})[this.pluginId];
-  }
-}
+import {AppImpl, CORE_PLUGIN_ID, TraceImpl} from '../core/app_trace_impl';
 
 // 'Static' registry of all known plugins.
 export class PluginRegistry extends Registry<PluginDescriptor> {
@@ -261,8 +32,8 @@ export class PluginRegistry extends Registry<PluginDescriptor> {
 
 export interface PluginDetails {
   plugin: PerfettoPlugin;
-  context: App & Disposable;
-  traceContext?: PluginContextTraceImpl;
+  app: App;
+  trace?: Trace;
   previousOnTraceLoadTimeMillis?: number;
 }
 
@@ -281,7 +52,6 @@ function makePlugin(info: PluginDescriptor): PerfettoPlugin {
 export class PluginManager {
   private registry: PluginRegistry;
   private _plugins: Map<string, PluginDetails>;
-  private engine?: EngineBase;
   private flags = new Map<string, Flag>();
   private _needsRestart = false;
 
@@ -348,19 +118,17 @@ export class PluginManager {
     const pluginInfo = this.registry.get(id);
     const plugin = makePlugin(pluginInfo);
 
-    const context = new PluginContextImpl(id);
+    const app = AppImpl.instance.forkForPlugin(id);
 
-    plugin.onActivate?.(context);
+    plugin.onActivate?.(app);
 
-    const pluginDetails: PluginDetails = {
-      plugin,
-      context,
-    };
+    const pluginDetails: PluginDetails = {plugin, app};
 
     // If a trace is already loaded when plugin is activated, make sure to
     // call onTraceLoad().
-    if (this.engine) {
-      await doPluginTraceLoad(pluginDetails, this.engine);
+    const maybeTrace = AppImpl.instance.trace;
+    if (maybeTrace !== undefined) {
+      await doPluginTraceLoad(pluginDetails, maybeTrace);
       await doPluginTraceReady(pluginDetails);
     }
 
@@ -398,11 +166,15 @@ export class PluginManager {
     return this._plugins.get(pluginId);
   }
 
+  // NOTE: here we take as argument the TraceImpl for the core. This is because
+  // we pass it to doPluginTraceLoad() which uses to call forkForPlugin(id) and
+  // derive a per-plugin instance.
   async onTraceLoad(
-    engine: EngineBase,
+    traceCore: TraceImpl,
     beforeEach?: (id: string) => void,
   ): Promise<void> {
-    this.engine = engine;
+    assertTrue(traceCore.pluginId === CORE_PLUGIN_ID);
+
     // Awaiting all plugins in parallel will skew timing data as later plugins
     // will spend most of their time waiting for earlier plugins to load.
     // Running in parallel will have very little performance benefit assuming
@@ -410,7 +182,7 @@ export class PluginManager {
     // time.
     for (const [id, plugin] of this._plugins.entries()) {
       beforeEach?.(id);
-      await doPluginTraceLoad(plugin, engine);
+      await doPluginTraceLoad(plugin, traceCore);
     }
   }
 
@@ -428,14 +200,13 @@ export class PluginManager {
     for (const pluginDetails of this._plugins.values()) {
       doPluginTraceUnload(pluginDetails);
     }
-    this.engine = undefined;
   }
 
   metricVisualisations(): MetricVisualisation[] {
     return Array.from(this._plugins.values()).flatMap((ctx) => {
       const tracePlugin = ctx.plugin;
       if (tracePlugin.metricVisualisations) {
-        return tracePlugin.metricVisualisations(ctx.context);
+        return tracePlugin.metricVisualisations(ctx.app);
       } else {
         return [];
       }
@@ -448,22 +219,24 @@ export class PluginManager {
 }
 
 async function doPluginTraceReady(pluginDetails: PluginDetails): Promise<void> {
-  const {plugin, traceContext} = pluginDetails;
+  const {plugin, trace: traceContext} = pluginDetails;
   await Promise.resolve(plugin.onTraceReady?.(assertExists(traceContext)));
   raf.scheduleFullRedraw();
 }
 
 async function doPluginTraceLoad(
   pluginDetails: PluginDetails,
-  engine: EngineBase,
+  traceCore: TraceImpl,
 ): Promise<void> {
-  const {plugin, context} = pluginDetails;
+  assertTrue(traceCore.pluginId === CORE_PLUGIN_ID);
+  assertTrue(pluginDetails.app.pluginId !== CORE_PLUGIN_ID);
+  const {plugin} = pluginDetails;
+  const trace = traceCore.forkForPlugin(pluginDetails.app.pluginId);
 
-  const traceCtx = new PluginContextTraceImpl(context, engine);
-  pluginDetails.traceContext = traceCtx;
+  pluginDetails.trace = trace;
 
   const startTime = performance.now();
-  await Promise.resolve(plugin.onTraceLoad?.(traceCtx));
+  await Promise.resolve(plugin.onTraceLoad?.(trace));
   const loadTime = performance.now() - startTime;
   pluginDetails.previousOnTraceLoadTimeMillis = loadTime;
 
@@ -473,12 +246,14 @@ async function doPluginTraceLoad(
 async function doPluginTraceUnload(
   pluginDetails: PluginDetails,
 ): Promise<void> {
-  const {traceContext, plugin} = pluginDetails;
+  const {trace, plugin} = pluginDetails;
 
-  if (traceContext) {
-    plugin.onTraceUnload && (await plugin.onTraceUnload(traceContext));
-    traceContext[Symbol.dispose]();
-    pluginDetails.traceContext = undefined;
+  if (trace) {
+    plugin.onTraceUnload && (await plugin.onTraceUnload(trace));
+    pluginDetails.trace = undefined;
+    // All the disposable resources created by plugins are appeneded to the
+    // per-trace (not per-plugin) trash. There is no need of per-plugin dispose
+    // call.
   }
 }
 

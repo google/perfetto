@@ -24,7 +24,6 @@ import {
   createSearchOverviewTrack,
   SearchOverviewTrack,
 } from './search_overview_track';
-import {getEngine} from './get_engine';
 import {Optional} from '../base/utils';
 
 // TODO(primiano): this should be moved into the TraceImpl object rather than
@@ -54,11 +53,7 @@ export class TickmarkPanel implements Panel {
       // trash, as its dispose() tries to clean up tables in TraceProcessor.
       // Doing so is useless and harmful, for the reasons described in the
       // comment UiMain::onbeforeremove().
-      createSearchOverviewTrack(
-        getEngine('SearchOverviewTrack'),
-        globals.searchManager,
-        globals.timeline,
-      ).then((track) => {
+      createSearchOverviewTrack(globals.trace).then((track) => {
         lastOverviewTrack = {engineId: curEngineId, track};
         this.searchOverviewTrack = track;
       });

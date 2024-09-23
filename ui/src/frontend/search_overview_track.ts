@@ -19,9 +19,7 @@ import {Duration, Time, TimeSpan, duration, time} from '../base/time';
 import {TimeScale} from '../base/time_scale';
 import {Optional} from '../base/utils';
 import {calculateResolution} from '../common/resolution';
-import {SearchManagerImpl} from '../core/search_manager';
-import {TimelineImpl} from '../core/timeline';
-import {Engine} from '../trace_processor/engine';
+import {TraceImpl} from '../core/app_trace_impl';
 import {LONG, NUM} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
 import {createVirtualTable} from '../trace_processor/sql_utils';
@@ -40,15 +38,15 @@ interface SearchSummary {
  * This function describes a pseudo-track that renders the search overview
  * blobs.
  *
- * @param engine The engine to use for loading data.
  * @returns A new search overview renderer.
  */
 export async function createSearchOverviewTrack(
-  engine: Engine,
-  searchManager: SearchManagerImpl,
-  timeline: TimelineImpl,
+  trace: TraceImpl,
 ): Promise<SearchOverviewTrack> {
   const trash = new AsyncDisposableStack();
+  const engine = trace.engine;
+  const searchManager = trace.search;
+  const timeline = trace.timeline;
   trash.use(
     await createVirtualTable(engine, 'search_summary_window', 'window'),
   );
