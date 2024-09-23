@@ -107,7 +107,7 @@ export interface Route {
 }
 
 export interface RoutesMap {
-  [key: string]: m.Component<PageAttrs>;
+  [key: string]: m.ComponentTypes<PageAttrs>;
 }
 
 // This router does two things:
@@ -197,7 +197,7 @@ export class Router {
     if (component === undefined) {
       component = assertExists(this.routes[DEFAULT_ROUTE]);
     }
-    return m(component, {subpage: route.subpage} as PageAttrs);
+    return m(component, {subpage: route.subpage});
   }
 
   static navigate(newHash: string) {

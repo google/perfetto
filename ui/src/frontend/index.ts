@@ -60,6 +60,7 @@ import {showModal} from '../widgets/modal';
 import {initAnalytics} from './analytics';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
+import {pageWithTrace} from './pages';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -289,16 +290,16 @@ function onCssLoaded() {
 
   const router = new Router({
     '/': HomePage,
-    '/viewer': ViewerPage,
-    '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
-    '/query': QueryPage,
-    '/insights': InsightsPage,
     '/flags': FlagsPage,
-    '/metrics': MetricsPage,
-    '/info': TraceInfoPage,
-    '/widgets': WidgetsPage,
-    '/viz': VizPage,
+    '/info': pageWithTrace(TraceInfoPage),
+    '/insights': pageWithTrace(InsightsPage),
+    '/metrics': pageWithTrace(MetricsPage),
     '/plugins': PluginsPage,
+    '/query': pageWithTrace(QueryPage),
+    '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
+    '/viewer': pageWithTrace(ViewerPage),
+    '/viz': pageWithTrace(VizPage),
+    '/widgets': WidgetsPage,
   });
   router.onRouteChanged = routeChange;
 
