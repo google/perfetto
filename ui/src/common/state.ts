@@ -304,10 +304,6 @@ export interface State {
   // trace.
   pendingDeeplink?: PendingDeeplinkState;
 
-  // Individual plugin states
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  plugins: {[key: string]: any};
-
   trackFilterTerm: string | undefined;
 
   // TODO(primiano): this is a hack to force-re-run controllers required for the

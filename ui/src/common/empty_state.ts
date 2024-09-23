@@ -126,9 +126,6 @@ export function createEmptyState(): State {
     chromeCategories: undefined,
     nonSerializableState: createEmptyNonSerializableState(),
 
-    // Somewhere to store plugins' persistent state.
-    plugins: {},
-
     trackFilterTerm: undefined,
     forceRunControllers: 0,
   };

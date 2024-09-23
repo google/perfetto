@@ -20,6 +20,7 @@ import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PromptOption} from '../../public/omnibox';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {AppImpl} from '../../core/app_trace_impl';
 
 class TrackUtilsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -28,11 +29,12 @@ class TrackUtilsPlugin implements PerfettoPlugin {
       name: `Run query in selected time window`,
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow();
-        globals.omnibox.setMode(OmniboxMode.Query);
-        globals.omnibox.setText(
+        const omnibox = AppImpl.instance.omnibox;
+        omnibox.setMode(OmniboxMode.Query);
+        omnibox.setText(
           `select  where ts >= ${window.start} and ts < ${window.end}`,
         );
-        globals.omnibox.focus(7);
+        omnibox.focus(/* cursorPlacement= */ 7);
       },
     });
 

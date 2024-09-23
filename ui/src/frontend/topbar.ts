@@ -20,6 +20,7 @@ import {taskTracker} from './task_tracker';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {assertFalse} from '../base/logging';
 import {OmniboxMode} from '../core/omnibox_manager';
+import {AppImpl} from '../core/app_trace_impl';
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
 
@@ -78,7 +79,7 @@ class TraceErrorIcon implements m.ClassComponent {
   view() {
     if (globals.embeddedMode) return;
 
-    const mode = globals.omnibox.mode;
+    const mode = AppImpl.instance.omnibox.mode;
     const errors = globals.traceErrors;
     if (
       (!Boolean(errors) && !globals.metricError) ||

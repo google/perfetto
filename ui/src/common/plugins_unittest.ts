@@ -12,17 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../frontend/globals';
 import {PerfettoPlugin} from '../public/plugin';
-import {EngineBase} from '../trace_processor/engine';
-import {createEmptyState} from './empty_state';
+import {createFakeTraceImpl} from './fake_trace_impl';
 import {PluginManager, PluginRegistry} from './plugins';
-
-class FakeEngine extends EngineBase {
-  id: string = 'TestEngine';
-
-  rpcSendRequestBytes(_data: Uint8Array) {}
-}
 
 function makeMockPlugin(): PerfettoPlugin {
   return {
@@ -31,9 +23,6 @@ function makeMockPlugin(): PerfettoPlugin {
     onTraceUnload: jest.fn(),
   };
 }
-
-const engine = new FakeEngine();
-globals.initStore(createEmptyState());
 
 let mockPlugin: PerfettoPlugin;
 let manager: PluginManager;
@@ -58,13 +47,13 @@ describe('PluginManger', () => {
 
   it('invokes onTraceLoad when trace is loaded', async () => {
     await manager.activatePlugin('foo');
-    await manager.onTraceLoad(engine);
+    await manager.onTraceLoad(createFakeTraceImpl());
 
     expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
   });
 
   it('invokes onTraceLoad when plugin activated while trace loaded', async () => {
-    await manager.onTraceLoad(engine);
+    await manager.onTraceLoad(createFakeTraceImpl());
     await manager.activatePlugin('foo');
 
     expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);

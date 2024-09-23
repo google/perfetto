@@ -46,6 +46,7 @@ import {OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
+import {AppImpl} from '../core/app_trace_impl';
 import {NotesEditorTab} from './notes_panel';
 import {NotesListEditor} from './notes_list_editor';
 
@@ -116,7 +117,10 @@ export class UiMainPerTrace implements m.ClassComponent {
         ];
         const promptText = 'Select format...';
 
-        const result = await globals.omnibox.prompt(promptText, options);
+        const result = await AppImpl.instance.omnibox.prompt(
+          promptText,
+          options,
+        );
         if (result === undefined) return;
         setTimestampFormat(result as TimestampFormat);
         raf.scheduleFullRedraw();
@@ -135,7 +139,10 @@ export class UiMainPerTrace implements m.ClassComponent {
         ];
         const promptText = 'Select duration precision mode...';
 
-        const result = await globals.omnibox.prompt(promptText, options);
+        const result = await AppImpl.instance.omnibox.prompt(
+          promptText,
+          options,
+        );
         if (result === undefined) return;
         setDurationPrecision(result as DurationPrecision);
         raf.scheduleFullRedraw();
@@ -172,18 +179,18 @@ export class UiMainPerTrace implements m.ClassComponent {
     {
       id: 'perfetto.OpenCommandPalette',
       name: 'Open command palette',
-      callback: () => globals.omnibox.setMode(OmniboxMode.Command),
+      callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Command),
       defaultHotkey: '!Mod+Shift+P',
     },
     {
       id: 'perfetto.RunQuery',
       name: 'Run query',
-      callback: () => globals.omnibox.setMode(OmniboxMode.Query),
+      callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Query),
     },
     {
       id: 'perfetto.Search',
       name: 'Search',
-      callback: () => globals.omnibox.setMode(OmniboxMode.Search),
+      callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Search),
       defaultHotkey: '/',
     },
     {
@@ -340,7 +347,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       );
     }
 
-    const omniboxMode = globals.omnibox.mode;
+    const omniboxMode = AppImpl.instance.omnibox.mode;
 
     if (omniboxMode === OmniboxMode.Command) {
       return this.renderCommandOmnibox();
@@ -356,7 +363,7 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   renderPromptOmnibox(): m.Children {
-    const prompt = assertExists(globals.omnibox.pendingPrompt);
+    const prompt = assertExists(AppImpl.instance.omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
 
@@ -365,7 +372,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         prompt.options,
         ({displayName}) => displayName,
       );
-      const result = fuzzy.find(globals.omnibox.text);
+      const result = fuzzy.find(AppImpl.instance.omnibox.text);
       options = result.map((result) => {
         return {
           key: result.item.key,
@@ -375,27 +382,27 @@ export class UiMainPerTrace implements m.ClassComponent {
     }
 
     return m(Omnibox, {
-      value: globals.omnibox.text,
+      value: AppImpl.instance.omnibox.text,
       placeholder: prompt.text,
       inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'prompt-mode',
       closeOnOutsideClick: true,
       options,
-      selectedOptionIndex: globals.omnibox.selectionIndex,
+      selectedOptionIndex: AppImpl.instance.omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
-        globals.omnibox.setSelectionIndex(index);
+        AppImpl.instance.omnibox.setSelectionIndex(index);
         raf.scheduleFullRedraw();
       },
       onInput: (value) => {
-        globals.omnibox.setText(value);
-        globals.omnibox.setSelectionIndex(0);
+        AppImpl.instance.omnibox.setText(value);
+        AppImpl.instance.omnibox.setSelectionIndex(0);
         raf.scheduleFullRedraw();
       },
       onSubmit: (value, _alt) => {
-        globals.omnibox.resolvePrompt(value);
+        AppImpl.instance.omnibox.resolvePrompt(value);
       },
       onClose: () => {
-        globals.omnibox.rejectPrompt();
+        AppImpl.instance.omnibox.rejectPrompt();
       },
     });
   }
@@ -404,7 +411,9 @@ export class UiMainPerTrace implements m.ClassComponent {
     const cmdMgr = globals.commandManager;
 
     // Fuzzy-filter commands by the filter string.
-    const filteredCmds = cmdMgr.fuzzyFilterCommands(globals.omnibox.text);
+    const filteredCmds = cmdMgr.fuzzyFilterCommands(
+      AppImpl.instance.omnibox.text,
+    );
 
     // Create an array of commands with attached heuristics from the recent
     // command register.
@@ -435,35 +444,35 @@ export class UiMainPerTrace implements m.ClassComponent {
     });
 
     return m(Omnibox, {
-      value: globals.omnibox.text,
+      value: AppImpl.instance.omnibox.text,
       placeholder: 'Filter commands...',
       inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'command-mode',
       options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
-      selectedOptionIndex: globals.omnibox.selectionIndex,
+      selectedOptionIndex: AppImpl.instance.omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
-        globals.omnibox.setSelectionIndex(index);
+        AppImpl.instance.omnibox.setSelectionIndex(index);
         raf.scheduleFullRedraw();
       },
       onInput: (value) => {
-        globals.omnibox.setText(value);
-        globals.omnibox.setSelectionIndex(0);
+        AppImpl.instance.omnibox.setText(value);
+        AppImpl.instance.omnibox.setSelectionIndex(0);
         raf.scheduleFullRedraw();
       },
       onClose: () => {
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
-        globals.omnibox.reset();
+        AppImpl.instance.omnibox.reset();
       },
       onSubmit: (key: string) => {
         this.addRecentCommand(key);
         cmdMgr.runCommand(key);
       },
       onGoBack: () => {
-        globals.omnibox.reset();
+        AppImpl.instance.omnibox.reset();
       },
     });
   }
@@ -479,13 +488,13 @@ export class UiMainPerTrace implements m.ClassComponent {
   renderQueryOmnibox(): m.Children {
     const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
     return m(Omnibox, {
-      value: globals.omnibox.text,
+      value: AppImpl.instance.omnibox.text,
       placeholder: ph,
       inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'query-mode',
 
       onInput: (value) => {
-        globals.omnibox.setText(value);
+        AppImpl.instance.omnibox.setText(value);
         raf.scheduleFullRedraw();
       },
       onSubmit: (query, alt) => {
@@ -497,33 +506,33 @@ export class UiMainPerTrace implements m.ClassComponent {
         addQueryResultsTab(config, tag);
       },
       onClose: () => {
-        globals.omnibox.setText('');
+        AppImpl.instance.omnibox.setText('');
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
-        globals.omnibox.reset();
+        AppImpl.instance.omnibox.reset();
         raf.scheduleFullRedraw();
       },
       onGoBack: () => {
-        globals.omnibox.reset();
+        AppImpl.instance.omnibox.reset();
       },
     });
   }
 
   renderSearchOmnibox(): m.Children {
     return m(Omnibox, {
-      value: globals.omnibox.text,
+      value: AppImpl.instance.omnibox.text,
       placeholder: "Search or type '>' for commands or ':' for SQL mode",
       inputRef: OMNIBOX_INPUT_REF,
       onInput: (value, _prev) => {
         if (value === '>') {
-          globals.omnibox.setMode(OmniboxMode.Command);
+          AppImpl.instance.omnibox.setMode(OmniboxMode.Command);
           return;
         } else if (value === ':') {
-          globals.omnibox.setMode(OmniboxMode.Query);
+          AppImpl.instance.omnibox.setMode(OmniboxMode.Query);
           return;
         }
-        globals.omnibox.setText(value);
+        AppImpl.instance.omnibox.setText(value);
         if (value.length >= 4) {
           globals.searchManager.search(value);
         } else {
@@ -675,20 +684,20 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   private maybeFocusOmnibar() {
-    if (globals.omnibox.focusOmniboxNextRender) {
+    if (AppImpl.instance.omnibox.focusOmniboxNextRender) {
       const omniboxEl = this.omniboxInputEl;
       if (omniboxEl) {
         omniboxEl.focus();
-        if (globals.omnibox.pendingCursorPlacement === undefined) {
+        if (AppImpl.instance.omnibox.pendingCursorPlacement === undefined) {
           omniboxEl.select();
         } else {
           omniboxEl.setSelectionRange(
-            globals.omnibox.pendingCursorPlacement,
-            globals.omnibox.pendingCursorPlacement,
+            AppImpl.instance.omnibox.pendingCursorPlacement,
+            AppImpl.instance.omnibox.pendingCursorPlacement,
           );
         }
       }
-      globals.omnibox.clearFocusFlag();
+      AppImpl.instance.omnibox.clearFocusFlag();
     }
   }
 }
