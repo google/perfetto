@@ -19,7 +19,7 @@ import {TimeSpan} from '../base/time';
 import {TimelineImpl} from '../core/timeline';
 import {App} from '../public/app';
 import {Command} from '../public/command';
-import {LegacyDetailsPanel} from '../public/details_panel';
+import {DetailsPanel, LegacyDetailsPanel} from '../public/details_panel';
 import {Trace} from '../public/trace';
 import {setScrollToFunction} from '../public/scroll_helper';
 import {ScrollToArgs} from 'src/public/scroll_helper';
@@ -304,8 +304,14 @@ export class TraceImpl implements Trace {
     return new TraceImpl(this.appImpl.forkForPlugin(pluginId), this.traceCtx);
   }
 
-  registerDetailsPanel(detailsPanel: LegacyDetailsPanel): Disposable {
-    return this.traceCtx.tabMgr.registerLegacyDetailsPanel(detailsPanel);
+  registerDetailsPanel(
+    detailsPanel: DetailsPanel | LegacyDetailsPanel,
+  ): Disposable {
+    if (detailsPanel.panelType === 'LegacyDetailsPanel') {
+      return this.traceCtx.tabMgr.registerLegacyDetailsPanel(detailsPanel);
+    } else {
+      return this.traceCtx.tabMgr.registerDetailsPanel(detailsPanel);
+    }
   }
 
   // TODO(primiano): there are two things here:

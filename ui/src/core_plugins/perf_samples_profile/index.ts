@@ -129,6 +129,7 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
 }
 
 class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
+  readonly panelType = 'LegacyDetailsPanel';
   private sel?: PerfSamplesSelection;
   private selMonitor = new Monitor([
     () => this.sel?.leftTs,
