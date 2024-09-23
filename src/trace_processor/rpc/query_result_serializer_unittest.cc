@@ -376,7 +376,7 @@ TEST(QueryResultSerializerTest, RandomSizes) {
       insert_values += ",";
     } else {
       insert_values += "),";
-      if (insert_values.size() > 1024 * 1024 || i == kNumCells - 1) {
+      if (insert_values.size() > 100 * 1024 || i == kNumCells - 1) {
         insert_values[insert_values.size() - 1] = ';';
         auto query = "insert into tab (a,b,c) values " + insert_values;
         insert_values = "";
