@@ -30,6 +30,7 @@ import {QueryTable} from './query_table';
 import {globals} from './globals';
 import {BottomTabToTabAdapter} from '../public/utils';
 import {Engine} from '../trace_processor/engine';
+import {TraceImpl} from '../core/app_trace_impl';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -60,6 +61,11 @@ export function addQueryResultsTab(
   });
   globals.tabManager.showTab(uri);
 }
+
+// TODO(primiano): this is to break dependency cycles. The whole QueryResultTab
+// and DebugTrack dependencies need to be disentangled.
+TraceImpl.addQueryResultsTabFunction = (query: string, title: string) =>
+  addQueryResultsTab({query, title});
 
 // TODO(stevegolton): Find a way to make this more elegant.
 function getEngine(): Engine {
