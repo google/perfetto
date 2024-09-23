@@ -20,7 +20,7 @@ import {TabManager} from './tab';
 import {TrackManager} from './track';
 import {Timeline} from './timeline';
 import {Workspace, WorkspaceManager} from './workspace';
-import {LegacyDetailsPanel} from './details_panel';
+import {DetailsPanel, LegacyDetailsPanel} from './details_panel';
 import {SelectionManager} from './selection';
 import {ScrollToArgs} from './scroll_helper';
 
@@ -50,7 +50,7 @@ export interface Trace extends App {
   // gone. This method is particularly problematic because the method called
   // registerDetailsPanel in TabManagerImpl takes a non-Legacy DetailsPanel, but
   // all plugins use a Legacy one. Keeping this as a bridge for now.
-  registerDetailsPanel(detailsPanel: LegacyDetailsPanel): void;
+  registerDetailsPanel(detailsPanel: DetailsPanel | LegacyDetailsPanel): void;
 
   // Creates and shows a tab with a tabular result for the given query.
   // TODO(primiano): I am not convinced this belongs here, this should probably
