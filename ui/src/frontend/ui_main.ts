@@ -34,7 +34,6 @@ import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {getTimeSpanOfSelectionOrVisibleWindow, globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {Notes} from './notes';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {addQueryResultsTab} from './query_result_tab';
 import {Sidebar} from './sidebar';
@@ -47,6 +46,10 @@ import {OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
+import {NotesEditorTab} from './notes_panel';
+import {NotesListEditor} from './notes_list_editor';
+
+const OMNIBOX_INPUT_REF = 'omnibox';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;
@@ -72,16 +75,23 @@ class Alerts implements m.ClassComponent {
   }
 }
 
+// This wrapper creates a new instance of UiMainPerTrace for each new trace
+// loaded (including the case of no trace at the beginning).
 export class UiMain implements m.ClassComponent {
+  view({children}: m.CVnode) {
+    return [m(UiMainPerTrace, {key: globals.currentTraceId}, children)];
+  }
+}
+
+// This components gets destroyed and recreated every time the current trace
+// changes. Note that in the beginning the current trace is undefined.
+export class UiMainPerTrace implements m.ClassComponent {
+  // NOTE: this should NOT need to be an AsyncDisposableStack. If you feel the
+  // need of making it async because you want to clean up SQL resources, that
+  // will cause bugs (see comments in oncreate()).
   private trash = new DisposableStack();
-  static readonly OMNIBOX_INPUT_REF = 'omnibox';
   private omniboxInputEl?: HTMLInputElement;
   private recentCommands: string[] = [];
-
-  constructor() {
-    this.trash.use(new Notes());
-    this.trash.use(new AggregationsTabs());
-  }
 
   private cmds: Command[] = [
     {
@@ -367,7 +377,7 @@ export class UiMain implements m.ClassComponent {
     return m(Omnibox, {
       value: globals.omnibox.text,
       placeholder: prompt.text,
-      inputRef: UiMain.OMNIBOX_INPUT_REF,
+      inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'prompt-mode',
       closeOnOutsideClick: true,
       options,
@@ -427,7 +437,7 @@ export class UiMain implements m.ClassComponent {
     return m(Omnibox, {
       value: globals.omnibox.text,
       placeholder: 'Filter commands...',
-      inputRef: UiMain.OMNIBOX_INPUT_REF,
+      inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'command-mode',
       options,
       closeOnSubmit: true,
@@ -471,7 +481,7 @@ export class UiMain implements m.ClassComponent {
     return m(Omnibox, {
       value: globals.omnibox.text,
       placeholder: ph,
-      inputRef: UiMain.OMNIBOX_INPUT_REF,
+      inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'query-mode',
 
       onInput: (value) => {
@@ -504,7 +514,7 @@ export class UiMain implements m.ClassComponent {
     return m(Omnibox, {
       value: globals.omnibox.text,
       placeholder: "Search or type '>' for commands or ':' for SQL mode",
-      inputRef: UiMain.OMNIBOX_INPUT_REF,
+      inputRef: OMNIBOX_INPUT_REF,
       onInput: (value, _prev) => {
         if (value === '>') {
           globals.omnibox.setMode(OmniboxMode.Command);
@@ -605,15 +615,34 @@ export class UiMain implements m.ClassComponent {
     );
   }
 
-  oncreate({dom}: m.VnodeDOM) {
-    this.updateOmniboxInputRef(dom);
+  // This function is invoked once per trace.
+  oncreate(vnode: m.VnodeDOM) {
+    this.updateOmniboxInputRef(vnode.dom);
     this.maybeFocusOmnibar();
 
     // Register each command with the command manager
     this.cmds.forEach((cmd) => {
-      const dispose = globals.commandManager.registerCommand(cmd);
-      this.trash.use(dispose);
+      this.trash.use(globals.commandManager.registerCommand(cmd));
     });
+
+    // Register the aggregation tabs.
+    this.trash.use(new AggregationsTabs());
+
+    // Register the notes manager+editor.
+    this.trash.use(
+      globals.tabManager.registerDetailsPanel(new NotesEditorTab()),
+    );
+
+    this.trash.use(
+      globals.tabManager.registerTab({
+        uri: 'notes.manager',
+        isEphemeral: false,
+        content: {
+          getTitle: () => 'Notes & markers',
+          render: () => m(NotesListEditor),
+        },
+      }),
+    );
   }
 
   onupdate({dom}: m.VnodeDOM) {
@@ -622,12 +651,24 @@ export class UiMain implements m.ClassComponent {
   }
 
   onremove(_: m.VnodeDOM) {
-    this.trash.dispose();
     this.omniboxInputEl = undefined;
+
+    // NOTE: if this becomes ever an asyncDispose(), then the promise needs to
+    // be returned to onbeforeremove, so mithril delays the removal until
+    // the promise is resolved, but then also the UiMain wrapper needs to be
+    // more complex to linearize the destruction of the old instane with the
+    // creation of the new one, without overlaps.
+    // However, we should not add disposables that issue cleanup queries on the
+    // Engine. Doing so is: (1) useless: we throw away the whole wasm instance
+    // on each trace load, so what's the point of deleting tables from a TP
+    // instance that is going to be destroyed?; (2) harmful: we don't have
+    // precise linearization with the wasm teardown, so we might end up awaiting
+    // forever for the asyncDispose() because the query will never run.
+    this.trash.dispose();
   }
 
   private updateOmniboxInputRef(dom: Element): void {
-    const el = findRef(dom, UiMain.OMNIBOX_INPUT_REF);
+    const el = findRef(dom, OMNIBOX_INPUT_REF);
     if (el && el instanceof HTMLInputElement) {
       this.omniboxInputEl = el;
     }
