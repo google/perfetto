@@ -129,6 +129,7 @@ export interface BottomTabAdapterAttrs {
     })
  */
 export class BottomTabToSCSAdapter implements LegacyDetailsPanel {
+  readonly panelType = 'LegacyDetailsPanel';
   private oldSelection?: LegacySelection;
   private bottomTab?: BottomTab;
   private attrs: BottomTabAdapterAttrs;

@@ -366,6 +366,7 @@ export class AggregationsTabs implements Disposable {
 
   constructor() {
     const unregister = globals.tabManager.registerDetailsPanel({
+      panelType: 'DetailsPanel',
       render(selection) {
         if (selection.kind === 'area') {
           return m(AreaDetailsPanel);

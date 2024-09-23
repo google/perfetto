@@ -16,11 +16,13 @@ import m from 'mithril';
 import {LegacySelection, Selection} from './selection';
 
 export interface LegacyDetailsPanel {
+  readonly panelType: 'LegacyDetailsPanel';
   render(selection: LegacySelection): m.Children;
   isLoading?(): boolean;
 }
 
 export interface DetailsPanel {
+  readonly panelType: 'DetailsPanel';
   render(selection: Selection): m.Children;
   isLoading?(): boolean;
 }
