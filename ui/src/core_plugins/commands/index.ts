@@ -29,6 +29,7 @@ import {
   addSqlTableTabImpl,
   SqlTableTabConfig,
 } from '../../frontend/sql_table_tab';
+import {AppImpl} from '../../core/app_trace_impl';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -289,11 +290,11 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'createNewEmptyWorkspace',
       name: 'Create new empty workspace',
       callback: async () => {
+        const workspaces = AppImpl.instance.trace?.workspaces;
+        if (workspaces === undefined) return; // No trace loaded.
         const name = await ctx.omnibox.prompt('Give it a name...');
         if (name === undefined || name === '') return;
-        globals.workspaceManager.switchWorkspace(
-          globals.workspaceManager.createEmptyWorkspace(name),
-        );
+        workspaces.switchWorkspace(workspaces.createEmptyWorkspace(name));
       },
     });
 
@@ -301,8 +302,9 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'switchWorkspace',
       name: 'Switch workspace',
       callback: async () => {
-        const workspaceManager = globals.workspaceManager;
-        const options = workspaceManager.all.map((ws) => {
+        const workspaces = AppImpl.instance.trace?.workspaces;
+        if (workspaces === undefined) return; // No trace loaded.
+        const options = workspaces.all.map((ws) => {
           return {key: ws.uuid, displayName: ws.displayName};
         });
         const workspaceUuid = await ctx.omnibox.prompt(
@@ -310,11 +312,11 @@ class CoreCommandsPlugin implements PerfettoPlugin {
           options,
         );
         if (workspaceUuid === undefined) return;
-        const workspace = workspaceManager.all.find(
+        const workspace = workspaces.all.find(
           (ws) => ws.uuid === workspaceUuid,
         );
         if (workspace) {
-          workspaceManager.switchWorkspace(workspace);
+          workspaces.switchWorkspace(workspace);
         }
       },
     });

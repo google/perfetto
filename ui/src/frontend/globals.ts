@@ -17,7 +17,6 @@ import {createStore, Store} from '../base/store';
 import {duration, Time, time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
-import {Args} from '../common/arg_types';
 import {CommandManagerImpl} from '../core/command_manager';
 import {
   ConversionJobName,
@@ -25,67 +24,29 @@ import {
 } from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
 import {EngineConfig, State} from '../common/state';
-import {TabManagerImpl} from '../core/tab_manager';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
-import {TrackManagerImpl} from '../core/track_manager';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
-import {Engine, EngineBase} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import type {Analytics} from './analytics';
-import {TimelineImpl} from '../core/timeline';
 import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
-import {SelectionManagerImpl} from '../core/selection_manager';
 import {exists} from '../base/utils';
-import {OmniboxManagerImpl} from '../core/omnibox_manager';
 import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
-import {TraceInfo} from '../public/trace_info';
-import {Registry} from '../base/registry';
-import {SidebarMenuItem} from '../public/sidebar';
-import {Workspace, WorkspaceManager} from '../public/workspace';
+import {Workspace} from '../public/workspace';
 import {ratelimit} from './rate_limiters';
-import {NoteManagerImpl} from '../core/note_manager';
-import {SearchManagerImpl} from '../core/search_manager';
-import {SearchResult} from '../public/search';
-import {selectCurrentSearchResult} from './search_handler';
-import {WorkspaceManagerImpl} from '../core/workspace_manager';
-import {ScrollHelper} from '../core/scroll_helper';
-import {setScrollToFunction} from '../public/scroll_helper';
+import {
+  AppImpl,
+  setRerunControllersFunction,
+  TraceImpl,
+} from '../core/app_trace_impl';
+import {createFakeTraceImpl} from '../common/fake_trace_impl';
 
 type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
 type AggregateDataStore = Map<string, AggregateData>;
-type Description = Map<string, string>;
-
-export interface SliceDetails {
-  ts?: time;
-  absTime?: string;
-  dur?: duration;
-  threadTs?: time;
-  threadDur?: duration;
-  priority?: number;
-  endState?: string | null;
-  cpu?: number;
-  id?: number;
-  threadStateId?: number;
-  utid?: number;
-  wakeupTs?: time;
-  wakerUtid?: number;
-  wakerCpu?: number;
-  category?: string;
-  name?: string;
-  tid?: number;
-  threadName?: string;
-  pid?: number;
-  processName?: string;
-  uid?: number;
-  packageName?: string;
-  versionCode?: number;
-  args?: Args;
-  description?: Description;
-}
 
 export interface FlowPoint {
   trackId: number;
@@ -141,19 +102,6 @@ export interface ThreadDesc {
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
-export const defaultTraceContext: TraceInfo = {
-  traceTitle: '',
-  traceUrl: '',
-  start: Time.ZERO,
-  end: Time.fromSeconds(10),
-  realtimeOffset: Time.ZERO,
-  utcOffset: Time.ZERO,
-  traceTzOffset: Time.ZERO,
-  cpus: [],
-  gpuCount: 0,
-  source: {type: 'URL', url: ''},
-};
-
 interface SqlModule {
   readonly name: string;
   readonly sql: string;
@@ -170,11 +118,10 @@ interface SqlPackage {
 class Globals {
   readonly root = getServingRoot();
 
+  private _trace: TraceImpl;
   private _testing = false;
   private _dispatchMultiple?: DispatchMultiple = undefined;
   private _store = createStore<State>(createEmptyState());
-  private _timeline: TimelineImpl;
-  private _searchManager = new SearchManagerImpl();
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
   private _isInternalUser: boolean | undefined = undefined;
@@ -195,98 +142,29 @@ class Globals {
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
-  private _cmdManager = new CommandManagerImpl();
-  private _tabManager = new TabManagerImpl();
-  private _trackManager = new TrackManagerImpl();
-  private _selectionManager = new SelectionManagerImpl();
-  private _noteManager = new NoteManagerImpl();
   private _hasFtrace: boolean = false;
-  private _workspaceManager = new WorkspaceManagerImpl();
   private _currentTraceId = '';
-  readonly omnibox = new OmniboxManagerImpl();
-
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
   permalinkHash?: string;
   showTraceErrorPopup = true;
   extraSqlPackages: SqlPackage[] = [];
 
-  traceContext = defaultTraceContext;
-
-  readonly sidebarMenuItems = new Registry<SidebarMenuItem>((m) => m.commandId);
-
   get workspace(): Workspace {
-    return this._workspaceManager.currentWorkspace;
-  }
-
-  get workspaceManager(): WorkspaceManager {
-    return this._workspaceManager;
+    return this._trace?.workspace;
   }
 
   // This is the app's equivalent of a plugin's onTraceLoad() function.
-  // TODO(stevegolton): Eventually initialization that should be done on trace
-  // load should be moved into here, and then we can remove TraceController
-  // entirely
-  async onTraceLoad(engine: Engine, traceCtx: TraceInfo): Promise<void> {
-    this.traceContext = traceCtx;
+  // TODO(primiano): right now this is used to inject the TracImpl class into
+  // globals, so it can hop consistently all its accessors to it. Once globals
+  // is gone, figure out what to do with createSearchOverviewTrack().
+  async onTraceLoad(trace: TraceImpl): Promise<void> {
+    this._trace = trace;
 
-    // Reset workspaces
-    this._workspaceManager = new WorkspaceManagerImpl();
-
-    const {start, end} = traceCtx;
-    this._timeline = new TimelineImpl(new TimeSpan(start, end));
-    this._timeline.retriggerControllersOnChange = () =>
+    this._trace.timeline.retriggerControllersOnChange = () =>
       ratelimit(() => this.store.edit(() => {}), 50);
 
-    // Reset the trackManager - this clears out the cache and any registered
-    // tracks
-    this._trackManager = new TrackManagerImpl();
-
-    const scrollHelper = new ScrollHelper(
-      traceCtx,
-      this._timeline,
-      this._workspaceManager.currentWorkspace,
-      this._trackManager,
-    );
-    setScrollToFunction((args) => scrollHelper.scrollTo(args));
-
-    this._searchManager = new SearchManagerImpl({
-      timeline: this._timeline,
-      trackManager: this._trackManager,
-      workspace: this._workspaceManager.currentWorkspace,
-      engine,
-      onResultStep: (step: SearchResult) => {
-        selectCurrentSearchResult(step, this._selectionManager, scrollHelper);
-      },
-    });
-
-    this._selectionManager = new SelectionManagerImpl({
-      engine,
-      trackManager: this._trackManager,
-      noteManager: this._noteManager,
-      scrollHelper,
-      onSelectionChange: (_, opts) => {
-        const {clearSearch = true, switchToCurrentSelectionTab = true} = opts;
-        if (clearSearch) {
-          this.searchManager.reset();
-        }
-        if (switchToCurrentSelectionTab) {
-          globals.tabManager.showCurrentSelectionTab();
-        }
-        // pendingScrollId is handled by SelectionManager internally.
-
-        // TODO(primiano): this is temporarily necessary until we kill
-        // controllers. The flow controller needs to be re-kicked when we change
-        // the selection.
-        globals.dispatch(Actions.runControllers({}));
-      },
-    });
-
-    // Incrementing this causes the root mithril component UiMain to be
-    // recreated. This is to linearize globals and UiMain and guarrantee that by
-    // the time UiMain gets created, it can consistently see the globals for the
-    // new trace.
-    this._currentTraceId = engine.engineId;
+    this._currentTraceId = trace.engine.engineId;
   }
 
   // Used for permalink load by trace_controller.ts.
@@ -298,8 +176,19 @@ class Globals {
   engines = new Map<string, EngineBase>();
 
   constructor() {
-    const {start, end} = defaultTraceContext;
-    this._timeline = new TimelineImpl(new TimeSpan(start, end));
+    // TODO(primiano): we do this to avoid making all our members possibly
+    // undefined, which would cause a drama of if (!=undefined) all over the
+    // code. This is not pretty, but this entire file is going to be nuked from
+    // orbit soon.
+    this._trace = createFakeTraceImpl();
+
+    // We just want an empty instance of TraceImpl but don't want to mark it
+    // as the current trace, otherwise this will trigger the plugins' OnLoad().
+    AppImpl.instance.closeCurrentTrace();
+
+    setRerunControllersFunction(() =>
+      this.dispatch(Actions.runControllers({})),
+    );
   }
 
   initialize(
@@ -329,6 +218,10 @@ class Globals {
     this._logging = initAnalytics();
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
+    // TODO(primiano): for posterity: these assignments below are completely
+    // pointless and could be done as member variable initializers, as
+    // initialize() is only called ever once. (But then i'm going to kill this
+    // entire file soon).
     this._trackDataStore = new Map<string, {}>();
     this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._aggregateDataStore = new Map<string, AggregateData>();
@@ -337,12 +230,6 @@ class Globals {
     this._selectedFlows = [];
     this._visibleFlowCategories = new Map<string, boolean>();
     this.engines.clear();
-    this._selectionManager.clear();
-  }
-
-  // Only initialises the store - useful for testing.
-  initStore(initialState: State) {
-    this._store = createStore(initialState);
   }
 
   get publishRedraw(): () => void {
@@ -354,11 +241,11 @@ class Globals {
   }
 
   get state(): State {
-    return assertExists(this._store).state;
+    return this._store.state;
   }
 
   get store(): Store<State> {
-    return assertExists(this._store);
+    return this._store;
   }
 
   dispatch(action: DeferredAction) {
@@ -369,12 +256,16 @@ class Globals {
     assertExists(this._dispatchMultiple)(actions);
   }
 
+  get trace() {
+    return this._trace;
+  }
+
   get timeline() {
-    return assertExists(this._timeline);
+    return this._trace.timeline;
   }
 
   get searchManager() {
-    return this._searchManager;
+    return this._trace.search;
   }
 
   get logging() {
@@ -386,6 +277,14 @@ class Globals {
   }
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
+
+  // TODO(primiano): this should be really renamed to traceInfo, but doing so
+  // creates extra churn. Not worth it as we are going to get rid of this file
+  // soon.
+  get traceContext() {
+    return this._trace.traceInfo;
+  }
+
   get overviewStore(): OverviewStore {
     return assertExists(this._overviewStore);
   }
@@ -558,23 +457,23 @@ class Globals {
   }
 
   get commandManager(): CommandManagerImpl {
-    return assertExists(this._cmdManager);
+    return AppImpl.instance.commands;
   }
 
   get tabManager() {
-    return this._tabManager;
+    return this._trace.tabs;
   }
 
   get trackManager() {
-    return this._trackManager;
+    return this._trace.tracks;
   }
 
   get selectionManager() {
-    return this._selectionManager;
+    return this._trace.selection;
   }
 
   get noteManager() {
-    return this._noteManager;
+    return this._trace.notes;
   }
 
   // Offset between t=0 and the configured time domain.
@@ -585,14 +484,14 @@ class Globals {
       case TimestampFormat.Seconds:
       case TimestampFormat.Milliseoncds:
       case TimestampFormat.Microseconds:
-        return this.traceContext.start;
+        return this._trace.traceInfo.start;
       case TimestampFormat.TraceNs:
       case TimestampFormat.TraceNsLocale:
         return Time.ZERO;
       case TimestampFormat.UTC:
-        return this.traceContext.utcOffset;
+        return this._trace.traceInfo.utcOffset;
       case TimestampFormat.TraceTz:
-        return this.traceContext.traceTzOffset;
+        return this._trace.traceInfo.traceTzOffset;
       default:
         const x: never = fmt;
         throw new Error(`Unsupported format ${x}`);

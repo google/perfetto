@@ -44,6 +44,7 @@ import {featureFlags} from '../core/feature_flags';
 import {Tree, TreeNode} from '../widgets/tree';
 import {TrackNode} from '../public/workspace';
 import {MiddleEllipsis} from '../widgets/middle_ellipsis';
+import {AppImpl} from '../core/app_trace_impl';
 
 export const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   id: 'showTrackDetailsButton',
@@ -468,9 +469,13 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 
   oncreate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
     const {attrs} = vnode;
-    if (globals.trackManager.scrollToTrackUriOnCreate === attrs.trackNode.uri) {
+    const trackMgr = AppImpl.instance.trace?.tracks;
+    if (
+      exists(trackMgr?.scrollToTrackUriOnCreate) &&
+      trackMgr.scrollToTrackUriOnCreate === attrs.trackNode.uri
+    ) {
       vnode.dom.scrollIntoView();
-      globals.trackManager.scrollToTrackUriOnCreate = undefined;
+      trackMgr.scrollToTrackUriOnCreate = undefined;
     }
     this.onupdate(vnode);
 

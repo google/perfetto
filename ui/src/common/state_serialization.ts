@@ -23,6 +23,7 @@ import {
 } from './state_serialization_schema';
 import {TimeSpan} from '../base/time';
 import {ProfileType} from '../public/selection';
+import {AppImpl, TraceImpl} from '../core/app_trace_impl';
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
@@ -117,7 +118,10 @@ export function serializeAppState(): SerializedAppState {
   }
 
   const plugins = new Array<SerializedPluginState>();
-  for (const [id, pluginState] of Object.entries(globals.state.plugins)) {
+  const pluginsStore =
+    AppImpl.instance.trace?.getPluginStoreForSerialization() ?? {};
+
+  for (const [id, pluginState] of Object.entries(pluginsStore)) {
     plugins.push({id, state: pluginState});
   }
 
@@ -166,11 +170,14 @@ export function parseAppState(jsonDecodedObj: unknown): ParseStateResult {
  * track decider and initial selections are run.
  * @param appState the .data object returned by parseAppState() when successful.
  */
-export function deserializeAppStatePhase1(appState: SerializedAppState): void {
+export function deserializeAppStatePhase1(
+  appState: SerializedAppState,
+  trace: TraceImpl,
+): void {
   // Restore the plugin state.
-  globals.store.edit((draft) => {
+  trace.getPluginStoreForSerialization().edit((draft) => {
     for (const p of appState.plugins ?? []) {
-      draft.plugins[p.id] = p.state ?? {};
+      draft[p.id] = p.state ?? {};
     }
   });
 }
