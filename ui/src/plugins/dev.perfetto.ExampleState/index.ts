@@ -16,6 +16,7 @@ import {createStore, Store} from '../../base/store';
 import {exists} from '../../base/utils';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
 interface State {
   counter: number;
@@ -47,10 +48,10 @@ class ExampleState implements PerfettoPlugin {
       name: 'Show ExampleState counter',
       callback: () => {
         const counter = this.store.state.counter;
-        ctx.addQueryResultsTab(
-          `SELECT ${counter} as counter;`,
-          `Show counter ${counter}`,
-        );
+        addQueryResultsTab(ctx, {
+          query: `SELECT ${counter} as counter;`,
+          title: `Show counter ${counter}`,
+        });
         this.store.edit((draft) => {
           ++draft.counter;
         });

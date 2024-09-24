@@ -35,7 +35,7 @@ import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {Omnibox, OmniboxOption} from './omnibox';
-import {addQueryResultsTab} from './query_result_tab';
+import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';

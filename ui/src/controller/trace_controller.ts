@@ -32,7 +32,7 @@ import {
   publishOverviewData,
   publishThreads,
 } from '../frontend/publish';
-import {addQueryResultsTab} from '../frontend/query_result_tab';
+import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {Router} from '../frontend/router';
 import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
