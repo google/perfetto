@@ -22,7 +22,7 @@ import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {dictToTree, Tree, TreeNode} from '../widgets/tree';
-import {BottomTab, NewBottomTabArgs} from './bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../public/lib/bottom_tab';
 
 export {
   ColumnConfig,

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../trace_processor/engine';
-import {Row} from '../trace_processor/query_result';
+import {Engine} from '../../../trace_processor/engine';
+import {Row} from '../../../trace_processor/query_result';
 
 const MAX_DISPLAY_ROWS = 10000;
 

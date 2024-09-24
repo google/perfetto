@@ -13,21 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BigintMath} from '../base/bigint_math';
-import {copyToClipboard} from '../base/clipboard';
-import {isString} from '../base/object_utils';
-import {Time} from '../base/time';
-import {QueryResponse} from '../common/queries';
-import {Row} from '../trace_processor/query_result';
-import {Anchor} from '../widgets/anchor';
-import {Button} from '../widgets/button';
-import {Callout} from '../widgets/callout';
-import {DetailsShell} from '../widgets/details_shell';
-import {queryResponseToClipboard} from './clipboard';
-import {downloadData} from './download_utils';
-import {globals} from './globals';
-import {Router} from './router';
-import {scrollTo} from '../public/scroll_helper';
+import {BigintMath} from '../../../base/bigint_math';
+import {copyToClipboard} from '../../../base/clipboard';
+import {isString} from '../../../base/object_utils';
+import {Time} from '../../../base/time';
+import {QueryResponse} from './queries';
+import {Row} from '../../../trace_processor/query_result';
+import {Anchor} from '../../../widgets/anchor';
+import {Button} from '../../../widgets/button';
+import {Callout} from '../../../widgets/callout';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {downloadData} from '../../../frontend/download_utils';
+import {globals} from '../../../frontend/globals';
+import {Router} from '../../../frontend/router';
+import {scrollTo} from '../../scroll_helper';
 
 interface QueryTableRowAttrs {
   row: Row;
@@ -289,4 +288,18 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       m(QueryTableContent, {resp}),
     );
   }
+}
+
+async function queryResponseToClipboard(resp: QueryResponse): Promise<void> {
+  const lines: string[][] = [];
+  lines.push(resp.columns);
+  for (const row of resp.rows) {
+    const line = [];
+    for (const col of resp.columns) {
+      const value = row[col];
+      line.push(value === null ? 'NULL' : `${value}`);
+    }
+    lines.push(line);
+  }
+  copyToClipboard(lines.map((line) => line.join('\t')).join('\n'));
 }

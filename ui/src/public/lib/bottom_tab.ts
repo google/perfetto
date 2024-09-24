@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../public/trace';
+import {Trace} from '../trace';
 
 export interface NewBottomTabArgs<Config> {
   trace: Trace;

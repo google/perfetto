@@ -21,7 +21,7 @@ import {addBottomTab} from '../common/add_ephemeral_tab';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Popup, PopupPosition} from '../widgets/popup';
-import {BottomTab, NewBottomTabArgs} from './bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../public/lib/bottom_tab';
 import {AddDebugTrackMenu} from '../public/lib/debug_tracks/add_debug_track_menu';
 import {Filter} from './widgets/sql/table/column';
 import {SqlTableState} from './widgets/sql/table/state';

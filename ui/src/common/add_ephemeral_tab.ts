@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import {uuidv4} from '../base/uuid';
-import {BottomTab} from '../frontend/bottom_tab';
+import {BottomTab} from '../public/lib/bottom_tab';
 import {globals} from '../frontend/globals';
 import {Tab} from '../public/tab';
 import {BottomTabToTabAdapter} from '../public/utils';

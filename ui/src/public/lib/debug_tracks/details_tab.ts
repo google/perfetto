@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {duration, Time, time} from '../../../base/time';
-import {BottomTab, NewBottomTabArgs} from '../../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../../frontend/generic_slice_details_tab';
 import {hasArgs, renderArguments} from '../../../frontend/slice_args';
 import {getSlice, SliceDetails} from '../../../trace_processor/sql_utils/slice';

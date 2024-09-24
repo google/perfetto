@@ -25,6 +25,7 @@ import {
   openFileWithLegacyTraceViewer,
 } from '../../frontend/legacy_trace_viewer';
 import {AppImpl} from '../../core/app_trace_impl';
+import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -160,7 +161,10 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#RunQueryAllProcesses',
       name: 'Run query: All processes',
       callback: () => {
-        ctx.addQueryResultsTab(ALL_PROCESSES_QUERY, 'All Processes');
+        addQueryResultsTab(ctx, {
+          query: ALL_PROCESSES_QUERY,
+          title: 'All Processes',
+        });
       },
     });
 
@@ -168,7 +172,10 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
-        ctx.addQueryResultsTab(CPU_TIME_FOR_PROCESSES, 'CPU time by process');
+        addQueryResultsTab(ctx, {
+          query: CPU_TIME_FOR_PROCESSES,
+          title: 'CPU time by process',
+        });
       },
     });
 
@@ -176,10 +183,10 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
-        ctx.addQueryResultsTab(
-          CYCLES_PER_P_STATE_PER_CPU,
-          'Cycles by p-state by CPU',
-        );
+        addQueryResultsTab(ctx, {
+          query: CYCLES_PER_P_STATE_PER_CPU,
+          title: 'Cycles by p-state by CPU',
+        });
       },
     });
 
@@ -187,10 +194,10 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
-        ctx.addQueryResultsTab(
-          CPU_TIME_BY_CPU_BY_PROCESS,
-          'CPU time by CPU by process',
-        );
+        addQueryResultsTab(ctx, {
+          query: CPU_TIME_BY_CPU_BY_PROCESS,
+          title: 'CPU time by CPU by process',
+        });
       },
     });
 
@@ -198,10 +205,10 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
-        ctx.addQueryResultsTab(
-          HEAP_GRAPH_BYTES_PER_TYPE,
-          'Heap graph bytes per type',
-        );
+        addQueryResultsTab(ctx, {
+          query: HEAP_GRAPH_BYTES_PER_TYPE,
+          title: 'Heap graph bytes per type',
+        });
       },
     });
 
@@ -209,7 +216,10 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
-        ctx.addQueryResultsTab(SQL_STATS, 'Recent SQL queries');
+        addQueryResultsTab(ctx, {
+          query: SQL_STATS,
+          title: 'Recent SQL queries',
+        });
       },
     });
 

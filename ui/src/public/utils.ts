@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {LegacySelection} from '../public/selection';
-import {BottomTab} from '../frontend/bottom_tab';
+import {BottomTab} from './lib/bottom_tab';
 import {Tab} from './tab';
 import {exists} from '../base/utils';
 import {LegacyDetailsPanel} from './details_panel';
