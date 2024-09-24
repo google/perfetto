@@ -39,6 +39,7 @@ import {TopLevelScrollTrack} from './scroll_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {GroupNode, TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
+import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
 const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   id: 'enableScrollJankPluginV2',
@@ -78,7 +79,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
          from chrome_tasks_delaying_input_processing s1
          join slice s2 on s1.slice_id=s2.id
          `;
-      ctx.addQueryResultsTab(query, 'Scroll Jank: long tasks');
+      addQueryResultsTab(ctx, {query, title: 'Scroll Jank: long tasks'});
     }
 
     if (ENABLE_SCROLL_JANK_PLUGIN_V2.get()) {

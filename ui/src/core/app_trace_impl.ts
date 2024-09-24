@@ -328,21 +328,6 @@ export class TraceImpl implements Trace {
     }
   }
 
-  // TODO(primiano): there are two things here:
-  // 1. I'm not sure this belongs to here (see comment in public/trace.ts).
-  // 2. Even if we agree it belongs here, right now the dependencies are too
-  //    enagnled and this needs to be injected by globals. This can be supported
-  //    once we clean up properly queryResult and debug tracks, so that they
-  //    don't depend on globals and take a Trace as argument.
-  static addQueryResultsTabFunction?: (
-    t: Trace,
-    query: string,
-    title: string,
-  ) => void;
-  addQueryResultsTab(query: string, title: string) {
-    return TraceImpl.addQueryResultsTabFunction?.(this, query, title);
-  }
-
   mountStore<T>(migrate: Migrate<T>): Store<T> {
     return this.traceCtx.pluginSerializableState.createSubStore(
       [this.pluginId],

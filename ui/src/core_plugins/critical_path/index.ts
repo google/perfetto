@@ -21,7 +21,7 @@ import {Trace} from '../../public/trace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {asUtid, Utid} from '../../trace_processor/sql_utils/core_types';
-import {addQueryResultsTab} from '../../frontend/query_result_tab';
+import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 import {showModal} from '../../widgets/modal';
 import {Optional} from '../../base/utils';
 import {

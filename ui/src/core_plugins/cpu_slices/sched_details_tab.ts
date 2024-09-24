@@ -25,7 +25,7 @@ import {Timestamp} from '../../frontend/widgets/timestamp';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {scrollTo} from '../../public/scroll_helper';
 import {SchedSqlId} from '../../trace_processor/sql_utils/core_types';
-import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
 import {
   getSched,
   getSchedWakeupInfo,

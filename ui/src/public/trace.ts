@@ -54,12 +54,6 @@ export interface Trace extends App {
   // all plugins use a Legacy one. Keeping this as a bridge for now.
   registerDetailsPanel(detailsPanel: DetailsPanel | LegacyDetailsPanel): void;
 
-  // Creates and shows a tab with a tabular result for the given query.
-  // TODO(primiano): I am not convinced this belongs here, this should probably
-  // go under public/lib/query_result_tab.ts as a utility function that takes
-  // Trace as an argument. However I need first to plumb App everywhere.
-  addQueryResultsTab(query: string, title: string): void;
-
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;
 

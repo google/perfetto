@@ -23,7 +23,7 @@ import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {Tree, TreeNode} from '../widgets/tree';
 import {Intent} from '../widgets/common';
-import {BottomTab, NewBottomTabArgs} from './bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../public/lib/bottom_tab';
 import {
   SchedSqlId,
   ThreadStateSqlId,

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
   Details,

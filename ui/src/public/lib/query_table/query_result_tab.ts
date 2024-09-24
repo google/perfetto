@@ -14,23 +14,20 @@
 
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
-import {assertExists} from '../base/logging';
-import {QueryResponse, runQuery} from '../common/queries';
-import {raf} from '../core/raf_scheduler';
-import {QueryError} from '../trace_processor/query_result';
+import {assertExists} from '../../../base/logging';
+import {QueryResponse, runQuery} from './queries';
+import {QueryError} from '../../../trace_processor/query_result';
 import {
   AddDebugTrackMenu,
   uuidToViewName,
-} from '../public/lib/debug_tracks/add_debug_track_menu';
-import {Button} from '../widgets/button';
-import {PopupMenu2} from '../widgets/menu';
-import {PopupPosition} from '../widgets/popup';
-import {BottomTab, NewBottomTabArgs} from './bottom_tab';
+} from '../debug_tracks/add_debug_track_menu';
+import {Button} from '../../../widgets/button';
+import {PopupMenu2} from '../../../widgets/menu';
+import {PopupPosition} from '../../../widgets/popup';
+import {BottomTab, NewBottomTabArgs} from '../bottom_tab';
 import {QueryTable} from './query_table';
-import {globals} from './globals';
-import {BottomTabToTabAdapter} from '../public/utils';
-import {TraceImpl} from '../core/app_trace_impl';
-import {Trace} from '../public/trace';
+import {BottomTabToTabAdapter} from '../../../public/utils';
+import {Trace} from '../../../public/trace';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -55,21 +52,13 @@ export function addQueryResultsTab(
 
   const uri = 'queryResults#' + (tag ?? uuidv4());
 
-  globals.tabManager.registerTab({
+  trace.tabs.registerTab({
     uri,
     content: new BottomTabToTabAdapter(queryResultsTab),
     isEphemeral: true,
   });
-  globals.tabManager.showTab(uri);
+  trace.tabs.showTab(uri);
 }
-
-// TODO(primiano): this is to break dependency cycles. The whole QueryResultTab
-// and DebugTrack dependencies need to be disentangled.
-TraceImpl.addQueryResultsTabFunction = (
-  trace: Trace,
-  query: string,
-  title: string,
-) => addQueryResultsTab(trace, {query, title});
 
 export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
   static readonly kind = 'dev.perfetto.QueryResultTab';
@@ -95,7 +84,6 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     } else {
       const result = await runQuery(this.config.query, this.engine);
       this.queryResponse = result;
-      raf.scheduleFullRedraw();
       if (result.error !== undefined) {
         return;
       }
@@ -106,7 +94,7 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     if (uuid !== '') {
       this.sqlViewName = await this.createViewForDebugTrack(uuid);
       if (this.sqlViewName) {
-        raf.scheduleFullRedraw();
+        this.trace.scheduleRedraw();
       }
     }
   }

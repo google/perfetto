@@ -15,6 +15,7 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
 const PERF_TRACE_COUNTERS_PRECONDITION = `
   SELECT
@@ -95,8 +96,9 @@ class AndroidPerfTraceCounters implements PerfettoPlugin {
           {ts: 'ts', dur: 'dur', name: 'ipc'},
           ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss'],
         );
-        ctx.addQueryResultsTab(
-          sqlPrefix +
+        addQueryResultsTab(ctx, {
+          query:
+            sqlPrefix +
             `
             SELECT
               (sum(instruction) * 1.0 / sum(cycle)*1.0) AS avg_ipc,
@@ -106,8 +108,8 @@ class AndroidPerfTraceCounters implements PerfettoPlugin {
               sum(stall_backend_mem) as total_stall_backend_mem,
               sum(l3_cache_miss) as total_l3_cache_miss
             FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
-          'target thread ipc statistic',
-        );
+          title: 'target thread ipc statistic',
+        });
       },
     });
   }
