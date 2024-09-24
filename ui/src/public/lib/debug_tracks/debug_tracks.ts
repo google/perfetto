@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../globals';
 import {DebugSliceTrack} from './slice_track';
 import {
   createPerfettoTable,
   matchesSqlValue,
   sqlValueToReadableString,
-} from '../../trace_processor/sql_utils';
+} from '../../../trace_processor/sql_utils';
 import {DebugCounterTrack} from './counter_track';
 import {ARG_PREFIX} from './details_tab';
-import {TrackNode} from '../../public/workspace';
-import {raf} from '../../core/raf_scheduler';
-import {Trace} from '../../public/trace';
+import {TrackNode} from '../../workspace';
+import {Trace} from '../../trace';
 
 let trackCounter = 0; // For reproducible ids.
 
@@ -52,13 +50,12 @@ export interface SqlDataSource {
 // have an effect. Use this variant if you want to create many tracks at
 // once or want to tweak the actions once produced. Otherwise, use
 // addDebugSliceTrack().
-function addDebugTrack(trackName: string, uri: string): void {
+function addDebugTrack(trace: Trace, trackName: string, uri: string): void {
   const debugTrackId = ++debugTrackCount;
   const displayName = trackName.trim() || `Debug Track ${debugTrackId}`;
   const track = new TrackNode(uri, displayName);
-  globals.workspace.prependChild(track);
+  trace.workspace.prependChild(track);
   track.pin();
-  raf.scheduleFullRedraw();
 }
 
 export async function addPivotedTracks(
@@ -129,7 +126,7 @@ export async function addDebugSliceTrack(
   });
 
   // Create the actions to add this track to the tracklist
-  addDebugTrack(trackName, uri);
+  addDebugTrack(trace, trackName, uri);
 }
 
 function createDebugSliceTrackTableExpr(
@@ -180,7 +177,7 @@ export interface CounterDebugTrackCreateConfig {
 // Adds a debug track immediately. Use createDebugCounterTrackActions() if you
 // want to create many tracks at once.
 export async function addDebugCounterTrack(
-  ctx: Trace,
+  trace: Trace,
   data: SqlDataSource,
   trackName: string,
   columns: CounterColumns,
@@ -199,20 +196,20 @@ export async function addDebugCounterTrack(
   //   dropping it n the middle of a track update cycle as track lifecycles are
   //   not synchronized with plugin lifecycles.
   await createPerfettoTable(
-    ctx.engine,
+    trace.engine,
     tableName,
     createDebugCounterTrackTableExpr(data, columns),
   );
 
   const uri = `debug.counter.${cnt}`;
-  ctx.tracks.registerTrack({
+  trace.tracks.registerTrack({
     uri,
     title: trackName,
-    track: new DebugCounterTrack(ctx, {trackUri: uri}, tableName),
+    track: new DebugCounterTrack(trace, {trackUri: uri}, tableName),
   });
 
   // Create the actions to add this track to the tracklist
-  addDebugTrack(trackName, uri);
+  addDebugTrack(trace, trackName, uri);
 }
 
 function createDebugCounterTrackTableExpr(

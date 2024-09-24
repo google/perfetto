@@ -22,7 +22,7 @@ import {Command} from '../public/command';
 import {DetailsPanel, LegacyDetailsPanel} from '../public/details_panel';
 import {Trace} from '../public/trace';
 import {setScrollToFunction} from '../public/scroll_helper';
-import {ScrollToArgs} from 'src/public/scroll_helper';
+import {ScrollToArgs} from '../public/scroll_helper';
 import {TraceInfo} from '../public/trace_info';
 import {TrackDescriptor} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
@@ -39,6 +39,7 @@ import {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
+import {raf} from './raf_scheduler';
 
 // The pseudo plugin id used for the core instance of AppImpl.
 export const CORE_PLUGIN_ID = '__core__';
@@ -133,6 +134,10 @@ export class AppImpl implements App {
   closeCurrentTrace() {
     this.currentTrace = undefined;
     this.appCtx.setActiveTrace(undefined);
+  }
+
+  scheduleRedraw(): void {
+    raf.scheduleFullRedraw();
   }
 
   // This is called by TraceController when loading a new trace, soon after the
@@ -414,6 +419,10 @@ export class TraceImpl implements Trace {
 
   get omnibox(): OmniboxManagerImpl {
     return this.appImpl.omnibox;
+  }
+
+  scheduleRedraw(): void {
+    this.appImpl.scheduleRedraw();
   }
 }
 

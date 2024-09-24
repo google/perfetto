@@ -13,11 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {findRef} from '../../base/dom_utils';
-import {raf} from '../../core/raf_scheduler';
-import {Form, FormLabel} from '../../widgets/form';
-import {Select} from '../../widgets/select';
-import {TextInput} from '../../widgets/text_input';
+import {findRef} from '../../../base/dom_utils';
+import {Form, FormLabel} from '../../../widgets/form';
+import {Select} from '../../../widgets/select';
+import {TextInput} from '../../../widgets/text_input';
 import {
   CounterColumns,
   SliceColumns,
@@ -26,7 +25,7 @@ import {
   addDebugSliceTrack,
   addPivotedTracks,
 } from './debug_tracks';
-import {Trace} from '../../public/trace';
+import {Trace} from '../../trace';
 
 export function uuidToViewName(uuid: string): string {
   return `view_${uuid.split('-').join('_')}`;
@@ -99,7 +98,7 @@ export class AddDebugTrackMenu
     }
   }
 
-  private renderTrackTypeSelect() {
+  private renderTrackTypeSelect(trace: Trace) {
     const options = [];
     for (const type of ['slice', 'counter']) {
       options.push(
@@ -122,7 +121,7 @@ export class AddDebugTrackMenu
           this.trackType = (e.target as HTMLSelectElement).value as
             | 'slice'
             | 'counter';
-          raf.scheduleFullRedraw();
+          trace.scheduleRedraw();
         },
       },
       options,
@@ -254,7 +253,7 @@ export class AddDebugTrackMenu
         },
       }),
       m(FormLabel, {for: 'track_type'}, 'Track type'),
-      this.renderTrackTypeSelect(),
+      this.renderTrackTypeSelect(vnode.attrs.trace),
       renderSelect('ts'),
       this.trackType === 'slice' && renderSelect('dur'),
       this.trackType === 'slice' && renderSelect('name'),
