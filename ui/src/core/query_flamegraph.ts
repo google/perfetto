@@ -190,27 +190,35 @@ async function computeFlamegraphTree(
     showStackAndPivot.length === 0
       ? '0'
       : showStackAndPivot
-          .map((x, i) => `((name like '${makeSqlFilter(x)}') << ${i})`)
+          .map(
+            (x, i) => `((name like '${makeSqlFilter(x)}' escape '\\') << ${i})`,
+          )
           .join(' | ');
   const showStackBits = (1 << showStackAndPivot.length) - 1;
 
   const hideStackFilter =
     hideStack.length === 0
       ? 'false'
-      : hideStack.map((x) => `name like '${makeSqlFilter(x)}'`).join(' OR ');
+      : hideStack
+          .map((x) => `name like '${makeSqlFilter(x)}' escape '\\'`)
+          .join(' OR ');
 
   const showFromFrameFilter =
     showFromFrame.length === 0
       ? '0'
       : showFromFrame
-          .map((x, i) => `((name like '${makeSqlFilter(x)}') << ${i})`)
+          .map(
+            (x, i) => `((name like '${makeSqlFilter(x)}' escape '\\') << ${i})`,
+          )
           .join(' | ');
   const showFromFrameBits = (1 << showFromFrame.length) - 1;
 
   const hideFrameFilter =
     hideFrame.length === 0
       ? 'false'
-      : hideFrame.map((x) => `name like '${makeSqlFilter(x)}'`).join(' OR ');
+      : hideFrame
+          .map((x) => `name like '${makeSqlFilter(x)}' escape '\\'`)
+          .join(' OR ');
 
   const pivotFilter = getPivotFilter(view);
 
