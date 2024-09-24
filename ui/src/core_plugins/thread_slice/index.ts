@@ -103,7 +103,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
         ]),
         track: new ThreadSliceTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           trackId,
@@ -127,7 +127,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
               table: sel.table ?? 'slice',
               id: sel.id,
             },
-            engine: ctx.engine,
+            trace: ctx,
             uuid: uuidv4(),
           });
         },

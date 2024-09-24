@@ -64,11 +64,6 @@ export class SelectionManagerImpl implements SelectionManager {
     private onSelectionChange: (s: Selection, opts: SelectionOpts) => void,
   ) {
     this._selectionResolver = new SelectionResolver(engine);
-    noteManager.onNoteDeleted = (noteId) => {
-      if (this.selection.kind === 'note' && this.selection.id === noteId) {
-        this.clear();
-      }
-    };
   }
 
   clear(): void {

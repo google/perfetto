@@ -40,6 +40,7 @@ import {
 } from '../common/state_serialization_schema';
 import {z} from 'zod';
 import {showModal} from '../widgets/modal';
+import {AppImpl} from '../core/app_trace_impl';
 
 // Permalink serialization has two layers:
 // 1. Serialization of the app state (state_serialization.ts):
@@ -105,18 +106,19 @@ async function createPermalinkInternal(
     // Check if we need to upload the trace file, before serializing the app
     // state.
     let alreadyUploadedUrl = '';
-    const engine = assertExists(globals.getCurrentEngine());
+    const traceInfo = assertExists(AppImpl.instance.trace?.traceInfo);
+    const traceSource = traceInfo.source;
     let dataToUpload: File | ArrayBuffer | undefined = undefined;
-    let traceName = `trace ${engine.id}`;
-    if (engine.source.type === 'FILE') {
-      dataToUpload = engine.source.file;
+    let traceName = traceInfo.traceTitle || 'trace';
+    if (traceSource.type === 'FILE') {
+      dataToUpload = traceSource.file;
       traceName = dataToUpload.name;
-    } else if (engine.source.type === 'ARRAY_BUFFER') {
-      dataToUpload = engine.source.buffer;
-    } else if (engine.source.type === 'URL') {
-      alreadyUploadedUrl = engine.source.url;
+    } else if (traceSource.type === 'ARRAY_BUFFER') {
+      dataToUpload = traceSource.buffer;
+    } else if (traceSource.type === 'URL') {
+      alreadyUploadedUrl = traceSource.url;
     } else {
-      throw new Error(`Cannot share trace ${JSON.stringify(engine.source)}`);
+      throw new Error(`Cannot share trace ${JSON.stringify(traceSource)}`);
     }
 
     // Upload the trace file, unless it's already uploaded (type == 'URL').

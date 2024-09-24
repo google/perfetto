@@ -181,7 +181,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
           {
             left: 'Args',
           },
-          renderArguments(this.engine, this.slice.args),
+          renderArguments(this.trace, this.slice.args),
         ),
     );
   }

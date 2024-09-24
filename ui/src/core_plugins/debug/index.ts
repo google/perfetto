@@ -79,7 +79,7 @@ class DebugTracksPlugin implements PerfettoPlugin {
             const config = selection.detailsPanelConfig.config;
             return new DebugSliceDetailsTab({
               config: config as GenericSliceDetailsTabConfig,
-              engine: ctx.engine,
+              trace: ctx,
               uuid: uuidv4(),
             });
           }

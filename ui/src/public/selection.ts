@@ -12,14 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time, duration} from '../base/time';
+import {time, duration, TimeSpan} from '../base/time';
+import {Optional} from '../base/utils';
 import {GenericSliceDetailsTabConfigBase} from './details_panel';
 
 export interface SelectionManager {
   readonly selection: Selection;
+  readonly legacySelection: LegacySelection | null;
+  findTimeRangeOfSelection(): Promise<Optional<TimeSpan>>;
   clear(): void;
+  setEvent(trackUri: string, eventId: number): void;
   setLegacy(args: LegacySelection, opts?: SelectionOpts): void;
+  setArea(args: Area): void;
   scrollToCurrentSelection(): void;
+
+  // TODO(primiano): I don't undertsand what this generic slice is, but now
+  // is exposed to plugins. For now i'm just carrying it forward.
+  setGenericSlice(args: {
+    id: number;
+    sqlTableName: string;
+    start: time;
+    duration: duration;
+    trackUri: string;
+    detailsPanelConfig: {
+      kind: string;
+      config: GenericSliceDetailsTabConfigBase;
+    };
+  }): void;
 }
 
 export type Selection =

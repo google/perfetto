@@ -320,8 +320,7 @@ function downloadTraceFromUrl(url: string): Promise<File> {
 
 export async function getCurrentTrace(): Promise<Blob> {
   // Caller must check engine exists.
-  const engine = assertExists(globals.getCurrentEngine());
-  const src = engine.source;
+  const src = assertExists(AppImpl.instance.trace?.traceInfo.source);
   if (src.type === 'ARRAY_BUFFER') {
     return new Blob([src.buffer]);
   } else if (src.type === 'FILE') {

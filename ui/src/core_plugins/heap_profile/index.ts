@@ -66,7 +66,7 @@ class HeapProfilePlugin implements PerfettoPlugin {
         },
         track: new HeapProfileTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           upid,

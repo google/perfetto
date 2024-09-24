@@ -23,12 +23,15 @@ import {
 } from './drag_handle';
 import {globals} from './globals';
 import {raf} from '../core/raf_scheduler';
+import {TraceAttrs} from '../public/trace';
 
 interface TabWithContent extends Tab {
   content: m.Children;
 }
 
-export class TabPanel implements m.ClassComponent {
+export type TabPanelAttrs = TraceAttrs;
+
+export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
   // Tabs panel starts collapsed.
   private detailsHeight = 0;
   private fadeContext = new FadeContext();

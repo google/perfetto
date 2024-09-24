@@ -18,22 +18,21 @@ import {Icons} from '../base/semantic_icons';
 import {sqliteString} from '../base/string_utils';
 import {exists} from '../base/utils';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
-import {Engine} from '../trace_processor/engine';
 import {addVisualisedArgTracks} from './visualized_args_tracks';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {TreeNode} from '../widgets/tree';
 import {Arg} from '../trace_processor/sql_utils/args';
-import {globals} from './globals';
 import {addSqlTableTab} from './sql_table_tab_command';
 import {assertExists} from '../base/logging';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
+import {Trace} from '../public/trace';
 
 // Renders slice arguments (key/value pairs) as a subtree.
-export function renderArguments(engine: Engine, args: Arg[]): m.Children {
+export function renderArguments(trace: Trace, args: Arg[]): m.Children {
   if (args.length > 0) {
     const tree = convertArgsToTree(args);
-    return renderArgTreeNodes(engine, tree);
+    return renderArgTreeNodes(trace, tree);
   } else {
     return undefined;
   }
@@ -43,7 +42,7 @@ export function hasArgs(args?: Arg[]): args is Arg[] {
   return exists(args) && args.length > 0;
 }
 
-function renderArgTreeNodes(engine: Engine, args: ArgNode<Arg>[]): m.Children {
+function renderArgTreeNodes(trace: Trace, args: ArgNode<Arg>[]): m.Children {
   return args.map((arg) => {
     const {key, value, children} = arg;
     if (children && children.length === 1) {
@@ -53,22 +52,22 @@ function renderArgTreeNodes(engine: Engine, args: ArgNode<Arg>[]): m.Children {
         ...child,
         key: stringifyKey(key, child.key),
       };
-      return renderArgTreeNodes(engine, [compositeArg]);
+      return renderArgTreeNodes(trace, [compositeArg]);
     } else {
       return m(
         TreeNode,
         {
-          left: renderArgKey(engine, stringifyKey(key), value),
+          left: renderArgKey(trace, stringifyKey(key), value),
           right: exists(value) && renderArgValue(value),
           summary: children && renderSummary(children),
         },
-        children && renderArgTreeNodes(engine, children),
+        children && renderArgTreeNodes(trace, children),
       );
     }
   });
 }
 
-function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
+function renderArgKey(trace: Trace, key: string, value?: Arg): m.Children {
   if (value === undefined) {
     return key;
   } else {
@@ -85,7 +84,7 @@ function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
         label: 'Find slices with same arg value',
         icon: 'search',
         onclick: () => {
-          addSqlTableTab({
+          addSqlTableTab(trace, {
             table: assertExists(getSqlTableDescription('slice')),
             filters: [
               {
@@ -111,15 +110,7 @@ function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
         label: 'Visualise argument values',
         icon: 'query_stats',
         onclick: () => {
-          addVisualisedArgTracks(
-            {
-              engine,
-              tracks: {
-                registerTrack: (t) => globals.trackManager.registerTrack(t),
-              },
-            },
-            fullKey,
-          );
+          addVisualisedArgTracks(trace, fullKey);
         },
       }),
     );

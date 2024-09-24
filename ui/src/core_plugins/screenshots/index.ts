@@ -39,7 +39,7 @@ class ScreenshotsPlugin implements PerfettoPlugin {
         uri,
         title: displayName,
         track: new ScreenshotsTrack({
-          engine: ctx.engine,
+          trace: ctx,
           uri,
         }),
         tags: {
@@ -60,7 +60,7 @@ class ScreenshotsPlugin implements PerfettoPlugin {
               const config = selection.detailsPanelConfig.config;
               return new ScreenshotTab({
                 config: config as GenericSliceDetailsTabConfig,
-                engine: ctx.engine,
+                trace: ctx,
                 uuid: uuidv4(),
               });
             }

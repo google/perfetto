@@ -17,19 +17,18 @@ import {AppImpl} from '../core/app_trace_impl';
 import {TraceInfo} from '../public/trace_info';
 import {EngineBase} from '../trace_processor/engine';
 
-class FakeEngine extends EngineBase {
-  id: string = 'TestEngine';
-
-  rpcSendRequestBytes(_data: Uint8Array) {
-    throw new Error('FakeEngine.query() should never be reached');
-  }
+export interface FakeTraceImplArgs {
+  // If true suppresses exceptions when trying to issue a query. This is to
+  // catch bugs where we are trying to query an empty instance. However some
+  // unittests need to do so. Default: false.
+  allowQueries?: boolean;
 }
 
 // This is used:
 // - For testing.
 // - By globals.ts before we have an actual trace loaded, to avoid causing
 //   if (!= undefined) checks everywhere.
-export function createFakeTraceImpl() {
+export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
   const fakeTraceInfo: TraceInfo = {
     source: {type: 'URL', url: ''},
     traceTitle: '',
@@ -42,5 +41,26 @@ export function createFakeTraceImpl() {
     cpus: [],
     gpuCount: 0,
   };
-  return AppImpl.instance.newTraceInstance(new FakeEngine(), fakeTraceInfo);
+  return AppImpl.instance.newTraceInstance(
+    new FakeEngine(args.allowQueries ?? false),
+    fakeTraceInfo,
+  );
+}
+
+class FakeEngine extends EngineBase {
+  id: string = 'TestEngine';
+
+  constructor(private allowQueries: boolean) {
+    super();
+  }
+
+  rpcSendRequestBytes(_data: Uint8Array) {
+    if (!this.allowQueries) {
+      throw new Error(
+        'FakeEngine.query() should never be reached. ' +
+          'If this is a unittest, try adding {allowQueries: true} to the ' +
+          'createFakeTraceImpl() call.',
+      );
+    }
+  }
 }

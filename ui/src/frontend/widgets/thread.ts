@@ -24,7 +24,6 @@ import {
 } from '../../trace_processor/sql_utils/thread';
 import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
-import {getEngine} from '../get_engine';
 import {ThreadDetailsTab} from '../thread_details_tab';
 import {
   createSqlIdRefRenderer,
@@ -32,6 +31,7 @@ import {
 } from './sql/details/sql_ref_renderer_registry';
 import {asUtid} from '../../trace_processor/sql_utils/core_types';
 import {Utid} from '../../trace_processor/sql_utils/core_types';
+import {AppImpl} from '../../core/app_trace_impl';
 
 export function showThreadDetailsMenuItem(
   utid: Utid,
@@ -40,15 +40,20 @@ export function showThreadDetailsMenuItem(
   return m(MenuItem, {
     icon: Icons.ExternalLink,
     label: 'Show thread details',
-    onclick: () =>
+    onclick: () => {
+      // TODO(primiano): `trace` should be injected, but doing so would require
+      // an invasive refactoring of most classes in frontend/widgets/sql/*.
+      const trace = AppImpl.instance.trace;
+      if (trace === undefined) return;
       addEphemeralTab(
         'threadDetails',
         new ThreadDetailsTab({
-          engine: getEngine('ThreadDetails'),
+          trace,
           utid,
           tid,
         }),
-      ),
+      );
+    },
   });
 }
 

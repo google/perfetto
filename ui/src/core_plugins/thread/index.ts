@@ -25,7 +25,7 @@ class ThreadPlugin implements PerfettoPlugin {
       id: 'perfetto.ShowTable.thread',
       name: 'Open table: thread',
       callback: () => {
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: getThreadTable(),
         });
       },
