@@ -15,17 +15,17 @@
 import m from 'mithril';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {TrackContext} from '../../public/track';
-import {Engine} from '../../trace_processor/engine';
 import {Button} from '../../widgets/button';
 import {globals} from '../globals';
 import {Icons} from '../../base/semantic_icons';
+import {Trace} from '../../public/trace';
 
 export class DebugCounterTrack extends BaseCounterTrack {
   private readonly sqlTableName: string;
 
-  constructor(engine: Engine, ctx: TrackContext, tableName: string) {
+  constructor(trace: Trace, ctx: TrackContext, tableName: string) {
     super({
-      engine,
+      trace,
       uri: ctx.trackUri,
     });
     this.sqlTableName = tableName;

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineBase} from '../../../../trace_processor/engine';
+import {createFakeTraceImpl} from '../../../../common/fake_trace_impl';
 import {tableColumnId} from './column';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
@@ -35,15 +35,9 @@ const table: SqlTableDescription = {
   columns: [idColumn, nameColumn, tsColumn, new ArgSetColumnSet('arg_set_id')],
 };
 
-class FakeEngine extends EngineBase {
-  id: string = 'TestEngine';
-
-  rpcSendRequestBytes(_data: Uint8Array) {}
-}
-
 test('sqlTableState: columnManupulation', () => {
-  const engine = new FakeEngine();
-  const state = new SqlTableState(engine, table);
+  const trace = createFakeTraceImpl({allowQueries: true});
+  const state = new SqlTableState(trace, table);
 
   // The initial set of columns should include "id" and "name",
   // but not "ts" (as it is marked as startsHidden) and not "arg_set_id"
@@ -70,8 +64,8 @@ test('sqlTableState: columnManupulation', () => {
 });
 
 test('sqlTableState: sortedColumns', () => {
-  const engine = new FakeEngine();
-  const state = new SqlTableState(engine, table);
+  const trace = createFakeTraceImpl({allowQueries: true});
+  const state = new SqlTableState(trace, table);
 
   // Verify that we have two columns: "id" and "name" and
   // save references to them.
@@ -120,8 +114,8 @@ function normalize(s: string): string {
 }
 
 test('sqlTableState: sqlStatement', () => {
-  const engine = new FakeEngine();
-  const state = new SqlTableState(engine, table);
+  const trace = createFakeTraceImpl({allowQueries: true});
+  const state = new SqlTableState(trace, table);
 
   // Check the generated SQL statement.
   expect(normalize(state.getCurrentRequest().query)).toBe(

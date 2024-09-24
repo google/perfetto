@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../trace_processor/engine';
 import {TrackContext} from '../public/track';
 import {
   CustomSqlDetailsPanelConfig,
@@ -23,6 +22,7 @@ import {SliceColumns, SqlDataSource} from './debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
 import {ARG_PREFIX, DebugSliceDetailsTab} from './debug_tracks/details_tab';
 import {createPerfettoTable} from '../trace_processor/sql_utils';
+import {Trace} from '../public/trace';
 
 export interface SimpleSliceTrackConfig {
   data: SqlDataSource;
@@ -34,13 +34,9 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack {
   private config: SimpleSliceTrackConfig;
   private sqlTableName: string;
 
-  constructor(
-    engine: Engine,
-    ctx: TrackContext,
-    config: SimpleSliceTrackConfig,
-  ) {
+  constructor(trace: Trace, ctx: TrackContext, config: SimpleSliceTrackConfig) {
     super({
-      engine,
+      trace,
       uri: ctx.trackUri,
     });
 

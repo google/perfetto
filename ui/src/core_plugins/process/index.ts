@@ -25,7 +25,7 @@ class ProcessPlugin implements PerfettoPlugin {
       id: 'perfetto.ShowTable.process',
       name: 'Open table: process',
       callback: () => {
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: getProcessTable(),
         });
       },

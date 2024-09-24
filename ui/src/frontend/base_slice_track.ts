@@ -24,7 +24,6 @@ import {UNEXPECTED_PINK} from '../core/colorizer';
 import {LegacySelection, SelectionKind} from '../public/selection';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {Engine} from '../trace_processor/engine';
 import {Track} from '../public/track';
 import {Slice} from '../public/track';
 import {LONG, NUM} from '../trace_processor/query_result';
@@ -37,6 +36,7 @@ import {uuidv4Sql} from '../base/uuid';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {TrackMouseEvent, TrackRenderContext} from '../public/track';
 import {Point2D, VerticalBounds} from '../base/geom';
+import {Trace} from '../public/trace';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -164,7 +164,7 @@ export abstract class BaseSliceTrack<
 > implements Track
 {
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
-  protected engine: Engine;
+  protected trace: Trace;
   protected uri: string;
   protected trackUuid = uuidv4Sql();
 
@@ -242,7 +242,7 @@ export abstract class BaseSliceTrack<
   ): void {}
 
   constructor(args: NewTrackArgs) {
-    this.engine = args.engine;
+    this.trace = args.trace;
     this.uri = args.uri;
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
@@ -958,6 +958,10 @@ export abstract class BaseSliceTrack<
       top,
       bottom: top + this.computedSliceHeight,
     };
+  }
+
+  protected get engine() {
+    return this.trace.engine;
   }
 }
 

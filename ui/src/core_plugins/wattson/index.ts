@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../frontend/globals';
 import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
-import {Engine} from '../../trace_processor/engine';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
@@ -35,7 +33,7 @@ class Wattson implements PerfettoPlugin {
     ctx.workspace.insertChildInOrder(group);
 
     // CPUs estimate as part of CPU subsystem
-    const cpus = globals.traceContext.cpus;
+    const cpus = ctx.traceInfo.cpus;
     for (const cpu of cpus) {
       const queryKey = `cpu${cpu}_curve`;
       const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
@@ -43,7 +41,7 @@ class Wattson implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title: displayName,
-        track: new CpuSubsystemEstimateTrack(ctx.engine, uri, queryKey),
+        track: new CpuSubsystemEstimateTrack(ctx, uri, queryKey),
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
           wattson: `CPU${cpu}`,
@@ -58,7 +56,7 @@ class Wattson implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: displayName,
-      track: new CpuSubsystemEstimateTrack(ctx.engine, uri, `dsu_scu`),
+      track: new CpuSubsystemEstimateTrack(ctx, uri, `dsu_scu`),
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
         wattson: 'Dsu_Scu',
@@ -70,15 +68,13 @@ class Wattson implements PerfettoPlugin {
 }
 
 class CpuSubsystemEstimateTrack extends BaseCounterTrack {
-  readonly engine: Engine;
   readonly queryKey: string;
 
-  constructor(engine: Engine, uri: string, queryKey: string) {
+  constructor(trace: Trace, uri: string, queryKey: string) {
     super({
-      engine,
+      trace,
       uri,
     });
-    this.engine = engine;
     this.queryKey = queryKey;
   }
 

@@ -79,8 +79,7 @@ class AndroidLog implements PerfettoPlugin {
       isEphemeral: false,
       uri: androidLogsTabUri,
       content: {
-        render: () =>
-          m(LogPanel, {filterStore: filterStore, engine: ctx.engine}),
+        render: () => m(LogPanel, {filterStore: filterStore, trace: ctx}),
         getTitle: () => 'Android Logs',
       },
     });
@@ -102,7 +101,7 @@ class AndroidLog implements PerfettoPlugin {
       id: 'perfetto.ShowTable.android_logs',
       name: 'Open table: android_logs',
       callback: () => {
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: getAndroidLogsTable(),
         });
       },

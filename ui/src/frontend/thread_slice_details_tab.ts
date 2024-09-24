@@ -43,11 +43,12 @@ import {SliceRef} from './widgets/slice';
 import {BasicTable} from '../widgets/basic_table';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists} from '../base/logging';
+import {Trace} from '../public/trace';
 
 interface ContextMenuItem {
   name: string;
   shouldDisplay(slice: SliceDetails): boolean;
-  run(slice: SliceDetails): void;
+  run(slice: SliceDetails, trace: Trace): void;
 }
 
 function getTidFromSlice(slice: SliceDetails): number | undefined {
@@ -90,8 +91,8 @@ const ITEMS: ContextMenuItem[] = [
   {
     name: 'Ancestor slices',
     shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
-    run: (slice: SliceDetails) =>
-      addSqlTableTab({
+    run: (slice: SliceDetails, trace: Trace) =>
+      addSqlTableTab(trace, {
         table: assertExists(getSqlTableDescription('slice')),
         filters: [
           {
@@ -106,8 +107,8 @@ const ITEMS: ContextMenuItem[] = [
   {
     name: 'Descendant slices',
     shouldDisplay: () => true,
-    run: (slice: SliceDetails) =>
-      addSqlTableTab({
+    run: (slice: SliceDetails, trace: Trace) =>
+      addSqlTableTab(trace, {
         table: assertExists(getSqlTableDescription('slice')),
         filters: [
           {
@@ -122,8 +123,8 @@ const ITEMS: ContextMenuItem[] = [
   {
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
-    run: (slice: SliceDetails) =>
-      addQueryResultsTab({
+    run: (slice: SliceDetails, trace: Trace) =>
+      addQueryResultsTab(trace, {
         query: `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
         title: `${slice.name} average dur`,
       }),
@@ -135,29 +136,15 @@ const ITEMS: ContextMenuItem[] = [
       hasThreadName(slice) &&
       hasTid(slice) &&
       hasPid(slice),
-    run: (slice: SliceDetails) => {
-      const engine = getEngine();
-      if (engine === undefined) {
-        return;
-      }
-      engine
+    run: (slice: SliceDetails, trace: Trace) => {
+      trace.engine
         .query(
-          `
-        INCLUDE PERFETTO MODULE android.binder;
-        INCLUDE PERFETTO MODULE android.monitor_contention;
-      `,
+          `INCLUDE PERFETTO MODULE android.binder;
+           INCLUDE PERFETTO MODULE android.monitor_contention;`,
         )
         .then(() =>
           addDebugSliceTrack(
-            // NOTE(stevegolton): This is a temporary patch, this menu should
-            // become part of another plugin, at which point we can just use the
-            // plugin's context object.
-            {
-              engine,
-              tracks: {
-                registerTrack: (x) => globals.trackManager.registerTrack(x),
-              },
-            },
+            trace,
             {
               sqlSource: `
                                 WITH merged AS (
@@ -210,15 +197,6 @@ const ITEMS: ContextMenuItem[] = [
 
 function getSliceContextMenuItems(slice: SliceDetails) {
   return ITEMS.filter((item) => item.shouldDisplay(slice));
-}
-
-function getEngine(): Engine | undefined {
-  const engineId = globals.getCurrentEngine()?.id;
-  if (engineId === undefined) {
-    return undefined;
-  }
-  const engine = globals.engines.get(engineId)?.getProxy('SlicePanel');
-  return engine;
 }
 
 async function getAnnotationSlice(
@@ -333,8 +311,8 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
       },
       m(
         GridLayout,
-        renderDetails(slice, this.breakdownByThreadState),
-        this.renderRhs(this.engine, slice),
+        renderDetails(this.trace, slice, this.breakdownByThreadState),
+        this.renderRhs(this.trace, slice),
       ),
     );
   }
@@ -343,7 +321,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
     return !exists(this.sliceDetails);
   }
 
-  private renderRhs(engine: Engine, slice: SliceDetails): m.Children {
+  private renderRhs(trace: Trace, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
     const args =
@@ -351,7 +329,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
       m(
         Section,
         {title: 'Arguments'},
-        m(Tree, renderArguments(engine, slice.args)),
+        m(Tree, renderArguments(trace, slice.args)),
       );
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (precFlows ?? followingFlows ?? args) {
@@ -475,7 +453,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
         PopupMenu2,
         {trigger},
         contextMenuItems.map(({name, run}) =>
-          m(MenuItem, {label: name, onclick: () => run(sliceInfo)}),
+          m(MenuItem, {label: name, onclick: () => run(sliceInfo, this.trace)}),
         ),
       );
     } else {

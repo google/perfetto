@@ -1188,7 +1188,7 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: name,
-      track: new SimpleSliceTrack(ctx.engine, {trackUri: uri}, config),
+      track: new SimpleSliceTrack(ctx, {trackUri: uri}, config),
     });
     const track = new TrackNode(uri, name);
     this.addTrack(ctx, track, groupName);
@@ -1214,7 +1214,7 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: name,
-      track: new SimpleCounterTrack(ctx.engine, {trackUri: uri}, config),
+      track: new SimpleCounterTrack(ctx, {trackUri: uri}, config),
     });
     const track = new TrackNode(uri, name);
     this.addTrack(ctx, track, groupName);

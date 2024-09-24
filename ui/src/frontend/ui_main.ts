@@ -16,7 +16,7 @@ import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
-import {assertExists, assertUnreachable} from '../base/logging';
+import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {
@@ -32,7 +32,7 @@ import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
-import {getTimeSpanOfSelectionOrVisibleWindow, globals} from './globals';
+import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {addQueryResultsTab} from './query_result_tab';
@@ -46,9 +46,10 @@ import {OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl, TraceImpl} from '../core/app_trace_impl';
 import {NotesEditorTab} from './notes_panel';
 import {NotesListEditor} from './notes_list_editor';
+import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 
@@ -93,242 +94,287 @@ export class UiMainPerTrace implements m.ClassComponent {
   private trash = new DisposableStack();
   private omniboxInputEl?: HTMLInputElement;
   private recentCommands: string[] = [];
+  private trace?: TraceImpl;
 
-  private cmds: Command[] = [
-    {
-      id: 'perfetto.SetTimestampFormat',
-      name: 'Set timestamp and duration format',
-      callback: async () => {
-        const options: PromptOption[] = [
-          {key: TimestampFormat.Timecode, displayName: 'Timecode'},
-          {key: TimestampFormat.UTC, displayName: 'Realtime (UTC)'},
-          {
-            key: TimestampFormat.TraceTz,
-            displayName: 'Realtime (Trace TZ)',
-          },
-          {key: TimestampFormat.Seconds, displayName: 'Seconds'},
-          {key: TimestampFormat.Milliseoncds, displayName: 'Milliseconds'},
-          {key: TimestampFormat.Microseconds, displayName: 'Microseconds'},
-          {key: TimestampFormat.TraceNs, displayName: 'Trace nanoseconds'},
-          {
-            key: TimestampFormat.TraceNsLocale,
-            displayName: 'Trace nanoseconds (with locale-specific formatting)',
-          },
-        ];
-        const promptText = 'Select format...';
+  // This function is invoked once per trace.
+  async oncreate(vnode: m.VnodeDOM) {
+    this.updateOmniboxInputRef(vnode.dom);
+    this.maybeFocusOmnibar();
 
-        const result = await AppImpl.instance.omnibox.prompt(
-          promptText,
-          options,
-        );
-        if (result === undefined) return;
-        setTimestampFormat(result as TimestampFormat);
-        raf.scheduleFullRedraw();
+    // Register global commands (commands that are useful even without a trace
+    // loaded).
+    const globalCmds: Command[] = [
+      {
+        id: 'perfetto.OpenCommandPalette',
+        name: 'Open command palette',
+        callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Command),
+        defaultHotkey: '!Mod+Shift+P',
       },
-    },
-    {
-      id: 'perfetto.SetDurationPrecision',
-      name: 'Set duration precision',
-      callback: async () => {
-        const options: PromptOption[] = [
-          {key: DurationPrecision.Full, displayName: 'Full'},
-          {
-            key: DurationPrecision.HumanReadable,
-            displayName: 'Human readable',
-          },
-        ];
-        const promptText = 'Select duration precision mode...';
 
-        const result = await AppImpl.instance.omnibox.prompt(
-          promptText,
-          options,
-        );
-        if (result === undefined) return;
-        setDurationPrecision(result as DurationPrecision);
-        raf.scheduleFullRedraw();
+      {
+        id: 'perfetto.ShowHelp',
+        name: 'Show help',
+        callback: () => toggleHelp(),
+        defaultHotkey: '?',
       },
-    },
-    {
-      id: 'perfetto.TogglePerformanceMetrics',
-      name: 'Toggle performance metrics',
-      callback: () => {
-        globals.dispatch(Actions.togglePerfDebug({}));
+    ];
+    globalCmds.forEach((cmd) => {
+      this.trash.use(AppImpl.instance.commands.registerCommand(cmd));
+    });
+
+    // When the UI loads there is no trace. There is no point registering
+    // commands or anything in this state as they will be useless.
+    const trace = AppImpl.instance.trace as TraceImpl;
+    if (trace === undefined) return;
+    assertTrue(trace instanceof TraceImpl);
+    this.trace = trace;
+
+    // Register the aggregation tabs.
+    this.trash.use(new AggregationsTabs(trace));
+
+    // Register the notes manager+editor.
+    this.trash.use(trace.registerDetailsPanel(new NotesEditorTab(trace)));
+
+    this.trash.use(
+      trace.tabs.registerTab({
+        uri: 'notes.manager',
+        isEphemeral: false,
+        content: {
+          getTitle: () => 'Notes & markers',
+          render: () => m(NotesListEditor),
+        },
+      }),
+    );
+
+    const cmds: Command[] = [
+      {
+        id: 'perfetto.SetTimestampFormat',
+        name: 'Set timestamp and duration format',
+        callback: async () => {
+          const options: PromptOption[] = [
+            {key: TimestampFormat.Timecode, displayName: 'Timecode'},
+            {key: TimestampFormat.UTC, displayName: 'Realtime (UTC)'},
+            {
+              key: TimestampFormat.TraceTz,
+              displayName: 'Realtime (Trace TZ)',
+            },
+            {key: TimestampFormat.Seconds, displayName: 'Seconds'},
+            {key: TimestampFormat.Milliseoncds, displayName: 'Milliseconds'},
+            {key: TimestampFormat.Microseconds, displayName: 'Microseconds'},
+            {key: TimestampFormat.TraceNs, displayName: 'Trace nanoseconds'},
+            {
+              key: TimestampFormat.TraceNsLocale,
+              displayName:
+                'Trace nanoseconds (with locale-specific formatting)',
+            },
+          ];
+          const promptText = 'Select format...';
+
+          const result = await AppImpl.instance.omnibox.prompt(
+            promptText,
+            options,
+          );
+          if (result === undefined) return;
+          setTimestampFormat(result as TimestampFormat);
+          raf.scheduleFullRedraw();
+        },
       },
-    },
-    {
-      id: 'perfetto.ShareTrace',
-      name: 'Share trace',
-      callback: shareTrace,
-    },
-    {
-      id: 'perfetto.SearchNext',
-      name: 'Go to next search result',
-      callback: () => {
-        globals.searchManager.stepForward();
+      {
+        id: 'perfetto.SetDurationPrecision',
+        name: 'Set duration precision',
+        callback: async () => {
+          const options: PromptOption[] = [
+            {key: DurationPrecision.Full, displayName: 'Full'},
+            {
+              key: DurationPrecision.HumanReadable,
+              displayName: 'Human readable',
+            },
+          ];
+          const promptText = 'Select duration precision mode...';
+
+          const result = await AppImpl.instance.omnibox.prompt(
+            promptText,
+            options,
+          );
+          if (result === undefined) return;
+          setDurationPrecision(result as DurationPrecision);
+          raf.scheduleFullRedraw();
+        },
       },
-      defaultHotkey: 'Enter',
-    },
-    {
-      id: 'perfetto.SearchPrev',
-      name: 'Go to previous search result',
-      callback: () => {
-        globals.searchManager.stepBackwards();
+      {
+        id: 'perfetto.TogglePerformanceMetrics',
+        name: 'Toggle performance metrics',
+        callback: () => {
+          globals.dispatch(Actions.togglePerfDebug({}));
+        },
       },
-      defaultHotkey: 'Shift+Enter',
-    },
-    {
-      id: 'perfetto.OpenCommandPalette',
-      name: 'Open command palette',
-      callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Command),
-      defaultHotkey: '!Mod+Shift+P',
-    },
-    {
-      id: 'perfetto.RunQuery',
-      name: 'Run query',
-      callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Query),
-    },
-    {
-      id: 'perfetto.Search',
-      name: 'Search',
-      callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Search),
-      defaultHotkey: '/',
-    },
-    {
-      id: 'perfetto.ShowHelp',
-      name: 'Show help',
-      callback: () => toggleHelp(),
-      defaultHotkey: '?',
-    },
-    {
-      id: 'perfetto.CopyTimeWindow',
-      name: `Copy selected time window to clipboard`,
-      callback: async () => {
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
-        const query = `ts >= ${window.start} and ts < ${window.end}`;
-        copyToClipboard(query);
+      {
+        id: 'perfetto.ShareTrace',
+        name: 'Share trace',
+        callback: shareTrace,
       },
-    },
-    {
-      id: 'perfetto.FocusSelection',
-      name: 'Focus current selection',
-      callback: () => globals.selectionManager.scrollToCurrentSelection(),
-      defaultHotkey: 'F',
-    },
-    {
-      id: 'perfetto.Deselect',
-      name: 'Deselect',
-      callback: () => {
-        globals.selectionManager.clear();
+      {
+        id: 'perfetto.SearchNext',
+        name: 'Go to next search result',
+        callback: () => {
+          trace.search.stepForward();
+        },
+        defaultHotkey: 'Enter',
       },
-      defaultHotkey: 'Escape',
-    },
-    {
-      id: 'perfetto.SetTemporarySpanNote',
-      name: 'Set the temporary span note based on the current selection',
-      callback: async () => {
-        const range = await globals.selectionManager.findTimeRangeOfSelection();
-        if (range) {
-          globals.noteManager.addSpanNote({
-            start: range.start,
-            end: range.end,
-            id: '__temp__',
-          });
-        }
+      {
+        id: 'perfetto.SearchPrev',
+        name: 'Go to previous search result',
+        callback: () => {
+          trace.search.stepBackwards();
+        },
+        defaultHotkey: 'Shift+Enter',
       },
-      defaultHotkey: 'M',
-    },
-    {
-      id: 'perfetto.AddSpanNote',
-      name: 'Add a new span note based on the current selection',
-      callback: async () => {
-        const range = await globals.selectionManager.findTimeRangeOfSelection();
-        if (range) {
-          globals.noteManager.addSpanNote({start: range.start, end: range.end});
-        }
+      {
+        id: 'perfetto.RunQuery',
+        name: 'Run query',
+        callback: () => trace.omnibox.setMode(OmniboxMode.Query),
       },
-      defaultHotkey: 'Shift+M',
-    },
-    {
-      id: 'perfetto.RemoveSelectedNote',
-      name: 'Remove selected note',
-      callback: () => {
-        const selection = globals.selectionManager.selection;
-        if (selection.kind === 'note') {
-          globals.noteManager.removeNote(selection.id);
-        }
+      {
+        id: 'perfetto.Search',
+        name: 'Search',
+        callback: () => trace.omnibox.setMode(OmniboxMode.Search),
+        defaultHotkey: '/',
       },
-      defaultHotkey: 'Delete',
-    },
-    {
-      id: 'perfetto.NextFlow',
-      name: 'Next flow',
-      callback: () => focusOtherFlow('Forward'),
-      defaultHotkey: 'Mod+]',
-    },
-    {
-      id: 'perfetto.PrevFlow',
-      name: 'Prev flow',
-      callback: () => focusOtherFlow('Backward'),
-      defaultHotkey: 'Mod+[',
-    },
-    {
-      id: 'perfetto.MoveNextFlow',
-      name: 'Move next flow',
-      callback: () => moveByFocusedFlow('Forward'),
-      defaultHotkey: ']',
-    },
-    {
-      id: 'perfetto.MovePrevFlow',
-      name: 'Move prev flow',
-      callback: () => moveByFocusedFlow('Backward'),
-      defaultHotkey: '[',
-    },
-    {
-      id: 'perfetto.SelectAll',
-      name: 'Select all',
-      callback: () => {
-        // This is a dual state command:
-        // - If one ore more tracks are already area selected, expand the time
-        //   range to include the entire trace, but keep the selection on just
-        //   these tracks.
-        // - If nothing is selected, or all selected tracks are entirely
-        //   selected, then select the entire trace. This allows double tapping
-        //   Ctrl+A to select the entire track, then select the entire trace.
-        let tracksToSelect: string[] = [];
-        const selection = globals.selectionManager.selection;
-        if (selection.kind === 'area') {
-          // Something is already selected, let's see if it covers the entire
-          // span of the trace or not
-          const coversEntireTimeRange =
-            globals.traceContext.start === selection.start &&
-            globals.traceContext.end === selection.end;
-          if (!coversEntireTimeRange) {
-            // If the current selection is an area which does not cover the
-            // entire time range, preserve the list of selected tracks and
-            // expand the time range.
-            tracksToSelect = selection.trackUris;
-          } else {
-            // If the entire time range is already covered, update the selection
-            // to cover all tracks.
-            tracksToSelect = globals.workspace.flatTracks.map((t) => t.uri);
+      {
+        id: 'perfetto.CopyTimeWindow',
+        name: `Copy selected time window to clipboard`,
+        callback: async () => {
+          const window = await getTimeSpanOfSelectionOrVisibleWindow(trace);
+          const query = `ts >= ${window.start} and ts < ${window.end}`;
+          copyToClipboard(query);
+        },
+      },
+      {
+        id: 'perfetto.FocusSelection',
+        name: 'Focus current selection',
+        callback: () => trace.selection.scrollToCurrentSelection(),
+        defaultHotkey: 'F',
+      },
+      {
+        id: 'perfetto.Deselect',
+        name: 'Deselect',
+        callback: () => {
+          trace.selection.clear();
+        },
+        defaultHotkey: 'Escape',
+      },
+      {
+        id: 'perfetto.SetTemporarySpanNote',
+        name: 'Set the temporary span note based on the current selection',
+        callback: async () => {
+          const range = await trace.selection.findTimeRangeOfSelection();
+          if (range) {
+            trace.notes.addSpanNote({
+              start: range.start,
+              end: range.end,
+              id: '__temp__',
+            });
           }
-        } else {
-          // If the current selection is not an area, select all.
-          tracksToSelect = globals.workspace.flatTracks.map((t) => t.uri);
-        }
-        const {start, end} = globals.traceContext;
-        globals.selectionManager.setArea({
-          start,
-          end,
-          trackUris: tracksToSelect,
-        });
+        },
+        defaultHotkey: 'M',
       },
-      defaultHotkey: 'Mod+A',
-    },
-  ];
+      {
+        id: 'perfetto.AddSpanNote',
+        name: 'Add a new span note based on the current selection',
+        callback: async () => {
+          const range = await trace.selection.findTimeRangeOfSelection();
+          if (range) {
+            trace.notes.addSpanNote({
+              start: range.start,
+              end: range.end,
+            });
+          }
+        },
+        defaultHotkey: 'Shift+M',
+      },
+      {
+        id: 'perfetto.RemoveSelectedNote',
+        name: 'Remove selected note',
+        callback: () => {
+          const selection = trace.selection.selection;
+          if (selection.kind === 'note') {
+            trace.notes.removeNote(selection.id);
+          }
+        },
+        defaultHotkey: 'Delete',
+      },
+      {
+        id: 'perfetto.NextFlow',
+        name: 'Next flow',
+        callback: () => focusOtherFlow('Forward'),
+        defaultHotkey: 'Mod+]',
+      },
+      {
+        id: 'perfetto.PrevFlow',
+        name: 'Prev flow',
+        callback: () => focusOtherFlow('Backward'),
+        defaultHotkey: 'Mod+[',
+      },
+      {
+        id: 'perfetto.MoveNextFlow',
+        name: 'Move next flow',
+        callback: () => moveByFocusedFlow('Forward'),
+        defaultHotkey: ']',
+      },
+      {
+        id: 'perfetto.MovePrevFlow',
+        name: 'Move prev flow',
+        callback: () => moveByFocusedFlow('Backward'),
+        defaultHotkey: '[',
+      },
+      {
+        id: 'perfetto.SelectAll',
+        name: 'Select all',
+        callback: () => {
+          // This is a dual state command:
+          // - If one ore more tracks are already area selected, expand the time
+          //   range to include the entire trace, but keep the selection on just
+          //   these tracks.
+          // - If nothing is selected, or all selected tracks are entirely
+          //   selected, then select the entire trace. This allows double tapping
+          //   Ctrl+A to select the entire track, then select the entire trace.
+          let tracksToSelect: string[] = [];
+          const selection = trace.selection.selection;
+          if (selection.kind === 'area') {
+            // Something is already selected, let's see if it covers the entire
+            // span of the trace or not
+            const coversEntireTimeRange =
+              trace.traceInfo.start === selection.start &&
+              trace.traceInfo.end === selection.end;
+            if (!coversEntireTimeRange) {
+              // If the current selection is an area which does not cover the
+              // entire time range, preserve the list of selected tracks and
+              // expand the time range.
+              tracksToSelect = selection.trackUris;
+            } else {
+              // If the entire time range is already covered, update the selection
+              // to cover all tracks.
+              tracksToSelect = trace.workspace.flatTracks.map((t) => t.uri);
+            }
+          } else {
+            // If the current selection is not an area, select all.
+            tracksToSelect = trace.workspace.flatTracks.map((t) => t.uri);
+          }
+          const {start, end} = trace.traceInfo;
+          trace.selection.setArea({
+            start,
+            end,
+            trackUris: tracksToSelect,
+          });
+        },
+        defaultHotkey: 'Mod+A',
+      },
+    ];
 
-  commands() {
-    return this.cmds;
+    // Register each command with the command manager
+    cmds.forEach((cmd) => {
+      this.trash.use(trace.commands.registerCommand(cmd));
+    });
   }
 
   private renderOmnibox(): m.Children {
@@ -408,7 +454,7 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   renderCommandOmnibox(): m.Children {
-    const cmdMgr = globals.commandManager;
+    const cmdMgr = AppImpl.instance.commands;
 
     // Fuzzy-filter commands by the filter string.
     const filteredCmds = cmdMgr.fuzzyFilterCommands(
@@ -503,7 +549,9 @@ export class UiMainPerTrace implements m.ClassComponent {
           title: alt ? 'Pinned query' : 'Omnibox query',
         };
         const tag = alt ? undefined : 'omnibox_query';
-        addQueryResultsTab(config, tag);
+        const trace = AppImpl.instance.trace;
+        if (trace === undefined) return; // No trace loaded
+        addQueryResultsTab(trace, config, tag);
       },
       onClose: () => {
         AppImpl.instance.omnibox.setText('');
@@ -533,10 +581,11 @@ export class UiMainPerTrace implements m.ClassComponent {
           return;
         }
         AppImpl.instance.omnibox.setText(value);
+        if (this.trace === undefined) return; // No trace loaded.
         if (value.length >= 4) {
-          globals.searchManager.search(value);
+          this.trace.search.search(value);
         } else {
-          globals.searchManager.reset();
+          this.trace.search.reset();
         }
       },
       onClose: () => {
@@ -545,11 +594,12 @@ export class UiMainPerTrace implements m.ClassComponent {
         }
       },
       onSubmit: (value, _mod, shift) => {
-        globals.searchManager.search(value);
+        if (this.trace === undefined) return; // No trace loaded.
+        this.trace.search.search(value);
         if (shift) {
-          globals.searchManager.stepBackwards();
+          this.trace.search.stepBackwards();
         } else {
-          globals.searchManager.stepForward();
+          this.trace.search.stepForward();
         }
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
@@ -561,29 +611,26 @@ export class UiMainPerTrace implements m.ClassComponent {
 
   private renderStepThrough() {
     const children = [];
-    const results = globals.searchManager.searchResults;
-    if (globals.searchManager.searchInProgress) {
+    const results = this.trace?.search.searchResults;
+    if (this.trace?.search.searchInProgress) {
       children.push(m('.current', m(Spinner)));
     } else if (results !== undefined) {
-      const index = globals.searchManager.resultIndex;
+      const searchMgr = assertExists(this.trace).search;
+      const index = searchMgr.resultIndex;
       const total = results.totalResults ?? 0;
       children.push(
         m('.current', `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`),
         m(
           'button',
           {
-            onclick: () => {
-              globals.searchManager.stepBackwards();
-            },
+            onclick: () => searchMgr.stepBackwards(),
           },
           m('i.material-icons.left', 'keyboard_arrow_left'),
         ),
         m(
           'button',
           {
-            onclick: () => {
-              globals.searchManager.stepForward();
-            },
+            onclick: () => searchMgr.stepForward(),
           },
           m('i.material-icons.right', 'keyboard_arrow_right'),
         ),
@@ -593,14 +640,13 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   view({children}: m.Vnode): m.Children {
+    const cmdMgr = AppImpl.instance.commands;
     const hotkeys: HotkeyConfig[] = [];
-    const commands = globals.commandManager.commands;
+    const commands = cmdMgr.commands;
     for (const {id, defaultHotkey} of commands) {
       if (defaultHotkey) {
         hotkeys.push({
-          callback: () => {
-            globals.commandManager.runCommand(id);
-          },
+          callback: () => cmdMgr.runCommand(id),
           hotkey: defaultHotkey,
         });
       }
@@ -621,36 +667,6 @@ export class UiMainPerTrace implements m.ClassComponent {
         maybeRenderFullscreenModalDialog(),
         globals.state.perfDebug && m('.perf-stats'),
       ),
-    );
-  }
-
-  // This function is invoked once per trace.
-  oncreate(vnode: m.VnodeDOM) {
-    this.updateOmniboxInputRef(vnode.dom);
-    this.maybeFocusOmnibar();
-
-    // Register each command with the command manager
-    this.cmds.forEach((cmd) => {
-      this.trash.use(globals.commandManager.registerCommand(cmd));
-    });
-
-    // Register the aggregation tabs.
-    this.trash.use(new AggregationsTabs());
-
-    // Register the notes manager+editor.
-    this.trash.use(
-      globals.tabManager.registerDetailsPanel(new NotesEditorTab()),
-    );
-
-    this.trash.use(
-      globals.tabManager.registerTab({
-        uri: 'notes.manager',
-        isEphemeral: false,
-        content: {
-          getTitle: () => 'Notes & markers',
-          render: () => m(NotesListEditor),
-        },
-      }),
     );
   }
 

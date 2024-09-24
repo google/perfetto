@@ -14,7 +14,7 @@
 
 import {assertExists} from '../base/logging';
 import {createStore, Store} from '../base/store';
-import {duration, Time, time, TimeSpan} from '../base/time';
+import {duration, Time, time} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {CommandManagerImpl} from '../core/command_manager';
@@ -32,7 +32,6 @@ import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import type {Analytics} from './analytics';
 import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
-import {exists} from '../base/utils';
 import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
 import {Workspace} from '../public/workspace';
@@ -501,17 +500,6 @@ class Globals {
   // Convert absolute time to domain time.
   toDomainTime(ts: time): time {
     return Time.sub(ts, this.timestampOffset());
-  }
-}
-
-// Returns the time span of the current selection, or the visible window if
-// there is no current selection.
-export async function getTimeSpanOfSelectionOrVisibleWindow(): Promise<TimeSpan> {
-  const range = await globals.selectionManager.findTimeRangeOfSelection();
-  if (exists(range)) {
-    return new TimeSpan(range.start, range.end);
-  } else {
-    return globals.timeline.visibleWindow.toTimeSpan();
   }
 }
 

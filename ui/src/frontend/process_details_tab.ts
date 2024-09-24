@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine} from '../trace_processor/engine';
 import {Tab} from '../public/tab';
 import {Upid} from '../trace_processor/sql_utils/core_types';
 import {DetailsShell} from '../widgets/details_shell';
@@ -21,6 +20,7 @@ import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {Details, DetailsSchema} from './widgets/sql/details/details';
 import d = DetailsSchema;
+import {Trace} from '../public/trace';
 
 export class ProcessDetailsTab implements Tab {
   private data: Details;
@@ -31,8 +31,8 @@ export class ProcessDetailsTab implements Tab {
   // However, the only place which creates `ProcessDetailsTab` currently is `renderProcessRef`,
   // which already has `pid` available (note that Details is already fetching the data, including
   // the `pid` from the trace processor, but it doesn't expose it for now).
-  constructor(private args: {engine: Engine; upid: Upid; pid?: number}) {
-    this.data = new Details(args.engine, 'process', args.upid, {
+  constructor(private args: {trace: Trace; upid: Upid; pid?: number}) {
+    this.data = new Details(args.trace, 'process', args.upid, {
       'pid': d.Value('pid'),
       'Name': d.Value('name'),
       'Start time': d.Timestamp('start_ts', {skipIfNull: true}),

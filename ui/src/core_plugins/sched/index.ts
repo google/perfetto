@@ -28,7 +28,7 @@ class SchedPlugin implements PerfettoPlugin {
       uri: runnableThreadCountUri,
       title: 'Runnable thread count',
       track: new RunnableThreadCountTrack({
-        engine: ctx.engine,
+        trace: ctx,
         uri: runnableThreadCountUri,
       }),
     });
@@ -44,7 +44,7 @@ class SchedPlugin implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: title,
-      track: new ActiveCPUCountTrack({trackUri: uri}, ctx.engine),
+      track: new ActiveCPUCountTrack({trackUri: uri}, ctx),
     });
     ctx.commands.registerCommand({
       id: 'dev.perfetto.Sched.AddActiveCPUCountTrackCommand',
@@ -58,7 +58,7 @@ class SchedPlugin implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title: title,
-        track: new ActiveCPUCountTrack({trackUri: uri}, ctx.engine, cpuType),
+        track: new ActiveCPUCountTrack({trackUri: uri}, ctx, cpuType),
       });
 
       ctx.commands.registerCommand({
@@ -73,7 +73,7 @@ class SchedPlugin implements PerfettoPlugin {
       id: 'perfetto.ShowTable.sched',
       name: 'Open table: sched',
       callback: () => {
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: getSchedTable(),
         });
       },

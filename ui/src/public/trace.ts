@@ -23,6 +23,7 @@ import {Workspace, WorkspaceManager} from './workspace';
 import {DetailsPanel, LegacyDetailsPanel} from './details_panel';
 import {SelectionManager} from './selection';
 import {ScrollToArgs} from './scroll_helper';
+import {NoteManager} from './note';
 
 /**
  * The main API endpoint to interact programmaticaly with the UI and alter its
@@ -34,6 +35,7 @@ import {ScrollToArgs} from './scroll_helper';
  */
 export interface Trace extends App {
   readonly engine: Engine;
+  readonly notes: NoteManager;
   readonly timeline: Timeline;
   readonly tabs: TabManager;
   readonly tracks: TrackManager;

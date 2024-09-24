@@ -23,8 +23,7 @@ import {PageWithTraceAttrs} from './pages';
 import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
 import {addQueryResultsTab} from './query_result_tab';
 import {QueryTable} from './query_table';
-import {Engine, EngineAttrs} from '../trace_processor/engine';
-import {assertExists} from '../base/logging';
+import {Trace, TraceAttrs} from '../public/trace';
 
 interface QueryPageState {
   enteredText: string;
@@ -40,12 +39,13 @@ const state: QueryPageState = {
   generation: 0,
 };
 
-function runManualQuery(engine: Engine, query: string) {
+function runManualQuery(trace: Trace, query: string) {
   state.executedQuery = query;
   state.queryResult = undefined;
-  runQuery(undoCommonChatAppReplacements(query), engine).then(
+  runQuery(undoCommonChatAppReplacements(query), trace.engine).then(
     (resp: QueryResponse) => {
       addQueryResultsTab(
+        trace,
         {
           query: query,
           title: 'Standalone Query',
@@ -65,10 +65,12 @@ function runManualQuery(engine: Engine, query: string) {
   raf.scheduleDelayedFullRedraw();
 }
 
-class QueryInput implements m.ClassComponent<EngineAttrs> {
+export type QueryInputAttrs = TraceAttrs;
+
+class QueryInput implements m.ClassComponent<QueryInputAttrs> {
   private resize?: Disposable;
 
-  oncreate({dom}: m.CVnodeDOM<EngineAttrs>): void {
+  oncreate({dom}: m.CVnodeDOM<QueryInputAttrs>): void {
     this.resize = new SimpleResizeObserver(dom, () => {
       state.heightPx = (dom as HTMLElement).style.height;
     });
@@ -82,7 +84,7 @@ class QueryInput implements m.ClassComponent<EngineAttrs> {
     }
   }
 
-  view({attrs}: m.CVnode<EngineAttrs>) {
+  view({attrs}: m.CVnode<QueryInputAttrs>) {
     return m(Editor, {
       generation: state.generation,
       initialText: state.enteredText,
@@ -92,7 +94,7 @@ class QueryInput implements m.ClassComponent<EngineAttrs> {
           return;
         }
         queryHistoryStorage.saveQuery(text);
-        runManualQuery(attrs.engine, text);
+        runManualQuery(attrs.trace, text);
       },
 
       onUpdate: (text: string) => {
@@ -104,14 +106,7 @@ class QueryInput implements m.ClassComponent<EngineAttrs> {
 }
 
 export class QueryPage implements m.ClassComponent<PageWithTraceAttrs> {
-  private engine?: Engine;
-
-  oninit({attrs}: m.CVnode<PageWithTraceAttrs>) {
-    this.engine = attrs.trace.engine.getProxy('QueryPage');
-  }
-
-  view() {
-    const engine = assertExists(this.engine);
+  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
     return m(
       '.query-page',
       m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),
@@ -123,7 +118,7 @@ export class QueryPage implements m.ClassComponent<PageWithTraceAttrs> {
             `define a string, please use ' (single quote) instead. Using double quotes ` +
             `can cause subtle problems which are very hard to debug.`,
         ),
-      m(QueryInput, {engine}),
+      m(QueryInput, attrs),
       state.executedQuery === undefined
         ? null
         : m(QueryTable, {
@@ -132,7 +127,7 @@ export class QueryPage implements m.ClassComponent<PageWithTraceAttrs> {
             fillParent: false,
           }),
       m(QueryHistoryComponent, {
-        runQuery: (q: string) => runManualQuery(engine, q),
+        runQuery: (q: string) => runManualQuery(attrs.trace, q),
         setQuery: (q: string) => {
           state.enteredText = q;
           state.generation++;

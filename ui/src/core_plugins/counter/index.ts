@@ -190,7 +190,7 @@ class CounterPlugin implements PerfettoPlugin {
           trackIds: [trackId],
         },
         track: new TraceProcessorCounterTrack({
-          engine: ctx.engine,
+          trace: ctx,
           uri,
           trackId,
           options: {
@@ -271,7 +271,7 @@ class CounterPlugin implements PerfettoPlugin {
           scope,
         },
         track: new TraceProcessorCounterTrack({
-          engine: ctx.engine,
+          trace: ctx,
           uri,
           trackId: trackId,
           options: getDefaultCounterOptions(name),
@@ -342,7 +342,7 @@ class CounterPlugin implements PerfettoPlugin {
           scope: 'thread',
         },
         track: new TraceProcessorCounterTrack({
-          engine: ctx.engine,
+          trace: ctx,
           uri,
           trackId: trackId,
           options: getDefaultCounterOptions(name),
@@ -404,7 +404,7 @@ class CounterPlugin implements PerfettoPlugin {
           scope: 'process',
         },
         track: new TraceProcessorCounterTrack({
-          engine: ctx.engine,
+          trace: ctx,
           uri,
           trackId: trackId,
           options: getDefaultCounterOptions(name),
@@ -448,7 +448,7 @@ class CounterPlugin implements PerfettoPlugin {
             scope: 'gpuFreq',
           },
           track: new TraceProcessorCounterTrack({
-            engine: ctx.engine,
+            trace: ctx,
             uri,
             trackId: trackId,
             options: getDefaultCounterOptions(name),

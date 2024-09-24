@@ -35,7 +35,7 @@ export class PageLoadDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig
 
   constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
-    this.data = new Details(this.engine, 'chrome_page_loads', this.config.id, {
+    this.data = new Details(this.trace, 'chrome_page_loads', this.config.id, {
       'Navigation start': d.Timestamp('navigation_start_ts'),
       'FCP event': d.Timestamp('fcp_ts'),
       'FCP': d.Interval('navigation_start_ts', 'fcp'),

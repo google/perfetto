@@ -61,6 +61,7 @@ import {initAnalytics} from './analytics';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {pageWithTrace} from './pages';
+import {AppImpl} from '../core/app_trace_impl';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -357,8 +358,8 @@ function onCssLoaded() {
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
-    const engine = globals.getCurrentEngine();
-    if (engine && engine.source.type === 'HTTP_RPC') {
+    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    if (traceSource && traceSource.type === 'HTTP_RPC') {
       return;
     }
 
