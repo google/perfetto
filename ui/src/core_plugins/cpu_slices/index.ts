@@ -58,7 +58,7 @@ class CpuSlices implements PerfettoPlugin {
             config: {
               id: asSchedSqlId(sel.id),
             },
-            engine: ctx.engine,
+            trace: ctx,
             uuid: uuidv4(),
           });
         },

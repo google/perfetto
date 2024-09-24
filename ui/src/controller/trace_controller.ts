@@ -548,7 +548,7 @@ export class TraceController extends Controller<States> {
         );
       }
       if (pendingDeeplink.query !== undefined) {
-        addQueryResultsTab({
+        addQueryResultsTab(trace, {
           query: pendingDeeplink.query,
           title: 'Deeplink Query',
         });

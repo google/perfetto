@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine} from '../trace_processor/engine';
+import {Trace} from '../public/trace';
 
 export interface NewBottomTabArgs<Config> {
-  engine: Engine;
+  trace: Trace;
   tag?: string;
   uuid: string;
   config: Config;
@@ -41,8 +41,8 @@ export interface NewBottomTabArgs<Config> {
 export abstract class BottomTabBase<Config = {}> {
   // Config for this details panel. Should be serializable.
   protected readonly config: Config;
-  // Engine for running queries and fetching additional data.
-  protected readonly engine: Engine;
+  // The Trace interface to manipulate the state of the UI.
+  readonly trace: Trace;
   // Optional tag, which is used to ensure that only one tab
   // with the same tag can exist - adding a new tab with the same tag
   // (e.g. 'current_selection') would close the previous one. This
@@ -54,7 +54,7 @@ export abstract class BottomTabBase<Config = {}> {
 
   constructor(args: NewBottomTabArgs<Config>) {
     this.config = args.config;
-    this.engine = args.engine;
+    this.trace = args.trace;
     this.tag = args.tag;
     this.uuid = args.uuid;
   }
@@ -75,6 +75,10 @@ export abstract class BottomTabBase<Config = {}> {
   // during the redraw.
   isLoading(): boolean {
     return false;
+  }
+
+  protected get engine() {
+    return this.trace.engine;
   }
 }
 

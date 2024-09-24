@@ -14,7 +14,6 @@
 
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {GenericSliceDetailsTab} from '../../frontend/generic_slice_details_tab';
-import {globals} from '../../frontend/globals';
 import {NAMED_ROW} from '../../frontend/named_slice_track';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
@@ -132,7 +131,7 @@ export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack {
 
   onSliceClick(args: OnSliceClickArgs<CriticalUserInteractionSlice>) {
     const detailsPanelConfig = this.getDetailsPanel(args);
-    globals.selectionManager.setGenericSlice({
+    this.trace.selection.setGenericSlice({
       id: args.slice.scopedId,
       sqlTableName: this.tableName,
       start: args.slice.ts,

@@ -25,6 +25,7 @@ import {
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {JANK_COLOR} from './jank_colors';
 import {ScrollJankPluginState} from './common';
+import {exists} from '../../base/utils';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
@@ -77,9 +78,9 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack {
 
   onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
-      const currentSelection = globals.selectionManager.legacySelection;
+      const currentSelection = this.trace.selection.legacySelection;
       const isSelected =
-        currentSelection &&
+        exists(currentSelection) &&
         currentSelection.kind === 'GENERIC_SLICE' &&
         currentSelection.id !== undefined &&
         currentSelection.id === slice.id;

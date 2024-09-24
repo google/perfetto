@@ -19,18 +19,18 @@ import {
   CustomSqlTableSliceTrack,
 } from '../tracks/custom_sql_table_slice_track';
 import {TrackContext} from '../../public/track';
-import {Engine} from '../../trace_processor/engine';
 import {DebugSliceDetailsTab} from './details_tab';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
+import {Trace} from '../../public/trace';
 
 export class DebugSliceTrack extends CustomSqlTableSliceTrack {
   private readonly sqlTableName: string;
 
-  constructor(engine: Engine, ctx: TrackContext, tableName: string) {
+  constructor(trace: Trace, ctx: TrackContext, tableName: string) {
     super({
-      engine,
+      trace,
       uri: ctx.trackUri,
     });
     this.sqlTableName = tableName;

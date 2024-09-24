@@ -179,7 +179,6 @@ export class ScrollJankSliceRef
           }
 
           const trackUri = track.key;
-
           globals.selectionManager.setGenericSlice({
             id: vnode.attrs.id,
             sqlTableName: track.sqlTableName,

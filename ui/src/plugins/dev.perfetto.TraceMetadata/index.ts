@@ -32,7 +32,7 @@ class TraceMetadata implements PerfettoPlugin {
       uri,
       title,
       track: new SimpleSliceTrack(
-        ctx.engine,
+        ctx,
         {trackUri: uri},
         {
           data: {

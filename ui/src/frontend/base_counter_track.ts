@@ -23,11 +23,11 @@ import {CacheKey} from '../core/timeline_cache';
 import {Track, TrackMouseEvent, TrackRenderContext} from '../public/track';
 import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
-import {Engine} from '../trace_processor/engine';
 import {LONG, NUM} from '../trace_processor/query_result';
 import {checkerboardExcept} from './checkerboard';
 import {NewTrackArgs} from './track';
 import {AsyncDisposableStack} from '../base/disposable_stack';
+import {Trace} from '../public/trace';
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -185,7 +185,7 @@ export type BaseCounterTrackArgs = NewTrackArgs & {
 };
 
 export abstract class BaseCounterTrack implements Track {
-  protected engine: Engine;
+  protected trace: Trace;
   protected uri: string;
   protected trackUuid = uuidv4Sql();
 
@@ -245,7 +245,7 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   constructor(args: BaseCounterTrackArgs) {
-    this.engine = args.engine;
+    this.trace = args.trace;
     this.uri = args.uri;
     this.defaultOptions = args.options ?? {};
     this.trash = new AsyncDisposableStack();
@@ -908,5 +908,9 @@ export abstract class BaseCounterTrack implements Track {
 
   get unit(): string {
     return this.getCounterOptions().unit ?? '';
+  }
+
+  protected get engine() {
+    return this.trace.engine;
   }
 }

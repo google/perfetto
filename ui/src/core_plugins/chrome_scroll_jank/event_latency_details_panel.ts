@@ -58,7 +58,6 @@ import {
 } from './scroll_jank_slice';
 import {sliceRef} from '../../frontend/widgets/slice';
 import {SCROLL_JANK_V3_TRACK_KIND} from '../../public/track_kinds';
-import {globals} from '../../frontend/globals';
 
 // Given a node in the slice tree, return a path from root to it.
 function getPath(slice: SliceTreeNode): string[] {
@@ -143,7 +142,7 @@ export class EventLatencySliceDetailsPanel extends BottomTab<GenericSliceDetails
     super(args);
 
     this.tracksByTrackId = new Map<number, string>();
-    globals.trackManager.getAllTracks().forEach((td) => {
+    this.trace.tracks.getAllTracks().forEach((td) => {
       td.tags?.trackIds?.forEach((trackId) => {
         this.tracksByTrackId.set(trackId, td.uri);
       });
@@ -334,7 +333,7 @@ export class EventLatencySliceDetailsPanel extends BottomTab<GenericSliceDetails
 
     const columns: ColumnDescriptor<RelevantThreadRow>[] = [
       widgetColumn<RelevantThreadRow>('Relevant Thread', (x) =>
-        getCauseLink(x.tracks, this.tracksByTrackId, x.ts, x.dur),
+        getCauseLink(this.trace, x.tracks, this.tracksByTrackId, x.ts, x.dur),
       ),
       widgetColumn<RelevantThreadRow>('Description', (x) => {
         if (x.description === '') {
@@ -530,12 +529,12 @@ export class EventLatencySliceDetailsPanel extends BottomTab<GenericSliceDetails
           GridLayout,
           m(
             GridLayoutColumn,
-            renderDetails(slice),
+            renderDetails(this.trace, slice),
             hasArgs(slice.args) &&
               m(
                 Section,
                 {title: 'Arguments'},
-                m(Tree, renderArguments(this.engine, slice.args)),
+                m(Tree, renderArguments(this.trace, slice.args)),
               ),
           ),
           m(GridLayoutColumn, rightSideWidgets),

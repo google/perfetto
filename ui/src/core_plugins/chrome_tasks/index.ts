@@ -35,7 +35,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       id: 'org.chromium.ChromeTasks.ShowChromeTasksTable',
       name: 'Show chrome_tasks table',
       callback: () =>
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: chromeTasksTable,
         }),
     });
@@ -101,7 +101,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       const title = `${it.threadName} ${it.tid}`;
       ctx.tracks.registerTrack({
         uri,
-        track: new ChromeTasksThreadTrack(ctx.engine, uri, asUtid(utid)),
+        track: new ChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
         title,
       });
       group.insertChildInOrder(new TrackNode(uri, title));
@@ -118,7 +118,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
             const config = selection.detailsPanelConfig.config;
             return new ChromeTasksDetailsTab({
               config: config as GenericSliceDetailsTabConfig,
-              engine: ctx.engine,
+              trace: ctx,
               uuid: uuidv4(),
             });
           }

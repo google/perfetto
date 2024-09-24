@@ -65,7 +65,7 @@ class AnnotationPlugin implements PerfettoPlugin {
         chips: ['metric'],
         track: new ThreadSliceTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           id,
@@ -136,7 +136,7 @@ class AnnotationPlugin implements PerfettoPlugin {
         },
         chips: ['metric'],
         track: new TraceProcessorCounterTrack({
-          engine: ctx.engine,
+          trace: ctx,
           uri,
           trackId,
           rootTable: 'annotation_counter',

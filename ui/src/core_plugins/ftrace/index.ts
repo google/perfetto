@@ -22,7 +22,6 @@ import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceRawTrack} from './ftrace_track';
 import {DisposableStack} from '../../base/disposable_stack';
 import {GroupNode, TrackNode} from '../../public/workspace';
-import {globals} from '../../frontend/globals';
 
 const VERSION = 1;
 
@@ -79,7 +78,7 @@ class FtraceRawPlugin implements PerfettoPlugin {
     }
 
     if (group.children.length) {
-      globals.workspace.insertChildInOrder(group);
+      ctx.workspace.insertChildInOrder(group);
     }
 
     const cache: FtraceExplorerCache = {
@@ -97,7 +96,7 @@ class FtraceRawPlugin implements PerfettoPlugin {
           m(FtraceExplorer, {
             filterStore,
             cache,
-            engine: ctx.engine,
+            trace: ctx,
           }),
         getTitle: () => 'Ftrace Events',
       },

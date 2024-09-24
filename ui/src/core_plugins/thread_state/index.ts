@@ -80,7 +80,7 @@ class ThreadState implements PerfettoPlugin {
         ]),
         track: new ThreadStateTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           utid,
@@ -103,7 +103,7 @@ class ThreadState implements PerfettoPlugin {
             config: {
               id: asThreadStateSqlId(sel.id),
             },
-            engine: ctx.engine,
+            trace: ctx,
             uuid: uuidv4(),
           });
         },
@@ -115,7 +115,7 @@ class ThreadState implements PerfettoPlugin {
       id: 'perfetto.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: getThreadStateTable(),
         });
       },

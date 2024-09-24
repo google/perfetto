@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {addDebugSliceTrack} from '../../public/debug_tracks';
-import {getTimeSpanOfSelectionOrVisibleWindow} from '../../frontend/globals';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 
 class AndroidPerf implements PerfettoPlugin {
   async addAppProcessStartsDebugTrack(
@@ -163,7 +163,7 @@ class AndroidPerf implements PerfettoPlugin {
       id: 'dev.perfetto.AndroidPerf#SchedLatencyInSelectedWindow',
       name: 'Top 50 sched latency in selected time window',
       callback: async () => {
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
+        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         ctx.addQueryResultsTab(
           `
           SELECT

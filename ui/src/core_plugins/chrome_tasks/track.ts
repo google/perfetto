@@ -18,16 +18,16 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {Engine} from '../../trace_processor/engine';
 import {ChromeTasksDetailsTab} from './details';
+import {Trace} from '../../public/trace';
 
 export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
   constructor(
-    engine: Engine,
+    trace: Trace,
     uri: string,
     private utid: Utid,
   ) {
-    super({engine, uri});
+    super({trace, uri});
   }
 
   getSqlDataSource(): CustomSqlTableDefConfig {

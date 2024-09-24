@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../frontend/globals';
 import {LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
 import {
   BaseCounterTrack,
@@ -79,7 +78,7 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
         return;
       }
       const id = it.id;
-      globals.selectionManager.setEvent(this.uri, id);
+      this.trace.selection.setEvent(this.uri, id);
     });
 
     return true;

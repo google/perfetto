@@ -199,6 +199,15 @@ class TraceContext implements Disposable {
       this.onSelectionChange.bind(this),
     );
 
+    this.noteMgr.onNoteDeleted = (noteId) => {
+      if (
+        this.selectionMgr.selection.kind === 'note' &&
+        this.selectionMgr.selection.id === noteId
+      ) {
+        this.selectionMgr.clear();
+      }
+    };
+
     this.searchMgr = new SearchManagerImpl({
       timeline: this.timeline,
       trackManager: this.trackMgr,
@@ -320,9 +329,13 @@ export class TraceImpl implements Trace {
   //    enagnled and this needs to be injected by globals. This can be supported
   //    once we clean up properly queryResult and debug tracks, so that they
   //    don't depend on globals and take a Trace as argument.
-  static addQueryResultsTabFunction?: (query: string, title: string) => void;
+  static addQueryResultsTabFunction?: (
+    t: Trace,
+    query: string,
+    title: string,
+  ) => void;
   addQueryResultsTab(query: string, title: string) {
-    return TraceImpl.addQueryResultsTabFunction?.(query, title);
+    return TraceImpl.addQueryResultsTabFunction?.(this, query, title);
   }
 
   mountStore<T>(migrate: Migrate<T>): Store<T> {
