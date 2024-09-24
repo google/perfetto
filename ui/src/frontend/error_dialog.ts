@@ -22,6 +22,7 @@ import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {globals} from './globals';
 import {Router} from './router';
+import {AppImpl} from '../core/app_trace_impl';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -122,13 +123,13 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
 
   constructor() {
     this.traceState = 'NOT_AVAILABLE';
-    const engine = globals.getCurrentEngine();
-    if (engine === undefined) return;
-    this.traceType = engine.source.type;
+    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    if (traceSource === undefined) return;
+    this.traceType = traceSource.type;
     // If the trace is either already uploaded, or comes from a postmessage+url
     // we don't need any re-upload.
-    if ('url' in engine.source && engine.source.url !== undefined) {
-      this.traceUrl = engine.source.url;
+    if ('url' in traceSource && traceSource.url !== undefined) {
+      this.traceUrl = traceSource.url;
       this.traceState = 'UPLOADED';
       // The trace is already uploaded, so assume the user is fine attaching to
       // the bugreport (this make the checkbox ticked by default).
@@ -139,12 +140,12 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     // If the user is not a googler, don't even offer the option to upload it.
     if (!globals.isInternalUser) return;
 
-    if (engine.source.type === 'FILE') {
+    if (traceSource.type === 'FILE') {
       this.traceState = 'NOT_UPLOADED';
-      this.traceData = engine.source.file;
+      this.traceData = traceSource.file;
       // this.traceSize = this.traceData.size;
-    } else if (engine.source.type === 'ARRAY_BUFFER') {
-      this.traceData = engine.source.buffer;
+    } else if (traceSource.type === 'ARRAY_BUFFER') {
+      this.traceData = traceSource.buffer;
       // this.traceSize = this.traceData.byteLength;
     } else {
       return; // Can't upload HTTP+RPC.

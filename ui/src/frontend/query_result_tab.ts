@@ -29,8 +29,8 @@ import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {QueryTable} from './query_table';
 import {globals} from './globals';
 import {BottomTabToTabAdapter} from '../public/utils';
-import {Engine} from '../trace_processor/engine';
 import {TraceImpl} from '../core/app_trace_impl';
+import {Trace} from '../public/trace';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -43,12 +43,13 @@ interface QueryResultTabConfig {
 // External interface for adding a new query results tab
 // Automatically decided whether to add v1 or v2 tab
 export function addQueryResultsTab(
+  trace: Trace,
   config: QueryResultTabConfig,
   tag?: string,
 ): void {
   const queryResultsTab = new QueryResultTab({
+    trace,
     config,
-    engine: getEngine(),
     uuid: uuidv4(),
   });
 
@@ -64,15 +65,11 @@ export function addQueryResultsTab(
 
 // TODO(primiano): this is to break dependency cycles. The whole QueryResultTab
 // and DebugTrack dependencies need to be disentangled.
-TraceImpl.addQueryResultsTabFunction = (query: string, title: string) =>
-  addQueryResultsTab({query, title});
-
-// TODO(stevegolton): Find a way to make this more elegant.
-function getEngine(): Engine {
-  const engConfig = globals.getCurrentEngine();
-  const engineId = assertExists(engConfig).id;
-  return assertExists(globals.engines.get(engineId)).getProxy('QueryResult');
-}
+TraceImpl.addQueryResultsTabFunction = (
+  trace: Trace,
+  query: string,
+  title: string,
+) => addQueryResultsTab(trace, {query, title});
 
 export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
   static readonly kind = 'dev.perfetto.QueryResultTab';
@@ -136,11 +133,11 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
                 popupPosition: PopupPosition.Top,
               },
               m(AddDebugTrackMenu, {
+                trace: this.trace,
                 dataSource: {
                   sqlSource: `select * from ${this.sqlViewName}`,
                   columns: assertExists(this.queryResponse).columns,
                 },
-                engine: this.engine,
               }),
             ),
       ],

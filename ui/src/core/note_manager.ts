@@ -12,12 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time} from '../base/time';
-import {Note, SpanNote} from '../public/note';
+import {
+  AddNoteArgs,
+  AddSpanNoteArgs,
+  Note,
+  NoteManager,
+  SpanNote,
+} from '../public/note';
 import {randomColor} from './colorizer';
 import {raf} from './raf_scheduler';
 
-export class NoteManagerImpl {
+export class NoteManagerImpl implements NoteManager {
   private _lastNodeId = 0;
   private _notes = new Map<string, Note | SpanNote>();
 
@@ -41,49 +46,27 @@ export class NoteManagerImpl {
     return this._notes.get(id);
   }
 
-  addNote(args: {
-    timestamp: time;
-    color: string;
-    id?: string;
-    text?: string;
-  }): string {
-    const {
-      timestamp,
-      color,
-      id = `note_${++this._lastNodeId}`,
-      text = '',
-    } = args;
+  addNote(args: AddNoteArgs): string {
+    const id = args.id ?? `note_${++this._lastNodeId}`;
     this._notes.set(id, {
+      ...args,
       noteType: 'DEFAULT',
       id,
-      timestamp,
-      color,
-      text,
+      color: args.color ?? randomColor(),
+      text: args.text ?? '',
     });
     raf.scheduleFullRedraw();
     return id;
   }
 
-  addSpanNote(args: {
-    start: time;
-    end: time;
-    id?: string;
-    color?: string;
-  }): string {
-    const {
-      id = `note_${++this._lastNodeId}`,
-      color = randomColor(),
-      end,
-      start,
-    } = args;
-
+  addSpanNote(args: AddSpanNoteArgs): string {
+    const id = args.id ?? `note_${++this._lastNodeId}`;
     this._notes.set(id, {
+      ...args,
       noteType: 'SPAN',
-      start,
-      end,
-      color,
       id,
-      text: '',
+      color: args.color ?? randomColor(),
+      text: args.text ?? '',
     });
     raf.scheduleFullRedraw();
     return id;

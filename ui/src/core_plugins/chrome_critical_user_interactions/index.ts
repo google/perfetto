@@ -16,26 +16,28 @@ import {v4 as uuidv4} from 'uuid';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {BottomTabToSCSAdapter} from '../../public/utils';
 import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
 import {WebContentInteractionPanel} from './web_content_interaction_details_panel';
 import {CriticalUserInteractionTrack} from './critical_user_interaction_track';
 import {TrackNode} from '../../public/workspace';
-import {globals} from '../../frontend/globals';
-
-function addCriticalUserInteractionTrack() {
-  const track = new TrackNode(
-    CriticalUserInteractionTrack.kind,
-    'Chrome Interactions',
-  );
-  globals.workspace.insertChildInOrder(track);
-  track.pin();
-}
 
 class CriticalUserInteractionPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
+      id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
+      name: 'Add track: Chrome interactions',
+      callback: () => {
+        const track = new TrackNode(
+          CriticalUserInteractionTrack.kind,
+          'Chrome Interactions',
+        );
+        ctx.workspace.insertChildInOrder(track);
+        track.pin();
+      },
+    });
+
     ctx.tracks.registerTrack({
       uri: CriticalUserInteractionTrack.kind,
       tags: {
@@ -43,7 +45,7 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
       },
       title: 'Chrome Interactions',
       track: new CriticalUserInteractionTrack({
-        engine: ctx.engine,
+        trace: ctx,
         uri: CriticalUserInteractionTrack.kind,
       }),
     });
@@ -58,7 +60,7 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
             const config = selection.detailsPanelConfig.config;
             return new PageLoadDetailsPanel({
               config: config as GenericSliceDetailsTabConfig,
-              engine: ctx.engine,
+              trace: ctx,
               uuid: uuidv4(),
             });
           }
@@ -77,7 +79,7 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
             const config = selection.detailsPanelConfig.config;
             return new StartupDetailsPanel({
               config: config as GenericSliceDetailsTabConfig,
-              engine: ctx.engine,
+              trace: ctx,
               uuid: uuidv4(),
             });
           }
@@ -97,7 +99,7 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
             const config = selection.detailsPanelConfig.config;
             return new WebContentInteractionPanel({
               config: config as GenericSliceDetailsTabConfig,
-              engine: ctx.engine,
+              trace: ctx,
               uuid: uuidv4(),
             });
           }
@@ -105,14 +107,6 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
         },
       }),
     );
-  }
-
-  onActivate(ctx: App): void {
-    ctx.commands.registerCommand({
-      id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
-      name: 'Add track: Chrome interactions',
-      callback: () => addCriticalUserInteractionTrack(),
-    });
   }
 }
 

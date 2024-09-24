@@ -31,7 +31,7 @@ export class ChromeTasksDetailsTab extends BottomTab<GenericSliceDetailsTabConfi
   constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
 
-    this.data = new Details(this.engine, 'chrome_tasks', this.config.id, {
+    this.data = new Details(this.trace, 'chrome_tasks', this.config.id, {
       'Task name': 'name',
       'Start time': d.Timestamp('ts'),
       'Duration': d.Interval('ts', 'dur'),

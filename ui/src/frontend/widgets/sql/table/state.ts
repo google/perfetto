@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {
   tableColumnAlias,
@@ -28,6 +27,7 @@ import {raf} from '../../../../core/raf_scheduler';
 import {SortDirection} from '../../../../base/comparison_utils';
 import {assertTrue} from '../../../../base/logging';
 import {SqlTableDescription} from './table_description';
+import {Trace} from '../../../../public/trace';
 
 const ROW_LIMIT = 100;
 
@@ -83,7 +83,7 @@ export class SqlTableState {
   private rowCount?: RowCount;
 
   constructor(
-    readonly engine: Engine,
+    readonly trace: Trace,
     readonly config: SqlTableDescription,
     args?: {
       initialColumns?: TableColumn[];
@@ -262,7 +262,7 @@ export class SqlTableState {
 
   private async loadRowCount(): Promise<RowCount | undefined> {
     const filters = Array.from(this.filters);
-    const res = await this.engine.query(this.getCountRowsSQLQuery());
+    const res = await this.trace.engine.query(this.getCountRowsSQLQuery());
     if (res.error() !== undefined) return undefined;
     return {
       count: res.firstRow({count: NUM}).count,
@@ -283,7 +283,7 @@ export class SqlTableState {
   }
 
   private async loadData(): Promise<Data> {
-    const queryRes = await this.engine.query(this.request.query);
+    const queryRes = await this.trace.engine.query(this.request.query);
     const rows: Row[] = [];
     for (const it = queryRes.iter({}); it.valid(); it.next()) {
       const row: Row = {};

@@ -66,7 +66,7 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
         },
         track: new ProcessPerfSamplesProfileTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           upid,
@@ -113,7 +113,7 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
         },
         track: new ThreadPerfSamplesProfileTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           utid,

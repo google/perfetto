@@ -28,13 +28,13 @@ import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
 import {Timestamp} from './widgets/timestamp';
-import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public/details_panel';
 import {TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
 import {isTraceLoaded} from './trace_attrs';
 import {Selection} from '../public/selection';
+import {Trace} from '../public/trace';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -343,9 +343,8 @@ export class NotesPanel implements Panel {
       }
     }
     const timestamp = this.timescale.pxToHpTime(x).toTime();
-    const id = uuidv4();
     const color = randomColor();
-    const noteId = globals.noteManager.addNote({id, timestamp, color});
+    const noteId = globals.noteManager.addNote({timestamp, color});
     globals.selectionManager.setNote({id: noteId});
   }
 
@@ -372,6 +371,8 @@ export class NotesPanel implements Panel {
 export class NotesEditorTab implements DetailsPanel {
   readonly panelType = 'DetailsPanel';
 
+  constructor(private trace: Trace) {}
+
   render(selection: Selection) {
     if (selection.kind !== 'note') {
       return undefined;
@@ -379,7 +380,7 @@ export class NotesEditorTab implements DetailsPanel {
 
     const id = selection.id;
 
-    const note = globals.noteManager.getNote(id);
+    const note = this.trace.notes.getNote(id);
     if (note === undefined) {
       return m('.', `No Note with id ${id}`);
     }

@@ -12,11 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from './globals';
-import type {SqlTableTabConfig} from './sql_table_tab';
+import {Trace} from '../public/trace';
+import {type SqlTableTabConfig} from './sql_table_tab';
 
-export const ADD_SQL_TABLE_TAB_COMMAND_ID = 'addSqlTableTab';
+type AddSqlTableTabFunction = (trace: Trace, config: SqlTableTabConfig) => void;
 
-export function addSqlTableTab(config: SqlTableTabConfig): void {
-  globals.commandManager.runCommand(ADD_SQL_TABLE_TAB_COMMAND_ID, config);
+// TODO(primiano): this injection is to break the circular dependency cycle that
+// there is between DebugSliceTrack and SqlTableTab. The problem is:
+// DebugSliceTrack has a DebugSliceDetailsTab which shows details about slices,
+// which have a context menu, which allows to create a debug track from it.
+// We should probably break this cycle "more properly" by having a registry for
+// context menu items for slices.
+
+let addSqlTableTabFunction: AddSqlTableTabFunction;
+
+export function addSqlTableTab(trace: Trace, config: SqlTableTabConfig): void {
+  addSqlTableTabFunction(trace, config);
+}
+
+export function setAddSqlTableTabImplFunction(f: AddSqlTableTabFunction) {
+  addSqlTableTabFunction = f;
 }

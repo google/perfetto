@@ -47,7 +47,7 @@ class LinuxKernelDevices implements PerfettoPlugin {
         title: displayName,
         track: new AsyncSliceTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           0,

@@ -36,6 +36,7 @@ import {
 } from '../core/query_flamegraph';
 import {DisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/logging';
+import {Trace, TraceAttrs} from '../public/trace';
 
 interface View {
   key: string;
@@ -43,7 +44,9 @@ interface View {
   content: m.Children;
 }
 
-class AreaDetailsPanel implements m.ClassComponent {
+export type AreaDetailsPanelAttrs = TraceAttrs;
+
+class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
   private readonly monitor = new Monitor([
     () => globals.selectionManager.selection,
   ]);
@@ -52,8 +55,8 @@ class AreaDetailsPanel implements m.ClassComponent {
   private perfSampleFlamegraphAttrs?: QueryFlamegraphAttrs;
   private sliceFlamegraphAttrs?: QueryFlamegraphAttrs;
 
-  private getCurrentView(): string | undefined {
-    const types = this.getViews().map(({key}) => key);
+  private getCurrentView(trace: Trace): string | undefined {
+    const types = this.getViews(trace).map(({key}) => key);
 
     if (types.length === 0) {
       return undefined;
@@ -70,7 +73,7 @@ class AreaDetailsPanel implements m.ClassComponent {
     return this.currentTab;
   }
 
-  private getViews(): View[] {
+  private getViews(trace: Trace): View[] {
     const views: View[] = [];
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {
@@ -93,12 +96,13 @@ class AreaDetailsPanel implements m.ClassComponent {
         key: 'pivot_table',
         name: 'Pivot Table',
         content: m(PivotTable, {
+          trace,
           selectionArea: pivotTableState.selectionArea,
         }),
       });
     }
 
-    this.addFlamegraphView(this.monitor.ifStateChanged(), views);
+    this.addFlamegraphView(trace, this.monitor.ifStateChanged(), views);
 
     // Add this after all aggregation panels, to make it appear after 'Slices'
     if (globals.selectedFlows.length > 0) {
@@ -112,9 +116,9 @@ class AreaDetailsPanel implements m.ClassComponent {
     return views;
   }
 
-  view(_: m.Vnode): m.Children {
-    const views = this.getViews();
-    const currentViewKey = this.getCurrentView();
+  view({attrs}: m.CVnode<AreaDetailsPanelAttrs>): m.Children {
+    const views = this.getViews(attrs.trace);
+    const currentViewKey = this.getCurrentView(attrs.trace);
 
     const aggregationButtons = views.map(({key, name}) => {
       return m(Button, {
@@ -158,9 +162,11 @@ class AreaDetailsPanel implements m.ClassComponent {
     );
   }
 
-  private addFlamegraphView(isChanged: boolean, views: View[]) {
-    this.cpuProfileFlamegraphAttrs =
-      this.computeCpuProfileFlamegraphAttrs(isChanged);
+  private addFlamegraphView(trace: Trace, isChanged: boolean, views: View[]) {
+    this.cpuProfileFlamegraphAttrs = this.computeCpuProfileFlamegraphAttrs(
+      trace,
+      isChanged,
+    );
     if (this.cpuProfileFlamegraphAttrs !== undefined) {
       views.push({
         key: 'cpu_profile_flamegraph_selection',
@@ -168,8 +174,10 @@ class AreaDetailsPanel implements m.ClassComponent {
         content: m(QueryFlamegraph, this.cpuProfileFlamegraphAttrs),
       });
     }
-    this.perfSampleFlamegraphAttrs =
-      this.computePerfSampleFlamegraphAttrs(isChanged);
+    this.perfSampleFlamegraphAttrs = this.computePerfSampleFlamegraphAttrs(
+      trace,
+      isChanged,
+    );
     if (this.perfSampleFlamegraphAttrs !== undefined) {
       views.push({
         key: 'perf_sample_flamegraph_selection',
@@ -177,7 +185,10 @@ class AreaDetailsPanel implements m.ClassComponent {
         content: m(QueryFlamegraph, this.perfSampleFlamegraphAttrs),
       });
     }
-    this.sliceFlamegraphAttrs = this.computeSliceFlamegraphAttrs(isChanged);
+    this.sliceFlamegraphAttrs = this.computeSliceFlamegraphAttrs(
+      trace,
+      isChanged,
+    );
     if (this.sliceFlamegraphAttrs !== undefined) {
       views.push({
         key: 'slice_flamegraph_selection',
@@ -187,7 +198,7 @@ class AreaDetailsPanel implements m.ClassComponent {
     }
   }
 
-  private computeCpuProfileFlamegraphAttrs(isChanged: boolean) {
+  private computeCpuProfileFlamegraphAttrs(trace: Trace, isChanged: boolean) {
     const currentSelection = globals.selectionManager.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
@@ -208,7 +219,7 @@ class AreaDetailsPanel implements m.ClassComponent {
       return undefined;
     }
     return {
-      engine: assertExists(this.getCurrentEngine()),
+      engine: trace.engine,
       metrics: [
         ...metricsFromTableOrSubquery(
           `
@@ -248,7 +259,7 @@ class AreaDetailsPanel implements m.ClassComponent {
     };
   }
 
-  private computePerfSampleFlamegraphAttrs(isChanged: boolean) {
+  private computePerfSampleFlamegraphAttrs(trace: Trace, isChanged: boolean) {
     const currentSelection = globals.selectionManager.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
@@ -264,7 +275,7 @@ class AreaDetailsPanel implements m.ClassComponent {
       return undefined;
     }
     return {
-      engine: assertExists(this.getCurrentEngine()),
+      engine: trace.engine,
       metrics: [
         ...metricsFromTableOrSubquery(
           `
@@ -296,7 +307,7 @@ class AreaDetailsPanel implements m.ClassComponent {
     };
   }
 
-  private computeSliceFlamegraphAttrs(isChanged: boolean) {
+  private computeSliceFlamegraphAttrs(trace: Trace, isChanged: boolean) {
     const currentSelection = globals.selectionManager.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
@@ -321,7 +332,7 @@ class AreaDetailsPanel implements m.ClassComponent {
       return undefined;
     }
     return {
-      engine: assertExists(this.getCurrentEngine()),
+      engine: trace.engine,
       metrics: [
         ...metricsFromTableOrSubquery(
           `(
@@ -353,23 +364,17 @@ class AreaDetailsPanel implements m.ClassComponent {
       ],
     };
   }
-
-  private getCurrentEngine() {
-    const engineId = globals.getCurrentEngine()?.id;
-    if (engineId === undefined) return undefined;
-    return globals.engines.get(engineId);
-  }
 }
 
 export class AggregationsTabs implements Disposable {
   private trash = new DisposableStack();
 
-  constructor() {
+  constructor(trace: Trace) {
     const unregister = globals.tabManager.registerDetailsPanel({
       panelType: 'DetailsPanel',
       render(selection) {
         if (selection.kind === 'area') {
-          return m(AreaDetailsPanel);
+          return m(AreaDetailsPanel, {trace});
         } else {
           return undefined;
         }

@@ -25,7 +25,7 @@ class SlicePlugin implements PerfettoPlugin {
       id: 'perfetto.ShowTable.slice',
       name: 'Open table: slice',
       callback: () => {
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: getSliceTable(),
         });
       },

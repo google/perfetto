@@ -123,7 +123,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         utid,
       },
       track: new ChromeTasksScrollJankTrack({
-        engine: ctx.engine,
+        trace: ctx,
         uri,
       }),
     });
@@ -151,7 +151,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         kind: CHROME_TOPLEVEL_SCROLLS_KIND,
       },
       track: new TopLevelScrollTrack({
-        engine: ctx.engine,
+        trace: ctx,
         uri,
       }),
     });
@@ -168,7 +168,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
             const config = selection.detailsPanelConfig.config;
             return new ScrollDetailsPanel({
               config: config as GenericSliceDetailsTabConfig,
-              engine: ctx.engine,
+              trace: ctx,
               uuid: uuidv4(),
             });
           }
@@ -287,7 +287,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
       tags: {
         kind: CHROME_EVENT_LATENCY_TRACK_KIND,
       },
-      track: new EventLatencyTrack({engine: ctx.engine, uri}, baseTable),
+      track: new EventLatencyTrack({trace: ctx, uri}, baseTable),
     });
 
     group.insertChildInOrder(new TrackNode(uri, title));
@@ -303,7 +303,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
             const config = selection.detailsPanelConfig.config;
             return new EventLatencySliceDetailsPanel({
               config: config as GenericSliceDetailsTabConfig,
-              engine: ctx.engine,
+              trace: ctx,
               uuid: uuidv4(),
             });
           }
@@ -331,7 +331,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         kind: SCROLL_JANK_V3_TRACK_KIND,
       },
       track: new ScrollJankV3Track({
-        engine: ctx.engine,
+        trace: ctx,
         uri,
       }),
     });
@@ -348,7 +348,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
             const config = selection.detailsPanelConfig.config;
             return new ScrollJankV3DetailsPanel({
               config: config as GenericSliceDetailsTabConfig,
-              engine: ctx.engine,
+              trace: ctx,
               uuid: uuidv4(),
             });
           }

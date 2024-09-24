@@ -76,7 +76,7 @@ class FramesPlugin implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title: displayName,
-        track: new ExpectedFramesTrack(engine, maxDepth, uri, trackIds),
+        track: new ExpectedFramesTrack(ctx, maxDepth, uri, trackIds),
         tags: {
           trackIds,
           upid,
@@ -140,7 +140,7 @@ class FramesPlugin implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title: displayName,
-        track: new ActualFramesTrack(engine, maxDepth, uri, trackIds),
+        track: new ActualFramesTrack(ctx, maxDepth, uri, trackIds),
         tags: {
           upid,
           trackIds,

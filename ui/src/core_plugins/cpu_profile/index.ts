@@ -77,7 +77,7 @@ class CpuProfile implements PerfettoPlugin {
         },
         track: new CpuProfileTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           utid,
