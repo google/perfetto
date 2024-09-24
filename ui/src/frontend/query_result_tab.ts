@@ -21,7 +21,7 @@ import {QueryError} from '../trace_processor/query_result';
 import {
   AddDebugTrackMenu,
   uuidToViewName,
-} from './debug_tracks/add_debug_track_menu';
+} from '../public/lib/debug_tracks/add_debug_track_menu';
 import {Button} from '../widgets/button';
 import {PopupMenu2} from '../widgets/menu';
 import {PopupPosition} from '../widgets/popup';

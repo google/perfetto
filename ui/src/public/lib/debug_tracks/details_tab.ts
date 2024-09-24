@@ -13,35 +13,42 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, Time, time} from '../../base/time';
-import {raf} from '../../core/raf_scheduler';
-import {BottomTab, NewBottomTabArgs} from '../bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../generic_slice_details_tab';
-import {hasArgs, renderArguments} from '../slice_args';
-import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
-import {asSliceSqlId, Utid} from '../../trace_processor/sql_utils/core_types';
+import {duration, Time, time} from '../../../base/time';
+import {BottomTab, NewBottomTabArgs} from '../../../frontend/bottom_tab';
+import {GenericSliceDetailsTabConfig} from '../../../frontend/generic_slice_details_tab';
+import {hasArgs, renderArguments} from '../../../frontend/slice_args';
+import {getSlice, SliceDetails} from '../../../trace_processor/sql_utils/slice';
+import {
+  asSliceSqlId,
+  Utid,
+} from '../../../trace_processor/sql_utils/core_types';
 import {
   getThreadState,
   ThreadState,
-} from '../../trace_processor/sql_utils/thread_state';
-import {DurationWidget} from '../widgets/duration';
-import {Timestamp} from '../widgets/timestamp';
+} from '../../../trace_processor/sql_utils/thread_state';
+import {DurationWidget} from '../../../frontend/widgets/duration';
+import {Timestamp} from '../../../frontend/widgets/timestamp';
 import {
   ColumnType,
   durationFromSql,
   LONG,
   STR,
   timeFromSql,
-} from '../../trace_processor/query_result';
-import {sqlValueToReadableString} from '../../trace_processor/sql_utils';
-import {DetailsShell} from '../../widgets/details_shell';
-import {GridLayout} from '../../widgets/grid_layout';
-import {Section} from '../../widgets/section';
-import {dictToTree, dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
-import {threadStateRef} from '../widgets/thread_state';
-import {getThreadName} from '../../trace_processor/sql_utils/thread';
-import {getProcessName} from '../../trace_processor/sql_utils/process';
-import {sliceRef} from '../widgets/slice';
+} from '../../../trace_processor/query_result';
+import {sqlValueToReadableString} from '../../../trace_processor/sql_utils';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {GridLayout} from '../../../widgets/grid_layout';
+import {Section} from '../../../widgets/section';
+import {
+  dictToTree,
+  dictToTreeNodes,
+  Tree,
+  TreeNode,
+} from '../../../widgets/tree';
+import {threadStateRef} from '../../../frontend/widgets/thread_state';
+import {getThreadName} from '../../../trace_processor/sql_utils/thread';
+import {getProcessName} from '../../../trace_processor/sql_utils/process';
+import {sliceRef} from '../../../frontend/widgets/slice';
 
 export const ARG_PREFIX = 'arg_';
 
@@ -227,7 +234,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
       sqlValueToNumber(this.data.args['track_id']),
     );
 
-    raf.scheduleRedraw();
+    this.trace.scheduleRedraw();
   }
 
   constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {

@@ -26,7 +26,7 @@ import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
 import {Tree} from '../widgets/tree';
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
-import {addDebugSliceTrack} from './debug_tracks/debug_tracks';
+import {addDebugSliceTrack} from '../public/lib/debug_tracks/debug_tracks';
 import {Flow, FlowPoint, globals} from './globals';
 import {addQueryResultsTab} from './query_result_tab';
 import {hasArgs, renderArguments} from './slice_args';

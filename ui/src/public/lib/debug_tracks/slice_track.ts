@@ -17,13 +17,12 @@ import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../tracks/custom_sql_table_slice_track';
-import {TrackContext} from '../../public/track';
+} from '../../../frontend/tracks/custom_sql_table_slice_track';
+import {TrackContext} from '../../track';
 import {DebugSliceDetailsTab} from './details_tab';
-import {Button} from '../../widgets/button';
-import {Icons} from '../../base/semantic_icons';
-import {globals} from '../globals';
-import {Trace} from '../../public/trace';
+import {Button} from '../../../widgets/button';
+import {Icons} from '../../../base/semantic_icons';
+import {Trace} from '../../trace';
 
 export class DebugSliceTrack extends CustomSqlTableSliceTrack {
   private readonly sqlTableName: string;
@@ -54,9 +53,7 @@ export class DebugSliceTrack extends CustomSqlTableSliceTrack {
 
   getTrackShellButtons(): m.Children {
     return m(Button, {
-      onclick: () => {
-        globals.workspace.getTrackByUri(this.uri)?.remove();
-      },
+      onclick: () => this.trace.workspace.getTrackByUri(this.uri)?.remove(),
       icon: Icons.Close,
       title: 'Close',
       compact: true,

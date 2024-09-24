@@ -16,11 +16,11 @@ import {uuidv4} from '../../base/uuid';
 import {
   addDebugCounterTrack,
   addDebugSliceTrack,
-} from '../../frontend/debug_tracks/debug_tracks';
+} from '../../public/lib/debug_tracks/debug_tracks';
 import {BottomTabToSCSAdapter} from '../../public/utils';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {DebugSliceDetailsTab} from '../../frontend/debug_tracks/details_tab';
+import {DebugSliceDetailsTab} from '../../public/lib/debug_tracks/details_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {Optional, exists} from '../../base/utils';
 
