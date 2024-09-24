@@ -14,7 +14,10 @@
 
 import {TrackContext} from '../public/track';
 import {BaseCounterTrack, CounterOptions} from './base_counter_track';
-import {CounterColumns, SqlDataSource} from './debug_tracks/debug_tracks';
+import {
+  CounterColumns,
+  SqlDataSource,
+} from '../public/lib/debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
 import {createPerfettoTable} from '../trace_processor/sql_utils';
 import {Trace} from '../public/trace';

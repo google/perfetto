@@ -18,9 +18,15 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from './tracks/custom_sql_table_slice_track';
-import {SliceColumns, SqlDataSource} from './debug_tracks/debug_tracks';
+import {
+  SliceColumns,
+  SqlDataSource,
+} from '../public/lib/debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
-import {ARG_PREFIX, DebugSliceDetailsTab} from './debug_tracks/details_tab';
+import {
+  ARG_PREFIX,
+  DebugSliceDetailsTab,
+} from '../public/lib/debug_tracks/details_tab';
 import {createPerfettoTable} from '../trace_processor/sql_utils';
 import {Trace} from '../public/trace';
 
