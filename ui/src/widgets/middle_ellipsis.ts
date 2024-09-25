@@ -34,7 +34,7 @@ export class MiddleEllipsis implements m.ClassComponent<MiddleEllipsisAttrs> {
       '.pf-middle-ellipsis',
       m('span.pf-middle-ellipsis-left', left),
       m('span.pf-middle-ellipsis-right', right),
-      m('span.pf-middle-ellipsis-extras', children),
+      children,
     );
   }
 }

@@ -79,12 +79,12 @@ export class PerfettoTestHelper {
   locateTrackGroup(name: string): Locator {
     return this.page
       .locator('.pf-panel-group')
-      .filter({has: this.page.locator(`.track-group-panel h1[ref="${name}"]`)});
+      .filter({has: this.page.locator(`h1[ref="${name}"]`)});
   }
 
   locateTrack(name: string, trackGroup?: Locator): Locator {
     return (trackGroup ?? this.page)
-      .locator('.track')
+      .locator('.pf-track')
       .filter({has: this.page.locator(`h1[ref="${name}"]`)});
   }
 
