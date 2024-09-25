@@ -94,5 +94,6 @@ android_startup {
     startup_type: "warm"
     time_to_initial_display: 62373965
     time_to_full_display: 555968701
+    cpu_count: 8
     }
 }
