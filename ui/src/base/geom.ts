@@ -68,6 +68,24 @@ export class Vector2D implements Point2D {
   scale(scalar: number): Vector2D {
     return new Vector2D({x: this.x * scalar, y: this.y * scalar});
   }
+
+  /**
+   * Computes the Manhattan distance, which is the sum of the absolute values of
+   * the x and y components of the vector. This represents the distance
+   * travelled along axes at right angles (grid-based distance).
+   */
+  get manhattanDistance(): number {
+    return Math.abs(this.x) + Math.abs(this.y);
+  }
+
+  /**
+   * Computes the Euclidean magnitude (or length) of the vector. This is the
+   * straight-line distance from the origin (0, 0) to the point (x, y) in 2D
+   * space.
+   */
+  get magnitude(): number {
+    return Math.sqrt(this.x * this.x + this.y * this.y);
+  }
 }
 
 /**

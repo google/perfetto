@@ -28,13 +28,5 @@
       inset: 0; // Shorthand for [top, left, right, bottom]: 0
       pointer-events: none; // Make this overlay invisible to pointer events
     }
-
-    .pf-panel {
-      &.pf-sticky {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-    }
   }
 }

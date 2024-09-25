@@ -21,7 +21,6 @@ import {randomColor} from '../core/colorizer';
 import {SpanNote, Note} from '../public/note';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';
-import {TextInput} from '../widgets/text_input';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
@@ -131,26 +130,27 @@ export class NotesPanel implements Panel {
             icon: 'clear_all',
             compact: true,
           }),
-          m(TextInput, {
-            placeholder: 'Filter tracks...',
-            title:
-              'Track filter - enter one or more comma-separated search terms',
-            value: globals.state.trackFilterTerm,
-            oninput: (e: Event) => {
-              const filterTerm = (e.target as HTMLInputElement).value;
-              globals.dispatch(Actions.setTrackFilterTerm({filterTerm}));
-            },
-          }),
-          m(Button, {
-            type: 'reset',
-            icon: 'backspace',
-            onclick: () => {
-              globals.dispatch(
-                Actions.setTrackFilterTerm({filterTerm: undefined}),
-              );
-            },
-            title: 'Clear track filter',
-          }),
+          // TODO(stevegolton): Re-introduce this when we fix track filtering
+          // m(TextInput, {
+          //   placeholder: 'Filter tracks...',
+          //   title:
+          //     'Track filter - enter one or more comma-separated search terms',
+          //   value: globals.state.trackFilterTerm,
+          //   oninput: (e: Event) => {
+          //     const filterTerm = (e.target as HTMLInputElement).value;
+          //     globals.dispatch(Actions.setTrackFilterTerm({filterTerm}));
+          //   },
+          // }),
+          // m(Button, {
+          //   type: 'reset',
+          //   icon: 'backspace',
+          //   onclick: () => {
+          //     globals.dispatch(
+          //       Actions.setTrackFilterTerm({filterTerm: undefined}),
+          //     );
+          //   },
+          //   title: 'Clear track filter',
+          // }),
         ),
     );
   }
