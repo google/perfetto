@@ -66,9 +66,9 @@ export class TrackPanel implements Panel {
   get heightPx(): number {
     const {trackRenderer, node} = this.attrs;
 
-    // If the node has children and is expanded, shrink it to save vertical real
-    // estate).
-    if (node.hasChildren && node.expanded) return DEFAULT_TRACK_HEIGHT_PX;
+    // If the node is a summary track and is expanded, shrink it to save
+    // vertical real estate).
+    if (node.isSummary && node.expanded) return DEFAULT_TRACK_HEIGHT_PX;
 
     // Otherwise return the height of the track, if we have one.
     return trackRenderer?.track.getHeight() ?? DEFAULT_TRACK_HEIGHT_PX;
@@ -106,7 +106,7 @@ export class TrackPanel implements Panel {
       collapsible: node.hasChildren,
       collapsed: node.collapsed,
       highlight: isHighlighted(node),
-      isContainer: node.hasChildren,
+      isSummary: node.isSummary,
       onToggleCollapsed: () => {
         node.hasChildren && node.toggleCollapsed();
       },
@@ -138,7 +138,8 @@ export class TrackPanel implements Panel {
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
     const {trackRenderer: tr, node} = this.attrs;
 
-    if (node.hasChildren && node.expanded) {
+    // Don't render if expanded and isSummary
+    if (node.isSummary && node.expanded) {
       return;
     }
 
@@ -354,6 +355,7 @@ function renderTrackDetailsButton(
         m(TreeNode, {left: 'Track Node ID', right: node.id}),
         m(TreeNode, {left: 'Collapsed', right: `${node.collapsed}`}),
         m(TreeNode, {left: 'URI', right: node.uri}),
+        m(TreeNode, {left: 'Is Summary Track', right: `${node.isSummary}`}),
         m(TreeNode, {
           left: 'SortOrder',
           right: node.sortOrder ?? '0 (undefined)',

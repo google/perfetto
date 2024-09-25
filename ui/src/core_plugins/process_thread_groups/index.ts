@@ -112,6 +112,7 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
       title: 'Kernel threads',
       uri: '/kernel',
       sortOrder: 50,
+      isSummary: true,
     });
     ctx.workspace.addChildInOrder(kernelThreadsGroup);
 
