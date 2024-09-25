@@ -13456,6 +13456,10 @@ message TracingServiceEvent {
     // Emitted when not all data sources in all producers reply to a start
     // request after some time.
     DataSources slow_starting_data_sources = 7;
+
+    // Emitted when the last flush request has failed. Lists data sources that
+    // did not reply on time.
+    DataSources last_flush_slow_data_sources = 8;
   }
 }
 

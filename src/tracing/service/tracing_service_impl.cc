@@ -1935,6 +1935,8 @@ void TracingServiceImpl::FlushDataSourceInstances(
     return;
   }
 
+  tracing_session->last_flush_events.clear();
+
   ++tracing_session->flushes_requested;
   FlushRequestID flush_request_id = ++last_flush_request_id_;
   PendingFlush& pending_flush =
@@ -1960,9 +1962,9 @@ void TracingServiceImpl::FlushDataSourceInstances(
 
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
-      [weak_this, tsid = tracing_session->id, flush_request_id] {
+      [weak_this, tsid = tracing_session->id, flush_request_id, flush_flags] {
         if (weak_this)
-          weak_this->OnFlushTimeout(tsid, flush_request_id);
+          weak_this->OnFlushTimeout(tsid, flush_request_id, flush_flags);
       },
       timeout_ms);
 }
@@ -1996,7 +1998,8 @@ void TracingServiceImpl::NotifyFlushDoneForProducer(
 }
 
 void TracingServiceImpl::OnFlushTimeout(TracingSessionID tsid,
-                                        FlushRequestID flush_request_id) {
+                                        FlushRequestID flush_request_id,
+                                        FlushFlags flush_flags) {
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session)
     return;
@@ -2004,9 +2007,51 @@ void TracingServiceImpl::OnFlushTimeout(TracingSessionID tsid,
   if (it == tracing_session->pending_flushes.end())
     return;  // Nominal case: flush was completed and acked on time.
 
+  PendingFlush& pending_flush = it->second;
+
   // If there were no producers to flush, consider it a success.
-  bool success = it->second.producers.empty();
-  auto callback = std::move(it->second.callback);
+  bool success = pending_flush.producers.empty();
+  auto callback = std::move(pending_flush.callback);
+  // If flush failed and this is a "final" flush, log which data sources were
+  // slow.
+  if ((flush_flags.reason() == FlushFlags::Reason::kTraceClone ||
+       flush_flags.reason() == FlushFlags::Reason::kTraceStop) &&
+      !success) {
+    int64_t timestamp = base::GetBootTimeNs().count();
+
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    packet->set_timestamp(static_cast<uint64_t>(timestamp));
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+
+    size_t i = 0;
+    protos::pbzero::TracingServiceEvent::DataSources* event =
+        packet->set_service_event()->set_last_flush_slow_data_sources();
+    for (const auto& producer_id : pending_flush.producers) {
+      ProducerEndpointImpl* producer = GetProducer(producer_id);
+      if (!producer) {
+        continue;
+      }
+      if (++i > kMaxLifecycleEventsListedDataSources) {
+        break;
+      }
+
+      auto ds_id_range =
+          tracing_session->data_source_instances.equal_range(producer_id);
+      for (auto ds_it = ds_id_range.first; ds_it != ds_id_range.second;
+           ds_it++) {
+        auto* ds = event->add_data_source();
+        ds->set_producer_name(producer->name_);
+        ds->set_data_source_name(ds_it->second.data_source_name);
+        if (++i > kMaxLifecycleEventsListedDataSources) {
+          break;
+        }
+      }
+    }
+
+    tracing_session->last_flush_events.push_back(
+        {timestamp, packet.SerializeAsArray()});
+  }
   tracing_session->pending_flushes.erase(it);
   CompleteFlush(tsid, std::move(callback), success);
 }
@@ -3744,6 +3789,11 @@ void TracingServiceImpl::EmitLifecycleEvents(
   }
   tracing_session->slow_start_event.reset();
 
+  for (auto& event : tracing_session->last_flush_events) {
+    timestamped_packets.emplace_back(event.timestamp, std::move(event.data));
+  }
+  tracing_session->last_flush_events.clear();
+
   // We sort by timestamp here to ensure that the "sequence" of lifecycle
   // packets has monotonic timestamps like other sequences in the trace.
   // Note that these events could still be out of order with respect to other
@@ -4179,6 +4229,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->lifecycle_events =
       std::vector<TracingSession::LifecycleEvent>(src->lifecycle_events);
   cloned_session->slow_start_event = src->slow_start_event;
+  cloned_session->last_flush_events = src->last_flush_events;
   cloned_session->initial_clock_snapshot = src->initial_clock_snapshot;
   cloned_session->clock_snapshot_ring_buffer = src->clock_snapshot_ring_buffer;
   cloned_session->invalid_packets = src->invalid_packets;

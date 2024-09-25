@@ -693,6 +693,8 @@ class TracingServiceImpl : public TracingService {
 
     std::optional<ArbitraryLifecycleEvent> slow_start_event;
 
+    std::vector<ArbitraryLifecycleEvent> last_flush_events;
+
     using ClockSnapshotData = ClockSnapshotVector;
 
     // Initial clock snapshot, captured at trace start time (when state goes to
@@ -806,7 +808,7 @@ class TracingServiceImpl : public TracingService {
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
-  void OnFlushTimeout(TracingSessionID, FlushRequestID);
+  void OnFlushTimeout(TracingSessionID, FlushRequestID, FlushFlags);
   void OnDisableTracingTimeout(TracingSessionID);
   void OnAllDataSourceStartedTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
