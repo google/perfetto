@@ -88,6 +88,14 @@ std::function<void()> TestTaskRunner::CreateCheckpoint(
   };
 }
 
+void TestTaskRunner::AdvanceTimeAndRunUntilIdle(uint32_t ms) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  task_runner_.PostDelayedTask(std::bind(&TestTaskRunner::QuitIfIdle, this),
+                               ms);
+  task_runner_.AdvanceTimeForTesting(ms);
+  task_runner_.Run();
+}
+
 // TaskRunner implementation.
 void TestTaskRunner::PostTask(std::function<void()> closure) {
   task_runner_.PostTask(std::move(closure));
