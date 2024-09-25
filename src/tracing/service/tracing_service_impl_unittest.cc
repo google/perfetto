@@ -5809,4 +5809,63 @@ TEST_F(TracingServiceImplTest, DetachDurationTimeoutFreeBuffers) {
   task_runner.RunUntilCheckpoint(on_attach_name);
 }
 
+TEST_F(TracingServiceImplTest, SlowStartingDataSources) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source1", /*ack_stop=*/false,
+                               /*ack_start=*/true);
+  producer->RegisterDataSource("data_source2", /*ack_stop=*/false,
+                               /*ack_start=*/true);
+  producer->RegisterDataSource("data_source3", /*ack_stop=*/false,
+                               /*ack_start=*/true);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source1");
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source2");
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source3");
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source1");
+  producer->WaitForDataSourceSetup("data_source2");
+  producer->WaitForDataSourceSetup("data_source3");
+
+  producer->WaitForDataSourceStart("data_source1");
+  producer->WaitForDataSourceStart("data_source2");
+  producer->WaitForDataSourceStart("data_source3");
+
+  DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("data_source1");
+  DataSourceInstanceID id3 = producer->GetDataSourceInstanceId("data_source3");
+
+  producer->endpoint()->NotifyDataSourceStarted(id1);
+  producer->endpoint()->NotifyDataSourceStarted(id3);
+
+  // This matches kAllDataSourceStartedTimeout.
+  AdvanceTimeAndRunUntilIdle(20000);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source1");
+  producer->WaitForDataSourceStop("data_source2");
+  producer->WaitForDataSourceStop("data_source3");
+  consumer->WaitForTracingDisabled();
+
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  EXPECT_THAT(
+      packets,
+      Contains(Property(
+          &protos::gen::TracePacket::service_event,
+          Property(
+              &protos::gen::TracingServiceEvent::slow_starting_data_sources,
+              Property(
+                  &protos::gen::TracingServiceEvent::DataSources::data_source,
+                  ElementsAre(
+                      Property(&protos::gen::TracingServiceEvent::DataSources::
+                                   DataSource::data_source_name,
+                               "data_source2")))))));
+}
+
 }  // namespace perfetto
