@@ -23,7 +23,7 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {ChromeTasksDetailsTab} from './details';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
-import {GroupNode, TrackNode} from '../../public/workspace';
+import {TrackNode} from '../../public/workspace';
 
 class ChromeTasksPlugin implements PerfettoPlugin {
   onActivate() {}
@@ -94,7 +94,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       utid: NUM,
     });
 
-    const group = new GroupNode('Chrome Tasks');
+    const group = new TrackNode({title: 'Chrome Tasks'});
     for (; it.valid(); it.next()) {
       const utid = it.utid;
       const uri = `org.chromium.ChromeTasks#thread.${utid}`;
@@ -104,8 +104,9 @@ class ChromeTasksPlugin implements PerfettoPlugin {
         track: new ChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
         title,
       });
-      group.insertChildInOrder(new TrackNode(uri, title));
-      ctx.workspace.insertChildInOrder(group);
+      const track = new TrackNode({uri, title});
+      group.addChildInOrder(track);
+      ctx.workspace.addChildInOrder(group);
     }
 
     ctx.registerDetailsPanel(

@@ -35,14 +35,14 @@ import {Button} from '../widgets/button';
 import {TrackRenderContext} from '../public/track';
 import {calculateResolution} from '../common/resolution';
 import {TimeScale} from '../base/time_scale';
-import {exists} from '../base/utils';
+import {exists, RequiredField} from '../base/utils';
 import {classNames} from '../base/classnames';
-import {GroupNode} from '../public/workspace';
+import {TrackNode} from '../public/workspace';
 import {raf} from '../core/raf_scheduler';
 import {MiddleEllipsis} from '../widgets/middle_ellipsis';
 
 interface Attrs {
-  readonly groupNode: GroupNode;
+  readonly trackNode: TrackNode;
   readonly title: string;
   readonly collapsed: boolean;
   readonly collapsable: boolean;
@@ -55,10 +55,10 @@ interface Attrs {
 export class TrackGroupPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = true;
-  readonly groupUri: string;
+  readonly trackNode: TrackNode;
 
   constructor(private readonly attrs: Attrs) {
-    this.groupUri = attrs.groupNode.uri;
+    this.trackNode = attrs.trackNode;
   }
 
   render(): m.Children {
@@ -71,7 +71,12 @@ export class TrackGroupPanel implements Panel {
     const searchResults = globals.searchManager.searchResults;
     if (searchIndex !== -1 && searchResults !== undefined) {
       const uri = searchResults.trackUris[searchIndex];
-      if (this.attrs.groupNode.flatTracks.find((t) => t.uri === uri)) {
+      // Highlight if the searched for track is this track or one of our
+      // children.
+      if (
+        this.attrs.trackNode.uri === uri ||
+        this.attrs.trackNode.flatTracks.find((t) => t.uri === uri)
+      ) {
         highlightClass = 'flash';
       }
     }
@@ -81,14 +86,17 @@ export class TrackGroupPanel implements Panel {
     // const trackGroup = globals.state.trackGroups[groupKey];
     let checkBox = Icons.BlankCheckbox;
     if (selection.kind === 'area') {
+      const childTracksWithURI = this.attrs.trackNode.flatTracks.filter(
+        (track) => track.uri !== undefined,
+      ) as Array<RequiredField<TrackNode, 'uri'>>;
       if (
-        this.attrs.groupNode.flatTracks.every((track) =>
+        childTracksWithURI.every((track) =>
           selection.trackUris.includes(track.uri),
         )
       ) {
         checkBox = Icons.Checkbox;
       } else if (
-        this.attrs.groupNode.flatTracks.some((track) =>
+        childTracksWithURI.some((track) =>
           selection.trackUris.includes(track.uri),
         )
       ) {
@@ -102,7 +110,7 @@ export class TrackGroupPanel implements Panel {
     return m(
       `.track-group-panel[collapsed=${collapsed}]`,
       {
-        id: 'track_' + this.groupUri,
+        id: this.attrs.trackNode.id,
         oncreate: (vnode) => this.onupdate(vnode),
         onupdate: (vnode) => this.onupdate(vnode),
       },
@@ -116,7 +124,7 @@ export class TrackGroupPanel implements Panel {
           onclick: (e: MouseEvent) => {
             if (e.defaultPrevented) return;
             if (this.attrs.collapsable) {
-              this.attrs.groupNode.toggleCollapsed();
+              this.attrs.trackNode.toggleCollapsed();
               raf.scheduleFullRedraw();
             }
             e.stopPropagation();
@@ -149,10 +157,10 @@ export class TrackGroupPanel implements Panel {
             m(Button, {
               onclick: (e: MouseEvent) => {
                 globals.selectionManager.toggleGroupAreaSelection(
-                  // Dump URIs of all contained tracks & nodes, including this group
-                  this.attrs.groupNode.flatNodes
+                  // Store URIs of all contained tracks & nodes
+                  this.attrs.trackNode.flatTracks
                     .map((t) => t.uri)
-                    .concat(this.attrs.groupNode.uri),
+                    .filter((uri) => uri !== undefined),
                 );
                 e.stopPropagation();
               },
@@ -205,8 +213,9 @@ export class TrackGroupPanel implements Panel {
   ) {
     const selection = globals.selectionManager.selection;
     if (selection.kind !== 'area') return;
-    const someSelected = this.attrs.groupNode.flatTracks.some((track) =>
-      selection.trackUris.includes(track.uri),
+    const someSelected = this.attrs.trackNode.flatTracks.some(
+      (track) =>
+        track.uri !== undefined && selection.trackUris.includes(track.uri),
     );
     const selectedAreaDuration = selection.end - selection.start;
     if (someSelected) {

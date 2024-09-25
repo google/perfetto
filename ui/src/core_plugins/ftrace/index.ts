@@ -21,7 +21,7 @@ import {NUM} from '../../trace_processor/query_result';
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceRawTrack} from './ftrace_track';
 import {DisposableStack} from '../../base/disposable_stack';
-import {GroupNode, TrackNode} from '../../public/workspace';
+import {TrackNode} from '../../public/workspace';
 
 const VERSION = 1;
 
@@ -57,16 +57,15 @@ class FtraceRawPlugin implements PerfettoPlugin {
     this.trash.use(filterStore);
 
     const cpus = await this.lookupCpuCores(ctx.engine);
-    const group = new GroupNode('Ftrace Events');
-    group.sortOrder = -5;
+    const group = new TrackNode({title: 'Ftrace Events', sortOrder: -5});
 
     for (const cpuNum of cpus) {
       const uri = `/ftrace/cpu${cpuNum}`;
-      const displayName = `Ftrace Track for CPU ${cpuNum}`;
+      const title = `Ftrace Track for CPU ${cpuNum}`;
 
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           cpu: cpuNum,
           groupName: 'Ftrace Events',
@@ -74,11 +73,12 @@ class FtraceRawPlugin implements PerfettoPlugin {
         track: new FtraceRawTrack(ctx.engine, cpuNum, filterStore),
       });
 
-      group.insertChildInOrder(new TrackNode(uri, displayName));
+      const track = new TrackNode({uri, title});
+      group.addChildInOrder(track);
     }
 
     if (group.children.length) {
-      ctx.workspace.insertChildInOrder(group);
+      ctx.workspace.addChildInOrder(group);
     }
 
     const cache: FtraceExplorerCache = {

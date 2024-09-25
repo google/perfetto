@@ -50,6 +50,7 @@ import {AppImpl, TraceImpl} from '../core/app_trace_impl';
 import {NotesEditorTab} from './notes_panel';
 import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
+import {scrollTo} from '../public/scroll_helper';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 
@@ -354,11 +355,15 @@ export class UiMainPerTrace implements m.ClassComponent {
             } else {
               // If the entire time range is already covered, update the selection
               // to cover all tracks.
-              tracksToSelect = trace.workspace.flatTracks.map((t) => t.uri);
+              tracksToSelect = trace.workspace.flatTracks
+                .map((t) => t.uri)
+                .filter((uri) => uri !== undefined);
             }
           } else {
             // If the current selection is not an area, select all.
-            tracksToSelect = trace.workspace.flatTracks.map((t) => t.uri);
+            tracksToSelect = trace.workspace.flatTracks
+              .map((t) => t.uri)
+              .filter((uri) => uri !== undefined);
           }
           const {start, end} = trace.traceInfo;
           trace.selection.setArea({
@@ -368,6 +373,19 @@ export class UiMainPerTrace implements m.ClassComponent {
           });
         },
         defaultHotkey: 'Mod+A',
+      },
+      {
+        id: 'perfetto.ScrollToTrack',
+        name: 'Scroll to track',
+        callback: async () => {
+          const opts = trace.tracks
+            .getAllTracks()
+            .map((td) => ({key: td.uri, displayName: td.uri}));
+          const result = await trace.omnibox.prompt('Choose a track', opts);
+          if (result) {
+            scrollTo({track: {uri: result, expandGroup: true}});
+          }
+        },
       },
     ];
 

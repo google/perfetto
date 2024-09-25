@@ -178,13 +178,13 @@ class CounterPlugin implements PerfettoPlugin {
 
     for (; it.valid(); it.next()) {
       const trackId = it.id;
-      const displayName = it.name;
+      const title = it.name;
       const unit = it.unit ?? undefined;
 
       const uri = `/counter_${trackId}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
@@ -194,16 +194,17 @@ class CounterPlugin implements PerfettoPlugin {
           uri,
           trackId,
           options: {
-            ...getDefaultCounterOptions(displayName),
+            ...getDefaultCounterOptions(title),
             unit,
           },
         }),
-        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, displayName),
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, title),
         getEventBounds: async (id) => {
           return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
-      ctx.workspace.insertChildInOrder(new TrackNode(uri, displayName));
+      const track = new TrackNode({uri, title});
+      ctx.workspace.addChildInOrder(track);
     }
   }
 
@@ -281,9 +282,8 @@ class CounterPlugin implements PerfettoPlugin {
           return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
-      const trackNode = new TrackNode(uri, name);
-      trackNode.sortOrder = -20;
-      ctx.workspace.insertChildInOrder(trackNode);
+      const trackNode = new TrackNode({uri, title: name, sortOrder: -20});
+      ctx.workspace.addChildInOrder(trackNode);
     }
   }
 
@@ -353,9 +353,8 @@ class CounterPlugin implements PerfettoPlugin {
         },
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      const track = new TrackNode(uri, name);
-      track.sortOrder = 30;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title: name, sortOrder: 30});
+      group.addChildInOrder(track);
     }
   }
 
@@ -415,9 +414,8 @@ class CounterPlugin implements PerfettoPlugin {
         },
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
-      const track = new TrackNode(uri, name);
-      track.sortOrder = 20;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title: name, sortOrder: 20});
+      group.addChildInOrder(track);
     }
   }
 
@@ -458,9 +456,8 @@ class CounterPlugin implements PerfettoPlugin {
             return await getCounterEventBounds(ctx.engine, trackId, id);
           },
         });
-        const trackNode = new TrackNode(uri, name);
-        trackNode.sortOrder = -20;
-        ctx.workspace.insertChildInOrder(trackNode);
+        const track = new TrackNode({uri, title: name, sortOrder: -20});
+        ctx.workspace.addChildInOrder(track);
       }
     }
   }

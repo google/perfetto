@@ -81,6 +81,7 @@ export async function addVisualisedArgTracks(trace: Trace, argName: string) {
     // Find the thread slice track that corresponds with this trackID and insert
     // this track before it.
     const threadSliceTrack = globals.workspace.flatTracks.find((trackNode) => {
+      if (!trackNode.uri) return false;
       const trackDescriptor = globals.trackManager.getTrack(trackNode.uri);
       return (
         trackDescriptor &&
@@ -91,8 +92,8 @@ export async function addVisualisedArgTracks(trace: Trace, argName: string) {
 
     const parentGroup = threadSliceTrack?.parent;
     if (parentGroup) {
-      const newTrack = new TrackNode(uri, argName);
-      parentGroup.insertBefore(newTrack, threadSliceTrack);
+      const newTrack = new TrackNode({uri, title: argName});
+      parentGroup.addChildBefore(newTrack, threadSliceTrack);
     }
   }
 }

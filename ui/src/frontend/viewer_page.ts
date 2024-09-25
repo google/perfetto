@@ -38,7 +38,7 @@ import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 import {assertExists} from '../base/logging';
 import {TimeScale} from '../base/time_scale';
-import {GroupNode, Node, TrackNode} from '../public/workspace';
+import {TrackNode} from '../public/workspace';
 import {fuzzyMatch} from '../base/fuzzy';
 import {Optional} from '../base/utils';
 import {EmptyState} from '../widgets/empty_state';
@@ -275,16 +275,24 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
         m(PanelContainer, {
           className: 'pinned-panel-container',
           panels: globals.workspace.pinnedTracks.map((track) => {
-            const tr = globals.trackManager.getTrackRenderer(track.uri);
-            return new TrackPanel({
-              track: track,
-              title: track.displayName,
-              tags: tr?.desc.tags,
-              trackRenderer: tr,
-              revealOnCreate: true,
-              chips: tr?.desc.chips,
-              pluginId: tr?.desc.pluginId,
-            });
+            if (track.uri) {
+              const tr = globals.trackManager.getTrackRenderer(track.uri);
+              return new TrackPanel({
+                track: track,
+                title: track.title,
+                tags: tr?.desc.tags,
+                trackRenderer: tr,
+                revealOnCreate: true,
+                chips: tr?.desc.chips,
+                pluginId: tr?.desc.pluginId,
+              });
+            } else {
+              return new TrackPanel({
+                track: track,
+                title: track.title,
+                revealOnCreate: true,
+              });
+            }
           }),
         }),
         scrollingPanels.length === 0 &&
@@ -352,17 +360,17 @@ function renderToplevelPanels(filterTerm: Optional<string>): PanelOrGroup[] {
 // Given a list of tracks and a filter term, return a list pf panels filtered by
 // the filter term
 function renderNodes(
-  nodes: ReadonlyArray<Node>,
+  nodes: ReadonlyArray<TrackNode>,
   filterTerm?: string,
 ): PanelOrGroup[] {
   return nodes.flatMap((node) => {
-    if (node instanceof GroupNode) {
-      if (node.headless) {
-        return renderNodes(node.children, filterTerm);
-      } else {
+    if (node.headless) {
+      return renderNodes(node.children, filterTerm);
+    } else {
+      if (node.hasChildren) {
         if (filterTermIsValid(filterTerm)) {
           const tokens = tokenizeFilterTerm(filterTerm);
-          const match = fuzzyMatch(node.displayName, ...tokens);
+          const match = fuzzyMatch(node.title, ...tokens);
           if (match.matches) {
             return {
               kind: 'group',
@@ -392,57 +400,64 @@ function renderNodes(
               : renderNodes(node.children, filterTerm),
           };
         }
-      }
-    } else {
-      if (filterTermIsValid(filterTerm)) {
-        const tokens = tokenizeFilterTerm(filterTerm);
-        const match = fuzzyMatch(node.displayName, ...tokens);
-        if (match.matches) {
-          return renderTrackPanel(node);
-        } else {
-          return [];
-        }
       } else {
-        return renderTrackPanel(node);
+        if (filterTermIsValid(filterTerm)) {
+          const tokens = tokenizeFilterTerm(filterTerm);
+          const match = fuzzyMatch(node.title, ...tokens);
+          if (match.matches) {
+            return renderTrackPanel(node);
+          } else {
+            return [];
+          }
+        } else {
+          return renderTrackPanel(node);
+        }
       }
     }
   });
 }
 
 function renderTrackPanel(track: TrackNode) {
-  const tr = globals.trackManager.getTrackRenderer(track.uri);
-  return new TrackPanel({
-    track: track,
-    title: track.displayName,
-    tags: tr?.desc.tags,
-    trackRenderer: tr,
-    chips: tr?.desc.chips,
-    pluginId: tr?.desc.pluginId,
-  });
+  if (track.uri) {
+    const tr = globals.trackManager.getTrackRenderer(track.uri);
+    return new TrackPanel({
+      track: track,
+      title: track.title,
+      tags: tr?.desc.tags,
+      trackRenderer: tr,
+      chips: tr?.desc.chips,
+      pluginId: tr?.desc.pluginId,
+    });
+  } else {
+    return new TrackPanel({
+      track: track,
+      title: track.title,
+    });
+  }
 }
 
 function renderGroupHeaderPanel(
-  group: GroupNode,
+  group: TrackNode,
   collapsable: boolean,
   collapsed: boolean,
 ): TrackGroupPanel {
-  if (group.headerTrackUri !== undefined) {
-    const tr = globals.trackManager.getTrackRenderer(group.headerTrackUri);
+  if (group.uri !== undefined) {
+    const tr = globals.trackManager.getTrackRenderer(group.uri);
     return new TrackGroupPanel({
-      groupNode: group,
+      trackNode: group,
       trackRenderer: tr,
       subtitle: tr?.desc.subtitle,
       tags: tr?.desc.tags,
       chips: tr?.desc.chips,
       collapsed,
-      title: group.displayName,
+      title: group.title,
       collapsable,
     });
   } else {
     return new TrackGroupPanel({
-      groupNode: group,
+      trackNode: group,
       collapsed,
-      title: group.displayName,
+      title: group.title,
       collapsable,
     });
   }
