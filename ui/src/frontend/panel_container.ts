@@ -38,6 +38,7 @@ import {DisposableStack} from '../base/disposable_stack';
 import {TimeScale} from '../base/time_scale';
 import {Optional} from '../base/utils';
 import {TrackNode} from '../public/workspace';
+import {HTMLAttrs} from '../widgets/common';
 
 const CANVAS_OVERDRAW_PX = 100;
 
@@ -56,6 +57,8 @@ export interface PanelGroup {
   readonly kind: 'group';
   readonly collapsed: boolean;
   readonly header?: Panel;
+  readonly topOffsetPx: number;
+  readonly sticky: boolean;
   readonly childPanels: PanelOrGroup[];
 }
 
@@ -73,6 +76,9 @@ export interface PanelContainerAttrs {
     size: Size2D,
     panels: ReadonlyArray<RenderedPanelInfo>,
   ): void;
+
+  // Called before the panels are rendered
+  renderUnderlay?(ctx: CanvasRenderingContext2D, size: Size2D): void;
 }
 
 interface PanelInfo {
@@ -189,7 +195,7 @@ export class PanelContainer
     // Get the track ids from the panels.
     const trackUris: string[] = [];
     for (const panel of panels) {
-      if (panel.trackNode !== undefined) {
+      if (panel.trackNode) {
         if (panel.trackNode.hasChildren) {
           const groupNode = panel.trackNode;
           // Select a track group and all child tracks if it is collapsed
@@ -271,12 +277,12 @@ export class PanelContainer
     this.trash.dispose();
   }
 
-  renderPanel(node: Panel, panelId: string, extraClass = ''): m.Vnode {
+  renderPanel(node: Panel, panelId: string, htmlAttrs?: HTMLAttrs): m.Vnode {
     assertFalse(this.panelById.has(panelId));
     this.panelById.set(panelId, node);
     return m(
-      `.pf-panel${extraClass}`,
-      {'data-panel-id': panelId},
+      `.pf-panel`,
+      {...htmlAttrs, 'data-panel-id': panelId},
       node.render(),
     );
   }
@@ -286,14 +292,17 @@ export class PanelContainer
   // will complain about keyed and non-keyed vnodes mixed together.
   renderTree(node: PanelOrGroup, panelId: string): m.Vnode {
     if (node.kind === 'group') {
+      const style = {
+        position: 'sticky',
+        top: `${node.topOffsetPx}px`,
+        zIndex: `${2000 - node.topOffsetPx}`,
+      };
       return m(
         'div.pf-panel-group',
         node.header &&
-          this.renderPanel(
-            node.header,
-            `${panelId}-header`,
-            node.collapsed ? '' : '.pf-sticky',
-          ),
+          this.renderPanel(node.header, `${panelId}-header`, {
+            style: !node.collapsed && node.sticky ? style : {},
+          }),
         ...node.childPanels.map((child, index) =>
           this.renderTree(child, `${panelId}-${index}`),
         ),
@@ -385,6 +394,8 @@ export class PanelContainer
     vc: VirtualCanvas,
     attrs: PanelContainerAttrs,
   ): number {
+    attrs.renderUnderlay?.(ctx, vc.size);
+
     let panelTop = 0;
     let totalOnCanvas = 0;
 

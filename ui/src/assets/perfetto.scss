@@ -16,7 +16,6 @@
 @import "common";
 @import "panel_container";
 @import "viewer_page";
-@import "track_panel";
 @import "home_page";
 @import "query_page";
 @import "metrics_page";
@@ -37,6 +36,7 @@
 @import "widgets/button";
 @import "widgets/callout";
 @import "widgets/checkbox";
+@import "widgets/chip";
 @import "widgets/details_shell";
 @import "widgets/editor";
 @import "widgets/empty_state";
@@ -45,6 +45,7 @@
 @import "widgets/form";
 @import "widgets/grid_layout";
 @import "widgets/hotkey";
+@import "widgets/icon";
 @import "widgets/menu";
 @import "widgets/middle_ellipsis";
 @import "widgets/multiselect";
@@ -58,6 +59,7 @@
 @import "widgets/text_input";
 @import "widgets/text_paragraph";
 @import "widgets/timestamp";
+@import "widgets/track_widget";
 @import "widgets/tree";
 @import "widgets/treetable";
 @import "widgets/vega_view";

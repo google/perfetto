@@ -29,6 +29,6 @@ test('debuggable chip', async ({browser}) => {
   await trackGroup.scrollIntoViewIfNeeded();
   await pth.waitForIdleAndScreenshot('track_with_debuggable_chip.png');
 
-  await trackGroup.locator('.fold-button').click();
+  await trackGroup.locator('.pf-track-title').click();
   await pth.waitForIdleAndScreenshot('track_with_debuggable_chip_expanded.png');
 });

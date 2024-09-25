@@ -56,6 +56,8 @@ import {
 import {TagInput} from '../widgets/tag_input';
 import {SegmentedButtons} from '../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../widgets/middle_ellipsis';
+import {Chip, ChipBar} from '../widgets/chip';
+import {TrackWidget} from '../widgets/track_widget';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -369,7 +371,7 @@ function ControlledPopup() {
 }
 
 type Options = {
-  [key: string]: EnumOption | boolean | string;
+  [key: string]: EnumOption | boolean | string | number;
 };
 
 class EnumOption {
@@ -434,9 +436,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           const option = opts[key];
           if (option instanceof EnumOption) {
             this.optValues[key] = option.initial;
-          } else if (typeof option === 'boolean') {
-            this.optValues[key] = option;
-          } else if (isString(option)) {
+          } else {
             this.optValues[key] = option;
           }
         }
@@ -485,6 +485,8 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       return this.renderBooleanOption(key);
     } else if (isString(value)) {
       return this.renderStringOption(key);
+    } else if (typeof value === 'number') {
+      return this.renderNumberOption(key);
     } else {
       return null;
     }
@@ -502,14 +504,36 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
   }
 
   private renderStringOption(key: string) {
-    return m(TextInput, {
-      placeholder: key,
-      value: this.optValues[key],
-      oninput: (e: Event) => {
-        this.optValues[key] = (e.target as HTMLInputElement).value;
-        raf.scheduleFullRedraw();
-      },
-    });
+    return m(
+      'label',
+      `${key}:`,
+      m(TextInput, {
+        placeholder: key,
+        value: this.optValues[key],
+        oninput: (e: Event) => {
+          this.optValues[key] = (e.target as HTMLInputElement).value;
+          raf.scheduleFullRedraw();
+        },
+      }),
+    );
+  }
+
+  private renderNumberOption(key: string) {
+    return m(
+      'label',
+      `${key}:`,
+      m(TextInput, {
+        type: 'number',
+        placeholder: key,
+        value: this.optValues[key],
+        oninput: (e: Event) => {
+          this.optValues[key] = Number.parseInt(
+            (e.target as HTMLInputElement).value,
+          );
+          raf.scheduleFullRedraw();
+        },
+      }),
+    );
   }
 
   private renderEnumOption(key: string, opt: EnumOption) {
@@ -517,16 +541,20 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       return m('option', {value: option}, option);
     });
     return m(
-      Select,
-      {
-        value: this.optValues[key],
-        onchange: (e: Event) => {
-          const el = e.target as HTMLSelectElement;
-          this.optValues[key] = el.value;
-          raf.scheduleFullRedraw();
+      'label',
+      `${key}:`,
+      m(
+        Select,
+        {
+          value: this.optValues[key],
+          onchange: (e: Event) => {
+            const el = e.target as HTMLSelectElement;
+            this.optValues[key] = el.value;
+            raf.scheduleFullRedraw();
+          },
         },
-      },
-      optionElements,
+        optionElements,
+      ),
     );
   }
 }
@@ -1288,6 +1316,74 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           ),
         initialOpts: {
           squeeze: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Chip',
+        description: `A little chip or tag`,
+        renderWidget: (opts) => {
+          const {icon, ...rest} = opts;
+          return m(
+            ChipBar,
+            m(Chip, {
+              label: 'Foo',
+              icon: icon === true ? 'info' : undefined,
+              ...rest,
+            }),
+            m(Chip, {label: 'Bar', ...rest}),
+            m(Chip, {label: 'Baz', ...rest}),
+          );
+        },
+        initialOpts: {
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
+          icon: true,
+          compact: false,
+          rounded: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Track',
+        description: `A track`,
+        renderWidget: (opts) => {
+          const {error, buttons, chips, multipleTracks, ...rest} = opts;
+          const dummyButtons = () => [
+            m(Button, {icon: 'info', compact: true}),
+            m(Button, {icon: 'settings', compact: true}),
+          ];
+          const dummyChips = () => ['foo', 'bar'];
+
+          const renderTrack = () =>
+            m(TrackWidget, {
+              error: Boolean(error)
+                ? new Error('Something went wrong')
+                : undefined,
+              buttons: Boolean(buttons) ? dummyButtons() : undefined,
+              chips: Boolean(chips) ? dummyChips() : undefined,
+              ...rest,
+            });
+
+          return m(
+            '',
+            {
+              style: {width: '500px', boxShadow: '0px 0px 1px 1px lightgray'},
+            },
+            Boolean(multipleTracks)
+              ? [renderTrack(), renderTrack(), renderTrack()]
+              : renderTrack(),
+          );
+        },
+        initialOpts: {
+          title: 'This is the title of the track',
+          buttons: true,
+          chips: true,
+          heightPx: 32,
+          indentationLevel: 3,
+          collapsible: true,
+          collapsed: true,
+          isContainer: false,
+          highlight: false,
+          error: false,
+          multipleTracks: false,
         },
       }),
     );
