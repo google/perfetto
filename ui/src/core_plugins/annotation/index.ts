@@ -83,7 +83,7 @@ class AnnotationPlugin implements PerfettoPlugin {
       if (groupName) {
         const existingGroup = groups.get(groupName);
         if (!existingGroup) {
-          const group = new TrackNode({title: groupName, uri});
+          const group = new TrackNode({title: groupName, uri, isSummary: true});
           container = group;
           groups.set(groupName, group);
           ctx.workspace.addChildInOrder(group);

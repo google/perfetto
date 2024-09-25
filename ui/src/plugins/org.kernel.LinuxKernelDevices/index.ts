@@ -59,7 +59,10 @@ class LinuxKernelDevices implements PerfettoPlugin {
           groupName: `Linux Kernel Devices`,
         },
       });
-      const group = new TrackNode({title: 'Linux Kernel Devices'});
+      const group = new TrackNode({
+        title: 'Linux Kernel Devices',
+        isSummary: true,
+      });
       const track = new TrackNode({uri, title});
       group.addChildInOrder(track);
       ctx.workspace.addChildInOrder(group);

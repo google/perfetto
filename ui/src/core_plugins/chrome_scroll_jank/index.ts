@@ -86,6 +86,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
       const group = new TrackNode({
         title: 'Chrome Scroll Jank',
         sortOrder: -30,
+        isSummary: true,
       });
       await this.addTopLevelScrollTrack(ctx, group);
       await this.addEventLatencyTrack(ctx, group);

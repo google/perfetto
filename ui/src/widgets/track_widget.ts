@@ -111,8 +111,8 @@ export interface TrackComponentAttrs {
   // Called when arrow clicked.
   readonly onToggleCollapsed?: () => void;
 
-  // Style the component differently if it has children
-  readonly isContainer?: boolean;
+  // Style the component differently if it has children.
+  readonly isSummary?: boolean;
 
   // HTML id applied to the root element.
   readonly id: string;
@@ -143,7 +143,7 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
       highlight,
       heightPx,
       id,
-      isContainer,
+      isSummary,
     } = attrs;
 
     const trackHeight = Math.max(heightPx, TRACK_HEIGHT_MIN_PX);
@@ -156,7 +156,7 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
         className: classNames(
           expanded && 'pf-expanded',
           highlight && 'pf-highlight',
-          isContainer && 'pf-is-container',
+          isSummary && 'pf-is-summary',
         ),
         style: {
           // Note: Sub-pixel track heights can mess with sticky elements.

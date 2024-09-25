@@ -57,7 +57,11 @@ class FtraceRawPlugin implements PerfettoPlugin {
     this.trash.use(filterStore);
 
     const cpus = await this.lookupCpuCores(ctx.engine);
-    const group = new TrackNode({title: 'Ftrace Events', sortOrder: -5});
+    const group = new TrackNode({
+      title: 'Ftrace Events',
+      sortOrder: -5,
+      isSummary: true,
+    });
 
     for (const cpuNum of cpus) {
       const uri = `/ftrace/cpu${cpuNum}`;

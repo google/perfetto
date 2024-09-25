@@ -94,7 +94,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       utid: NUM,
     });
 
-    const group = new TrackNode({title: 'Chrome Tasks'});
+    const group = new TrackNode({title: 'Chrome Tasks', isSummary: true});
     for (; it.valid(); it.next()) {
       const utid = it.utid;
       const uri = `org.chromium.ChromeTasks#thread.${utid}`;
