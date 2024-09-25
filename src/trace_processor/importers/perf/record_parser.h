@@ -55,6 +55,7 @@ class RecordParser : public PerfRecordParser {
   base::Status ParseComm(Record record);
   base::Status ParseMmap(Record record);
   base::Status ParseMmap2(Record record);
+  base::Status ParseItraceStart(Record record);
 
   base::Status InternSample(Sample sample);
 

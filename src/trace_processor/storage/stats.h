@@ -274,12 +274,26 @@ namespace perfetto::trace_processor::stats {
   F(perf_samples_cpu_mode_unknown,        kSingle,  kError,    kAnalysis, ""), \
   F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,    ""), \
   F(perf_dummy_mapping_used,              kSingle,  kInfo,     kAnalysis, ""), \
-  F(perf_invalid_event_id,                kSingle,  kError,    kTrace,    ""), \
-  F(perf_aux_missing,                     kSingle,  kDataLoss, kTrace,    ""), \
-  F(perf_aux_ignored,                     kSingle,  kInfo,     kTrace,    ""), \
-  F(perf_aux_lost,                        kSingle,  kDataLoss, kTrace,    ""), \
-  F(perf_auxtrace_missing,                kSingle,  kDataLoss, kTrace,    ""), \
-  F(perf_unknown_aux_data,                kIndexed, kDataLoss, kTrace,    ""), \
+  F(perf_aux_missing,                     kSingle,  kDataLoss, kTrace,         \
+      "Number of bytes missing in AUX data streams due to missing "            \
+      "PREF_RECORD_AUX messages."),                                            \
+  F(perf_aux_ignored,                     kSingle,  kInfo,     kTrace,         \
+       "AUX data was ignored because the proper parser is not implemented."), \
+  F(perf_aux_lost,                        kSingle,  kDataLoss, kTrace,         \
+      "Gaps in the AUX data stream pased to the tokenizer."), \
+  F(perf_aux_truncated,                   kSingle,  kDataLoss, kTrace,         \
+      "Data was truncated when being written to the AUX stream at the "        \
+      "source."),\
+  F(perf_aux_partial,                     kSingle,  kDataLoss, kTrace,         \
+      "The PERF_RECORD_AUX contained partial data."), \
+  F(perf_aux_collision,                   kSingle,  kDataLoss, kTrace,         \
+      "The collection of a sample colliden with another. You should reduce "   \
+      "the rate at which samples are collected."),                             \
+  F(perf_auxtrace_missing,                kSingle,  kDataLoss, kTrace,         \
+      "Number of bytes missing in AUX data streams due to missing "            \
+      "PREF_RECORD_AUXTRACE messages."),                                       \
+  F(perf_unknown_aux_data,                kIndexed, kDataLoss, kTrace,         \
+      "AUX data type encountered for which there is no known parser."),        \
   F(memory_snapshot_parser_failure,       kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_out_of_order,    kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_unknown_cpu_freq,                                     \

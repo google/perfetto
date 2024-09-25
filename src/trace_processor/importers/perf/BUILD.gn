@@ -30,11 +30,13 @@ source_set("record") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",
+    "../common:common",
     "../common:parser_types",
   ]
 }
@@ -73,6 +75,8 @@ source_set("perf") {
     "etm_tokenizer.h",
     "features.cc",
     "features.h",
+    "itrace_start_record.cc",
+    "itrace_start_record.h",
     "mmap_record.cc",
     "mmap_record.h",
     "perf_data_tokenizer.cc",
@@ -84,12 +88,14 @@ source_set("perf") {
     "sample.h",
     "sample_id.cc",
     "sample_id.h",
+    "time_conv_record.h",
     "util.h",
   ]
   public_deps = [ ":record" ]
   deps = [
     ":tracker",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../../protos/third_party/simpleperf:zero",
