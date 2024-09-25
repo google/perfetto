@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackNode, Workspace} from './workspace';
+import {TrackNode, TrackNodeArgs, Workspace} from './workspace';
 
 /**
  * Gets or creates a group for a given process given the normal grouping
@@ -25,15 +25,9 @@ export function getOrCreateGroupForProcess(
   workspace: Workspace,
   upid: number,
 ): TrackNode {
-  const groupId = `process${upid}`;
-  const group = workspace.getTrackById(groupId);
-  if (group) {
-    return group;
-  } else {
-    const group = new TrackNode({id: groupId, title: `Process ${upid}`});
-    workspace.addChildInOrder(group);
-    return group;
-  }
+  return getOrCreateGroup(workspace, `process${upid}`, {
+    title: `Process ${upid}`,
+  });
 }
 
 /**
@@ -47,12 +41,37 @@ export function getOrCreateGroupForThread(
   workspace: Workspace,
   utid: number,
 ): TrackNode {
-  const groupId = `thread${utid}`;
-  const group = workspace.getTrackById(groupId);
+  return getOrCreateGroup(workspace, `thread${utid}`, {
+    title: `Thread ${utid}`,
+  });
+}
+
+/**
+ * Gets or creates a group for user interaction
+ *
+ * @param workspace - The workspace on which to create the group.
+ */
+export function getOrCreateUserInteractionGroup(
+  workspace: Workspace,
+): TrackNode {
+  return getOrCreateGroup(workspace, 'user_interaction', {
+    title: 'User Interaction',
+    collapsed: false, // Expand this by default
+  });
+}
+
+// Internal utility function to avoid duplicating the logic to get or create a
+// group by ID.
+function getOrCreateGroup(
+  workspace: Workspace,
+  id: string,
+  args?: Omit<Partial<TrackNodeArgs>, 'id'>,
+): TrackNode {
+  const group = workspace.getTrackById(id);
   if (group) {
     return group;
   } else {
-    const group = new TrackNode({id: groupId, title: `Thread ${utid}`});
+    const group = new TrackNode({id, ...args});
     workspace.addChildInOrder(group);
     return group;
   }
