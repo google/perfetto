@@ -14598,6 +14598,23 @@ message SystemInfo {
 
 // Information about CPUs from procfs and sysfs.
 message CpuInfo {
+  message ArmCpuIdentifier {
+    // Implementer code
+    optional uint32 implementer = 1;
+
+    // Architecture code
+    optional uint32 architecture = 2;
+
+    // CPU variant
+    optional uint32 variant = 3;
+
+    // CPU part
+    optional uint32 part = 4;
+
+    // CPU revision
+    optional uint32 revision = 5;
+  }
+
   // Information about a single CPU.
   message Cpu {
     // Value of "Processor" field from /proc/cpuinfo for this CPU.
@@ -14612,6 +14629,11 @@ message CpuInfo {
     // Cpu capacity from /sys/devices/system/cpu/cpuX/cpu_capacity where X is
     // the index of this CPU.
     optional uint32 capacity = 3;
+
+    // Code to identify the CPU
+    oneof identifier {
+      ArmCpuIdentifier arm_identifier = 4;
+    }
   }
 
   // Describes available CPUs, one entry per CPU.
