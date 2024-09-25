@@ -4171,11 +4171,14 @@ TEST_F(TracingServiceImplTest, LifecycleMultipleFlushEventsQueued) {
   ASSERT_TRUE(flush_request.WaitForReply());
 
   auto packets = consumer->ReadBuffers();
-  uint32_t count = 0;
+  uint32_t flush_started_count = 0;
+  uint32_t flush_done_count = 0;
   for (const auto& packet : packets) {
-    count += packet.service_event().all_data_sources_flushed();
+    flush_started_count += packet.service_event().flush_started();
+    flush_done_count += packet.service_event().all_data_sources_flushed();
   }
-  ASSERT_EQ(count, 2u);
+  EXPECT_EQ(flush_started_count, 2u);
+  EXPECT_EQ(flush_done_count, 2u);
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("data_source");
