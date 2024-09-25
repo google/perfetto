@@ -65,7 +65,7 @@ constexpr uint32_t kPollBackingTickPeriodMs = 1000;
 constexpr uint32_t kMinTickPeriodMs = 1;
 constexpr uint32_t kMaxTickPeriodMs = 1000 * 60;
 constexpr int kPollRequiredMajorVersion = 6;
-constexpr int kPollRequiredMinorVersion = 1;
+constexpr int kPollRequiredMinorVersion = 9;
 
 // Read at most this many pages of data per cpu per read task. If we hit this
 // limit on at least one cpu, we stop and repost the read task, letting other
@@ -693,14 +693,8 @@ FtraceController::VerifyKernelSupportForBufferWatermark() {
 }
 
 // Check kernel version since the poll implementation has historical bugs.
-// We're looking for at least 6.1 for the following:
-//   42fb0a1e84ff tracing/ring-buffer: Have polling block on watermark
-// Otherwise the poll will wake us up as soon as a single byte is in the
-// buffer. A more conservative check would look for 6.6 for an extra fix that
-// reduces excessive kernel-space wakeups:
-//   1e0cb399c765 ring-buffer: Update "shortest_full" in polling
-// However that doesn't break functionality, so we'll still use poll if
-// requested by the config.
+// We're looking for at least 6.9 for the following:
+//   ffe3986fece6 ring-buffer: Only update pages_touched when a new page...
 // static
 bool FtraceController::PollSupportedOnKernelVersion(const char* uts_release) {
   int major = 0, minor = 0;
@@ -711,21 +705,18 @@ bool FtraceController::PollSupportedOnKernelVersion(const char* uts_release) {
       (major == kPollRequiredMajorVersion &&
        minor < kPollRequiredMinorVersion)) {
     // Android: opportunistically detect a few select GKI kernels that are known
-    // to have the fixes. Note: 6.1 and 6.6 GKIs are already covered by the
-    // outer check.
+    // to have the fixes.
     std::optional<AndroidGkiVersion> gki = ParseAndroidGkiVersion(uts_release);
     if (!gki.has_value())
       return false;
-    // android13-5.10.197 or higher sublevel:
-    //   ef47f25e98de ring-buffer: Update "shortest_full" in polling
-    // android13-5.15.133 and
-    // android14-5.15.133 or higher sublevel:
-    //   b5d00cd7db66 ring-buffer: Update "shortest_full" in polling
-    bool gki_patched =
-        (gki->release == 13 && gki->version == 5 && gki->patch_level == 10 &&
-         gki->sub_level >= 197) ||
-        ((gki->release == 13 || gki->release == 14) && gki->version == 5 &&
-         gki->patch_level == 15 && gki->sub_level >= 133);
+    // android14-6.1.86 or higher sublevel:
+    //   2d5f12de4cf5 ring-buffer: Only update pages_touched when a new page...
+    // android15-6.6.27 or higher sublevel:
+    //   a9cd92bc051f ring-buffer: Only update pages_touched when a new page...
+    bool gki_patched = (gki->release == 14 && gki->version == 6 &&
+                        gki->patch_level == 1 && gki->sub_level >= 86) ||
+                       (gki->release == 15 && gki->version == 6 &&
+                        gki->patch_level == 6 && gki->sub_level >= 27);
     return gki_patched;
   }
   return true;
