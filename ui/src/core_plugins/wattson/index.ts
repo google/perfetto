@@ -20,7 +20,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
 import {hasWattsonSupport} from '../../core/trace_config_utils';
-import {GroupNode, TrackNode} from '../../public/workspace';
+import {TrackNode} from '../../public/workspace';
 
 class Wattson implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -29,18 +29,18 @@ class Wattson implements PerfettoPlugin {
 
     ctx.engine.query(`INCLUDE PERFETTO MODULE wattson.curves.ungrouped;`);
 
-    const group = new GroupNode('Wattson');
-    ctx.workspace.insertChildInOrder(group);
+    const group = new TrackNode({title: 'Wattson'});
+    ctx.workspace.addChildInOrder(group);
 
     // CPUs estimate as part of CPU subsystem
     const cpus = ctx.traceInfo.cpus;
     for (const cpu of cpus) {
       const queryKey = `cpu${cpu}_curve`;
       const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
-      const displayName = `Cpu${cpu} Estimate`;
+      const title = `Cpu${cpu} Estimate`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         track: new CpuSubsystemEstimateTrack(ctx, uri, queryKey),
         tags: {
           kind: CPUSS_ESTIMATE_TRACK_KIND,
@@ -48,14 +48,14 @@ class Wattson implements PerfettoPlugin {
           groupName: `Wattson`,
         },
       });
-      group.insertChildInOrder(new TrackNode(uri, displayName));
+      group.addChildInOrder(new TrackNode({uri, title}));
     }
 
     const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
-    const displayName = `DSU/SCU Estimate`;
+    const title = `DSU/SCU Estimate`;
     ctx.tracks.registerTrack({
       uri,
-      title: displayName,
+      title,
       track: new CpuSubsystemEstimateTrack(ctx, uri, `dsu_scu`),
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
@@ -63,7 +63,7 @@ class Wattson implements PerfettoPlugin {
         groupName: `Wattson`,
       },
     });
-    group.insertChildInOrder(new TrackNode(uri, displayName));
+    group.addChildInOrder(new TrackNode({uri, title}));
   }
 }
 

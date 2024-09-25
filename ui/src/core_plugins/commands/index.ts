@@ -236,7 +236,7 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#ExpandAllGroups',
       name: 'Expand all track groups',
       callback: () => {
-        ctx.workspace.flatGroups.forEach((g) => g.expand());
+        ctx.workspace.flatTracks.forEach((track) => track.expand());
       },
     });
 
@@ -244,7 +244,7 @@ class CoreCommandsPlugin implements PerfettoPlugin {
       id: 'perfetto.CoreCommands#CollapseAllGroups',
       name: 'Collapse all track groups',
       callback: () => {
-        ctx.workspace.flatGroups.forEach((g) => g.collapse());
+        ctx.workspace.flatTracks.forEach((track) => track.collapse());
       },
     });
 
@@ -294,16 +294,14 @@ class CoreCommandsPlugin implements PerfettoPlugin {
         const workspaces = AppImpl.instance.trace?.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
         const options = workspaces.all.map((ws) => {
-          return {key: ws.uuid, displayName: ws.displayName};
+          return {key: ws.id, displayName: ws.title};
         });
-        const workspaceUuid = await ctx.omnibox.prompt(
+        const workspaceId = await ctx.omnibox.prompt(
           'Choose a workspace...',
           options,
         );
-        if (workspaceUuid === undefined) return;
-        const workspace = workspaces.all.find(
-          (ws) => ws.uuid === workspaceUuid,
-        );
+        if (workspaceId === undefined) return;
+        const workspace = workspaces.all.find((ws) => ws.id === workspaceId);
         if (workspace) {
           workspaces.switchWorkspace(workspace);
         }

@@ -58,7 +58,7 @@ class ThreadState implements PerfettoPlugin {
     });
     for (; it.valid(); it.next()) {
       const {utid, upid, tid, threadName, isMainThread, isKernelThread} = it;
-      const displayName = getTrackName({
+      const title = getTrackName({
         utid,
         tid,
         threadName,
@@ -68,7 +68,7 @@ class ThreadState implements PerfettoPlugin {
       const uri = `${getThreadUriPrefix(upid, utid)}_state`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           kind: THREAD_STATE_TRACK_KIND,
           utid,
@@ -88,9 +88,8 @@ class ThreadState implements PerfettoPlugin {
       });
 
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = 10;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: 10});
+      group.addChildInOrder(track);
     }
 
     ctx.registerDetailsPanel(

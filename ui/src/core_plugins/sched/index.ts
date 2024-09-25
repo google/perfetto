@@ -91,9 +91,9 @@ function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
 }
 
 function addPinnedTrack(ctx: Trace, uri: string, title: string) {
-  const track = new TrackNode(uri, title);
+  const track = new TrackNode({uri, title});
   // Add track to the top of the stack
-  ctx.workspace.prependChild(track);
+  ctx.workspace.addChildFirst(track);
   track.pin();
 }
 

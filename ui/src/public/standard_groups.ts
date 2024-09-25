@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {GroupNode, Workspace} from './workspace';
+import {TrackNode, Workspace} from './workspace';
 
 /**
  * Gets or creates a group for a given process given the normal grouping
@@ -24,15 +24,14 @@ import {GroupNode, Workspace} from './workspace';
 export function getOrCreateGroupForProcess(
   workspace: Workspace,
   upid: number,
-): GroupNode {
-  const uri = `process${upid}`;
-  const group = workspace.getGroupByUri(uri);
+): TrackNode {
+  const groupId = `process${upid}`;
+  const group = workspace.getTrackById(groupId);
   if (group) {
     return group;
   } else {
-    const group = new GroupNode(`Process ${upid}`);
-    group.uri = uri;
-    workspace.insertChildInOrder(group);
+    const group = new TrackNode({id: groupId, title: `Process ${upid}`});
+    workspace.addChildInOrder(group);
     return group;
   }
 }
@@ -47,15 +46,14 @@ export function getOrCreateGroupForProcess(
 export function getOrCreateGroupForThread(
   workspace: Workspace,
   utid: number,
-): GroupNode {
-  const uri = `thread${utid}`;
-  const group = workspace.getGroupByUri(uri);
+): TrackNode {
+  const groupId = `thread${utid}`;
+  const group = workspace.getTrackById(groupId);
   if (group) {
     return group;
   } else {
-    const group = new GroupNode(`Thread ${utid}`);
-    group.uri = uri;
-    workspace.insertChildInOrder(group);
+    const group = new TrackNode({id: groupId, title: `Thread ${utid}`});
+    workspace.addChildInOrder(group);
     return group;
   }
 }

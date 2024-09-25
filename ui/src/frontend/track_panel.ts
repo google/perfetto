@@ -74,6 +74,7 @@ export function getTitleFontSize(title: string): string | undefined {
 }
 
 function isTrackSelected(track: TrackNode) {
+  if (track.uri === undefined) return false;
   const selection = globals.selectionManager.selection;
   if (selection.kind !== 'area') return false;
   return selection.trackUris.includes(track.uri);
@@ -203,9 +204,10 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           currentSelection.kind === 'area'
             ? m(Button, {
                 onclick: (e: MouseEvent) => {
-                  globals.selectionManager.toggleTrackAreaSelection(
-                    attrs.track.uri,
-                  );
+                  attrs.track.uri &&
+                    globals.selectionManager.toggleTrackAreaSelection(
+                      attrs.track.uri,
+                    );
                   e.stopPropagation();
                 },
                 compact: true,
@@ -274,9 +276,9 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 
   private renderTrackDetailsButton(attrs: TrackShellAttrs) {
     let parent = attrs.track.parent;
-    let fullPath: m.ChildArray = [attrs.track.displayName];
-    while (parent && parent !== globals.workspace) {
-      fullPath = [parent.displayName, ' \u2023 ', ...fullPath];
+    let fullPath: m.ChildArray = [attrs.track.title];
+    while (parent && parent instanceof TrackNode) {
+      fullPath = [parent.title, ' \u2023 ', ...fullPath];
       parent = parent.parent;
     }
     return m(
@@ -299,11 +301,11 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             right: attrs.track.uri,
           }),
           m(TreeNode, {
-            left: 'Key',
-            right: attrs.track.uri,
+            left: 'Track Node ID',
+            right: attrs.track.id,
           }),
           m(TreeNode, {left: 'Path', right: fullPath}),
-          m(TreeNode, {left: 'Display Name', right: attrs.track.displayName}),
+          m(TreeNode, {left: 'Display Name', right: attrs.track.title}),
           m(TreeNode, {left: 'Plugin ID', right: attrs.pluginId}),
           m(
             TreeNode,
@@ -443,7 +445,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
           // Round up to the nearest integer number of pixels.
           height: `${Math.ceil(trackHeight)}px`,
         },
-        id: 'track_' + attrs.trackNode.uri,
+        id: attrs.trackNode.id,
       },
       [
         m(TrackShell, {
@@ -471,11 +473,11 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
     const {attrs} = vnode;
     const trackMgr = AppImpl.instance.trace?.tracks;
     if (
-      exists(trackMgr?.scrollToTrackUriOnCreate) &&
-      trackMgr.scrollToTrackUriOnCreate === attrs.trackNode.uri
+      exists(trackMgr?.scrollToTrackNodeId) &&
+      trackMgr.scrollToTrackNodeId === attrs.trackNode.id
     ) {
       vnode.dom.scrollIntoView();
-      trackMgr.scrollToTrackUriOnCreate = undefined;
+      trackMgr.scrollToTrackNodeId = undefined;
     }
     this.onupdate(vnode);
 
@@ -518,11 +520,10 @@ interface TrackPanelAttrs {
 export class TrackPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = true;
+  readonly trackNode: TrackNode;
 
-  constructor(private readonly attrs: TrackPanelAttrs) {}
-
-  get trackUri(): string {
-    return this.attrs.track.uri;
+  constructor(private readonly attrs: TrackPanelAttrs) {
+    this.trackNode = this.attrs.track;
   }
 
   render(): m.Children {
@@ -572,7 +573,10 @@ export class TrackPanel implements Panel {
       return;
     }
     const selectedAreaDuration = selection.end - selection.start;
-    if (selection.trackUris.includes(this.attrs.track.uri)) {
+    if (
+      this.attrs.track.uri &&
+      selection.trackUris.includes(this.attrs.track.uri)
+    ) {
       ctx.fillStyle = SELECTION_FILL_COLOR;
       ctx.fillRect(
         timescale.timeToPx(selection.start),

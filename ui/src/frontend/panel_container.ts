@@ -37,6 +37,7 @@ import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
 import {TimeScale} from '../base/time_scale';
 import {Optional} from '../base/utils';
+import {TrackNode} from '../public/workspace';
 
 const CANVAS_OVERDRAW_PX = 100;
 
@@ -44,8 +45,9 @@ export interface Panel {
   readonly kind: 'panel';
   render(): m.Children;
   readonly selectable: boolean;
-  readonly trackUri?: string; // Defined if this panel represents are track
-  readonly groupUri?: string; // Defined if this panel represents a group - i.e. a group summary track
+  // TODO(stevegolton): Remove this - panel container should know nothing of
+  // tracks!
+  readonly trackNode?: TrackNode;
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D): void;
   getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
 }
@@ -74,7 +76,7 @@ export interface PanelContainerAttrs {
 }
 
 interface PanelInfo {
-  trackOrGroupKey: string; // Can be == '' for singleton panels.
+  trackNode?: TrackNode; // Can be undefined for singleton panels.
   panel: Panel;
   height: number;
   width: number;
@@ -185,24 +187,23 @@ export class PanelContainer
       globals.timeline.areaY.end + TOPBAR_HEIGHT,
     );
     // Get the track ids from the panels.
-    const tracks = [];
+    const trackUris: string[] = [];
     for (const panel of panels) {
-      if (panel.trackUri !== undefined) {
-        tracks.push(panel.trackUri);
-        continue;
-      }
-      if (panel.groupUri !== undefined) {
-        const trackGroup = globals.workspace.getGroupByUri(panel.groupUri);
-        // Only select a track group and all child tracks if it is closed.
-        if (trackGroup && trackGroup.collapsed) {
-          tracks.push(panel.groupUri);
-          for (const track of trackGroup.flatTracks) {
-            tracks.push(track.uri);
+      if (panel.trackNode !== undefined) {
+        if (panel.trackNode.hasChildren) {
+          const groupNode = panel.trackNode;
+          // Select a track group and all child tracks if it is collapsed
+          if (groupNode.collapsed) {
+            for (const track of groupNode.flatTracks) {
+              track.uri && trackUris.push(track.uri);
+            }
           }
+        } else {
+          panel.trackNode.uri && trackUris.push(panel.trackNode.uri);
         }
       }
     }
-    globals.timeline.selectArea(area.start, area.end, tracks);
+    globals.timeline.selectArea(area.start, area.end, trackUris);
   }
 
   constructor({attrs}: m.CVnode<PanelContainerAttrs>) {
@@ -337,10 +338,9 @@ export class PanelContainer
       const panel = assertExists(this.panelById.get(panelId));
 
       // NOTE: the id can be undefined for singletons like overview timeline.
-      const key = panel.trackUri || panel.groupUri || '';
       const rect = panelElement.getBoundingClientRect();
       this.panelInfos.push({
-        trackOrGroupKey: key,
+        trackNode: panel.trackNode,
         height: rect.height,
         width: rect.width,
         clientX: rect.x,
@@ -462,7 +462,8 @@ export class PanelContainer
     let selectedTracksMaxY = this.panelContainerTop;
     let trackFromCurrentContainerSelected = false;
     for (let i = 0; i < this.panelInfos.length; i++) {
-      if (area.trackUris.includes(this.panelInfos[i].trackOrGroupKey)) {
+      const trackUri = this.panelInfos[i].trackNode?.uri;
+      if (trackUri && area.trackUris.includes(trackUri)) {
         trackFromCurrentContainerSelected = true;
         selectedTracksMinY = Math.min(
           selectedTracksMinY,

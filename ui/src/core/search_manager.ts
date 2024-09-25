@@ -286,7 +286,9 @@ export class SearchManagerImpl {
 
     const lowerSearch = search.toLowerCase();
     for (const track of workspace.flatTracks) {
-      if (track.displayName.toLowerCase().indexOf(lowerSearch) === -1) {
+      // We don't support searching for tracks that don't have a URI.
+      if (!track.uri) continue;
+      if (track.title.toLowerCase().indexOf(lowerSearch) === -1) {
         continue;
       }
       searchResults.totalResults++;

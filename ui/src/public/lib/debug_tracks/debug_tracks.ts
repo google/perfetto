@@ -52,9 +52,9 @@ export interface SqlDataSource {
 // addDebugSliceTrack().
 function addDebugTrack(trace: Trace, trackName: string, uri: string): void {
   const debugTrackId = ++debugTrackCount;
-  const displayName = trackName.trim() || `Debug Track ${debugTrackId}`;
-  const track = new TrackNode(uri, displayName);
-  trace.workspace.prependChild(track);
+  const title = trackName.trim() || `Debug Track ${debugTrackId}`;
+  const track = new TrackNode({uri, title});
+  trace.workspace.addChildFirst(track);
   track.pin();
 }
 

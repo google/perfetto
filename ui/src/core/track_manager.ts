@@ -56,7 +56,10 @@ export class TrackManagerImpl implements TrackManager {
   // scroll to track X, but X is not visible because it's in a collapsed group.
   // So we want to stash this information in a place that track_panel.ts can
   // access when creating dom elements.
-  scrollToTrackUriOnCreate?: string;
+  //
+  // Note: this is the node id of the track node to scroll to, not the track
+  // uri, as this allows us to scroll to tracks that have no uri.
+  scrollToTrackNodeId?: string;
 
   registerTrack(trackDesc: TrackDescriptor): Disposable {
     return this.tracks.register(new TrackFSM(trackDesc));

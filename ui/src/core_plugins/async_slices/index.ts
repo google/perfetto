@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {removeFalsyValues} from '../../base/array_utils';
-import {GroupNode, TrackNode} from '../../public/workspace';
+import {TrackNode} from '../../public/workspace';
 import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
@@ -63,7 +63,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
 
     for (; it.valid(); it.next()) {
       const rawName = it.name === null ? undefined : it.name;
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: rawName,
         kind: ASYNC_SLICE_TRACK_KIND,
       });
@@ -74,7 +74,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const uri = `/async_slices_${rawName}_${it.parentId}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
@@ -82,9 +82,8 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         },
         track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
       });
-      const trackNode = new TrackNode(uri, displayName);
-      trackNode.sortOrder = -25;
-      ctx.workspace.insertChildInOrder(trackNode);
+      const trackNode = new TrackNode({uri, title, sortOrder: -25});
+      ctx.workspace.addChildInOrder(trackNode);
     }
   }
 
@@ -120,7 +119,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const maxDepth = it.maxDepth;
 
       const kind = ASYNC_SLICE_TRACK_KIND;
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: trackName,
         upid,
         pid,
@@ -131,7 +130,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const uri = `/process_${upid}/async_slices_${rawTrackIds}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
@@ -141,9 +140,8 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = 30;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: 30});
+      group.addChildInOrder(track);
     }
   }
 
@@ -193,7 +191,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       } = it;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: trackName,
         utid,
         tid,
@@ -204,7 +202,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const uri = `/${getThreadUriPrefix(upid, utid)}_slice_${rawTrackIds}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
@@ -218,9 +216,8 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = 20;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: 20});
+      group.addChildInOrder(track);
     }
   }
 
@@ -253,7 +250,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       maxDepth: NUM_NULL,
     });
 
-    const groupMap = new Map<string, GroupNode>();
+    const groupMap = new Map<string, TrackNode>();
 
     for (; it.valid(); it.next()) {
       const {trackIds, name, uid, maxDepth} = it;
@@ -265,7 +262,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
       const trackIdList = trackIds.split(',').map((v) => Number(v));
 
-      const displayName = getTrackName({
+      const title = getTrackName({
         name,
         uid,
         userName,
@@ -276,7 +273,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const uri = `/async_slices_${name}_${uid}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds: trackIdList,
           kind: ASYNC_SLICE_TRACK_KIND,
@@ -284,15 +281,15 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIdList),
       });
 
-      const track = new TrackNode(uri, displayName);
+      const track = new TrackNode({uri, title});
       const existingGroup = groupMap.get(name);
       if (existingGroup) {
-        existingGroup.insertChildInOrder(track);
+        existingGroup.addChildInOrder(track);
       } else {
-        const group = new GroupNode(name);
-        ctx.workspace.insertChildInOrder(group);
+        const group = new TrackNode({title: name});
+        ctx.workspace.addChildInOrder(group);
         groupMap.set(name, group);
-        group.insertChildInOrder(track);
+        group.addChildInOrder(track);
       }
     }
   }

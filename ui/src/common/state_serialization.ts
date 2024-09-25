@@ -127,7 +127,9 @@ export function serializeAppState(): SerializedAppState {
 
   return {
     version: SERIALIZED_STATE_VERSION,
-    pinnedTracks: globals.workspace.pinnedTracks.map((t) => t.uri),
+    pinnedTracks: globals.workspace.pinnedTracks
+      .map((t) => t.uri)
+      .filter((uri) => uri !== undefined),
     viewport: {
       start: vizWindow.start,
       end: vizWindow.end,
@@ -196,7 +198,7 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
 
   // Restore the pinned tracks, if they exist.
   for (const uri of appState.pinnedTracks) {
-    const track = globals.workspace.getTrackByUri(uri);
+    const track = globals.workspace.findTrackByUri(uri);
     if (track) {
       track.pin();
     }

@@ -667,8 +667,10 @@ export class TraceController extends Controller<States> {
       });
 
       const id = row.traceProcessorTrackId;
-      const track = globals.workspace.flatTracks.find((t) =>
-        globals.trackManager.getTrack(t.uri)?.tags?.trackIds?.includes(id),
+      const track = globals.workspace.flatTracks.find(
+        (t) =>
+          t.uri &&
+          globals.trackManager.getTrack(t.uri)?.tags?.trackIds?.includes(id),
       );
       if (track === undefined) {
         return;
