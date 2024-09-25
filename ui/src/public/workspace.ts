@@ -224,7 +224,7 @@ export abstract class TrackNodeContainer {
   }
 }
 
-interface TrackNodeArgs {
+export interface TrackNodeArgs {
   title: string;
   id: string;
   uri: string;
