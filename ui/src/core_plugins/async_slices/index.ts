@@ -24,6 +24,7 @@ import {
   getOrCreateGroupForProcess,
   getOrCreateGroupForThread,
 } from '../../public/standard_groups';
+import {exists} from '../../base/utils';
 
 class AsyncSlicePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -38,6 +39,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks_grouped as (
         select
+          id,
           parent_id,
           name,
           group_concat(id) as trackIds,
@@ -51,15 +53,23 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         t.name as name,
         t.parent_id as parentId,
         t.trackIds as trackIds,
+        t.id as id,
         __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks_grouped t
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
+      id: NUM,
       parentId: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
     });
+
+    // Create a map of track nodes by id
+    const trackMap = new Map<
+      number,
+      {parentId: number | null; trackNode: TrackNode}
+    >();
 
     for (; it.valid(); it.next()) {
       const rawName = it.name === null ? undefined : it.name;
@@ -83,8 +93,18 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
       });
       const trackNode = new TrackNode({uri, title, sortOrder: -25});
-      ctx.workspace.addChildInOrder(trackNode);
+      trackMap.set(it.id, {parentId: it.parentId, trackNode});
     }
+
+    // Attach track nodes to parents / or the workspace if they have no parent
+    trackMap.forEach((t) => {
+      const parent = exists(t.parentId) && trackMap.get(t.parentId);
+      if (parent !== false && parent !== undefined) {
+        parent.trackNode.addChildLast(t.trackNode);
+      } else {
+        ctx.workspace.addChildLast(t.trackNode);
+      }
+    });
   }
 
   async addProcessAsyncSliceTracks(ctx: Trace): Promise<void> {
