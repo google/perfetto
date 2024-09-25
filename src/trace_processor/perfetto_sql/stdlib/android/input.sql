@@ -33,7 +33,8 @@ JOIN thread
   USING (utid)
 JOIN process
   USING (upid)
-WHERE slice.name GLOB 'sendMessage(*';
+WHERE slice.name GLOB 'sendMessage(*'
+order by event_seq;
 
 CREATE PERFETTO TABLE _input_message_received
 AS
@@ -55,7 +56,8 @@ JOIN thread
   USING (utid)
 JOIN process
   USING (upid)
-WHERE slice.name GLOB 'receiveMessage(*';
+WHERE slice.name GLOB 'receiveMessage(*'
+ORDER BY event_seq;
 
 -- All input events with round trip latency breakdown. Input delivery is socket based and every
 -- input event sent from the OS needs to be ACK'ed by the app. This gives us 4 subevents to measure
@@ -101,6 +103,32 @@ CREATE PERFETTO TABLE android_input_events (
   receive_dur INT
   )
 AS
+WITH dispatch AS MATERIALIZED (
+  SELECT * FROM _input_message_sent
+  WHERE thread_name = 'InputDispatcher'
+  ORDER BY event_seq, event_channel
+),
+receive AS MATERIALIZED (
+  SELECT
+    *,
+    REPLACE(event_channel, '(client)', '(server)') AS dispatch_event_channel
+  FROM _input_message_received
+  WHERE event_type NOT IN ('0x2', 'FINISHED')
+  ORDER BY event_seq, dispatch_event_channel
+),
+finish AS MATERIALIZED (
+  SELECT
+    *,
+    REPLACE(event_channel, '(client)', '(server)') AS dispatch_event_channel
+  FROM _input_message_sent
+  WHERE thread_name != 'InputDispatcher'
+  ORDER BY event_seq, dispatch_event_channel
+),
+finish_ack AS MATERIALIZED(
+  SELECT * FROM _input_message_received
+  WHERE event_type IN ('0x2', 'FINISHED')
+  ORDER BY event_seq, event_channel
+)
 SELECT
   receive.ts - dispatch.ts AS dispatch_latency_dur,
   finish.ts - receive.ts AS handling_latency_dur,
@@ -119,17 +147,19 @@ SELECT
   receive.ts AS receive_ts,
   receive.dur AS receive_dur,
   receive.track_id AS receive_track_id
-FROM (SELECT * FROM _input_message_sent WHERE thread_name = 'InputDispatcher') dispatch
-JOIN (SELECT * FROM _input_message_received WHERE event_type NOT IN ('0x2', 'FINISHED')) receive
+FROM dispatch
+JOIN receive
   ON
-    REPLACE(receive.event_channel, '(client)', '(server)') = dispatch.event_channel
+    receive.dispatch_event_channel = dispatch.event_channel
     AND dispatch.event_seq = receive.event_seq
-JOIN (SELECT * FROM _input_message_sent WHERE thread_name != 'InputDispatcher') finish
+JOIN finish
   ON
-    REPLACE(finish.event_channel, '(client)', '(server)') = dispatch.event_channel
+    finish.dispatch_event_channel = dispatch.event_channel
     AND dispatch.event_seq = finish.event_seq
-JOIN (SELECT * FROM _input_message_received WHERE event_type IN ('0x2', 'FINISHED')) finish_ack
-  ON finish_ack.event_channel = dispatch.event_channel AND dispatch.event_seq = finish_ack.event_seq;
+JOIN finish_ack
+  ON
+    finish_ack.event_channel = dispatch.event_channel
+    AND dispatch.event_seq = finish_ack.event_seq;
 
 -- Key events processed by the Android framework (from android.input.inputevent data source).
 CREATE PERFETTO VIEW android_key_events(
