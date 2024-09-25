@@ -93,6 +93,10 @@ int main(void) {
                     perfetto_protos_TrackEvent_source_location_field_number,
                     PERFETTO_TE_PROTO_FIELD_CSTR(2, __FILE__),
                     PERFETTO_TE_PROTO_FIELD_VARINT(4, __LINE__))));
+    PERFETTO_TE(
+        physics, PERFETTO_TE_COUNTER(),
+        PERFETTO_TE_COUNTER_TRACK("mycounter", PerfettoTeProcessTrackUuid()),
+        PERFETTO_TE_INT_COUNTER(89));
     PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_COUNTER(),
                 PERFETTO_TE_DOUBLE_COUNTER(3.14),
                 PERFETTO_TE_REGISTERED_TRACK(&mycounter),

@@ -962,8 +962,10 @@ static void InstanceOp(
     return;
   }
 
-  const PerfettoTeRegisteredTrackImpl* registered_track = nullptr;
-  const PerfettoTeHlExtraNamedTrack* named_track = nullptr;
+  std::variant<std::monostate, const PerfettoTeRegisteredTrackImpl*,
+               const PerfettoTeHlExtraNamedTrack*,
+               const PerfettoTeHlExtraProtoTrack*>
+      track;
   std::optional<uint64_t> track_uuid;
 
   const struct PerfettoTeHlExtraTimestamp* custom_timestamp = nullptr;
@@ -979,12 +981,13 @@ static void InstanceOp(
       const auto& cast =
           reinterpret_cast<const struct PerfettoTeHlExtraRegisteredTrack&>(
               extra);
-      registered_track = cast.track;
-      named_track = nullptr;
+      track = cast.track;
     } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK) {
-      registered_track = nullptr;
-      named_track =
+      track =
           &reinterpret_cast<const struct PerfettoTeHlExtraNamedTrack&>(extra);
+    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK) {
+      track =
+          &reinterpret_cast<const struct PerfettoTeHlExtraProtoTrack&>(extra);
     } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP) {
       custom_timestamp =
           &reinterpret_cast<const struct PerfettoTeHlExtraTimestamp&>(extra);
@@ -1032,7 +1035,9 @@ static void InstanceOp(
   ResetIncrementalStateIfRequired(ii->instance->trace_writer.get(), incr_state,
                                   track_event_tls, ts);
 
-  if (registered_track) {
+  if (std::holds_alternative<const PerfettoTeRegisteredTrackImpl*>(track)) {
+    auto* registered_track =
+        std::get<const PerfettoTeRegisteredTrackImpl*>(track);
     if (incr_state->seen_track_uuids.insert(registered_track->uuid).second) {
       auto packet = ii->instance->trace_writer->NewTracePacket();
       auto* track_descriptor = packet->set_track_descriptor();
@@ -1040,7 +1045,9 @@ static void InstanceOp(
                                             registered_track->descriptor_size);
     }
     track_uuid = registered_track->uuid;
-  } else if (named_track) {
+  } else if (std::holds_alternative<const PerfettoTeHlExtraNamedTrack*>(
+                 track)) {
+    auto* named_track = std::get<const PerfettoTeHlExtraNamedTrack*>(track);
     uint64_t uuid = named_track->parent_uuid;
     uuid ^= PerfettoFnv1a(named_track->name, strlen(named_track->name));
     uuid ^= named_track->id;
@@ -1052,6 +1059,17 @@ static void InstanceOp(
         track_descriptor->set_parent_uuid(named_track->parent_uuid);
       }
       track_descriptor->set_name(named_track->name);
+    }
+    track_uuid = uuid;
+  } else if (std::holds_alternative<const PerfettoTeHlExtraProtoTrack*>(
+                 track)) {
+    auto* counter_track = std::get<const PerfettoTeHlExtraProtoTrack*>(track);
+    uint64_t uuid = counter_track->uuid;
+    if (incr_state->seen_track_uuids.insert(uuid).second) {
+      auto packet = ii->instance->trace_writer->NewTracePacket();
+      auto* track_descriptor = packet->set_track_descriptor();
+      track_descriptor->set_uuid(uuid);
+      AppendHlProtoFields(track_descriptor, counter_track->fields);
     }
     track_uuid = uuid;
   }
