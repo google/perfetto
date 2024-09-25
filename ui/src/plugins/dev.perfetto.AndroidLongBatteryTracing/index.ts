@@ -1158,7 +1158,7 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
       if (existingGroup) {
         existingGroup.addChildInOrder(track);
       } else {
-        const group = new TrackNode({title: groupName});
+        const group = new TrackNode({title: groupName, isSummary: true});
         group.addChildInOrder(track);
         this.groups.set(groupName, group);
         ctx.workspace.addChildInOrder(group);

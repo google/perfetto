@@ -391,7 +391,7 @@ function renderNodes(
       return renderTrackPanel(node, indent, topOffsetPx);
     } else {
       const headerPanel = renderTrackPanel(node, indent, topOffsetPx);
-      const isSticky = node.hasChildren;
+      const isSticky = node.isSummary;
       const nextTopOffsetPx = isSticky
         ? topOffsetPx + headerPanel.heightPx ?? 0
         : topOffsetPx;

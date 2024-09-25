@@ -73,7 +73,11 @@ function groupGlobalIonTracks(): void {
   for (const track of ionTracks) {
     if (!group && [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.title)) {
       globals.workspace.removeChild(track);
-      group = new TrackNode({title: track.title, uri: track.uri});
+      group = new TrackNode({
+        title: track.title,
+        uri: track.uri,
+        isSummary: true,
+      });
       globals.workspace.addChildInOrder(group);
     } else {
       group?.addChildInOrder(track);
@@ -92,7 +96,7 @@ function groupGlobalIostatTracks(tag: string, groupName: string): void {
 
       let parentGroup = devMap.get(key);
       if (!parentGroup) {
-        const group = new TrackNode({title: groupName});
+        const group = new TrackNode({title: groupName, isSummary: true});
         globals.workspace.addChildInOrder(group);
         devMap.set(key, group);
         parentGroup = group;
@@ -117,7 +121,7 @@ function groupGlobalBuddyInfoTracks(): void {
 
       const groupName = 'Buddyinfo:  Node: ' + node + ' Zone: ' + zone;
       if (!devMap.has(groupName)) {
-        const group = new TrackNode({title: groupName});
+        const group = new TrackNode({title: groupName, isSummary: true});
         devMap.set(groupName, group);
         globals.workspace.addChildInOrder(group);
       }
@@ -129,7 +133,7 @@ function groupGlobalBuddyInfoTracks(): void {
 }
 
 function groupFrequencyTracks(groupName: string): void {
-  const group = new TrackNode({title: groupName});
+  const group = new TrackNode({title: groupName, isSummary: true});
 
   for (const track of globals.workspace.children) {
     if (track.hasChildren) continue;
@@ -160,7 +164,7 @@ function groupMiscNonAllowlistedTracks(groupName: string): void {
     new RegExp('^Android logs$'),
   ];
 
-  const group = new TrackNode({title: groupName});
+  const group = new TrackNode({title: groupName, isSummary: true});
   for (const track of globals.workspace.children) {
     if (track.hasChildren) continue;
     let allowlisted = false;
@@ -179,7 +183,7 @@ function groupMiscNonAllowlistedTracks(groupName: string): void {
 }
 
 function groupTracksByRegex(regex: RegExp, groupName: string): void {
-  const group = new TrackNode({title: groupName});
+  const group = new TrackNode({title: groupName, isSummary: true});
 
   for (const track of globals.workspace.children) {
     if (track.hasChildren) continue;
