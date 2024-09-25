@@ -27,8 +27,9 @@ export class WorkspaceManagerImpl implements WorkspaceManager {
     this._currentWorkspace = this.createEmptyWorkspace(DEFAULT_WORKSPACE_NAME);
   }
 
-  createEmptyWorkspace(displayName: string): Workspace {
-    const workspace = new Workspace(displayName);
+  createEmptyWorkspace(title: string): Workspace {
+    const workspace = new Workspace();
+    workspace.title = title;
     this._workspaces.push(workspace);
     return workspace;
   }

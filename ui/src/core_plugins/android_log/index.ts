@@ -64,7 +64,8 @@ class AndroidLog implements PerfettoPlugin {
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
         track: new AndroidLogTrack(ctx.engine),
       });
-      ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
+      const track = new TrackNode({title, uri});
+      ctx.workspace.addChildInOrder(track);
     }
 
     const androidLogsTabUri = 'perfetto.AndroidLog#tab';

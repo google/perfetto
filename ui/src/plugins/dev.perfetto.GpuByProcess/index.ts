@@ -85,7 +85,10 @@ class GpuByProcess implements PerfettoPlugin {
         title,
         track: new GpuPidTrack({trace: ctx, uri}, upid),
       });
-      ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
+      const track = new TrackNode({uri, title});
+      track.uri = uri;
+      track.title = title;
+      ctx.workspace.addChildInOrder(track);
     }
   }
 

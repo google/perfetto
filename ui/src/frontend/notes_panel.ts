@@ -65,7 +65,7 @@ export class NotesPanel implements Panel {
   private mouseDragging = false;
 
   render(): m.Children {
-    const allCollapsed = globals.workspace.flatGroups.every((n) => n.collapsed);
+    const allCollapsed = globals.workspace.flatTracks.every((n) => n.collapsed);
 
     return m(
       '.notes-panel',

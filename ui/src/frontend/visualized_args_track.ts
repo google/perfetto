@@ -82,7 +82,7 @@ export class VisualisedArgsTrack extends ThreadSliceTrack {
   getTrackShellButtons(): m.Children {
     return m(Button, {
       onclick: () => {
-        globals.workspace.getTrackByUri(this.uri)?.remove();
+        globals.workspace.findTrackByUri(this.uri)?.remove();
       },
       icon: Icons.Close,
       title: 'Close',

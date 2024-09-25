@@ -52,11 +52,12 @@ class PinSysUITracks implements PerfettoPlugin {
       name: 'Pin: System UI Related Tracks',
       callback: () => {
         ctx.workspace.flatTracks.forEach((track) => {
+          if (!track.uri) return;
           // Ensure we only grab tracks that are in the SysUI process group
           if (!track.uri.startsWith(`/process_${sysuiUpid}`)) return;
           if (
             !TRACKS_TO_PIN.some((trackName) =>
-              track.displayName.startsWith(trackName),
+              track.title.startsWith(trackName),
             )
           ) {
             return;
@@ -65,9 +66,9 @@ class PinSysUITracks implements PerfettoPlugin {
         });
 
         // expand the sysui process tracks group
-        ctx.workspace.flatGroups.forEach((group) => {
-          if (group.displayName.startsWith(SYSTEM_UI_PROCESS)) {
-            group.expand();
+        ctx.workspace.flatTracks.forEach((track) => {
+          if (track.hasChildren && track.title.startsWith(SYSTEM_UI_PROCESS)) {
+            track.expand();
           }
         });
       },

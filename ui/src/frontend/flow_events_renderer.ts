@@ -61,25 +61,25 @@ export function renderFlows(
     right: size.width,
   });
 
-  // Create indexes for the tracks and groups by key for quick access
-  const trackPanelsByKey = new Map(
-    panels.map((panel) => [panel.panel.trackUri, panel]),
-  );
-  const groupPanelsByKey = new Map(
-    panels.map((panel) => [panel.panel.groupUri, panel]),
+  // Create an index of track node instances to panels. This doesn't need to be
+  // a WeakMap because it's thrown away every render cycle.
+  const panelsByTrackNode = new Map(
+    panels.map((panel) => [panel.panel.trackNode, panel]),
   );
 
   // Build a track index on trackIds. Note: We need to find the track nodes
   // specifically here (not just the URIs) because we might need to navigate up
   // the tree to find containing groups.
 
-  const trackIdToTrack = new Map<number, TrackNode>();
+  const sqlTrackIdToTrack = new Map<number, TrackNode>();
   globals.workspace.flatTracks.forEach((track) =>
-    globals.trackManager
-      .getTrack(track.uri)
-      ?.tags?.trackIds?.forEach((trackId) =>
-        trackIdToTrack.set(trackId, track),
-      ),
+    track.uri
+      ? globals.trackManager
+          .getTrack(track.uri)
+          ?.tags?.trackIds?.forEach((trackId) =>
+            sqlTrackIdToTrack.set(trackId, track),
+          )
+      : undefined,
   );
 
   const drawFlow = (flow: Flow, hue: number) => {
@@ -136,12 +136,12 @@ export function renderFlows(
     depth: number,
     x: number,
   ): Optional<VerticalEdgeOrPoint> => {
-    const track = trackIdToTrack.get(trackId);
+    const track = sqlTrackIdToTrack.get(trackId);
     if (!track) {
       return undefined;
     }
 
-    const trackPanel = trackPanelsByKey.get(track.uri);
+    const trackPanel = panelsByTrackNode.get(track);
     if (trackPanel) {
       const trackRect = trackPanel.rect;
       const sliceRectRaw = trackPanel.panel.getSliceVerticalBounds?.(depth);
@@ -166,8 +166,8 @@ export function renderFlows(
       }
     } else {
       // If we didn't find a track, it might inside a group, so check for the group
-      const group = track.closestVisibleAncestor;
-      const groupPanel = group && groupPanelsByKey.get(group.uri);
+      const containerNode = track.findClosestVisibleAncestor();
+      const groupPanel = panelsByTrackNode.get(containerNode);
       if (groupPanel) {
         return {
           kind: 'point',

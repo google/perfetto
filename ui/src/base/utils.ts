@@ -32,3 +32,7 @@ export type Optional<T> = T | undefined;
 export function escapeCSSSelector(selector: string): string {
   return selector.replace(/([!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~])/g, '\\$1');
 }
+
+// Make field K required in T
+export type RequiredField<T, K extends keyof T> = Omit<T, K> &
+  Required<Pick<T, K>>;

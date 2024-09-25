@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Optional} from '../../base/utils';
-import {GroupNode, TrackNode} from '../../public/workspace';
+import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
@@ -56,7 +56,7 @@ class RestorePinnedTrack implements PerfettoPlugin {
     const pinnedTracks = workspace.pinnedTracks;
     const tracksToSave: SavedPinnedTrack[] = pinnedTracks.map((track) => ({
       groupName: groupName(track),
-      trackName: track.displayName,
+      trackName: track.title,
     }));
     window.localStorage.setItem(SAVED_TRACKS_KEY, JSON.stringify(tracksToSave));
   }
@@ -74,7 +74,7 @@ class RestorePinnedTrack implements PerfettoPlugin {
       // Check for an exact match
       const exactMatch = tracks.find((track) => {
         return (
-          trackToRestore.trackName === track.displayName &&
+          trackToRestore.trackName === track.title &&
           trackToRestore.groupName === groupName(track)
         );
       });
@@ -94,7 +94,7 @@ class RestorePinnedTrack implements PerfettoPlugin {
         const fuzzyMatch = tracks.find((track) => {
           return (
             this.removeNumbers(trackToRestore.trackName) ===
-              this.removeNumbers(track.displayName) &&
+              this.removeNumbers(track.title) &&
             this.removeNumbers(trackToRestore.groupName) ===
               this.removeNumbers(groupName(track))
           );
@@ -121,8 +121,8 @@ class RestorePinnedTrack implements PerfettoPlugin {
 // If the track is a child of a workspace, return undefined...
 function groupName(track: TrackNode): Optional<string> {
   const parent = track.parent;
-  if (parent instanceof GroupNode) {
-    return parent.displayName;
+  if (parent instanceof TrackNode) {
+    return parent.title;
   }
   return undefined;
 }

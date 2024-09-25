@@ -29,11 +29,11 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
       id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
       name: 'Add track: Chrome interactions',
       callback: () => {
-        const track = new TrackNode(
-          CriticalUserInteractionTrack.kind,
-          'Chrome Interactions',
-        );
-        ctx.workspace.insertChildInOrder(track);
+        const track = new TrackNode({
+          uri: CriticalUserInteractionTrack.kind,
+          title: 'Chrome Interactions',
+        });
+        ctx.workspace.addChildInOrder(track);
         track.pin();
       },
     });

@@ -37,7 +37,7 @@ export class DebugCounterTrack extends BaseCounterTrack {
   getTrackShellButtons(): m.Children {
     return m(Button, {
       onclick: () => {
-        this.trace.workspace.getTrackByUri(this.uri)?.remove();
+        this.trace.workspace.findTrackByUri(this.uri)?.remove();
       },
       icon: Icons.Close,
       title: 'Close',
