@@ -15,6 +15,7 @@
 .pf-middle-ellipsis {
   display: flex;
   flex-direction: row;
+  overflow: hidden;
 
   .pf-middle-ellipsis-left {
     overflow: hidden;
