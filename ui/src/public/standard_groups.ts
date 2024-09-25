@@ -27,6 +27,7 @@ export function getOrCreateGroupForProcess(
 ): TrackNode {
   return getOrCreateGroup(workspace, `process${upid}`, {
     title: `Process ${upid}`,
+    isSummary: true,
   });
 }
 
@@ -43,6 +44,7 @@ export function getOrCreateGroupForThread(
 ): TrackNode {
   return getOrCreateGroup(workspace, `thread${utid}`, {
     title: `Thread ${utid}`,
+    isSummary: true,
   });
 }
 
@@ -57,6 +59,7 @@ export function getOrCreateUserInteractionGroup(
   return getOrCreateGroup(workspace, 'user_interaction', {
     title: 'User Interaction',
     collapsed: false, // Expand this by default
+    isSummary: true,
   });
 }
 

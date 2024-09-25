@@ -29,7 +29,7 @@ class Wattson implements PerfettoPlugin {
 
     ctx.engine.query(`INCLUDE PERFETTO MODULE wattson.curves.ungrouped;`);
 
-    const group = new TrackNode({title: 'Wattson'});
+    const group = new TrackNode({title: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
 
     // CPUs estimate as part of CPU subsystem
