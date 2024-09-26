@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {AggregateData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {raf} from '../core/raf_scheduler';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
@@ -91,14 +90,6 @@ export function publishTraceErrors(numErrors: number) {
 
 export function publishMetricError(error: string) {
   globals.setMetricError(error);
-  globals.publishRedraw();
-}
-
-export function publishAggregateData(args: {
-  data: AggregateData;
-  kind: string;
-}) {
-  globals.setAggregateData(args.kind, args.data);
   globals.publishRedraw();
 }
 

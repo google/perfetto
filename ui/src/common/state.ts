@@ -146,16 +146,6 @@ export interface AdbRecordingTarget extends RecordingTarget {
   serial: string;
 }
 
-export interface Sorting {
-  column: string;
-  direction: 'DESC' | 'ASC';
-}
-
-export interface AggregationState {
-  id: string;
-  sorting?: Sorting;
-}
-
 // Auxiliary metadata needed to parse the query result, as well as to render it
 // correctly. Generated together with the text of query and passed without the
 // change to the query response.
@@ -258,7 +248,6 @@ export interface State {
   engine?: EngineConfig;
   traceUuid?: string;
 
-  aggregatePreferences: ObjectById<AggregationState>;
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;

@@ -19,8 +19,13 @@ import {
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
-import {hasWattsonSupport} from '../../core/trace_config_utils';
 import {TrackNode} from '../../public/workspace';
+import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
+import {WattsonPackageSelectionAggregator} from './package_aggregator';
+import {WattsonProcessSelectionAggregator} from './process_aggregator';
+import {WattsonThreadSelectionAggregator} from './thread_aggregator';
+import {Engine} from '../../trace_processor/engine';
+import {NUM} from '../../trace_processor/query_result';
 
 class Wattson implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -64,6 +69,22 @@ class Wattson implements PerfettoPlugin {
       },
     });
     group.addChildInOrder(new TrackNode({uri, title}));
+
+    // Register selection aggregators.
+    // NOTE: the registration order matters because the laste two aggregators
+    // depend on views created by the first two.
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new WattsonEstimateSelectionAggregator(),
+    );
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new WattsonThreadSelectionAggregator(),
+    );
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new WattsonPackageSelectionAggregator(),
+    );
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new WattsonProcessSelectionAggregator(),
+    );
   }
 }
 
@@ -106,3 +127,28 @@ export const plugin: PluginDescriptor = {
   pluginId: `org.kernel.Wattson`,
   plugin: Wattson,
 };
+
+async function hasWattsonSupport(engine: Engine): Promise<boolean> {
+  // These tables are hard requirements and are the bare minimum needed for
+  // Wattson to run, so check that these tables are populated
+  const queryChecks: string[] = [
+    `
+    INCLUDE PERFETTO MODULE wattson.device_infos;
+    SELECT COUNT(*) as numRows FROM _wattson_device
+    `,
+    `
+    INCLUDE PERFETTO MODULE linux.cpu.frequency;
+    SELECT COUNT(*) as numRows FROM cpu_frequency_counters
+    `,
+    `
+    INCLUDE PERFETTO MODULE linux.cpu.idle;
+    SELECT COUNT(*) as numRows FROM cpu_idle_counters
+    `,
+  ];
+  for (const queryCheck of queryChecks) {
+    const checkValue = await engine.query(queryCheck);
+    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
+  }
+
+  return true;
+}

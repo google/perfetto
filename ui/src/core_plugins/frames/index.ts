@@ -24,11 +24,15 @@ import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {ActualFramesTrack} from './actual_frames_track';
 import {ExpectedFramesTrack} from './expected_frames_track';
+import {FrameSelectionAggregator} from './frame_selection_aggregator';
 
 class FramesPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new FrameSelectionAggregator(),
+    );
   }
 
   async addExpectedFrames(ctx: Trace): Promise<void> {

@@ -20,6 +20,7 @@ import {
   ProfileType,
   SelectionOpts,
   SelectionManager,
+  AreaSelectionAggregator,
 } from '../public/selection';
 import {duration, Time, time, TimeSpan} from '../base/time';
 import {
@@ -35,6 +36,7 @@ import {ScrollHelper} from './scroll_helper';
 import {NoteManagerImpl} from './note_manager';
 import {AsyncLimiter} from '../base/async_limiter';
 import {SearchResult} from '../public/search';
+import {SelectionAggregationManager} from './selection_aggregation_manager';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -52,6 +54,7 @@ export class SelectionManagerImpl implements SelectionManager {
   private _selectedDetails?: LegacySelectionDetails;
   private _selectionResolver: SelectionResolver;
   private _pendingScrollId?: number;
+  private _aggregationManager: SelectionAggregationManager;
   // Incremented every time _selection changes.
   private _selectionGeneration = 0;
   private _limiter = new AsyncLimiter();
@@ -64,6 +67,13 @@ export class SelectionManagerImpl implements SelectionManager {
     private onSelectionChange: (s: Selection, opts: SelectionOpts) => void,
   ) {
     this._selectionResolver = new SelectionResolver(engine);
+    this._aggregationManager = new SelectionAggregationManager(
+      engine.getProxy('SelectionAggregationManager'),
+    );
+  }
+
+  registerAreaSelectionAggreagtor(aggr: AreaSelectionAggregator): void {
+    this._aggregationManager.registerAggregator(aggr);
   }
 
   clear(): void {
@@ -298,6 +308,12 @@ export class SelectionManagerImpl implements SelectionManager {
     const generation = ++this._selectionGeneration;
     raf.scheduleFullRedraw();
 
+    if (this.selection.kind === 'area') {
+      this._aggregationManager.aggregateArea(this.selection);
+    } else {
+      this._aggregationManager.clear();
+    }
+
     // The code below is to avoid flickering while switching selection. There
     // are three cases here:
     // 1. The async code resolves the selection quickly. In this case we
@@ -459,6 +475,10 @@ export class SelectionManagerImpl implements SelectionManager {
     }
 
     return undefined;
+  }
+
+  get aggregation() {
+    return this._aggregationManager;
   }
 }
 

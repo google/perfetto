@@ -14,6 +14,8 @@
 
 import {time, duration, TimeSpan} from '../base/time';
 import {Optional} from '../base/utils';
+import {Engine} from '../trace_processor/engine';
+import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
 import {GenericSliceDetailsTabConfigBase} from './details_panel';
 
 export interface SelectionManager {
@@ -25,6 +27,7 @@ export interface SelectionManager {
   setLegacy(args: LegacySelection, opts?: SelectionOpts): void;
   setArea(args: Area): void;
   scrollToCurrentSelection(): void;
+  registerAreaSelectionAggreagtor(aggr: AreaSelectionAggregator): void;
 
   // TODO(primiano): I don't undertsand what this generic slice is, but now
   // is exposed to plugins. For now i'm just carrying it forward.
@@ -39,6 +42,15 @@ export interface SelectionManager {
       config: GenericSliceDetailsTabConfigBase;
     };
   }): void;
+}
+
+export interface AreaSelectionAggregator {
+  readonly id: string;
+  createAggregateView(engine: Engine, area: Area): Promise<boolean>;
+  getExtra(engine: Engine, area: Area): Promise<ThreadStateExtra | void>;
+  getTabName(): string;
+  getDefaultSorting(): Sorting;
+  getColumnDefinitions(): ColumnDef[];
 }
 
 export type Selection =

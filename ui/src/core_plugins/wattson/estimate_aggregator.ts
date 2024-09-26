@@ -12,22 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef} from '../../../common/aggregation_data';
-import {Sorting} from '../../../common/state';
-import {Area} from '../../../public/selection';
-import {globals} from '../../../frontend/globals';
-import {Engine} from '../../../trace_processor/engine';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../../public/track_kinds';
-import {AggregationController} from '../aggregation_controller';
-import {hasWattsonSupport} from '../../../core/trace_config_utils';
-import {exists} from '../../../base/utils';
+import {ColumnDef, Sorting} from '../../public/aggregation';
+import {Area} from '../../public/selection';
+import {globals} from '../../frontend/globals';
+import {Engine} from '../../trace_processor/engine';
+import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
+import {AreaSelectionAggregator} from '../../public/selection';
+import {exists} from '../../base/utils';
 
-export class WattsonEstimateAggregationController extends AggregationController {
+export class WattsonEstimateSelectionAggregator
+  implements AreaSelectionAggregator
+{
+  readonly id = 'wattson_estimate_aggregation';
+
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
-
-    // Short circuit if Wattson is not supported for this Perfetto trace
-    if (!(await hasWattsonSupport(engine))) return false;
+    await engine.query(`drop view if exists ${this.id};`);
 
     const estimateTracks: string[] = [];
     for (const trackUri of area.trackUris) {
@@ -65,7 +64,7 @@ export class WattsonEstimateAggregationController extends AggregationController 
       USING
         SPAN_JOIN(_ui_selection_window, _system_state_mw);
 
-      CREATE VIEW ${this.kind} AS
+      CREATE VIEW ${this.id} AS
     `;
 
     // Convert average power track to total energy in UI window, then divide by

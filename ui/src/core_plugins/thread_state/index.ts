@@ -28,10 +28,15 @@ import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_regis
 import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
+import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
 
 class ThreadState implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
+
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new ThreadStateSelectionAggregator(),
+    );
 
     const result = await engine.query(`
       include perfetto module viz.threads;

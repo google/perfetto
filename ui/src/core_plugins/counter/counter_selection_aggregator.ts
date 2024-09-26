@@ -13,15 +13,16 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef} from '../../common/aggregation_data';
-import {Sorting} from '../../common/state';
+import {ColumnDef, Sorting} from '../../public/aggregation';
 import {Area} from '../../public/selection';
 import {globals} from '../../frontend/globals';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {AggregationController} from './aggregation_controller';
+import {AreaSelectionAggregator} from '../../public/selection';
 
-export class CounterAggregationController extends AggregationController {
+export class CounterSelectionAggregator implements AreaSelectionAggregator {
+  readonly id = 'counter_aggregation';
+
   async createAggregateView(engine: Engine, area: Area) {
     const trackIds: (string | number)[] = [];
     for (const trackUri of area.trackUris) {
@@ -38,7 +39,7 @@ export class CounterAggregationController extends AggregationController {
     let query;
     if (trackIds.length === 1) {
       // Optimized query for the special case where there is only 1 track id.
-      query = `CREATE OR REPLACE PERFETTO TABLE ${this.kind} AS
+      query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
       WITH aggregated AS (
         SELECT
           COUNT(1) AS count,
@@ -68,7 +69,7 @@ export class CounterAggregationController extends AggregationController {
       FROM aggregated`;
     } else {
       // Slower, but general purspose query that can aggregate multiple tracks
-      query = `CREATE OR REPLACE PERFETTO TABLE ${this.kind} AS
+      query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
       WITH aggregated AS (
         SELECT track_id,
           COUNT(1) AS count,
