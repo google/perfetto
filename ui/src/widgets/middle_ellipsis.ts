@@ -19,6 +19,12 @@ export interface MiddleEllipsisAttrs {
   endChars?: number;
 }
 
+function replaceLeadingTrailingSpacesWithNbsp(text: string) {
+  return text.replace(/^\s+|\s+$/g, function (match) {
+    return '\u00A0'.repeat(match.length);
+  });
+}
+
 /**
  * Puts ellipsis in the middle of a long string, rather than putting them at
  * either end, for occasions where the start and end of the text are more
@@ -27,13 +33,20 @@ export interface MiddleEllipsisAttrs {
 export class MiddleEllipsis implements m.ClassComponent<MiddleEllipsisAttrs> {
   view({attrs, children}: m.Vnode<MiddleEllipsisAttrs>): m.Children {
     const {text, endChars = text.length > 16 ? 10 : 0} = attrs;
-    const index = text.length - endChars;
-    const left = text.substring(0, index);
-    const right = text.substring(index);
+    const trimmed = text.trim();
+    const index = trimmed.length - endChars;
+    const left = trimmed.substring(0, index);
+    const right = trimmed.substring(index);
     return m(
       '.pf-middle-ellipsis',
-      m('span.pf-middle-ellipsis-left', left),
-      m('span.pf-middle-ellipsis-right', right),
+      m(
+        'span.pf-middle-ellipsis-left',
+        replaceLeadingTrailingSpacesWithNbsp(left),
+      ),
+      m(
+        'span.pf-middle-ellipsis-right',
+        replaceLeadingTrailingSpacesWithNbsp(right),
+      ),
       children,
     );
   }

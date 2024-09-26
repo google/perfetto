@@ -1380,7 +1380,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           indentationLevel: 3,
           collapsible: true,
           collapsed: true,
-          isContainer: false,
+          isSummary: false,
           highlight: false,
           error: false,
           multipleTracks: false,
