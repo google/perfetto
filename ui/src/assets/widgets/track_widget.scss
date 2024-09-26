@@ -82,7 +82,11 @@
       padding: 1px 2px;
       gap: 2px;
 
-      .pf-track-title {
+      h1.pf-track-title {
+        // Override h1 formatting
+        font-size: inherit;
+        margin: inherit;
+
         display: flex;
         flex-direction: row;
         gap: 2px;
