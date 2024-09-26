@@ -17,6 +17,7 @@ import {Optional} from '../base/utils';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
 import {GenericSliceDetailsTabConfigBase} from './details_panel';
+import {TrackDescriptor} from './track';
 
 export interface SelectionManager {
   readonly selection: Selection;
@@ -46,8 +47,11 @@ export interface SelectionManager {
 
 export interface AreaSelectionAggregator {
   readonly id: string;
-  createAggregateView(engine: Engine, area: Area): Promise<boolean>;
-  getExtra(engine: Engine, area: Area): Promise<ThreadStateExtra | void>;
+  createAggregateView(engine: Engine, area: AreaSelection): Promise<boolean>;
+  getExtra(
+    engine: Engine,
+    area: AreaSelection,
+  ): Promise<ThreadStateExtra | void>;
   getTabName(): string;
   getDefaultSorting(): Sorting;
   getColumnDefinitions(): ColumnDef[];
@@ -166,6 +170,11 @@ export interface Area {
 
 export interface AreaSelection extends Area {
   readonly kind: 'area';
+
+  // This array contains the resolved TrackDescriptor from Area.trackUris.
+  // The resolution is done by SelectionManager whenever a kind='area' selection
+  // is performed.
+  readonly tracks: ReadonlyArray<TrackDescriptor>;
 }
 
 export interface NoteSelection {

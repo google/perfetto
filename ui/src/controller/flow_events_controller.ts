@@ -360,8 +360,7 @@ export class FlowEventsController extends Controller<'main'> {
   private areaSelected(area: AreaSelection) {
     const trackIds: number[] = [];
 
-    for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.getTrack(trackUri);
+    for (const trackInfo of area.tracks) {
       const kind = trackInfo?.tags?.kind;
       if (
         kind === THREAD_SLICE_TRACK_KIND ||

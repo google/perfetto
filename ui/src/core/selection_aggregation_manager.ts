@@ -16,7 +16,7 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {isString} from '../base/object_utils';
 import {Optional} from '../base/utils';
 import {AggregateData, Column, ColumnDef, Sorting} from '../public/aggregation';
-import {Area, AreaSelectionAggregator} from '../public/selection';
+import {AreaSelection, AreaSelectionAggregator} from '../public/selection';
 import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
 import {raf} from './raf_scheduler';
@@ -27,7 +27,7 @@ export class SelectionAggregationManager {
   private _aggregators = new Array<AreaSelectionAggregator>();
   private _aggregatedData = new Map<string, AggregateData>();
   private _sorting = new Map<string, Sorting>();
-  private _currentArea: Optional<Area> = undefined;
+  private _currentArea: Optional<AreaSelection> = undefined;
 
   constructor(engine: Engine) {
     this.engine = engine;
@@ -37,7 +37,7 @@ export class SelectionAggregationManager {
     this._aggregators.push(aggr);
   }
 
-  aggregateArea(area: Area) {
+  aggregateArea(area: AreaSelection) {
     this.limiter.schedule(async () => {
       this._currentArea = area;
       this._aggregatedData.clear();
@@ -103,7 +103,7 @@ export class SelectionAggregationManager {
 
   private async runAggregator(
     aggr: AreaSelectionAggregator,
-    area: Area,
+    area: AreaSelection,
   ): Promise<AggregateData | undefined> {
     const viewExists = await aggr.createAggregateView(this.engine, area);
     if (!viewExists) {

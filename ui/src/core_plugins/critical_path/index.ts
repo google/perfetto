@@ -80,8 +80,7 @@ const sliceColumnNames = ['id', 'utid', 'ts', 'dur', 'name', 'table_name'];
 function getFirstUtidOfSelectionOrVisibleWindow(trace: Trace): number {
   const selection = trace.selection.selection;
   if (selection.kind === 'area') {
-    for (const trackUri of selection.trackUris) {
-      const trackDesc = trace.tracks.getTrack(trackUri);
+    for (const trackDesc of selection.tracks) {
       if (
         trackDesc?.tags?.kind === THREAD_STATE_TRACK_KIND &&
         trackDesc?.tags?.utid !== undefined

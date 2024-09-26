@@ -100,6 +100,7 @@ export class SelectionManagerImpl implements SelectionManager {
     assertTrue(start <= end);
     this.setSelection({
       kind: 'area',
+      tracks: [],
       ...args,
     });
   }
@@ -302,14 +303,28 @@ export class SelectionManagerImpl implements SelectionManager {
   }
 
   private setSelection(selection: Selection, opts?: SelectionOpts) {
+    if (selection.kind === 'area') {
+      // In the case of area selection, the caller provides a list of trackUris.
+      // However, all the consumer want to access the resolved TrackDescriptor.
+      // Rather than delegating this to the various consumers, we resolve them
+      // now once and for all and place them in the selection object.
+      const tracks = [];
+      for (const uri of selection.trackUris) {
+        const trackDescr = this.trackManager.getTrack(uri);
+        if (trackDescr === undefined) continue;
+        tracks.push(trackDescr);
+      }
+      selection = {...selection, tracks};
+    }
+
     this._selection = selection;
     this._pendingScrollId = opts?.pendingScrollId;
     this.onSelectionChange(selection, opts ?? {});
     const generation = ++this._selectionGeneration;
     raf.scheduleFullRedraw();
 
-    if (this.selection.kind === 'area') {
-      this._aggregationManager.aggregateArea(this.selection);
+    if (this._selection.kind === 'area') {
+      this._aggregationManager.aggregateArea(this._selection);
     } else {
       this._aggregationManager.clear();
     }
