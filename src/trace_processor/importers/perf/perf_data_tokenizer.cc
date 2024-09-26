@@ -36,6 +36,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -49,6 +50,7 @@
 #include "src/trace_processor/importers/perf/dso_tracker.h"
 #include "src/trace_processor/importers/perf/etm_tokenizer.h"
 #include "src/trace_processor/importers/perf/features.h"
+#include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
@@ -136,8 +138,7 @@ base::Status PerfDataTokenizer::Parse(TraceBlobView blob) {
   buffer_.PushBack(std::move(blob));
 
   base::StatusOr<ParsingResult> result = ParsingResult::kSuccess;
-  while (result.ok() && result.value() == ParsingResult::kSuccess &&
-         !buffer_.empty()) {
+  while (result.ok() && result.value() != ParsingResult::kMoreDataNeeded) {
     switch (parsing_state_) {
       case ParsingState::kParseHeader:
         result = ParseHeader();
@@ -168,7 +169,10 @@ base::Status PerfDataTokenizer::Parse(TraceBlobView blob) {
         break;
 
       case ParsingState::kDone:
-        result = base::ErrStatus("Unexpected data");
+        if (!buffer_.empty()) {
+          return base::ErrStatus("Unexpected data, %zu", buffer_.avail());
+        }
+        return base::OkStatus();
     }
   }
   return result.status();
@@ -238,6 +242,10 @@ PerfDataTokenizer::ParseAttrs() {
   }
 
   ASSIGN_OR_RETURN(perf_session_, builder.Build());
+  if (perf_session_->HasPerfClock()) {
+    context_->clock_tracker->SetTraceTimeClock(
+        protos::pbzero::BUILTIN_CLOCK_PERF);
+  }
   parsing_state_ = ParsingState::kSeekRecords;
   return ParsingResult::kSuccess;
 }
@@ -260,36 +268,46 @@ PerfDataTokenizer::ParseRecords() {
         !res.ok() || *res != ParsingResult::kSuccess) {
       return res;
     }
-    const uint32_t type = record.header.type;
-    switch (type) {
-      case PERF_RECORD_AUXTRACE:
-        PERFETTO_CHECK(!current_auxtrace_.has_value());
-        current_auxtrace_.emplace();
-        RETURN_IF_ERROR(current_auxtrace_->Parse(record));
-        parsing_state_ = ParsingState::kParseAuxtraceData;
-        return ParsingResult::kSuccess;
 
-      case PERF_RECORD_AUXTRACE_INFO:
-        RETURN_IF_ERROR(ProcessAuxtraceInfoRecord(std::move(record)));
-        break;
-
-      case PERF_RECORD_AUX:
-        RETURN_IF_ERROR(ProcessAuxRecord(std::move(record)));
-        break;
-
-      default:
-        if (!PushRecord(std::move(record)).ok()) {
-          context_->storage->IncrementIndexedStats(stats::perf_record_skipped,
-                                                   static_cast<int>(type));
-        }
-        break;
+    if (record.header.type == PERF_RECORD_AUXTRACE) {
+      PERFETTO_CHECK(!current_auxtrace_.has_value());
+      current_auxtrace_.emplace();
+      RETURN_IF_ERROR(current_auxtrace_->Parse(record));
+      parsing_state_ = ParsingState::kParseAuxtraceData;
+      return ParsingResult::kSuccess;
     }
+
+    RETURN_IF_ERROR(ProcessRecord(std::move(record)));
   }
 
   RETURN_IF_ERROR(aux_manager_.FinalizeStreams());
 
   parsing_state_ = ParsingState::kParseFeatureSections;
   return ParsingResult::kSuccess;
+}
+
+base::Status PerfDataTokenizer::ProcessRecord(Record record) {
+  const uint32_t type = record.header.type;
+  switch (type) {
+    case PERF_RECORD_AUXTRACE:
+      PERFETTO_FATAL("Unreachable");
+
+    case PERF_RECORD_AUXTRACE_INFO:
+      return ProcessAuxtraceInfoRecord(std::move(record));
+
+    case PERF_RECORD_AUX:
+      return ProcessAuxRecord(std::move(record));
+
+    case PERF_RECORD_TIME_CONV:
+      return ProcessTimeConvRecord(std::move(record));
+
+    case PERF_RECORD_ITRACE_START:
+      return ProcessItraceStartRecord(std::move(record));
+
+    default:
+      MaybePushRecord(std::move(record));
+      return base::OkStatus();
+  }
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
@@ -335,10 +353,9 @@ base::StatusOr<int64_t> PerfDataTokenizer::ExtractTraceTimestamp(
 
   base::StatusOr<int64_t> trace_ts =
       time.has_value()
-          ? context_->clock_tracker->ToTraceTime(
-                protos::pbzero::ClockSnapshot::Clock::MONOTONIC,
-                static_cast<int64_t>(*time))
-          : std::max(latest_timestamp_, context_->sorter->max_timestamp());
+          ? context_->clock_tracker->ToTraceTime(record.attr->clock_id(),
+                                                 static_cast<int64_t>(*time))
+          : std::min(latest_timestamp_, context_->sorter->max_timestamp());
 
   if (PERFETTO_LIKELY(trace_ts.ok())) {
     latest_timestamp_ = std::max(latest_timestamp_, *trace_ts);
@@ -346,13 +363,14 @@ base::StatusOr<int64_t> PerfDataTokenizer::ExtractTraceTimestamp(
 
   return trace_ts;
 }
-
-base::Status PerfDataTokenizer::PushRecord(Record record) {
-  ASSIGN_OR_RETURN(int64_t trace_ts, ExtractTraceTimestamp(record));
-
-  context_->sorter->PushPerfRecord(trace_ts, std::move(record));
-
-  return base::OkStatus();
+void PerfDataTokenizer::MaybePushRecord(Record record) {
+  base::StatusOr<int64_t> trace_ts = ExtractTraceTimestamp(record);
+  if (!trace_ts.ok()) {
+    context_->storage->IncrementIndexedStats(
+        stats::perf_record_skipped, static_cast<int>(record.header.type));
+    return;
+  }
+  context_->sorter->PushPerfRecord(*trace_ts, std::move(record));
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
@@ -485,6 +503,16 @@ base::Status PerfDataTokenizer::ProcessAuxRecord(Record record) {
   return aux_manager_.OnAuxRecord(std::move(aux));
 }
 
+base::Status PerfDataTokenizer::ProcessTimeConvRecord(Record record) {
+  Reader reader(std::move(record.payload));
+  TimeConvRecord time_conv;
+  if (!reader.Read(time_conv)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_TIME_CONV");
+  }
+
+  return aux_manager_.OnTimeConvRecord(std::move(time_conv));
+}
+
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseAuxtraceData() {
   PERFETTO_CHECK(current_auxtrace_.has_value());
@@ -504,7 +532,15 @@ PerfDataTokenizer::ParseAuxtraceData() {
   current_auxtrace_.reset();
   parsing_state_ = ParsingState::kParseRecords;
   RETURN_IF_ERROR(status);
-  return ParsingResult::kSuccess;
+  return ParseRecords();
+}
+
+base::Status PerfDataTokenizer::ProcessItraceStartRecord(Record record) {
+  ItraceStartRecord start;
+  RETURN_IF_ERROR(start.Parse(record));
+  aux_manager_.OnItraceStartRecord(std::move(start));
+  MaybePushRecord(std::move(record));
+  return base::OkStatus();
 }
 
 base::Status PerfDataTokenizer::NotifyEndOfFile() {

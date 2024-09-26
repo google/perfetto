@@ -98,7 +98,6 @@ source_set("common") {
     "../../util:profiler_util",
     "../../util:trace_type",
     "../fuchsia:fuchsia_record",
-    "../perf:record",
     "../systrace:systrace_line",
   ]
 }

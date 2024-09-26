@@ -18,15 +18,21 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_AUX_STREAM_MANAGER_H_
 
 #include <cstdint>
-#include <map>
+#include <functional>
 #include <memory>
+#include <optional>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
+#include "src/trace_processor/importers/perf/itrace_start_record.h"
+#include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/time_conv_record.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -34,23 +40,24 @@ class TraceProcessorContext;
 
 namespace perf_importer {
 
-class AuxDataTokenizer;
-class AuxDataTokenizerFactory;
 struct Record;
 class SampleId;
 struct AuxtraceInfoRecord;
+
+class AuxStreamManager;
 
 // Takes care of reconstructing the original data stream out of AUX and AUXTRACE
 // records. Does not parse tha actual data it just forwards it to the associated
 // `AuxDataTokenizer` .
 class AuxStream {
  public:
-  AuxStream(TraceProcessorContext* context,
-            std::unique_ptr<AuxDataTokenizer> tokenizer);
   ~AuxStream();
   base::Status OnAuxRecord(AuxRecord aux);
   base::Status OnAuxtraceRecord(AuxtraceRecord auxtrace, TraceBlobView data);
   base::Status NotifyEndOfStream();
+  base::Status OnItraceStartRecord(ItraceStartRecord start) {
+    return tokenizer_->OnItraceStartRecord(std::move(start));
+  }
 
  private:
   class AuxtraceDataChunk {
@@ -70,9 +77,12 @@ class AuxStream {
     TraceBlobView data_;
   };
 
+  friend AuxStreamManager;
+  explicit AuxStream(AuxStreamManager* manager);
+
   base::Status MaybeParse();
 
-  TraceProcessorContext* const context_;
+  AuxStreamManager& manager_;
   std::unique_ptr<AuxDataTokenizer> tokenizer_;
   base::CircularQueue<AuxRecord> outstanding_aux_records_;
   uint64_t aux_end_ = 0;
@@ -84,20 +94,32 @@ class AuxStream {
 // Keeps track of all aux streams in a perf file.
 class AuxStreamManager {
  public:
-  explicit AuxStreamManager(TraceProcessorContext* context);
-  ~AuxStreamManager();
+  explicit AuxStreamManager(TraceProcessorContext* context)
+      : context_(context) {}
   base::Status OnAuxtraceInfoRecord(AuxtraceInfoRecord info);
   base::Status OnAuxRecord(AuxRecord aux);
   base::Status OnAuxtraceRecord(AuxtraceRecord auxtrace, TraceBlobView data);
+  base::Status OnItraceStartRecord(ItraceStartRecord start);
+  base::Status OnTimeConvRecord(TimeConvRecord time_conv) {
+    time_conv_ = std::move(time_conv);
+    return base::OkStatus();
+  }
 
   base::Status FinalizeStreams();
 
- private:
-  base::StatusOr<AuxStream*> GetOrCreateStreamForCpu(uint32_t cpu);
+  TraceProcessorContext* context() const { return context_; }
 
-  TraceProcessorContext* context_;
+ private:
+  base::StatusOr<std::reference_wrapper<AuxStream>>
+  GetOrCreateStreamForSampleId(const std::optional<SampleId>& sample_id);
+  base::StatusOr<std::reference_wrapper<AuxStream>> GetOrCreateStreamForCpu(
+      uint32_t cpu);
+
+  TraceProcessorContext* const context_;
   std::unique_ptr<AuxDataTokenizerFactory> tokenizer_factory_;
-  std::map<uint32_t, AuxStream> auxdata_streams_by_cpu_;
+  base::FlatHashMap<uint32_t, std::unique_ptr<AuxStream>>
+      auxdata_streams_by_cpu_;
+  std::optional<TimeConvRecord> time_conv_;
 };
 
 }  // namespace perf_importer

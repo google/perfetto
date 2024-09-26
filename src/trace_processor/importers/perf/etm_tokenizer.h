@@ -25,11 +25,10 @@
 
 namespace perfetto {
 namespace trace_processor {
-class TraceProcessorContext;
 namespace perf_importer {
 
 base::StatusOr<std::unique_ptr<AuxDataTokenizerFactory>>
-CreateEtmTokenizerFactory(TraceProcessorContext* context, TraceBlobView info);
+CreateEtmTokenizerFactory(TraceBlobView info);
 
 }  // namespace perf_importer
 }  // namespace trace_processor

@@ -18,10 +18,12 @@
 #include <memory>
 
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
+#include "src/trace_processor/importers/perf/perf_session.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -102,11 +104,11 @@ util::Status EtmConfiguration::Parse(TraceBlobView data) {
 }  // namespace
 
 base::StatusOr<std::unique_ptr<AuxDataTokenizerFactory>>
-CreateEtmTokenizerFactory(TraceProcessorContext* context, TraceBlobView data) {
+CreateEtmTokenizerFactory(TraceBlobView data) {
   EtmConfiguration config;
   RETURN_IF_ERROR(config.Parse(std::move(data)));
   return std::unique_ptr<AuxDataTokenizerFactory>(
-      new DummyAuxDataTokenizerFactory(context));
+      new DummyAuxDataTokenizerFactory());
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
