@@ -376,6 +376,13 @@ function onCssLoaded() {
 
   // Initialize plugins, now that we are ready to go
   pluginManager.initialize();
+
+  const route = Router.parseUrl(window.location.href);
+  for (const pluginId of (route.args.enablePlugins ?? '').split(',')) {
+    if (pluginManager.hasPlugin(pluginId)) {
+      pluginManager.activatePlugin(pluginId);
+    }
+  }
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.
