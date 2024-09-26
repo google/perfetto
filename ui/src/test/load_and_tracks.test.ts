@@ -93,8 +93,7 @@ test('track expand and collapse', async () => {
 
 test('pin tracks', async () => {
   const trackGroup = pth.locateTrackGroup('traced 1055');
-  await trackGroup.locator('.pf-track-title').click();
-  await pth.waitForPerfettoIdle();
+  await pth.toggleTrackGroup(trackGroup);
   let track = pth.locateTrack('traced 1055/mem.rss', trackGroup);
   await pth.pinTrackUsingShellBtn(track);
   await pth.waitForPerfettoIdle();
