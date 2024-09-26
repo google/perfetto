@@ -41,7 +41,7 @@ class FramesPlugin implements PerfettoPlugin {
         process.name as processName,
         process.pid as pid,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
-      from _process_track_summary_by_upid_and_name t
+      from _process_track_summary_by_upid_and_parent_id_and_name t
       join process using(upid)
       where t.name = "Expected Timeline"
     `);
@@ -99,7 +99,7 @@ class FramesPlugin implements PerfettoPlugin {
         process.name as processName,
         process.pid as pid,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
-      from _process_track_summary_by_upid_and_name t
+      from _process_track_summary_by_upid_and_parent_id_and_name t
       join process using(upid)
       where t.name = "Actual Timeline"
     `);
