@@ -294,6 +294,8 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
               });
             }
           }),
+          renderUnderlay,
+          renderOverlay,
         }),
         scrollingPanels.length === 0 &&
           filterTermIsValid(globals.state.trackFilterTerm)
