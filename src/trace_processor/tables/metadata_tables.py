@@ -201,6 +201,7 @@ CPU_TABLE = Table(
         C('processor', CppString()),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
         C('capacity', CppOptional(CppUint32())),
+        C('arg_set_id', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -223,9 +224,11 @@ the same cluster''',
                 '''
                   Capacity of a CPU of a device, a metric which indicates the
                   relative performance of a CPU on a device
-                  For details see: 
+                  For details see:
                   https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
                 ''',
+            'arg_set_id':
+                '''Extra args associated with the CPU''',
         }))
 
 RAW_TABLE = Table(
