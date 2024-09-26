@@ -70,7 +70,9 @@ CREATE PERFETTO VIEW cpu (
   -- relative performance of a CPU on a device
   -- For details see:
   -- https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
-  capacity UINT
+  capacity UINT,
+  -- Extra key/value pairs associated with this cpu.
+  arg_set_id UINT
 ) AS
 SELECT
   id,
@@ -80,7 +82,8 @@ SELECT
   cluster_id,
   processor,
   machine_id,
-  capacity
+  capacity,
+  arg_set_id
 FROM
   __intrinsic_cpu
 WHERE

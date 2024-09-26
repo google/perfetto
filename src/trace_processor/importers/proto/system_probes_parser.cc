@@ -108,11 +108,21 @@ std::optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
   return VersionStringToSdkVersion(version);
 }
 
+struct ArmCpuIdentifier {
+  uint32_t implementer;
+  uint32_t architecture;
+  uint32_t variant;
+  uint32_t part;
+  uint32_t revision;
+};
+
 struct CpuInfo {
   uint32_t cpu = 0;
   std::optional<uint32_t> capacity;
   std::vector<uint32_t> frequencies;
   protozero::ConstChars processor;
+  // Extend the variant to support additional identifiers
+  std::variant<std::nullopt_t, ArmCpuIdentifier> identifier = std::nullopt;
 };
 
 struct CpuMaxFrequency {
@@ -136,7 +146,14 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       thermal_unit_id_(context->storage->InternString("C")),
       gpufreq_id(context->storage->InternString("gpufreq")),
-      gpufreq_unit_id(context->storage->InternString("MHz")) {
+      gpufreq_unit_id(context->storage->InternString("MHz")),
+      arm_cpu_implementer(
+          context->storage->InternString("arm_cpu_implementer")),
+      arm_cpu_architecture(
+          context->storage->InternString("arm_cpu_architecture")),
+      arm_cpu_variant(context->storage->InternString("arm_cpu_variant")),
+      arm_cpu_part(context->storage->InternString("arm_cpu_part")),
+      arm_cpu_revision(context->storage->InternString("arm_cpu_revision")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -821,9 +838,11 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   uint32_t cpu_id = 0;
   for (auto it = packet.cpus(); it; it++, cpu_id++) {
     protos::pbzero::CpuInfo::Cpu::Decoder cpu(*it);
+
     CpuInfo current_cpu_info;
     current_cpu_info.cpu = cpu_id;
     current_cpu_info.processor = cpu.processor();
+
     for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
       uint32_t current_cpu_frequency = *freq_it;
       current_cpu_info.frequencies.push_back(current_cpu_frequency);
@@ -831,6 +850,18 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     if (cpu.has_capacity()) {
       current_cpu_info.capacity = cpu.capacity();
     }
+
+    if (cpu.has_arm_identifier()) {
+      protos::pbzero::CpuInfo::ArmCpuIdentifier::Decoder identifier(
+          cpu.arm_identifier());
+
+      current_cpu_info.identifier = ArmCpuIdentifier{
+          identifier.implementer(), identifier.architecture(),
+          identifier.variant(),     identifier.part(),
+          identifier.revision(),
+      };
+    }
+
     cpu_infos.push_back(current_cpu_info);
   }
 
@@ -899,6 +930,17 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       cpu_freq_row.ucpu = ucpu;
       cpu_freq_row.freq = frequency;
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
+    }
+
+    if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
+      context_->args_tracker->AddArgsTo(ucpu)
+          .AddArg(arm_cpu_implementer,
+                  Variadic::UnsignedInteger(id->implementer))
+          .AddArg(arm_cpu_architecture,
+                  Variadic::UnsignedInteger(id->architecture))
+          .AddArg(arm_cpu_variant, Variadic::UnsignedInteger(id->variant))
+          .AddArg(arm_cpu_part, Variadic::UnsignedInteger(id->part))
+          .AddArg(arm_cpu_revision, Variadic::UnsignedInteger(id->revision));
     }
   }
 }
