@@ -80,6 +80,9 @@ export interface TrackComponentAttrs {
   // The title of this track.
   readonly title: string;
 
+  // The full path to this track.
+  readonly path?: string;
+
   // Show dropdown arrow and make clickable. Defaults to false.
   readonly collapsible?: boolean;
 
@@ -227,7 +230,7 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
           {
             onclick: collapsible ? () => attrs.onToggleCollapsed?.() : null,
             className: classNames(collapsible && 'pf-clickable'),
-            ref: attrs.title, // TODO(stevegolton): Replace with aria tags
+            ref: attrs.path, // TODO(stevegolton): Replace with aria tags?
           },
           collapsible &&
             m(Icon, {icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp}),
