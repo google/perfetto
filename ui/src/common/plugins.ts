@@ -154,6 +154,10 @@ export class PluginManager {
     }
   }
 
+  hasPlugin(pluginId: string): boolean {
+    return pluginRegistry.has(pluginId);
+  }
+
   isActive(pluginId: string): boolean {
     return this.getPluginContext(pluginId) !== undefined;
   }

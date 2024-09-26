@@ -47,8 +47,12 @@ export class PerfettoTestHelper {
     await this.page.click('body');
   }
 
-  async openTraceFile(traceName: string): Promise<void> {
-    await this.page.goto('/?testing=1');
+  async openTraceFile(traceName: string, args?: {}): Promise<void> {
+    args = {testing: '1', ...args};
+    const qs = Object.entries(args ?? {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join('&');
+    await this.page.goto('/?' + qs);
     const file = await this.page.waitForSelector('input.trace_file', {
       state: 'attached',
     });
