@@ -29,15 +29,17 @@ FROM thread_track
 JOIN _slice_track_summary USING (id)
 GROUP BY utid, name;
 
-CREATE PERFETTO TABLE _process_track_summary_by_upid_and_name AS
+CREATE PERFETTO TABLE _process_track_summary_by_upid_and_parent_id_and_name AS
 SELECT
+  id,
+  parent_id,
   upid,
   name,
   GROUP_CONCAT(id) AS track_ids,
   COUNT() AS track_count
 FROM process_track
 JOIN _slice_track_summary USING (id)
-GROUP BY upid, name;
+GROUP BY upid, parent_id, name;
 
 CREATE PERFETTO TABLE _uid_track_track_summary_by_uid_and_name AS
 SELECT
