@@ -76,6 +76,9 @@ const ROUTE_SCHEMA = z
     // Should we hide the sidebar?
     hideSidebar: z.boolean().optional().catch(undefined),
 
+    // A comma-separated list of plugins to enable for the current session.
+    enablePlugins: z.string().optional().catch(undefined),
+
     // Deep link support
     ts: z.string().optional().catch(undefined),
     dur: z.string().optional().catch(undefined),
