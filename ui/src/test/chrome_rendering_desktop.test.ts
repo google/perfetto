@@ -31,13 +31,11 @@ test('load trace', async () => {
 });
 
 test('expand browser', async () => {
-  const title = page.locator(
-    `h1.pf-track-title.pf-clickable[ref="Browser 12685"]`,
-  );
-  title.scrollIntoViewIfNeeded();
-  await title.click();
+  const grp = pth.locateTrackGroup('Browser 12685');
+  grp.scrollIntoViewIfNeeded();
+  await pth.toggleTrackGroup(grp);
   await pth.waitForIdleAndScreenshot('browser_expanded.png');
-  await title.click();
+  await pth.toggleTrackGroup(grp);
 });
 
 test('slice with flows', async () => {
