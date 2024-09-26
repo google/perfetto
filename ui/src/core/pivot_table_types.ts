@@ -1,4 +1,4 @@
-// Copyright (C) 2022 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,11 +13,59 @@
 // limitations under the License.
 
 import {SortDirection} from '../base/comparison_utils';
-import {EqualsBuilder} from '../common/comparator_builder';
+import {AreaSelection} from '../public/selection';
 import {ColumnType} from '../trace_processor/query_result';
+
+// Auxiliary metadata needed to parse the query result, as well as to render it
+// correctly. Generated together with the text of query and passed without the
+// change to the query response.
+
+export interface PivotTableQueryMetadata {
+  pivotColumns: TableColumn[];
+  aggregationColumns: Aggregation[];
+  countIndex: number;
+}
+// Everything that's necessary to run the query for pivot table
+
+export interface PivotTableQuery {
+  text: string;
+  metadata: PivotTableQueryMetadata;
+}
+// Pivot table query result
+
+export interface PivotTableResult {
+  // Hierarchical pivot structure on top of rows
+  tree: PivotTree;
+  // Copy of the query metadata from the request, bundled up with the query
+  // result to ensure the correct rendering.
+  metadata: PivotTableQueryMetadata;
+}
+// Input parameters to check whether the pivot table needs to be re-queried.
+
+export interface PivotTableState {
+  // Currently selected area, if null, pivot table is not going to be visible.
+  selectionArea?: AreaSelection;
+
+  // Query response
+  queryResult: PivotTableResult | undefined;
+
+  // Selected pivots for tables other than slice.
+  // Because of the query generation, pivoting happens first on non-slice
+  // pivots; therefore, those can't be put after slice pivots. In order to
+  // maintain the separation more clearly, slice and non-slice pivots are
+  // located in separate arrays.
+  selectedPivots: TableColumn[];
+
+  // Selected aggregation columns. Stored same way as pivots.
+  selectedAggregations: Aggregation[];
+
+  // Whether the pivot table results should be constrained to the selected area.
+  constrainToArea: boolean;
+}
 
 // Node in the hierarchical pivot tree. Only leaf nodes contain data from the
 // query result.
+
 export interface PivotTree {
   // Whether the node should be collapsed in the UI, false by default and can
   // be toggled with the button.
@@ -32,7 +80,6 @@ export interface PivotTree {
 }
 
 export type AggregationFunction = 'COUNT' | 'SUM' | 'MIN' | 'MAX' | 'AVG';
-
 // Queried "table column" is either:
 // 1. A real one, represented as object with table and column name.
 // 2. Pseudo-column 'count' that's rendered as '1' in SQL to use in queries like
@@ -102,6 +149,7 @@ export function aggregationEquals(agg1: Aggregation, agg2: Aggregation) {
 // ES6 does not support compound Set/Map keys. This function should only be used
 // for interning keys, and does not have any requirements beyond different
 // TableColumn objects mapping to different strings.
+
 export function columnKey(tableColumn: TableColumn): string {
   switch (tableColumn.kind) {
     case 'argument': {
@@ -115,4 +163,44 @@ export function columnKey(tableColumn: TableColumn): string {
 
 export function aggregationKey(aggregation: Aggregation): string {
   return `${aggregation.aggregationFunction}:${columnKey(aggregation.column)}`;
+}
+
+export const COUNT_AGGREGATION: Aggregation = {
+  aggregationFunction: 'COUNT',
+  // Exact column is ignored for count aggregation because it does not matter
+  // what to count, use empty strings.
+  column: {kind: 'regular', table: '', column: ''},
+};
+
+// Simple builder-style class to implement object equality more succinctly.
+class EqualsBuilder<T> {
+  result = true;
+  first: T;
+  second: T;
+
+  constructor(first: T, second: T) {
+    this.first = first;
+    this.second = second;
+  }
+
+  comparePrimitive(getter: (arg: T) => string | number): EqualsBuilder<T> {
+    if (this.result) {
+      this.result = getter(this.first) === getter(this.second);
+    }
+    return this;
+  }
+
+  compare<S>(
+    comparator: (first: S, second: S) => boolean,
+    getter: (arg: T) => S,
+  ): EqualsBuilder<T> {
+    if (this.result) {
+      this.result = comparator(getter(this.first), getter(this.second));
+    }
+    return this;
+  }
+
+  equals(): boolean {
+    return this.result;
+  }
 }
