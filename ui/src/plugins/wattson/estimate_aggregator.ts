@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Area} from '../../public/selection';
-import {globals} from '../../frontend/globals';
+import {Area, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
 import {AreaSelectionAggregator} from '../../public/selection';
@@ -25,12 +24,11 @@ export class WattsonEstimateSelectionAggregator
 {
   readonly id = 'wattson_estimate_aggregation';
 
-  async createAggregateView(engine: Engine, area: Area) {
+  async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);
 
     const estimateTracks: string[] = [];
-    for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.getTrack(trackUri);
+    for (const trackInfo of area.tracks) {
       if (
         trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND &&
         exists(trackInfo.tags?.wattson)

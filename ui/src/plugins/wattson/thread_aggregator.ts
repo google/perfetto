@@ -14,8 +14,7 @@
 
 import {exists} from '../../base/utils';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Area} from '../../public/selection';
-import {globals} from '../../frontend/globals';
+import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {AreaSelectionAggregator} from '../../public/selection';
@@ -25,12 +24,11 @@ export class WattsonThreadSelectionAggregator
 {
   readonly id = 'wattson_thread_aggregation';
 
-  async createAggregateView(engine: Engine, area: Area) {
+  async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);
 
     const selectedCpus: number[] = [];
-    for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.getTrack(trackUri);
+    for (const trackInfo of area.tracks) {
       if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
         exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
       }

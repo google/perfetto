@@ -14,8 +14,7 @@
 
 import {Duration} from '../../base/time';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Area} from '../../public/selection';
-import {globals} from '../../frontend/globals';
+import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
@@ -23,10 +22,9 @@ import {AreaSelectionAggregator} from '../../public/selection';
 export class CounterSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'counter_aggregation';
 
-  async createAggregateView(engine: Engine, area: Area) {
+  async createAggregateView(engine: Engine, area: AreaSelection) {
     const trackIds: (string | number)[] = [];
-    for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.getTrack(trackUri);
+    for (const trackInfo of area.tracks) {
       if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
       }

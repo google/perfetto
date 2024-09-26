@@ -14,30 +14,29 @@
 
 import {exists} from '../../base/utils';
 import {ColumnDef, Sorting, ThreadStateExtra} from '../../public/aggregation';
-import {Area} from '../../public/selection';
+import {AreaSelection} from '../../public/selection';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {translateState} from '../../trace_processor/sql_utils/thread_state';
+import {TrackDescriptor} from '../../public/track';
 
 export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'thread_state_aggregation';
   private utids?: number[];
 
-  setThreadStateUtids(tracks: ReadonlyArray<string>) {
+  setThreadStateUtids(tracks: ReadonlyArray<TrackDescriptor>) {
     this.utids = [];
-    for (const trackUri of tracks) {
-      const trackInfo = globals.trackManager.getTrack(trackUri);
+    for (const trackInfo of tracks) {
       if (trackInfo?.tags?.kind === THREAD_STATE_TRACK_KIND) {
         exists(trackInfo.tags.utid) && this.utids.push(trackInfo.tags.utid);
       }
     }
   }
 
-  async createAggregateView(engine: Engine, area: Area) {
-    this.setThreadStateUtids(area.trackUris);
+  async createAggregateView(engine: Engine, area: AreaSelection) {
+    this.setThreadStateUtids(area.tracks);
     if (this.utids === undefined || this.utids.length === 0) return false;
 
     await engine.query(`
@@ -63,8 +62,11 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
     return true;
   }
 
-  async getExtra(engine: Engine, area: Area): Promise<ThreadStateExtra | void> {
-    this.setThreadStateUtids(area.trackUris);
+  async getExtra(
+    engine: Engine,
+    area: AreaSelection,
+  ): Promise<ThreadStateExtra | void> {
+    this.setThreadStateUtids(area.tracks);
     if (this.utids === undefined || this.utids.length === 0) return;
 
     const query = `

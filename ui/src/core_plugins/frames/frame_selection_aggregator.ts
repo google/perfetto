@@ -13,19 +13,17 @@
 // limitations under the License.
 
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Area} from '../../public/selection';
+import {AreaSelection} from '../../public/selection';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
 
 export class FrameSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'frame_aggregation';
 
-  async createAggregateView(engine: Engine, area: Area) {
+  async createAggregateView(engine: Engine, area: AreaSelection) {
     const selectedSqlTrackIds: number[] = [];
-    for (const trackUri of area.trackUris) {
-      const trackInfo = globals.trackManager.getTrack(trackUri);
+    for (const trackInfo of area.tracks) {
       if (trackInfo?.tags?.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
         trackInfo.tags.trackIds &&
           selectedSqlTrackIds.push(...trackInfo.tags.trackIds);
