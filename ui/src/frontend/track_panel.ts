@@ -96,6 +96,7 @@ export class TrackPanel implements Panel {
     return m(TrackWidget, {
       id: node.id,
       title: node.title,
+      path: node.fullPath.join('/'),
       heightPx: this.heightPx,
       error: trackRenderer?.getError(),
       chips: trackRenderer?.desc.chips,

@@ -111,24 +111,34 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     const result = await ctx.engine.query(`
       select
         upid,
+        t.id,
         t.name as trackName,
         t.track_ids as trackIds,
         process.name as processName,
         process.pid as pid,
+        t.parent_id as parentId,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
-      from _process_track_summary_by_upid_and_name t
+      from _process_track_summary_by_upid_and_parent_id_and_name t
       join process using(upid)
       where t.name is null or t.name not glob "* Timeline"
     `);
 
     const it = result.iter({
       upid: NUM,
+      parentId: NUM_NULL,
       trackName: STR_NULL,
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
       maxDepth: NUM,
+      id: NUM,
     });
+
+    const trackMap = new Map<
+      number,
+      {parentId: number | null; upid: number; trackNode: TrackNode}
+    >();
+
     for (; it.valid(); it.next()) {
       const upid = it.upid;
       const trackName = it.trackName;
@@ -159,10 +169,20 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         },
         track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
       });
-      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title, sortOrder: 30});
-      group.addChildInOrder(track);
+      trackMap.set(it.id, {trackNode: track, parentId: it.parentId, upid});
     }
+
+    // Attach track nodes to parents / or the workspace if they have no parent
+    trackMap.forEach((t) => {
+      const parent = exists(t.parentId) && trackMap.get(t.parentId);
+      if (parent !== false && parent !== undefined) {
+        parent.trackNode.addChildLast(t.trackNode);
+      } else {
+        const processGroup = getOrCreateGroupForProcess(ctx.workspace, t.upid);
+        processGroup.addChildLast(t.trackNode);
+      }
+    });
   }
 
   async addThreadAsyncSliceTracks(ctx: Trace): Promise<void> {

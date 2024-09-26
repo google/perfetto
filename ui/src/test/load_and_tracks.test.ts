@@ -95,12 +95,12 @@ test('pin tracks', async () => {
   const trackGroup = pth.locateTrackGroup('traced 1055');
   await trackGroup.locator('.pf-track-title').click();
   await pth.waitForPerfettoIdle();
-  let track = pth.locateTrack('mem.rss', trackGroup);
+  let track = pth.locateTrack('traced 1055/mem.rss', trackGroup);
   await pth.pinTrackUsingShellBtn(track);
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('one_track_pinned.png');
 
-  track = pth.locateTrack('traced 1055', trackGroup);
+  track = pth.locateTrack('traced 1055/traced 1055', trackGroup);
   await pth.pinTrackUsingShellBtn(track);
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('two_tracks_pinned.png');
