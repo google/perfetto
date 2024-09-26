@@ -47,6 +47,7 @@ AuxRecord CreateAuxRecord(uint64_t offset, uint64_t size, uint32_t cpu) {
   AuxRecord aux;
   aux.offset = offset;
   aux.size = size;
+  aux.flags = 0;
   aux.sample_id.emplace();
   aux.sample_id->set_cpu(cpu);
   return aux;

@@ -14,22 +14,27 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/perf/auxtrace_info_record.h"
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_ITRACE_START_RECORD_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_ITRACE_START_RECORD_H_
+
+#include <cstdint>
+#include <optional>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/importers/perf/reader.h"
-#include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/importers/perf/sample_id.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
-base::Status AuxtraceInfoRecord::Parse(const Record& record) {
-  Reader reader(record.payload.copy());
+struct Record;
 
-  if (!reader.Read(type) || !reader.Read(reserved) ||
-      !reader.ReadBlob(payload, static_cast<uint32_t>(reader.size_left()))) {
-    return base::ErrStatus("Failed to parse PERF_RECORD_AUXTRACE_INFO");
-  }
-  return base::OkStatus();
-}
+struct ItraceStartRecord {
+  uint32_t pid;
+  uint32_t tid;
+  std::optional<SampleId> sample_id;
+
+  base::Status Parse(const Record& record);
+};
 
 }  // namespace perfetto::trace_processor::perf_importer
+
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_ITRACE_START_RECORD_H_

@@ -21,11 +21,11 @@
 #include <optional>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample_id.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
+struct Record;
 struct AuxRecord {
   base::Status Parse(const Record& record);
   uint64_t end() const { return offset + size; }

@@ -26,6 +26,7 @@
 #include <utility>
 
 #include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -96,6 +97,8 @@ class PerfEventAttr : public RefCounted {
 
   PerfCounter& GetOrCreateCounter(uint32_t cpu);
 
+  ClockTracker::ClockId clock_id() const { return clock_id_; }
+
  private:
   bool is_timebase() const {
     // This is what simpleperf uses for events that are not supposed to sample
@@ -106,6 +109,7 @@ class PerfEventAttr : public RefCounted {
   PerfCounter CreateCounter(uint32_t cpu) const;
 
   TraceProcessorContext* const context_;
+  const ClockTracker::ClockId clock_id_;
   tables::PerfSessionTable::Id perf_session_id_;
   perf_event_attr attr_;
   std::optional<size_t> time_offset_from_start_;

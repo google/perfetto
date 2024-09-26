@@ -15,8 +15,13 @@
  */
 
 #include "src/trace_processor/importers/perf/aux_stream_manager.h"
+
+#include <cinttypes>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <utility>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -24,15 +29,23 @@
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
 #include "src/trace_processor/importers/perf/etm_tokenizer.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
-AuxStreamManager::AuxStreamManager(TraceProcessorContext* context)
-    : context_(context) {}
-AuxStreamManager::~AuxStreamManager() = default;
+base::StatusOr<std::reference_wrapper<AuxStream>>
+AuxStreamManager::GetOrCreateStreamForSampleId(
+    const std::optional<SampleId>& sample_id) {
+  if (!sample_id.has_value() || !sample_id->cpu().has_value()) {
+    return base::ErrStatus(
+        "Aux data handling only implemented for per cpu data.");
+  }
+  return GetOrCreateStreamForCpu(*sample_id->cpu());
+}
 
 base::Status AuxStreamManager::OnAuxtraceInfoRecord(AuxtraceInfoRecord info) {
   if (tokenizer_factory_) {
@@ -40,18 +53,16 @@ base::Status AuxStreamManager::OnAuxtraceInfoRecord(AuxtraceInfoRecord info) {
   }
 
   switch (info.type) {
-    case AUX_TYPE_ETM: {
-      ASSIGN_OR_RETURN(
-          tokenizer_factory_,
-          CreateEtmTokenizerFactory(context_, std::move(info.payload)));
+    case PERF_AUXTRACE_CS_ETM: {
+      ASSIGN_OR_RETURN(tokenizer_factory_,
+                       CreateEtmTokenizerFactory(std::move(info.payload)));
       break;
     }
     default:
       context_->storage->IncrementIndexedStats(stats::perf_unknown_aux_data,
                                                static_cast<int>(info.type));
 
-      tokenizer_factory_ =
-          std::make_unique<DummyAuxDataTokenizerFactory>(context_);
+      tokenizer_factory_ = std::make_unique<DummyAuxDataTokenizerFactory>();
       break;
   }
   return base::OkStatus();
@@ -62,14 +73,9 @@ base::Status AuxStreamManager::OnAuxRecord(AuxRecord aux) {
     return base::ErrStatus(
         "PERF_RECORD_AUX without previous PERF_RECORD_AUXTRACE_INFO.");
   }
-
-  if (!aux.sample_id.has_value() || !aux.sample_id->cpu().has_value()) {
-    return base::ErrStatus(
-        "Aux data handling only implemented for per cpu data.");
-  }
-  ASSIGN_OR_RETURN(AuxStream * stream,
-                   GetOrCreateStreamForCpu(*aux.sample_id->cpu()));
-  return stream->OnAuxRecord(aux);
+  ASSIGN_OR_RETURN(AuxStream & stream,
+                   GetOrCreateStreamForSampleId(aux.sample_id));
+  return stream.OnAuxRecord(aux);
 }
 
 base::Status AuxStreamManager::OnAuxtraceRecord(AuxtraceRecord auxtrace,
@@ -86,48 +92,60 @@ base::Status AuxStreamManager::OnAuxtraceRecord(AuxtraceRecord auxtrace,
     return base::ErrStatus(
         "Aux data handling only implemented for per cpu data.");
   }
-  ASSIGN_OR_RETURN(AuxStream * stream, GetOrCreateStreamForCpu(auxtrace.cpu));
-  return stream->OnAuxtraceRecord(std::move(auxtrace), std::move(data));
+  ASSIGN_OR_RETURN(AuxStream & stream, GetOrCreateStreamForCpu(auxtrace.cpu));
+  return stream.OnAuxtraceRecord(std::move(auxtrace), std::move(data));
+}
+
+base::Status AuxStreamManager::OnItraceStartRecord(ItraceStartRecord start) {
+  ASSIGN_OR_RETURN(AuxStream & stream,
+                   GetOrCreateStreamForSampleId(start.sample_id));
+  return stream.OnItraceStartRecord(std::move(start));
 }
 
 base::Status AuxStreamManager::FinalizeStreams() {
-  for (auto it = auxdata_streams_by_cpu_.begin();
-       it != auxdata_streams_by_cpu_.end(); ++it) {
-    RETURN_IF_ERROR(it->second.NotifyEndOfStream());
+  for (auto it = auxdata_streams_by_cpu_.GetIterator(); it; ++it) {
+    RETURN_IF_ERROR(it.value()->NotifyEndOfStream());
   }
 
   return base::OkStatus();
 }
 
-base::StatusOr<AuxStream*> AuxStreamManager::GetOrCreateStreamForCpu(
-    uint32_t cpu) {
+base::StatusOr<std::reference_wrapper<AuxStream>>
+AuxStreamManager::GetOrCreateStreamForCpu(uint32_t cpu) {
   PERFETTO_CHECK(tokenizer_factory_);
-  auto it = auxdata_streams_by_cpu_.find(cpu);
-  if (it == auxdata_streams_by_cpu_.end()) {
+  std::unique_ptr<AuxStream>* stream_ptr = auxdata_streams_by_cpu_.Find(cpu);
+  if (!stream_ptr) {
+    std::unique_ptr<AuxStream> stream(new AuxStream(this));
     ASSIGN_OR_RETURN(std::unique_ptr<AuxDataTokenizer> tokenizer,
-                     tokenizer_factory_->CreateForCpu(cpu));
-
-    it = auxdata_streams_by_cpu_
-             .emplace(std::piecewise_construct, std::make_tuple(cpu),
-                      std::make_tuple(context_, std::move(tokenizer)))
-             .first;
+                     tokenizer_factory_->Create(context_, stream.get()));
+    stream->tokenizer_ = std::move(tokenizer);
+    stream_ptr = auxdata_streams_by_cpu_.Insert(cpu, std::move(stream)).first;
   }
 
-  return &it->second;
+  return std::ref(**stream_ptr);
 }
 
-AuxStream::AuxStream(TraceProcessorContext* context,
-                     std::unique_ptr<AuxDataTokenizer> tokenizer)
-    : context_(context), tokenizer_(std::move(tokenizer)) {}
+AuxStream::AuxStream(AuxStreamManager* manager) : manager_(*manager) {}
 AuxStream::~AuxStream() = default;
 
 base::Status AuxStream::OnAuxRecord(AuxRecord aux) {
   if (aux.offset < aux_end_) {
-    return base::ErrStatus("Overlapping AuxRecord");
+    return base::ErrStatus("Overlapping AuxRecord. Got %" PRIu64
+                           ", expected at least %" PRIu64,
+                           aux.offset, aux_end_);
   }
   if (aux.offset > aux_end_) {
-    context_->storage->IncrementStats(
+    manager_.context()->storage->IncrementStats(
         stats::perf_aux_missing, static_cast<int64_t>(aux.offset - aux_end_));
+  }
+  if (aux.flags & PERF_AUX_FLAG_TRUNCATED) {
+    manager_.context()->storage->IncrementStats(stats::perf_aux_truncated);
+  }
+  if (aux.flags & PERF_AUX_FLAG_PARTIAL) {
+    manager_.context()->storage->IncrementStats(stats::perf_aux_partial);
+  }
+  if (aux.flags & PERF_AUX_FLAG_COLLISION) {
+    manager_.context()->storage->IncrementStats(stats::perf_aux_collision);
   }
   outstanding_aux_records_.emplace_back(std::move(aux));
   aux_end_ = aux.end();
@@ -141,7 +159,7 @@ base::Status AuxStream::OnAuxtraceRecord(AuxtraceRecord auxtrace,
     return base::ErrStatus("Overlapping AuxtraceData");
   }
   if (auxtrace.offset > auxtrace_end_) {
-    context_->storage->IncrementStats(
+    manager_.context()->storage->IncrementStats(
         stats::perf_auxtrace_missing,
         static_cast<int64_t>(auxtrace.offset - auxtrace_end_));
   }
@@ -198,11 +216,11 @@ base::Status AuxStream::MaybeParse() {
 
 base::Status AuxStream::NotifyEndOfStream() {
   if (aux_end_ < auxtrace_end_) {
-    context_->storage->IncrementStats(
+    manager_.context()->storage->IncrementStats(
         stats::perf_aux_missing,
         static_cast<int64_t>(auxtrace_end_ - aux_end_));
   } else if (auxtrace_end_ < aux_end_) {
-    context_->storage->IncrementStats(
+    manager_.context()->storage->IncrementStats(
         stats::perf_auxtrace_missing,
         static_cast<int64_t>(aux_end_ - auxtrace_end_));
   }

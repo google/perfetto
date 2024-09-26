@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/reader.h"
@@ -188,6 +189,15 @@ void PerfSession::SetCmdline(const std::vector<std::string>& args) {
       ->FindById(perf_session_id_)
       ->set_cmdline(context_->storage->InternString(
           base::StringView(base::Join(args, " "))));
+}
+
+bool PerfSession::HasPerfClock() const {
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    if (it.value()->clock_id() == protos::pbzero::BUILTIN_CLOCK_PERF) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/importers/perf/mmap_record.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
@@ -115,6 +116,9 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
 
     case PERF_RECORD_MMAP2:
       return ParseMmap2(std::move(record));
+
+    case PERF_RECORD_ITRACE_START:
+      return ParseItraceStart(std::move(record));
 
     case PERF_RECORD_AUX:
     case PERF_RECORD_AUXTRACE:
@@ -290,6 +294,13 @@ base::Status RecordParser::ParseMmap2(Record record) {
       GetUpid(mmap2), BuildCreateMappingParams(mmap2, std::move(mmap2.filename),
                                                std::move(build_id)));
 
+  return base::OkStatus();
+}
+
+base::Status RecordParser::ParseItraceStart(Record record) {
+  ItraceStartRecord start;
+  RETURN_IF_ERROR(start.Parse(record));
+  context_->process_tracker->UpdateThread(start.tid, start.pid);
   return base::OkStatus();
 }
 

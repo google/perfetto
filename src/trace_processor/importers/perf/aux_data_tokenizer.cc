@@ -22,38 +22,36 @@
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
+#include "src/trace_processor/importers/perf/aux_stream_manager.h"
+#include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::perf_importer {
-namespace {
-class DummyAuxDataTokenizer : public AuxDataTokenizer {
- public:
-  explicit DummyAuxDataTokenizer(TraceProcessorContext* context)
-      : context_(context) {}
-  void OnDataLoss(uint64_t size) override {
-    context_->storage->IncrementStats(stats::perf_aux_lost,
-                                      static_cast<int>(size));
-  }
-  base::Status Parse(AuxRecord, TraceBlobView data) override {
-    context_->storage->IncrementStats(stats::perf_aux_ignored,
-                                      static_cast<int>(data.size()));
-    return base::OkStatus();
-  }
-  base::Status NotifyEndOfStream() override { return base::OkStatus(); }
-
- private:
-  TraceProcessorContext* const context_;
-};
-}  // namespace
 
 AuxDataTokenizer::~AuxDataTokenizer() = default;
 AuxDataTokenizerFactory::~AuxDataTokenizerFactory() = default;
 
-base::StatusOr<std::unique_ptr<AuxDataTokenizer>>
-DummyAuxDataTokenizerFactory::CreateForCpu(uint32_t) {
-  return std::unique_ptr<AuxDataTokenizer>(new DummyAuxDataTokenizer(context_));
+DummyAuxDataTokenizer::DummyAuxDataTokenizer(TraceProcessorContext* context,
+                                             AuxStream*)
+    : context_(context) {}
+
+void DummyAuxDataTokenizer::OnDataLoss(uint64_t size) {
+  context_->storage->IncrementStats(stats::perf_aux_lost,
+                                    static_cast<int>(size));
+}
+base::Status DummyAuxDataTokenizer::Parse(AuxRecord, TraceBlobView data) {
+  context_->storage->IncrementStats(stats::perf_aux_ignored,
+                                    static_cast<int>(data.size()));
+  return base::OkStatus();
+}
+base::Status DummyAuxDataTokenizer::NotifyEndOfStream() {
+  return base::OkStatus();
+}
+
+base::Status DummyAuxDataTokenizer::OnItraceStartRecord(ItraceStartRecord) {
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
