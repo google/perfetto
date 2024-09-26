@@ -16,7 +16,6 @@ import {assertExists} from '../base/logging';
 import {createStore, Store} from '../base/store';
 import {duration, Time, time} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
-import {AggregateData} from '../common/aggregation_data';
 import {CommandManagerImpl} from '../core/command_manager';
 import {
   ConversionJobName,
@@ -45,7 +44,6 @@ import {createFakeTraceImpl} from '../common/fake_trace_impl';
 
 type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
-type AggregateDataStore = Map<string, AggregateData>;
 
 export interface FlowPoint {
   trackId: number;
@@ -128,7 +126,6 @@ class Globals {
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
   private _overviewStore?: OverviewStore = undefined;
-  private _aggregateDataStore?: AggregateDataStore = undefined;
   private _threadMap?: ThreadMap = undefined;
   private _connectedFlows?: Flow[] = undefined;
   private _selectedFlows?: Flow[] = undefined;
@@ -223,7 +220,6 @@ class Globals {
     // entire file soon).
     this._trackDataStore = new Map<string, {}>();
     this._overviewStore = new Map<string, QuantizedLoad[]>();
-    this._aggregateDataStore = new Map<string, AggregateData>();
     this._threadMap = new Map<number, ThreadDesc>();
     this._connectedFlows = [];
     this._selectedFlows = [];
@@ -320,10 +316,6 @@ class Globals {
     this._visibleFlowCategories = assertExists(visibleFlowCategories);
   }
 
-  get aggregateDataStore(): AggregateDataStore {
-    return assertExists(this._aggregateDataStore);
-  }
-
   get traceErrors() {
     return this._traceErrors;
   }
@@ -414,10 +406,6 @@ class Globals {
 
   setRecordingLog(recordingLog: string) {
     this._recordingLog = recordingLog;
-  }
-
-  setAggregateData(kind: string, data: AggregateData) {
-    this.aggregateDataStore.set(kind, data);
   }
 
   getCurrentEngine(): EngineConfig | undefined {

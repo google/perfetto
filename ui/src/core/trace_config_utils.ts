@@ -13,8 +13,6 @@
 // limitations under the License.
 
 import {EnableTracingRequest, TraceConfig} from '../protos';
-import {Engine} from '../trace_processor/engine';
-import {NUM} from '../trace_processor/query_result';
 
 // In this file are contained a few functions to simplify the proto parsing.
 
@@ -67,29 +65,4 @@ export function hasSystemDataSourceConfig(config: TraceConfig): boolean {
     }
   }
   return false;
-}
-
-export async function hasWattsonSupport(engine: Engine): Promise<boolean> {
-  // These tables are hard requirements and are the bare minimum needed for
-  // Wattson to run, so check that these tables are populated
-  const queryChecks: string[] = [
-    `
-    INCLUDE PERFETTO MODULE wattson.device_infos;
-    SELECT COUNT(*) as numRows FROM _wattson_device
-    `,
-    `
-    INCLUDE PERFETTO MODULE linux.cpu.frequency;
-    SELECT COUNT(*) as numRows FROM cpu_frequency_counters
-    `,
-    `
-    INCLUDE PERFETTO MODULE linux.cpu.idle;
-    SELECT COUNT(*) as numRows FROM cpu_idle_counters
-    `,
-  ];
-  for (const queryCheck of queryChecks) {
-    const checkValue = await engine.query(queryCheck);
-    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
-  }
-
-  return true;
 }
