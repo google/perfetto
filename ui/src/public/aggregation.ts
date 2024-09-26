@@ -17,26 +17,29 @@ export type Column = (
   | TimestampColumn
   | NumberColumn
   | StateColumn
-) & {title: string; columnId: string};
+) & {
+  readonly title: string;
+  readonly columnId: string;
+};
 
 export interface StringColumn {
-  kind: 'STRING';
-  data: Uint16Array;
+  readonly kind: 'STRING';
+  readonly data: Uint16Array;
 }
 
 export interface TimestampColumn {
-  kind: 'TIMESTAMP_NS';
-  data: Float64Array;
+  readonly kind: 'TIMESTAMP_NS';
+  readonly data: Float64Array;
 }
 
 export interface NumberColumn {
-  kind: 'NUMBER';
-  data: Uint16Array;
+  readonly kind: 'NUMBER';
+  readonly data: Uint16Array;
 }
 
 export interface StateColumn {
-  kind: 'STATE';
-  data: Uint16Array;
+  readonly kind: 'STATE';
+  readonly data: Uint16Array;
 }
 
 type TypedArrayConstructor =
@@ -44,21 +47,21 @@ type TypedArrayConstructor =
   | Float64ArrayConstructor
   | Uint32ArrayConstructor;
 export interface ColumnDef {
-  title: string;
-  kind: string;
-  sum?: boolean;
-  columnConstructor: TypedArrayConstructor;
-  columnId: string;
+  readonly title: string;
+  readonly kind: string;
+  readonly sum?: boolean;
+  readonly columnConstructor: TypedArrayConstructor;
+  readonly columnId: string;
 }
 
 export interface AggregateData {
-  tabName: string;
-  columns: Column[];
-  columnSums: string[];
+  readonly tabName: string;
+  readonly columns: Column[];
+  readonly columnSums: string[];
   // For string interning.
-  strings: string[];
+  readonly strings: string[];
   // Some aggregations will have extra info to display;
-  extra?: ThreadStateExtra;
+  readonly extra?: ThreadStateExtra;
 }
 
 export function isEmptyData(data: AggregateData) {
@@ -66,8 +69,13 @@ export function isEmptyData(data: AggregateData) {
 }
 
 export interface ThreadStateExtra {
-  kind: 'THREAD_STATE';
-  states: string[];
-  values: Float64Array;
-  totalMs: number;
+  readonly kind: 'THREAD_STATE';
+  readonly states: string[];
+  readonly values: Float64Array;
+  readonly totalMs: number;
+}
+
+export interface Sorting {
+  readonly column: string;
+  readonly direction: 'DESC' | 'ASC';
 }
