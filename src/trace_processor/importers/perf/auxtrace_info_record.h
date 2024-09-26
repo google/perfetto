@@ -27,6 +27,7 @@ struct Record;
 
 struct AuxtraceInfoRecord {
   uint32_t type;
+  uint32_t reserved;  // alignment
   TraceBlobView payload;
 
   base::Status Parse(const Record& record);

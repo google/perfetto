@@ -89,6 +89,8 @@ class PerfSession : public RefCounted {
 
   void SetIsSimpleperf() { is_simpleperf_ = true; }
 
+  bool HasPerfClock() const;
+
  private:
   struct BuildIdMapKey {
     int32_t pid;
