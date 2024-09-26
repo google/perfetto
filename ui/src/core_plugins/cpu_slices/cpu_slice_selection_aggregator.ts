@@ -13,15 +13,16 @@
 // limitations under the License.
 
 import {exists} from '../../base/utils';
-import {ColumnDef} from '../../common/aggregation_data';
-import {Sorting} from '../../common/state';
+import {ColumnDef, Sorting} from '../../public/aggregation';
 import {Area} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
-import {AggregationController} from './aggregation_controller';
+import {AreaSelectionAggregator} from '../../public/selection';
 
-export class CpuAggregationController extends AggregationController {
+export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
+  readonly id = 'cpu_aggregation';
+
   async createAggregateView(engine: Engine, area: Area) {
     const selectedCpus: number[] = [];
     for (const trackUri of area.trackUris) {
@@ -33,7 +34,7 @@ export class CpuAggregationController extends AggregationController {
     if (selectedCpus.length === 0) return false;
 
     await engine.query(`
-      create or replace perfetto table ${this.kind} as
+      create or replace perfetto table ${this.id} as
       select
         process.name as process_name,
         pid,

@@ -35,6 +35,7 @@ import {
   getOrCreateGroupForProcess,
   getOrCreateGroupForThread,
 } from '../../public/standard_groups';
+import {CounterSelectionAggregator} from './counter_selection_aggregator';
 
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
@@ -150,6 +151,10 @@ class CounterPlugin implements PerfettoPlugin {
     await this.addCpuPerfCounterTracks(ctx);
     await this.addThreadCounterTracks(ctx);
     await this.addProcessCounterTracks(ctx);
+
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new CounterSelectionAggregator(),
+    );
   }
 
   private async addCounterTracks(ctx: Trace) {

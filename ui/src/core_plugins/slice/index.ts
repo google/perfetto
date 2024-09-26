@@ -17,9 +17,14 @@ import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_regis
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getSliceTable} from './table';
+import {AsyncAndThreadSliceSelectionAggregator} from './async_and_thread_slice_selection_aggregator';
 
 class SlicePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace) {
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new AsyncAndThreadSliceSelectionAggregator(),
+    );
+
     sqlTableRegistry['slice'] = getSliceTable();
     ctx.commands.registerCommand({
       id: 'perfetto.ShowTable.slice',

@@ -13,17 +13,17 @@
 // limitations under the License.
 
 import {exists} from '../../base/utils';
-import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
-import {Sorting} from '../../common/state';
+import {ColumnDef, Sorting, ThreadStateExtra} from '../../public/aggregation';
 import {Area} from '../../public/selection';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {AggregationController} from './aggregation_controller';
+import {AreaSelectionAggregator} from '../../public/selection';
 import {translateState} from '../../trace_processor/sql_utils/thread_state';
 
-export class ThreadAggregationController extends AggregationController {
+export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
+  readonly id = 'thread_state_aggregation';
   private utids?: number[];
 
   setThreadStateUtids(tracks: ReadonlyArray<string>) {
@@ -41,7 +41,7 @@ export class ThreadAggregationController extends AggregationController {
     if (this.utids === undefined || this.utids.length === 0) return false;
 
     await engine.query(`
-      create or replace perfetto table ${this.kind} as
+      create or replace perfetto table ${this.id} as
       select
         process.name as process_name,
         process.pid,
@@ -87,22 +87,23 @@ export class ThreadAggregationController extends AggregationController {
       totalDur: NUM,
     });
 
-    const summary: ThreadStateExtra = {
-      kind: 'THREAD_STATE',
-      states: [],
-      values: new Float64Array(result.numRows()),
-      totalMs: 0,
-    };
-    summary.totalMs = 0;
+    let totalMs = 0;
+    const values = new Float64Array(result.numRows());
+    const states = [];
     for (let i = 0; it.valid(); ++i, it.next()) {
       const state = it.state == null ? undefined : it.state;
       const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
-      summary.states.push(translateState(state, ioWait));
+      states.push(translateState(state, ioWait));
       const ms = it.totalDur / 1000000;
-      summary.values[i] = ms;
-      summary.totalMs += ms;
+      values[i] = ms;
+      totalMs += ms;
     }
-    return summary;
+    return {
+      kind: 'THREAD_STATE',
+      states,
+      values,
+      totalMs,
+    };
   }
 
   getColumnDefinitions(): ColumnDef[] {

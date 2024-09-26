@@ -50,16 +50,6 @@ import {
   WasmEngineProxy,
 } from '../trace_processor/wasm_engine_proxy';
 import {showModal} from '../widgets/modal';
-import {CounterAggregationController} from './aggregation/counter_aggregation_controller';
-import {CpuAggregationController} from './aggregation/cpu_aggregation_controller';
-import {CpuByProcessAggregationController} from './aggregation/cpu_by_process_aggregation_controller';
-import {FrameAggregationController} from './aggregation/frame_aggregation_controller';
-import {SliceAggregationController} from './aggregation/slice_aggregation_controller';
-import {WattsonEstimateAggregationController} from './aggregation/wattson/estimate_aggregation_controller';
-import {WattsonThreadAggregationController} from './aggregation/wattson/thread_aggregation_controller';
-import {WattsonProcessAggregationController} from './aggregation/wattson/process_aggregation_controller';
-import {WattsonPackageAggregationController} from './aggregation/wattson/package_aggregation_controller';
-import {ThreadAggregationController} from './aggregation/thread_aggregation_controller';
 import {Child, Children, Controller} from './controller';
 import {
   FlowEventsController,
@@ -251,87 +241,6 @@ export class TraceController extends Controller<States> {
           Child('flowEvents', FlowEventsController, flowEventsArgs),
         );
 
-        childControllers.push(
-          Child('cpu_aggregation', CpuAggregationController, {
-            engine,
-            kind: 'cpu_aggregation',
-          }),
-        );
-        childControllers.push(
-          Child('thread_aggregation', ThreadAggregationController, {
-            engine,
-            kind: 'thread_state_aggregation',
-          }),
-        );
-        childControllers.push(
-          Child('cpu_process_aggregation', CpuByProcessAggregationController, {
-            engine,
-            kind: 'cpu_by_process_aggregation',
-          }),
-        );
-        // Pivot table is supposed to handle the use cases the slice
-        // aggregation panel is used right now. When a flag to use pivot
-        // tables is enabled, do not add slice aggregation controller.
-        childControllers.push(
-          Child('slice_aggregation', SliceAggregationController, {
-            engine,
-            kind: 'slice_aggregation',
-          }),
-        );
-        childControllers.push(
-          Child('counter_aggregation', CounterAggregationController, {
-            engine,
-            kind: 'counter_aggregation',
-          }),
-        );
-        if (pluginManager.isActive('org.kernel.Wattson')) {
-          childControllers.push(
-            Child(
-              'wattson_estimate_aggregation',
-              WattsonEstimateAggregationController,
-              {
-                engine,
-                kind: 'wattson_estimate_aggregation',
-              },
-            ),
-          );
-          childControllers.push(
-            Child(
-              'wattson_thread_aggregation',
-              WattsonThreadAggregationController,
-              {
-                engine,
-                kind: 'wattson_thread_aggregation',
-              },
-            ),
-          );
-          childControllers.push(
-            Child(
-              'wattson_process_aggregation',
-              WattsonProcessAggregationController,
-              {
-                engine,
-                kind: 'wattson_process_aggregation',
-              },
-            ),
-          );
-          childControllers.push(
-            Child(
-              'wattson_package_aggregation',
-              WattsonPackageAggregationController,
-              {
-                engine,
-                kind: 'wattson_package_aggregation',
-              },
-            ),
-          );
-        }
-        childControllers.push(
-          Child('frame_aggregation', FrameAggregationController, {
-            engine,
-            kind: 'frame_aggregation',
-          }),
-        );
         childControllers.push(
           Child('pivot_table', PivotTableController, {engine}),
         );
