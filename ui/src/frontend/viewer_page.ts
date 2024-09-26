@@ -288,6 +288,7 @@ class TraceViewer implements m.ClassComponent {
               pluginId: trackBundle.pluginId,
             });
           }),
+          renderOverlay,
         }),
         scrollingPanels.length === 0 &&
           filterTermIsValid(globals.state.trackFilterTerm)
