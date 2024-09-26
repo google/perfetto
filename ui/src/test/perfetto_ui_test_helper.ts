@@ -52,6 +52,9 @@ export class PerfettoTestHelper {
     const file = await this.page.waitForSelector('input.trace_file', {
       state: 'attached',
     });
+    await this.page.evaluate(() =>
+      localStorage.setItem('dismissedPanningHint', 'true'),
+    );
     const tracePath = this.getTestTracePath(traceName);
     assertExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
@@ -80,6 +83,11 @@ export class PerfettoTestHelper {
     return this.page
       .locator('.pf-panel-group')
       .filter({has: this.page.locator(`h1[ref="${name}"]`)});
+  }
+
+  async toggleTrackGroup(locator: Locator) {
+    await locator.locator('.pf-track-title').first().click();
+    await this.waitForPerfettoIdle();
   }
 
   locateTrack(name: string, trackGroup?: Locator): Locator {
