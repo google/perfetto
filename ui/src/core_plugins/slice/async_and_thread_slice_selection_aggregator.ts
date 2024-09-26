@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Area} from '../../public/selection';
-import {globals} from '../../frontend/globals';
+import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {
@@ -27,7 +26,7 @@ export class AsyncAndThreadSliceSelectionAggregator
 {
   readonly id = 'slice_aggregation';
 
-  async createAggregateView(engine: Engine, area: Area) {
+  async createAggregateView(engine: Engine, area: AreaSelection) {
     const selectedTrackKeys = getSelectedTrackSqlIds(area);
 
     if (selectedTrackKeys.length === 0) return false;
@@ -90,10 +89,9 @@ export class AsyncAndThreadSliceSelectionAggregator
   }
 }
 
-function getSelectedTrackSqlIds(area: Area): number[] {
+function getSelectedTrackSqlIds(area: AreaSelection): number[] {
   const selectedTrackKeys: number[] = [];
-  for (const trackUri of area.trackUris) {
-    const trackInfo = globals.trackManager.getTrack(trackUri);
+  for (const trackInfo of area.tracks) {
     if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
       trackInfo.tags.trackIds &&
         selectedTrackKeys.push(...trackInfo.tags.trackIds);
