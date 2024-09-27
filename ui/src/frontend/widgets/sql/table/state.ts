@@ -174,6 +174,7 @@ export class SqlTableState {
       if (!(name in columnNameCount)) {
         columnNameCount[name] = 0;
       }
+
       // Note: this can break if the user specifies a column which ends with `__<number>`.
       // We intentionally use two underscores to avoid collisions and will fix it down the line if it turns out to be a problem.
       const alias = `${name}__${++columnNameCount[name]}`;
