@@ -104,6 +104,23 @@ export class PerfettoTestHelper {
     track.locator('button[title="Pin to top"]').click({force: true});
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async runCommand(cmdId: string, ...args: any[]) {
+    await this.page.evaluate(
+      (arg) => self.globals.commandManager.runCommand(arg.cmdId, ...arg.args),
+      {cmdId, args},
+    );
+  }
+
+  async searchSlice(name: string) {
+    const omnibox = this.page.locator('input[ref=omnibox]');
+    await omnibox.focus();
+    await omnibox.fill(name);
+    await this.waitForPerfettoIdle();
+    await omnibox.press('Enter');
+    await this.waitForPerfettoIdle();
+  }
+
   getTestTracePath(fname: string): string {
     const parts = ['test', 'data', fname];
     if (process.cwd().endsWith('/ui')) {
