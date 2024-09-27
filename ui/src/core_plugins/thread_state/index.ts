@@ -25,7 +25,7 @@ import {ThreadStateTrack} from './thread_state_track';
 import {removeFalsyValues} from '../../base/array_utils';
 import {getThreadStateTable} from './table';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
-import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
+import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';

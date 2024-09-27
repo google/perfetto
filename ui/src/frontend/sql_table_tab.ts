@@ -28,7 +28,6 @@ import {SqlTableState} from './widgets/sql/table/state';
 import {SqlTable} from './widgets/sql/table/table';
 import {SqlTableDescription} from './widgets/sql/table/table_description';
 import {Trace} from '../public/trace';
-import {setAddSqlTableTabImplFunction} from './sql_table_tab_command';
 
 export interface SqlTableTabConfig {
   table: SqlTableDescription;
@@ -49,9 +48,7 @@ export function addSqlTableTabImpl(
   addBottomTab(queryResultsTab, 'sqlTable');
 }
 
-setAddSqlTableTabImplFunction(addSqlTableTabImpl);
-
-export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
+class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   static readonly kind = 'dev.perfetto.SqlTableTab';
 
   private state: SqlTableState;

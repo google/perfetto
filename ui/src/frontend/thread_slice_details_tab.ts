@@ -38,7 +38,7 @@ import {
 } from './sql/thread_state';
 import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {DurationWidget} from './widgets/duration';
-import {addSqlTableTab} from './sql_table_tab_command';
+import {addSqlTableTab} from './sql_table_tab_interface';
 import {SliceRef} from './widgets/slice';
 import {BasicTable} from '../widgets/basic_table';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
