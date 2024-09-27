@@ -42,6 +42,8 @@ message AndroidBatteryMetric {
     optional int64 sleep_screen_off_ns = 6;
     optional int64 sleep_screen_on_ns = 7;
     optional int64 sleep_screen_doze_ns = 8;
+    // Average power over the duration of the trace.
+    optional double avg_power_mw = 9;
   }
 
   // Period of time during the trace that the device went to sleep completely.
