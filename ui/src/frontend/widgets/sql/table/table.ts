@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SqlTableState} from './state';
 import {
   filterTitle,
   SqlColumn,
@@ -23,17 +22,32 @@ import {
   TableManager,
 } from './column';
 import {Button} from '../../../../widgets/button';
-import {Intent} from '../../../../widgets/common';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
-import {ArgumentSelector} from './argument_selector';
+import {
+  MenuDivider,
+  MenuItem,
+  MenuItemAttrs,
+  PopupMenu2,
+} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
+import {sqliteString} from '../../../../base/string_utils';
+import {
+  ColumnType,
+  Row,
+  SqlValue,
+} from '../../../../trace_processor/query_result';
 import {Anchor} from '../../../../widgets/anchor';
 import {BasicTable} from '../../../../widgets/basic_table';
 import {Spinner} from '../../../../widgets/spinner';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
-import {addHistogramTab} from '../../../charts/histogram/tab';
+
+import {ArgumentSelector} from './argument_selector';
+import {FILTER_OPTION_TO_OP, FilterOption} from './render_cell_utils';
+import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
+import {Intent} from '../../../../widgets/common';
+import {addHistogramTab} from '../../../charts/histogram/tab';
+import {Form} from '../../../../widgets/form';
+import {TextInput} from '../../../../widgets/text_input';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -169,6 +183,77 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     return result;
   }
 
+  renderColumnFilterOptions(
+    c: TableColumn,
+    value: string,
+    state: SqlTableState,
+  ): m.Vnode<MenuItemAttrs, unknown>[] {
+    const filterOptions = Object.values(FilterOption);
+    const columns = [c.primaryColumn()];
+
+    const filterOptionMenuItems = filterOptions.map((filterOption) => {
+      const {op, requiresParam} = FILTER_OPTION_TO_OP[filterOption];
+
+      return m(
+        MenuItem,
+        {
+          label: filterOption,
+          // Filter options that do not need an input value will filter the
+          // table directly when clicking on the menu item
+          // (ex: IS NULL or IS NOT NULL)
+          onclick: !requiresParam
+            ? () => {
+                state.addFilter({
+                  op: (cols) => `${cols[0]} ${op}`,
+                  columns,
+                });
+              }
+            : undefined,
+        },
+        // All non-null filter options will have a submenu that allows
+        // the user to enter a value into textfield and filter using
+        // the Filter button.
+        requiresParam &&
+          m(
+            Form,
+            {
+              onSubmit: () => {
+                // Convert the string extracted from
+                // the input text field into the correct data type for
+                // filtering. The order in which each data type is
+                // checked matters: string, number (floating), and bigint.
+                let filterValue: ColumnType;
+                if (Number.isNaN(Number.parseFloat(value))) {
+                  filterValue = sqliteString(value);
+                } else if (!Number.isInteger(Number.parseFloat(value))) {
+                  filterValue = Number(value);
+                } else {
+                  filterValue = BigInt(value);
+                }
+
+                state.addFilter({
+                  op: (cols) => `${cols[0]} ${op} ${filterValue}`,
+                  columns,
+                });
+              },
+              submitLabel: 'Filter',
+            },
+            m(TextInput, {
+              id: 'column_filter_value',
+              ref: 'COLUMN_FILTER_VALUE',
+              autofocus: true,
+              oninput: (e: KeyboardEvent) => {
+                if (!e.target) return;
+                value = (e.target as HTMLInputElement).value;
+              },
+            }),
+          ),
+      );
+    });
+
+    return filterOptionMenuItems;
+  }
+
   renderColumnHeader(column: TableColumn, index: number) {
     const sorted = this.state.isSortedBy(column);
     const icon =
@@ -177,6 +262,9 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         : sorted === 'DESC'
           ? Icons.SortedDesc
           : Icons.ContextMenu;
+
+    const filterValue = '';
+
     return m(
       PopupMenu2,
       {
@@ -216,6 +304,11 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           icon: Icons.Hide,
           onclick: () => this.state.hideColumnAtIndex(index),
         }),
+      m(
+        MenuItem,
+        {label: 'Add filter', icon: Icons.Filter},
+        this.renderColumnFilterOptions(column, filterValue, this.state),
+      ),
       m(MenuItem, {
         label: 'Create histogram',
         icon: Icons.Chart,
@@ -251,16 +344,21 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
     return [
       m('div', this.renderFilters()),
-      m(BasicTable<Row>, {
-        data: rows,
-        columns: this.state.getSelectedColumns().map((column, i) => ({
-          title: this.renderColumnHeader(column, i),
-          render: (row: Row) => renderCell(column, row, this.state),
-        })),
-      }),
-      this.state.isLoading() && m(Spinner),
-      this.state.getQueryError() !== undefined &&
-        m('.query-error', this.state.getQueryError()),
+      m(
+        BasicTable<Row>,
+        {
+          data: rows,
+          columns: this.state.getSelectedColumns().map((column, i) => {
+            return {
+              title: this.renderColumnHeader(column, i),
+              render: (row: Row) => renderCell(column, row, this.state),
+            };
+          }),
+        },
+        this.state.isLoading() && m(Spinner),
+        this.state.getQueryError() !== undefined &&
+          m('.query-error', this.state.getQueryError()),
+      ),
     ];
   }
 }
