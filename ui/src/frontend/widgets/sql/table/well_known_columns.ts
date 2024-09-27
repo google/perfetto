@@ -596,7 +596,9 @@ export class ThreadColumn extends TableColumn {
   }
 
   aggregation(): AggregationConfig {
-    return {dataType: 'nominal'};
+    return {
+      dataType: 'nominal',
+    };
   }
 }
 
@@ -855,9 +857,12 @@ export class ProcessColumn extends TableColumn {
   }
 
   aggregation(): AggregationConfig {
-    return {dataType: 'nominal'};
+    return {
+      dataType: 'nominal',
+    };
   }
 }
+
 // ProcessIdColumn is a column type for displaying primary key of the `process` table.
 // All other references (foreign keys) should use `ProcessColumn` instead.
 export class ProcessIdColumn extends TableColumn {
