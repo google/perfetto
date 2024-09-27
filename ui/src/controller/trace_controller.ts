@@ -56,7 +56,6 @@ import {
   FlowEventsControllerArgs,
 } from './flow_events_controller';
 import {LoadingManager} from './loading_manager';
-import {PivotTableController} from './pivot_table_controller';
 import {TraceErrorController} from './trace_error_controller';
 import {
   TraceBufferStream,
@@ -239,10 +238,6 @@ export class TraceController extends Controller<States> {
         const flowEventsArgs: FlowEventsControllerArgs = {engine};
         childControllers.push(
           Child('flowEvents', FlowEventsController, flowEventsArgs),
-        );
-
-        childControllers.push(
-          Child('pivot_table', PivotTableController, {engine}),
         );
 
         childControllers.push(

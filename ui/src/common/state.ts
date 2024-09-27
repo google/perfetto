@@ -14,12 +14,6 @@
 
 import {time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
-import {
-  Aggregation,
-  PivotTree,
-  TableColumn,
-} from '../frontend/pivot_table_types';
-import {Area} from '../public/selection';
 import {TraceSource} from '../public/trace_info';
 
 /**
@@ -146,58 +140,6 @@ export interface AdbRecordingTarget extends RecordingTarget {
   serial: string;
 }
 
-// Auxiliary metadata needed to parse the query result, as well as to render it
-// correctly. Generated together with the text of query and passed without the
-// change to the query response.
-export interface PivotTableQueryMetadata {
-  pivotColumns: TableColumn[];
-  aggregationColumns: Aggregation[];
-  countIndex: number;
-}
-
-// Everything that's necessary to run the query for pivot table
-export interface PivotTableQuery {
-  text: string;
-  metadata: PivotTableQueryMetadata;
-}
-
-// Pivot table query result
-export interface PivotTableResult {
-  // Hierarchical pivot structure on top of rows
-  tree: PivotTree;
-  // Copy of the query metadata from the request, bundled up with the query
-  // result to ensure the correct rendering.
-  metadata: PivotTableQueryMetadata;
-}
-
-// Input parameters to check whether the pivot table needs to be re-queried.
-export type PivotTableAreaState = Area;
-
-export interface PivotTableState {
-  // Currently selected area, if null, pivot table is not going to be visible.
-  selectionArea?: PivotTableAreaState;
-
-  // Query response
-  queryResult: PivotTableResult | null;
-
-  // Selected pivots for tables other than slice.
-  // Because of the query generation, pivoting happens first on non-slice
-  // pivots; therefore, those can't be put after slice pivots. In order to
-  // maintain the separation more clearly, slice and non-slice pivots are
-  // located in separate arrays.
-  selectedPivots: TableColumn[];
-
-  // Selected aggregation columns. Stored same way as pivots.
-  selectedAggregations: Aggregation[];
-
-  // Whether the pivot table results should be constrained to the selected area.
-  constrainToArea: boolean;
-
-  // Set to true by frontend to request controller to perform the query to
-  // acquire the necessary data from the engine.
-  queryRequested: boolean;
-}
-
 export interface LoadedConfigNone {
   type: 'NONE';
 }
@@ -215,10 +157,6 @@ export type LoadedConfig =
   | LoadedConfigNone
   | LoadedConfigAutomatic
   | LoadedConfigNamed;
-
-export interface NonSerializableState {
-  pivotTable: PivotTableState;
-}
 
 export interface PendingDeeplinkState {
   ts?: string;
@@ -283,11 +221,6 @@ export interface State {
 
   fetchChromeCategories: boolean;
   chromeCategories: string[] | undefined;
-
-  // Special key: this part of the state is not going to be serialized when
-  // using permalink. Can be used to store those parts of the state that can't
-  // be serialized at the moment, such as ES6 Set and Map.
-  nonSerializableState: NonSerializableState;
 
   // Pending deeplink which will happen when we first finish opening a
   // trace.
