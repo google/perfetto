@@ -282,7 +282,8 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
     );
 
     if (trackDescriptor && data.sched.threadStateId) {
-      globals.selectionManager.setThreadState({
+      globals.selectionManager.setLegacy({
+        kind: 'THREAD_STATE',
         id: data.sched.threadStateId,
         trackUri: trackDescriptor.uri,
       });
