@@ -57,6 +57,7 @@
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
+#include "src/trace_processor/importers/perf/spe_record_parser.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -403,6 +404,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           kPerfDataTraceType);
   context_.perf_record_parser =
       std::make_unique<perf_importer::RecordParser>(&context_);
+  context_.spe_record_parser =
+      std::make_unique<perf_importer::SpeRecordParserImpl>(&context_);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
   context_.reader_registry
@@ -963,6 +966,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   RegisterStaticTable(storage->mutable_jit_code_table());
   RegisterStaticTable(storage->mutable_jit_frame_table());
+
+  RegisterStaticTable(storage->mutable_spe_record_table());
 
   RegisterStaticTable(storage->mutable_inputmethod_clients_table());
   RegisterStaticTable(storage->mutable_inputmethod_manager_service_table());

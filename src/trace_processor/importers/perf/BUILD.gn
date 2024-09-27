@@ -88,6 +88,11 @@ source_set("perf") {
     "sample.h",
     "sample_id.cc",
     "sample_id.h",
+    "spe.h",
+    "spe_record_parser.cc",
+    "spe_record_parser.h",
+    "spe_tokenizer.cc",
+    "spe_tokenizer.h",
     "time_conv_record.h",
     "util.h",
   ]

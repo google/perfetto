@@ -18,9 +18,13 @@
 #define SRC_TRACE_PROCESSOR_UTIL_TRACE_BLOB_VIEW_READER_H_
 
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <optional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 
 namespace perfetto::trace_processor::util {
@@ -31,7 +35,74 @@ namespace perfetto::trace_processor::util {
 //  2) Stitching together the cross-chunk spanning pieces.
 //  3) Dropping data when it is no longer necessary to be buffered.
 class TraceBlobViewReader {
+ private:
+  struct Entry {
+    // File offset of the first byte in `data`.
+    size_t start_offset;
+    TraceBlobView data;
+    size_t end_offset() const { return start_offset + data.size(); }
+  };
+
  public:
+  class Iterator {
+   public:
+    Iterator(const Iterator&) = default;
+    Iterator(Iterator&&) = default;
+    Iterator& operator=(const Iterator&) = default;
+    Iterator& operator=(Iterator&&) = default;
+
+    ~Iterator() = default;
+
+    uint8_t operator*() const {
+      PERFETTO_DCHECK(file_offset_ < iter_->end_offset());
+      return iter_->data.data()[file_offset_ - iter_->start_offset];
+    }
+
+    explicit operator bool() const { return file_offset_ != end_offset_; }
+
+    size_t file_offset() const { return file_offset_; }
+
+    bool MaybeAdvance(size_t delta) {
+      if (delta == 0) {
+        return true;
+      }
+      if (delta > end_offset_ - file_offset_) {
+        return false;
+      }
+      file_offset_ += delta;
+      if (PERFETTO_LIKELY(file_offset_ < iter_->end_offset())) {
+        return true;
+      }
+      while (file_offset_ > iter_->end_offset()) {
+        ++iter_;
+      }
+      if (file_offset_ == iter_->end_offset()) {
+        ++iter_;
+      }
+
+      return true;
+    }
+
+   private:
+    friend TraceBlobViewReader;
+    Iterator(base::CircularQueue<Entry>::Iterator iter,
+             size_t file_offset,
+             size_t end_offset)
+        : iter_(std::move(iter)),
+          file_offset_(file_offset),
+          end_offset_(end_offset) {}
+    base::CircularQueue<Entry>::Iterator iter_;
+    size_t file_offset_;
+    size_t end_offset_;
+  };
+
+  Iterator begin() const {
+    return Iterator(data_.begin(), start_offset(), end_offset());
+  }
+  Iterator end() const {
+    return Iterator(data_.end(), end_offset(), end_offset());
+  }
+
   // Adds a `TraceBlobView` at the back.
   void PushBack(TraceBlobView);
 
@@ -58,7 +129,6 @@ class TraceBlobViewReader {
   //
   // NOTE: If `offset` < 'file_offset()' this method will CHECK fail.
   std::optional<TraceBlobView> SliceOff(size_t offset, size_t length) const;
-
   // Returns the offset to the start of the available data.
   size_t start_offset() const {
     return data_.empty() ? end_offset_ : data_.front().start_offset;
@@ -73,13 +143,6 @@ class TraceBlobViewReader {
   bool empty() const { return data_.empty(); }
 
  private:
-  struct Entry {
-    // File offset of the first byte in `data`.
-    size_t start_offset;
-    TraceBlobView data;
-  };
-  using Iterator = base::CircularQueue<Entry>::Iterator;
-
   // CircularQueue has no const_iterator, so mutable is needed to access it from
   // const methods.
   mutable base::CircularQueue<Entry> data_;
