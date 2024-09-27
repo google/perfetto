@@ -85,11 +85,14 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   base::StatusOr<ParsingResult> ParseFeatures();
 
   base::StatusOr<PerfDataTokenizer::ParsingResult> ParseRecord(Record& record);
-  base::Status PushRecord(Record record);
+  void MaybePushRecord(Record record);
   base::Status ParseFeature(uint8_t feature_id, TraceBlobView payload);
 
+  base::Status ProcessRecord(Record record);
   base::Status ProcessAuxRecord(Record record);
   base::Status ProcessAuxtraceInfoRecord(Record record);
+  base::Status ProcessTimeConvRecord(Record record);
+  base::Status ProcessItraceStartRecord(Record record);
 
   base::StatusOr<int64_t> ExtractTraceTimestamp(const Record& record);
 

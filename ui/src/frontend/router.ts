@@ -76,6 +76,9 @@ const ROUTE_SCHEMA = z
     // Should we hide the sidebar?
     hideSidebar: z.boolean().optional().catch(undefined),
 
+    // A comma-separated list of plugins to enable for the current session.
+    enablePlugins: z.string().optional().catch(undefined),
+
     // Deep link support
     ts: z.string().optional().catch(undefined),
     dur: z.string().optional().catch(undefined),
@@ -107,7 +110,7 @@ export interface Route {
 }
 
 export interface RoutesMap {
-  [key: string]: m.Component<PageAttrs>;
+  [key: string]: m.ComponentTypes<PageAttrs>;
 }
 
 // This router does two things:
@@ -197,7 +200,7 @@ export class Router {
     if (component === undefined) {
       component = assertExists(this.routes[DEFAULT_ROUTE]);
     }
-    return m(component, {subpage: route.subpage} as PageAttrs);
+    return m(component, {subpage: route.subpage});
   }
 
   static navigate(newHash: string) {

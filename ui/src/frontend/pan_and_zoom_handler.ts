@@ -16,7 +16,7 @@ import {DisposableStack} from '../base/disposable_stack';
 import {currentTargetOffset, elementIsEditable} from '../base/dom_utils';
 import {raf} from '../core/raf_scheduler';
 import {Animation} from './animation';
-import {DragGestureHandler} from './drag_gesture_handler';
+import {DragGestureHandler} from '../base/drag_gesture_handler';
 
 // When first starting to pan or zoom, move at least this many units.
 const INITIAL_PAN_STEP_PX = 50;

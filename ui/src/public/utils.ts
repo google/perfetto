@@ -14,10 +14,12 @@
 
 import m from 'mithril';
 import {LegacySelection} from '../public/selection';
-import {BottomTab} from '../frontend/bottom_tab';
+import {BottomTab} from './lib/bottom_tab';
 import {Tab} from './tab';
 import {exists} from '../base/utils';
 import {LegacyDetailsPanel} from './details_panel';
+import {Trace} from './trace';
+import {TimeSpan} from '../base/time';
 
 export function getTrackName(
   args: Partial<{
@@ -122,13 +124,14 @@ export interface BottomTabAdapterAttrs {
             table: sel.table ?? 'slice',
             id: sel.id,
           },
-          engine: ctx.engine,
+          trace: ctx,
           uuid: uuidv4(),
         });
       },
     })
  */
 export class BottomTabToSCSAdapter implements LegacyDetailsPanel {
+  readonly panelType = 'LegacyDetailsPanel';
   private oldSelection?: LegacySelection;
   private bottomTab?: BottomTab;
   private attrs: BottomTabAdapterAttrs;
@@ -186,5 +189,18 @@ export function getThreadUriPrefix(upid: number | null, utid: number): string {
     return `/process_${upid}/thread_${utid}`;
   } else {
     return `/thread_${utid}`;
+  }
+}
+
+// Returns the time span of the current selection, or the visible window if
+// there is no current selection.
+export async function getTimeSpanOfSelectionOrVisibleWindow(
+  trace: Trace,
+): Promise<TimeSpan> {
+  const range = await trace.selection.findTimeRangeOfSelection();
+  if (exists(range)) {
+    return new TimeSpan(range.start, range.end);
+  } else {
+    return trace.timeline.visibleWindow.toTimeSpan();
   }
 }

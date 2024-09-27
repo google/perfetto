@@ -47,6 +47,7 @@ import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists, assertFalse} from '../base/logging';
 import {Filter, SqlColumn} from './widgets/sql/table/column';
 import {argSqlColumn} from './widgets/sql/table/well_known_columns';
+import {Trace} from '../public/trace';
 
 interface PathItem {
   tree: PivotTree;
@@ -54,6 +55,7 @@ interface PathItem {
 }
 
 interface PivotTableAttrs {
+  trace: Trace;
   selectionArea: Area;
 }
 
@@ -126,7 +128,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     return globals.state.nonSerializableState.pivotTable.constrainToArea;
   }
 
-  renderDrillDownCell(area: Area, filters: DrillFilter[]) {
+  renderDrillDownCell(attrs: PivotTableAttrs, filters: DrillFilter[]) {
     return m(
       'td',
       m(
@@ -136,9 +138,9 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           onclick: () => {
             const queryFilters = filters.map(renderDrillFilter);
             if (this.constrainToArea) {
-              queryFilters.push(...areaFilters(area));
+              queryFilters.push(...areaFilters(attrs.selectionArea));
             }
-            addSqlTableTab({
+            addSqlTableTab(attrs.trace, {
               table: assertExists(getSqlTableDescription('slice')),
               // TODO(altimin): this should properly reference the required columns, but it works for now (until the pivot table is going to be rewritten to be more flexible).
               filters: queryFilters,
@@ -151,7 +153,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   }
 
   renderSectionRow(
-    area: Area,
+    attrs: PivotTableAttrs,
     path: PathItem[],
     tree: PivotTree,
     result: PivotTableResult,
@@ -194,7 +196,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       });
     }
 
-    renderedCells.push(this.renderDrillDownCell(area, drillFilters));
+    renderedCells.push(this.renderDrillDownCell(attrs, drillFilters));
     return m('tr', renderedCells);
   }
 
@@ -213,25 +215,25 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   }
 
   renderTree(
-    area: Area,
+    attrs: PivotTableAttrs,
     path: PathItem[],
     tree: PivotTree,
     result: PivotTableResult,
     sink: m.Vnode[],
   ) {
     if (tree.isCollapsed) {
-      sink.push(this.renderSectionRow(area, path, tree, result));
+      sink.push(this.renderSectionRow(attrs, path, tree, result));
       return;
     }
     if (tree.children.size > 0) {
       // Avoid rendering the intermediate results row for the root of tree
       // and in case there's only one child subtree.
       if (!tree.isCollapsed && path.length > 0 && tree.children.size !== 1) {
-        sink.push(this.renderSectionRow(area, path, tree, result));
+        sink.push(this.renderSectionRow(attrs, path, tree, result));
       }
       for (const [key, childTree] of tree.children.entries()) {
         path.push({tree: childTree, nextKey: key});
-        this.renderTree(area, path, childTree, result, sink);
+        this.renderTree(attrs, path, childTree, result, sink);
         path.pop();
       }
       return;
@@ -240,7 +242,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     // Avoid rendering the intermediate results row if it has only one leaf
     // row.
     if (!tree.isCollapsed && path.length > 0 && tree.rows.length > 1) {
-      sink.push(this.renderSectionRow(area, path, tree, result));
+      sink.push(this.renderSectionRow(attrs, path, tree, result));
     }
     for (const row of tree.rows) {
       const renderedCells = [];
@@ -267,7 +269,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
         renderedCells.push(m('td.aggregation' + markFirst(j), renderedValue));
       }
 
-      renderedCells.push(this.renderDrillDownCell(area, drillFilters));
+      renderedCells.push(this.renderDrillDownCell(attrs, drillFilters));
       sink.push(m('tr', renderedCells));
     }
   }
@@ -552,13 +554,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     const tree = state.queryResult.tree;
     assertFalse(tree.children.size === 0 && tree.rows.length === 0);
 
-    this.renderTree(
-      attrs.selectionArea,
-      [],
-      tree,
-      state.queryResult,
-      renderedRows,
-    );
+    this.renderTree(attrs, [], tree, state.queryResult, renderedRows);
 
     const selectedPivots = new Set(
       this.pivotState.selectedPivots.map(columnKey),

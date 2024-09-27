@@ -23,7 +23,7 @@ import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {Store} from '../base/store';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
-import {flattenArgs, traceEvent} from '../common/metatracing';
+import {traceEvent} from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
 import {State} from '../common/state';
 import {initController, runControllers} from '../controller';
@@ -58,6 +58,10 @@ import {WidgetsPage} from './widgets_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {initAnalytics} from './analytics';
+import {IdleDetector} from './idle_detector';
+import {IdleDetectorWindow} from './idle_detector_interface';
+import {pageWithTrace} from './pages';
+import {AppImpl} from '../core/app_trace_impl';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -273,6 +277,10 @@ function main() {
   if (globals.testing) {
     document.body.classList.add('testing');
   }
+
+  (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
+    return new IdleDetector().waitForPerfettoIdle(ms);
+  };
 }
 
 function onCssLoaded() {
@@ -283,16 +291,16 @@ function onCssLoaded() {
 
   const router = new Router({
     '/': HomePage,
-    '/viewer': ViewerPage,
-    '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
-    '/query': QueryPage,
-    '/insights': InsightsPage,
     '/flags': FlagsPage,
-    '/metrics': MetricsPage,
-    '/info': TraceInfoPage,
-    '/widgets': WidgetsPage,
-    '/viz': VizPage,
+    '/info': pageWithTrace(TraceInfoPage),
+    '/insights': pageWithTrace(InsightsPage),
+    '/metrics': pageWithTrace(MetricsPage),
     '/plugins': PluginsPage,
+    '/query': pageWithTrace(QueryPage),
+    '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
+    '/viewer': pageWithTrace(ViewerPage),
+    '/viz': pageWithTrace(VizPage),
+    '/widgets': WidgetsPage,
   });
   router.onRouteChanged = routeChange;
 
@@ -350,8 +358,8 @@ function onCssLoaded() {
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
-    const engine = globals.getCurrentEngine();
-    if (engine && engine.source.type === 'HTTP_RPC') {
+    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    if (traceSource && traceSource.type === 'HTTP_RPC') {
       return;
     }
 
@@ -368,6 +376,13 @@ function onCssLoaded() {
 
   // Initialize plugins, now that we are ready to go
   pluginManager.initialize();
+
+  const route = Router.parseUrl(window.location.href);
+  for (const pluginId of (route.args.enablePlugins ?? '').split(',')) {
+    if (pluginManager.hasPlugin(pluginId)) {
+      pluginManager.activatePlugin(pluginId);
+    }
+  }
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.
@@ -404,18 +419,12 @@ function maybeChangeRpcPortFromFragment() {
 
 function stateActionDispatcher(actions: DeferredAction[]) {
   const edits = actions.map((action) => {
-    return traceEvent(
-      `action.${action.type}`,
-      () => {
-        return (draft: Draft<State>) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (StateActions as any)[action.type](draft, action.args);
-        };
-      },
-      {
-        args: flattenArgs(action.args),
-      },
-    );
+    return traceEvent(`action.${action.type}`, () => {
+      return (draft: Draft<State>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (StateActions as any)[action.type](draft, action.args);
+      };
+    });
   });
   globals.store.edit(edits);
 }

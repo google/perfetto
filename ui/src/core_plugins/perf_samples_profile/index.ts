@@ -66,16 +66,15 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
         },
         track: new ProcessPerfSamplesProfileTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           upid,
         ),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
-      const track = new TrackNode(uri, title);
-      track.sortOrder = -40;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: -40});
+      group.addChildInOrder(track);
     }
     const tResult = await ctx.engine.query(`
       select distinct
@@ -98,14 +97,14 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
       it.next()
     ) {
       const {threadName, utid, tid, upid} = it;
-      const displayName =
+      const title =
         threadName === null
           ? `Thread Callstacks ${tid}`
           : `${threadName} Callstacks ${tid}`;
       const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           utid,
@@ -113,22 +112,22 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
         },
         track: new ThreadPerfSamplesProfileTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           utid,
         ),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = -50;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: -50});
+      group.addChildInOrder(track);
     }
     ctx.registerDetailsPanel(new PerfSamplesFlamegraphDetailsPanel(ctx.engine));
   }
 }
 
 class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
+  readonly panelType = 'LegacyDetailsPanel';
   private sel?: PerfSamplesSelection;
   private selMonitor = new Monitor([
     () => this.sel?.leftTs,

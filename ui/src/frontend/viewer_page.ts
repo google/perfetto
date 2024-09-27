@@ -12,17 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {hex} from 'color-convert';
 import m from 'mithril';
+import {removeFalsyValues} from '../base/array_utils';
+import {canvasClip, canvasSave} from '../base/canvas_utils';
 import {findRef, toHTMLElement} from '../base/dom_utils';
+import {Size2D} from '../base/geom';
+import {assertExists} from '../base/logging';
 import {clamp} from '../base/math_utils';
-import {Time} from '../base/time';
+import {Time, TimeSpan} from '../base/time';
+import {TimeScale} from '../base/time_scale';
+import {exists} from '../base/utils';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {TRACK_SHELL_WIDTH} from './css_constants';
+import {TrackNode} from '../public/workspace';
+import {EmptyState} from '../widgets/empty_state';
+import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
+import {renderFlows} from './flow_events_renderer';
 import {globals} from './globals';
+import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
-import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {
   PanelContainer,
@@ -35,18 +45,9 @@ import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
-import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
-import {assertExists} from '../base/logging';
-import {TimeScale} from '../base/time_scale';
-import {GroupNode, Node, TrackNode} from '../public/workspace';
-import {fuzzyMatch} from '../base/fuzzy';
-import {Optional} from '../base/utils';
-import {EmptyState} from '../widgets/empty_state';
-import {removeFalsyValues} from '../base/array_utils';
-import {renderFlows} from './flow_events_renderer';
-import {Size2D} from '../base/geom';
-import {canvasClip, canvasSave} from '../base/canvas_utils';
+import {drawVerticalLineAtTime} from './vertical_line_helper';
+import {PageWithTraceAttrs} from './pages';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -86,7 +87,7 @@ function onTimeRangeBoundary(
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
  */
-class TraceViewer implements m.ClassComponent {
+export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
   private zoomContent?: PanAndZoomHandler;
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
@@ -95,12 +96,16 @@ class TraceViewer implements m.ClassComponent {
   private timeAxisPanel = new TimeAxisPanel();
   private timeSelectionPanel = new TimeSelectionPanel();
   private notesPanel = new NotesPanel();
-  private tickmarkPanel = new TickmarkPanel();
+  private tickmarkPanel: TickmarkPanel;
   private timelineWidthPx?: number;
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
-  oncreate(vnode: m.CVnodeDOM) {
+  constructor(vnode: m.CVnode<PageWithTraceAttrs>) {
+    this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
+  }
+
+  oncreate(vnode: m.CVnodeDOM<PageWithTraceAttrs>) {
     const panZoomElRaw = findRef(vnode.dom, this.PAN_ZOOM_CONTENT_REF);
     const panZoomEl = toHTMLElement(assertExists(panZoomElRaw));
 
@@ -237,7 +242,7 @@ class TraceViewer implements m.ClassComponent {
   }
 
   view() {
-    const scrollingPanels = renderToplevelPanels(globals.state.trackFilterTerm);
+    const scrollingPanels = renderToplevelPanels();
 
     const result = m(
       '.page.viewer-page',
@@ -270,18 +275,27 @@ class TraceViewer implements m.ClassComponent {
         ),
         m(PanelContainer, {
           className: 'pinned-panel-container',
-          panels: globals.workspace.pinnedTracks.map((track) => {
-            const tr = globals.trackManager.getTrackRenderer(track.uri);
-            return new TrackPanel({
-              track: track,
-              title: track.displayName,
-              tags: tr?.desc.tags,
-              trackRenderer: tr,
-              revealOnCreate: true,
-              chips: tr?.desc.chips,
-              pluginId: tr?.desc.pluginId,
-            });
+          panels: globals.workspace.pinnedTracks.map((trackNode) => {
+            if (trackNode.uri) {
+              const tr = globals.trackManager.getTrackRenderer(trackNode.uri);
+              return new TrackPanel({
+                node: trackNode,
+                trackRenderer: tr,
+                revealOnCreate: true,
+                indentationLevel: 0,
+                topOffsetPx: 0,
+              });
+            } else {
+              return new TrackPanel({
+                node: trackNode,
+                revealOnCreate: true,
+                indentationLevel: 0,
+                topOffsetPx: 0,
+              });
+            }
           }),
+          renderUnderlay,
+          renderOverlay,
         }),
         scrollingPanels.length === 0 &&
           filterTermIsValid(globals.state.trackFilterTerm)
@@ -297,6 +311,7 @@ class TraceViewer implements m.ClassComponent {
                 const timelineWidth = width - TRACK_SHELL_WIDTH;
                 this.timelineWidthPx = timelineWidth;
               },
+              renderUnderlay,
               renderOverlay,
             }),
       ),
@@ -306,6 +321,25 @@ class TraceViewer implements m.ClassComponent {
     globals.trackManager.flushOldTracks();
     return result;
   }
+}
+
+function renderUnderlay(
+  ctx: CanvasRenderingContext2D,
+  canvasSize: Size2D,
+): void {
+  const size = {
+    width: canvasSize.width - TRACK_SHELL_WIDTH,
+    height: canvasSize.height,
+  };
+
+  using _ = canvasSave(ctx);
+  ctx.translate(TRACK_SHELL_WIDTH, 0);
+
+  const timewindow = globals.timeline.visibleWindow;
+  const timescale = new TimeScale(timewindow, {left: 0, right: size.width});
+
+  // Just render the gridlines - these should appear underneath all tracks
+  drawGridLines(ctx, timewindow.toTimeSpan(), timescale, size);
 }
 
 function renderOverlay(
@@ -322,6 +356,14 @@ function renderOverlay(
   ctx.translate(TRACK_SHELL_WIDTH, 0);
   canvasClip(ctx, 0, 0, size.width, size.height);
   renderFlows(ctx, size, panels);
+
+  const timewindow = globals.timeline.visibleWindow;
+  const timescale = new TimeScale(timewindow, {left: 0, right: size.width});
+
+  renderHoveredNoteVertical(ctx, timescale, size);
+  renderHoveredCursorVertical(ctx, timescale, size);
+  renderWakeupVertical(ctx, timescale, size);
+  renderNoteVerticals(ctx, timescale, size);
 }
 
 function filterTermIsValid(
@@ -331,121 +373,176 @@ function filterTermIsValid(
   return filterTerm !== undefined && filterTerm !== '';
 }
 
-// Split filter term on commas into a list of tokens, cleaning up any whitespace
-// before and after the token and removing any blank tokens
-function tokenizeFilterTerm(term: string): ReadonlyArray<string> {
-  return term
-    .split(',')
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
-}
-
 // Render the toplevel "scrolling" tracks and track groups
-function renderToplevelPanels(filterTerm: Optional<string>): PanelOrGroup[] {
-  return renderNodes(globals.workspace.children, filterTerm);
+function renderToplevelPanels(): PanelOrGroup[] {
+  return renderNodes(globals.workspace.children, 0, 0);
 }
 
 // Given a list of tracks and a filter term, return a list pf panels filtered by
 // the filter term
 function renderNodes(
-  nodes: ReadonlyArray<Node>,
-  filterTerm?: string,
+  nodes: ReadonlyArray<TrackNode>,
+  indent: number,
+  topOffsetPx: number,
 ): PanelOrGroup[] {
   return nodes.flatMap((node) => {
-    if (node instanceof GroupNode) {
-      if (node.headless) {
-        return renderNodes(node.children, filterTerm);
-      } else {
-        if (filterTermIsValid(filterTerm)) {
-          const tokens = tokenizeFilterTerm(filterTerm);
-          const match = fuzzyMatch(node.displayName, ...tokens);
-          if (match.matches) {
-            return {
-              kind: 'group',
-              collapsed: node.collapsed,
-              header: renderGroupHeaderPanel(node, true, node.collapsed),
-              childPanels: node.collapsed ? [] : renderNodes(node.children),
-            };
-          } else {
-            const childPanels = renderNodes(node.children, filterTerm);
-            if (childPanels.length > 0) {
-              return {
-                kind: 'group',
-                collapsed: false,
-                header: renderGroupHeaderPanel(node, false, node.collapsed),
-                childPanels,
-              };
-            }
-            return [];
-          }
-        } else {
-          return {
-            kind: 'group',
-            collapsed: node.collapsed,
-            header: renderGroupHeaderPanel(node, true, node.collapsed),
-            childPanels: node.collapsed
-              ? []
-              : renderNodes(node.children, filterTerm),
-          };
-        }
-      }
+    if (node.headless) {
+      // Render children as if this node doesn't exist
+      return renderNodes(node.children, indent, topOffsetPx);
+    } else if (node.children.length === 0) {
+      return renderTrackPanel(node, indent, topOffsetPx);
     } else {
-      if (filterTermIsValid(filterTerm)) {
-        const tokens = tokenizeFilterTerm(filterTerm);
-        const match = fuzzyMatch(node.displayName, ...tokens);
-        if (match.matches) {
-          return renderTrackPanel(node);
-        } else {
-          return [];
-        }
-      } else {
-        return renderTrackPanel(node);
-      }
+      const headerPanel = renderTrackPanel(node, indent, topOffsetPx);
+      const isSticky = node.isSummary;
+      const nextTopOffsetPx = isSticky
+        ? topOffsetPx + headerPanel.heightPx ?? 0
+        : topOffsetPx;
+      return {
+        kind: 'group',
+        collapsed: node.collapsed,
+        header: headerPanel,
+        sticky: isSticky, // && node.collapsed??
+        topOffsetPx,
+        childPanels: node.collapsed
+          ? []
+          : renderNodes(node.children, indent + 1, nextTopOffsetPx),
+      };
     }
   });
 }
 
-function renderTrackPanel(track: TrackNode) {
-  const tr = globals.trackManager.getTrackRenderer(track.uri);
+function renderTrackPanel(
+  trackNode: TrackNode,
+  indent: number,
+  topOffsetPx: number,
+) {
+  let tr = undefined;
+  if (trackNode.uri) {
+    tr = globals.trackManager.getTrackRenderer(trackNode.uri);
+  }
   return new TrackPanel({
-    track: track,
-    title: track.displayName,
-    tags: tr?.desc.tags,
+    node: trackNode,
     trackRenderer: tr,
-    chips: tr?.desc.chips,
-    pluginId: tr?.desc.pluginId,
+    indentationLevel: indent,
+    topOffsetPx,
   });
 }
 
-function renderGroupHeaderPanel(
-  group: GroupNode,
-  collapsable: boolean,
-  collapsed: boolean,
-): TrackGroupPanel {
-  if (group.headerTrackUri !== undefined) {
-    const tr = globals.trackManager.getTrackRenderer(group.headerTrackUri);
-    return new TrackGroupPanel({
-      groupNode: group,
-      trackRenderer: tr,
-      subtitle: tr?.desc.subtitle,
-      tags: tr?.desc.tags,
-      chips: tr?.desc.chips,
-      collapsed,
-      title: group.displayName,
-      collapsable,
-    });
-  } else {
-    return new TrackGroupPanel({
-      groupNode: group,
-      collapsed,
-      title: group.displayName,
-      collapsable,
-    });
+export function drawGridLines(
+  ctx: CanvasRenderingContext2D,
+  timespan: TimeSpan,
+  timescale: TimeScale,
+  size: Size2D,
+): void {
+  ctx.strokeStyle = TRACK_BORDER_COLOR;
+  ctx.lineWidth = 1;
+
+  if (size.width > 0 && timespan.duration > 0n) {
+    const maxMajorTicks = getMaxMajorTicks(size.width);
+    const offset = globals.timestampOffset();
+    for (const {type, time} of generateTicks(timespan, maxMajorTicks, offset)) {
+      const px = Math.floor(timescale.timeToPx(time));
+      if (type === TickType.MAJOR) {
+        ctx.beginPath();
+        ctx.moveTo(px + 0.5, 0);
+        ctx.lineTo(px + 0.5, size.height);
+        ctx.stroke();
+      }
+    }
   }
 }
 
-export const ViewerPage = createPage({
-  view() {
-    return m(TraceViewer);
-  },
-});
+export function renderHoveredCursorVertical(
+  ctx: CanvasRenderingContext2D,
+  timescale: TimeScale,
+  size: Size2D,
+) {
+  if (globals.state.hoverCursorTimestamp !== -1n) {
+    drawVerticalLineAtTime(
+      ctx,
+      timescale,
+      globals.state.hoverCursorTimestamp,
+      size.height,
+      `#344596`,
+    );
+  }
+}
+
+export function renderHoveredNoteVertical(
+  ctx: CanvasRenderingContext2D,
+  timescale: TimeScale,
+  size: Size2D,
+) {
+  if (globals.state.hoveredNoteTimestamp !== -1n) {
+    drawVerticalLineAtTime(
+      ctx,
+      timescale,
+      globals.state.hoveredNoteTimestamp,
+      size.height,
+      `#aaa`,
+    );
+  }
+}
+
+export function renderWakeupVertical(
+  ctx: CanvasRenderingContext2D,
+  timescale: TimeScale,
+  size: Size2D,
+) {
+  const currentSelection = globals.selectionManager.legacySelection;
+  const sliceDetails = globals.selectionManager.legacySelectionDetails;
+  if (currentSelection !== null) {
+    if (
+      currentSelection.kind === 'SCHED_SLICE' &&
+      exists(sliceDetails) &&
+      sliceDetails.wakeupTs !== undefined
+    ) {
+      drawVerticalLineAtTime(
+        ctx,
+        timescale,
+        sliceDetails.wakeupTs,
+        size.height,
+        `black`,
+      );
+    }
+  }
+}
+
+export function renderNoteVerticals(
+  ctx: CanvasRenderingContext2D,
+  timescale: TimeScale,
+  size: Size2D,
+) {
+  // All marked areas should have semi-transparent vertical lines
+  // marking the start and end.
+  for (const note of globals.noteManager.notes.values()) {
+    if (note.noteType === 'SPAN') {
+      const transparentNoteColor =
+        'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
+      drawVerticalLineAtTime(
+        ctx,
+        timescale,
+        note.start,
+        size.height,
+        transparentNoteColor,
+        1,
+      );
+      drawVerticalLineAtTime(
+        ctx,
+        timescale,
+        note.end,
+        size.height,
+        transparentNoteColor,
+        1,
+      );
+    } else if (note.noteType === 'DEFAULT') {
+      drawVerticalLineAtTime(
+        ctx,
+        timescale,
+        note.timestamp,
+        size.height,
+        note.color,
+      );
+    }
+  }
+}

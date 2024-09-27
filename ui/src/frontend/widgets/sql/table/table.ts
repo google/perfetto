@@ -235,7 +235,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
               ),
               aggregationType: column.aggregation?.().dataType,
             },
-            this.state.engine,
+            this.state.trace,
           );
         },
       }),
@@ -270,7 +270,7 @@ function getTableManager(state: SqlTableState): TableManager {
     addFilter: (filter) => {
       state.addFilter(filter);
     },
-    engine: state.engine,
+    trace: state.trace,
     getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
       buildSqlQuery({
         table: state.config.name,

@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 import {SqlValue} from '../../../../trace_processor/query_result';
-import {Engine} from '../../../../trace_processor/engine';
 import {SortDirection} from '../../../../base/comparison_utils';
 import {arrayEquals} from '../../../../base/array_utils';
+import {Trace} from '../../../../public/trace';
 
 // We are dealing with two types of columns here:
 // - Column, which is shown to a user in table (high-level, ColumnTable).
@@ -88,7 +88,7 @@ function sqlColumnName(column: SqlColumn): string {
 export interface TableManager {
   addFilter(filter: Filter): void;
 
-  engine: Engine;
+  trace: Trace;
   getSqlQuery(data: {[key: string]: SqlColumn}): string;
 }
 

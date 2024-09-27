@@ -25,13 +25,13 @@ import {
 } from '../../trace_processor/sql_utils/process';
 import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
-import {getEngine} from '../get_engine';
 import {ProcessDetailsTab} from '../process_details_tab';
 import {
   createSqlIdRefRenderer,
   sqlIdRegistry,
 } from './sql/details/sql_ref_renderer_registry';
 import {asUpid} from '../../trace_processor/sql_utils/core_types';
+import {AppImpl} from '../../core/app_trace_impl';
 
 export function showProcessDetailsMenuItem(
   upid: Upid,
@@ -40,15 +40,20 @@ export function showProcessDetailsMenuItem(
   return m(MenuItem, {
     icon: Icons.ExternalLink,
     label: 'Show process details',
-    onclick: () =>
+    onclick: () => {
+      // TODO(primiano): `trace` should be injected, but doing so would require
+      // an invasive refactoring of most classes in frontend/widgets/sql/*.
+      const trace = AppImpl.instance.trace;
+      if (trace === undefined) return;
       addEphemeralTab(
         'processDetails',
         new ProcessDetailsTab({
-          engine: getEngine('ProcessDetails'),
+          trace,
           upid,
           pid,
         }),
-      ),
+      );
+    },
   });
 }
 

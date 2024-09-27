@@ -17,22 +17,18 @@ import {
   ThreadInfo,
 } from '../../trace_processor/sql_utils/thread';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
-import {Engine} from '../../trace_processor/engine';
 import {Trace} from '../../public/trace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {
-  getTimeSpanOfSelectionOrVisibleWindow,
-  globals,
-} from '../../frontend/globals';
 import {asUtid, Utid} from '../../trace_processor/sql_utils/core_types';
-import {addQueryResultsTab} from '../../frontend/query_result_tab';
+import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 import {showModal} from '../../widgets/modal';
 import {Optional} from '../../base/utils';
 import {
   CRITICAL_PATH_CMD,
   CRITICAL_PATH_LITE_CMD,
 } from '../../public/exposed_commands';
+import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 
 const criticalPathSliceColumns = {
   ts: 'ts',
@@ -81,11 +77,10 @@ const sliceColumns = {ts: 'ts', dur: 'dur', name: 'name'};
 
 const sliceColumnNames = ['id', 'utid', 'ts', 'dur', 'name', 'table_name'];
 
-function getFirstUtidOfSelectionOrVisibleWindow(): number {
-  const selection = globals.selectionManager.selection;
+function getFirstUtidOfSelectionOrVisibleWindow(trace: Trace): number {
+  const selection = trace.selection.selection;
   if (selection.kind === 'area') {
-    for (const trackUri of selection.trackUris) {
-      const trackDesc = globals.trackManager.getTrack(trackUri);
+    for (const trackDesc of selection.tracks) {
       if (
         trackDesc?.tags?.kind === THREAD_STATE_TRACK_KIND &&
         trackDesc?.tags?.utid !== undefined
@@ -116,24 +111,23 @@ function showModalErrorThreadStateRequired() {
 // If utid is undefined, returns the utid for the selected thread state track,
 // if any. If it's defined, looks up the info about that specific utid.
 async function getThreadInfoForUtidOrSelection(
-  engine: Engine,
+  trace: Trace,
   utid?: Utid,
 ): Promise<Optional<ThreadInfo>> {
   if (utid === undefined) {
     if (
-      globals.selectionManager.selection.kind !== 'legacy' ||
-      globals.selectionManager.selection.legacySelection.kind !== 'THREAD_STATE'
+      trace.selection.selection.kind !== 'legacy' ||
+      trace.selection.selection.legacySelection.kind !== 'THREAD_STATE'
     ) {
       return undefined;
     }
-    const trackUri =
-      globals.selectionManager.selection.legacySelection.trackUri;
+    const trackUri = trace.selection.selection.legacySelection.trackUri;
     if (trackUri === undefined) return undefined;
-    const track = globals.trackManager.getTrack(trackUri);
+    const track = trace.tracks.getTrack(trackUri);
     utid = asUtid(track?.tags?.utid);
     if (utid === undefined) return undefined;
   }
-  return getThreadInfo(engine, utid);
+  return getThreadInfo(trace.engine, utid);
 }
 
 class CriticalPath implements PerfettoPlugin {
@@ -148,7 +142,7 @@ class CriticalPath implements PerfettoPlugin {
       id: CRITICAL_PATH_LITE_CMD,
       name: 'Critical path lite (selected thread state slice)',
       callback: async (utid?: Utid) => {
-        const thdInfo = await getThreadInfoForUtidOrSelection(ctx.engine, utid);
+        const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utid);
         if (thdInfo === undefined) {
           return showModalErrorThreadStateRequired();
         }
@@ -190,7 +184,7 @@ class CriticalPath implements PerfettoPlugin {
       id: CRITICAL_PATH_CMD,
       name: 'Critical path (selected thread state slice)',
       callback: async (utid?: Utid) => {
-        const thdInfo = await getThreadInfoForUtidOrSelection(ctx.engine, utid);
+        const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utid);
         if (thdInfo === undefined) {
           return showModalErrorThreadStateRequired();
         }
@@ -225,8 +219,8 @@ class CriticalPath implements PerfettoPlugin {
       id: 'perfetto.CriticalPathLite_AreaSelection',
       name: 'Critical path lite (over area selection)',
       callback: async () => {
-        const trackUtid = getFirstUtidOfSelectionOrVisibleWindow();
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
+        const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
+        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         if (trackUtid === 0) {
           return showModalErrorAreaSelectionRequired();
         }
@@ -267,8 +261,8 @@ class CriticalPath implements PerfettoPlugin {
       id: 'perfetto.CriticalPath_AreaSelection',
       name: 'Critical path  (over area selection)',
       callback: async () => {
-        const trackUtid = getFirstUtidOfSelectionOrVisibleWindow();
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
+        const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
+        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         if (trackUtid === 0) {
           return showModalErrorAreaSelectionRequired();
         }
@@ -301,12 +295,12 @@ class CriticalPath implements PerfettoPlugin {
       id: 'perfetto.CriticalPathPprof_AreaSelection',
       name: 'Critical path pprof (over area selection)',
       callback: async () => {
-        const trackUtid = getFirstUtidOfSelectionOrVisibleWindow();
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
+        const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
+        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         if (trackUtid === 0) {
           return showModalErrorAreaSelectionRequired();
         }
-        addQueryResultsTab({
+        addQueryResultsTab(ctx, {
           query: `
               INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;
               SELECT *

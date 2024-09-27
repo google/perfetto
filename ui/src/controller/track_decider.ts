@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import {globals} from '../frontend/globals';
-import {Optional} from '../base/utils';
-import {GroupNode, TrackNode} from '../public/workspace';
+import {TrackNode} from '../public/workspace';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -53,12 +52,12 @@ function groupGlobalIonTracks(): void {
   let hasSummary = false;
 
   for (const track of globals.workspace.children) {
-    if (!(track instanceof TrackNode)) continue;
+    if (track.hasChildren) continue;
 
-    const isIon = track.displayName.startsWith(MEM_ION);
-    const isIonCounter = track.displayName === MEM_ION;
-    const isDmaHeapCounter = track.displayName === MEM_DMA_COUNTER_NAME;
-    const isDmaBuffferSlices = track.displayName === MEM_DMA;
+    const isIon = track.title.startsWith(MEM_ION);
+    const isIonCounter = track.title === MEM_ION;
+    const isDmaHeapCounter = track.title === MEM_DMA_COUNTER_NAME;
+    const isDmaBuffferSlices = track.title === MEM_DMA;
     if (isIon || isIonCounter || isDmaHeapCounter || isDmaBuffferSlices) {
       ionTracks.push(track);
     }
@@ -70,85 +69,87 @@ function groupGlobalIonTracks(): void {
     return;
   }
 
-  let group: Optional<GroupNode>;
+  let group: TrackNode | undefined;
   for (const track of ionTracks) {
-    if (!group && [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.uri)) {
+    if (!group && [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.title)) {
       globals.workspace.removeChild(track);
-      group = new GroupNode(track.displayName);
-      group.headerTrackUri = track.uri;
-      globals.workspace.insertChildInOrder(group);
+      group = new TrackNode({
+        title: track.title,
+        uri: track.uri,
+        isSummary: true,
+      });
+      globals.workspace.addChildInOrder(group);
     } else {
-      group?.insertChildInOrder(track);
+      group?.addChildInOrder(track);
     }
   }
 }
 
 function groupGlobalIostatTracks(tag: string, groupName: string): void {
-  const devMap = new Map<string, GroupNode>();
+  const devMap = new Map<string, TrackNode>();
 
   for (const track of globals.workspace.children) {
-    if (track instanceof TrackNode && track.displayName.startsWith(tag)) {
-      const name = track.displayName.split('.', 3);
+    if (track.hasChildren) continue;
+    if (track.title.startsWith(tag)) {
+      const name = track.title.split('.', 3);
       const key = name[1];
 
       let parentGroup = devMap.get(key);
       if (!parentGroup) {
-        const group = new GroupNode(groupName);
-        globals.workspace.insertChildInOrder(group);
+        const group = new TrackNode({title: groupName, isSummary: true});
+        globals.workspace.addChildInOrder(group);
         devMap.set(key, group);
         parentGroup = group;
       }
 
-      track.displayName = name[2];
-      parentGroup.insertChildInOrder(track);
+      track.title = name[2];
+      parentGroup.addChildInOrder(track);
     }
   }
 }
 
 function groupGlobalBuddyInfoTracks(): void {
-  const devMap = new Map<string, GroupNode>();
+  const devMap = new Map<string, TrackNode>();
 
   for (const track of globals.workspace.children) {
-    if (
-      track instanceof TrackNode &&
-      track.displayName.startsWith(BUDDY_INFO_TAG)
-    ) {
-      const tokens = track.uri.split('[');
+    if (track.hasChildren) continue;
+    if (track.title.startsWith(BUDDY_INFO_TAG)) {
+      const tokens = track.title.split('[');
       const node = tokens[1].slice(0, -1);
       const zone = tokens[2].slice(0, -1);
       const size = tokens[3].slice(0, -1);
 
       const groupName = 'Buddyinfo:  Node: ' + node + ' Zone: ' + zone;
       if (!devMap.has(groupName)) {
-        const group = new GroupNode(groupName);
+        const group = new TrackNode({title: groupName, isSummary: true});
         devMap.set(groupName, group);
-        globals.workspace.insertChildInOrder(group);
+        globals.workspace.addChildInOrder(group);
       }
-      track.displayName = 'Chunk size: ' + size;
+      track.title = 'Chunk size: ' + size;
       const group = devMap.get(groupName)!;
-      group.insertChildInOrder(track);
+      group.addChildInOrder(track);
     }
   }
 }
 
 function groupFrequencyTracks(groupName: string): void {
-  const group = new GroupNode(groupName);
+  const group = new TrackNode({title: groupName, isSummary: true});
 
   for (const track of globals.workspace.children) {
-    if (!(track instanceof TrackNode)) continue;
+    if (track.hasChildren) continue;
     // Group all the frequency tracks together (except the CPU and GPU
     // frequency ones).
     if (
-      track.displayName.endsWith('Frequency') &&
-      !track.displayName.startsWith('Cpu') &&
-      !track.displayName.startsWith('Gpu')
+      track.title.endsWith('Frequency') &&
+      !track.title.startsWith('Cpu') &&
+      !track.title.startsWith('Gpu')
     ) {
-      group.insertChildInOrder(track);
+      group.addChildInOrder(track);
     }
   }
 
   if (group.children.length > 0) {
-    globals.workspace.insertChildInOrder(group);
+    globals.workspace.addChildInOrder(group);
   }
 }
 
@@ -163,35 +164,36 @@ function groupMiscNonAllowlistedTracks(groupName: string): void {
     new RegExp('^Android logs$'),
   ];
 
-  const group = new GroupNode(groupName);
+  const group = new TrackNode({title: groupName, isSummary: true});
   for (const track of globals.workspace.children) {
-    if (!(track instanceof TrackNode)) continue;
+    if (track.hasChildren) continue;
     let allowlisted = false;
     for (const regex of ALLOWLIST_REGEXES) {
-      allowlisted = allowlisted || regex.test(track.displayName);
+      allowlisted = allowlisted || regex.test(track.title);
     }
     if (allowlisted) {
       continue;
     }
-    group.insertChildInOrder(track);
+    group.addChildInOrder(track);
   }
 
   if (group.children.length > 0) {
-    globals.workspace.insertChildInOrder(group);
+    globals.workspace.addChildInOrder(group);
   }
 }
 
 function groupTracksByRegex(regex: RegExp, groupName: string): void {
-  const group = new GroupNode(groupName);
+  const group = new TrackNode({title: groupName, isSummary: true});
 
   for (const track of globals.workspace.children) {
-    if (track instanceof TrackNode && regex.test(track.displayName)) {
-      group.insertChildInOrder(track);
+    if (track.hasChildren) continue;
+    if (regex.test(track.title)) {
+      group.addChildInOrder(track);
     }
   }
 
   if (group.children.length > 0) {
-    globals.workspace.insertChildInOrder(group);
+    globals.workspace.addChildInOrder(group);
   }
 }
 
@@ -213,31 +215,19 @@ export async function decideTracks(): Promise<void> {
   groupTracksByRegex(CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
   groupMiscNonAllowlistedTracks(MISC_GROUP);
 
-  // Remove any empty groups
-  globals.workspace.children.forEach((n) => {
-    if (n instanceof GroupNode && n.children.length === 0) {
-      globals.workspace.removeChild(n);
-    }
-  });
-
   // Move groups underneath tracks
   Array.from(globals.workspace.children)
     .sort((a, b) => {
-      // Define the desired order
-      const order = [TrackNode, GroupNode];
-
       // Get the index in the order array
-      const indexA = order.findIndex((type) => a instanceof type);
-      const indexB = order.findIndex((type) => b instanceof type);
-
-      // Sort based on the index in the order array
+      const indexA = a.hasChildren ? 1 : 0;
+      const indexB = b.hasChildren ? 1 : 0;
       return indexA - indexB;
     })
-    .forEach((n) => globals.workspace.appendChild(n));
+    .forEach((n) => globals.workspace.addChildLast(n));
 
   // If there is only one group, expand it
-  const groups = globals.workspace.children;
-  if (groups.length === 1 && groups[0] instanceof GroupNode) {
-    groups[0].expand();
+  const rootLevelChildren = globals.workspace.children;
+  if (rootLevelChildren.length === 1 && rootLevelChildren[0].hasChildren) {
+    rootLevelChildren[0].expand();
   }
 }

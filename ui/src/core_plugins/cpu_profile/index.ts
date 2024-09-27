@@ -66,10 +66,10 @@ class CpuProfile implements PerfettoPlugin {
       const upid = it.upid;
       const threadName = it.threadName;
       const uri = `${getThreadUriPrefix(upid, utid)}_cpu_samples`;
-      const displayName = `${threadName} (CPU Stack Samples)`;
+      const title = `${threadName} (CPU Stack Samples)`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           kind: CPU_PROFILE_TRACK_KIND,
           utid,
@@ -77,16 +77,15 @@ class CpuProfile implements PerfettoPlugin {
         },
         track: new CpuProfileTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           utid,
         ),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = -40;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: -40});
+      group.addChildInOrder(track);
     }
     ctx.registerDetailsPanel(
       new CpuProfileSampleFlamegraphDetailsPanel(ctx.engine),
@@ -95,6 +94,7 @@ class CpuProfile implements PerfettoPlugin {
 }
 
 class CpuProfileSampleFlamegraphDetailsPanel implements LegacyDetailsPanel {
+  readonly panelType = 'LegacyDetailsPanel';
   private sel?: CpuProfileSampleSelection;
   private selMonitor = new Monitor([() => this.sel?.ts, () => this.sel?.utid]);
   private flamegraphAttrs?: QueryFlamegraphAttrs;

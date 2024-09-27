@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import {removeFalsyValues} from '../../base/array_utils';
-import {globals} from '../../frontend/globals';
-import {GroupNode, TrackNode} from '../../public/workspace';
+import {TrackNode} from '../../public/workspace';
 import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
@@ -25,6 +24,7 @@ import {
   getOrCreateGroupForProcess,
   getOrCreateGroupForThread,
 } from '../../public/standard_groups';
+import {exists} from '../../base/utils';
 
 class AsyncSlicePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -39,6 +39,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks_grouped as (
         select
+          id,
           parent_id,
           name,
           group_concat(id) as trackIds,
@@ -52,19 +53,27 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         t.name as name,
         t.parent_id as parentId,
         t.trackIds as trackIds,
+        t.id as id,
         __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks_grouped t
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
+      id: NUM,
       parentId: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
     });
 
+    // Create a map of track nodes by id
+    const trackMap = new Map<
+      number,
+      {parentId: number | null; trackNode: TrackNode}
+    >();
+
     for (; it.valid(); it.next()) {
       const rawName = it.name === null ? undefined : it.name;
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: rawName,
         kind: ASYNC_SLICE_TRACK_KIND,
       });
@@ -75,42 +84,61 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const uri = `/async_slices_${rawName}_${it.parentId}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
           scope: 'global',
         },
-        track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIds),
+        track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
       });
-      const trackNode = new TrackNode(uri, displayName);
-      trackNode.sortOrder = -25;
-      ctx.workspace.insertChildInOrder(trackNode);
+      const trackNode = new TrackNode({uri, title, sortOrder: -25});
+      trackMap.set(it.id, {parentId: it.parentId, trackNode});
     }
+
+    // Attach track nodes to parents / or the workspace if they have no parent
+    trackMap.forEach((t) => {
+      const parent = exists(t.parentId) && trackMap.get(t.parentId);
+      if (parent !== false && parent !== undefined) {
+        parent.trackNode.addChildLast(t.trackNode);
+      } else {
+        ctx.workspace.addChildLast(t.trackNode);
+      }
+    });
   }
 
   async addProcessAsyncSliceTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       select
         upid,
+        t.id,
         t.name as trackName,
         t.track_ids as trackIds,
         process.name as processName,
         process.pid as pid,
+        t.parent_id as parentId,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
-      from _process_track_summary_by_upid_and_name t
+      from _process_track_summary_by_upid_and_parent_id_and_name t
       join process using(upid)
       where t.name is null or t.name not glob "* Timeline"
     `);
 
     const it = result.iter({
       upid: NUM,
+      parentId: NUM_NULL,
       trackName: STR_NULL,
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
       maxDepth: NUM,
+      id: NUM,
     });
+
+    const trackMap = new Map<
+      number,
+      {parentId: number | null; upid: number; trackNode: TrackNode}
+    >();
+
     for (; it.valid(); it.next()) {
       const upid = it.upid;
       const trackName = it.trackName;
@@ -121,7 +149,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const maxDepth = it.maxDepth;
 
       const kind = ASYNC_SLICE_TRACK_KIND;
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: trackName,
         upid,
         pid,
@@ -132,24 +160,29 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const uri = `/process_${upid}/async_slices_${rawTrackIds}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
           scope: 'process',
           upid,
         },
-        track: new AsyncSliceTrack(
-          {engine: ctx.engine, uri},
-          maxDepth,
-          trackIds,
-        ),
+        track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
       });
-      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = 30;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: 30});
+      trackMap.set(it.id, {trackNode: track, parentId: it.parentId, upid});
     }
+
+    // Attach track nodes to parents / or the workspace if they have no parent
+    trackMap.forEach((t) => {
+      const parent = exists(t.parentId) && trackMap.get(t.parentId);
+      if (parent !== false && parent !== undefined) {
+        parent.trackNode.addChildLast(t.trackNode);
+      } else {
+        const processGroup = getOrCreateGroupForProcess(ctx.workspace, t.upid);
+        processGroup.addChildLast(t.trackNode);
+      }
+    });
   }
 
   async addThreadAsyncSliceTracks(ctx: Trace): Promise<void> {
@@ -198,7 +231,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       } = it;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: trackName,
         utid,
         tid,
@@ -209,7 +242,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const uri = `/${getThreadUriPrefix(upid, utid)}_slice_${rawTrackIds}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds,
           kind: ASYNC_SLICE_TRACK_KIND,
@@ -220,16 +253,11 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: new AsyncSliceTrack(
-          {engine: ctx.engine, uri},
-          maxDepth,
-          trackIds,
-        ),
+        track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = 20;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: 20});
+      group.addChildInOrder(track);
     }
   }
 
@@ -262,7 +290,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       maxDepth: NUM_NULL,
     });
 
-    const groupMap = new Map<string, GroupNode>();
+    const groupMap = new Map<string, TrackNode>();
 
     for (; it.valid(); it.next()) {
       const {trackIds, name, uid, maxDepth} = it;
@@ -274,7 +302,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
       const trackIdList = trackIds.split(',').map((v) => Number(v));
 
-      const displayName = getTrackName({
+      const title = getTrackName({
         name,
         uid,
         userName,
@@ -285,23 +313,23 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const uri = `/async_slices_${name}_${uid}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds: trackIdList,
           kind: ASYNC_SLICE_TRACK_KIND,
         },
-        track: new AsyncSliceTrack({engine, uri}, maxDepth, trackIdList),
+        track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIdList),
       });
 
-      const track = new TrackNode(uri, displayName);
+      const track = new TrackNode({uri, title});
       const existingGroup = groupMap.get(name);
       if (existingGroup) {
-        existingGroup.insertChildInOrder(track);
+        existingGroup.addChildInOrder(track);
       } else {
-        const group = new GroupNode(name);
-        globals.workspace.insertChildInOrder(group);
+        const group = new TrackNode({title: name});
+        ctx.workspace.addChildInOrder(group);
         groupMap.set(name, group);
-        group.insertChildInOrder(track);
+        group.addChildInOrder(track);
       }
     }
   }

@@ -1028,7 +1028,7 @@ export class ArgSetColumnSet extends TableColumnSet {
   async discover(
     manager: TableManager,
   ): Promise<{key: string; column: TableColumn}[]> {
-    const queryResult = await manager.engine.query(`
+    const queryResult = await manager.trace.engine.query(`
       -- Encapsulate the query in a CTE to avoid clashes between filters
       -- and columns of the 'args' table.
       SELECT

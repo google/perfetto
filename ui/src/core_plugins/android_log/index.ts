@@ -64,7 +64,8 @@ class AndroidLog implements PerfettoPlugin {
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
         track: new AndroidLogTrack(ctx.engine),
       });
-      ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
+      const track = new TrackNode({title, uri});
+      ctx.workspace.addChildInOrder(track);
     }
 
     const androidLogsTabUri = 'perfetto.AndroidLog#tab';
@@ -79,8 +80,7 @@ class AndroidLog implements PerfettoPlugin {
       isEphemeral: false,
       uri: androidLogsTabUri,
       content: {
-        render: () =>
-          m(LogPanel, {filterStore: filterStore, engine: ctx.engine}),
+        render: () => m(LogPanel, {filterStore: filterStore, trace: ctx}),
         getTitle: () => 'Android Logs',
       },
     });
@@ -102,7 +102,7 @@ class AndroidLog implements PerfettoPlugin {
       id: 'perfetto.ShowTable.android_logs',
       name: 'Open table: android_logs',
       callback: () => {
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: getAndroidLogsTable(),
         });
       },

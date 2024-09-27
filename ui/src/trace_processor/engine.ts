@@ -61,6 +61,8 @@ export interface TraceProcessorConfig {
 }
 
 export interface Engine {
+  readonly engineId: string;
+
   /**
    * Execute a query against the database, returning a promise that resolves
    * when the query has completed but rejected when the query fails for whatever
@@ -98,6 +100,8 @@ export interface Engine {
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array>;
+
+  getProxy(tag: string): EngineProxy;
 }
 
 // Abstract interface of a trace proccessor.
@@ -502,6 +506,10 @@ export abstract class EngineBase implements Engine {
     this.rpcSendRequestBytes(buf);
   }
 
+  get engineId(): string {
+    return this.id;
+  }
+
   getProxy(tag: string): EngineProxy {
     return new EngineProxy(this, tag);
   }
@@ -553,6 +561,10 @@ export class EngineProxy implements Engine, Disposable {
     return this.engine.id;
   }
 
+  getProxy(tag: string): EngineProxy {
+    return this.engine.getProxy(`${this.tag}/${tag}`);
+  }
+
   [Symbol.dispose]() {
     this._isAlive = false;
   }
@@ -572,4 +584,9 @@ function captureStackTrace(e: Error): void {
       configurable: true,
     });
   }
+}
+
+// A convenience interface to inject the App in Mithril components.
+export interface EngineAttrs {
+  engine: Engine;
 }

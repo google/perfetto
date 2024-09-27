@@ -32,7 +32,7 @@ class TraceMetadata implements PerfettoPlugin {
       uri,
       title,
       track: new SimpleSliceTrack(
-        ctx.engine,
+        ctx,
         {trackUri: uri},
         {
           data: {
@@ -47,7 +47,8 @@ class TraceMetadata implements PerfettoPlugin {
         },
       ),
     });
-    ctx.workspace.insertChildInOrder(new TrackNode(uri, title));
+    const track = new TrackNode({uri, title});
+    ctx.workspace.addChildInOrder(track);
   }
 }
 

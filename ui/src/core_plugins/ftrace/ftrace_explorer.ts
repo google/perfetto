@@ -34,13 +34,14 @@ import {Monitor} from '../../base/monitor';
 import {Button} from '../../widgets/button';
 import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
 import {Store} from '../../base/store';
+import {Trace} from '../../public/trace';
 
 const ROW_H = 20;
 
 interface FtraceExplorerAttrs {
   cache: FtraceExplorerCache;
   filterStore: Store<FtraceFilter>;
-  engine: Engine;
+  trace: Trace;
 }
 
 interface FtraceEvent {
@@ -107,13 +108,13 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 
   constructor({attrs}: m.CVnode<FtraceExplorerAttrs>) {
     this.monitor = new Monitor([
-      () => globals.timeline.visibleWindow.toTimeSpan().start,
-      () => globals.timeline.visibleWindow.toTimeSpan().end,
+      () => attrs.trace.timeline.visibleWindow.toTimeSpan().start,
+      () => attrs.trace.timeline.visibleWindow.toTimeSpan().end,
       () => attrs.filterStore.state,
     ]);
 
     if (attrs.cache.state === 'blank') {
-      getFtraceCounters(attrs.engine)
+      getFtraceCounters(attrs.trace.engine)
         .then((counters) => {
           attrs.cache.counters = counters;
           attrs.cache.state = 'valid';
@@ -164,7 +165,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   private reloadData(attrs: FtraceExplorerAttrs): void {
     this.queryLimiter.schedule(async () => {
       this.data = await lookupFtraceEvents(
-        attrs.engine,
+        attrs.trace,
         this.pagination.offset,
         this.pagination.count,
         attrs.filterStore.state,
@@ -264,12 +265,12 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 }
 
 async function lookupFtraceEvents(
-  engine: Engine,
+  trace: Trace,
   offset: number,
   count: number,
   filter: FtraceFilter,
 ): Promise<FtracePanelData> {
-  const {start, end} = globals.timeline.visibleWindow.toTimeSpan();
+  const {start, end} = trace.timeline.visibleWindow.toTimeSpan();
 
   const excludeList = filter.excludeList;
   const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
@@ -279,7 +280,7 @@ async function lookupFtraceEvents(
   // scroll container so that the scrollbar works as if the panel were fully
   // populated.
   // Perhaps we could work out some UX that doesn't need this.
-  let queryRes = await engine.query(`
+  let queryRes = await trace.engine.query(`
     select count(id) as numEvents
     from ftrace_event
     where
@@ -288,7 +289,7 @@ async function lookupFtraceEvents(
     `);
   const {numEvents} = queryRes.firstRow({numEvents: NUM});
 
-  queryRes = await engine.query(`
+  queryRes = await trace.engine.query(`
     select
       ftrace_event.id as id,
       ftrace_event.ts as ts,

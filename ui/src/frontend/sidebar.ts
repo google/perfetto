@@ -48,6 +48,7 @@ import {
 import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
 import {formatHotkey} from '../base/hotkeys';
 import {SidebarMenuItem} from '../public/sidebar';
+import {AppImpl} from '../core/app_trace_impl';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';
@@ -124,7 +125,7 @@ interface Section {
 function insertSidebarMenuitems(
   groupSelector: SidebarMenuItem['group'],
 ): ReadonlyArray<SectionItem> {
-  return globals.sidebarMenuItems
+  return AppImpl.instance.sidebar.menuItems
     .valuesAsArray()
     .filter(({group}) => group === groupSelector)
     .sort((a, b) => {
@@ -319,8 +320,7 @@ function downloadTraceFromUrl(url: string): Promise<File> {
 
 export async function getCurrentTrace(): Promise<Blob> {
   // Caller must check engine exists.
-  const engine = assertExists(globals.getCurrentEngine());
-  const src = engine.source;
+  const src = assertExists(AppImpl.instance.trace?.traceInfo.source);
   if (src.type === 'ARRAY_BUFFER') {
     return new Blob([src.buffer]);
   } else if (src.type === 'FILE') {

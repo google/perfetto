@@ -14,34 +14,19 @@
 
 import {uuidv4} from '../base/uuid';
 // import {THREAD_SLICE_TRACK_KIND} from '../public';
-import {TrackDescriptor} from '../public/track';
-import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
 import {globals} from './globals';
 import {VisualisedArgsTrack} from './visualized_args_track';
 import {TrackNode} from '../public/workspace';
+import {Trace} from '../public/trace';
 
 const VISUALISED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualisedArgs';
 
-// We need to add tracks from the core and from plugins. In order to add a debug
-// track we need to pass a context through with we can add the track. This is
-// different for plugins vs the core. This interface defines the generic shape
-// of this context, which can be supplied from a plugin or built from globals.
-//
-// TODO(stevegolton): In the future, both the core and plugins should have
-// access to some Context object which implements the various things we want to
-// do in a generic way, so that we don't have to do this mangling to get this to
-// work.
-interface Context {
-  engine: Engine;
-  tracks: {registerTrack(track: TrackDescriptor): unknown};
-}
-
-export async function addVisualisedArgTracks(ctx: Context, argName: string) {
+export async function addVisualisedArgTracks(trace: Trace, argName: string) {
   const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
   const tableName = `__arg_visualisation_helper_${escapedArgName}_slice`;
 
-  const result = await ctx.engine.query(`
+  const result = await trace.engine.query(`
         drop table if exists ${tableName};
 
         create table ${tableName} as
@@ -80,12 +65,12 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
     const maxDepth = it.maxDepth;
 
     const uri = `${VISUALISED_ARGS_SLICE_TRACK_URI_PREFIX}#${uuidv4()}`;
-    ctx.tracks.registerTrack({
+    trace.tracks.registerTrack({
       uri,
       title: argName,
       chips: ['metric'],
       track: new VisualisedArgsTrack({
-        engine: ctx.engine,
+        trace,
         uri,
         trackId,
         maxDepth,
@@ -96,6 +81,7 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
     // Find the thread slice track that corresponds with this trackID and insert
     // this track before it.
     const threadSliceTrack = globals.workspace.flatTracks.find((trackNode) => {
+      if (!trackNode.uri) return false;
       const trackDescriptor = globals.trackManager.getTrack(trackNode.uri);
       return (
         trackDescriptor &&
@@ -106,8 +92,8 @@ export async function addVisualisedArgTracks(ctx: Context, argName: string) {
 
     const parentGroup = threadSliceTrack?.parent;
     if (parentGroup) {
-      const newTrack = new TrackNode(uri, argName);
-      parentGroup.insertBefore(newTrack, threadSliceTrack);
+      const newTrack = new TrackNode({uri, title: argName});
+      parentGroup.addChildBefore(newTrack, threadSliceTrack);
     }
   }
 }

@@ -19,10 +19,9 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
-import {globals} from '../../frontend/globals';
-import {Engine} from '../../trace_processor/engine';
 import {TrackContext} from '../../public/track';
 import {Button} from '../../widgets/button';
+import {Trace} from '../../public/trace';
 
 export enum CPUType {
   Big = 'big',
@@ -33,9 +32,9 @@ export enum CPUType {
 export class ActiveCPUCountTrack extends BaseCounterTrack {
   private readonly cpuType?: CPUType;
 
-  constructor(ctx: TrackContext, engine: Engine, cpuType?: CPUType) {
+  constructor(ctx: TrackContext, trace: Trace, cpuType?: CPUType) {
     super({
-      engine,
+      trace,
       uri: ctx.trackUri,
     });
     this.cpuType = cpuType;
@@ -44,7 +43,7 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
   getTrackShellButtons(): m.Children {
     return m(Button, {
       onclick: () => {
-        globals.workspace.getTrackByUri(this.uri)?.remove();
+        this.trace.workspace.findTrackByUri(this.uri)?.remove();
       },
       icon: Icons.Close,
       title: 'Close',

@@ -86,25 +86,28 @@ const char* StringifyCounter(int32_t counter) {
   return "unknown";
 }
 
-StringId InternTimebaseCounterName(
+template <typename T>
+StringId InternCounterName(
     const protos::pbzero::PerfSampleDefaults::Decoder& perf_defaults,
-    TraceProcessorContext* context) {
+    TraceProcessorContext* context,
+    const T& desc_decoder) {
   using namespace protos::pbzero;
   PerfEvents::Timebase::Decoder timebase(perf_defaults.timebase());
 
-  auto config_given_name = timebase.name();
+  auto config_given_name = desc_decoder.name();
   if (config_given_name.size > 0) {
     return context->storage->InternString(config_given_name);
   }
-  if (timebase.has_counter()) {
-    return context->storage->InternString(StringifyCounter(timebase.counter()));
+  if (desc_decoder.has_counter()) {
+    return context->storage->InternString(
+        StringifyCounter(desc_decoder.counter()));
   }
-  if (timebase.has_tracepoint()) {
-    PerfEvents::Tracepoint::Decoder tracepoint(timebase.tracepoint());
+  if (desc_decoder.has_tracepoint()) {
+    PerfEvents::Tracepoint::Decoder tracepoint(desc_decoder.tracepoint());
     return context->storage->InternString(tracepoint.name());
   }
-  if (timebase.has_raw_event()) {
-    PerfEvents::RawEvent::Decoder raw(timebase.raw_event());
+  if (desc_decoder.has_raw_event()) {
+    PerfEvents::RawEvent::Decoder raw(desc_decoder.raw_event());
     // This doesn't follow any pre-existing naming scheme, but aims to be a
     // short-enough default that is distinguishable.
     base::StackString<128> name(
@@ -113,8 +116,31 @@ StringId InternTimebaseCounterName(
     return context->storage->InternString(name.string_view());
   }
 
-  PERFETTO_DLOG("Could not name the perf timebase counter");
+  PERFETTO_DLOG("Could not name the perf counter");
   return context->storage->InternString("unknown");
+}
+
+StringId InternTimebaseCounterName(
+    const protos::pbzero::PerfSampleDefaults::Decoder& perf_defaults,
+    TraceProcessorContext* context) {
+  using namespace protos::pbzero;
+  PerfEvents::Timebase::Decoder timebase(perf_defaults.timebase());
+  return InternCounterName(perf_defaults, context, timebase);
+}
+
+std::vector<StringId> InternFollowersCounterName(
+    const protos::pbzero::PerfSampleDefaults::Decoder& perf_defaults,
+    TraceProcessorContext* context) {
+  using namespace protos::pbzero;
+
+  std::vector<StringId> string_ids;
+
+  for (auto it = perf_defaults.followers(); it; ++it) {
+    FollowerEvent::Decoder followers(*it);
+    string_ids.push_back(InternCounterName(perf_defaults, context, followers));
+  }
+
+  return string_ids;
 }
 }  // namespace
 
@@ -133,7 +159,8 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
 
   auto cpu_it = seq_state->per_cpu.find(cpu);
   if (cpu_it != seq_state->per_cpu.end())
-    return {seq_state->perf_session_id, cpu_it->second.timebase_track_id};
+    return {seq_state->perf_session_id, cpu_it->second.timebase_track_id,
+            cpu_it->second.follower_track_ids};
 
   std::optional<PerfSampleDefaults::Decoder> perf_defaults;
   if (nullable_defaults && nullable_defaults->has_perf_sample_defaults()) {
@@ -153,7 +180,19 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   TrackId timebase_track_id = context_->track_tracker->CreatePerfCounterTrack(
       name_id, session_id, cpu, /*is_timebase=*/true);
 
-  seq_state->per_cpu.emplace(cpu, timebase_track_id);
+  std::vector<TrackId> follower_track_ids;
+  if (perf_defaults.has_value()) {
+    auto name_ids = InternFollowersCounterName(perf_defaults.value(), context_);
+    follower_track_ids.reserve(name_ids.size());
+    for (const auto& follower_name_id : name_ids) {
+      follower_track_ids.push_back(
+          context_->track_tracker->CreatePerfCounterTrack(
+              follower_name_id, session_id, cpu, /*is_timebase=*/true));
+    }
+  }
+
+  seq_state->per_cpu.emplace(
+      cpu, CpuSequenceState{timebase_track_id, follower_track_ids});
 
   // If the config requested process sharding, record in the stats table which
   // shard was chosen for the trace. It should be the same choice for all data
@@ -169,7 +208,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
         static_cast<int64_t>(perf_defaults->chosen_process_shard()));
   }
 
-  return {session_id, timebase_track_id};
+  return {session_id, timebase_track_id, std::move(follower_track_ids)};
 }
 
 tables::PerfSessionTable::Id PerfSampleTracker::CreatePerfSession() {

@@ -23,6 +23,7 @@ import {
 } from './state_serialization_schema';
 import {TimeSpan} from '../base/time';
 import {ProfileType} from '../public/selection';
+import {AppImpl, TraceImpl} from '../core/app_trace_impl';
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
@@ -117,13 +118,18 @@ export function serializeAppState(): SerializedAppState {
   }
 
   const plugins = new Array<SerializedPluginState>();
-  for (const [id, pluginState] of Object.entries(globals.state.plugins)) {
+  const pluginsStore =
+    AppImpl.instance.trace?.getPluginStoreForSerialization() ?? {};
+
+  for (const [id, pluginState] of Object.entries(pluginsStore)) {
     plugins.push({id, state: pluginState});
   }
 
   return {
     version: SERIALIZED_STATE_VERSION,
-    pinnedTracks: globals.workspace.pinnedTracks.map((t) => t.uri),
+    pinnedTracks: globals.workspace.pinnedTracks
+      .map((t) => t.uri)
+      .filter((uri) => uri !== undefined),
     viewport: {
       start: vizWindow.start,
       end: vizWindow.end,
@@ -166,11 +172,14 @@ export function parseAppState(jsonDecodedObj: unknown): ParseStateResult {
  * track decider and initial selections are run.
  * @param appState the .data object returned by parseAppState() when successful.
  */
-export function deserializeAppStatePhase1(appState: SerializedAppState): void {
+export function deserializeAppStatePhase1(
+  appState: SerializedAppState,
+  trace: TraceImpl,
+): void {
   // Restore the plugin state.
-  globals.store.edit((draft) => {
+  trace.getPluginStoreForSerialization().edit((draft) => {
     for (const p of appState.plugins ?? []) {
-      draft.plugins[p.id] = p.state ?? {};
+      draft[p.id] = p.state ?? {};
     }
   });
 }
@@ -189,7 +198,7 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
 
   // Restore the pinned tracks, if they exist.
   for (const uri of appState.pinnedTracks) {
-    const track = globals.workspace.getTrackByUri(uri);
+    const track = globals.workspace.findTrackByUri(uri);
     if (track) {
       track.pin();
     }
@@ -223,16 +232,17 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
         selMgr.setEvent(sel.trackKey, parseInt(sel.eventId));
         break;
       case 'LEGACY_SCHED_SLICE':
-        selMgr.setSchedSlice({id: sel.id});
+        selMgr.setLegacy({kind: 'SCHED_SLICE', id: sel.id});
         break;
       case 'LEGACY_SLICE':
-        selMgr.setLegacySlice({id: sel.id});
+        selMgr.setLegacy({kind: 'SLICE', id: sel.id});
         break;
       case 'LEGACY_THREAD_STATE':
-        selMgr.setThreadState({id: sel.id});
+        selMgr.setLegacy({kind: 'THREAD_STATE', id: sel.id});
         break;
       case 'LEGACY_HEAP_PROFILE':
-        selMgr.setHeapProfile({
+        selMgr.setLegacy({
+          kind: 'HEAP_PROFILE',
           id: sel.id,
           upid: sel.upid,
           ts: sel.ts,

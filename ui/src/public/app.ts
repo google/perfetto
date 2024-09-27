@@ -29,4 +29,8 @@ export interface App {
   readonly commands: CommandManager;
   readonly sidebar: SidebarManager;
   readonly omnibox: OmniboxManager;
+
+  // TODO(primiano): this should be needed in extremely rare cases. We should
+  // probably switch to mithril auto-redraw at some point.
+  scheduleRedraw(): void;
 }

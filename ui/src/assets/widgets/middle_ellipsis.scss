@@ -15,16 +15,17 @@
 .pf-middle-ellipsis {
   display: flex;
   flex-direction: row;
+  overflow: hidden;
 
   .pf-middle-ellipsis-left {
     overflow: hidden;
-    white-space: pre;
+    white-space: nowrap;
     text-overflow: ellipsis;
   }
 
   .pf-middle-ellipsis-right {
     overflow: hidden;
-    white-space: pre;
+    white-space: nowrap;
     flex-shrink: 0;
   }
 

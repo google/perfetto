@@ -56,7 +56,7 @@ class GoogleCamera implements PerfettoPlugin {
   private pinTracks(trackNames: ReadonlyArray<string>) {
     this.ctx.workspace.flatTracks.forEach((track) => {
       trackNames.forEach((trackName) => {
-        if (track.displayName.match(trackName)) {
+        if (track.title.match(trackName)) {
           track.pin();
         }
       });

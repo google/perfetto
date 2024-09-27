@@ -16,7 +16,7 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
-import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
 import {asSliceSqlId} from '../../trace_processor/sql_utils/core_types';

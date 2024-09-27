@@ -14,8 +14,7 @@
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {time} from '../base/time';
-import {escapeCSSSelector} from '../base/utils';
-import {ScrollToArgs} from 'src/public/scroll_helper';
+import {ScrollToArgs} from '../public/scroll_helper';
 import {TraceInfo} from '../public/trace_info';
 import {Workspace} from '../public/workspace';
 import {raf} from './raf_scheduler';
@@ -113,31 +112,34 @@ export class ScrollHelper {
   }
 
   private verticalScrollToTrack(trackUri: string, openGroup: boolean) {
-    const dom = document.querySelector('#track_' + escapeCSSSelector(trackUri));
-    if (dom) {
+    // Find the actual track node that uses that URI, we need various properties
+    // from it.
+    const trackNode = this.workspace.findTrackByUri(trackUri);
+    if (!trackNode) return;
+
+    // Try finding the track directly.
+    const element = document.getElementById(trackNode.id);
+    if (element) {
       // block: 'nearest' means that it will only scroll if the track is not
       // currently in view.
-      dom.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+      element.scrollIntoView({behavior: 'smooth', block: 'nearest'});
       return;
     }
 
     // If we get here, the element for this track was not present in the DOM,
-    // this might be because it's inside a collapsed group.
-    // Find the track node in the current workspace, and reveal it.
-    const trackNode = this.workspace.getTrackByUri(trackUri);
-    if (!trackNode) return;
-
+    // which might be because it's inside a collapsed group.
     if (openGroup) {
+      // Try to reveal the track node in the workspace by opening up all
+      // ancestor groups, and mark the track URI to be scrolled to in the
+      // future.
       trackNode.reveal();
-      this.trackManager.scrollToTrackUriOnCreate = trackUri;
-      return;
-    }
-
-    // Find the first closed ancestor of our target track.
-    const groupNode = trackNode.closestVisibleAncestor;
-    if (groupNode) {
+      this.trackManager.scrollToTrackNodeId = trackNode.id;
+    } else {
+      // Find the closest visible ancestor of our target track and scroll to
+      // that instead.
+      const container = trackNode.findClosestVisibleAncestor();
       document
-        .querySelector('#track_' + groupNode.uri)
+        .getElementById(container.id)
         ?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }
   }

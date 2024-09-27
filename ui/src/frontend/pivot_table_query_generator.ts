@@ -18,9 +18,13 @@ import {assertExists} from '../base/logging';
 import {sqliteString} from '../base/string_utils';
 import {PivotTableQuery, PivotTableState} from '../common/state';
 import {Area} from '../public/selection';
-import {getSelectedTrackKeys} from '../controller/aggregation/slice_aggregation_controller';
 import {Aggregation, TableColumn} from './pivot_table_types';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
+import {globals} from './globals';
+import {
+  ASYNC_SLICE_TRACK_KIND,
+  THREAD_SLICE_TRACK_KIND,
+} from '../public/track_kinds';
 
 export interface Table {
   name: string;
@@ -96,7 +100,8 @@ export function areaFilters(
     },
     {op: (cols) => `${cols[0]} < ${area.end}`, columns: ['ts']},
     {
-      op: (cols) => `${cols[0]} in (${getSelectedTrackKeys(area).join(', ')})`,
+      op: (cols) =>
+        `${cols[0]} in (${getSelectedTrackSqlIds(area).join(', ')})`,
       columns: ['track_id'],
     },
   ];
@@ -187,4 +192,20 @@ export function generateQueryFromState(
       countIndex,
     },
   };
+}
+
+function getSelectedTrackSqlIds(area: Area): number[] {
+  const selectedTrackKeys: number[] = [];
+  for (const trackUri of area.trackUris) {
+    const trackInfo = globals.trackManager.getTrack(trackUri);
+    if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
+      trackInfo.tags.trackIds &&
+        selectedTrackKeys.push(...trackInfo.tags.trackIds);
+    }
+    if (trackInfo?.tags?.kind === ASYNC_SLICE_TRACK_KIND) {
+      trackInfo.tags.trackIds &&
+        selectedTrackKeys.push(...trackInfo.tags.trackIds);
+    }
+  }
+  return selectedTrackKeys;
 }

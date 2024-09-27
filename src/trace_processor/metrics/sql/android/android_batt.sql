@@ -71,6 +71,16 @@ DROP TABLE IF EXISTS screen_state_span_with_suspend;
 CREATE VIRTUAL TABLE screen_state_span_with_suspend
 USING span_join(screen_state_span, suspend_slice_);
 
+DROP TABLE IF EXISTS power_mw_intervals;
+CREATE PERFETTO TABLE power_mw_intervals AS
+WITH power_mw_counter AS (
+  SELECT counter.id, ts, track_id, value
+  FROM counter
+  JOIN counter_track ON counter_track.id = counter.track_id
+  WHERE name = 'batt.power_mw'
+)
+SELECT * FROM counter_leading_intervals!(power_mw_counter);
+
 DROP VIEW IF EXISTS android_batt_output;
 CREATE PERFETTO VIEW android_batt_output AS
 SELECT AndroidBatteryMetric(
@@ -103,7 +113,9 @@ SELECT AndroidBatteryMetric(
       'sleep_screen_doze_ns',
       SUM(CASE WHEN state = 3.0 AND tbl = 'sleep' THEN dur ELSE 0 END),
       'total_wakelock_ns',
-      (SELECT SUM(ts_end - ts) FROM android_batt_wakelocks_merged)
+      (SELECT SUM(ts_end - ts) FROM android_batt_wakelocks_merged),
+      'avg_power_mw',
+      (SELECT SUM(value * dur) / SUM(dur) FROM power_mw_intervals)
       ))
     FROM (
       SELECT dur, value AS state, 'total' AS tbl

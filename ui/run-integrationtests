@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env python3
 # Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +13,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-UI_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
+import argparse
+import os
+import sys
 
-$UI_DIR/node $UI_DIR/build.js --run-integrationtests "$@"
+UI_DIR = os.path.dirname(__file__)
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--interactive',
+      '-i',
+      action='store_true',
+      help='Run in interactive mode')
+  parser.add_argument(
+      '--rebaseline', '-r', action='store_true', help='Rebaseline screenshots')
+  parser.add_argument('--out', help='out directory')
+  parser.add_argument('--no-build', action='store_true')
+  parser.add_argument('filters', nargs='*')
+  args = parser.parse_args()
+
+  cmd = ['./pnpm', 'exec', 'playwright', 'test']
+  if args.interactive:
+    if args.rebaseline:
+      print('--interactive and --rebaseline are mutually exclusive')
+      return 1
+    cmd += ['--ui']
+  elif args.rebaseline:
+    cmd += ['--update-snapshots']
+  cmd += args.filters
+
+  env = dict(os.environ.items())
+  dev_server_args = []
+  if args.out:
+    out_rel_path = os.path.relpath(args.out, UI_DIR)
+    env['OUT_DIR'] = out_rel_path
+    dev_server_args += ['--out', out_rel_path]
+  if args.no_build:
+    dev_server_args += ['--no-build']
+  env['DEV_SERVER_ARGS'] = ' '.join(dev_server_args)
+  os.chdir(UI_DIR)
+  os.execve(cmd[0], cmd, env)
+
+
+if __name__ == '__main__':
+  sys.exit(main())

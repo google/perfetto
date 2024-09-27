@@ -16,13 +16,13 @@ import m from 'mithril';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {uuidv4} from '../../../base/uuid';
 import {addBottomTab} from '../../../common/add_ephemeral_tab';
-import {Engine} from '../../../trace_processor/engine';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {Spinner} from '../../../widgets/spinner';
 import {VegaView} from '../../../widgets/vega_view';
-import {BottomTab, NewBottomTabArgs} from '../../bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../../public/lib/bottom_tab';
 import {Filter, filterTitle} from '../../widgets/sql/table/column';
 import {HistogramState} from './state';
+import {Trace} from '../../../public/trace';
 
 interface HistogramTabConfig {
   columnTitle: string; // Human readable column name (ex: Duration)
@@ -35,11 +35,11 @@ interface HistogramTabConfig {
 
 export function addHistogramTab(
   config: HistogramTabConfig,
-  engine: Engine,
+  trace: Trace,
 ): void {
   const histogramTab = new HistogramTab({
     config,
-    engine,
+    trace,
     uuid: uuidv4(),
   });
 

@@ -19,7 +19,7 @@ import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
 import {THREAD_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {GroupNode, TrackNode, Workspace} from '../../public/workspace';
+import {TrackNode, type TrackNodeContainer} from '../../public/workspace';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 
 class AnnotationPlugin implements PerfettoPlugin {
@@ -48,7 +48,7 @@ class AnnotationPlugin implements PerfettoPlugin {
       groupName: STR_NULL,
     });
 
-    const groups = new Map<string, GroupNode>();
+    const groups = new Map<string, TrackNode>();
 
     for (; it.valid(); it.next()) {
       const {id, name, upid, groupName} = it;
@@ -65,7 +65,7 @@ class AnnotationPlugin implements PerfettoPlugin {
         chips: ['metric'],
         track: new ThreadSliceTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           id,
@@ -79,15 +79,14 @@ class AnnotationPlugin implements PerfettoPlugin {
       // exists Otherwise, try upid to see if we can put this in a process
       // group
 
-      let container: Workspace | GroupNode;
+      let container: TrackNodeContainer;
       if (groupName) {
         const existingGroup = groups.get(groupName);
         if (!existingGroup) {
-          const group = new GroupNode(groupName);
-          group.headerTrackUri = uri;
+          const group = new TrackNode({title: groupName, uri, isSummary: true});
           container = group;
           groups.set(groupName, group);
-          ctx.workspace.insertChildInOrder(group);
+          ctx.workspace.addChildInOrder(group);
         } else {
           container = existingGroup;
         }
@@ -99,7 +98,8 @@ class AnnotationPlugin implements PerfettoPlugin {
         }
       }
 
-      container.insertChildInOrder(new TrackNode(uri, name));
+      const track = new TrackNode({uri, title: name});
+      container.addChildInOrder(track);
     }
   }
 
@@ -136,7 +136,7 @@ class AnnotationPlugin implements PerfettoPlugin {
         },
         chips: ['metric'],
         track: new TraceProcessorCounterTrack({
-          engine: ctx.engine,
+          trace: ctx,
           uri,
           trackId,
           rootTable: 'annotation_counter',
@@ -144,7 +144,8 @@ class AnnotationPlugin implements PerfettoPlugin {
       });
 
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
-      group.insertChildInOrder(new TrackNode(uri, name));
+      const track = new TrackNode({uri, title: name});
+      group.addChildInOrder(track);
     }
   }
 }

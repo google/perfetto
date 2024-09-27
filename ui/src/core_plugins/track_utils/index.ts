@@ -12,14 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  getTimeSpanOfSelectionOrVisibleWindow,
-  globals,
-} from '../../frontend/globals';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PromptOption} from '../../public/omnibox';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {AppImpl} from '../../core/app_trace_impl';
+import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 
 class TrackUtilsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -27,12 +25,13 @@ class TrackUtilsPlugin implements PerfettoPlugin {
       id: 'perfetto.RunQueryInSelectedTimeWindow',
       name: `Run query in selected time window`,
       callback: async () => {
-        const window = await getTimeSpanOfSelectionOrVisibleWindow();
-        globals.omnibox.setMode(OmniboxMode.Query);
-        globals.omnibox.setText(
+        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
+        const omnibox = AppImpl.instance.omnibox;
+        omnibox.setMode(OmniboxMode.Query);
+        omnibox.setText(
           `select  where ts >= ${window.start} and ts < ${window.end}`,
         );
-        globals.omnibox.focus(7);
+        omnibox.focus(/* cursorPlacement= */ 7);
       },
     });
 
@@ -41,7 +40,7 @@ class TrackUtilsPlugin implements PerfettoPlugin {
       id: 'perfetto.FindTrack',
       name: 'Find track by URI',
       callback: async () => {
-        const tracks = globals.trackManager.getAllTracks();
+        const tracks = ctx.tracks.getAllTracks();
         const options = tracks.map(({uri}): PromptOption => {
           return {key: uri, displayName: uri};
         });
@@ -61,10 +60,9 @@ class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (selectedUri === undefined) return; // Prompt cancelled.
         ctx.scrollTo({track: {uri: selectedUri, expandGroup: true}});
-        const traceTime = globals.traceContext;
-        globals.selectionManager.setArea({
-          start: traceTime.start,
-          end: traceTime.end,
+        ctx.selection.setArea({
+          start: ctx.traceInfo.start,
+          end: ctx.traceInfo.end,
           trackUris: [selectedUri],
         });
       },

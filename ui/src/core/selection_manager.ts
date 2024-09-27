@@ -17,9 +17,9 @@ import {
   Selection,
   LegacySelection,
   Area,
-  ProfileType,
   SelectionOpts,
   SelectionManager,
+  AreaSelectionAggregator,
 } from '../public/selection';
 import {duration, Time, time, TimeSpan} from '../base/time';
 import {
@@ -34,6 +34,8 @@ import {Engine} from '../trace_processor/engine';
 import {ScrollHelper} from './scroll_helper';
 import {NoteManagerImpl} from './note_manager';
 import {AsyncLimiter} from '../base/async_limiter';
+import {SearchResult} from '../public/search';
+import {SelectionAggregationManager} from './selection_aggregation_manager';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -49,31 +51,28 @@ const INCOMPLETE_SLICE_DURATION = 30_000n;
 export class SelectionManagerImpl implements SelectionManager {
   private _selection: Selection = {kind: 'empty'};
   private _selectedDetails?: LegacySelectionDetails;
-  private _selectionResolver?: SelectionResolver;
+  private _selectionResolver: SelectionResolver;
   private _pendingScrollId?: number;
+  private _aggregationManager: SelectionAggregationManager;
   // Incremented every time _selection changes.
   private _selectionGeneration = 0;
   private _limiter = new AsyncLimiter();
 
-  // TODO(primiano): all the injected dependencies below should become mandatory
-  // once we get rid of globals.
   constructor(
-    private _deps?: {
-      engine: Engine;
-      trackManager: TrackManagerImpl;
-      noteManager: NoteManagerImpl;
-      scrollHelper: ScrollHelper;
-      onSelectionChange: (s: Selection, opts: SelectionOpts) => void;
-    },
+    engine: Engine,
+    private trackManager: TrackManagerImpl,
+    private noteManager: NoteManagerImpl,
+    private scrollHelper: ScrollHelper,
+    private onSelectionChange: (s: Selection, opts: SelectionOpts) => void,
   ) {
-    if (_deps !== undefined) {
-      this._selectionResolver = new SelectionResolver(_deps.engine);
-      _deps.noteManager.onNoteDeleted = (noteId) => {
-        if (this.selection.kind === 'note' && this.selection.id === noteId) {
-          this.clear();
-        }
-      };
-    }
+    this._selectionResolver = new SelectionResolver(engine);
+    this._aggregationManager = new SelectionAggregationManager(
+      engine.getProxy('SelectionAggregationManager'),
+    );
+  }
+
+  registerAreaSelectionAggreagtor(aggr: AreaSelectionAggregator): void {
+    this._aggregationManager.registerAggregator(aggr);
   }
 
   clear(): void {
@@ -100,6 +99,7 @@ export class SelectionManagerImpl implements SelectionManager {
     assertTrue(start <= end);
     this.setSelection({
       kind: 'area',
+      tracks: [],
       ...args,
     });
   }
@@ -160,92 +160,6 @@ export class SelectionManagerImpl implements SelectionManager {
     );
   }
 
-  setHeapProfile(args: {
-    id: number;
-    upid: number;
-    ts: time;
-    type: ProfileType;
-  }): void {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'HEAP_PROFILE',
-        id: args.id,
-        upid: args.upid,
-        ts: args.ts,
-        type: args.type,
-      },
-    });
-  }
-
-  setPerfSamples(args: {
-    id: number;
-    utid?: number;
-    upid?: number;
-    leftTs: time;
-    rightTs: time;
-    type: ProfileType;
-  }) {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'PERF_SAMPLES',
-        id: args.id,
-        utid: args.utid,
-        upid: args.upid,
-        leftTs: args.leftTs,
-        rightTs: args.rightTs,
-        type: args.type,
-      },
-    });
-  }
-
-  setCpuProfileSample(args: {id: number; utid: number; ts: time}): void {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'CPU_PROFILE_SAMPLE',
-        id: args.id,
-        utid: args.utid,
-        ts: args.ts,
-      },
-    });
-  }
-
-  setSchedSlice(args: {id: number; trackUri?: string}): void {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'SCHED_SLICE',
-        id: args.id,
-        trackUri: args.trackUri,
-      },
-    });
-  }
-
-  setLegacySlice(
-    args: {
-      id: number;
-      trackUri?: string;
-      table?: string;
-      scroll?: boolean;
-    },
-    opts?: SelectionOpts,
-  ): void {
-    this.setSelection(
-      {
-        kind: 'legacy',
-        legacySelection: {
-          kind: 'SLICE',
-          id: args.id,
-          table: args.table,
-          trackUri: args.trackUri,
-        },
-      },
-      opts,
-    );
-  }
-
   setGenericSlice(args: {
     id: number;
     sqlTableName: string;
@@ -278,17 +192,6 @@ export class SelectionManagerImpl implements SelectionManager {
     });
   }
 
-  setThreadState(args: {id: number; trackUri?: string}): void {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'THREAD_STATE',
-        id: args.id,
-        trackUri: args.trackUri,
-      },
-    });
-  }
-
   get selection(): Selection {
     return this._selection;
   }
@@ -302,12 +205,31 @@ export class SelectionManagerImpl implements SelectionManager {
   }
 
   private setSelection(selection: Selection, opts?: SelectionOpts) {
-    if (this._deps === undefined) return;
+    if (selection.kind === 'area') {
+      // In the case of area selection, the caller provides a list of trackUris.
+      // However, all the consumer want to access the resolved TrackDescriptor.
+      // Rather than delegating this to the various consumers, we resolve them
+      // now once and for all and place them in the selection object.
+      const tracks = [];
+      for (const uri of selection.trackUris) {
+        const trackDescr = this.trackManager.getTrack(uri);
+        if (trackDescr === undefined) continue;
+        tracks.push(trackDescr);
+      }
+      selection = {...selection, tracks};
+    }
+
     this._selection = selection;
     this._pendingScrollId = opts?.pendingScrollId;
-    this._deps.onSelectionChange(selection, opts ?? {});
+    this.onSelectionChange(selection, opts ?? {});
     const generation = ++this._selectionGeneration;
     raf.scheduleFullRedraw();
+
+    if (this._selection.kind === 'area') {
+      this._aggregationManager.aggregateArea(this._selection);
+    } else {
+      this._aggregationManager.clear();
+    }
 
     // The code below is to avoid flickering while switching selection. There
     // are three cases here:
@@ -325,7 +247,6 @@ export class SelectionManagerImpl implements SelectionManager {
       raf.scheduleFullRedraw();
     }, 50);
 
-    if (!this._selectionResolver) return;
     const legacySel = this.legacySelection;
     if (!exists(legacySel)) return;
 
@@ -345,15 +266,74 @@ export class SelectionManagerImpl implements SelectionManager {
     });
   }
 
+  selectSearchResult(searchResult: SearchResult) {
+    const {source, eventId, trackUri} = searchResult;
+    if (eventId === undefined) {
+      return;
+    }
+    switch (source) {
+      case 'track':
+        this.scrollHelper.scrollTo({
+          track: {uri: trackUri, expandGroup: true},
+        });
+        break;
+      case 'cpu':
+        this.setLegacy(
+          {
+            kind: 'SCHED_SLICE',
+            id: eventId,
+            trackUri,
+          },
+          {
+            clearSearch: false,
+            pendingScrollId: eventId,
+            switchToCurrentSelectionTab: true,
+          },
+        );
+        break;
+      case 'log':
+        this.setLegacy(
+          {
+            kind: 'LOG',
+            id: eventId,
+            trackUri,
+          },
+          {
+            clearSearch: false,
+            switchToCurrentSelectionTab: true,
+          },
+        );
+        break;
+      case 'slice':
+        // Search results only include slices from the slice table for now.
+        // When we include annotations we need to pass the correct table.
+        this.setLegacy(
+          {
+            kind: 'SLICE',
+            id: eventId,
+            trackUri,
+            table: 'slice',
+          },
+          {
+            clearSearch: false,
+            pendingScrollId: eventId,
+            switchToCurrentSelectionTab: true,
+          },
+        );
+        break;
+      default:
+        assertUnreachable(source);
+    }
+  }
+
   scrollToCurrentSelection() {
     const selection = this.legacySelection;
     if (!exists(selection)) return;
     const uri = selection.trackUri;
     this.findTimeRangeOfSelection().then((range) => {
-      if (this._deps === undefined) return;
       // The selection changed meanwhile.
       if (this.legacySelection !== selection) return;
-      this._deps.scrollHelper.scrollTo({
+      this.scrollHelper.scrollTo({
         time: range ? {...range} : undefined,
         track: uri ? {uri: uri, expandGroup: true} : undefined,
       });
@@ -361,12 +341,11 @@ export class SelectionManagerImpl implements SelectionManager {
   }
 
   async findTimeRangeOfSelection(): Promise<Optional<TimeSpan>> {
-    if (this._deps === undefined) return undefined;
     const sel = this.selection;
     if (sel.kind === 'area') {
       return new TimeSpan(sel.start, sel.end);
     } else if (sel.kind === 'note') {
-      const selectedNote = this._deps.noteManager.getNote(sel.id);
+      const selectedNote = this.noteManager.getNote(sel.id);
       if (selectedNote !== undefined) {
         const kind = selectedNote.noteType;
         switch (kind) {
@@ -383,7 +362,7 @@ export class SelectionManagerImpl implements SelectionManager {
       }
     } else if (sel.kind === 'single') {
       const uri = sel.trackUri;
-      const bounds = await this._deps.trackManager
+      const bounds = await this.trackManager
         .getTrack(uri)
         ?.getEventBounds?.(sel.eventId);
       if (bounds) {
@@ -413,6 +392,10 @@ export class SelectionManagerImpl implements SelectionManager {
     }
 
     return undefined;
+  }
+
+  get aggregation() {
+    return this._aggregationManager;
   }
 }
 

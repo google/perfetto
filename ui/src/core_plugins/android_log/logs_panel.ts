@@ -31,6 +31,7 @@ import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
 import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
 import {Store} from '../../base/store';
+import {Trace} from '../../public/trace';
 
 const ROW_H = 20;
 
@@ -43,7 +44,7 @@ export interface LogFilteringCriteria {
 
 export interface LogPanelAttrs {
   filterStore: Store<LogFilteringCriteria>;
-  engine: Engine;
+  trace: Trace;
 }
 
 interface Pagination {
@@ -76,8 +77,8 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   constructor({attrs}: m.CVnode<LogPanelAttrs>) {
     this.rowsMonitor = new Monitor([
       () => attrs.filterStore.state,
-      () => globals.timeline.visibleWindow.toTimeSpan().start,
-      () => globals.timeline.visibleWindow.toTimeSpan().end,
+      () => attrs.trace.timeline.visibleWindow.toTimeSpan().start,
+      () => attrs.trace.timeline.visibleWindow.toTimeSpan().end,
     ]);
 
     this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
@@ -135,14 +136,14 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   private reloadData(attrs: LogPanelAttrs) {
     this.queryLimiter.schedule(async () => {
-      const visibleSpan = globals.timeline.visibleWindow.toTimeSpan();
+      const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
 
       if (this.filterMonitor.ifStateChanged()) {
-        await updateLogView(attrs.engine, attrs.filterStore.state);
+        await updateLogView(attrs.trace.engine, attrs.filterStore.state);
       }
 
       this.entries = await updateLogEntries(
-        attrs.engine,
+        attrs.trace.engine,
         visibleSpan,
         this.pagination,
       );

@@ -262,24 +262,50 @@ namespace perfetto::trace_processor::stats {
   F(compact_sched_waking_skipped,         kSingle,  kInfo,     kAnalysis, ""), \
   F(empty_chrome_metadata,                kSingle,  kError,    kTrace,    ""), \
   F(ninja_parse_errors,                   kSingle,  kError,    kTrace,    ""), \
-  F(perf_cpu_lost_records,                kIndexed, kDataLoss, kTrace,    ""), \
+  F(perf_cpu_lost_records,                kIndexed, kDataLoss, kTrace,         \
+      "Count of perf samples lost due to kernel buffer overruns. The trace "   \
+      "is missing information, but it's not known which processes are "        \
+      "affected. Consider lowering the sampling frequency or raising "         \
+      "the ring_buffer_pages config option."),                                 \
   F(perf_process_shard_count,             kIndexed, kInfo,     kTrace,    ""), \
   F(perf_chosen_process_shard,            kIndexed, kInfo,     kTrace,    ""), \
   F(perf_guardrail_stop_ts,               kIndexed, kDataLoss, kTrace,    ""), \
   F(perf_unknown_record_type,             kIndexed, kInfo,     kAnalysis, ""), \
   F(perf_record_skipped,                  kIndexed, kError,    kAnalysis, ""), \
-  F(perf_samples_skipped,                 kSingle,  kError,    kAnalysis, ""), \
+  F(perf_samples_skipped,                 kSingle,  kError,    kAnalysis,      \
+      "Count of skipped perf samples that otherwise matched the tracing "      \
+      "config. This will cause a process to be completely absent from the "    \
+      "trace, but does *not* imply data loss for processes that do have "      \
+      "samples in this trace."),                                               \
   F(perf_counter_skipped_because_no_cpu,  kSingle,  kError,    kAnalysis, ""), \
   F(perf_features_skipped,                kIndexed, kInfo,     kAnalysis, ""), \
   F(perf_samples_cpu_mode_unknown,        kSingle,  kError,    kAnalysis, ""), \
-  F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,    ""), \
+  F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,         \
+      "Count of perf samples lost within the profiler (traced_perf), likely "  \
+      "due to load shedding. This may impact any traced processes. The trace " \
+      "protobuf needs to be inspected manually to confirm which processes "    \
+      "are affected."),                                                        \
   F(perf_dummy_mapping_used,              kSingle,  kInfo,     kAnalysis, ""), \
-  F(perf_invalid_event_id,                kSingle,  kError,    kTrace,    ""), \
-  F(perf_aux_missing,                     kSingle,  kDataLoss, kTrace,    ""), \
-  F(perf_aux_ignored,                     kSingle,  kInfo,     kTrace,    ""), \
-  F(perf_aux_lost,                        kSingle,  kDataLoss, kTrace,    ""), \
-  F(perf_auxtrace_missing,                kSingle,  kDataLoss, kTrace,    ""), \
-  F(perf_unknown_aux_data,                kIndexed, kDataLoss, kTrace,    ""), \
+  F(perf_aux_missing,                     kSingle,  kDataLoss, kTrace,         \
+      "Number of bytes missing in AUX data streams due to missing "            \
+      "PREF_RECORD_AUX messages."),                                            \
+  F(perf_aux_ignored,                     kSingle,  kInfo,     kTrace,         \
+       "AUX data was ignored because the proper parser is not implemented."), \
+  F(perf_aux_lost,                        kSingle,  kDataLoss, kTrace,         \
+      "Gaps in the AUX data stream pased to the tokenizer."), \
+  F(perf_aux_truncated,                   kSingle,  kDataLoss, kTrace,         \
+      "Data was truncated when being written to the AUX stream at the "        \
+      "source."),\
+  F(perf_aux_partial,                     kSingle,  kDataLoss, kTrace,         \
+      "The PERF_RECORD_AUX contained partial data."), \
+  F(perf_aux_collision,                   kSingle,  kDataLoss, kTrace,         \
+      "The collection of a sample colliden with another. You should reduce "   \
+      "the rate at which samples are collected."),                             \
+  F(perf_auxtrace_missing,                kSingle,  kDataLoss, kTrace,         \
+      "Number of bytes missing in AUX data streams due to missing "            \
+      "PREF_RECORD_AUXTRACE messages."),                                       \
+  F(perf_unknown_aux_data,                kIndexed, kDataLoss, kTrace,         \
+      "AUX data type encountered for which there is no known parser."),        \
   F(memory_snapshot_parser_failure,       kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_out_of_order,    kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_unknown_cpu_freq,                                     \

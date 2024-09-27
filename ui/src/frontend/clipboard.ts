@@ -14,7 +14,6 @@
 
 import {copyToClipboard} from '../base/clipboard';
 import {Actions} from '../common/actions';
-import {QueryResponse} from '../common/queries';
 import {globals} from './globals';
 
 export function onClickCopy(url: string) {
@@ -28,20 +27,4 @@ export function onClickCopy(url: string) {
       }),
     );
   };
-}
-
-export async function queryResponseToClipboard(
-  resp: QueryResponse,
-): Promise<void> {
-  const lines: string[][] = [];
-  lines.push(resp.columns);
-  for (const row of resp.rows) {
-    const line = [];
-    for (const col of resp.columns) {
-      const value = row[col];
-      line.push(value === null ? 'NULL' : `${value}`);
-    }
-    lines.push(line);
-  }
-  copyToClipboard(lines.map((line) => line.join('\t')).join('\n'));
 }

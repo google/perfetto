@@ -93,7 +93,6 @@ export function createEmptyState(): State {
     version: STATE_VERSION,
     nextId: '-1',
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
-    aggregatePreferences: {},
     queries: {},
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()
@@ -125,9 +124,6 @@ export function createEmptyState(): State {
     fetchChromeCategories: false,
     chromeCategories: undefined,
     nonSerializableState: createEmptyNonSerializableState(),
-
-    // Somewhere to store plugins' persistent state.
-    plugins: {},
 
     trackFilterTerm: undefined,
     forceRunControllers: 0,

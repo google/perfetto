@@ -1,0 +1,104 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "theme";
+
+.pf-chip {
+  font-family: $pf-font;
+  line-height: 1;
+  user-select: none;
+  border-radius: $pf-border-radius;
+  padding: 2px 8px;
+  white-space: nowrap;
+  min-width: max-content;
+  border: solid 1px $pf-minimal-border;
+
+  &.pf-rounded {
+    border-radius: 100px;
+  }
+
+  & > .pf-left-icon {
+    float: left;
+    margin-right: 6px; // Make some room between the icon and label
+  }
+
+  & > .pf-right-icon {
+    float: right;
+    margin-left: 6px; // Make some room between the icon and label
+  }
+
+  & > .material-icons,
+  & > .material-icons-filled {
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  &:focus-visible {
+    @include focus;
+  }
+
+  background: $pf-minimal-background;
+  color: inherit;
+
+  &[disabled] {
+    color: $pf-minimal-foreground-disabled;
+    background: $pf-minimal-background-disabled;
+    cursor: not-allowed;
+  }
+
+  // Remove default background in minimal mode, showing only the text
+  &.pf-intent-primary {
+    color: $pf-primary-foreground;
+    background: $pf-primary-background;
+    border: solid 1px $pf-primary-border;
+
+    &[disabled] {
+      background: $pf-primary-background-disabled;
+      color: $pf-primary-foreground-disabled;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+  }
+
+  // Reduce padding when compact
+  &.pf-compact {
+    padding: 0px 4px;
+    & > .pf-left-icon {
+      margin-right: 2px;
+    }
+
+    & > .pf-right-icon {
+      margin-left: 2px;
+    }
+  }
+
+  // Reduce padding when we are icon-only
+  &.pf-icon-only {
+    & > .pf-left-icon {
+      margin: 0;
+    }
+
+    padding: 4px;
+
+    &.pf-compact {
+      padding: 0;
+    }
+  }
+}
+
+.pf-chip-bar {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+}

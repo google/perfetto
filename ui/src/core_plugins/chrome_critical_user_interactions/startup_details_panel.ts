@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
-import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';

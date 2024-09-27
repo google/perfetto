@@ -28,10 +28,15 @@ import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_regis
 import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
+import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
 
 class ThreadState implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
+
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new ThreadStateSelectionAggregator(),
+    );
 
     const result = await engine.query(`
       include perfetto module viz.threads;
@@ -58,7 +63,7 @@ class ThreadState implements PerfettoPlugin {
     });
     for (; it.valid(); it.next()) {
       const {utid, upid, tid, threadName, isMainThread, isKernelThread} = it;
-      const displayName = getTrackName({
+      const title = getTrackName({
         utid,
         tid,
         threadName,
@@ -68,7 +73,7 @@ class ThreadState implements PerfettoPlugin {
       const uri = `${getThreadUriPrefix(upid, utid)}_state`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           kind: THREAD_STATE_TRACK_KIND,
           utid,
@@ -80,7 +85,7 @@ class ThreadState implements PerfettoPlugin {
         ]),
         track: new ThreadStateTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           utid,
@@ -88,9 +93,8 @@ class ThreadState implements PerfettoPlugin {
       });
 
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = 10;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: 10});
+      group.addChildInOrder(track);
     }
 
     ctx.registerDetailsPanel(
@@ -103,7 +107,7 @@ class ThreadState implements PerfettoPlugin {
             config: {
               id: asThreadStateSqlId(sel.id),
             },
-            engine: ctx.engine,
+            trace: ctx,
             uuid: uuidv4(),
           });
         },
@@ -115,7 +119,7 @@ class ThreadState implements PerfettoPlugin {
       id: 'perfetto.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {
-        addSqlTableTab({
+        addSqlTableTab(ctx, {
           table: getThreadStateTable(),
         });
       },

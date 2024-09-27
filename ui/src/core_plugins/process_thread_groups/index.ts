@@ -18,7 +18,7 @@ import {
   getOrCreateGroupForProcess,
   getOrCreateGroupForThread,
 } from '../../public/standard_groups';
-import {GroupNode} from '../../public/workspace';
+import {TrackNode} from '../../public/workspace';
 import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 
 function stripPathFromExecutable(path: string) {
@@ -29,23 +29,27 @@ function stripPathFromExecutable(path: string) {
   }
 }
 
-interface Cache {
-  processGroups: Map<number, GroupNode>;
-  threadGroups: Map<number, GroupNode>;
+function getThreadDisplayName(threadName: string | undefined, tid: number) {
+  if (threadName) {
+    return `${stripPathFromExecutable(threadName)} ${tid}`;
+  } else {
+    return `Thread ${tid}`;
+  }
 }
 
 // This plugin is responsible for organizing all process and thread groups
 // including the kernel groups, sorting, and adding summary tracks.
 class ProcessThreadGroupsPlugin implements PerfettoPlugin {
+  private readonly processGroups = new Map<number, TrackNode>();
+  private readonly threadGroups = new Map<number, TrackNode>();
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessAndThreadGroups(ctx);
   }
 
   private async addProcessAndThreadGroups(ctx: Trace): Promise<void> {
-    const cache: Cache = {
-      threadGroups: new Map<number, GroupNode>(),
-      processGroups: new Map<number, GroupNode>(),
-    };
+    this.processGroups.clear();
+    this.threadGroups.clear();
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
@@ -53,20 +57,17 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
     // per-thread tracks. Quirk: since all threads will appear to be
     // TrackKindPriority.MAIN_THREAD, any process-level tracks will end up
     // pushed to the bottom of the group in the UI.
-    await this.addKernelThreadGrouping(ctx, cache);
+    await this.addKernelThreadGrouping(ctx);
 
     // Create the per-process track groups. Note that this won't necessarily
     // create a track per process. If a process has been completely idle and has
     // no sched events, no track group will be emitted.
     // Will populate this.addTrackGroupActions
-    await this.addProcessGroups(ctx, cache);
-    await this.addThreadGroups(ctx, cache);
+    await this.addProcessGroups(ctx);
+    await this.addThreadGroups(ctx);
   }
 
-  private async addKernelThreadGrouping(
-    ctx: Trace,
-    cache: Cache,
-  ): Promise<void> {
+  private async addKernelThreadGrouping(ctx: Trace): Promise<void> {
     // Identify kernel threads if this is a linux system trace, and sufficient
     // process information is available. Kernel threads are identified by being
     // children of kthreadd (always pid 2).
@@ -107,10 +108,13 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
     // main track. It doesn't summarise the kernel threads within the group,
     // but creating a dedicated track type is out of scope at the time of
     // writing.
-    const kernelThreadsGroup = new GroupNode('Kernel threads');
-    kernelThreadsGroup.headerTrackUri = '/kernel'; // Summary track
-    kernelThreadsGroup.sortOrder = 50;
-    ctx.workspace.insertChildInOrder(kernelThreadsGroup);
+    const kernelThreadsGroup = new TrackNode({
+      title: 'Kernel threads',
+      uri: '/kernel',
+      sortOrder: 50,
+      isSummary: true,
+    });
+    ctx.workspace.addChildInOrder(kernelThreadsGroup);
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
@@ -118,15 +122,15 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
 
       const threadGroup = getOrCreateGroupForThread(ctx.workspace, utid);
       threadGroup.headless = true;
-      kernelThreadsGroup.insertChildInOrder(threadGroup);
+      kernelThreadsGroup.addChildInOrder(threadGroup);
 
-      cache.threadGroups.set(utid, threadGroup);
+      this.threadGroups.set(utid, threadGroup);
     }
   }
 
   // Adds top level groups for processes and thread that don't belong to a
   // process.
-  private async addProcessGroups(ctx: Trace, cache: Cache): Promise<void> {
+  private async addProcessGroups(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       with processGroups as (
         select
@@ -214,7 +218,7 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
 
       if (kind === 'process') {
         // Ignore kernel process groups
-        if (cache.processGroups.has(uid)) {
+        if (this.processGroups.has(uid)) {
           continue;
         }
 
@@ -231,46 +235,35 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
 
         const displayName = getProcessDisplayName(name ?? undefined, id);
         const group = getOrCreateGroupForProcess(ctx.workspace, uid);
-        group.displayName = displayName;
-        group.headerTrackUri = `/process_${uid}`; // Summary track URI
+        group.title = displayName;
+        group.uri = `/process_${uid}`; // Summary track URI
         group.sortOrder = 50;
 
         // Re-insert the child node to sort it
-        ctx.workspace.insertChildInOrder(group);
-        cache.processGroups.set(uid, group);
+        ctx.workspace.addChildInOrder(group);
+        this.processGroups.set(uid, group);
       } else {
         // Ignore kernel process groups
-        if (cache.threadGroups.has(uid)) {
+        if (this.threadGroups.has(uid)) {
           continue;
-        }
-
-        function getThreadDisplayName(
-          threadName: string | undefined,
-          pid: number,
-        ) {
-          if (threadName) {
-            return `${stripPathFromExecutable(threadName)} ${pid}`;
-          } else {
-            return `Thread ${pid}`;
-          }
         }
 
         const displayName = getThreadDisplayName(name ?? undefined, id);
         const group = getOrCreateGroupForThread(ctx.workspace, uid);
-        group.displayName = displayName;
-        group.headerTrackUri = `/thread_${uid}`; // Summary track URI
+        group.title = displayName;
+        group.uri = `/thread_${uid}`; // Summary track URI
         group.sortOrder = 50;
 
         // Re-insert the child node to sort it
-        ctx.workspace.insertChildInOrder(group);
-        cache.threadGroups.set(uid, group);
+        ctx.workspace.addChildInOrder(group);
+        this.threadGroups.set(uid, group);
       }
     }
   }
 
   // Create all the nested & headless thread groups that live inside existing
   // process groups.
-  private async addThreadGroups(ctx: Trace, cache: Cache): Promise<void> {
+  private async addThreadGroups(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       with threadGroups as (
         select
@@ -319,16 +312,28 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
       const {utid, tid, upid, threadName} = it;
 
       // Ignore kernel thread groups
-      if (cache.threadGroups.has(utid)) {
+      if (this.threadGroups.has(utid)) {
         continue;
       }
 
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      group.displayName = threadName ?? `Thread ${tid}`;
-      cache.threadGroups.set(utid, group);
+      group.title = getThreadDisplayName(threadName ?? undefined, tid);
+      this.threadGroups.set(utid, group);
       group.headless = true;
-      cache.processGroups.get(upid)?.insertChildInOrder(group);
+      this.processGroups.get(upid)?.addChildInOrder(group);
     }
+  }
+
+  async onTraceReady(_: Trace): Promise<void> {
+    // If, by the time the trace has finished loading, some of the process or
+    // thread group tracks nodes have no children, just remove them.
+    const removeIfEmpty = (g: TrackNode) => {
+      if (!g.hasChildren) {
+        g.remove();
+      }
+    };
+    this.processGroups.forEach(removeIfEmpty);
+    this.threadGroups.forEach(removeIfEmpty);
   }
 }
 

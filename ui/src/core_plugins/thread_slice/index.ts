@@ -78,7 +78,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
         isKernelThread,
         isDefaultTrackForScope,
       } = it;
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: trackName,
         utid,
         tid,
@@ -89,7 +89,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
       const uri = `${getThreadUriPrefix(upid, utid)}_slice_${trackId}`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         tags: {
           trackIds: [trackId],
           kind: THREAD_SLICE_TRACK_KIND,
@@ -103,7 +103,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
         ]),
         track: new ThreadSliceTrack(
           {
-            engine: ctx.engine,
+            trace: ctx,
             uri,
           },
           trackId,
@@ -111,9 +111,8 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
         ),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = 20;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: 20});
+      group.addChildInOrder(track);
     }
 
     ctx.registerDetailsPanel(
@@ -127,7 +126,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
               table: sel.table ?? 'slice',
               id: sel.id,
             },
-            engine: ctx.engine,
+            trace: ctx,
             uuid: uuidv4(),
           });
         },

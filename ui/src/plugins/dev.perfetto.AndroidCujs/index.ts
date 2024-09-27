@@ -17,6 +17,7 @@ import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {addAndPinSliceTrack} from './trackUtils';
+import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
 /**
  * Adds the Debug Slice Track for given Jank CUJ name
@@ -230,11 +231,12 @@ class AndroidCujs implements PerfettoPlugin {
       id: 'dev.perfetto.AndroidCujs#ListJankCUJs',
       name: 'Run query: Android jank CUJs',
       callback: () => {
-        ctx.engine
-          .query(JANK_CUJ_QUERY_PRECONDITIONS)
-          .then(() =>
-            ctx.addQueryResultsTab(JANK_CUJ_QUERY, 'Android Jank CUJs'),
-          );
+        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
+          addQueryResultsTab(ctx, {
+            query: JANK_CUJ_QUERY,
+            title: 'Android Jank CUJs',
+          }),
+        );
       },
     });
 
@@ -259,7 +261,10 @@ class AndroidCujs implements PerfettoPlugin {
       id: 'dev.perfetto.AndroidCujs#ListLatencyCUJs',
       name: 'Run query: Android Latency CUJs',
       callback: () =>
-        ctx.addQueryResultsTab(LATENCY_CUJ_QUERY, 'Android Latency CUJs'),
+        addQueryResultsTab(ctx, {
+          query: LATENCY_CUJ_QUERY,
+          title: 'Android Latency CUJs',
+        }),
     });
 
     ctx.commands.registerCommand({

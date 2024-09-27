@@ -24,9 +24,8 @@ namespace perfetto::trace_processor::perf_importer {
 
 base::Status AuxtraceInfoRecord::Parse(const Record& record) {
   Reader reader(record.payload.copy());
-  uint32_t reserved_for_alignment;
 
-  if (!reader.Read(type) || !reader.Read(reserved_for_alignment) ||
+  if (!reader.Read(type) || !reader.Read(reserved) ||
       !reader.ReadBlob(payload, static_cast<uint32_t>(reader.size_left()))) {
     return base::ErrStatus("Failed to parse PERF_RECORD_AUXTRACE_INFO");
   }

@@ -1803,6 +1803,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/perf/etm_tokenizer.h",
         "src/trace_processor/importers/perf/features.cc",
         "src/trace_processor/importers/perf/features.h",
+        "src/trace_processor/importers/perf/itrace_start_record.cc",
+        "src/trace_processor/importers/perf/itrace_start_record.h",
         "src/trace_processor/importers/perf/mmap_record.cc",
         "src/trace_processor/importers/perf/mmap_record.h",
         "src/trace_processor/importers/perf/perf_data_tokenizer.cc",
@@ -1814,6 +1816,7 @@ perfetto_filegroup(
         "src/trace_processor/importers/perf/sample.h",
         "src/trace_processor/importers/perf/sample_id.cc",
         "src/trace_processor/importers/perf/sample_id.h",
+        "src/trace_processor/importers/perf/time_conv_record.h",
         "src/trace_processor/importers/perf/util.h",
     ],
 )

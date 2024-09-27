@@ -23,7 +23,13 @@ class CpuFreq implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
-    const cpus = ctx.traceInfo.cpus;
+    const cpus = [];
+    const cpusResult = await engine.query(
+      'select distinct cpu from cpu_counter_track order by cpu;',
+    );
+    for (const it = cpusResult.iter({cpu: NUM}); it.valid(); it.next()) {
+      cpus.push(it.cpu);
+    }
 
     const maxCpuFreqResult = await engine.query(`
       select ifnull(max(value), 0) as freq
@@ -78,9 +84,8 @@ class CpuFreq implements PerfettoPlugin {
           },
           track: new CpuFreqTrack(config, ctx.engine),
         });
-        const trackNode = new TrackNode(uri, title);
-        trackNode.sortOrder = -40;
-        ctx.workspace.insertChildInOrder(trackNode);
+        const trackNode = new TrackNode({uri, title, sortOrder: -40});
+        ctx.workspace.addChildInOrder(trackNode);
       }
     }
   }

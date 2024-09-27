@@ -24,11 +24,15 @@ import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {ActualFramesTrack} from './actual_frames_track';
 import {ExpectedFramesTrack} from './expected_frames_track';
+import {FrameSelectionAggregator} from './frame_selection_aggregator';
 
 class FramesPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new FrameSelectionAggregator(),
+    );
   }
 
   async addExpectedFrames(ctx: Trace): Promise<void> {
@@ -41,7 +45,7 @@ class FramesPlugin implements PerfettoPlugin {
         process.name as processName,
         process.pid as pid,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
-      from _process_track_summary_by_upid_and_name t
+      from _process_track_summary_by_upid_and_parent_id_and_name t
       join process using(upid)
       where t.name = "Expected Timeline"
     `);
@@ -64,7 +68,7 @@ class FramesPlugin implements PerfettoPlugin {
       const pid = it.pid;
       const maxDepth = it.maxDepth;
 
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: trackName,
         upid,
         pid,
@@ -75,8 +79,8 @@ class FramesPlugin implements PerfettoPlugin {
       const uri = `/process_${upid}/expected_frames`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
-        track: new ExpectedFramesTrack(engine, maxDepth, uri, trackIds),
+        title,
+        track: new ExpectedFramesTrack(ctx, maxDepth, uri, trackIds),
         tags: {
           trackIds,
           upid,
@@ -84,9 +88,8 @@ class FramesPlugin implements PerfettoPlugin {
         },
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = -50;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: -50});
+      group.addChildInOrder(track);
     }
   }
 
@@ -100,7 +103,7 @@ class FramesPlugin implements PerfettoPlugin {
         process.name as processName,
         process.pid as pid,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
-      from _process_track_summary_by_upid_and_name t
+      from _process_track_summary_by_upid_and_parent_id_and_name t
       join process using(upid)
       where t.name = "Actual Timeline"
     `);
@@ -128,7 +131,7 @@ class FramesPlugin implements PerfettoPlugin {
       }
 
       const kind = 'ActualFrames';
-      const displayName = getTrackName({
+      const title = getTrackName({
         name: trackName,
         upid,
         pid,
@@ -139,8 +142,8 @@ class FramesPlugin implements PerfettoPlugin {
       const uri = `/process_${upid}/actual_frames`;
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
-        track: new ActualFramesTrack(engine, maxDepth, uri, trackIds),
+        title,
+        track: new ActualFramesTrack(ctx, maxDepth, uri, trackIds),
         tags: {
           upid,
           trackIds,
@@ -148,9 +151,8 @@ class FramesPlugin implements PerfettoPlugin {
         },
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
-      const track = new TrackNode(uri, displayName);
-      track.sortOrder = -50;
-      group.insertChildInOrder(track);
+      const track = new TrackNode({uri, title, sortOrder: -50});
+      group.addChildInOrder(track);
     }
   }
 }

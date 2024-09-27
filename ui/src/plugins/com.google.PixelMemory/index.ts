@@ -14,7 +14,7 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {addDebugCounterTrack} from '../../frontend/debug_tracks/debug_tracks';
+import {addDebugCounterTrack} from '../../public/lib/debug_tracks/debug_tracks';
 
 class PixelMemory implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {

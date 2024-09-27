@@ -17,9 +17,9 @@ import {makeColorScheme} from '../../core/colorizer';
 import {ColorScheme} from '../../public/color_scheme';
 import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
-import {Engine} from '../../trace_processor/engine';
 import {STR_NULL} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
+import {Trace} from '../../public/trace';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -49,12 +49,12 @@ export type ActualFrameRow = typeof ACTUAL_FRAME_ROW;
 
 export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
   constructor(
-    engine: Engine,
+    trace: Trace,
     maxDepth: number,
     uri: string,
     private trackIds: number[],
   ) {
-    super({engine, uri});
+    super({trace, uri});
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,

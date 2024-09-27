@@ -621,6 +621,8 @@ message AndroidBatteryMetric {
     optional int64 sleep_screen_off_ns = 6;
     optional int64 sleep_screen_on_ns = 7;
     optional int64 sleep_screen_doze_ns = 8;
+    // Average power over the duration of the trace.
+    optional double avg_power_mw = 9;
   }
 
   // Period of time during the trace that the device went to sleep completely.
@@ -2580,13 +2582,16 @@ message AndroidStartupMetric {
     optional string thread_name = 4;
   }
 
-  // Next id: 25
+  // Next id: 26
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
 
     // Startup type (cold / warm / hot)
     optional string startup_type = 16;
+
+    // Number of CPUs the device has
+    optional uint32 cpu_count = 25;
 
     // Name of the package launched
     optional string package_name = 2;

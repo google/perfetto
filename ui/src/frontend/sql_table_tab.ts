@@ -21,13 +21,14 @@ import {addBottomTab} from '../common/add_ephemeral_tab';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Popup, PopupPosition} from '../widgets/popup';
-import {BottomTab, NewBottomTabArgs} from './bottom_tab';
-import {AddDebugTrackMenu} from './debug_tracks/add_debug_track_menu';
-import {getEngine} from './get_engine';
+import {BottomTab, NewBottomTabArgs} from '../public/lib/bottom_tab';
+import {AddDebugTrackMenu} from '../public/lib/debug_tracks/add_debug_track_menu';
 import {Filter} from './widgets/sql/table/column';
 import {SqlTableState} from './widgets/sql/table/state';
 import {SqlTable} from './widgets/sql/table/table';
 import {SqlTableDescription} from './widgets/sql/table/table_description';
+import {Trace} from '../public/trace';
+import {setAddSqlTableTabImplFunction} from './sql_table_tab_command';
 
 export interface SqlTableTabConfig {
   table: SqlTableDescription;
@@ -35,15 +36,20 @@ export interface SqlTableTabConfig {
   imports?: string[];
 }
 
-export function addSqlTableTabImpl(config: SqlTableTabConfig): void {
+export function addSqlTableTabImpl(
+  trace: Trace,
+  config: SqlTableTabConfig,
+): void {
   const queryResultsTab = new SqlTableTab({
     config,
-    engine: getEngine('QueryResult'),
+    trace,
     uuid: uuidv4(),
   });
 
   addBottomTab(queryResultsTab, 'sqlTable');
 }
+
+setAddSqlTableTabImplFunction(addSqlTableTabImpl);
 
 export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   static readonly kind = 'dev.perfetto.SqlTableTab';
@@ -53,7 +59,7 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   constructor(args: NewBottomTabArgs<SqlTableTabConfig>) {
     super(args);
 
-    this.state = new SqlTableState(this.engine, this.config.table, {
+    this.state = new SqlTableState(this.trace, this.config.table, {
       filters: this.config.filters,
       imports: this.config.imports,
     });
@@ -92,11 +98,11 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
         position: PopupPosition.Top,
       },
       m(AddDebugTrackMenu, {
+        trace: this.state.trace,
         dataSource: {
           sqlSource: `SELECT ${debugTrackColumns.join(', ')} FROM (${selectStatement})`,
           columns: debugTrackColumns,
         },
-        engine: this.engine,
       }),
     );
 

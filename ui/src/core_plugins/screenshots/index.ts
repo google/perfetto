@@ -33,22 +33,21 @@ class ScreenshotsPlugin implements PerfettoPlugin {
     const {count} = res.firstRow({count: NUM});
 
     if (count > 0) {
-      const displayName = 'Screenshots';
+      const title = 'Screenshots';
       const uri = '/screenshots';
       ctx.tracks.registerTrack({
         uri,
-        title: displayName,
+        title,
         track: new ScreenshotsTrack({
-          engine: ctx.engine,
+          trace: ctx,
           uri,
         }),
         tags: {
           kind: ScreenshotsTrack.kind,
         },
       });
-      const trackNode = new TrackNode(uri, displayName);
-      trackNode.sortOrder = -60;
-      ctx.workspace.insertChildInOrder(trackNode);
+      const trackNode = new TrackNode({uri, title, sortOrder: -60});
+      ctx.workspace.addChildInOrder(trackNode);
 
       ctx.registerDetailsPanel(
         new BottomTabToSCSAdapter({
@@ -60,7 +59,7 @@ class ScreenshotsPlugin implements PerfettoPlugin {
               const config = selection.detailsPanelConfig.config;
               return new ScreenshotTab({
                 config: config as GenericSliceDetailsTabConfig,
-                engine: ctx.engine,
+                trace: ctx,
                 uuid: uuidv4(),
               });
             }
