@@ -39,7 +39,8 @@ ORDER BY ts;
 CREATE PERFETTO VIEW _thread_state_view
 AS
 SELECT id, ts, dur, utid, cpu, state, io_wait
-FROM thread_state WHERE dur > 0;
+FROM thread_state WHERE dur > 0
+ORDER BY ts;
 
 -- Partitions and flattens slices underneath the server or client side of binder txns.
 -- The |name| column in the output is the lowest depth slice name in a given partition.
@@ -82,12 +83,14 @@ WHERE flat_slices.dur > 0
 -- Server side flattened descendant slices.
 CREATE PERFETTO TABLE _binder_server_flat_descendants
 AS
-SELECT * FROM _binder_flatten_descendants!(binder_reply_id, server_ts, server_dur, 'binder reply');
+SELECT * FROM _binder_flatten_descendants!(binder_reply_id, server_ts, server_dur, 'binder reply')
+ORDER BY ts;
 
 -- Client side flattened descendant slices.
 CREATE PERFETTO TABLE _binder_client_flat_descendants
 AS
-SELECT * FROM _binder_flatten_descendants!(binder_txn_id, client_ts, client_dur, 'binder transaction');
+SELECT * FROM _binder_flatten_descendants!(binder_txn_id, client_ts, client_dur, 'binder transaction')
+ORDER BY ts;
 
 -- Server side flattened descendants intersected with their thread_states.
 CREATE PERFETTO TABLE _binder_server_flat_descendants_with_thread_state
