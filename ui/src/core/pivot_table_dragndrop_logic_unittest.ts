@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {computeIntervals, performReordering} from './dragndrop_logic';
+import {computeIntervals, performReordering} from './pivot_table_manager';
 
 describe('performReordering', () => {
   test('has the same elements in the result', () => {

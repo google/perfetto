@@ -89,7 +89,7 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
       }
     }
 
-    const pivotTableState = globals.state.nonSerializableState.pivotTable;
+    const pivotTableState = trace.pivotTable.state;
     const tree = pivotTableState.queryResult?.tree;
     if (
       pivotTableState.selectionArea != undefined &&

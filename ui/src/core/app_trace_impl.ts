@@ -40,6 +40,7 @@ import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
 import {raf} from './raf_scheduler';
+import {PivotTableManager} from './pivot_table_manager';
 
 // The pseudo plugin id used for the core instance of AppImpl.
 export const CORE_PLUGIN_ID = '__core__';
@@ -180,6 +181,7 @@ class TraceContext implements Disposable {
   readonly noteMgr = new NoteManagerImpl();
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
   readonly scrollHelper: ScrollHelper;
+  readonly pivotTableMgr;
   readonly trash = new DisposableStack();
 
   constructor(gctx: AppContext, engine: EngineBase, traceInfo: TraceInfo) {
@@ -213,6 +215,10 @@ class TraceContext implements Disposable {
       }
     };
 
+    this.pivotTableMgr = new PivotTableManager(
+      engine.getProxy('PivotTableManager'),
+    );
+
     this.searchMgr = new SearchManagerImpl({
       timeline: this.timeline,
       trackManager: this.trackMgr,
@@ -224,7 +230,7 @@ class TraceContext implements Disposable {
 
   // This method wires up changes to selection to side effects on search and
   // tabs. This is to avoid entangling too many dependencies between managers.
-  private onSelectionChange(_: Selection, opts: SelectionOpts) {
+  private onSelectionChange(selection: Selection, opts: SelectionOpts) {
     const {clearSearch = true, switchToCurrentSelectionTab = true} = opts;
     if (clearSearch) {
       this.searchMgr.reset();
@@ -233,6 +239,10 @@ class TraceContext implements Disposable {
       this.tabMgr.showCurrentSelectionTab();
     }
     // pendingScrollId is handled by SelectionManager internally.
+
+    if (selection.kind === 'area') {
+      this.pivotTableMgr.setSelectionArea(selection);
+    }
 
     // TODO(primiano): this is temporarily necessary until we kill
     // controllers. The flow controller needs to be re-kicked when we change
@@ -386,6 +396,10 @@ export class TraceImpl implements Trace {
 
   get notes() {
     return this.traceCtx.noteMgr;
+  }
+
+  get pivotTable() {
+    return this.traceCtx.pivotTableMgr;
   }
 
   // App interface implementation.
