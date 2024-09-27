@@ -663,8 +663,8 @@ class TracingServiceImpl : public TracingService {
     // Set to true on the first call to MaybeNotifyAllDataSourcesStarted().
     bool did_notify_all_data_source_started = false;
 
-    // Stores all lifecycle events of a particular type (i.e. associated with a
-    // single field id in the TracingServiceEvent proto).
+    // Stores simple lifecycle events of a particular type (i.e. associated with
+    // a single field id in the TracingServiceEvent proto).
     struct LifecycleEvent {
       LifecycleEvent(uint32_t f_id, uint32_t m_size = 1)
           : field_id(f_id), max_size(m_size), timestamps(m_size) {}
@@ -683,6 +683,17 @@ class TracingServiceImpl : public TracingService {
       base::CircularQueue<int64_t> timestamps;
     };
     std::vector<LifecycleEvent> lifecycle_events;
+
+    // Stores arbitrary lifecycle events that don't fit in lifecycle_events as
+    // serialized TracePacket protos.
+    struct ArbitraryLifecycleEvent {
+      int64_t timestamp;
+      std::vector<uint8_t> data;
+    };
+
+    std::optional<ArbitraryLifecycleEvent> slow_start_event;
+
+    std::vector<ArbitraryLifecycleEvent> last_flush_events;
 
     using ClockSnapshotData = ClockSnapshotVector;
 
@@ -797,8 +808,9 @@ class TracingServiceImpl : public TracingService {
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
-  void OnFlushTimeout(TracingSessionID, FlushRequestID);
+  void OnFlushTimeout(TracingSessionID, FlushRequestID, FlushFlags);
   void OnDisableTracingTimeout(TracingSessionID);
+  void OnAllDataSourceStartedTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
   void PeriodicFlushTask(TracingSessionID, bool post_next_only);
   void CompleteFlush(TracingSessionID tsid,
