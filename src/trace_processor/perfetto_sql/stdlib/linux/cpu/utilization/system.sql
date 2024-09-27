@@ -94,15 +94,15 @@ SELECT
   -- i.e. divide by 1e3 in total.
   -- We use millicycles as we want to preserve this level of precision
   -- for future calculations.
-  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
-  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
+  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
   SUM(dur) AS runtime,
   MIN(freq) AS min_freq,
   MAX(freq) AS max_freq,
   -- We choose to work in micros space in both the numerator and
   -- denominator as this gives us good enough precision without risking
   -- overflows.
-  cast_int!(SUM((dur * freq) / 1000) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
 GROUP BY utid, cpu;
 
@@ -125,11 +125,11 @@ CREATE PERFETTO TABLE cpu_cycles_per_cpu(
 ) AS
 SELECT
   cpu,
-  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
-  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
+  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
   SUM(dur) AS runtime,
   MIN(freq) AS min_freq,
   MAX(freq) AS max_freq,
-  cast_int!(SUM((dur * freq) / 1000) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
 GROUP BY cpu;
