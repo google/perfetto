@@ -24,7 +24,6 @@ import {
   SimpleCounterTrack,
   SimpleCounterTrackConfig,
 } from '../../frontend/simple_counter_track';
-import {globals} from '../../frontend/globals';
 import {TrackNode} from '../../public/workspace';
 
 interface ContainedTrace {
@@ -1459,13 +1458,16 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
 
     const e = ctx.engine;
 
-    if (
-      globals.extraSqlPackages.find((x) => x.name === 'google3') !== undefined
-    ) {
+    let thrown = false;
+    try {
       await e.query(
         `INCLUDE PERFETTO MODULE
             google3.wireless.android.telemetry.trace_extractor.modules.modem_tea_metrics`,
       );
+    } catch {
+      thrown = true;
+    }
+    if (!thrown) {
       const counters = await e.query(
         `select distinct name from pixel_modem_counters`,
       );
