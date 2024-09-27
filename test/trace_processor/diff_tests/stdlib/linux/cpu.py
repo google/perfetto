@@ -122,6 +122,46 @@ class LinuxCpu(TestSuite):
         92000000000,0.000009,0.000071
         """))
 
+  def test_cpu_cycles(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.system;
+
+             SELECT
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles;
+             """),
+        out=Csv("""
+        "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+        36093928491870,36093,17131594098,500000,2850000,2112132
+            """))
+
+  def test_cpu_cycles_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.system;
+
+             SELECT
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles_in_interval(TRACE_START(), TRACE_DUR() / 10);
+             """),
+        out=Csv("""
+          "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+          5839969682564,5839,9476034254,614400,1708800,617686
+            """))
+
   def test_cpu_cycles_per_cpu(self):
     return DiffTestBlueprint(
         trace=DataPath('android_postboot_unlock.pftrace'),
@@ -129,7 +169,13 @@ class LinuxCpu(TestSuite):
              INCLUDE PERFETTO MODULE linux.cpu.utilization.system;
 
              SELECT
-               *
+              cpu,
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
              FROM cpu_cycles_per_cpu;
              """),
         out=Csv("""
@@ -142,6 +188,30 @@ class LinuxCpu(TestSuite):
           5,5615703220380,5615,2438499077,553000,2348000,2308698
           6,4715590442538,4715,1737264802,500000,2850000,2725191
           7,4594701918170,4594,1719270548,500000,2850000,2685290
+            """))
+
+  def test_cpu_cycles_per_cpu_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.system;
+
+             SELECT
+              cpu,
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles_per_cpu_in_interval(TRACE_START(), TRACE_DUR() / 10);
+             """),
+        out=Csv("""
+          "cpu","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+          0,5762458673747,5762,9350177660,614400,1708800,617691
+          1,72344785675,72,117748675,614400,614400,615831
+          2,533252160,0,617190,864000,864000,871327
+          3,4632970982,4,7490729,614400,864000,620044
             """))
 
   def test_cpu_cycles_per_thread(self):
@@ -164,6 +234,35 @@ class LinuxCpu(TestSuite):
             25048302164.445362,24.624742,16080173.697531,1402708.453608,1648468.453608,1582627.707216
             """))
 
+  def test_cpu_cycles_per_thread_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
+
+             SELECT
+              utid,
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles_per_thread_in_interval(TRACE_START(), TRACE_DUR() / 10)
+             WHERE utid < 100
+             """),
+        out=Csv("""
+            "utid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+            1,48593411952,48,79090840,614400,614400,615792
+            14,613205232254,613,998055394,614400,614400,615792
+            15,527593574058,527,858713502,614400,614400,615793
+            16,291560471712,291,474545040,614400,614400,615792
+            30,2893791427,2,4709947,614400,614400,615831
+            61,72890117928,72,118636260,614400,614400,615792
+            62,282929432,0,165572,1708800,1708800,1714723
+            92,1071631296,1,1240314,864000,864000,867015
+            """))
+
   def test_cpu_cycles_per_process(self):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
@@ -182,6 +281,31 @@ class LinuxCpu(TestSuite):
         out=Csv("""
             "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
             83434563989.406891,82.979310,53248030.726027,1193710.344828,1683773.793103,1536705.400000
+            """))
+
+  def test_cpu_cycles_per_process_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.process;
+
+             SELECT
+              upid,
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles_per_process_in_interval(TRACE_START(), TRACE_DUR() / 10)
+             WHERE upid < 30;
+             """),
+        out=Csv("""
+          "upid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+          1,121483529880,121,197727100,614400,614400,615792
+          14,613205232254,613,998055394,614400,614400,615792
+          15,527593574058,527,858713502,614400,614400,615793
+          16,291560471712,291,474545040,614400,614400,615792
             """))
 
   # Test CPU frequency counter grouping.
