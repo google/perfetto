@@ -31,6 +31,7 @@ import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {Panel} from './panel_container';
 import {TrackWidget} from '../widgets/track_widget';
+import {raf} from '../core/raf_scheduler';
 
 const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   id: 'showTrackDetailsButton',
@@ -117,12 +118,15 @@ export class TrackPanel implements Panel {
           ...pos,
           timescale,
         });
+        raf.scheduleRedraw();
       },
       onTrackContentMouseOut: () => {
         trackRenderer?.track.onMouseOut?.();
+        raf.scheduleRedraw();
       },
       onTrackContentClick: (pos, bounds) => {
         const timescale = getTimescaleForBounds(bounds);
+        raf.scheduleRedraw();
         return (
           trackRenderer?.track.onMouseClick?.({
             ...pos,
