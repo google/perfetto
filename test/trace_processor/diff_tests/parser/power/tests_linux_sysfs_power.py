@@ -132,3 +132,33 @@ class LinuxSysfsPower(TestSuite):
         out=Csv("""
         "value"
         """))
+
+  # Test calculating power counter from current and voltage.
+  def test_power_from_current_and_voltage(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+        packet {
+          timestamp: 3000000
+          battery {
+            current_ua: 710000
+            voltage_uv: 11900000
+          }
+        }
+        packet {
+          timestamp: 4000000
+          battery {
+            current_ua: 510000
+            voltage_uv: 12000000
+          }
+        }
+        """),
+        query="""
+        SELECT value
+        FROM counters
+        WHERE name = "batt.power_mw"
+        """,
+        out=Csv("""
+        "value"
+        8449.000000
+        6120.000000
+        """))
