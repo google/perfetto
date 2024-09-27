@@ -1,39 +1,38 @@
-/*
- * Copyright (C) 2022 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (C) 2022 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-import {assertExists} from '../base/logging';
 import {sqliteString} from '../base/string_utils';
-import {PivotTableQuery, PivotTableState} from '../common/state';
-import {Area} from '../public/selection';
-import {Aggregation, TableColumn} from './pivot_table_types';
-import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
-import {globals} from './globals';
+import {
+  PivotTableQuery,
+  PivotTableState,
+  Aggregation,
+  TableColumn,
+} from './pivot_table_types';
+import {AreaSelection} from '../public/selection';
 import {
   ASYNC_SLICE_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
 } from '../public/track_kinds';
 
-export interface Table {
+interface Table {
   name: string;
   displayName: string;
   columns: string[];
 }
 
-export const sliceTable = {
-  name: '_slice_with_process_and_thread_info',
+const sliceTable = {
+  name: '_slice_with_thread_and_process_info',
   displayName: 'slice',
   columns: [
     'type',
@@ -64,22 +63,6 @@ export const sliceAggregationColumns = [
 // columns in the UI.
 export const tables: Table[] = [sliceTable];
 
-// Queried "table column" is either:
-// 1. A real one, represented as object with table and column name.
-// 2. Pseudo-column 'count' that's rendered as '1' in SQL to use in queries like
-// `select sum(1), name from slice group by name`.
-
-export interface RegularColumn {
-  kind: 'regular';
-  table: string;
-  column: string;
-}
-
-export interface ArgumentColumn {
-  kind: 'argument';
-  argument: string;
-}
-
 // Exception thrown by query generator in case incoming parameters are not
 // suitable in order to build a correct query; these are caught by the UI and
 // displayed to the user.
@@ -91,7 +74,7 @@ function aggregationAlias(aggregationIndex: number): string {
 }
 
 export function areaFilters(
-  area: Area,
+  area: AreaSelection,
 ): {op: (cols: string[]) => string; columns: string[]}[] {
   return [
     {
@@ -107,15 +90,12 @@ export function areaFilters(
   ];
 }
 
-export function expression(column: TableColumn): string {
+function expression(column: TableColumn): string {
   switch (column.kind) {
     case 'regular':
       return `${column.table}.${column.column}`;
     case 'argument':
-      return extractArgumentExpression(
-        column.argument,
-        assertExists(getSqlTableDescription('slice')).name,
-      );
+      return extractArgumentExpression(column.argument, sliceTable.name);
   }
 }
 
@@ -128,7 +108,7 @@ function aggregationExpression(aggregation: Aggregation): string {
   )})`;
 }
 
-export function extractArgumentExpression(argument: string, table?: string) {
+function extractArgumentExpression(argument: string, table?: string) {
   const prefix = table === undefined ? '' : `${table}.`;
   return `extract_arg(${prefix}arg_set_id, ${sqliteString(argument)})`;
 }
@@ -178,7 +158,7 @@ export function generateQueryFromState(
 
     select
       ${renderedPivots.concat(aggregations).join(',\n')}
-    from ${assertExists(getSqlTableDescription('slice')).name}
+    from ${sliceTable.name}
     ${whereClause}
     group by ${renderedPivots.join(', ')}
     ${sortClauses.length > 0 ? 'order by ' + sortClauses.join(', ') : ''}
@@ -194,10 +174,9 @@ export function generateQueryFromState(
   };
 }
 
-function getSelectedTrackSqlIds(area: Area): number[] {
+function getSelectedTrackSqlIds(area: AreaSelection): number[] {
   const selectedTrackKeys: number[] = [];
-  for (const trackUri of area.trackUris) {
-    const trackInfo = globals.trackManager.getTrack(trackUri);
+  for (const trackInfo of area.tracks) {
     if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
       trackInfo.tags.trackIds &&
         selectedTrackKeys.push(...trackInfo.tags.trackIds);
