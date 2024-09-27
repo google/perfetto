@@ -88,17 +88,15 @@ CREATE PERFETTO TABLE cpu_cycles_per_process(
   -- Average CPU frequency in kHz
   avg_freq INT
 ) AS
-WITH threads AS (
-  SELECT upid, utid FROM thread
-)
 SELECT
   upid,
-  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
-  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
+  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
   SUM(dur) AS runtime,
   MIN(freq) AS min_freq,
   MAX(freq) AS max_freq,
-  cast_int!(SUM((dur * freq) / 1000) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
-JOIN threads USING (utid)
+JOIN thread USING (utid)
+WHERE upid IS NOT NULL
 GROUP BY upid;

@@ -88,11 +88,11 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread(
 ) AS
 SELECT
   utid,
-  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
-  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
+  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
   SUM(dur) AS runtime,
   MIN(freq) AS min_freq,
   MAX(freq) AS max_freq,
-  cast_int!(SUM((dur * freq) / 1000) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
 GROUP BY utid;
