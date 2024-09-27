@@ -86,7 +86,8 @@ export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack 
   }
 
   onSliceClick({slice}: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.setPerfSamples({
+    globals.selectionManager.setLegacy({
+      kind: 'PERF_SAMPLES',
       id: slice.id,
       upid: this.upid,
       leftTs: Time.fromRaw(slice.ts),
@@ -120,7 +121,8 @@ export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
   }
 
   onSliceClick({slice}: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.setPerfSamples({
+    globals.selectionManager.setLegacy({
+      kind: 'PERF_SAMPLES',
       id: slice.id,
       utid: this.utid,
       leftTs: Time.fromRaw(slice.ts),
