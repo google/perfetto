@@ -18,6 +18,7 @@ INCLUDE PERFETTO MODULE viz.summary.slices;
 CREATE PERFETTO TABLE _thread_track_summary_by_utid_and_name AS
 SELECT
   utid,
+  parent_id,
   name,
   -- Only meaningful when track_count == 1.
   id as track_id,
@@ -27,7 +28,7 @@ SELECT
   COUNT() AS track_count
 FROM thread_track
 JOIN _slice_track_summary USING (id)
-GROUP BY utid, name;
+GROUP BY utid, parent_id, name;
 
 CREATE PERFETTO TABLE _process_track_summary_by_upid_and_parent_id_and_name AS
 SELECT
@@ -44,9 +45,10 @@ GROUP BY upid, parent_id, name;
 CREATE PERFETTO TABLE _uid_track_track_summary_by_uid_and_name AS
 SELECT
   uid,
+  parent_id,
   name,
   GROUP_CONCAT(id) AS track_ids,
   COUNT() AS track_count
 FROM uid_track
 JOIN _slice_track_summary USING (id)
-GROUP BY uid, name;
+GROUP BY uid, parent_id, name;
