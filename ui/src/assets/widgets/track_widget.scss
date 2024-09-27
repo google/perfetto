@@ -62,6 +62,10 @@
     grid-area: shell;
     box-shadow: inset 0px -1px 0px 0px var(--track-border-color);
 
+    &.pf-clickable {
+      cursor: pointer;
+    }
+
     .pf-visible-on-hover {
       visibility: hidden;
 
@@ -93,10 +97,6 @@
         overflow: hidden;
         margin-left: 2px;
 
-        &.pf-clickable {
-          cursor: pointer;
-        }
-
         // The chevron icon used is very thin - take some empty space out of
         // left & right
         .pf-icon {
@@ -119,6 +119,12 @@
           background: white;
           color: hsl(213, 22%, 30%);
         }
+      }
+
+      .pf-track-buttons {
+        // Make the track buttons a little larger so they're easier to see &
+        // click
+        font-size: 16px;
       }
     }
   }
