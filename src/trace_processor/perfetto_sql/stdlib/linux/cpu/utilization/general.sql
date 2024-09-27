@@ -82,18 +82,19 @@ SELECT
     ts,
     dur,
     cpu,
+    ucpu,
     freq
 FROM cpu_frequency_counters;
 
 CREATE PERFETTO VIEW _sched_without_id AS
-SELECT ts, dur, utid, cpu
+SELECT ts, dur, utid, ucpu
 FROM sched
 WHERE utid != 0 AND dur != -1;
 
 CREATE VIRTUAL TABLE _cpu_freq_per_thread_span_join
 USING SPAN_LEFT_JOIN(
-    _sched_without_id PARTITIONED cpu,
-    _cpu_freq_for_metrics PARTITIONED cpu);
+    _sched_without_id PARTITIONED ucpu,
+    _cpu_freq_for_metrics PARTITIONED ucpu);
 
 CREATE PERFETTO TABLE _cpu_freq_per_thread
 AS SELECT * FROM _cpu_freq_per_thread_span_join;
