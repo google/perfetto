@@ -216,6 +216,17 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
 
     return m(
       '.pf-track-shell',
+      {
+        className: classNames(collapsible && 'pf-clickable'),
+        onclick: (e: MouseEvent) => {
+          // Block all clicks on the shell from propagating through to the
+          // canvas
+          e.stopPropagation();
+          if (collapsible) {
+            attrs.onToggleCollapsed?.();
+          }
+        },
+      },
       m(
         '.pf-track-menubar',
         {
@@ -223,13 +234,10 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
             position: 'sticky',
             top: `${topOffsetPx}px`,
           },
-          onclick: (e: MouseEvent) => e.stopPropagation(), // Block all clicks on the shell from propagating through to the canvas
         },
         m(
           'h1.pf-track-title',
           {
-            onclick: collapsible ? () => attrs.onToggleCollapsed?.() : null,
-            className: classNames(collapsible && 'pf-clickable'),
             ref: attrs.path, // TODO(stevegolton): Replace with aria tags?
           },
           collapsible &&
@@ -243,7 +251,11 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
         ),
         m(
           ButtonBar,
-          {className: 'pf-track-buttons'},
+          {
+            className: 'pf-track-buttons',
+            // Block button clicks from hitting the shell's on click event
+            onclick: (e: MouseEvent) => e.stopPropagation(),
+          },
           attrs.buttons,
           attrs.error && m(CrashButton, {error: attrs.error}),
         ),
