@@ -23,25 +23,22 @@ let page: Page;
 test.beforeAll(async ({browser}, _testInfo) => {
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
-  await pth.openTraceFile('chrome_rendering_desktop.pftrace');
+  await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 });
 
-test('load trace', async () => {
-  await pth.waitForIdleAndScreenshot('loaded.png');
+test('slices with same name', async () => {
+  const sliceName = 'animation';
+  await pth.searchSlice(sliceName);
+  await page
+    .locator('.details-panel-container a.pf-anchor', {hasText: sliceName})
+    .click();
+  await page
+    .locator('.pf-popup-portal button', {hasText: 'Slices with the same name'})
+    .click();
+  await pth.waitForIdleAndScreenshot(`slices-with-same-name.png`);
 });
 
-test('expand browser', async () => {
-  const grp = pth.locateTrackGroup('Browser 12685');
-  grp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(grp);
-  await pth.waitForIdleAndScreenshot('browser_expanded.png');
-  await pth.toggleTrackGroup(grp);
-});
-
-test('slice with flows', async () => {
-  await pth.searchSlice('GenerateRenderPass');
-  await pth.resetFocus();
-  await page.keyboard.press('f');
-  await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('slice_with_flows.png');
+test('ShowTable command', async () => {
+  await pth.runCommand('perfetto.ShowTable.slice');
+  await pth.waitForIdleAndScreenshot(`slices-table.png`);
 });

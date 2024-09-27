@@ -62,6 +62,8 @@ import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {pageWithTrace} from './pages';
 import {AppImpl} from '../core/app_trace_impl';
+import {setAddSqlTableTabImplFunction} from './sql_table_tab_interface';
+import {addSqlTableTabImpl} from './sql_table_tab';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -373,6 +375,11 @@ function onCssLoaded() {
 
   // Force one initial render to get everything in place
   m.render(document.body, m(UiMain, router.resolve()));
+
+  // TODO(primiano): this injection is to break a cirular dependency. See
+  // comment in sql_table_tab_interface.ts. Remove once we add an extension
+  // point for context menus.
+  setAddSqlTableTabImplFunction(addSqlTableTabImpl);
 
   // Initialize plugins, now that we are ready to go
   pluginManager.initialize();

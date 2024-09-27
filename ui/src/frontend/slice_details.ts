@@ -26,7 +26,7 @@ import {
   BreakdownByThreadState,
   BreakdownByThreadStateTreeNode,
 } from './sql/thread_state';
-import {addSqlTableTab} from './sql_table_tab_command';
+import {addSqlTableTab} from './sql_table_tab_interface';
 import {DurationWidget} from './widgets/duration';
 import {renderProcessRef} from './widgets/process';
 import {renderThreadRef} from './widgets/thread';

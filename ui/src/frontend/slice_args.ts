@@ -23,7 +23,7 @@ import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {TreeNode} from '../widgets/tree';
 import {Arg} from '../trace_processor/sql_utils/args';
-import {addSqlTableTab} from './sql_table_tab_command';
+import {addSqlTableTab} from './sql_table_tab_interface';
 import {assertExists} from '../base/logging';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {Trace} from '../public/trace';

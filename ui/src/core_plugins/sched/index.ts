@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
+import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';

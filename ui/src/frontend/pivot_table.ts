@@ -42,7 +42,7 @@ import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from './widgets/duration';
-import {addSqlTableTab} from './sql_table_tab_command';
+import {addSqlTableTab} from './sql_table_tab_interface';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists, assertFalse} from '../base/logging';
 import {Filter, SqlColumn} from './widgets/sql/table/column';
