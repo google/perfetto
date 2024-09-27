@@ -505,7 +505,8 @@ export class TraceController extends Controller<States> {
     const upid = row.upid;
     const leftTs = traceTime.start;
     const rightTs = traceTime.end;
-    globals.selectionManager.setPerfSamples({
+    globals.selectionManager.setLegacy({
+      kind: 'PERF_SAMPLES',
       id: 0,
       upid,
       leftTs,
@@ -535,7 +536,8 @@ export class TraceController extends Controller<States> {
     const row = profile.firstRow({ts: LONG, type: STR, upid: NUM});
     const ts = Time.fromRaw(row.ts);
     const upid = row.upid;
-    globals.selectionManager.setHeapProfile({
+    globals.selectionManager.setLegacy({
+      kind: 'HEAP_PROFILE',
       id: 0,
       upid,
       ts,

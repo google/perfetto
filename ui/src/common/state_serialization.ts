@@ -232,16 +232,17 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
         selMgr.setEvent(sel.trackKey, parseInt(sel.eventId));
         break;
       case 'LEGACY_SCHED_SLICE':
-        selMgr.setSchedSlice({id: sel.id});
+        selMgr.setLegacy({kind: 'SCHED_SLICE', id: sel.id});
         break;
       case 'LEGACY_SLICE':
-        selMgr.setLegacySlice({id: sel.id});
+        selMgr.setLegacy({kind: 'SLICE', id: sel.id});
         break;
       case 'LEGACY_THREAD_STATE':
-        selMgr.setThreadState({id: sel.id});
+        selMgr.setLegacy({kind: 'THREAD_STATE', id: sel.id});
         break;
       case 'LEGACY_HEAP_PROFILE':
-        selMgr.setHeapProfile({
+        selMgr.setLegacy({
+          kind: 'HEAP_PROFILE',
           id: sel.id,
           upid: sel.upid,
           ts: sel.ts,

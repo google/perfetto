@@ -165,8 +165,9 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     trackUuid: string,
     switchToCurrentSelectionTab: boolean,
   ) {
-    globals.selectionManager.setLegacySlice(
+    globals.selectionManager.setLegacy(
       {
+        kind: 'SLICE',
         id: sliceId,
         trackUri: trackUuid,
         table: 'slice',

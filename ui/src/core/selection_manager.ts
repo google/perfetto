@@ -17,7 +17,6 @@ import {
   Selection,
   LegacySelection,
   Area,
-  ProfileType,
   SelectionOpts,
   SelectionManager,
   AreaSelectionAggregator,
@@ -161,92 +160,6 @@ export class SelectionManagerImpl implements SelectionManager {
     );
   }
 
-  setHeapProfile(args: {
-    id: number;
-    upid: number;
-    ts: time;
-    type: ProfileType;
-  }): void {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'HEAP_PROFILE',
-        id: args.id,
-        upid: args.upid,
-        ts: args.ts,
-        type: args.type,
-      },
-    });
-  }
-
-  setPerfSamples(args: {
-    id: number;
-    utid?: number;
-    upid?: number;
-    leftTs: time;
-    rightTs: time;
-    type: ProfileType;
-  }) {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'PERF_SAMPLES',
-        id: args.id,
-        utid: args.utid,
-        upid: args.upid,
-        leftTs: args.leftTs,
-        rightTs: args.rightTs,
-        type: args.type,
-      },
-    });
-  }
-
-  setCpuProfileSample(args: {id: number; utid: number; ts: time}): void {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'CPU_PROFILE_SAMPLE',
-        id: args.id,
-        utid: args.utid,
-        ts: args.ts,
-      },
-    });
-  }
-
-  setSchedSlice(args: {id: number; trackUri?: string}): void {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'SCHED_SLICE',
-        id: args.id,
-        trackUri: args.trackUri,
-      },
-    });
-  }
-
-  setLegacySlice(
-    args: {
-      id: number;
-      trackUri?: string;
-      table?: string;
-      scroll?: boolean;
-    },
-    opts?: SelectionOpts,
-  ): void {
-    this.setSelection(
-      {
-        kind: 'legacy',
-        legacySelection: {
-          kind: 'SLICE',
-          id: args.id,
-          table: args.table,
-          trackUri: args.trackUri,
-        },
-      },
-      opts,
-    );
-  }
-
   setGenericSlice(args: {
     id: number;
     sqlTableName: string;
@@ -275,17 +188,6 @@ export class SelectionManagerImpl implements SelectionManager {
           kind: args.detailsPanelConfig.kind,
           config: detailsPanelConfig,
         },
-      },
-    });
-  }
-
-  setThreadState(args: {id: number; trackUri?: string}): void {
-    this.setSelection({
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'THREAD_STATE',
-        id: args.id,
-        trackUri: args.trackUri,
       },
     });
   }
