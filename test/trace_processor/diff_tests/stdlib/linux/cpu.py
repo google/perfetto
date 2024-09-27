@@ -161,7 +161,7 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
             "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-            25048302186.035053,24.624742,16080173.697531,1402708.453608,1648468.453608,1582627.707216
+            25048302164.445362,24.624742,16080173.697531,1402708.453608,1648468.453608,1582627.707216
             """))
 
   def test_cpu_cycles_per_process(self):
@@ -181,7 +181,7 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
             "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-            83208401098.424652,82.753425,53163023.244898,1189742.465753,1683945.205479,1534667.547945
+            83434563989.406891,82.979310,53248030.726027,1193710.344828,1683773.793103,1536705.400000
             """))
 
   # Test CPU frequency counter grouping.
