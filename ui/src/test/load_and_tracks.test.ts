@@ -38,14 +38,7 @@ test('info and stats', async () => {
 });
 
 test('omnibox search', async () => {
-  const omnibox = page.locator('input[ref=omnibox]');
-  await omnibox.focus();
-  await omnibox.fill('composite 572441');
-  await pth.waitForPerfettoIdle();
-
-  await omnibox.press('Enter');
-  await pth.waitForPerfettoIdle();
-
+  await pth.searchSlice('composite 572441');
   await pth.resetFocus();
   await page.keyboard.press('f');
   await pth.waitForPerfettoIdle();
