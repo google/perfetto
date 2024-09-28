@@ -67,7 +67,7 @@ export abstract class NamedSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<SliceType>) {
-    globals.selectionManager.setLegacy({
+    globals.selectionManager.selectLegacy({
       kind: 'SLICE',
       id: args.slice.id,
       trackUri: this.uri,

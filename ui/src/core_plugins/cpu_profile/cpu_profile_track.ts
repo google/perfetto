@@ -75,7 +75,7 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
   }
 
   onSliceClick({slice}: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.setLegacy({
+    globals.selectionManager.selectLegacy({
       kind: 'CPU_PROFILE_SAMPLE',
       id: slice.id,
       utid: this.utid,

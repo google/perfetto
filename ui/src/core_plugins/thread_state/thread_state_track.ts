@@ -85,7 +85,7 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
   }
 
   onSliceClick(args: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.setLegacy({
+    globals.selectionManager.selectLegacy({
       kind: 'THREAD_STATE',
       id: args.slice.id,
       trackUri: this.uri,

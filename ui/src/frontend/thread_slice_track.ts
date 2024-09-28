@@ -83,7 +83,7 @@ export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
   }
 
   onSliceClick(args: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.setLegacy({
+    globals.selectionManager.selectLegacy({
       kind: 'SLICE',
       id: args.slice.id,
       trackUri: this.uri,

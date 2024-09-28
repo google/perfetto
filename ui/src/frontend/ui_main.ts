@@ -366,7 +366,7 @@ export class UiMainPerTrace implements m.ClassComponent {
               .filter((uri) => uri !== undefined);
           }
           const {start, end} = trace.traceInfo;
-          trace.selection.setArea({
+          trace.selection.selectArea({
             start,
             end,
             trackUris: tracksToSelect,

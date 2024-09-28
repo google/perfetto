@@ -500,7 +500,7 @@ export class TraceController extends Controller<States> {
     const upid = row.upid;
     const leftTs = traceTime.start;
     const rightTs = traceTime.end;
-    globals.selectionManager.setLegacy({
+    globals.selectionManager.selectLegacy({
       kind: 'PERF_SAMPLES',
       id: 0,
       upid,
@@ -531,7 +531,7 @@ export class TraceController extends Controller<States> {
     const row = profile.firstRow({ts: LONG, type: STR, upid: NUM});
     const ts = Time.fromRaw(row.ts);
     const upid = row.upid;
-    globals.selectionManager.setLegacy({
+    globals.selectionManager.selectLegacy({
       kind: 'HEAP_PROFILE',
       id: 0,
       upid,
@@ -581,18 +581,10 @@ export class TraceController extends Controller<States> {
       if (track === undefined) {
         return;
       }
-      globals.selectionManager.setLegacy(
-        {
-          kind: 'SLICE',
-          id: row.id,
-          trackUri: track.uri,
-          table: 'slice',
-        },
-        {
-          pendingScrollId: row.id,
-          switchToCurrentSelectionTab: false,
-        },
-      );
+      globals.selectionManager.selectSqlEvent('slice', row.id, {
+        pendingScrollId: row.id,
+        switchToCurrentSelectionTab: false,
+      });
     }
   }
 
