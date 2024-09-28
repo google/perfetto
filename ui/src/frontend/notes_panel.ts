@@ -338,14 +338,14 @@ export class NotesPanel implements Panel {
     if (x < 0) return;
     for (const note of globals.noteManager.notes.values()) {
       if (this.hoveredX !== null && this.hitTestNote(this.hoveredX, note)) {
-        globals.selectionManager.setNote({id: note.id});
+        globals.selectionManager.selectNote({id: note.id});
         return;
       }
     }
     const timestamp = this.timescale.pxToHpTime(x).toTime();
     const color = randomColor();
     const noteId = globals.noteManager.addNote({timestamp, color});
-    globals.selectionManager.setNote({id: noteId});
+    globals.selectionManager.selectNote({id: noteId});
   }
 
   private hitTestNote(x: number, note: SpanNote | Note): boolean {
@@ -369,8 +369,6 @@ export class NotesPanel implements Panel {
 }
 
 export class NotesEditorTab implements DetailsPanel {
-  readonly panelType = 'DetailsPanel';
-
   constructor(private trace: Trace) {}
 
   render(selection: Selection) {

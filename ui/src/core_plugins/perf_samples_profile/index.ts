@@ -15,12 +15,12 @@
 import m from 'mithril';
 import {TrackData} from '../../common/track_data';
 import {Engine} from '../../trace_processor/engine';
-import {LegacyDetailsPanel} from '../../public/details_panel';
+import {DetailsPanel} from '../../public/details_panel';
 import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {LegacySelection, PerfSamplesSelection} from '../../public/selection';
+import {PerfSamplesSelection, Selection} from '../../public/selection';
 import {
   QueryFlamegraph,
   QueryFlamegraphAttrs,
@@ -122,12 +122,13 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: -50});
       group.addChildInOrder(track);
     }
-    ctx.registerDetailsPanel(new PerfSamplesFlamegraphDetailsPanel(ctx.engine));
+    ctx.tabs.registerDetailsPanel(
+      new PerfSamplesFlamegraphDetailsPanel(ctx.engine),
+    );
   }
 }
 
-class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
-  readonly panelType = 'LegacyDetailsPanel';
+class PerfSamplesFlamegraphDetailsPanel implements DetailsPanel {
   private sel?: PerfSamplesSelection;
   private selMonitor = new Monitor([
     () => this.sel?.leftTs,
@@ -140,14 +141,20 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
 
   constructor(private engine: Engine) {}
 
-  render(sel: LegacySelection) {
-    if (sel.kind !== 'PERF_SAMPLES') {
+  render(sel: Selection) {
+    if (sel.kind !== 'legacy') {
+      this.sel = undefined;
+      return;
+    }
+
+    const legacySel = sel.legacySelection;
+    if (legacySel.kind !== 'PERF_SAMPLES') {
       this.sel = undefined;
       return undefined;
     }
 
-    const {leftTs, rightTs, upid, utid} = sel;
-    this.sel = sel;
+    const {leftTs, rightTs, upid, utid} = legacySel;
+    this.sel = legacySel;
     if (this.selMonitor.ifStateChanged()) {
       this.flamegraphAttrs = {
         engine: this.engine,

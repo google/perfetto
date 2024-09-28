@@ -112,7 +112,7 @@ export class HeapProfileTrack extends BaseSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    globals.selectionManager.setLegacy({
+    globals.selectionManager.selectLegacy({
       kind: 'HEAP_PROFILE',
       id: args.slice.id,
       upid: this.upid,

@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {CPU_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {LegacyDetailsPanel} from '../../public/details_panel';
+import {DetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -31,10 +31,7 @@ import {
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {assertExists} from '../../base/logging';
 import {DetailsShell} from '../../widgets/details_shell';
-import {
-  CpuProfileSampleSelection,
-  LegacySelection,
-} from '../../public/selection';
+import {CpuProfileSampleSelection, Selection} from '../../public/selection';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
 
@@ -87,27 +84,32 @@ class CpuProfile implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: -40});
       group.addChildInOrder(track);
     }
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new CpuProfileSampleFlamegraphDetailsPanel(ctx.engine),
     );
   }
 }
 
-class CpuProfileSampleFlamegraphDetailsPanel implements LegacyDetailsPanel {
-  readonly panelType = 'LegacyDetailsPanel';
+class CpuProfileSampleFlamegraphDetailsPanel implements DetailsPanel {
   private sel?: CpuProfileSampleSelection;
   private selMonitor = new Monitor([() => this.sel?.ts, () => this.sel?.utid]);
   private flamegraphAttrs?: QueryFlamegraphAttrs;
 
   constructor(private engine: Engine) {}
 
-  render(sel: LegacySelection) {
-    if (sel.kind !== 'CPU_PROFILE_SAMPLE') {
+  render(sel: Selection) {
+    if (sel.kind !== 'legacy') {
+      this.sel = undefined;
+      return;
+    }
+
+    const legacySel = sel.legacySelection;
+    if (legacySel.kind !== 'CPU_PROFILE_SAMPLE') {
       this.sel = undefined;
       return undefined;
     }
-    const {ts, utid} = sel;
-    this.sel = sel;
+    const {ts, utid} = legacySel;
+    this.sel = legacySel;
     if (this.selMonitor.ifStateChanged()) {
       this.flamegraphAttrs = {
         engine: this.engine,

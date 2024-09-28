@@ -49,7 +49,7 @@ class ScreenshotsPlugin implements PerfettoPlugin {
       const trackNode = new TrackNode({uri, title, sortOrder: -60});
       ctx.workspace.addChildInOrder(trackNode);
 
-      ctx.registerDetailsPanel(
+      ctx.tabs.registerDetailsPanel(
         new BottomTabToSCSAdapter({
           tabFactory: (selection) => {
             if (

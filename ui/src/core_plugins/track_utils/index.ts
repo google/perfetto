@@ -60,7 +60,7 @@ class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (selectedUri === undefined) return; // Prompt cancelled.
         ctx.scrollTo({track: {uri: selectedUri, expandGroup: true}});
-        ctx.selection.setArea({
+        ctx.selection.selectArea({
           start: ctx.traceInfo.start,
           end: ctx.traceInfo.end,
           trackUris: [selectedUri],

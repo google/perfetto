@@ -222,10 +222,10 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
         if (edit) {
           const selection = globals.selectionManager.selection;
           if (selection.kind === 'area' && area) {
-            globals.selectionManager.setArea({...area});
+            globals.selectionManager.selectArea({...area});
           }
         } else if (area) {
-          globals.selectionManager.setArea({...area});
+          globals.selectionManager.selectArea({...area});
         }
         // Now the selection has ended we stored the final selected area in the
         // global state and can remove the in progress selection from the

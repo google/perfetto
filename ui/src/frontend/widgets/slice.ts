@@ -67,18 +67,10 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
               end: Time.fromRaw(vnode.attrs.ts + dur),
             },
           });
-          globals.selectionManager.setLegacy(
-            {
-              kind: 'SLICE',
-              id: vnode.attrs.id,
-              trackUri: track.uri,
-              table: 'slice',
-            },
-            {
-              switchToCurrentSelectionTab:
-                vnode.attrs.switchToCurrentSelectionTab,
-            },
-          );
+          globals.selectionManager.selectSqlEvent('slice', vnode.attrs.id, {
+            switchToCurrentSelectionTab:
+              vnode.attrs.switchToCurrentSelectionTab,
+          });
         },
       },
       vnode.attrs.name,

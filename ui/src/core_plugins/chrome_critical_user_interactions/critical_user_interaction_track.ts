@@ -131,7 +131,7 @@ export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack {
 
   onSliceClick(args: OnSliceClickArgs<CriticalUserInteractionSlice>) {
     const detailsPanelConfig = this.getDetailsPanel(args);
-    this.trace.selection.setGenericSlice({
+    this.trace.selection.selectGenericSlice({
       id: args.slice.scopedId,
       sqlTableName: this.tableName,
       start: args.slice.ts,

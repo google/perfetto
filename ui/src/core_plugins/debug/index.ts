@@ -69,7 +69,7 @@ class DebugTracksPlugin implements PerfettoPlugin {
     // TODO(stevegolton): While debug tracks are in their current state, we rely
     // on this plugin to provide the details panel for them. In the future, this
     // details panel will become part of the debug track's definition.
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (
