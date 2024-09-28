@@ -30,6 +30,10 @@ import {TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
 
+function uriForThreadStateTrack(upid: number | null, utid: number): string {
+  return `${getThreadUriPrefix(upid, utid)}_state`;
+}
+
 class ThreadState implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
@@ -70,7 +74,7 @@ class ThreadState implements PerfettoPlugin {
         kind: THREAD_STATE_TRACK_KIND,
       });
 
-      const uri = `${getThreadUriPrefix(upid, utid)}_state`;
+      const uri = uriForThreadStateTrack(upid, utid);
       ctx.tracks.registerTrack({
         uri,
         title,
@@ -97,7 +101,7 @@ class ThreadState implements PerfettoPlugin {
       group.addChildInOrder(track);
     }
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (sel) => {
           if (sel.kind !== 'THREAD_STATE') {
@@ -122,6 +126,36 @@ class ThreadState implements PerfettoPlugin {
         addSqlTableTab(ctx, {
           table: getThreadStateTable(),
         });
+      },
+    });
+
+    ctx.selection.registerSqlSelectionResolver({
+      sqlTableName: 'thread_state',
+      callback: async (id: number) => {
+        const result = await ctx.engine.query(`
+          select
+            thread_state.utid,
+            t.upid
+          from
+            thread_state
+            join _threads_with_kernel_flag t
+          where thread_state.id = ${id}
+        `);
+
+        const {upid, utid} = result.firstRow({
+          upid: NUM_NULL,
+          utid: NUM,
+        });
+
+        return {
+          kind: 'legacy',
+          legacySelection: {
+            kind: 'THREAD_STATE',
+            id,
+            trackUri: uriForThreadStateTrack(upid, utid),
+            table: 'slice',
+          },
+        };
       },
     });
   }

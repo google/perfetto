@@ -282,12 +282,10 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
     );
 
     if (trackDescriptor && data.sched.threadStateId) {
-      globals.selectionManager.setLegacy({
-        kind: 'THREAD_STATE',
-        id: data.sched.threadStateId,
-        trackUri: trackDescriptor.uri,
-      });
-
+      globals.selectionManager.selectSqlEvent(
+        'thread_state',
+        data.sched.threadStateId,
+      );
       scrollTo({
         track: {uri: trackDescriptor.uri, expandGroup: true},
         time: {start: data.sched.ts},

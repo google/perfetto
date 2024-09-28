@@ -229,19 +229,19 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
     const selMgr = globals.selectionManager;
     switch (sel.kind) {
       case 'TRACK_EVENT':
-        selMgr.setEvent(sel.trackKey, parseInt(sel.eventId));
+        selMgr.selectTrackEvent(sel.trackKey, parseInt(sel.eventId));
         break;
       case 'LEGACY_SCHED_SLICE':
-        selMgr.setLegacy({kind: 'SCHED_SLICE', id: sel.id});
+        selMgr.selectSqlEvent('sched_slice', sel.id);
         break;
       case 'LEGACY_SLICE':
-        selMgr.setLegacy({kind: 'SLICE', id: sel.id});
+        selMgr.selectSqlEvent('slice', sel.id);
         break;
       case 'LEGACY_THREAD_STATE':
-        selMgr.setLegacy({kind: 'THREAD_STATE', id: sel.id});
+        selMgr.selectSqlEvent('thread_slice', sel.id);
         break;
       case 'LEGACY_HEAP_PROFILE':
-        selMgr.setLegacy({
+        selMgr.selectLegacy({
           kind: 'HEAP_PROFILE',
           id: sel.id,
           upid: sel.upid,

@@ -434,7 +434,7 @@ export class CpuSliceTrack implements Track {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.utidHoveredInThisTrack === -1) return false;
 
-    globals.selectionManager.setLegacy({
+    globals.selectionManager.selectLegacy({
       kind: 'SCHED_SLICE',
       id,
       trackUri: this.uri,

@@ -372,7 +372,6 @@ export class AggregationsTabs implements Disposable {
 
   constructor(trace: TraceImpl) {
     const unregister = globals.tabManager.registerDetailsPanel({
-      panelType: 'DetailsPanel',
       render(selection) {
         if (selection.kind === 'area') {
           return m(AreaDetailsPanel, {trace});

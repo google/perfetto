@@ -46,11 +46,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   if (trackUri === undefined) {
     return;
   }
-  globals.selectionManager.setLegacy({
-    kind: 'SCHED_SLICE',
-    id,
-    trackUri,
-  });
+  globals.selectionManager.selectSqlEvent('sched_slice', id);
   scrollTo({
     track: {uri: trackUri, expandGroup: true},
     time: {start: ts},
@@ -67,12 +63,9 @@ export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
           const trackUri = findSchedTrack(vnode.attrs.cpu);
           if (trackUri === undefined) return;
 
-          globals.selectionManager.setLegacy(
-            {
-              kind: 'SCHED_SLICE',
-              id: vnode.attrs.id,
-              trackUri,
-            },
+          globals.selectionManager.selectSqlEvent(
+            'sched_slice',
+            vnode.attrs.id,
             {
               switchToCurrentSelectionTab:
                 vnode.attrs.switchToCurrentSelectionTab ?? true,
