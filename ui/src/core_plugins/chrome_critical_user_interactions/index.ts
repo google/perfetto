@@ -50,7 +50,7 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
       }),
     });
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (
@@ -69,7 +69,7 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
       }),
     );
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (
@@ -88,7 +88,7 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
       }),
     );
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (

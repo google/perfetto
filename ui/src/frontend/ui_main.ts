@@ -134,7 +134,7 @@ export class UiMainPerTrace implements m.ClassComponent {
     this.trash.use(new AggregationsTabs(trace));
 
     // Register the notes manager+editor.
-    this.trash.use(trace.registerDetailsPanel(new NotesEditorTab(trace)));
+    this.trash.use(trace.tabs.registerDetailsPanel(new NotesEditorTab(trace)));
 
     this.trash.use(
       trace.tabs.registerTab({

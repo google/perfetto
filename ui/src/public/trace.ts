@@ -20,7 +20,6 @@ import {TabManager} from './tab';
 import {TrackManager} from './track';
 import {Timeline} from './timeline';
 import {Workspace, WorkspaceManager} from './workspace';
-import {DetailsPanel, LegacyDetailsPanel} from './details_panel';
 import {SelectionManager} from './selection';
 import {ScrollToArgs} from './scroll_helper';
 import {NoteManager} from './note';
@@ -47,12 +46,6 @@ export interface Trace extends App {
   // Scrolls to the given track and/or time. Does NOT change the current
   // selection.
   scrollTo(args: ScrollToArgs): void;
-
-  // TODO(primiano): remove this once the Legacy vs non-Legacy details panel is
-  // gone. This method is particularly problematic because the method called
-  // registerDetailsPanel in TabManagerImpl takes a non-Legacy DetailsPanel, but
-  // all plugins use a Legacy one. Keeping this as a bridge for now.
-  registerDetailsPanel(detailsPanel: DetailsPanel | LegacyDetailsPanel): void;
 
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;

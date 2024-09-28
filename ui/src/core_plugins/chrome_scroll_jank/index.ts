@@ -163,7 +163,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
     const track = new TrackNode({uri, title});
     group.addChildInOrder(track);
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (
@@ -298,7 +298,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
     const track = new TrackNode({uri, title});
     group.addChildInOrder(track);
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (
@@ -345,7 +345,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
     const track = new TrackNode({uri, title});
     group.addChildInOrder(track);
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (

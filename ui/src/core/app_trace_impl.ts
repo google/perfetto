@@ -19,7 +19,6 @@ import {TimeSpan} from '../base/time';
 import {TimelineImpl} from '../core/timeline';
 import {App} from '../public/app';
 import {Command} from '../public/command';
-import {DetailsPanel, LegacyDetailsPanel} from '../public/details_panel';
 import {Trace} from '../public/trace';
 import {setScrollToFunction} from '../public/scroll_helper';
 import {ScrollToArgs} from '../public/scroll_helper';
@@ -326,16 +325,6 @@ export class TraceImpl implements Trace {
   forkForPlugin(pluginId: string) {
     assertTrue(pluginId != CORE_PLUGIN_ID);
     return new TraceImpl(this.appImpl.forkForPlugin(pluginId), this.traceCtx);
-  }
-
-  registerDetailsPanel(
-    detailsPanel: DetailsPanel | LegacyDetailsPanel,
-  ): Disposable {
-    if (detailsPanel.panelType === 'LegacyDetailsPanel') {
-      return this.traceCtx.tabMgr.registerLegacyDetailsPanel(detailsPanel);
-    } else {
-      return this.traceCtx.tabMgr.registerDetailsPanel(detailsPanel);
-    }
   }
 
   mountStore<T>(migrate: Migrate<T>): Store<T> {

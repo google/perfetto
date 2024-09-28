@@ -369,8 +369,6 @@ export class NotesPanel implements Panel {
 }
 
 export class NotesEditorTab implements DetailsPanel {
-  readonly panelType = 'DetailsPanel';
-
   constructor(private trace: Trace) {}
 
   render(selection: Selection) {

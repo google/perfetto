@@ -123,7 +123,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
       group.addChildInOrder(track);
     }
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (sel) => {
           if (sel.kind !== 'SLICE') {

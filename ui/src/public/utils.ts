@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LegacySelection} from '../public/selection';
+import {LegacySelection, Selection} from '../public/selection';
 import {BottomTab} from './lib/bottom_tab';
 import {Tab} from './tab';
 import {exists} from '../base/utils';
-import {LegacyDetailsPanel} from './details_panel';
+import {DetailsPanel} from './details_panel';
 import {Trace} from './trace';
 import {TimeSpan} from '../base/time';
 
@@ -130,9 +130,8 @@ export interface BottomTabAdapterAttrs {
       },
     })
  */
-export class BottomTabToSCSAdapter implements LegacyDetailsPanel {
-  readonly panelType = 'LegacyDetailsPanel';
-  private oldSelection?: LegacySelection;
+export class BottomTabToSCSAdapter implements DetailsPanel {
+  private oldSelection?: Selection;
   private bottomTab?: BottomTab;
   private attrs: BottomTabAdapterAttrs;
 
@@ -140,11 +139,15 @@ export class BottomTabToSCSAdapter implements LegacyDetailsPanel {
     this.attrs = attrs;
   }
 
-  render(selection: LegacySelection): m.Children {
+  render(selection: Selection): m.Children {
     // Detect selection changes, assuming selection is immutable
     if (selection !== this.oldSelection) {
       this.oldSelection = selection;
-      this.bottomTab = this.attrs.tabFactory(selection);
+      if (selection.kind === 'legacy') {
+        this.bottomTab = this.attrs.tabFactory(selection.legacySelection);
+      } else {
+        this.bottomTab = undefined;
+      }
     }
 
     return this.bottomTab?.renderPanel();

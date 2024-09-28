@@ -60,7 +60,7 @@ class CpuSlices implements PerfettoPlugin {
       ctx.workspace.addChildInOrder(trackNode);
     }
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (sel) => {
           if (sel.kind !== 'SCHED_SLICE') {
