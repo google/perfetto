@@ -56,12 +56,9 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
 
           if (trackDescriptor === undefined) return;
 
-          globals.selectionManager.setLegacy(
-            {
-              kind: 'THREAD_STATE',
-              id: vnode.attrs.id,
-              trackUri: trackDescriptor.uri,
-            },
+          globals.selectionManager.selectSqlEvent(
+            'thread_state',
+            vnode.attrs.id,
             {
               switchToCurrentSelectionTab:
                 vnode.attrs.switchToCurrentSelectionTab,

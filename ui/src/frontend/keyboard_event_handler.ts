@@ -99,17 +99,9 @@ export function moveByFocusedFlow(direction: Direction): void {
           ?.tags?.trackIds?.includes(flowPoint.trackId);
       });
       if (track) {
-        globals.selectionManager.setLegacy(
-          {
-            kind: 'SLICE',
-            id: flowPoint.sliceId,
-            trackUri: track.uri,
-            table: 'slice',
-          },
-          {
-            pendingScrollId: flowPoint.sliceId,
-          },
-        );
+        globals.selectionManager.selectSqlEvent('slice', flowPoint.sliceId, {
+          pendingScrollId: flowPoint.sliceId,
+        });
       }
     }
   }

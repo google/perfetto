@@ -78,7 +78,7 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
         return;
       }
       const id = it.id;
-      this.trace.selection.setEvent(this.uri, id);
+      this.trace.selection.selectTrackEvent(this.uri, id);
     });
 
     return true;

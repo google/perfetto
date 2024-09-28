@@ -122,7 +122,7 @@ export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
     }
 
     const detailsPanelConfig = this.getDetailsPanel(args);
-    globals.selectionManager.setGenericSlice({
+    globals.selectionManager.selectGenericSlice({
       id: args.slice.id,
       sqlTableName: this.tableName,
       start: args.slice.ts,

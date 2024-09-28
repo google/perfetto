@@ -122,7 +122,6 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
 
   private renderCSTabContent(): {isLoading: boolean; content: m.Children} {
     const currentSelection = globals.selectionManager.selection;
-    const legacySelection = globals.selectionManager.legacySelection;
     if (currentSelection.kind === 'empty') {
       return {
         isLoading: false,
@@ -154,25 +153,12 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     }
 
     // Get the first "truthy" details panel
-    let detailsPanels = globals.tabManager.detailsPanels.map((dp) => {
+    const detailsPanels = globals.tabManager.detailsPanels.map((dp) => {
       return {
         content: dp.render(currentSelection),
         isLoading: dp.isLoading?.() ?? false,
       };
     });
-
-    if (legacySelection !== null) {
-      const legacyDetailsPanels = globals.tabManager.legacyDetailsPanels.map(
-        (dp) => {
-          return {
-            content: dp.render(legacySelection),
-            isLoading: dp.isLoading?.() ?? false,
-          };
-        },
-      );
-
-      detailsPanels = detailsPanels.concat(legacyDetailsPanels);
-    }
 
     const panel = detailsPanels.find(({content}) => content);
 

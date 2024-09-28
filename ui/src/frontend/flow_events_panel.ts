@@ -66,17 +66,9 @@ export class FlowEventsPanel implements m.ClassComponent {
         td.tags?.trackIds?.includes(trackId),
       );
       if (track) {
-        globals.selectionManager.setLegacy(
-          {
-            kind: 'SLICE',
-            id: sliceId,
-            trackUri: track.uri,
-            table: 'slice',
-          },
-          {
-            switchToCurrentSelectionTab: false,
-          },
-        );
+        globals.selectionManager.selectSqlEvent('slice', sliceId, {
+          switchToCurrentSelectionTab: false,
+        });
       }
     };
 

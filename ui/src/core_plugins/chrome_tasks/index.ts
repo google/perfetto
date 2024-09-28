@@ -109,7 +109,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       ctx.workspace.addChildInOrder(group);
     }
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (

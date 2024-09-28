@@ -26,6 +26,10 @@ import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
 import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
 
+function uriForSchedTrack(cpu: number): string {
+  return `/sched_cpu${cpu}`;
+}
+
 class CpuSlices implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionAggreagtor(
@@ -40,7 +44,7 @@ class CpuSlices implements PerfettoPlugin {
 
     for (const cpu of cpus) {
       const size = cpuToClusterType.get(cpu);
-      const uri = `/sched_cpu${cpu}`;
+      const uri = uriForSchedTrack(cpu);
 
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       ctx.tracks.registerTrack({
@@ -56,7 +60,7 @@ class CpuSlices implements PerfettoPlugin {
       ctx.workspace.addChildInOrder(trackNode);
     }
 
-    ctx.registerDetailsPanel(
+    ctx.tabs.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (sel) => {
           if (sel.kind !== 'SCHED_SLICE') {
@@ -72,6 +76,31 @@ class CpuSlices implements PerfettoPlugin {
         },
       }),
     );
+
+    ctx.selection.registerSqlSelectionResolver({
+      sqlTableName: 'sched_slice',
+      callback: async (id: number) => {
+        const result = await ctx.engine.query(`
+          select
+            cpu
+          from sched_slice
+          where id = ${id}
+        `);
+
+        const cpu = result.firstRow({
+          cpu: NUM,
+        }).cpu;
+
+        return {
+          kind: 'legacy',
+          legacySelection: {
+            kind: 'SCHED_SLICE',
+            id,
+            trackUri: uriForSchedTrack(cpu),
+          },
+        };
+      },
+    });
   }
 
   async getAndroidCpuClusterTypes(
