@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/perf/etm_tokenizer.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/importers/perf/spe_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -56,6 +57,10 @@ base::Status AuxStreamManager::OnAuxtraceInfoRecord(AuxtraceInfoRecord info) {
     case PERF_AUXTRACE_CS_ETM: {
       ASSIGN_OR_RETURN(tokenizer_factory_,
                        CreateEtmTokenizerFactory(std::move(info.payload)));
+      break;
+    }
+    case PERF_AUXTRACE_ARM_SPE: {
+      tokenizer_factory_ = std::make_unique<SpeTokenizerFactory>();
       break;
     }
     default:

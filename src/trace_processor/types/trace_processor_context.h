@@ -63,6 +63,7 @@ class ProtoTraceParser;
 class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
+class SpeRecordParser;
 class StackProfileTracker;
 class TraceFileTracker;
 class TraceReaderRegistry;
@@ -169,6 +170,7 @@ class TraceProcessorContext {
   std::unique_ptr<JsonTraceParser> json_trace_parser;
   std::unique_ptr<FuchsiaRecordParser> fuchsia_record_parser;
   std::unique_ptr<PerfRecordParser> perf_record_parser;
+  std::unique_ptr<SpeRecordParser> spe_record_parser;
   std::unique_ptr<InstrumentsRowParser> instruments_row_parser;
   std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
 
