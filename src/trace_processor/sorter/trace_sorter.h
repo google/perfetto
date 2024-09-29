@@ -129,6 +129,15 @@ class TraceSorter {
                          machine_id);
   }
 
+  inline void PushSpeRecord(
+      int64_t timestamp,
+      TraceBlobView record,
+      std::optional<MachineId> machine_id = std::nullopt) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(record));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kSpeRecord, id,
+                         machine_id);
+  }
+
   inline void PushInstrumentsRow(
       int64_t timestamp,
       instruments_importer::Row row,
@@ -305,21 +314,22 @@ class TraceSorter {
  private:
   struct TimestampedEvent {
     enum class Type : uint8_t {
+      kAndroidLogEvent,
+      kEtwEvent,
       kFtraceEvent,
-      kPerfRecord,
-      kInstrumentsRow,
-      kTracePacket,
+      kFuchsiaRecord,
       kInlineSchedSwitch,
       kInlineSchedWaking,
+      kInstrumentsRow,
       kJsonValue,
       kJsonValueWithDur,
-      kFuchsiaRecord,
-      kTrackEvent,
-      kSystraceLine,
-      kEtwEvent,
-      kAndroidLogEvent,
       kLegacyV8CpuProfileEvent,
-      kMax = kLegacyV8CpuProfileEvent,
+      kPerfRecord,
+      kSpeRecord,
+      kSystraceLine,
+      kTracePacket,
+      kTrackEvent,
+      kMax = kTrackEvent,
     };
 
     // Number of bits required to store the max element in |Type|.
