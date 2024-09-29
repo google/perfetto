@@ -62,6 +62,11 @@ bool TraceBlobViewReader::PopFrontUntil(const size_t target_offset) {
 std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
     size_t offset,
     size_t length) const {
+  // If the length is zero, then a zero-sized blob view is always approrpriate.
+  if (PERFETTO_UNLIKELY(length == 0)) {
+    return TraceBlobView();
+  }
+
   PERFETTO_DCHECK(offset >= start_offset());
 
   // Fast path: the slice fits entirely inside the first TBV, we can just slice
@@ -73,11 +78,6 @@ std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
   if (PERFETTO_LIKELY(is_fast_path)) {
     return data_.front().data.slice_off(offset - data_.front().start_offset,
                                         length);
-  }
-
-  // If the length is zero, then a zero-sized blob view is always approrpriate.
-  if (PERFETTO_UNLIKELY(length == 0)) {
-    return TraceBlobView();
   }
 
   // If we don't have any TBVs or the end of the slice does not fit, then we

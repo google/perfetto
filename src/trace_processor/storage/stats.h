@@ -306,6 +306,13 @@ namespace perfetto::trace_processor::stats {
       "PREF_RECORD_AUXTRACE messages."),                                       \
   F(perf_unknown_aux_data,                kIndexed, kDataLoss, kTrace,         \
       "AUX data type encountered for which there is no known parser."),        \
+  F(perf_no_tsc_data,                     kSingle,  kInfo,     kTrace,         \
+      "TSC data unavailable. Will be unable to translate HW clocks."),         \
+  F(spe_no_timestamp,                     kSingle,  kInfo,     kTrace,         \
+      "SPE record with no timestamp. Will try our best to assign a "           \
+      "timestamp."),                                                           \
+  F(spe_record_droped,                    kSingle,  kDataLoss, kTrace,         \
+      "SPE record dropped. E.g. Unable to assign it a timestamp."),            \
   F(memory_snapshot_parser_failure,       kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_out_of_order,    kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_unknown_cpu_freq,                                     \

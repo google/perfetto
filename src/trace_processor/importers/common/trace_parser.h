@@ -70,6 +70,12 @@ class PerfRecordParser {
   virtual void ParsePerfRecord(int64_t, perf_importer::Record) = 0;
 };
 
+class SpeRecordParser {
+ public:
+  virtual ~SpeRecordParser();
+  virtual void ParseSpeRecord(int64_t, TraceBlobView) = 0;
+};
+
 class InstrumentsRowParser {
  public:
   virtual ~InstrumentsRowParser();

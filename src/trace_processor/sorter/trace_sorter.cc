@@ -26,6 +26,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
@@ -245,6 +246,10 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
           event.ts,
           std::move(token_buffer_.Extract<JsonWithDurEvent>(id).value));
       return;
+    case TimestampedEvent::Type::kSpeRecord:
+      context.spe_record_parser->ParseSpeRecord(
+          event.ts, token_buffer_.Extract<TraceBlobView>(id));
+      return;
     case TimestampedEvent::Type::kSystraceLine:
       context.json_trace_parser->ParseSystraceLine(
           event.ts, token_buffer_.Extract<SystraceLine>(id));
@@ -279,6 +284,7 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kInlineSchedWaking:
     case TimestampedEvent::Type::kFtraceEvent:
     case TimestampedEvent::Type::kTrackEvent:
+    case TimestampedEvent::Type::kSpeRecord:
     case TimestampedEvent::Type::kSystraceLine:
     case TimestampedEvent::Type::kTracePacket:
     case TimestampedEvent::Type::kPerfRecord:
@@ -312,6 +318,7 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
       return;
     case TimestampedEvent::Type::kEtwEvent:
     case TimestampedEvent::Type::kTrackEvent:
+    case TimestampedEvent::Type::kSpeRecord:
     case TimestampedEvent::Type::kSystraceLine:
     case TimestampedEvent::Type::kTracePacket:
     case TimestampedEvent::Type::kPerfRecord:
@@ -346,6 +353,9 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
       return;
     case TimestampedEvent::Type::kJsonValueWithDur:
       base::ignore_result(token_buffer_.Extract<JsonWithDurEvent>(id));
+      return;
+    case TimestampedEvent::Type::kSpeRecord:
+      base::ignore_result(token_buffer_.Extract<TraceBlobView>(id));
       return;
     case TimestampedEvent::Type::kSystraceLine:
       base::ignore_result(token_buffer_.Extract<SystraceLine>(id));

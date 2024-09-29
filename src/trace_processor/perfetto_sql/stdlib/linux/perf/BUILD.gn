@@ -15,5 +15,8 @@
 import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("perf") {
-  sources = [ "samples.sql" ]
+  sources = [
+    "samples.sql",
+    "spe.sql",
+  ]
 }

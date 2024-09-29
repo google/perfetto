@@ -264,3 +264,62 @@ class Simpleperf(TestSuite):
         "perf_aux_missing",0
         "perf_auxtrace_missing",0
         '''))
+
+  def test_spe_operation(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/spe.trace.zip'),
+        query='''
+        INCLUDE PERFETTO MODULE linux.perf.spe;
+        SELECT
+          operation,
+          count(*) AS cnt
+        FROM linux_perf_spe_record
+        GROUP BY operation
+        ORDER BY operation
+        ''',
+        out=Csv('''
+        "operation","cnt"
+        "BRANCH",68038
+        "LOAD",54
+        "STORE",47
+        '''))
+
+  def test_spe_pc(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/spe.trace.zip'),
+        query='''
+        INCLUDE PERFETTO MODULE linux.perf.spe;
+        SELECT
+          printf('0x%08x', rel_pc + m.start - exact_offset) AS pc,
+          exception_level,
+          COUNT(*) AS cnt
+        FROM linux_perf_spe_record r, stack_profile_frame f
+        ON r.instruction_frame_id = f.id,
+        stack_profile_mapping m
+        ON f.mapping = m.id
+        GROUP BY pc, exception_level
+        HAVING cnt > 1
+        ORDER BY pc, exception_level
+        ''',
+        out=Csv('''
+        "pc","exception_level","cnt"
+        "0x5cfc344464","EL0",2157
+        "0x5cfc344528","EL0",2166
+        "0x5cfc3445c4","EL0",2154
+        "0x5cfc3446c8","EL0",2108
+        "0x5cfc3447a8","EL0",2209
+        "0x5cfc344854","EL0",2178
+        "0x5cfc34492c","EL0",2246
+        "0x5cfc344c14","EL0",4461
+        "0x5cfc344cd0","EL0",4416
+        "0x5cfc344d7c","EL0",4399
+        "0x5cfc344df4","EL0",2
+        "0x5cfc344e90","EL0",4427
+        "0x5cfc3450e8","EL0",8756
+        "0x5cfc345194","EL0",8858
+        "0x5cfc345240","EL0",8776
+        "0x5cfc345354","EL0",8659
+        "0xffffd409990628","EL1",14
+        "0xffffd40999062c","EL1",15
+        "0xffffd40fb0f124","EL1",2
+        '''))
