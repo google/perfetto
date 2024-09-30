@@ -28,8 +28,9 @@ import {SqlTableState} from './widgets/sql/table/state';
 import {SqlTable} from './widgets/sql/table/table';
 import {SqlTableDescription} from './widgets/sql/table/table_description';
 import {Trace} from '../public/trace';
+import {MenuItem, PopupMenu2} from '../widgets/menu';
 
-export interface SqlTableTabConfig {
+export interface AddSqlTableTabParams {
   table: SqlTableDescription;
   filters?: Filter[];
   imports?: string[];
@@ -37,15 +38,28 @@ export interface SqlTableTabConfig {
 
 export function addSqlTableTabImpl(
   trace: Trace,
-  config: SqlTableTabConfig,
+  config: AddSqlTableTabParams,
 ): void {
+  addSqlTableTabWithState(
+    new SqlTableState(trace, config.table, {
+      filters: config.filters,
+      imports: config.imports,
+    }),
+  );
+}
+
+function addSqlTableTabWithState(state: SqlTableState) {
   const queryResultsTab = new SqlTableTab({
-    config,
-    trace,
+    config: {state},
+    trace: state.trace,
     uuid: uuidv4(),
   });
 
   addBottomTab(queryResultsTab, 'sqlTable');
+}
+
+interface SqlTableTabConfig {
+  state: SqlTableState;
 }
 
 class SqlTableTab extends BottomTab<SqlTableTabConfig> {
@@ -56,14 +70,7 @@ class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   constructor(args: NewBottomTabArgs<SqlTableTabConfig>) {
     super(args);
 
-    this.state = new SqlTableState(this.trace, this.config.table, {
-      filters: this.config.filters,
-      imports: this.config.imports,
-    });
-  }
-
-  static create(args: NewBottomTabArgs<SqlTableTabConfig>): SqlTableTab {
-    return new SqlTableTab(args);
+    this.state = args.config.state;
   }
 
   viewTab() {
@@ -111,11 +118,25 @@ class SqlTableTab extends BottomTab<SqlTableTabConfig> {
         buttons: [
           ...navigation,
           addDebugTrack,
-          m(Button, {
-            label: 'Copy SQL query',
-            onclick: () =>
-              copyToClipboard(this.state.getNonPaginatedSQLQuery()),
-          }),
+          m(
+            PopupMenu2,
+            {
+              trigger: m(Button, {
+                icon: Icons.Menu,
+              }),
+            },
+            m(MenuItem, {
+              label: 'Duplicate',
+              icon: 'tab_duplicate',
+              onclick: () => addSqlTableTabWithState(this.state.clone()),
+            }),
+            m(MenuItem, {
+              label: 'Copy SQL query',
+              icon: Icons.Copy,
+              onclick: () =>
+                copyToClipboard(this.state.getNonPaginatedSQLQuery()),
+            }),
+          ),
         ],
       },
       m(SqlTable, {
@@ -131,7 +152,7 @@ class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   }
 
   private getDisplayName(): string {
-    return this.config.table.displayName ?? this.config.table.name;
+    return this.state.config.displayName ?? this.state.config.name;
   }
 
   isLoading(): boolean {
