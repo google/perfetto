@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../common/actions';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {raf} from '../core/raf_scheduler';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-import {Flow, globals, QuantizedLoad, ThreadDesc} from './globals';
+import {globals, QuantizedLoad, ThreadDesc} from './globals';
 
 export function publishOverviewData(data: {
   [key: string]: QuantizedLoad | QuantizedLoad[];
@@ -42,11 +41,6 @@ export function clearOverviewData() {
 export function publishTrackData(args: {id: string; data: {}}) {
   globals.setTrackData(args.id, args.data);
   raf.scheduleRedraw();
-}
-
-export function publishSelectedFlows(selectedFlows: Flow[]) {
-  globals.selectedFlows = selectedFlows;
-  globals.publishRedraw();
 }
 
 export function publishHttpRpcState(httpRpcState: HttpRpcState) {
@@ -98,29 +92,6 @@ export function publishThreads(data: ThreadDesc[]) {
   data.forEach((thread) => {
     globals.threads.set(thread.utid, thread);
   });
-  globals.publishRedraw();
-}
-
-export function publishConnectedFlows(connectedFlows: Flow[]) {
-  globals.connectedFlows = connectedFlows;
-  // If a chrome slice is selected and we have any flows in connectedFlows
-  // we will find the flows on the right and left of that slice to set a default
-  // focus. In all other cases the focusedFlowId(Left|Right) will be set to -1.
-  globals.dispatch(Actions.setHighlightedFlowLeftId({flowId: -1}));
-  globals.dispatch(Actions.setHighlightedFlowRightId({flowId: -1}));
-  const currentSelection = globals.selectionManager.legacySelection;
-  if (currentSelection?.kind === 'SLICE') {
-    const sliceId = currentSelection.id;
-    for (const flow of globals.connectedFlows) {
-      if (flow.begin.sliceId === sliceId) {
-        globals.dispatch(Actions.setHighlightedFlowRightId({flowId: flow.id}));
-      }
-      if (flow.end.sliceId === sliceId) {
-        globals.dispatch(Actions.setHighlightedFlowLeftId({flowId: flow.id}));
-      }
-    }
-  }
-
   globals.publishRedraw();
 }
 

@@ -281,14 +281,6 @@ export const StateActions = {
     state.highlightedSliceId = args.sliceId;
   },
 
-  setHighlightedFlowLeftId(state: StateDraft, args: {flowId: number}) {
-    state.focusedFlowIdLeft = args.flowId;
-  },
-
-  setHighlightedFlowRightId(state: StateDraft, args: {flowId: number}) {
-    state.focusedFlowIdRight = args.flowId;
-  },
-
   setHoverCursorTimestamp(state: StateDraft, args: {ts: time}) {
     state.hoverCursorTimestamp = args.ts;
   },

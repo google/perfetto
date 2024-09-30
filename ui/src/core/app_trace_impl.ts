@@ -40,6 +40,7 @@ import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
 import {raf} from './raf_scheduler';
 import {PivotTableManager} from './pivot_table_manager';
+import {FlowManager} from './flow_manager';
 
 // The pseudo plugin id used for the core instance of AppImpl.
 export const CORE_PLUGIN_ID = '__core__';
@@ -178,6 +179,7 @@ class TraceContext implements Disposable {
   readonly trackMgr = new TrackManagerImpl();
   readonly workspaceMgr = new WorkspaceManagerImpl();
   readonly noteMgr = new NoteManagerImpl();
+  readonly flowMgr: FlowManager;
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
   readonly scrollHelper: ScrollHelper;
   readonly pivotTableMgr;
@@ -218,6 +220,13 @@ class TraceContext implements Disposable {
       engine.getProxy('PivotTableManager'),
     );
 
+    this.flowMgr = new FlowManager(
+      engine.getProxy('FlowManager'),
+      this.trackMgr,
+      this.selectionMgr,
+      () => this.workspaceMgr.currentWorkspace,
+    );
+
     this.searchMgr = new SearchManagerImpl({
       timeline: this.timeline,
       trackManager: this.trackMgr,
@@ -242,6 +251,8 @@ class TraceContext implements Disposable {
     if (selection.kind === 'area') {
       this.pivotTableMgr.setSelectionArea(selection);
     }
+
+    this.flowMgr.updateFlows(selection);
 
     // TODO(primiano): this is temporarily necessary until we kill
     // controllers. The flow controller needs to be re-kicked when we change
@@ -389,6 +400,10 @@ export class TraceImpl implements Trace {
 
   get pivotTable() {
     return this.traceCtx.pivotTableMgr;
+  }
+
+  get flows() {
+    return this.traceCtx.flowMgr;
   }
 
   // App interface implementation.

@@ -13,24 +13,24 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {featureFlags} from '../core/feature_flags';
-import {Flow, globals} from '../frontend/globals';
-import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
+import {featureFlags} from './feature_flags';
+import {FlowDirection, Flow} from './flow_types';
 import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
-import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
-import {Controller} from './controller';
-import {Monitor} from '../base/monitor';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
 } from '../public/track_kinds';
-import {TrackDescriptor} from '../public/track';
-import {AreaSelection} from '../public/selection';
-
-export interface FlowEventsControllerArgs {
-  engine: Engine;
-}
+import {TrackDescriptor, TrackManager} from '../public/track';
+import {
+  AreaSelection,
+  LegacySelection,
+  Selection,
+  SelectionManager,
+} from '../public/selection';
+import {raf} from './raf_scheduler';
+import {Engine} from '../trace_processor/engine';
+import {Workspace} from '../public/workspace';
 
 const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   id: 'showIndirectPrecedingFlows',
@@ -41,21 +41,36 @@ const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-export class FlowEventsController extends Controller<'main'> {
-  private readonly monitor = new Monitor([
-    () => globals.selectionManager.selection,
-  ]);
+export class FlowManager {
+  private _connectedFlows: Flow[] = [];
+  private _selectedFlows: Flow[] = [];
+  private _curSelection?: LegacySelection;
+  private _focusedFlowIdLeft = -1;
+  private _focusedFlowIdRight = -1;
+  private _visibleCategories = new Map<string, boolean>();
+  private _initialized = false;
 
-  constructor(private args: FlowEventsControllerArgs) {
-    super('main');
+  constructor(
+    private engine: Engine,
+    private trackMgr: TrackManager,
+    private selectionMgr: SelectionManager,
+    private getCurWorkspace: () => Workspace,
+  ) {}
 
+  // TODO(primiano): the only reason why this is not done in the constructor is
+  // because when loading the UI with no trace, we initialize globals with a
+  // FakeTraceImpl with a FakeEngine, which crashes when issuing queries.
+  // This can be moved in the ctor once globals go away.
+  private initialize() {
+    if (this._initialized) return;
+    this._initialized = true;
     // Create |CHROME_CUSTOME_SLICE_NAME| helper, which combines slice name
     // and args for some slices (scheduler tasks and mojo messages) for more
     // helpful messages.
     // In the future, it should be replaced with this a more scalable and
     // customisable solution.
     // Note that a function here is significantly faster than a join.
-    this.args.engine.query(`
+    this.engine.query(`
       SELECT CREATE_FUNCTION(
         'CHROME_CUSTOM_SLICE_NAME(slice_id LONG)',
         'STRING',
@@ -76,7 +91,7 @@ export class FlowEventsController extends Controller<'main'> {
   }
 
   async queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
-    const result = await this.args.engine.query(query);
+    const result = await this.engine.query(query);
     const flows: Flow[] = [];
 
     const it = result.iter({
@@ -204,7 +219,7 @@ export class FlowEventsController extends Controller<'main'> {
     const trackIdToInfo = new Map<number, null | Info>();
 
     const trackIdToTrack = new Map<number, TrackDescriptor>();
-    globals.trackManager
+    this.trackMgr
       .getAllTracks()
       .forEach((trackDescriptor) =>
         trackDescriptor.tags?.trackIds?.forEach((trackId) =>
@@ -271,7 +286,7 @@ export class FlowEventsController extends Controller<'main'> {
       if (info === null) {
         continue;
       }
-      const r = await this.args.engine.query(`
+      const r = await this.engine.query(`
         SELECT
           id,
           layout_depth as depth
@@ -353,7 +368,7 @@ export class FlowEventsController extends Controller<'main'> {
     left join process process_in on process_in.upid = thread_in.upid
     `;
     this.queryFlowEvents(query, (flows: Flow[]) =>
-      publishConnectedFlows(flows),
+      this.setConnectedFlows(flows),
     );
   }
 
@@ -415,22 +430,49 @@ export class FlowEventsController extends Controller<'main'> {
       (t2.track_id in ${tracks}
         and (t2.ts <= ${endNs} and t2.ts >= ${startNs}))
     `;
-    this.queryFlowEvents(query, (flows: Flow[]) => publishSelectedFlows(flows));
+    this.queryFlowEvents(query, (flows: Flow[]) =>
+      this.setSelectedFlows(flows),
+    );
   }
 
-  refreshVisibleFlows() {
-    if (!this.monitor.ifStateChanged()) {
-      return;
+  private setConnectedFlows(connectedFlows: Flow[]) {
+    this._connectedFlows = connectedFlows;
+    // If a chrome slice is selected and we have any flows in connectedFlows
+    // we will find the flows on the right and left of that slice to set a default
+    // focus. In all other cases the focusedFlowId(Left|Right) will be set to -1.
+    this._focusedFlowIdLeft = -1;
+    this._focusedFlowIdRight = -1;
+    if (this._curSelection?.kind === 'SLICE') {
+      const sliceId = this._curSelection.id;
+      for (const flow of connectedFlows) {
+        if (flow.begin.sliceId === sliceId) {
+          this._focusedFlowIdRight = flow.id;
+        }
+        if (flow.end.sliceId === sliceId) {
+          this._focusedFlowIdLeft = flow.id;
+        }
+      }
     }
+    raf.scheduleFullRedraw();
+  }
 
-    const selection = globals.selectionManager.selection;
+  private setSelectedFlows(selectedFlows: Flow[]) {
+    this._selectedFlows = selectedFlows;
+    raf.scheduleFullRedraw();
+  }
+
+  updateFlows(selection: Selection) {
+    this.initialize();
+    const legacySelection =
+      selection.kind === 'legacy' ? selection.legacySelection : undefined;
+    this._curSelection = legacySelection;
+
     if (selection.kind === 'empty') {
-      publishConnectedFlows([]);
-      publishSelectedFlows([]);
+      this.setConnectedFlows([]);
+      this.setSelectedFlows([]);
       return;
     }
 
-    const legacySelection = globals.selectionManager.legacySelection;
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
     if (
@@ -440,17 +482,128 @@ export class FlowEventsController extends Controller<'main'> {
     ) {
       this.sliceSelected(legacySelection.id);
     } else {
-      publishConnectedFlows([]);
+      this.setConnectedFlows([]);
     }
 
     if (selection.kind === 'area') {
       this.areaSelected(selection);
     } else {
-      publishSelectedFlows([]);
+      this.setConnectedFlows([]);
     }
   }
 
-  run() {
-    this.refreshVisibleFlows();
+  // Change focus to the next flow event (matching the direction)
+  focusOtherFlow(direction: FlowDirection) {
+    const currentSelection = this._curSelection;
+    if (!currentSelection || currentSelection.kind !== 'SLICE') {
+      return;
+    }
+    const sliceId = currentSelection.id;
+    if (sliceId === -1) {
+      return;
+    }
+
+    const boundFlows = this._connectedFlows.filter(
+      (flow) =>
+        (flow.begin.sliceId === sliceId && direction === 'Forward') ||
+        (flow.end.sliceId === sliceId && direction === 'Backward'),
+    );
+
+    if (direction === 'Backward') {
+      const nextFlowId = findAnotherFlowExcept(
+        boundFlows,
+        this._focusedFlowIdLeft,
+      );
+      this._focusedFlowIdLeft = nextFlowId;
+    } else {
+      const nextFlowId = findAnotherFlowExcept(
+        boundFlows,
+        this._focusedFlowIdRight,
+      );
+      this._focusedFlowIdRight = nextFlowId;
+    }
+    raf.scheduleFullRedraw();
   }
+
+  // Select the slice connected to the flow in focus
+  moveByFocusedFlow(direction: FlowDirection): void {
+    const currentSelection = this._curSelection;
+    if (!currentSelection || currentSelection.kind !== 'SLICE') {
+      return;
+    }
+
+    const sliceId = currentSelection.id;
+    const flowId =
+      direction === 'Backward'
+        ? this._focusedFlowIdLeft
+        : this._focusedFlowIdRight;
+
+    if (sliceId === -1 || flowId === -1) {
+      return;
+    }
+
+    // Find flow that is in focus and select corresponding slice
+    for (const flow of this._connectedFlows) {
+      if (flow.id === flowId) {
+        const flowPoint = direction === 'Backward' ? flow.begin : flow.end;
+        const track = this.getCurWorkspace().flatTracks.find((t) => {
+          if (t.uri === undefined) return false;
+          return this.trackMgr
+            .getTrack(t.uri)
+            ?.tags?.trackIds?.includes(flowPoint.trackId);
+        });
+        if (track) {
+          this.selectionMgr.selectSqlEvent('slice', flowPoint.sliceId, {
+            pendingScrollId: flowPoint.sliceId,
+          });
+        }
+      }
+    }
+  }
+
+  get connectedFlows() {
+    return this._connectedFlows;
+  }
+
+  get selectedFlows() {
+    return this._selectedFlows;
+  }
+
+  get focusedFlowIdLeft() {
+    return this._focusedFlowIdLeft;
+  }
+  get focusedFlowIdRight() {
+    return this._focusedFlowIdRight;
+  }
+
+  get visibleCategories(): ReadonlyMap<string, boolean> {
+    return this._visibleCategories;
+  }
+
+  setCategoryVisible(name: string, value: boolean) {
+    this._visibleCategories.set(name, value);
+    raf.scheduleFullRedraw();
+  }
+}
+
+// Search |boundFlows| for |flowId| and return the id following it.
+// Returns the first flow id if nothing was found or |flowId| was the last flow
+// in |boundFlows|, and -1 if |boundFlows| is empty
+function findAnotherFlowExcept(boundFlows: Flow[], flowId: number): number {
+  let selectedFlowFound = false;
+
+  if (boundFlows.length === 0) {
+    return -1;
+  }
+
+  for (const flow of boundFlows) {
+    if (selectedFlowFound) {
+      return flow.id;
+    }
+
+    if (flow.id === flowId) {
+      selectedFlowFound = true;
+    }
+  }
+  return boundFlows[0].id;
 }
