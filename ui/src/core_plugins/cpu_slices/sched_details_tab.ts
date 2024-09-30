@@ -122,7 +122,7 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
   private renderSchedLatencyInfo(data: Data): m.Children {
     if (
       data.wakeup?.wakeupTs === undefined ||
-      data.wakeup?.wakerThread === undefined
+      data.wakeup?.wakerUtid === undefined
     ) {
       return null;
     }
@@ -142,12 +142,13 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
 
   private renderWakeupText(data: Data): m.Children {
     if (
-      data.wakeup?.wakerThread === undefined ||
-      data.wakeup?.wakeupTs === undefined
+      data.wakeup?.wakerUtid === undefined ||
+      data.wakeup?.wakeupTs === undefined ||
+      data.wakeup?.wakerCpu === undefined
     ) {
       return null;
     }
-    const threadInfo = globals.threads.get(data.wakeup.wakerThread.utid);
+    const threadInfo = globals.threads.get(data.wakeup.wakerUtid);
     if (!threadInfo) {
       return null;
     }
