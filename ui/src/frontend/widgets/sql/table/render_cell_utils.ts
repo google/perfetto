@@ -96,7 +96,7 @@ export function getStandardFilters(
       filterOptionMenuItem(
         option,
         c,
-        (cols) => `${cols[0]} ${FILTER_OPTION_TO_OP[option]}`,
+        (cols) => `${cols[0]} ${FILTER_OPTION_TO_OP[option].op}`,
         tableManager,
       ),
     );
@@ -107,7 +107,7 @@ export function getStandardFilters(
         option,
         c,
         (cols) =>
-          `${cols[0]} ${FILTER_OPTION_TO_OP[option]} ${sqliteString(value)}`,
+          `${cols[0]} ${FILTER_OPTION_TO_OP[option].op} ${sqliteString(value)}`,
         tableManager,
       ),
     );
@@ -117,7 +117,7 @@ export function getStandardFilters(
       filterOptionMenuItem(
         option,
         c,
-        (cols) => `${cols[0]} ${FILTER_OPTION_TO_OP[option]} ${value}`,
+        (cols) => `${cols[0]} ${FILTER_OPTION_TO_OP[option].op} ${value}`,
         tableManager,
       ),
     );
