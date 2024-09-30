@@ -1,7 +1,8 @@
 # See go/perfetto-ui-autopush for docs on how this works end-to-end.
 # If this file is modified, the inline YAML must be copy-pasted
 # FROM: infra/ui.perfetto.dev/cloudbuild.yaml
-# TO: TWO trigger configs inline YAML in Google Cloud Console > Cloud Build.
+# TO: TWO trigger configs inline YAML in Google Cloud Console > Cloud Build
+# for the project "perfetto-ui" (zone: europe-west2).
 steps:
 - name: europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder
   args:
