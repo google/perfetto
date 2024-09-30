@@ -40,6 +40,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     traceTzOffset: Time.ZERO,
     cpus: [],
     gpuCount: 0,
+    importErrors: 0,
   };
   return AppImpl.instance.newTraceInstance(
     new FakeEngine(args.allowQueries ?? false),

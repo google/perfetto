@@ -63,7 +63,6 @@ export class PerfettoTestHelper {
     assertExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
     await this.page.mouse.move(0, 0);
-    await this.page.mouse.click(0, 0);
   }
 
   waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {

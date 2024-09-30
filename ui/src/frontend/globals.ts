@@ -92,7 +92,6 @@ class Globals {
   private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
-  private _traceErrors?: number = undefined;
   private _metricError?: string = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   private _embeddedMode?: boolean = undefined;
@@ -102,7 +101,6 @@ class Globals {
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
   permalinkHash?: string;
-  showTraceErrorPopup = true;
   extraSqlPackages: SqlPackage[] = [];
 
   get workspace(): Workspace {
@@ -246,14 +244,6 @@ class Globals {
 
   get threads() {
     return assertExists(this._threadMap);
-  }
-
-  get traceErrors() {
-    return this._traceErrors;
-  }
-
-  setTraceErrors(arg: number) {
-    this._traceErrors = arg;
   }
 
   get metricError() {
