@@ -32,3 +32,12 @@ test('debuggable chip', async ({browser}) => {
   await pth.toggleTrackGroup(trackGroup);
   await pth.waitForIdleAndScreenshot('track_with_debuggable_chip_expanded.png');
 });
+
+test('trace error notification', async ({browser}) => {
+  const page = await browser.newPage();
+  const pth = new PerfettoTestHelper(page);
+  await pth.openTraceFile('clusterfuzz_14753');
+  await pth.waitForIdleAndScreenshot('error-icon.png', {
+    clip: {x: 1800, y: 0, width: 150, height: 150},
+  });
+});
