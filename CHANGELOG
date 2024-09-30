@@ -10,7 +10,12 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Scheduling wakeup information now reflects whether the wakeup came
+      from an interrupt context. The per-cpu scheduling tracks now show only
+      non-interrupt wakeups, while the per-thread thread state tracks either
+      link to an exact waker slice or state that the wakeup is from an
+      interrupt. Older traces that are recorded without interrupt context
+      information treat all wakeups as non-interrupt.
   SDK:
     *
 

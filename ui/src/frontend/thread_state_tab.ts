@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Time, time} from '../base/time';
+import {time} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
@@ -38,7 +38,6 @@ import {Timestamp} from './widgets/timestamp';
 import {globals} from './globals';
 import {getProcessName} from '../trace_processor/sql_utils/process';
 import {
-  ThreadInfo,
   getFullThreadName,
   getThreadName,
 } from '../trace_processor/sql_utils/thread';
@@ -58,6 +57,7 @@ interface RelatedThreadStates {
   prev?: ThreadState;
   next?: ThreadState;
   waker?: ThreadState;
+  wakerInterruptCtx?: boolean;
   wakee?: ThreadState[];
 }
 
@@ -107,23 +107,21 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
         limit: 1,
       })
     )[0];
-    if (this.state.wakerThread?.utid !== undefined) {
-      relatedStates.waker = (
-        await getThreadStateFromConstraints(this.engine, {
-          filters: [
-            `utid = ${this.state.wakerThread?.utid}`,
-            `ts <= ${this.state.ts}`,
-            `ts + dur >= ${this.state.ts}`,
-          ],
-        })
-      )[0];
+    if (this.state.wakerId !== undefined) {
+      relatedStates.waker = await getThreadState(
+        this.engine,
+        this.state.wakerId,
+      );
     }
+    // note: this might be valid even if there is no |waker| slice, in the case
+    // of an interrupt wakeup while in the idle process (which is omitted from
+    // the thread_state table).
+    relatedStates.wakerInterruptCtx = this.state.wakerInterruptCtx;
+
     relatedStates.wakee = await getThreadStateFromConstraints(this.engine, {
       filters: [
-        `waker_utid = ${this.state.thread?.utid}`,
-        `state = 'R'`,
-        `ts >= ${this.state.ts}`,
-        `ts <= ${this.state.ts + this.state.dur}`,
+        `waker_id = ${this.config.id}`,
+        `(irq_context is null or irq_context = 0)`,
       ],
     });
 
@@ -201,7 +199,6 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
           right: getProcessName(process),
         }),
       thread && m(TreeNode, {left: 'Thread', right: getThreadName(thread)}),
-      state.wakerThread && this.renderWakerThread(state.wakerThread),
       m(TreeNode, {
         left: 'SQL ID',
         right: m(SqlRef, {table: 'thread_state', id: state.threadStateSqlId}),
@@ -232,18 +229,6 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     );
   }
 
-  private renderWakerThread(wakerThread: ThreadInfo) {
-    return m(
-      TreeNode,
-      {left: 'Waker'},
-      m(TreeNode, {
-        left: 'Process',
-        right: getProcessName(wakerThread.process),
-      }),
-      m(TreeNode, {left: 'Thread', right: getThreadName(wakerThread)}),
-    );
-  }
-
   private renderRelatedThreadStates(): m.Children {
     if (this.state === undefined || this.relatedStates === undefined) {
       return 'Loading';
@@ -261,17 +246,64 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     const nameForNextOrPrev = (state: ThreadState) =>
       `${state.state} for ${renderDuration(state.dur)}`;
 
+    const renderWaker = (related: RelatedThreadStates) => {
+      // Could be absent if:
+      // * this thread state wasn't woken up (e.g. it is a running slice).
+      // * the wakeup is from an interrupt during the idle process (which
+      //   isn't populated in thread_state).
+      // * at the start of the trace, before all per-cpu scheduling is known.
+      const hasWakerId = related.waker !== undefined;
+      // Interrupt context for the wakeups is absent from older traces.
+      const hasInterruptCtx = related.wakerInterruptCtx !== undefined;
+
+      if (!hasWakerId && !hasInterruptCtx) {
+        return null;
+      }
+      if (related.wakerInterruptCtx) {
+        return m(TreeNode, {
+          left: 'Woken by',
+          right: `Interrupt`,
+        });
+      }
+      return (
+        related.waker &&
+        m(TreeNode, {
+          left: hasInterruptCtx ? 'Woken by' : 'Woken by (maybe interrupt)',
+          right: renderRef(
+            related.waker,
+            getFullThreadName(related.waker.thread),
+          ),
+        })
+      );
+    };
+
+    const renderWakees = (related: RelatedThreadStates) => {
+      if (related.wakee === undefined || related.wakee.length == 0) {
+        return null;
+      }
+      const hasInterruptCtx = related.wakee[0].wakerInterruptCtx !== undefined;
+      return m(
+        TreeNode,
+        {
+          left: hasInterruptCtx
+            ? 'Woken threads'
+            : 'Woken threads (maybe interrupt)',
+        },
+        related.wakee.map((state) =>
+          m(TreeNode, {
+            left: m(Timestamp, {
+              ts: state.ts,
+              display: `+${renderDuration(state.ts - startTs)}`,
+            }),
+            right: renderRef(state, getFullThreadName(state.thread)),
+          }),
+        ),
+      );
+    };
+
     return [
       m(
         Tree,
-        this.relatedStates.waker &&
-          m(TreeNode, {
-            left: 'Waker',
-            right: renderRef(
-              this.relatedStates.waker,
-              getFullThreadName(this.relatedStates.waker.thread),
-            ),
-          }),
         this.relatedStates.prev &&
           m(TreeNode, {
             left: 'Previous state',
@@ -288,26 +320,8 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
               nameForNextOrPrev(this.relatedStates.next),
             ),
           }),
-        this.relatedStates.wakee &&
-          this.relatedStates.wakee.length > 0 &&
-          m(
-            TreeNode,
-            {
-              left: 'Woken threads',
-            },
-            this.relatedStates.wakee.map((state) =>
-              m(TreeNode, {
-                left: m(Timestamp, {
-                  ts: state.ts,
-                  display: [
-                    'Start+',
-                    m(DurationWidget, {dur: Time.sub(state.ts, startTs)}),
-                  ],
-                }),
-                right: renderRef(state, getFullThreadName(state.thread)),
-              }),
-            ),
-          ),
+        renderWaker(this.relatedStates),
+        renderWakees(this.relatedStates),
       ),
       globals.commandManager.hasCommand(CRITICAL_PATH_LITE_CMD) &&
         m(Button, {
