@@ -586,7 +586,7 @@ The plugin interfaces are defined in [ui/src/public/](https://cs.android.com/and
 ## Default plugins
 Some plugins are enabled by default.
 These plugins are held to a higher quality than non-default plugins since changes to those plugins effect all users of the UI.
-The list of default plugins is specified at [ui/src/core/default_plugins.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/common/default_plugins.ts).
+The list of default plugins is specified at [ui/src/core/default_plugins.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/core/default_plugins.ts).
 
 ## Misc notes
 - Plugins must be licensed under
