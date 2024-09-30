@@ -677,6 +677,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         m(Sidebar),
         m(Topbar, {
           omnibox: this.renderOmnibox(),
+          trace: this.trace,
         }),
         m(Alerts),
         children,
