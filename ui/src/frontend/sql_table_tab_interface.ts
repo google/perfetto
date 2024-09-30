@@ -13,9 +13,12 @@
 // limitations under the License.
 
 import {Trace} from '../public/trace';
-import {type SqlTableTabConfig} from './sql_table_tab';
+import {type AddSqlTableTabParams} from './sql_table_tab';
 
-type AddSqlTableTabFunction = (trace: Trace, config: SqlTableTabConfig) => void;
+type AddSqlTableTabFunction = (
+  trace: Trace,
+  config: AddSqlTableTabParams,
+) => void;
 
 // TODO(primiano): this injection is to break the circular dependency cycle that
 // there is between DebugSliceTrack and SqlTableTab. The problem is:
@@ -26,7 +29,10 @@ type AddSqlTableTabFunction = (trace: Trace, config: SqlTableTabConfig) => void;
 
 let addSqlTableTabFunction: AddSqlTableTabFunction;
 
-export function addSqlTableTab(trace: Trace, config: SqlTableTabConfig): void {
+export function addSqlTableTab(
+  trace: Trace,
+  config: AddSqlTableTabParams,
+): void {
   addSqlTableTabFunction(trace, config);
 }
 
