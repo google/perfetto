@@ -423,6 +423,18 @@ export class SqlTableState {
     this.reload({offset: 'keep'});
   }
 
+  moveColumn(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    const column = this.columns[fromIndex];
+    this.columns.splice(fromIndex, 1);
+    if (fromIndex < toIndex) {
+      // We have deleted a column, therefore we need to adjust the target index.
+      --toIndex;
+    }
+    this.columns.splice(toIndex, 0, column);
+    raf.scheduleFullRedraw();
+  }
+
   getSelectedColumns(): TableColumn[] {
     return this.columns;
   }

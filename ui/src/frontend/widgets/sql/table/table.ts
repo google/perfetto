@@ -37,7 +37,7 @@ import {
   SqlValue,
 } from '../../../../trace_processor/query_result';
 import {Anchor} from '../../../../widgets/anchor';
-import {BasicTable} from '../../../../widgets/basic_table';
+import {BasicTable, ReorderableColumns} from '../../../../widgets/basic_table';
 import {Spinner} from '../../../../widgets/spinner';
 
 import {ArgumentSelector} from './argument_selector';
@@ -341,18 +341,26 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   view() {
     const rows = this.state.getDisplayedRows();
 
+    const columns = this.state.getSelectedColumns();
+    const columnDescriptors = columns.map((column, i) => {
+      return {
+        title: this.renderColumnHeader(column, i),
+        render: (row: Row) => renderCell(column, row, this.state),
+      };
+    });
+
     return [
       m('div', this.renderFilters()),
       m(
         BasicTable<Row>,
         {
           data: rows,
-          columns: this.state.getSelectedColumns().map((column, i) => {
-            return {
-              title: this.renderColumnHeader(column, i),
-              render: (row: Row) => renderCell(column, row, this.state),
-            };
-          }),
+          columns: [
+            new ReorderableColumns(
+              columnDescriptors,
+              (from: number, to: number) => this.state.moveColumn(from, to),
+            ),
+          ],
         },
         this.state.isLoading() && m(Spinner),
         this.state.getQueryError() !== undefined &&
