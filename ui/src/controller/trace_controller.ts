@@ -51,10 +51,6 @@ import {
 } from '../trace_processor/wasm_engine_proxy';
 import {showModal} from '../widgets/modal';
 import {Child, Children, Controller} from './controller';
-import {
-  FlowEventsController,
-  FlowEventsControllerArgs,
-} from './flow_events_controller';
 import {LoadingManager} from './loading_manager';
 import {TraceErrorController} from './trace_error_controller';
 import {
@@ -234,11 +230,6 @@ export class TraceController extends Controller<States> {
         // At this point we are ready to serve queries and handle tracks.
         const engine = assertExists(this.engine);
         const childControllers: Children = [];
-
-        const flowEventsArgs: FlowEventsControllerArgs = {engine};
-        childControllers.push(
-          Child('flowEvents', FlowEventsController, flowEventsArgs),
-        );
 
         childControllers.push(
           Child('traceError', TraceErrorController, {engine}),

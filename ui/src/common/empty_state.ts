@@ -66,8 +66,6 @@ export function createEmptyState(): State {
     hoverCursorTimestamp: Time.INVALID,
     hoveredNoteTimestamp: Time.INVALID,
     highlightedSliceId: -1,
-    focusedFlowIdLeft: -1,
-    focusedFlowIdRight: -1,
 
     recordingInProgress: false,
     recordingCancelled: false,

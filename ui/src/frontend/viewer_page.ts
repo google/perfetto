@@ -355,7 +355,9 @@ function renderOverlay(
   using _ = canvasSave(ctx);
   ctx.translate(TRACK_SHELL_WIDTH, 0);
   canvasClip(ctx, 0, 0, size.width, size.height);
-  renderFlows(ctx, size, panels);
+
+  // TODO(primiano): plumb the TraceImpl obj throughout the viwer page.
+  renderFlows(globals.trace, ctx, size, panels);
 
   const timewindow = globals.timeline.visibleWindow;
   const timescale = new TimeScale(timewindow, {left: 0, right: size.width});

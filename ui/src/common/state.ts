@@ -205,8 +205,6 @@ export interface State {
   hoverCursorTimestamp: time;
   hoveredNoteTimestamp: time;
   highlightedSliceId: number;
-  focusedFlowIdLeft: number;
-  focusedFlowIdRight: number;
 
   /**
    * Trace recording
