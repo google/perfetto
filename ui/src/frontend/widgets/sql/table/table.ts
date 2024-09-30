@@ -62,8 +62,7 @@ function renderCell(
   const sqlValue = row[columns[sqlColumnId(column.primaryColumn())]];
 
   const additionalValues: {[key: string]: SqlValue} = {};
-  const dependentColumns =
-    column.dependentColumns !== undefined ? column.dependentColumns() : {};
+  const dependentColumns = column.dependentColumns?.() ?? {};
   for (const [key, col] of Object.entries(dependentColumns)) {
     additionalValues[key] = row[columns[sqlColumnId(col)]];
   }
@@ -276,7 +275,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           icon: Icons.SortedDesc,
           onclick: () => {
             this.state.sortBy({
-              column: column.primaryColumn(),
+              column: column,
               direction: 'DESC',
             });
           },
@@ -287,7 +286,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           icon: Icons.SortedAsc,
           onclick: () => {
             this.state.sortBy({
-              column: column.primaryColumn(),
+              column: column,
               direction: 'ASC',
             });
           },

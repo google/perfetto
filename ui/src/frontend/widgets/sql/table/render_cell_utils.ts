@@ -157,7 +157,7 @@ export function getStandardContextMenuItems(
   return result;
 }
 
-function displayValue(value: SqlValue): m.Child {
+export function displayValue(value: SqlValue): m.Child {
   if (value === null) {
     return m('i', 'NULL');
   }
