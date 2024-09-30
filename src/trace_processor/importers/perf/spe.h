@@ -22,11 +22,11 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_SPE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_SPE_H_
 
-#include <strings.h>
 #include <cstddef>
 #include <cstdint>
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
+
 namespace perfetto::trace_processor::perf_importer::spe {
 
 // Test whether a given bit is set. e.g.
