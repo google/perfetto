@@ -43,6 +43,15 @@ export type SqlColumn =
       source: SourceTable;
     };
 
+// List of columns of args, corresponding to arg values, which cause a short-form of the ID to be generated.
+// (e.g. arg_set_id[foo].int instead of args[arg_set_id,key=foo].int_value).
+const ARG_COLUMN_TO_SUFFIX: {[key: string]: string} = {
+  display_value: '',
+  int_value: '.int',
+  string_value: '.str',
+  real_value: '.real',
+};
+
 // A unique identifier for the SQL column.
 export function sqlColumnId(column: SqlColumn): string {
   if (typeof column === 'string') {
@@ -54,13 +63,13 @@ export function sqlColumnId(column: SqlColumn): string {
   }
   // Special case: args lookup. For it, we can use a simpler representation (i.e. `arg_set_id[key]`).
   if (
-    column.column === 'display_value' &&
+    column.column in ARG_COLUMN_TO_SUFFIX &&
     column.source.table === 'args' &&
     arrayEquals(Object.keys(column.source.joinOn).sort(), ['arg_set_id', 'key'])
   ) {
     const key = column.source.joinOn['key'];
     const argSetId = column.source.joinOn['arg_set_id'];
-    return `${sqlColumnId(argSetId)}[${sqlColumnId(key)}]`;
+    return `${sqlColumnId(argSetId)}[${sqlColumnId(key)}]${ARG_COLUMN_TO_SUFFIX[column.column]}`;
   }
   // Otherwise, we need to list all the join constraints.
   const lookup = Object.entries(column.source.joinOn)
@@ -136,6 +145,9 @@ export abstract class TableColumn {
 
   // Sometimes to display an interactive cell more than a single value is needed (e.g. "time range" corresponds to (ts, dur) pair. While we want to show the duration, we would want to highlight the interval on hover, for which both timestamp and duration are needed.
   dependentColumns?(): {[key: string]: SqlColumn};
+
+  // The set of underlying sql columns that should be sorted when this column is sorted.
+  sortColumns?(): SqlColumn[];
 
   // Render a table cell. `value` corresponds to the fetched SQL value for the primary column, `dependentColumns` are the fetched values for the dependent columns.
   abstract renderCell(
