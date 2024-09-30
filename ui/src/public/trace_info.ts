@@ -41,6 +41,9 @@ export interface TraceInfo {
 
   // The number of gpus in the trace
   readonly gpuCount: number;
+
+  // The number of import/analysis errors present in the `stats` table.
+  readonly importErrors: number;
 }
 
 export interface TraceFileSource {

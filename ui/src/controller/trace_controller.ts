@@ -50,9 +50,8 @@ import {
   WasmEngineProxy,
 } from '../trace_processor/wasm_engine_proxy';
 import {showModal} from '../widgets/modal';
-import {Child, Children, Controller} from './controller';
+import {Controller} from './controller';
 import {LoadingManager} from './loading_manager';
-import {TraceErrorController} from './trace_error_controller';
 import {
   TraceBufferStream,
   TraceFileStream,
@@ -227,15 +226,7 @@ export class TraceController extends Controller<States> {
         break;
 
       case 'ready':
-        // At this point we are ready to serve queries and handle tracks.
-        const engine = assertExists(this.engine);
-        const childControllers: Children = [];
-
-        childControllers.push(
-          Child('traceError', TraceErrorController, {engine}),
-        );
-
-        return childControllers;
+        return [];
 
       default:
         throw new Error(`unknown state ${this.state}`);
@@ -1111,6 +1102,7 @@ async function getTraceTimeDetails(
     traceTzOffset,
     cpus: await getCpus(engine),
     gpuCount: await getNumberOfGpus(engine),
+    importErrors: await getTraceErrors(engine),
     source: engineCfg.source,
   };
 }
@@ -1145,6 +1137,12 @@ async function getNumberOfGpus(engine: Engine): Promise<number> {
     where name = 'gpufreq';
   `);
   return result.firstRow({gpuCount: NUM}).gpuCount;
+}
+
+async function getTraceErrors(engine: Engine): Promise<number> {
+  const sql = `SELECT sum(value) as errs FROM stats WHERE severity != 'info'`;
+  const result = await engine.query(sql);
+  return result.firstRow({errs: NUM}).errs;
 }
 
 async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {

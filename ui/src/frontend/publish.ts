@@ -77,11 +77,6 @@ export function publishRecordingLog(args: {logs: string}) {
   globals.publishRedraw();
 }
 
-export function publishTraceErrors(numErrors: number) {
-  globals.setTraceErrors(numErrors);
-  globals.publishRedraw();
-}
-
 export function publishMetricError(error: string) {
   globals.setMetricError(error);
   globals.publishRedraw();
