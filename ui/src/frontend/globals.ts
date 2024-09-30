@@ -14,7 +14,7 @@
 
 import {assertExists} from '../base/logging';
 import {createStore, Store} from '../base/store';
-import {duration, Time, time} from '../base/time';
+import {Time, time} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {CommandManagerImpl} from '../core/command_manager';
 import {
@@ -30,7 +30,6 @@ import {ServiceWorkerController} from './service_worker_controller';
 import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import type {Analytics} from './analytics';
-import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
 import {Workspace} from '../public/workspace';
@@ -44,43 +43,6 @@ import {createFakeTraceImpl} from '../common/fake_trace_impl';
 
 type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
-
-export interface FlowPoint {
-  trackId: number;
-
-  sliceName: string;
-  sliceCategory: string;
-  sliceId: SliceSqlId;
-  sliceStartTs: time;
-  sliceEndTs: time;
-  // Thread and process info. Only set in sliceSelected not in areaSelected as
-  // the latter doesn't display per-flow info and it'd be a waste to join
-  // additional tables for undisplayed info in that case. Nothing precludes
-  // adding this in a future iteration however.
-  threadName: string;
-  processName: string;
-
-  depth: number;
-
-  // TODO(altimin): Ideally we should have a generic mechanism for allowing to
-  // customise the name here, but for now we are hardcording a few
-  // Chrome-specific bits in the query here.
-  sliceChromeCustomName?: string;
-}
-
-export interface Flow {
-  id: number;
-
-  begin: FlowPoint;
-  end: FlowPoint;
-  dur: duration;
-
-  // Whether this flow connects a slice with its descendant.
-  flowToDescendant: boolean;
-
-  category?: string;
-  name?: string;
-}
 
 export interface QuantizedLoad {
   start: time;
@@ -127,9 +89,6 @@ class Globals {
   private _trackDataStore?: TrackDataStore = undefined;
   private _overviewStore?: OverviewStore = undefined;
   private _threadMap?: ThreadMap = undefined;
-  private _connectedFlows?: Flow[] = undefined;
-  private _selectedFlows?: Flow[] = undefined;
-  private _visibleFlowCategories?: Map<string, boolean> = undefined;
   private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
@@ -221,9 +180,6 @@ class Globals {
     this._trackDataStore = new Map<string, {}>();
     this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._threadMap = new Map<number, ThreadDesc>();
-    this._connectedFlows = [];
-    this._selectedFlows = [];
-    this._visibleFlowCategories = new Map<string, boolean>();
     this.engines.clear();
   }
 
@@ -290,30 +246,6 @@ class Globals {
 
   get threads() {
     return assertExists(this._threadMap);
-  }
-
-  get connectedFlows() {
-    return assertExists(this._connectedFlows);
-  }
-
-  set connectedFlows(connectedFlows: Flow[]) {
-    this._connectedFlows = assertExists(connectedFlows);
-  }
-
-  get selectedFlows() {
-    return assertExists(this._selectedFlows);
-  }
-
-  set selectedFlows(selectedFlows: Flow[]) {
-    this._selectedFlows = assertExists(selectedFlows);
-  }
-
-  get visibleFlowCategories() {
-    return assertExists(this._visibleFlowCategories);
-  }
-
-  set visibleFlowCategories(visibleFlowCategories: Map<string, boolean>) {
-    this._visibleFlowCategories = assertExists(visibleFlowCategories);
   }
 
   get traceErrors() {
