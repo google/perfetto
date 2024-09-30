@@ -89,12 +89,15 @@ export class SqlTableState {
   constructor(
     readonly trace: Trace,
     readonly config: SqlTableDescription,
-    args?: {
+    private readonly args?: {
       initialColumns?: TableColumn[];
       additionalColumns?: TableColumn[];
       imports?: string[];
       filters?: Filter[];
-      orderBy?: ColumnOrderClause[];
+      orderBy?: {
+        column: TableColumn;
+        direction: SortDirection;
+      }[];
     },
   ) {
     this.additionalImports = args?.imports || [];
@@ -126,10 +129,19 @@ export class SqlTableState {
       }
     }
 
-    this.orderBy = [];
+    this.orderBy = args?.orderBy ?? [];
 
     this.request = this.buildRequest();
     this.reload();
+  }
+
+  clone(): SqlTableState {
+    return new SqlTableState(this.trace, this.config, {
+      initialColumns: this.columns,
+      imports: this.args?.imports,
+      filters: this.filters,
+      orderBy: this.orderBy,
+    });
   }
 
   private getSQLImports() {
