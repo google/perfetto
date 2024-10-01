@@ -38,6 +38,7 @@ export const defaultPlugins = [
   'dev.perfetto.TimelineSync',
   'dev.perfetto.TraceMetadata',
   'org.kernel.LinuxKernelDevices',
+  'org.kernel.SuspendResumeLatency',
   'perfetto.AndroidLog',
   'perfetto.Annotation',
   'perfetto.AsyncSlices',
