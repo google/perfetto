@@ -35,17 +35,7 @@ import {
   WritableQueryResult,
 } from './query_result';
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
-import {Result} from '../base/utils';
-
-export interface LoadingTracker {
-  beginLoading(): void;
-  endLoading(): void;
-}
-
-export class NullLoadingTracker implements LoadingTracker {
-  beginLoading(): void {}
-  endLoading(): void {}
-}
+import {exists, Result} from '../base/utils';
 
 // This is used to skip the decoding of queryResult from protobufjs and deal
 // with it ourselves. See the comment below around `QueryResult.decode = ...`.
@@ -102,6 +92,7 @@ export interface Engine {
   ): Promise<string | Uint8Array>;
 
   getProxy(tag: string): EngineProxy;
+  readonly numRequestsPending: number;
 }
 
 // Abstract interface of a trace proccessor.
@@ -117,7 +108,6 @@ export interface Engine {
 // 2. Call onRpcResponseBytes() when response data is received.
 export abstract class EngineBase implements Engine {
   abstract readonly id: string;
-  private loadingTracker: LoadingTracker;
   private txSeqId = 0;
   private rxSeqId = 0;
   private rxBuf = new ProtoRingBuffer();
@@ -130,10 +120,10 @@ export abstract class EngineBase implements Engine {
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
   private pendingRegisterSqlModule?: Deferred<void>;
   private _isMetatracingEnabled = false;
+  private _numRequestsPending = 0;
 
-  constructor(tracker?: LoadingTracker) {
-    this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
-  }
+  // TraceController sets this to raf.scheduleFullRedraw().
+  onResponseReceived?: () => void;
 
   // Called to send data to the TraceProcessor instance. This turns into a
   // postMessage() or a HTTP request, depending on the Engine implementation.
@@ -210,7 +200,7 @@ export abstract class EngineBase implements Engine {
       case TPM.TPM_APPEND_TRACE_DATA:
         const appendResult = assertExists(rpc.appendResult);
         const pendingPromise = assertExists(this.pendingParses.shift());
-        if (appendResult.error && appendResult.error.length > 0) {
+        if (exists(appendResult.error) && appendResult.error.length > 0) {
           pendingPromise.reject(appendResult.error);
         } else {
           pendingPromise.resolve();
@@ -240,7 +230,7 @@ export abstract class EngineBase implements Engine {
         const pendingComputeMetric = assertExists(
           this.pendingComputeMetrics.shift(),
         );
-        if (metricRes.error && metricRes.error.length > 0) {
+        if (exists(metricRes.error) && metricRes.error.length > 0) {
           const error = new QueryError(
             `ComputeMetric() error: ${metricRes.error}`,
             {
@@ -267,7 +257,7 @@ export abstract class EngineBase implements Engine {
       case TPM.TPM_REGISTER_SQL_MODULE:
         const registerResult = assertExists(rpc.registerSqlModuleResult);
         const res = assertExists(this.pendingRegisterSqlModule);
-        if (registerResult.error && registerResult.error.length > 0) {
+        if (exists(registerResult.error) && registerResult.error.length > 0) {
           res.reject(registerResult.error);
         } else {
           res.resolve();
@@ -282,8 +272,10 @@ export abstract class EngineBase implements Engine {
     } // switch(rpc.response);
 
     if (isFinalResponse) {
-      this.loadingTracker.endLoading();
+      --this._numRequestsPending;
     }
+
+    this.onResponseReceived?.();
   }
 
   // TraceProcessor methods below this point.
@@ -502,12 +494,16 @@ export abstract class EngineBase implements Engine {
     const outerProto = TraceProcessorRpcStream.create();
     outerProto.msg.push(rpc);
     const buf = TraceProcessorRpcStream.encode(outerProto).finish();
-    this.loadingTracker.beginLoading();
+    ++this._numRequestsPending;
     this.rpcSendRequestBytes(buf);
   }
 
   get engineId(): string {
     return this.id;
+  }
+
+  get numRequestsPending(): number {
+    return this._numRequestsPending;
   }
 
   getProxy(tag: string): EngineProxy {
@@ -563,6 +559,10 @@ export class EngineProxy implements Engine, Disposable {
 
   getProxy(tag: string): EngineProxy {
     return this.engine.getProxy(`${this.tag}/${tag}`);
+  }
+
+  get numRequestsPending() {
+    return this.engine.numRequestsPending;
   }
 
   [Symbol.dispose]() {

@@ -49,6 +49,7 @@ import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
 import {formatHotkey} from '../base/hotkeys';
 import {SidebarMenuItem} from '../public/sidebar';
 import {AppImpl} from '../core/app_trace_impl';
+import {Trace} from '../public/trace';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';
@@ -95,6 +96,10 @@ const VIZ_PAGE_IN_NAV_FLAG = featureFlags.register({
   description: 'Show a link to the viz page in the side bar.',
   defaultValue: true,
 });
+
+export interface OptionalTraceAttrs {
+  trace?: Trace;
+}
 
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
@@ -536,20 +541,20 @@ async function finaliseMetatrace(e: Event) {
   downloadData('metatrace', result.metatrace, jsEvents);
 }
 
-const EngineRPCWidget: m.Component = {
-  view() {
+class EngineRPCWidget implements m.ClassComponent<OptionalTraceAttrs> {
+  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
     let cssClass = '';
     let title = 'Number of pending SQL queries';
     let label: string;
     let failed = false;
     let mode: EngineMode | undefined;
 
-    const engine = globals.state.engine;
-    if (engine !== undefined) {
-      mode = engine.mode;
-      if (engine.failed !== undefined) {
+    const engineCfg = globals.state.engine;
+    if (engineCfg !== undefined) {
+      mode = engineCfg.mode;
+      if (engineCfg.failed !== undefined) {
         cssClass += '.red';
-        title = 'Query engine crashed\n' + engine.failed;
+        title = 'Query engine crashed\n' + engineCfg.failed;
         failed = true;
       }
     }
@@ -579,14 +584,15 @@ const EngineRPCWidget: m.Component = {
       title += '\n(Query engine: built-in WASM)';
     }
 
+    const numReqs = attrs.trace?.engine.numRequestsPending ?? 0;
     return m(
       `.dbg-info-square${cssClass}`,
       {title},
       m('div', label),
-      m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`),
+      m('div', `${failed ? 'FAIL' : numReqs}`),
     );
-  },
-};
+  }
+}
 
 const ServiceWorkerWidget: m.Component = {
   view() {
@@ -668,11 +674,11 @@ const ServiceWorkerWidget: m.Component = {
   },
 };
 
-const SidebarFooter: m.Component = {
-  view() {
+class SidebarFooter implements m.ClassComponent<OptionalTraceAttrs> {
+  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
     return m(
       '.sidebar-footer',
-      m(EngineRPCWidget),
+      m(EngineRPCWidget, attrs),
       m(ServiceWorkerWidget),
       m(
         '.version',
@@ -687,8 +693,8 @@ const SidebarFooter: m.Component = {
         ),
       ),
     );
-  },
-};
+  }
+}
 
 class HiringBanner implements m.ClassComponent {
   view() {
@@ -706,9 +712,9 @@ class HiringBanner implements m.ClassComponent {
   }
 }
 
-export class Sidebar implements m.ClassComponent {
+export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
   private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
-  view() {
+  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
     if (globals.hideSidebar) return null;
     const vdomSections = [];
     for (const section of getSections()) {
@@ -840,7 +846,11 @@ export class Sidebar implements m.ClassComponent {
       ),
       m(
         '.sidebar-scroll',
-        m('.sidebar-scroll-container', ...vdomSections, m(SidebarFooter)),
+        m(
+          '.sidebar-scroll-container',
+          ...vdomSections,
+          m(SidebarFooter, attrs),
+        ),
       ),
     );
   }
