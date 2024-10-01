@@ -84,7 +84,8 @@ SELECT
     cpu,
     ucpu,
     freq
-FROM cpu_frequency_counters;
+FROM cpu_frequency_counters
+WHERE freq IS NOT NULL;
 
 CREATE PERFETTO VIEW _sched_without_id AS
 SELECT ts, dur, utid, ucpu
@@ -96,6 +97,20 @@ USING SPAN_LEFT_JOIN(
     _sched_without_id PARTITIONED ucpu,
     _cpu_freq_for_metrics PARTITIONED ucpu);
 
-CREATE PERFETTO TABLE _cpu_freq_per_thread
-AS SELECT * FROM _cpu_freq_per_thread_span_join;
+CREATE PERFETTO TABLE _cpu_freq_per_thread_no_id
+AS
+SELECT *
+FROM _cpu_freq_per_thread_span_join;
+
+CREATE PERFETTO VIEW _cpu_freq_per_thread AS
+SELECT
+  _auto_id AS id,
+  ts,
+  dur,
+  ucpu,
+  cpu,
+  utid,
+  freq,
+  id AS counter_id
+FROM _cpu_freq_per_thread_no_id;
 

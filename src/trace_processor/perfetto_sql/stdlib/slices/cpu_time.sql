@@ -13,60 +13,70 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- TODO(mayzner): Replace with good implementation of interval intersect.
-CREATE PERFETTO MACRO _interval_intersect_partition_utid(
-  left_table TableOrSubquery,
-  right_table TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  WITH on_left AS (
-    SELECT
-      B.ts,
-      IIF(
-        A.ts + A.dur <= B.ts + B.dur,
-        A.ts + A.dur - B.ts, B.dur) AS dur,
-      A.id AS left_id,
-      B.id as right_id
-    FROM $left_table A
-    JOIN $right_table B ON (A.ts <= B.ts AND A.ts + A.dur > B.ts AND A.utid = B.utid)
-  ), on_right AS (
-    SELECT
-      B.ts,
-      IIF(
-        A.ts + A.dur <= B.ts + B.dur,
-        A.ts + A.dur - B.ts, B.dur) AS dur,
-      B.id as left_id,
-      A.id AS right_id
-    FROM $right_table A
-    -- The difference between this table and on_left is the lack of equality on
-    -- A.ts <= B.ts. This is to remove the issue of double accounting
-    -- timestamps that start at the same time.
-    JOIN $left_table B ON (A.ts < B.ts AND A.ts + A.dur > B.ts AND A.utid = B.utid)
-  )
-  SELECT * FROM on_left
-  UNION ALL
-  SELECT * FROM on_right
-);
+INCLUDE PERFETTO MODULE intervals.intersect;
+INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 
 -- Time each thread slice spent running on CPU.
 -- Requires scheduling data to be available in the trace.
 CREATE PERFETTO TABLE thread_slice_cpu_time(
-    -- Slice id.
-    id INT,
-    -- Duration of the time the slice was running.
-    cpu_time INT) AS
-WITH slice_with_utid AS (
-  SELECT
-      slice.id,
-      slice.ts,
-      slice.dur,
-      utid
-  FROM slice
-  JOIN thread_track ON slice.track_id = thread_track.id
-  JOIN thread USING (utid)
-  WHERE utid != 0)
-SELECT left_id AS id, SUM(dur) AS cpu_time
-FROM _interval_intersect_partition_utid!(slice_with_utid, sched)
-GROUP BY 1
-ORDER BY 1;
+  -- Id of a slice. Alias of `slice.id`.
+  id INT,
+  -- Name of the slice.
+  name STRING,
+  -- Id of the thread the slice is running on. Alias of `thread.id`.
+  utid INT,
+  -- Name of the thread.
+  thread_name STRING,
+  -- Id of the process the slice is running on. Alias of `process.id`.
+  upid INT,
+  -- Name of the process.
+  process_name STRING,
+  -- Duration of the time the slice was running.
+  cpu_time INT) AS
+SELECT
+id_0 AS id,
+name,
+ts.utid,
+thread_name,
+upid,
+process_name,
+SUM(ii.dur) AS cpu_time
+FROM _interval_intersect!((
+  (SELECT * FROM thread_slice WHERE utid > 0 AND dur > 0),
+  (SELECT * FROM sched WHERE dur > 0)
+  ), (utid)) ii
+JOIN thread_slice ts ON ts.id = ii.id_0
+GROUP BY id
+ORDER BY id;
+
+-- CPU cycles per each slice.
+CREATE PERFETTO VIEW thread_slice_cpu_cycles(
+  -- Id of a slice. Alias of `slice.id`.
+  id INT,
+  -- Name of the slice.
+  name STRING,
+  -- Id of the thread the slice is running on. Alias of `thread.id`.
+  utid INT,
+  -- Name of the thread.
+  thread_name STRING,
+  -- Id of the process the slice is running on. Alias of `process.id`.
+  upid INT,
+  -- Name of the process.
+  process_name STRING,
+  -- Sum of CPU millicycles. Null if frequency couldn't be fetched for any
+  -- period during the runtime of the slice.
+  millicycles INT,
+  -- Sum of CPU megacycles. Null if frequency couldn't be fetched for any
+  -- period during the runtime of the slice.
+  megacycles INT
+) AS
+SELECT
+  id,
+  name,
+  utid,
+  thread_name,
+  upid,
+  process_name,
+  millicycles,
+  megacycles
+FROM cpu_cycles_per_thread_slice;

@@ -159,7 +159,7 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
           "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-          5839969682564,5839,9476034254,614400,1708800,617686
+          31636287288,31,76193077,614400,1708800,415998
             """))
 
   def test_cpu_cycles_per_cpu(self):
@@ -208,10 +208,10 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
           "cpu","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-          0,5762458673747,5762,9350177660,614400,1708800,617691
-          1,72344785675,72,117748675,614400,614400,615831
-          2,533252160,0,617190,864000,864000,871327
-          3,4632970982,4,7490729,614400,864000,620044
+          0,27811901835,27,50296201,614400,1708800,554220
+          1,2893791427,2,4709947,614400,614400,615831
+          2,177750720,0,3718178,864000,864000,47885
+          3,752843306,0,17468751,614400,864000,43128
             """))
 
   def test_cpu_cycles_per_thread(self):
@@ -221,17 +221,21 @@ class LinuxCpu(TestSuite):
              INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
 
              SELECT
-               AVG(millicycles) AS millicycles,
-               AVG(megacycles) AS megacycles,
-               AVG(runtime) AS runtime,
-               AVG(min_freq) AS min_freq,
-               AVG(max_freq) AS max_freq,
-               AVG(avg_freq) AS avg_freq
-             FROM cpu_cycles_per_thread;
+              utid,
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles_per_thread
+             WHERE utid < 10
              """),
         out=Csv("""
-            "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-            25048302164.445362,24.624742,16080173.697531,1402708.453608,1648468.453608,1582627.707216
+        "utid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+        1,39042295612,39,28747861,614400,1708800,1359695
+        2,286312857,0,167552,1708800,1708800,1714448
+        8,124651656403,124,99592232,614400,1708800,1255974
             """))
 
   def test_cpu_cycles_per_thread_in_interval(self):
@@ -253,14 +257,18 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
             "utid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-            1,48593411952,48,79090840,614400,614400,615792
-            14,613205232254,613,998055394,614400,614400,615792
-            15,527593574058,527,858713502,614400,614400,615793
-            16,291560471712,291,474545040,614400,614400,615792
-            30,2893791427,2,4709947,614400,614400,615831
-            61,72890117928,72,118636260,614400,614400,615792
-            62,282929432,0,165572,1708800,1708800,1714723
-            92,1071631296,1,1240314,864000,864000,867015
+            1,1226879384,1,1996874,614400,614400,614669
+            14,1247778191,1,2446930,614400,614400,513911
+            15,1407232193,1,2384063,614400,614400,593768
+            16,505278870,0,1142238,614400,614400,444396
+            30,29888102,0,48646,614400,614400,622668
+            37,"[NULL]","[NULL]",222814,"[NULL]","[NULL]","[NULL]"
+            38,"[NULL]","[NULL]",2915520,"[NULL]","[NULL]","[NULL]"
+            45,"[NULL]","[NULL]",2744688,"[NULL]","[NULL]","[NULL]"
+            54,"[NULL]","[NULL]",8614114,"[NULL]","[NULL]","[NULL]"
+            61,151616101,0,246771,614400,614400,618841
+            62,58740000,0,8307552,1708800,1708800,7071
+            92,243675648,0,962397,864000,864000,255157
             """))
 
   def test_cpu_cycles_per_process(self):
@@ -270,17 +278,21 @@ class LinuxCpu(TestSuite):
              INCLUDE PERFETTO MODULE linux.cpu.utilization.process;
 
              SELECT
-               AVG(millicycles) AS millicycles,
-               AVG(megacycles) AS megacycles,
-               AVG(runtime) AS runtime,
-               AVG(min_freq) AS min_freq,
-               AVG(max_freq) AS max_freq,
-               AVG(avg_freq) AS avg_freq
-             FROM cpu_cycles_per_process;
+              upid,
+              millicycles,
+              megacycles,
+              runtime,
+              min_freq,
+              max_freq,
+              avg_freq
+             FROM cpu_cycles_per_process
+             WHERE upid < 10
              """),
         out=Csv("""
-            "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-            83434563989.406891,82.979310,53248030.726027,1193710.344828,1683773.793103,1536705.400000
+        "upid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+        1,79550724630,79,56977346,614400,1708800,1398005
+        2,286312857,0,167552,1708800,1708800,1714448
+        8,124651656403,124,99592232,614400,1708800,1255974
             """))
 
   def test_cpu_cycles_per_process_in_interval(self):
@@ -302,10 +314,68 @@ class LinuxCpu(TestSuite):
              """),
         out=Csv("""
           "upid","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
-          1,121483529880,121,197727100,614400,614400,615792
-          14,613205232254,613,998055394,614400,614400,615792
-          15,527593574058,527,858713502,614400,614400,615793
-          16,291560471712,291,474545040,614400,614400,615792
+          1,2163648305,2,3521563,614400,614400,614672
+          14,1247778191,1,2446930,614400,614400,513911
+          15,1407232193,1,2384063,614400,614400,593768
+          16,505278870,0,1142238,614400,614400,444396
+            """))
+
+  def test_cpu_cycles_per_thread_slice(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
+
+             SELECT
+              id,
+              utid,
+              millicycles,
+              megacycles
+             FROM cpu_cycles_per_thread_slice
+             WHERE millicycles IS NOT NULL
+             LIMIT 10
+             """),
+        out=Csv("""
+        "id","utid","millicycles","megacycles"
+        125,6,6375728,0
+        126,6,8699728,0
+        128,6,5565648,0
+        129,6,5565648,0
+        214,6,7132688,0
+        270,6,662972400,0
+        271,6,58483872,0
+        274,6,571785696,0
+        277,6,206411922,0
+        278,6,190908162,0
+            """))
+
+  def test_cpu_cycles_per_thread_slice(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=("""
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
+
+             SELECT
+              id,
+              utid,
+              millicycles,
+              megacycles
+             FROM cpu_cycles_per_thread_slice_in_interval(TRACE_START(), TRACE_DUR() / 10)
+             WHERE millicycles IS NOT NULL
+             LIMIT 10
+             """),
+        out=Csv("""
+        "id","utid","millicycles","megacycles"
+        110,17,13022368,0
+        121,17,9618704,0
+        125,6,6375728,0
+        126,6,8699728,0
+        128,6,5565648,0
+        129,6,5565648,0
+        146,24,6916224,0
+        151,26,5296064,0
+        203,17,150060016,0
+        214,6,7132688,0
             """))
 
   # Test CPU frequency counter grouping.
