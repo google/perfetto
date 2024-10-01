@@ -27,6 +27,9 @@ struct Record;
 namespace instruments_importer {
 struct Row;
 }
+namespace gecko_importer {
+struct GeckoEvent;
+}
 
 struct AndroidLogEvent;
 class PacketSequenceStateGeneration;
@@ -86,6 +89,12 @@ class AndroidLogEventParser {
  public:
   virtual ~AndroidLogEventParser();
   virtual void ParseAndroidLogEvent(int64_t, AndroidLogEvent) = 0;
+};
+
+class GeckoTraceParser {
+ public:
+  virtual ~GeckoTraceParser();
+  virtual void ParseGeckoEvent(int64_t, gecko_importer::GeckoEvent) = 0;
 };
 
 }  // namespace perfetto::trace_processor
