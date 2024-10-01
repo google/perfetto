@@ -2935,6 +2935,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/stacks:stacks
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/stacks/cpu_profiling.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/time:time
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_time_time",
@@ -3024,6 +3032,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_sched_sched",
         ":src_trace_processor_perfetto_sql_stdlib_slices_slices",
         ":src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
+        ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
         ":src_trace_processor_perfetto_sql_stdlib_v8_v8",
         ":src_trace_processor_perfetto_sql_stdlib_viz_summary_summary",
