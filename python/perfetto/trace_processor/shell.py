@@ -68,7 +68,7 @@ def load_shell(bin_path: str,
         _ = request.urlretrieve(f'http://{url}/status')
         success = True
       break
-    except error.URLError:
+    except (error.URLError, ConnectionError):
       time.sleep(1)
 
   if not success:
