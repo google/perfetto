@@ -62,7 +62,7 @@ import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
 } from '../common/state_serialization';
-import {ProfileType, profileType} from '../public/selection';
+import {ProfileType} from '../public/selection';
 import {TraceInfo} from '../public/trace_info';
 import {AppImpl} from '../core/app_trace_impl';
 import {raf} from '../core/raf_scheduler';
@@ -414,7 +414,6 @@ export class TraceController extends Controller<States> {
       publishHasFtrace(res.numRows() > 0);
     }
 
-    await this.selectFirstHeapProfile();
     await this.selectPerfSample(traceDetails);
 
     const pendingDeeplink = globals.state.pendingDeeplink;
@@ -486,36 +485,6 @@ export class TraceController extends Controller<States> {
       leftTs,
       rightTs,
       type: ProfileType.PERF_SAMPLE,
-    });
-  }
-
-  private async selectFirstHeapProfile() {
-    const query = `
-      select * from (
-        select
-          min(ts) AS ts,
-          'heap_profile:' || group_concat(distinct heap_name) AS type,
-          upid
-        from heap_profile_allocation
-        group by upid
-        union
-        select distinct graph_sample_ts as ts, 'graph' as type, upid
-        from heap_graph_object
-      )
-      order by ts
-      limit 1
-    `;
-    const profile = await assertExists(this.engine).query(query);
-    if (profile.numRows() !== 1) return;
-    const row = profile.firstRow({ts: LONG, type: STR, upid: NUM});
-    const ts = Time.fromRaw(row.ts);
-    const upid = row.upid;
-    globals.selectionManager.selectLegacy({
-      kind: 'HEAP_PROFILE',
-      id: 0,
-      upid,
-      ts,
-      type: profileType(row.type),
     });
   }
 

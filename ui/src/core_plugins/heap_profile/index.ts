@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {assertExists, assertFalse} from '../../base/logging';
 import {Monitor} from '../../base/monitor';
-import {ProfileType, Selection} from '../../public/selection';
+import {profileType, ProfileType, Selection} from '../../public/selection';
 import {HeapProfileSelection} from '../../public/selection';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
@@ -23,7 +23,7 @@ import {HEAP_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {DetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {NUM} from '../../trace_processor/query_result';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {HeapProfileTrack} from './heap_profile_track';
 import {
@@ -31,7 +31,7 @@ import {
   QueryFlamegraphAttrs,
   metricsFromTableOrSubquery,
 } from '../../core/query_flamegraph';
-import {time} from '../../base/time';
+import {Time, time} from '../../base/time';
 import {Popup} from '../../widgets/popup';
 import {Icon} from '../../widgets/icon';
 import {Button} from '../../widgets/button';
@@ -84,7 +84,39 @@ class HeapProfilePlugin implements PerfettoPlugin {
     ctx.tabs.registerDetailsPanel(
       new HeapProfileFlamegraphDetailsPanel(ctx.engine, incomplete),
     );
+
+    await selectFirstHeapProfile(ctx);
   }
+}
+
+async function selectFirstHeapProfile(ctx: Trace) {
+  const query = `
+    select * from (
+      select
+        min(ts) AS ts,
+        'heap_profile:' || group_concat(distinct heap_name) AS type,
+        upid
+      from heap_profile_allocation
+      group by upid
+      union
+      select distinct graph_sample_ts as ts, 'graph' as type, upid
+      from heap_graph_object
+    )
+    order by ts
+    limit 1
+  `;
+  const profile = await assertExists(ctx.engine).query(query);
+  if (profile.numRows() !== 1) return;
+  const row = profile.firstRow({ts: LONG, type: STR, upid: NUM});
+  const ts = Time.fromRaw(row.ts);
+  const upid = row.upid;
+  ctx.selection.selectLegacy({
+    kind: 'HEAP_PROFILE',
+    id: 0,
+    upid,
+    ts,
+    type: profileType(row.type),
+  });
 }
 
 class HeapProfileFlamegraphDetailsPanel implements DetailsPanel {
