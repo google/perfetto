@@ -202,7 +202,6 @@ export interface State {
   // Hovered and focused events
   hoveredUtid: number;
   hoveredPid: number;
-  hoverCursorTimestamp: time;
   hoveredNoteTimestamp: time;
   highlightedSliceId: number;
 

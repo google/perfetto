@@ -15,7 +15,6 @@
 import {DisposableStack} from '../base/disposable_stack';
 import {assertTrue} from '../base/logging';
 import {createStore, Migrate, Store} from '../base/store';
-import {TimeSpan} from '../base/time';
 import {TimelineImpl} from '../core/timeline';
 import {App} from '../public/app';
 import {Command} from '../public/command';
@@ -189,8 +188,7 @@ class TraceContext implements Disposable {
     this.appCtx = gctx;
     this.engine = engine;
     this.traceInfo = traceInfo;
-    const traceSpan = new TimeSpan(traceInfo.start, traceInfo.end);
-    this.timeline = new TimelineImpl(traceSpan);
+    this.timeline = new TimelineImpl(traceInfo);
 
     this.scrollHelper = new ScrollHelper(
       this.traceInfo,

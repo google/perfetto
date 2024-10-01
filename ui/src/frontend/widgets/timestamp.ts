@@ -16,7 +16,6 @@ import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {time, Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {
   setTimestampFormat,
   TimestampFormat,
@@ -49,12 +48,10 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
           Anchor,
           {
             onmouseover: () => {
-              globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
+              globals.trace.timeline.hoverCursorTimestamp = ts;
             },
             onmouseout: () => {
-              globals.dispatch(
-                Actions.setHoverCursorTimestamp({ts: Time.INVALID}),
-              );
+              globals.trace.timeline.hoverCursorTimestamp = undefined;
             },
           },
           attrs.display ?? renderTimestamp(ts),
@@ -105,7 +102,7 @@ export function menuItemForFormat(
 
 function renderTimestamp(time: time): m.Children {
   const fmt = timestampFormat();
-  const domainTime = globals.toDomainTime(time);
+  const domainTime = globals.trace.timeline.toDomainTime(time);
   switch (fmt) {
     case TimestampFormat.UTC:
     case TimestampFormat.TraceTz:

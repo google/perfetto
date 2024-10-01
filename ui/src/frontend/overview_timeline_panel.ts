@@ -112,7 +112,7 @@ export class OverviewTimelinePanel implements Panel {
 
     if (size.width > TRACK_SHELL_WIDTH && traceContext.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(this.width - TRACK_SHELL_WIDTH);
-      const offset = globals.timestampOffset();
+      const offset = globals.trace.timeline.timestampOffset();
       const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
       // Draw time labels
@@ -124,7 +124,7 @@ export class OverviewTimelinePanel implements Panel {
         if (xPos > this.width) break;
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
-          const domainTime = globals.toDomainTime(time);
+          const domainTime = globals.trace.timeline.toDomainTime(time);
           renderTimestamp(ctx, domainTime, xPos + 5, 18, MIN_PX_PER_STEP);
         } else if (type == TickType.MEDIUM) {
           ctx.fillRect(xPos - 1, 0, 1, 8);

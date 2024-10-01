@@ -63,7 +63,6 @@ export function createEmptyState(): State {
     sidebarVisible: true,
     hoveredUtid: -1,
     hoveredPid: -1,
-    hoverCursorTimestamp: Time.INVALID,
     hoveredNoteTimestamp: Time.INVALID,
     highlightedSliceId: -1,
 

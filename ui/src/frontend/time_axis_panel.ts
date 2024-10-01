@@ -55,7 +55,7 @@ export class TimeAxisPanel implements Panel {
   }
 
   private renderOffsetTimestamp(ctx: CanvasRenderingContext2D): void {
-    const offset = globals.timestampOffset();
+    const offset = globals.trace.timeline.timestampOffset();
     switch (timestampFormat()) {
       case TimestampFormat.TraceNs:
       case TimestampFormat.TraceNsLocale:
@@ -91,7 +91,7 @@ export class TimeAxisPanel implements Panel {
       right: size.width,
     });
     const timespan = visibleWindow.toTimeSpan();
-    const offset = globals.timestampOffset();
+    const offset = globals.trace.timeline.timestampOffset();
 
     // Draw time axis.
     if (size.width > 0 && timespan.duration > 0n) {
@@ -101,7 +101,7 @@ export class TimeAxisPanel implements Panel {
         if (type === TickType.MAJOR) {
           const position = Math.floor(timescale.timeToPx(time));
           ctx.fillRect(position, 0, 1, size.height);
-          const domainTime = globals.toDomainTime(time);
+          const domainTime = globals.trace.timeline.toDomainTime(time);
           renderTimestamp(ctx, domainTime, position + 5, 10, MIN_PX_PER_STEP);
         }
       }

@@ -441,7 +441,7 @@ export function drawGridLines(
 
   if (size.width > 0 && timespan.duration > 0n) {
     const maxMajorTicks = getMaxMajorTicks(size.width);
-    const offset = globals.timestampOffset();
+    const offset = globals.trace.timeline.timestampOffset();
     for (const {type, time} of generateTicks(timespan, maxMajorTicks, offset)) {
       const px = Math.floor(timescale.timeToPx(time));
       if (type === TickType.MAJOR) {
@@ -459,11 +459,11 @@ export function renderHoveredCursorVertical(
   timescale: TimeScale,
   size: Size2D,
 ) {
-  if (globals.state.hoverCursorTimestamp !== -1n) {
+  if (globals.trace.timeline.hoverCursorTimestamp !== undefined) {
     drawVerticalLineAtTime(
       ctx,
       timescale,
-      globals.state.hoverCursorTimestamp,
+      globals.trace.timeline.hoverCursorTimestamp,
       size.height,
       `#344596`,
     );
