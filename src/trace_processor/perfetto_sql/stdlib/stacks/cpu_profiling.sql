@@ -14,48 +14,30 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
+INCLUDE PERFETTO MODULE graphs.scan;
+INCLUDE PERFETTO MODULE linux.perf.samples;
 
-CREATE PERFETTO MACRO _linux_perf_callstacks_for_samples(
-  samples TableOrSubquery
-)
-RETURNS TableOrSubquery
-AS
-(
-  WITH metrics AS MATERIALIZED (
-    SELECT
-      callsite_id,
-      COUNT() AS self_count
-    FROM $samples
-    GROUP BY callsite_id
-  )
-  SELECT
-    c.id,
-    c.parent_id,
-    c.name,
-    c.mapping_name,
-    c.source_file,
-    c.line_number,
-    IFNULL(m.self_count, 0) AS self_count
-  FROM _callstacks_for_stack_profile_samples!(metrics) c
-  LEFT JOIN metrics m USING (callsite_id)
-);
-
-CREATE PERFETTO TABLE _linux_perf_raw_callstacks AS
+CREATE PERFETTO TABLE _cpu_profiling_raw_callstacks AS
 SELECT *
-FROM _linux_perf_callstacks_for_samples!(
-  (SELECT p.callsite_id FROM perf_sample p)
+FROM _callstacks_for_cpu_profile_stack_samples!(
+  (SELECT s.callsite_id FROM cpu_profile_stack_sample s)
 ) c
 ORDER BY c.id;
 
--- Table summarising the callstacks captured during all
--- perf samples in the trace.
+-- Table summarising the callstacks captured during any CPU
+-- profiling which occurred during the trace.
 --
 -- Specifically, this table returns a tree containing all
 -- the callstacks seen during the trace with `self_count`
 -- equal to the number of samples with that frame as the
 -- leaf and `cumulative_count` equal to the number of
 -- samples with the frame anywhere in the tree.
-CREATE PERFETTO TABLE linux_perf_samples_summary_tree(
+--
+-- Currently, this table is backed by the following data
+-- sources:
+--  * any perf sampling
+--  * generic CPU profiling (e.g. Chrome, ad-hoc traces)
+CREATE PERFETTO TABLE cpu_profiling_summary_tree(
   -- The id of the callstack. A callstack in this context
   -- is a unique set of frames up to the root.
   id INT,
@@ -77,10 +59,27 @@ CREATE PERFETTO TABLE linux_perf_samples_summary_tree(
   -- anywhere on the callstack.
   cumulative_count INT
 ) AS
-SELECT r.*, a.cumulative_count
-FROM _callstacks_self_to_cumulative!((
-  SELECT id, parent_id, self_count
-  FROM _linux_perf_raw_callstacks
-)) a
-JOIN _linux_perf_raw_callstacks r USING (id)
-ORDER BY r.id;
+SELECT
+  id,
+  parent_id,
+  name,
+  mapping_name,
+  source_file,
+  line_number,
+  SUM(self_count) AS self_count,
+  SUM(cumulative_count) AS cumulative_count
+FROM (
+  -- Generic CPU profiling.
+  SELECT r.*, a.cumulative_count
+  FROM _callstacks_self_to_cumulative!((
+    SELECT id, parent_id, self_count
+    FROM _cpu_profiling_raw_callstacks
+  )) a
+  JOIN _cpu_profiling_raw_callstacks r USING (id)
+  UNION ALL
+  -- Linux perf sampling.
+  SELECT *
+  FROM linux_perf_samples_summary_tree
+)
+GROUP BY id
+ORDER BY id;
