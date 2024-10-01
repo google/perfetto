@@ -20,7 +20,11 @@ import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {PerfSamplesSelection, Selection} from '../../public/selection';
+import {
+  PerfSamplesSelection,
+  ProfileType,
+  Selection,
+} from '../../public/selection';
 import {
   QueryFlamegraph,
   QueryFlamegraphAttrs,
@@ -125,7 +129,33 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
     ctx.tabs.registerDetailsPanel(
       new PerfSamplesFlamegraphDetailsPanel(ctx.engine),
     );
+
+    await selectPerfSample(ctx);
   }
+}
+
+async function selectPerfSample(ctx: Trace) {
+  const profile = await assertExists(ctx.engine).query(`
+    select upid
+    from perf_sample
+    join thread using (utid)
+    where callsite_id is not null
+    order by ts desc
+    limit 1
+  `);
+  if (profile.numRows() !== 1) return;
+  const row = profile.firstRow({upid: NUM});
+  const upid = row.upid;
+  const leftTs = ctx.traceInfo.start;
+  const rightTs = ctx.traceInfo.end;
+  ctx.selection.selectLegacy({
+    kind: 'PERF_SAMPLES',
+    id: 0,
+    upid,
+    leftTs,
+    rightTs,
+    type: ProfileType.PERF_SAMPLE,
+  });
 }
 
 class PerfSamplesFlamegraphDetailsPanel implements DetailsPanel {
