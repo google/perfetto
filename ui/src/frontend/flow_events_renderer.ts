@@ -21,7 +21,7 @@ import {Flow} from 'src/core/flow_types';
 import {RenderedPanelInfo} from './panel_container';
 import {TimeScale} from '../base/time_scale';
 import {TrackNode} from '../public/workspace';
-import {TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;

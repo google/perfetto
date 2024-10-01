@@ -24,7 +24,7 @@ import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
 } from '../../frontend/legacy_trace_viewer';
-import {AppImpl} from '../../core/app_trace_impl';
+import {AppImpl} from '../../core/app_impl';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
 const SQL_STATS = `

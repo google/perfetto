@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {AppImpl} from '../core/app_trace_impl';
 import {TraceInfo} from '../public/trace_info';
 import {EngineBase} from '../trace_processor/engine';
+import {TraceImpl} from '../core/trace_impl';
 
 export interface FakeTraceImplArgs {
   // If true suppresses exceptions when trying to issue a query. This is to
@@ -43,7 +43,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     importErrors: 0,
     traceType: 'proto',
   };
-  return AppImpl.instance.newTraceInstance(
+  return TraceImpl.newInstance(
     new FakeEngine(args.allowQueries ?? false),
     fakeTraceInfo,
   );

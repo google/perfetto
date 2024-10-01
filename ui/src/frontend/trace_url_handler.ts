@@ -21,7 +21,7 @@ import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {globals} from './globals';
 import {Route, Router} from './router';
 import {taskTracker} from './task_tracker';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
 
 function getCurrentTraceUrl(): undefined | string {
   const source = AppImpl.instance.trace?.traceInfo.source;

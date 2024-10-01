@@ -43,7 +43,7 @@ import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists, assertFalse} from '../base/logging';
 import {Filter, SqlColumn} from './widgets/sql/table/column';
 import {argSqlColumn} from './widgets/sql/table/well_known_columns';
-import {TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 import {PivotTableManager} from '../core/pivot_table_manager';
 
 interface PathItem {

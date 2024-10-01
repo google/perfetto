@@ -40,7 +40,7 @@ import {
 } from '../common/state_serialization_schema';
 import {z} from 'zod';
 import {showModal} from '../widgets/modal';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
 
 // Permalink serialization has two layers:
 // 1. Serialization of the app state (state_serialization.ts):
