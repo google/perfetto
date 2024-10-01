@@ -235,7 +235,9 @@ class FtraceParser {
 
   void ParseWakeSourceActivate(int64_t timestamp, protozero::ConstBytes);
   void ParseWakeSourceDeactivate(int64_t timestamp, protozero::ConstBytes);
-  void ParseSuspendResume(int64_t timestamp, protozero::ConstBytes);
+  void ParseSuspendResume(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes);
   void ParseSuspendResumeMinimal(int64_t timestamp, protozero::ConstBytes);
   void ParseSchedCpuUtilCfs(int64_t timestamp, protozero::ConstBytes);
 
@@ -301,7 +303,9 @@ class FtraceParser {
                                    protozero::ConstBytes);
   StringId GetRpmStatusStringId(int32_t rpm_status_val);
   void ParseRpmStatus(int64_t ts, protozero::ConstBytes);
-  void ParseDevicePmCallbackStart(int64_t ts, protozero::ConstBytes);
+  void ParseDevicePmCallbackStart(int64_t ts,
+                                  uint32_t pid,
+                                  protozero::ConstBytes);
   void ParseDevicePmCallbackEnd(int64_t ts, protozero::ConstBytes);
   void ParsePanelWriteGeneric(int64_t timestamp,
                               uint32_t pid,
@@ -412,6 +416,14 @@ class FtraceParser {
   const StringId runtime_status_active_id_;
   const StringId runtime_status_suspending_id_;
   const StringId runtime_status_resuming_id_;
+  const StringId suspend_resume_main_event_id_;
+  const StringId suspend_resume_device_pm_event_id_;
+  const StringId suspend_resume_utid_arg_name_;
+  const StringId suspend_resume_device_arg_name_;
+  const StringId suspend_resume_driver_arg_name_;
+  const StringId suspend_resume_callback_phase_arg_name_;
+  const StringId suspend_resume_event_type_arg_name_;
+
   std::vector<StringId> syscall_arg_name_ids_;
 
   struct FtraceMessageStrings {

@@ -271,29 +271,24 @@ bool StrStartsWith(const std::string& str, const std::string& prefix) {
          str.compare(0, prefix.size(), prefix) == 0;
 }
 
-// Constructs the display string for device PM callback slices.
+// Constructs the callback phase name for device PM callback slices.
 //
-// Format: "<driver name> <device name> <event type>[:<callback phase>]"
-//
-// Note: The optional `<callback phase>` is extracted from the `pm_ops` field
-// of the `device_pm_callback_start` tracepoint.
-std::string ConstructDpmCallbackSliceName(const std::string& driver_name,
-                                          const std::string& device_name,
-                                          const std::string& pm_ops,
-                                          const std::string& event_type) {
-  std::string slice_name_base =
-      driver_name + " " + device_name + " " + event_type;
+// Format: "<event type>[:<callback phase>]"
+// Examples: suspend, suspend:late, resume:noirq etc.
+std::string ConstructCallbackPhaseName(const std::string& pm_ops,
+                                       const std::string& event_type) {
+  std::string callback_phase = event_type;
 
   // The Linux kernel has a limitation where the `pm_ops` field in the
   // tracepoint is left empty if the phase is either prepare/complete.
   if (pm_ops == "") {
     if (event_type == "suspend")
-      return slice_name_base + ":prepare";
+      return callback_phase + ":prepare";
     else if (event_type == "resume")
-      return slice_name_base + ":complete";
+      return callback_phase + ":complete";
   }
 
-  // Extract callback phase (if present) for slice display name.
+  // Extract phase (if present) for slice details.
   //
   // The `pm_ops` string may contain both callback phase and callback type, but
   // only phase is needed. A prefix match is used due to potential absence of
@@ -301,11 +296,11 @@ std::string ConstructDpmCallbackSliceName(const std::string& driver_name,
   const std::vector<std::string> valid_phases = {"early", "late", "noirq"};
   for (const std::string& valid_phase : valid_phases) {
     if (StrStartsWith(pm_ops, valid_phase)) {
-      return slice_name_base + ":" + valid_phase;
+      return callback_phase + ":" + valid_phase;
     }
   }
 
-  return slice_name_base;
+  return callback_phase;
 }
 
 }  // namespace
@@ -432,7 +427,20 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       runtime_status_active_id_(context->storage->InternString("Active")),
       runtime_status_suspending_id_(
           context->storage->InternString("Suspending")),
-      runtime_status_resuming_id_(context->storage->InternString("Resuming")) {
+      runtime_status_resuming_id_(context->storage->InternString("Resuming")),
+      suspend_resume_main_event_id_(
+          context->storage->InternString("Main Kernel Suspend Event")),
+      suspend_resume_device_pm_event_id_(
+          context->storage->InternString("Device PM Suspend Event")),
+      suspend_resume_utid_arg_name_(context->storage->InternString("utid")),
+      suspend_resume_device_arg_name_(
+          context->storage->InternString("device_name")),
+      suspend_resume_driver_arg_name_(
+          context->storage->InternString("driver_name")),
+      suspend_resume_callback_phase_arg_name_(
+          context->storage->InternString("callback_phase")),
+      suspend_resume_event_type_arg_name_(
+          context->storage->InternString("event_type")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -1071,7 +1079,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kSuspendResumeFieldNumber: {
-        ParseSuspendResume(ts, fld_bytes);
+        ParseSuspendResume(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kSuspendResumeMinimalFieldNumber: {
@@ -1287,7 +1295,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kDevicePmCallbackStartFieldNumber: {
-        ParseDevicePmCallbackStart(ts, fld_bytes);
+        ParseDevicePmCallbackStart(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kDevicePmCallbackEndFieldNumber: {
@@ -3317,6 +3325,7 @@ void FtraceParser::ParseWakeSourceDeactivate(int64_t timestamp,
 }
 
 void FtraceParser::ParseSuspendResume(int64_t timestamp,
+                                      uint32_t tid,
                                       protozero::ConstBytes blob) {
   protos::pbzero::SuspendResumeFtraceEvent::Decoder evt(blob.data, blob.size);
 
@@ -3364,8 +3373,24 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
 
   TrackId start_id =
       context_->async_track_set_tracker->Begin(async_track, cookie);
+
+  auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(suspend_resume_utid_arg_name_,
+                     Variadic::UnsignedInteger(
+                         context_->process_tracker->GetOrCreateThread(tid)));
+    inserter->AddArg(suspend_resume_event_type_arg_name_,
+                     Variadic::String(suspend_resume_main_event_id_));
+
+    // These fields are set to null as this is not a device PM callback event.
+    inserter->AddArg(suspend_resume_device_arg_name_,
+                     Variadic::String(kNullStringId));
+    inserter->AddArg(suspend_resume_driver_arg_name_,
+                     Variadic::String(kNullStringId));
+    inserter->AddArg(suspend_resume_callback_phase_arg_name_,
+                     Variadic::String(kNullStringId));
+  };
   context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
-                                 slice_name_id);
+                                 slice_name_id, args_inserter);
   ongoing_suspend_resume_actions[current_action] = true;
 }
 
@@ -3566,14 +3591,15 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
 // Parses `device_pm_callback_start` events and begins corresponding slices in
 // the suspend / resume latency UI track.
 void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
+                                              uint32_t tid,
                                               protozero::ConstBytes blob) {
   protos::pbzero::DevicePmCallbackStartFtraceEvent::Decoder dpm_event(
       blob.data, blob.size);
 
   // Device here refers to anything managed by a Linux kernel driver.
   std::string device_name = dpm_event.device().ToStdString();
+  std::string driver_name = dpm_event.driver().ToStdString();
   int64_t cookie;
-
   if (suspend_resume_cookie_map_.Find(device_name) == nullptr) {
     cookie = static_cast<int64_t>(suspend_resume_cookie_map_.size());
     suspend_resume_cookie_map_[device_name] = cookie;
@@ -3581,18 +3607,37 @@ void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
     cookie = suspend_resume_cookie_map_[device_name];
   }
 
-  std::string slice_name = ConstructDpmCallbackSliceName(
-      dpm_event.driver().ToStdString(), device_name,
-      dpm_event.pm_ops().ToStdString(),
-      GetDpmCallbackEventString(dpm_event.event()));
-  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
-
   auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
       suspend_resume_name_id_);
   TrackId track_id =
       context_->async_track_set_tracker->Begin(async_track, cookie);
+
+  std::string slice_name = device_name + " " + driver_name;
+  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
+
+  std::string callback_phase = ConstructCallbackPhaseName(
+      /*pm_ops=*/dpm_event.pm_ops().ToStdString(),
+      /*event_type=*/GetDpmCallbackEventString(dpm_event.event()));
+
+  auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(suspend_resume_utid_arg_name_,
+                     Variadic::UnsignedInteger(
+                         context_->process_tracker->GetOrCreateThread(tid)));
+    inserter->AddArg(suspend_resume_event_type_arg_name_,
+                     Variadic::String(suspend_resume_device_pm_event_id_));
+    inserter->AddArg(
+        suspend_resume_device_arg_name_,
+        Variadic::String(context_->storage->InternString(device_name.c_str())));
+    inserter->AddArg(
+        suspend_resume_driver_arg_name_,
+        Variadic::String(context_->storage->InternString(driver_name.c_str())));
+    inserter->AddArg(suspend_resume_callback_phase_arg_name_,
+                     Variadic::String(context_->storage->InternString(
+                         callback_phase.c_str())));
+  };
+
   context_->slice_tracker->Begin(ts, track_id, suspend_resume_name_id_,
-                                 slice_name_id);
+                                 slice_name_id, args_inserter);
 }
 
 // Parses `device_pm_callback_end` events and ends corresponding slices in the
