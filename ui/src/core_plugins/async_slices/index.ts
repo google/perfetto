@@ -36,6 +36,9 @@ class AsyncSlicePlugin implements PerfettoPlugin {
 
   async addGlobalAsyncTracks(ctx: Trace): Promise<void> {
     const {engine} = ctx;
+    // TODO(stevegolton): The track exclusion logic is currently a hack. This will be replaced
+    // by a mechanism for more specific plugins to override tracks from more generic plugins.
+    const suspendResumeLatencyTrackName = 'Suspend/Resume Latency';
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks_grouped as (
         select
@@ -46,6 +49,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         from track t
         join _slice_track_summary using (id)
         where t.type in ('__intrinsic_track', 'gpu_track', '__intrinsic_cpu_track')
+              and (name != '${suspendResumeLatencyTrackName}' or name is null)
         group by parent_id, name
       )
       select
