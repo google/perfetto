@@ -182,7 +182,7 @@ export class NotesPanel implements Panel {
 
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = globals.timestampOffset();
+      const offset = globals.trace.timeline.timestampOffset();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));

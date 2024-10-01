@@ -441,7 +441,7 @@ export function drawGridLines(
 
   if (size.width > 0 && timespan.duration > 0n) {
     const maxMajorTicks = getMaxMajorTicks(size.width);
-    const offset = globals.timestampOffset();
+    const offset = globals.trace.timeline.timestampOffset();
     for (const {type, time} of generateTicks(timespan, maxMajorTicks, offset)) {
       const px = Math.floor(timescale.timeToPx(time));
       if (type === TickType.MAJOR) {

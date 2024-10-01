@@ -27,4 +27,10 @@ export interface Timeline {
 
   // Render a vertical line on the timeline at this timestamp.
   hoverCursorTimestamp: time | undefined;
+
+  // Get the current timestamp offset.
+  timestampOffset(): time;
+
+  // Get a time in the current domain as specified by timestampOffset.
+  toDomainTime(ts: time): time;
 }

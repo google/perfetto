@@ -102,7 +102,7 @@ export function menuItemForFormat(
 
 function renderTimestamp(time: time): m.Children {
   const fmt = timestampFormat();
-  const domainTime = globals.toDomainTime(time);
+  const domainTime = globals.trace.timeline.toDomainTime(time);
   switch (fmt) {
     case TimestampFormat.UTC:
     case TimestampFormat.TraceTz:
