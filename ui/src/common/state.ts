@@ -14,7 +14,7 @@
 
 import {time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
-import {TraceSource} from '../public/trace_info';
+import {TraceSource} from '../public/trace_source';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
