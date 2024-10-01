@@ -62,7 +62,6 @@ import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
 } from '../common/state_serialization';
-import {ProfileType} from '../public/selection';
 import {TraceInfo} from '../public/trace_info';
 import {AppImpl} from '../core/app_trace_impl';
 import {raf} from '../core/raf_scheduler';
@@ -414,8 +413,6 @@ export class TraceController extends Controller<States> {
       publishHasFtrace(res.numRows() > 0);
     }
 
-    await this.selectPerfSample(traceDetails);
-
     const pendingDeeplink = globals.state.pendingDeeplink;
     if (pendingDeeplink !== undefined) {
       globals.dispatch(Actions.clearPendingDeeplink({}));
@@ -462,30 +459,6 @@ export class TraceController extends Controller<States> {
     await pluginManager.onTraceReady();
 
     return engineMode;
-  }
-
-  private async selectPerfSample(traceTime: {start: time; end: time}) {
-    const profile = await assertExists(this.engine).query(`
-      select upid
-      from perf_sample
-      join thread using (utid)
-      where callsite_id is not null
-      order by ts desc
-      limit 1
-    `);
-    if (profile.numRows() !== 1) return;
-    const row = profile.firstRow({upid: NUM});
-    const upid = row.upid;
-    const leftTs = traceTime.start;
-    const rightTs = traceTime.end;
-    globals.selectionManager.selectLegacy({
-      kind: 'PERF_SAMPLES',
-      id: 0,
-      upid,
-      leftTs,
-      rightTs,
-      type: ProfileType.PERF_SAMPLE,
-    });
   }
 
   private async selectPendingDeeplink(link: PendingDeeplinkState) {
