@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {Duration, time, Time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
@@ -49,7 +48,6 @@ import {
   resetEngineWorker,
   WasmEngineProxy,
 } from '../trace_processor/wasm_engine_proxy';
-import {showModal} from '../widgets/modal';
 import {Controller} from './controller';
 import {
   TraceBufferStream,
@@ -134,32 +132,6 @@ const FTRACE_DROP_UNTIL_FLAG = featureFlags.register({
     'Drop ftrace events until all per-cpu data streams are known to be valid',
   defaultValue: true,
 });
-
-// A local storage key where the indication that JSON warning has been shown is
-// stored.
-const SHOWN_JSON_WARNING_KEY = 'shownJsonWarning';
-
-function showJsonWarning() {
-  showModal({
-    title: 'Warning',
-    content: m(
-      'div',
-      m(
-        'span',
-        'Perfetto UI features are limited for JSON traces. ',
-        'We recommend recording ',
-        m(
-          'a',
-          {href: 'https://perfetto.dev/docs/quickstart/chrome-tracing'},
-          'proto-format traces',
-        ),
-        ' from Chrome.',
-      ),
-      m('br'),
-    ),
-    buttons: [],
-  });
-}
 
 // TODO(stevegolton): Move this into some global "SQL extensions" file and
 // ensure it's only run once.
@@ -337,31 +309,12 @@ export class TraceController extends Controller<States> {
     // traceUuid will be '' if the trace is not cacheable (URL or RPC).
     const traceUuid = await this.cacheCurrentTrace();
 
-    const traceDetails = await getTraceTimeDetails(this.engine, engineCfg);
+    const traceDetails = await getTraceInfo(this.engine, engineCfg);
     if (traceDetails.traceTitle) {
       document.title = `${traceDetails.traceTitle} - Perfetto UI`;
     }
     const trace = AppImpl.instance.newTraceInstance(this.engine, traceDetails);
     await globals.onTraceLoad(trace);
-
-    const shownJsonWarning =
-      window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
-
-    // Show warning if the trace is in JSON format.
-    const query = `select str_value from metadata where name = 'trace_type'`;
-    const result = await assertExists(this.engine).query(query);
-    const traceType = result.firstRow({str_value: STR}).str_value;
-    const isJsonTrace = traceType == 'json';
-    if (!shownJsonWarning) {
-      // When in embedded mode, the host app will control which trace format
-      // it passes to Perfetto, so we don't need to show this warning.
-      if (isJsonTrace && !globals.embeddedMode) {
-        showJsonWarning();
-        // Save that the warning has been shown. Value is irrelevant since only
-        // the presence of key is going to be checked.
-        window.localStorage.setItem(SHOWN_JSON_WARNING_KEY, 'true');
-      }
-    }
 
     AppImpl.instance.omnibox.reset();
     const actions: DeferredAction[] = [Actions.setTraceUuid({traceUuid})];
@@ -369,7 +322,7 @@ export class TraceController extends Controller<States> {
     const visibleTimeSpan = await computeVisibleTime(
       traceDetails.start,
       traceDetails.end,
-      isJsonTrace,
+      trace.traceInfo.traceType === 'json',
       this.engine,
     );
 
@@ -436,7 +389,10 @@ export class TraceController extends Controller<States> {
 
     // Trace Processor doesn't support the reliable range feature for JSON
     // traces.
-    if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
+    if (
+      trace.traceInfo.traceType !== 'json' &&
+      ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()
+    ) {
       const reliableRangeStart = await computeTraceReliableRangeStart(engine);
       if (reliableRangeStart > 0) {
         globals.noteManager.addNote({
@@ -935,7 +891,7 @@ async function computeVisibleTime(
   return new TimeSpan(visibleStart, visibleEnd);
 }
 
-async function getTraceTimeDetails(
+async function getTraceInfo(
   engine: Engine,
   engineCfg: EngineConfig,
 ): Promise<TraceInfo> {
@@ -1032,6 +988,12 @@ async function getTraceTimeDetails(
       break;
   }
 
+  const traceType = (
+    await engine.query(
+      `select str_value from metadata where name = 'trace_type'`,
+    )
+  ).firstRow({str_value: STR}).str_value;
+
   return {
     ...traceTime,
     traceTitle,
@@ -1043,6 +1005,7 @@ async function getTraceTimeDetails(
     gpuCount: await getNumberOfGpus(engine),
     importErrors: await getTraceErrors(engine),
     source: engineCfg.source,
+    traceType,
   };
 }
 
