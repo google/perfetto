@@ -16,7 +16,7 @@ import {produce} from 'immer';
 import {assertExists} from '../base/logging';
 import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';
-import {TraceUrlSource} from '../public/trace_info';
+import {TraceUrlSource} from '../public/trace_source';
 
 test('open trace', () => {
   const state = createEmptyState();
