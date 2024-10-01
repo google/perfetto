@@ -88,7 +88,6 @@ class Globals {
   private _trackDataStore?: TrackDataStore = undefined;
   private _overviewStore?: OverviewStore = undefined;
   private _threadMap?: ThreadMap = undefined;
-  private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
   private _metricError?: string = undefined;
@@ -251,14 +250,6 @@ class Globals {
 
   setMetricError(arg: string) {
     this._metricError = arg;
-  }
-
-  set numQueuedQueries(value: number) {
-    this._numQueriesQueued = value;
-  }
-
-  get numQueuedQueries() {
-    return this._numQueriesQueued;
   }
 
   get bufferUsage() {
