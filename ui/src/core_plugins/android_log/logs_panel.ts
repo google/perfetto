@@ -14,10 +14,8 @@
 
 import m from 'mithril';
 import {time, Time, TimeSpan} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {raf} from '../../core/raf_scheduler';
 import {DetailsShell} from '../../widgets/details_shell';
-import {globals} from '../../frontend/globals';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
@@ -124,11 +122,11 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         onRowHover: (id) => {
           const timestamp = this.entries?.timestamps[id];
           if (timestamp !== undefined) {
-            globals.dispatch(Actions.setHoverCursorTimestamp({ts: timestamp}));
+            attrs.trace.timeline.hoverCursorTimestamp = timestamp;
           }
         },
         onRowOut: () => {
-          globals.dispatch(Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
+          attrs.trace.timeline.hoverCursorTimestamp = undefined;
         },
       }),
     );

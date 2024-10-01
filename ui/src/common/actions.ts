@@ -281,10 +281,6 @@ export const StateActions = {
     state.highlightedSliceId = args.sliceId;
   },
 
-  setHoverCursorTimestamp(state: StateDraft, args: {ts: time}) {
-    state.hoverCursorTimestamp = args.ts;
-  },
-
   setHoveredNoteTimestamp(state: StateDraft, args: {ts: time}) {
     state.hoveredNoteTimestamp = args.ts;
   },
