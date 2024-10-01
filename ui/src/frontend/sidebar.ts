@@ -48,7 +48,7 @@ import {
 import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
 import {formatHotkey} from '../base/hotkeys';
 import {SidebarMenuItem} from '../public/sidebar';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
 
 const GITILES_URL =

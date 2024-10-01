@@ -31,7 +31,7 @@ import {
   sqlIdRegistry,
 } from './sql/details/sql_ref_renderer_registry';
 import {asUpid} from '../../trace_processor/sql_utils/core_types';
-import {AppImpl} from '../../core/app_trace_impl';
+import {AppImpl} from '../../core/app_impl';
 
 export function showProcessDetailsMenuItem(
   upid: Upid,

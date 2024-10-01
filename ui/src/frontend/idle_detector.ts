@@ -14,7 +14,7 @@
 
 import {defer} from '../base/deferred';
 import {raf} from '../core/raf_scheduler';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
 
 /**
  * This class is exposed by index.ts as window.waitForPerfettoIdle() and is used

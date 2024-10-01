@@ -61,8 +61,9 @@ import {
   deserializeAppStatePhase2,
 } from '../common/state_serialization';
 import {TraceInfo} from '../public/trace_info';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
 import {raf} from '../core/raf_scheduler';
+import {TraceImpl} from '../core/trace_impl';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -313,7 +314,7 @@ export class TraceController extends Controller<States> {
     if (traceDetails.traceTitle) {
       document.title = `${traceDetails.traceTitle} - Perfetto UI`;
     }
-    const trace = AppImpl.instance.newTraceInstance(this.engine, traceDetails);
+    const trace = TraceImpl.newInstance(this.engine, traceDetails);
     await globals.onTraceLoad(trace);
 
     AppImpl.instance.omnibox.reset();

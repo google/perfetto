@@ -19,7 +19,7 @@ import {Duration, Time, TimeSpan, duration, time} from '../base/time';
 import {TimeScale} from '../base/time_scale';
 import {Optional} from '../base/utils';
 import {calculateResolution} from '../common/resolution';
-import {TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 import {LONG, NUM} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
 import {createVirtualTable} from '../trace_processor/sql_utils';

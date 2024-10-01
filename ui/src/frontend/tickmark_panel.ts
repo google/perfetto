@@ -24,7 +24,7 @@ import {
   createSearchOverviewTrack,
   SearchOverviewTrack,
 } from './search_overview_track';
-import {TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 
 // We want to create the overview track only once per trace, but this
 // class can be delete and re-instantiated when switching between pages via

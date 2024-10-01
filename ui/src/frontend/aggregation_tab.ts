@@ -35,7 +35,7 @@ import {
 } from '../core/query_flamegraph';
 import {DisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/logging';
-import {TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 import {Trace} from '../public/trace';
 
 interface View {

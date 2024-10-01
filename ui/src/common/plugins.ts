@@ -21,7 +21,8 @@ import {Flag, featureFlags} from '../core/feature_flags';
 import {assertExists, assertTrue} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
-import {AppImpl, CORE_PLUGIN_ID, TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
+import {AppImpl, CORE_PLUGIN_ID} from '../core/app_impl';
 
 // 'Static' registry of all known plugins.
 export class PluginRegistry extends Registry<PluginDescriptor> {

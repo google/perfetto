@@ -23,7 +23,8 @@ import {
 } from './state_serialization_schema';
 import {TimeSpan} from '../base/time';
 import {ProfileType} from '../public/selection';
-import {AppImpl, TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
+import {AppImpl} from '../core/app_impl';
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
