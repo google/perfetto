@@ -140,7 +140,7 @@ class Slices(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE slices.cpu_time;
 
-        SELECT *
+        SELECT id, cpu_time
         FROM thread_slice_cpu_time
         LIMIT 10;
         """,
