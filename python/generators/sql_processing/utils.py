@@ -118,7 +118,8 @@ ALLOWED_PREFIXES = {
     'intervals': ['interval'],
     'graphs': ['graph'],
     'slices': ['slice'],
-    'linux': ['cpu', 'memory']
+    'linux': ['cpu', 'memory'],
+    'stacks': ['cpu_profiling'],
 }
 
 # Allows for nonstandard object names.
