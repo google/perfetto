@@ -196,7 +196,7 @@ export class TimeSelectionPanel implements Panel {
     for (const note of globals.noteManager.notes.values()) {
       const noteIsSelected =
         selection.kind === 'note' && selection.id === note.id;
-      if (note.noteType === 'SPAN' && !noteIsSelected) {
+      if (note.noteType === 'SPAN' && noteIsSelected) {
         this.renderSpan(ctx, timescale, size, note.start, note.end);
       }
     }
