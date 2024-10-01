@@ -16,7 +16,7 @@ import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists} from '../base/logging';
 import {globals} from '../frontend/globals';
 import {StatusResult} from '../protos';
-import {EngineBase, LoadingTracker} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
@@ -36,8 +36,8 @@ export class HttpRpcEngine extends EngineBase {
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
 
-  constructor(id: string, loadingTracker?: LoadingTracker) {
-    super(loadingTracker);
+  constructor(id: string) {
+    super();
     this.id = id;
   }
 

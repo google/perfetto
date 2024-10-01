@@ -60,13 +60,6 @@ export function publishConversionJobStatusUpdate(
   globals.publishRedraw();
 }
 
-export function publishLoading(numQueuedQueries: number) {
-  globals.numQueuedQueries = numQueuedQueries;
-  // TODO(hjd): Clean up loadingAnimation given that this now causes a full
-  // redraw anyways. Also this should probably just go via the global state.
-  raf.scheduleFullRedraw();
-}
-
 export function publishBufferUsage(args: {percentage: number}) {
   globals.setBufferUsage(args.percentage);
   globals.publishRedraw();

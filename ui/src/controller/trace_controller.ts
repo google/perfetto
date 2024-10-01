@@ -51,7 +51,6 @@ import {
 } from '../trace_processor/wasm_engine_proxy';
 import {showModal} from '../widgets/modal';
 import {Controller} from './controller';
-import {LoadingManager} from './loading_manager';
 import {
   TraceBufferStream,
   TraceFileStream,
@@ -66,6 +65,7 @@ import {
 import {ProfileType, profileType} from '../public/selection';
 import {TraceInfo} from '../public/trace_info';
 import {AppImpl} from '../core/app_trace_impl';
+import {raf} from '../core/raf_scheduler';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -253,7 +253,7 @@ export class TraceController extends Controller<States> {
     if (useRpc) {
       console.log('Opening trace using native accelerator over HTTP+RPC');
       engineMode = 'HTTP_RPC';
-      engine = new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
+      engine = new HttpRpcEngine(this.engineId);
       engine.errorHandler = (err) => {
         globals.dispatch(
           Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}),
@@ -264,11 +264,7 @@ export class TraceController extends Controller<States> {
       console.log('Opening trace using built-in WASM engine');
       engineMode = 'WASM';
       const enginePort = resetEngineWorker();
-      engine = new WasmEngineProxy(
-        this.engineId,
-        enginePort,
-        LoadingManager.getInstance,
-      );
+      engine = new WasmEngineProxy(this.engineId, enginePort);
       engine.resetTraceProcessor({
         cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
         ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
@@ -276,6 +272,7 @@ export class TraceController extends Controller<States> {
         ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
       });
     }
+    engine.onResponseReceived = () => raf.scheduleFullRedraw();
     this.engine = engine;
 
     if (isMetatracingEnabled()) {

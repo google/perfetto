@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/logging';
-import {EngineBase, LoadingTracker} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 
 let bundlePath: string;
 let idleWasmWorker: Worker;
@@ -51,8 +51,8 @@ export class WasmEngineProxy extends EngineBase {
   readonly id: string;
   private port: MessagePort;
 
-  constructor(id: string, port: MessagePort, loadingTracker?: LoadingTracker) {
-    super(loadingTracker);
+  constructor(id: string, port: MessagePort) {
+    super();
     this.id = id;
     this.port = port;
     this.port.onmessage = this.onMessage.bind(this);
