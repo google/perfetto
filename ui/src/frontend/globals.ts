@@ -33,11 +33,8 @@ import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
 import {Workspace} from '../public/workspace';
 import {ratelimit} from './rate_limiters';
-import {
-  AppImpl,
-  setRerunControllersFunction,
-  TraceImpl,
-} from '../core/app_trace_impl';
+import {setRerunControllersFunction, TraceImpl} from '../core/trace_impl';
+import {AppImpl} from '../core/app_impl';
 import {createFakeTraceImpl} from '../common/fake_trace_impl';
 
 type DispatchMultiple = (actions: DeferredAction[]) => void;

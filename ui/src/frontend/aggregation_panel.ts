@@ -25,7 +25,7 @@ import {EmptyState} from '../widgets/empty_state';
 import {Anchor} from '../widgets/anchor';
 import {Icons} from '../base/semantic_icons';
 import {translateState} from '../trace_processor/sql_utils/thread_state';
-import {TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 
 export interface AggregationPanelAttrs {
   data?: AggregateData;

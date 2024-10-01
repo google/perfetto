@@ -15,12 +15,10 @@
 import {DisposableStack} from '../base/disposable_stack';
 import {assertTrue} from '../base/logging';
 import {createStore, Migrate, Store} from '../base/store';
-import {TimelineImpl} from '../core/timeline';
-import {App} from '../public/app';
+import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
-import {setScrollToFunction} from '../public/scroll_helper';
-import {ScrollToArgs} from '../public/scroll_helper';
+import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
 import {TraceInfo} from '../public/trace_info';
 import {TrackDescriptor} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
@@ -37,126 +35,9 @@ import {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
-import {raf} from './raf_scheduler';
 import {PivotTableManager} from './pivot_table_manager';
 import {FlowManager} from './flow_manager';
-
-// The pseudo plugin id used for the core instance of AppImpl.
-export const CORE_PLUGIN_ID = '__core__';
-
-/**
- * Handles the global state of the ui, for anything that is not related to a
- * specific trace. This is always available even before a trace is loaded (in
- * contrast to TraceContext, which is bound to the lifetime of a trace).
- * There is only one instance in total of this class (see instance()).
- * This class is not exposed to anybody. Both core and plugins should access
- * this via AppImpl.
- */
-class AppContext {
-  readonly commandMgr = new CommandManagerImpl();
-  readonly omniboxMgr = new OmniboxManagerImpl();
-  readonly sidebarMgr = new SidebarManagerImpl();
-
-  // The most recently created trace context. Can be undefined before any trace
-  // is loaded.
-  private traceCtx?: TraceContext;
-
-  // There is only one global instance, lazily initialized on the first call.
-  private static _instance: AppContext;
-  static get instance() {
-    return (AppContext._instance = AppContext._instance ?? new AppContext());
-  }
-
-  private constructor() {}
-
-  get currentTraceCtx(): TraceContext | undefined {
-    return this.traceCtx;
-  }
-
-  // Called by AppImpl.newTraceInstance().
-  setActiveTrace(traceCtx: TraceContext | undefined) {
-    if (this.traceCtx !== undefined) {
-      // This will trigger the unregistration of trace-scoped commands and
-      // sidebar menuitems (and few similar things).
-      this.traceCtx[Symbol.dispose]();
-    }
-    this.traceCtx = traceCtx;
-
-    // TODO(primiano): remove this injection once we plumb Trace everywhere.
-    setScrollToFunction((args: ScrollToArgs) =>
-      traceCtx?.scrollHelper.scrollTo(args),
-    );
-  }
-}
-
-/*
- * Every plugin gets its own instance. This is how we keep track
- * what each plugin is doing and how we can blame issues on particular
- * plugins.
- * The instance exists for the whole duration a plugin is active.
- */
-export class AppImpl implements App {
-  private appCtx: AppContext;
-  readonly pluginId: string;
-  private currentTrace?: TraceImpl;
-
-  private constructor(appCtx: AppContext, pluginId: string) {
-    this.appCtx = appCtx;
-    this.pluginId = pluginId;
-  }
-
-  // Gets access to the one instance that the core can use. Note that this is
-  // NOT the only instance, as other AppImpl instance will be created for each
-  // plugin.
-  private static _instance: AppImpl;
-  static get instance(): AppImpl {
-    AppImpl._instance =
-      AppImpl._instance ?? new AppImpl(AppContext.instance, CORE_PLUGIN_ID);
-    return AppImpl._instance;
-  }
-
-  get commands(): CommandManagerImpl {
-    return this.appCtx.commandMgr;
-  }
-
-  get sidebar(): SidebarManagerImpl {
-    return this.appCtx.sidebarMgr;
-  }
-
-  get omnibox(): OmniboxManagerImpl {
-    return this.appCtx.omniboxMgr;
-  }
-
-  get trace(): TraceImpl | undefined {
-    return this.currentTrace;
-  }
-
-  closeCurrentTrace() {
-    this.currentTrace = undefined;
-    this.appCtx.setActiveTrace(undefined);
-  }
-
-  scheduleRedraw(): void {
-    raf.scheduleFullRedraw();
-  }
-
-  // This is called by TraceController when loading a new trace, soon after the
-  // engine has been set up. It obtains a new TraceImpl for the core. From that
-  // we can fork sibling instances (i.e. bound to the same TraceContext) for
-  // the various plugins.
-  newTraceInstance(engine: EngineBase, traceInfo: TraceInfo): TraceImpl {
-    const traceCtx = new TraceContext(this.appCtx, engine, traceInfo);
-    this.appCtx.setActiveTrace(traceCtx);
-    const newTrace = new TraceImpl(this, traceCtx);
-    this.currentTrace = newTrace;
-    return this.currentTrace;
-  }
-
-  forkForPlugin(pluginId: string): AppImpl {
-    assertTrue(pluginId != CORE_PLUGIN_ID);
-    return new AppImpl(this.appCtx, pluginId);
-  }
-}
+import {AppContext, AppImpl, CORE_PLUGIN_ID} from './app_impl';
 
 /**
  * Handles the per-trace state of the UI
@@ -166,7 +47,7 @@ export class AppImpl implements App {
  * This is the underlying storage for AppImpl, which instead has one instance
  * per trace per plugin.
  */
-class TraceContext implements Disposable {
+export class TraceContext implements Disposable {
   readonly appCtx: AppContext;
   readonly engine: EngineBase;
   readonly omniboxMgr = new OmniboxManagerImpl();
@@ -284,6 +165,22 @@ export class TraceImpl implements Trace {
   private trackMgrProxy: TrackManagerImpl;
   private commandMgrProxy: CommandManagerImpl;
   private sidebarProxy: SidebarManagerImpl;
+
+  // This is called by TraceController when loading a new trace, soon after the
+  // engine has been set up. It obtains a new TraceImpl for the core. From that
+  // we can fork sibling instances (i.e. bound to the same TraceContext) for
+  // the various plugins.
+  static newInstance(engine: EngineBase, traceInfo: TraceInfo): TraceImpl {
+    const appCtx = AppContext.instance;
+    const appImpl = AppImpl.instance;
+    const traceCtx = new TraceContext(appCtx, engine, traceInfo);
+    const traceImpl = new TraceImpl(appImpl, traceCtx);
+    appImpl.setActiveTrace(traceImpl, traceCtx);
+
+    // TODO(primiano): remove this injection once we plumb Trace everywhere.
+    setScrollToFunction((x: ScrollToArgs) => traceCtx.scrollHelper.scrollTo(x));
+    return traceImpl;
+  }
 
   constructor(appImpl: AppImpl, ctx: TraceContext) {
     const pluginId = appImpl.pluginId;

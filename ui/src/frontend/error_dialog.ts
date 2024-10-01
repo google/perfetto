@@ -22,7 +22,7 @@ import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {globals} from './globals';
 import {Router} from './router';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
 
 const MODAL_KEY = 'crash_modal';
 

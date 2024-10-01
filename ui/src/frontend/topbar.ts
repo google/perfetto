@@ -20,7 +20,7 @@ import {taskTracker} from './task_tracker';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {assertFalse} from '../base/logging';
 import {OmniboxMode} from '../core/omnibox_manager';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
 import {Trace, TraceAttrs} from '../public/trace';
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
