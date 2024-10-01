@@ -67,49 +67,6 @@ SELECT
   unnormalized_utilization
 FROM cpu_utilization_per_period(time_from_s(1));
 
--- Aggregated CPU statistics for runtime of each thread on a CPU.
-CREATE PERFETTO TABLE _cpu_cycles_raw(
-  -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu INT,
-  -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
-  cpu INT,
-  -- Unique thread id. Joinable with `thread.id`.
-  utid INT,
-  -- Sum of CPU millicycles.
-  millicycles INT,
-  -- Sum of CPU megacycles.
-  megacycles INT,
-  -- Total runtime duration.
-  runtime INT,
-  -- Minimum CPU frequency in kHz.
-  min_freq INT,
-  -- Maximum CPU frequency in kHz.
-  max_freq INT,
-  -- Average CPU frequency in kHz.
-  avg_freq INT
-) AS
-SELECT
-  ucpu,
-  cpu,
-  utid,
-  -- We divide by 1e3 here as dur is in ns and freq in khz. In total
-  -- this means we need to divide the duration by 1e9 and multiply the
-  -- frequency by 1e3 then multiply again by 1e3 to get millicycles
-  -- i.e. divide by 1e3 in total.
-  -- We use millicycles as we want to preserve this level of precision
-  -- for future calculations.
-  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
-  SUM(dur) AS runtime,
-  MIN(freq) AS min_freq,
-  MAX(freq) AS max_freq,
-  -- We choose to work in micros space in both the numerator and
-  -- denominator as this gives us good enough precision without risking
-  -- overflows.
-  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
-FROM _cpu_freq_per_thread
-GROUP BY utid, ucpu;
-
 -- Aggregated CPU statistics for whole trace. Results in only one row.
 CREATE PERFETTO TABLE cpu_cycles(
   -- Sum of CPU millicycles.
