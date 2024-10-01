@@ -34,6 +34,7 @@ const MIN_DURATION = 10;
 export class TimelineImpl implements Timeline {
   private _visibleWindow: HighPrecisionTimeSpan;
   private readonly traceSpan: TimeSpan;
+  private _hoverCursorTimestamp?: time;
 
   // This is a giant hack. Basically, removing visible window from the state
   // means that we no longer update the state periodically while navigating
@@ -139,5 +140,14 @@ export class TimelineImpl implements Timeline {
   // Get the bounds of the visible window as a high-precision time span
   get visibleWindow(): HighPrecisionTimeSpan {
     return this._visibleWindow;
+  }
+
+  get hoverCursorTimestamp(): time | undefined {
+    return this._hoverCursorTimestamp;
+  }
+
+  set hoverCursorTimestamp(t: time | undefined) {
+    this._hoverCursorTimestamp = t;
+    raf.scheduleRedraw();
   }
 }

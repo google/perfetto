@@ -459,11 +459,11 @@ export function renderHoveredCursorVertical(
   timescale: TimeScale,
   size: Size2D,
 ) {
-  if (globals.state.hoverCursorTimestamp !== -1n) {
+  if (globals.trace.timeline.hoverCursorTimestamp !== undefined) {
     drawVerticalLineAtTime(
       ctx,
       timescale,
-      globals.state.hoverCursorTimestamp,
+      globals.trace.timeline.hoverCursorTimestamp,
       size.height,
       `#344596`,
     );

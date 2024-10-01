@@ -24,4 +24,7 @@ export interface Timeline {
 
   // A span representing the current viewport location.
   readonly visibleWindow: HighPrecisionTimeSpan;
+
+  // Render a vertical line on the timeline at this timestamp.
+  hoverCursorTimestamp: time | undefined;
 }

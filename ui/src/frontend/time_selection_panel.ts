@@ -184,12 +184,12 @@ export class TimeSelectionPanel implements Panel {
       this.renderSpan(ctx, timescale, size, start, end);
     }
 
-    if (globals.state.hoverCursorTimestamp !== -1n) {
+    if (globals.trace.timeline.hoverCursorTimestamp !== undefined) {
       this.renderHover(
         ctx,
         timescale,
         size,
-        globals.state.hoverCursorTimestamp,
+        globals.trace.timeline.hoverCursorTimestamp,
       );
     }
 
