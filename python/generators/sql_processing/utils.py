@@ -125,7 +125,7 @@ ALLOWED_PREFIXES = {
 OBJECT_NAME_ALLOWLIST = {
     'graphs/partition.sql': ['tree_structural_partition_by_group'],
     'slices/with_context.sql': ['process_slice', 'thread_slice'],
-    'slices/cpu_time.sql': ['thread_slice_cpu_time']
+    'slices/cpu_time.sql': ['thread_slice_cpu_time', 'thread_slice_cpu_cycles']
 }
 
 
