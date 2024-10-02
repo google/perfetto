@@ -131,10 +131,6 @@ export const StateActions = {
     };
   },
 
-  setTraceUuid(state: StateDraft, args: {traceUuid: string}) {
-    state.traceUuid = args.traceUuid;
-  },
-
   requestTrackReload(state: StateDraft, _: {}) {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (state.lastTrackReloadRequest) {
