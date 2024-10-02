@@ -67,4 +67,6 @@ class FakeEngine extends EngineBase {
       );
     }
   }
+
+  [Symbol.dispose]() {}
 }

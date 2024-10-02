@@ -106,7 +106,7 @@ export interface Engine {
 // 1. Implement the abstract rpcSendRequestBytes() function, sending the
 //    proto-encoded TraceProcessorRpc requests to the TraceProcessor instance.
 // 2. Call onRpcResponseBytes() when response data is received.
-export abstract class EngineBase implements Engine {
+export abstract class EngineBase implements Engine, Disposable {
   abstract readonly id: string;
   private txSeqId = 0;
   private rxSeqId = 0;
@@ -509,6 +509,8 @@ export abstract class EngineBase implements Engine {
   getProxy(tag: string): EngineProxy {
     return new EngineProxy(this, tag);
   }
+
+  abstract [Symbol.dispose](): void;
 }
 
 // Lightweight engine proxy which annotates all queries with a tag

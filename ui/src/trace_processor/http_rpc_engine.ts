@@ -32,6 +32,7 @@ export class HttpRpcEngine extends EngineBase {
   private requestQueue = new Array<Uint8Array>();
   private websocket?: WebSocket;
   private connected = false;
+  private disposed = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
@@ -43,6 +44,7 @@ export class HttpRpcEngine extends EngineBase {
 
   rpcSendRequestBytes(data: Uint8Array): void {
     if (this.websocket === undefined) {
+      if (this.disposed) return;
       const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket`;
       this.websocket = new WebSocket(wsUrl);
       this.websocket.onopen = () => this.onWebsocketConnected();
@@ -71,6 +73,7 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   private onWebsocketClosed(e: CloseEvent) {
+    if (this.disposed) return;
     if (e.code === 1006 && this.connected) {
       // On macbooks the act of closing the lid / suspending often causes socket
       // disconnections. Try to gracefully re-connect.
@@ -123,5 +126,12 @@ export class HttpRpcEngine extends EngineBase {
 
   static get hostAndPort() {
     return `127.0.0.1:${HttpRpcEngine.rpcPort}`;
+  }
+
+  [Symbol.dispose]() {
+    this.disposed = true;
+    const websocket = this.websocket;
+    this.websocket = undefined;
+    websocket?.close();
   }
 }

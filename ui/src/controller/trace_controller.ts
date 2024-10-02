@@ -44,10 +44,7 @@ import {
   STR,
   STR_NULL,
 } from '../trace_processor/query_result';
-import {
-  resetEngineWorker,
-  WasmEngineProxy,
-} from '../trace_processor/wasm_engine_proxy';
+import {WasmEngineProxy} from '../trace_processor/wasm_engine_proxy';
 import {Controller} from './controller';
 import {
   TraceBufferStream,
@@ -235,8 +232,7 @@ export class TraceController extends Controller<States> {
     } else {
       console.log('Opening trace using built-in WASM engine');
       engineMode = 'WASM';
-      const enginePort = resetEngineWorker();
-      engine = new WasmEngineProxy(this.engineId, enginePort);
+      engine = new WasmEngineProxy(this.engineId);
       engine.resetTraceProcessor({
         cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
         ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
