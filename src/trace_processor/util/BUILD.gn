@@ -278,6 +278,7 @@ source_set("trace_type") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace:non_minimal_zero",
+    "../../protozero",
     "../importers/android_bugreport:android_log_event",
   ]
 }

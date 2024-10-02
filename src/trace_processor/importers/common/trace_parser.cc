@@ -26,6 +26,7 @@ JsonTraceParser::~JsonTraceParser() = default;
 PerfRecordParser::~PerfRecordParser() = default;
 ProtoTraceParser::~ProtoTraceParser() = default;
 SpeRecordParser::~SpeRecordParser() = default;
+GeckoTraceParser::~GeckoTraceParser() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

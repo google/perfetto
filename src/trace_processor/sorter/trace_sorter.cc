@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -262,6 +263,10 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
       context.proto_trace_parser->ParseLegacyV8ProfileEvent(
           event.ts, token_buffer_.Extract<LegacyV8CpuProfileEvent>(id));
       return;
+    case TimestampedEvent::Type::kGeckoEvent:
+      context.gecko_trace_parser->ParseGeckoEvent(
+          event.ts, token_buffer_.Extract<gecko_importer::GeckoEvent>(id));
+      return;
     case TimestampedEvent::Type::kInlineSchedSwitch:
     case TimestampedEvent::Type::kInlineSchedWaking:
     case TimestampedEvent::Type::kEtwEvent:
@@ -294,6 +299,7 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kFuchsiaRecord:
     case TimestampedEvent::Type::kAndroidLogEvent:
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
+    case TimestampedEvent::Type::kGeckoEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -328,6 +334,7 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kFuchsiaRecord:
     case TimestampedEvent::Type::kAndroidLogEvent:
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
+    case TimestampedEvent::Type::kGeckoEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -377,6 +384,10 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
       return;
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
       base::ignore_result(token_buffer_.Extract<LegacyV8CpuProfileEvent>(id));
+      return;
+    case TimestampedEvent::Type::kGeckoEvent:
+      base::ignore_result(
+          token_buffer_.Extract<gecko_importer::GeckoEvent>(id));
       return;
   }
   PERFETTO_FATAL("For GCC");

@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
@@ -50,6 +51,8 @@
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
+#include "src/trace_processor/importers/gecko/gecko_trace_parser_impl.h"
+#include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 #include "src/trace_processor/importers/json/json_trace_parser_impl.h"
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
@@ -415,7 +418,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       std::make_unique<instruments_importer::RowParser>(&context_);
 #endif
 
-  if (util::IsGzipSupported()) {
+  if constexpr (util::IsGzipSupported()) {
     context_.reader_registry->RegisterTraceReader<GzipTraceParser>(
         kGzipTraceType);
     context_.reader_registry->RegisterTraceReader<GzipTraceParser>(
@@ -423,11 +426,19 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
   }
 
-  if (json::IsJsonSupported()) {
+  if constexpr (json::IsJsonSupported()) {
     context_.reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
         kJsonTraceType);
     context_.json_trace_parser =
         std::make_unique<JsonTraceParserImpl>(&context_);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+    context_.reader_registry
+        ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
+            kGeckoTraceType);
+    context_.gecko_trace_parser =
+        std::make_unique<gecko_importer::GeckoTraceParserImpl>(&context_);
+#endif
   }
 
   if (context_.config.analyze_trace_proto_content) {
