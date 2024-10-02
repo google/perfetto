@@ -240,8 +240,16 @@ class PerfSamplesFlamegraphDetailsPanel implements DetailsPanel {
             'include perfetto module linux.perf.samples',
             [{name: 'mapping_name', displayName: 'Mapping'}],
             [
-              {name: 'source_file', displayName: 'Source File'},
-              {name: 'line_number', displayName: 'Line Number'},
+              {
+                name: 'source_file',
+                displayName: 'Source File',
+                mergeAggregation: 'ONE_OR_NULL',
+              },
+              {
+                name: 'line_number',
+                displayName: 'Line Number',
+                mergeAggregation: 'ONE_OR_NULL',
+              },
             ],
           ),
         ],
