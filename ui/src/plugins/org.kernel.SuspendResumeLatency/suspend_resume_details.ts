@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncLimiter} from '../../base/async_limiter';
 import {Duration, duration, Time, time} from '../../base/time';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 import m from 'mithril';
@@ -26,9 +25,8 @@ import {Anchor} from '../../widgets/anchor';
 import {globals} from '../../frontend/globals';
 import {scrollTo} from '../../public/scroll_helper';
 import {Engine} from '../../trace_processor/engine';
-import {TrackSelectionDetailsPanel} from '../../public/details_panel';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {scheduleFullRedraw} from '../../widgets/raf';
 
 interface SuspendResumeEventDetails {
   ts: time;
@@ -41,32 +39,22 @@ interface SuspendResumeEventDetails {
   thread_state_id: number;
 }
 
-export class SuspendResumeDetailsPanel implements TrackSelectionDetailsPanel {
-  private readonly queryLimiter = new AsyncLimiter();
+export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
   private readonly engine: Engine;
-  private id?: number;
   private suspendResumeEventDetails?: SuspendResumeEventDetails;
 
   constructor(engine: Engine) {
     this.engine = engine;
   }
 
-  render(id: number): m.Children {
-    if (id !== this.id) {
-      this.id = id;
-      this.queryLimiter.schedule(async () => {
-        this.suspendResumeEventDetails = await loadSuspendResumeEventDetails(
-          this.engine,
-          id,
-        );
-        scheduleFullRedraw();
-      });
-    }
-
-    return this.renderView();
+  async load(id: number) {
+    this.suspendResumeEventDetails = await loadSuspendResumeEventDetails(
+      this.engine,
+      id,
+    );
   }
 
-  private renderView() {
+  render() {
     const eventDetails = this.suspendResumeEventDetails;
     if (eventDetails) {
       const threadInfo = globals.threads.get(eventDetails.utid);

@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncLimiter} from '../../base/async_limiter';
 import {Time, duration, time} from '../../base/time';
-import {raf} from '../../core/raf_scheduler';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
@@ -22,7 +20,7 @@ import {
   NUM,
   NUM_NULL,
 } from '../../trace_processor/query_result';
-import {TrackSelectionDetailsPanel} from '../../public/details_panel';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
@@ -45,13 +43,11 @@ interface CounterDetails {
   delta: number;
 }
 
-export class CounterDetailsPanel implements TrackSelectionDetailsPanel {
-  private readonly queryLimiter = new AsyncLimiter();
+export class CounterDetailsPanel implements TrackEventDetailsPanel {
   private readonly engine: Engine;
   private readonly trackId: number;
   private readonly rootTable: string;
   private readonly trackName: string;
-  private id?: number;
   private counterDetails?: CounterDetails;
 
   constructor(
@@ -66,24 +62,16 @@ export class CounterDetailsPanel implements TrackSelectionDetailsPanel {
     this.rootTable = rootTable;
   }
 
-  render(id: number): m.Children {
-    if (id !== this.id) {
-      this.id = id;
-      this.queryLimiter.schedule(async () => {
-        this.counterDetails = await loadCounterDetails(
-          this.engine,
-          this.trackId,
-          id,
-          this.rootTable,
-        );
-        raf.scheduleFullRedraw();
-      });
-    }
-
-    return this.renderView();
+  async load(id: number) {
+    this.counterDetails = await loadCounterDetails(
+      this.engine,
+      this.trackId,
+      id,
+      this.rootTable,
+    );
   }
 
-  private renderView() {
+  render() {
     const counterInfo = this.counterDetails;
     if (counterInfo) {
       return m(
