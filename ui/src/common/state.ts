@@ -184,7 +184,6 @@ export interface State {
    */
   newEngineMode: NewEngineMode;
   engine?: EngineConfig;
-  traceUuid?: string;
 
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
