@@ -14,7 +14,6 @@
 
 import {AsyncLimiter} from '../../base/async_limiter';
 import {Duration, duration, Time, time} from '../../base/time';
-import {raf} from '../../core/raf_scheduler';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -29,6 +28,7 @@ import {scrollTo} from '../../public/scroll_helper';
 import {Engine} from '../../trace_processor/engine';
 import {TrackSelectionDetailsPanel} from '../../public/details_panel';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {scheduleFullRedraw} from '../../widgets/raf';
 
 interface SuspendResumeEventDetails {
   ts: time;
@@ -59,7 +59,7 @@ export class SuspendResumeDetailsPanel implements TrackSelectionDetailsPanel {
           this.engine,
           id,
         );
-        raf.scheduleFullRedraw();
+        scheduleFullRedraw();
       });
     }
 
@@ -150,10 +150,7 @@ export class SuspendResumeDetailsPanel implements TrackSelectionDetailsPanel {
     );
 
     if (trackDescriptor) {
-      globals.selectionManager.selectSqlEvent(
-        'thread_state',
-        threadStateId,
-      );
+      globals.selectionManager.selectSqlEvent('thread_state', threadStateId);
       scrollTo({
         track: {uri: trackDescriptor.uri, expandGroup: true},
         time: {start: ts},
