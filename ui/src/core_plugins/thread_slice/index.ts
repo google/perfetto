@@ -156,6 +156,10 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
           where slice.id = ${id}
         `);
 
+        if (result.numRows() === 0) {
+          return undefined;
+        }
+
         const {upid, utid, trackId} = result.firstRow({
           upid: NUM_NULL,
           utid: NUM,
