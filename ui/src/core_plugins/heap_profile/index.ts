@@ -325,76 +325,124 @@ function flamegraphAttrsForHeapProfile(
         'include perfetto module android.memory.heap_profile.callstacks',
         [{name: 'mapping_name', displayName: 'Mapping'}],
         [
-          {name: 'source_file', displayName: 'Source File'},
-          {name: 'line_number', displayName: 'Line Number'},
+          {
+            name: 'source_file',
+            displayName: 'Source File',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+          {
+            name: 'line_number',
+            displayName: 'Line Number',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
         ],
       ),
     ],
   };
 }
 
-function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
+function flamegraphAttrsForHeapGraph(
+  engine: Engine,
+  ts: time,
+  upid: number,
+): QueryFlamegraphAttrs {
   return {
     engine,
     metrics: [
-      ...metricsFromTableOrSubquery(
-        `
-          (
-            select
-              id,
-              parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
-              root_type,
-              self_size,
-              self_count
-            from _heap_graph_class_tree
-            where graph_sample_ts = ${ts} and upid = ${upid}
-          )
+      {
+        name: 'Object Size',
+        unit: 'B',
+        dependencySql:
+          'include perfetto module android.memory.heap_graph.class_tree;',
+        statement: `
+          select
+            id,
+            parent_id as parentId,
+            ifnull(name, '[Unknown]') as name,
+            root_type,
+            self_size as value,
+            self_count
+          from _heap_graph_class_tree
+          where graph_sample_ts = ${ts} and upid = ${upid}
         `,
-        [
+        unaggregatableProperties: [
+          {name: 'root_type', displayName: 'Root Type'},
+        ],
+        aggregatableProperties: [
           {
-            name: 'Object Size',
-            unit: 'B',
-            columnName: 'self_size',
-          },
-          {
-            name: 'Object Count',
-            unit: '',
-            columnName: 'self_count',
+            name: 'self_count',
+            displayName: 'Self Count',
+            mergeAggregation: 'SUM',
           },
         ],
-        'include perfetto module android.memory.heap_graph.class_tree;',
-        [{name: 'root_type', displayName: 'Root Type'}],
-      ),
-      ...metricsFromTableOrSubquery(
-        `
-          (
-            select
-              id,
-              parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
-              root_type,
-              self_size,
-              self_count
-            from _heap_graph_dominator_class_tree
-            where graph_sample_ts = ${ts} and upid = ${upid}
-          )
+      },
+      {
+        name: 'Object Count',
+        unit: 'B',
+        dependencySql:
+          'include perfetto module android.memory.heap_graph.class_tree;',
+        statement: `
+          select
+            id,
+            parent_id as parentId,
+            ifnull(name, '[Unknown]') as name,
+            root_type,
+            self_size,
+            self_count as value
+          from _heap_graph_class_tree
+          where graph_sample_ts = ${ts} and upid = ${upid}
         `,
-        [
+        unaggregatableProperties: [
+          {name: 'root_type', displayName: 'Root Type'},
+        ],
+      },
+      {
+        name: 'Dominated Object Size',
+        unit: 'B',
+        dependencySql:
+          'include perfetto module android.memory.heap_graph.dominator_class_tree;',
+        statement: `
+          select
+            id,
+            parent_id as parentId,
+            ifnull(name, '[Unknown]') as name,
+            root_type,
+            self_size as value,
+            self_count
+          from _heap_graph_dominator_class_tree
+          where graph_sample_ts = ${ts} and upid = ${upid}
+        `,
+        unaggregatableProperties: [
+          {name: 'root_type', displayName: 'Root Type'},
+        ],
+        aggregatableProperties: [
           {
-            name: 'Dominated Object Size',
-            unit: 'B',
-            columnName: 'self_size',
-          },
-          {
-            name: 'Dominated Object Count',
-            unit: '',
-            columnName: 'self_count',
+            name: 'self_count',
+            displayName: 'Self Count',
+            mergeAggregation: 'SUM',
           },
         ],
-        'include perfetto module android.memory.heap_graph.dominator_class_tree;',
-        [{name: 'root_type', displayName: 'Root Type'}],
-      ),
+      },
+      {
+        name: 'Dominated Object Count',
+        unit: '',
+        dependencySql:
+          'include perfetto module android.memory.heap_graph.dominator_class_tree;',
+        statement: `
+          select
+            id,
+            parent_id as parentId,
+            ifnull(name, '[Unknown]') as name,
+            root_type,
+            self_size,
+            self_count as value
+          from _heap_graph_class_tree
+          where graph_sample_ts = ${ts} and upid = ${upid}
+        `,
+        unaggregatableProperties: [
+          {name: 'root_type', displayName: 'Root Type'},
+        ],
+      },
     ],
   };
 }
