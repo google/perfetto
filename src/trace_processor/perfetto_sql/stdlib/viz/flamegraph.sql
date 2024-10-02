@@ -294,12 +294,6 @@ AS (
   ORDER BY hash
 );
 
-CREATE PERFETTO MACRO _viz_flamegraph_merge_grouped(
-  col ColumnName
-)
-RETURNS _SqlFragment
-AS IIF(COUNT() = 1, $col, NULL) AS $col;
-
 CREATE PERFETTO MACRO _col_list_id(a ColumnName)
 RETURNS _SqlFragment AS $a;
 
@@ -308,7 +302,7 @@ RETURNS _SqlFragment AS $a;
 CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
   hashed TableOrSubquery,
   grouping _ColumnNameList,
-  grouped _ColumnNameList
+  grouped_agged_exprs _ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
@@ -326,7 +320,7 @@ AS (
     -- hash took them into account: we would not merged any nodes where
     -- the grouping columns were different.
     __intrinsic_token_apply!(_col_list_id, $grouping),
-    __intrinsic_token_apply!(_viz_flamegraph_merge_grouped, $grouped),
+    __intrinsic_token_apply!(_col_list_id, $grouped_agged_exprs),
     SUM(value) AS value,
     SUM(cumulativeValue) AS cumulativeValue
   FROM $hashed c
