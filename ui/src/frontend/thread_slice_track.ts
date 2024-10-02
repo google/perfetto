@@ -14,13 +14,12 @@
 
 import {BigintMath as BIMath} from '../base/bigint_math';
 import {clamp} from '../base/math_utils';
-import {OnSliceClickArgs} from './base_slice_track';
-import {globals} from './globals';
 import {NAMED_ROW, NamedSliceTrack} from './named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
 import {NewTrackArgs} from './track';
 import {LONG_NULL} from '../trace_processor/query_result';
 import {Slice} from '../public/track';
+import {TrackEventDetails} from '../public/selection';
 
 export const THREAD_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -82,12 +81,14 @@ export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
     }
   }
 
-  onSliceClick(args: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.selectLegacy({
-      kind: 'SLICE',
-      id: args.slice.id,
-      trackUri: this.uri,
-      table: this.tableName,
-    });
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const baseDetails = await super.getSelectionDetails(id);
+    if (!baseDetails) return undefined;
+    return {
+      ...baseDetails,
+      tableName: this.tableName,
+    };
   }
 }

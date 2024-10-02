@@ -63,6 +63,6 @@ export function addAndPinSliceTrack(
  */
 export function focusOnSlice(ctx: Trace, sqlSliceId: number) {
   ctx.selection.selectSqlEvent('slice', sqlSliceId, {
-    pendingScrollId: sqlSliceId,
+    scrollToSelection: true,
   });
 }

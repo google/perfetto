@@ -89,24 +89,6 @@ export function serializeAppState(): SerializedAppState {
   } else if (stateSel.kind === 'legacy') {
     // TODO(primiano): get rid of these once we unify selection.
     switch (stateSel.legacySelection.kind) {
-      case 'SLICE':
-        selection.push({
-          kind: 'LEGACY_SLICE',
-          id: stateSel.legacySelection.id,
-        });
-        break;
-      case 'SCHED_SLICE':
-        selection.push({
-          kind: 'LEGACY_SCHED_SLICE',
-          id: stateSel.legacySelection.id,
-        });
-        break;
-      case 'THREAD_STATE':
-        selection.push({
-          kind: 'LEGACY_THREAD_STATE',
-          id: stateSel.legacySelection.id,
-        });
-        break;
       case 'HEAP_PROFILE':
         selection.push({
           kind: 'LEGACY_HEAP_PROFILE',

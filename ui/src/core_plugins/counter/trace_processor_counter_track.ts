@@ -17,7 +17,10 @@ import {
   BaseCounterTrack,
   BaseCounterTrackArgs,
 } from '../../frontend/base_counter_track';
+
 import {TrackMouseEvent} from '../../public/track';
+import {TrackEventDetails} from '../../public/selection';
+import {Time} from '../../base/time';
 
 interface TraceProcessorCounterTrackArgs extends BaseCounterTrackArgs {
   trackId: number;
@@ -37,6 +40,7 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
   getSqlSource() {
     return `
       select
+        id,
         ts,
         value
       from ${this.rootTable}
@@ -49,17 +53,7 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
 
     const query = `
       select
-        id,
-        ts as leftTs,
-        (
-          select ts
-          from ${this.rootTable}
-          where
-            track_id = ${this.trackId}
-            and ts >= ${time}
-          order by ts
-          limit 1
-        ) as rightTs
+        id
       from ${this.rootTable}
       where
         track_id = ${this.trackId}
@@ -71,8 +65,6 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
     this.engine.query(query).then((result) => {
       const it = result.iter({
         id: NUM,
-        leftTs: LONG,
-        rightTs: LONG_NULL,
       });
       if (!it.valid()) {
         return;
@@ -82,5 +74,34 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
     });
 
     return true;
+  }
+
+  // We must define this here instead of in `BaseCounterTrack` because
+  // `BaseCounterTrack` does not require the query to have an id column. Here,
+  // however, we make the assumption that `rootTable` has an id column, as we
+  // need it ot make selections in `onMouseClick` above. Whether or not we
+  // SHOULD assume `rootTable` has an id column is another matter...
+  async getSelectionDetails(id: number): Promise<TrackEventDetails> {
+    const query = `
+      WITH 
+        CTE AS (
+          SELECT
+            id,
+            ts as leftTs,
+            LEAD(ts) OVER (ORDER BY ts) AS rightTs
+          FROM ${this.rootTable}
+        )
+      SELECT * FROM CTE WHERE id = ${id}
+    `;
+
+    const counter = await this.engine.query(query);
+    const row = counter.iter({
+      leftTs: LONG,
+      rightTs: LONG_NULL,
+    });
+    const leftTs = Time.fromRaw(row.leftTs);
+    const rightTs = row.rightTs !== null ? Time.fromRaw(row.rightTs) : leftTs;
+    const duration = rightTs - leftTs;
+    return {ts: leftTs, dur: duration};
   }
 }
