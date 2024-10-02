@@ -83,13 +83,13 @@ export function maybeOpenTraceFromRoute(route: Route) {
  * 3. '' -> URL with a ?local_cache_key=xxx arg:
  *  - Same as case 2.
  * 4. URL with local_cache_key=1 -> URL with local_cache_key=2:
- *  a) If 2 != uuid of the trace currently loaded (globals.state.traceUuid):
+ *  a) If 2 != uuid of the trace currently loaded (TraceImpl.traceInfo.uuid):
  *  - Ask the user if they intend to switch trace and load 2.
  *  b) If 2 == uuid of current trace (e.g., after a new trace has loaded):
  *  - no effect (except redrawing).
  * 5. URL with local_cache_key -> URL without local_cache_key:
  *  - Redirect to ?local_cache_key=1234 where 1234 is the UUID of the previous
- *    URL (this might or might not match globals.state.traceUuid).
+ *    URL (this might or might not match traceInfo.uuid).
  *
  * Backward navigation cases:
  * 6. URL without local_cache_key <- URL with local_cache_key:
@@ -100,7 +100,10 @@ export function maybeOpenTraceFromRoute(route: Route) {
  *  - Same as case 5: re-append the local_cache_key.
  */
 async function maybeOpenCachedTrace(traceUuid: string) {
-  if (traceUuid === globals.state.traceUuid) {
+  const curTrace = AppImpl.instance.trace?.traceInfo;
+  const curCacheUuid = curTrace?.cached ? curTrace.uuid : '';
+
+  if (traceUuid === curCacheUuid) {
     // Do nothing, matches the currently loaded trace.
     return;
   }
@@ -129,11 +132,8 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // a dialog informing the user about the cache miss.
   const maybeTrace = await tryGetTrace(traceUuid);
 
-  const navigateToOldTraceUuid = () => {
-    Router.navigate(
-      `#!/viewer?local_cache_key=${globals.state.traceUuid ?? ''}`,
-    );
-  };
+  const navigateToOldTraceUuid = () =>
+    Router.navigate(`#!/viewer?local_cache_key=${curCacheUuid}`);
 
   if (!maybeTrace) {
     showModal({
@@ -162,7 +162,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // the trace without showing any further dialog. This is the case of tab
   // discarding, reloading or pasting a url with a local_cache_key in an empty
   // instance.
-  if (globals.state.traceUuid === undefined) {
+  if (curTrace === undefined) {
     globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
     return;
   }
@@ -189,7 +189,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
       ),
       m(
         'pre',
-        `Old trace: ${globals.state.traceUuid || '<no trace>'}\n` +
+        `Old trace: ${curTrace !== undefined ? curCacheUuid : '<no trace>'}\n` +
           `New trace: ${traceUuid}`,
       ),
     ),

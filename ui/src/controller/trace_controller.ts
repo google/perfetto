@@ -14,7 +14,7 @@
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Duration, time, Time, TimeSpan} from '../base/time';
-import {Actions, DeferredAction} from '../common/actions';
+import {Actions} from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
 import {
   getEnabledMetatracingCategories,
@@ -307,18 +307,11 @@ export class TraceController extends Controller<States> {
       await this.engine.registerSqlModules(p);
     }
 
-    // traceUuid will be '' if the trace is not cacheable (URL or RPC).
-    const traceUuid = await this.cacheCurrentTrace();
-
     const traceDetails = await getTraceInfo(this.engine, engineCfg);
-    if (traceDetails.traceTitle) {
-      document.title = `${traceDetails.traceTitle} - Perfetto UI`;
-    }
     const trace = TraceImpl.newInstance(this.engine, traceDetails);
     await globals.onTraceLoad(trace);
 
     AppImpl.instance.omnibox.reset();
-    const actions: DeferredAction[] = [Actions.setTraceUuid({traceUuid})];
 
     const visibleTimeSpan = await computeVisibleTime(
       traceDetails.start,
@@ -329,8 +322,8 @@ export class TraceController extends Controller<States> {
 
     globals.timeline.updateVisibleTime(visibleTimeSpan);
 
-    globals.dispatchMultiple(actions);
-    Router.navigate(`#!/viewer?local_cache_key=${traceUuid}`);
+    const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
+    Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
     // Make sure the helper views are available before we start adding tracks.
     await this.initialiseHelperViews();
@@ -593,28 +586,6 @@ export class TraceController extends Controller<States> {
       loadArray.push({start, end, load});
     }
     publishOverviewData(slicesData);
-  }
-
-  private async cacheCurrentTrace(): Promise<string> {
-    const engine = assertExists(this.engine);
-    const result = await engine.query(`select str_value as uuid from metadata
-                  where name = 'trace_uuid'`);
-    if (result.numRows() === 0) {
-      // One of the cases covered is an empty trace.
-      return '';
-    }
-    const traceUuid = result.firstRow({uuid: STR}).uuid;
-    const engineConfig = assertExists(globals.state.engine);
-    assertTrue(engineConfig.id === this.engineId);
-    if (!(await cacheTrace(engineConfig.source, traceUuid))) {
-      // If the trace is not cacheable (cacheable means it has been opened from
-      // URL or RPC) only append '?local_cache_key' to the URL, without the
-      // local_cache_key value. Doing otherwise would cause an error if the tab
-      // is discarded or the user hits the reload button because the trace is
-      // not in the cache.
-      return '';
-    }
-    return traceUuid;
   }
 
   async initialiseHelperViews() {
@@ -995,6 +966,13 @@ async function getTraceInfo(
     )
   ).firstRow({str_value: STR}).str_value;
 
+  const uuidRes = await engine.query(`select str_value as uuid from metadata
+    where name = 'trace_uuid'`);
+  // trace_uuid can be missing from the TP tables if the trace is empty or in
+  // other similar edge cases.
+  const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({uuid: STR}).uuid : '';
+  const cached = await cacheTrace(engineCfg.source, uuid);
+
   return {
     ...traceTime,
     traceTitle,
@@ -1007,6 +985,8 @@ async function getTraceInfo(
     importErrors: await getTraceErrors(engine),
     source: engineCfg.source,
     traceType,
+    uuid,
+    cached,
   };
 }
 
