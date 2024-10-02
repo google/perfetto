@@ -28,6 +28,7 @@ export function initWasm(root: string) {
  * worker thread. The entrypoint of the worker thread is engine/index.ts.
  */
 export class WasmEngineProxy extends EngineBase implements Disposable {
+  readonly mode = 'WASM';
   readonly id: string;
   private port: MessagePort;
   private worker: Worker;

@@ -27,8 +27,8 @@ export interface HttpRpcState {
 }
 
 export class HttpRpcEngine extends EngineBase {
+  readonly mode = 'HTTP_RPC';
   readonly id: string;
-  errorHandler: (err: string) => void = () => {};
   private requestQueue = new Array<Uint8Array>();
   private websocket?: WebSocket;
   private connected = false;
@@ -51,7 +51,7 @@ export class HttpRpcEngine extends EngineBase {
       this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
       this.websocket.onclose = (e) => this.onWebsocketClosed(e);
       this.websocket.onerror = (e) =>
-        this.errorHandler(
+        super.fail(
           `WebSocket error rs=${(e.target as WebSocket)?.readyState} (ERR:ws)`,
         );
     }
@@ -82,7 +82,7 @@ export class HttpRpcEngine extends EngineBase {
       this.connected = false;
       this.rpcSendRequestBytes(new Uint8Array()); // Triggers a reconnection.
     } else {
-      this.errorHandler(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
+      super.fail(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
     }
   }
 

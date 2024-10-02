@@ -35,7 +35,9 @@ import {
   WritableQueryResult,
 } from './query_result';
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
-import {exists, Result} from '../base/utils';
+import {exists, Optional, Result} from '../base/utils';
+
+export type EngineMode = 'WASM' | 'HTTP_RPC';
 
 // This is used to skip the decoding of queryResult from protobufjs and deal
 // with it ourselves. See the comment below around `QueryResult.decode = ...`.
@@ -51,6 +53,7 @@ export interface TraceProcessorConfig {
 }
 
 export interface Engine {
+  readonly mode: EngineMode;
   readonly engineId: string;
 
   /**
@@ -93,6 +96,7 @@ export interface Engine {
 
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
+  readonly failed: Optional<string>;
 }
 
 // Abstract interface of a trace proccessor.
@@ -108,6 +112,7 @@ export interface Engine {
 // 2. Call onRpcResponseBytes() when response data is received.
 export abstract class EngineBase implements Engine, Disposable {
   abstract readonly id: string;
+  abstract readonly mode: EngineMode;
   private txSeqId = 0;
   private rxSeqId = 0;
   private rxBuf = new ProtoRingBuffer();
@@ -121,6 +126,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingRegisterSqlModule?: Deferred<void>;
   private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
+  private _failed: Optional<string> = undefined;
 
   // TraceController sets this to raf.scheduleFullRedraw().
   onResponseReceived?: () => void;
@@ -180,15 +186,16 @@ export abstract class EngineBase implements Engine, Disposable {
     const rpc = TraceProcessorRpc.decode(rpcMsgEncoded);
 
     if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
-      throw new Error(`${rpc.fatalError}`);
+      this.fail(`${rpc.fatalError}`);
     }
 
     // Allow restarting sequences from zero (when reloading the browser).
     if (rpc.seq !== this.rxSeqId + 1 && this.rxSeqId !== 0 && rpc.seq !== 0) {
       // "(ERR:rpc_seq)" is intercepted by error_dialog.ts to show a more
       // graceful and actionable error.
-      throw new Error(
-        `RPC sequence id mismatch cur=${rpc.seq} last=${this.rxSeqId} (ERR:rpc_seq)`,
+      this.fail(
+        `RPC sequence id mismatch ` +
+          `cur=${rpc.seq} last=${this.rxSeqId} (ERR:rpc_seq)`,
       );
     }
 
@@ -510,6 +517,15 @@ export abstract class EngineBase implements Engine, Disposable {
     return new EngineProxy(this, tag);
   }
 
+  protected fail(reason: string) {
+    this._failed = reason;
+    throw new Error(reason);
+  }
+
+  get failed(): Optional<string> {
+    return this._failed;
+  }
+
   abstract [Symbol.dispose](): void;
 }
 
@@ -565,6 +581,14 @@ export class EngineProxy implements Engine, Disposable {
 
   get numRequestsPending() {
     return this.engine.numRequestsPending;
+  }
+
+  get mode() {
+    return this.engine.mode;
+  }
+
+  get failed() {
+    return this.engine.failed;
   }
 
   [Symbol.dispose]() {

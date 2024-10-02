@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {produce} from 'immer';
-import {assertExists} from '../base/logging';
 import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';
 import {TraceUrlSource} from '../public/trace_source';
@@ -51,31 +50,4 @@ test('open second trace from file', () => {
   expect((thrice.engine!!.source as TraceUrlSource).url).toBe(
     'https://example.com/foo',
   );
-});
-
-test('setEngineReady with missing engine is ignored', () => {
-  const state = createEmptyState();
-  produce(state, (draft) => {
-    StateActions.setEngineReady(draft, {
-      engineId: '1',
-      ready: true,
-      mode: 'WASM',
-    });
-  });
-});
-
-test('setEngineReady', () => {
-  const state = createEmptyState();
-  const after = produce(state, (draft) => {
-    StateActions.openTraceFromUrl(draft, {
-      url: 'https://example.com/bar',
-    });
-    const latestEngineId = assertExists(draft.engine).id;
-    StateActions.setEngineReady(draft, {
-      engineId: latestEngineId,
-      ready: true,
-      mode: 'WASM',
-    });
-  });
-  expect(after.engine!!.ready).toBe(true);
 });
