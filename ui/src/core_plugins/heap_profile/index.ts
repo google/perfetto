@@ -378,7 +378,7 @@ function flamegraphAttrsForHeapGraph(
       },
       {
         name: 'Object Count',
-        unit: 'B',
+        unit: '',
         dependencySql:
           'include perfetto module android.memory.heap_graph.class_tree;',
         statement: `
