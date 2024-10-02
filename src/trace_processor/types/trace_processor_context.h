@@ -44,6 +44,7 @@ class FlowTracker;
 class ForwardingTraceParser;
 class FtraceModule;
 class FuchsiaRecordParser;
+class GeckoTraceParser;
 class GlobalArgsTracker;
 class HeapGraphTracker;
 class InstrumentsRowParser;
@@ -173,6 +174,7 @@ class TraceProcessorContext {
   std::unique_ptr<SpeRecordParser> spe_record_parser;
   std::unique_ptr<InstrumentsRowParser> instruments_row_parser;
   std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
+  std::unique_ptr<GeckoTraceParser> gecko_trace_parser;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.

@@ -33,6 +33,7 @@ source_set("sorter") {
     "../importers/common:parser_types",
     "../importers/common:trace_parser_hdr",
     "../importers/fuchsia:fuchsia_record",
+    "../importers/gecko:gecko_event",
     "../importers/instruments:row",
     "../importers/perf:record",
     "../importers/proto:packet_sequence_state_generation_hdr",
