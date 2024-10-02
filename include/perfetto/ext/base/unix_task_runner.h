@@ -69,6 +69,10 @@ class UnixTaskRunner : public TaskRunner {
   // delayed tasks don't count even if they are due to run.
   bool IsIdleForTesting();
 
+  // Pretends (for the purposes of running delayed tasks) that time advanced by
+  // `ms`.
+  void AdvanceTimeForTesting(uint32_t ms);
+
   // TaskRunner implementation:
   void PostTask(std::function<void()>) override;
   void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
@@ -108,6 +112,7 @@ class UnixTaskRunner : public TaskRunner {
   std::deque<std::function<void()>> immediate_tasks_;
   std::multimap<TimeMillis, std::function<void()>> delayed_tasks_;
   bool quit_ = false;
+  TimeMillis advanced_time_for_testing_ = TimeMillis(0);
 
   struct WatchTask {
     std::function<void()> callback;

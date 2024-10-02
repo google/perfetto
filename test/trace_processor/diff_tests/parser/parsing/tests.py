@@ -1326,6 +1326,35 @@ class Parsing(TestSuite):
         "all_data_source_flushed_ns",12345
         """))
 
+  def test_slow_starting_data_sources(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 108227060089867
+          trusted_uid: 679634
+          trusted_packet_sequence_id: 1
+          service_event {
+            slow_starting_data_sources {
+              data_source {
+                producer_name: "producer2"
+                data_source_name: "track_event"
+              }
+              data_source {
+                producer_name: "producer3"
+                data_source_name: "track_event"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT str_value FROM metadata WHERE name = 'slow_start_data_source'""",
+        out=Csv("""
+        "str_value"
+        "producer2 track_event"
+        "producer3 track_event"
+        """))
+
   def test_ftrace_abi_errors_skipped_zero_data_length(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
