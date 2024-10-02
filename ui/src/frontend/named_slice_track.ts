@@ -67,11 +67,6 @@ export abstract class NamedSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<SliceType>) {
-    globals.selectionManager.selectLegacy({
-      kind: 'SLICE',
-      id: args.slice.id,
-      trackUri: this.uri,
-      table: 'slice',
-    });
+    globals.selectionManager.selectTrackEvent(this.uri, args.slice.id);
   }
 }

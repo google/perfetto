@@ -21,6 +21,7 @@ import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
 import {TrackSelectionDetailsPanel} from './details_panel';
+import {TrackEventDetails} from './selection';
 
 export interface TrackManager {
   /**
@@ -104,11 +105,6 @@ export interface TrackDescriptor {
 
   // Optional: A details panel to use when this track is selected.
   readonly detailsPanel?: TrackSelectionDetailsPanel;
-
-  // Optional: method to look up the start and duration of an event on this track
-  readonly getEventBounds?: (
-    id: number,
-  ) => Promise<Optional<{ts: time; dur: duration}>>;
 }
 
 /**
@@ -187,6 +183,11 @@ export interface Track {
    * Optional: Get the event set that represents this track's data.
    */
   getEventSet?(): UntypedEventSet;
+
+  /**
+   * Optional: Get details of a track event given by eventId on this track.
+   */
+  getSelectionDetails?(eventId: number): Promise<TrackEventDetails | undefined>;
 }
 
 // An set of key/value pairs describing a given track. These are used for

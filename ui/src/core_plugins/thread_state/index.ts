@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4} from '../../base/uuid';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {asThreadStateSqlId} from '../../trace_processor/sql_utils/core_types';
-import {ThreadStateTab} from '../../frontend/thread_state_tab';
-import {BottomTabToSCSAdapter} from '../../public/utils';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
@@ -29,6 +25,7 @@ import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
+import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -94,29 +91,13 @@ class ThreadState implements PerfettoPlugin {
           },
           utid,
         ),
+        detailsPanel: new ThreadStateDetailsPanel(ctx),
       });
 
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title, sortOrder: 10});
       group.addChildInOrder(track);
     }
-
-    ctx.tabs.registerDetailsPanel(
-      new BottomTabToSCSAdapter({
-        tabFactory: (sel) => {
-          if (sel.kind !== 'THREAD_STATE') {
-            return undefined;
-          }
-          return new ThreadStateTab({
-            config: {
-              id: asThreadStateSqlId(sel.id),
-            },
-            trace: ctx,
-            uuid: uuidv4(),
-          });
-        },
-      }),
-    );
 
     sqlTableRegistry['thread_state'] = getThreadStateTable();
     ctx.commands.registerCommand({
@@ -135,10 +116,10 @@ class ThreadState implements PerfettoPlugin {
         const result = await ctx.engine.query(`
           select
             thread_state.utid,
-            t.upid
+            thread.upid
           from
             thread_state
-            join _threads_with_kernel_flag t
+            join thread on thread_state.utid = thread.id
           where thread_state.id = ${id}
         `);
 
@@ -148,13 +129,8 @@ class ThreadState implements PerfettoPlugin {
         });
 
         return {
-          kind: 'legacy',
-          legacySelection: {
-            kind: 'THREAD_STATE',
-            id,
-            trackUri: uriForThreadStateTrack(upid, utid),
-            table: 'slice',
-          },
+          eventId: id,
+          trackUri: uriForThreadStateTrack(upid, utid),
         };
       },
     });

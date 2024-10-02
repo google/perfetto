@@ -25,7 +25,6 @@ import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
 import {Tree} from '../widgets/tree';
-import {BottomTab, NewBottomTabArgs} from '../public/lib/bottom_tab';
 import {addDebugSliceTrack} from '../public/lib/debug_tracks/debug_tracks';
 import {globals} from './globals';
 import {Flow, FlowPoint} from 'src/core/flow_types';
@@ -45,6 +44,8 @@ import {BasicTable} from '../widgets/basic_table';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists} from '../base/logging';
 import {Trace} from '../public/trace';
+import {TrackSelectionDetailsPanel} from '../public/details_panel';
+import {AsyncLimiter} from '../base/async_limiter';
 
 interface ContextMenuItem {
   name: string;
@@ -253,30 +254,33 @@ async function getSliceDetails(
   }
 }
 
-interface ThreadSliceDetailsTabConfig {
-  id: number;
-  table: string;
-}
-
-export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig> {
+export class ThreadSliceDetailsPanel implements TrackSelectionDetailsPanel {
+  private readonly queryLimiter = new AsyncLimiter();
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
+  private id?: number;
 
-  static create(
-    args: NewBottomTabArgs<ThreadSliceDetailsTabConfig>,
-  ): ThreadSliceDetailsTab {
-    return new ThreadSliceDetailsTab(args);
+  constructor(
+    private readonly trace: Trace,
+    private readonly tableName: string,
+  ) {}
+
+  render(id: number): m.Children {
+    if (id !== this.id) {
+      this.id = id;
+      this.queryLimiter.schedule(async () => {
+        await this.load(id);
+        raf.scheduleFullRedraw();
+      });
+    }
+
+    return this.renderView();
   }
 
-  constructor(args: NewBottomTabArgs<ThreadSliceDetailsTabConfig>) {
-    super(args);
-    this.load();
-  }
-
-  async load() {
+  private async load(id: number) {
     // Start loading the slice details
-    const {id, table} = this.config;
-    const details = await getSliceDetails(this.engine, id, table);
+    const {trace, tableName} = this;
+    const details = await getSliceDetails(trace.engine, id, tableName);
 
     if (
       details !== undefined &&
@@ -284,7 +288,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
       details.dur > 0
     ) {
       this.breakdownByThreadState = await breakDownIntervalByThreadState(
-        this.engine,
+        trace.engine,
         TimeSpan.fromTimeAndDuration(details.ts, details.dur),
         details.thread.utid,
       );
@@ -294,11 +298,7 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
     raf.scheduleFullRedraw();
   }
 
-  getTitle(): string {
-    return `Current Selection`;
-  }
-
-  viewTab() {
+  private renderView() {
     if (!exists(this.sliceDetails)) {
       return m(DetailsShell, {title: 'Slice', description: 'Loading...'});
     }
@@ -316,10 +316,6 @@ export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig
         this.renderRhs(this.trace, slice),
       ),
     );
-  }
-
-  isLoading() {
-    return !exists(this.sliceDetails);
   }
 
   private renderRhs(trace: Trace, slice: SliceDetails): m.Children {

@@ -18,18 +18,15 @@ import {
   LONG_NULL,
   NUM,
   STR,
-  LONG,
 } from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
-import {Engine} from '../../trace_processor/engine';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {CounterOptions} from '../../frontend/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {CounterDetailsPanel} from './counter_details_panel';
-import {Time, duration, time} from '../../base/time';
-import {exists, Optional} from '../../base/utils';
+import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {
   getOrCreateGroupForProcess,
@@ -114,34 +111,6 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
   return options;
 }
 
-async function getCounterEventBounds(
-  engine: Engine,
-  trackId: number,
-  id: number,
-): Promise<Optional<{ts: time; dur: duration}>> {
-  const query = `
-    WITH CTE AS (
-      SELECT
-        id,
-        ts as leftTs,
-        LEAD(ts) OVER (ORDER BY ts) AS rightTs
-      FROM counter
-      WHERE track_id = ${trackId}
-    )
-    SELECT * FROM CTE WHERE id = ${id}
-  `;
-
-  const counter = await engine.query(query);
-  const row = counter.iter({
-    leftTs: LONG,
-    rightTs: LONG_NULL,
-  });
-  const leftTs = Time.fromRaw(row.leftTs);
-  const rightTs = row.rightTs !== null ? Time.fromRaw(row.rightTs) : leftTs;
-  const duration = rightTs - leftTs;
-  return {ts: leftTs, dur: duration};
-}
-
 class CounterPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCounterTracks(ctx);
@@ -204,9 +173,6 @@ class CounterPlugin implements PerfettoPlugin {
           },
         }),
         detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, title),
-        getEventBounds: async (id) => {
-          return await getCounterEventBounds(ctx.engine, trackId, id);
-        },
       });
       const track = new TrackNode({uri, title});
       ctx.workspace.addChildInOrder(track);
@@ -283,9 +249,6 @@ class CounterPlugin implements PerfettoPlugin {
           options: getDefaultCounterOptions(name),
         }),
         detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
-        getEventBounds: async (id) => {
-          return await getCounterEventBounds(ctx.engine, trackId, id);
-        },
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -20});
       ctx.workspace.addChildInOrder(trackNode);
@@ -353,9 +316,6 @@ class CounterPlugin implements PerfettoPlugin {
           options: getDefaultCounterOptions(name),
         }),
         detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
-        getEventBounds: async (id) => {
-          return await getCounterEventBounds(ctx.engine, trackId, id);
-        },
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title: name, sortOrder: 30});
@@ -414,9 +374,6 @@ class CounterPlugin implements PerfettoPlugin {
           options: getDefaultCounterOptions(name),
         }),
         detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
-        getEventBounds: async (id) => {
-          return await getCounterEventBounds(ctx.engine, trackId, id);
-        },
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title: name, sortOrder: 20});
@@ -457,9 +414,6 @@ class CounterPlugin implements PerfettoPlugin {
             options: getDefaultCounterOptions(name),
           }),
           detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
-          getEventBounds: async (id) => {
-            return await getCounterEventBounds(ctx.engine, trackId, id);
-          },
         });
         const track = new TrackNode({uri, title: name, sortOrder: -20});
         ctx.workspace.addChildInOrder(track);

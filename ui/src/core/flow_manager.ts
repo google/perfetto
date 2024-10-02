@@ -22,12 +22,7 @@ import {
   THREAD_SLICE_TRACK_KIND,
 } from '../public/track_kinds';
 import {TrackDescriptor, TrackManager} from '../public/track';
-import {
-  AreaSelection,
-  LegacySelection,
-  Selection,
-  SelectionManager,
-} from '../public/selection';
+import {AreaSelection, Selection, SelectionManager} from '../public/selection';
 import {raf} from './raf_scheduler';
 import {Engine} from '../trace_processor/engine';
 import {Workspace} from '../public/workspace';
@@ -44,7 +39,7 @@ const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
 export class FlowManager {
   private _connectedFlows: Flow[] = [];
   private _selectedFlows: Flow[] = [];
-  private _curSelection?: LegacySelection;
+  private _curSelection?: Selection;
   private _focusedFlowIdLeft = -1;
   private _focusedFlowIdRight = -1;
   private _visibleCategories = new Map<string, boolean>();
@@ -442,8 +437,8 @@ export class FlowManager {
     // focus. In all other cases the focusedFlowId(Left|Right) will be set to -1.
     this._focusedFlowIdLeft = -1;
     this._focusedFlowIdRight = -1;
-    if (this._curSelection?.kind === 'SLICE') {
-      const sliceId = this._curSelection.id;
+    if (this._curSelection?.kind === 'single') {
+      const sliceId = this._curSelection.eventId;
       for (const flow of connectedFlows) {
         if (flow.begin.sliceId === sliceId) {
           this._focusedFlowIdRight = flow.id;
@@ -463,9 +458,7 @@ export class FlowManager {
 
   updateFlows(selection: Selection) {
     this.initialize();
-    const legacySelection =
-      selection.kind === 'legacy' ? selection.legacySelection : undefined;
-    this._curSelection = legacySelection;
+    this._curSelection = selection;
 
     if (selection.kind === 'empty') {
       this.setConnectedFlows([]);
@@ -475,12 +468,8 @@ export class FlowManager {
 
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
-    if (
-      legacySelection &&
-      legacySelection.kind === 'SLICE' &&
-      legacySelection.table !== 'annotation'
-    ) {
-      this.sliceSelected(legacySelection.id);
+    if (selection.kind === 'single' && selection.tableName === 'slice') {
+      this.sliceSelected(selection.eventId);
     } else {
       this.setConnectedFlows([]);
     }
@@ -495,10 +484,10 @@ export class FlowManager {
   // Change focus to the next flow event (matching the direction)
   focusOtherFlow(direction: FlowDirection) {
     const currentSelection = this._curSelection;
-    if (!currentSelection || currentSelection.kind !== 'SLICE') {
+    if (!currentSelection || currentSelection.kind !== 'single') {
       return;
     }
-    const sliceId = currentSelection.id;
+    const sliceId = currentSelection.eventId;
     if (sliceId === -1) {
       return;
     }
@@ -528,11 +517,11 @@ export class FlowManager {
   // Select the slice connected to the flow in focus
   moveByFocusedFlow(direction: FlowDirection): void {
     const currentSelection = this._curSelection;
-    if (!currentSelection || currentSelection.kind !== 'SLICE') {
+    if (!currentSelection || currentSelection.kind !== 'single') {
       return;
     }
 
-    const sliceId = currentSelection.id;
+    const sliceId = currentSelection.eventId;
     const flowId =
       direction === 'Backward'
         ? this._focusedFlowIdLeft
@@ -554,7 +543,7 @@ export class FlowManager {
         });
         if (track) {
           this.selectionMgr.selectSqlEvent('slice', flowPoint.sliceId, {
-            pendingScrollId: flowPoint.sliceId,
+            scrollToSelection: true,
           });
         }
       }
