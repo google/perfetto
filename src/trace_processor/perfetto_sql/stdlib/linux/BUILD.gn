@@ -15,7 +15,10 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("linux") {
-  sources = [ "threads.sql" ]
+  sources = [
+    "devfreq.sql",
+    "threads.sql",
+  ]
   deps = [
     "cpu",
     "memory",
