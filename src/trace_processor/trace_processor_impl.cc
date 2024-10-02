@@ -314,14 +314,15 @@ void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
   }
 }
 
-sql_modules::NameToModule GetStdlibModules() {
-  sql_modules::NameToModule modules;
+sql_modules::NameToPackage GetStdlibPackages() {
+  sql_modules::NameToPackage packages;
   for (const auto& file_to_sql : stdlib::kFileToSql) {
-    std::string import_key = sql_modules::GetIncludeKey(file_to_sql.path);
-    std::string module = sql_modules::GetModuleName(import_key);
-    modules.Insert(module, {}).first->push_back({import_key, file_to_sql.sql});
+    std::string module_name = sql_modules::GetIncludeKey(file_to_sql.path);
+    std::string package_name = sql_modules::GetPackageName(module_name);
+    packages.Insert(package_name, {})
+        .first->push_back({module_name, file_to_sql.sql});
   }
-  return modules;
+  return packages;
 }
 
 std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
@@ -586,30 +587,29 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
 }
 
 base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule sql_package) {
-  sql_modules::RegisteredModule new_package;
+  sql_modules::RegisteredPackage new_package;
   std::string name = sql_package.name;
-  if (engine_->FindModule(name) && !sql_package.allow_module_override) {
+  if (engine_->FindPackage(name) && !sql_package.allow_module_override) {
     return base::ErrStatus(
-        "Module '%s' is already registered. Choose a different name.\n"
-        "If you want to replace the existing module using trace processor "
+        "Package '%s' is already registered. Choose a different name.\n"
+        "If you want to replace the existing package using trace processor "
         "shell, you need to pass the --dev flag and use "
         "--override-sql-module "
         "to pass the module path.",
         name.c_str());
   }
-  for (auto const& name_and_sql : sql_package.files) {
-    if (sql_modules::GetModuleName(name_and_sql.first) != name) {
+  for (auto const& module_name_and_sql : sql_package.files) {
+    if (sql_modules::GetPackageName(module_name_and_sql.first) != name) {
       return base::ErrStatus(
-          "File import key doesn't match the module name. First part of "
-          "import "
-          "key should be module name. Import key: %s, module name: %s.",
-          name_and_sql.first.c_str(), name.c_str());
+          "Module name doesn't match the package name. First part of module "
+          "name should be package name. Import key: '%s', package name: '%s'.",
+          module_name_and_sql.first.c_str(), name.c_str());
     }
-    new_package.include_key_to_file.Insert(name_and_sql.first,
-                                           {name_and_sql.second, false});
+    new_package.modules.Insert(module_name_and_sql.first,
+                               {module_name_and_sql.second, false});
   }
   manually_registered_sql_packages_.push_back(SqlModule(sql_package));
-  engine_->RegisterModule(name, std::move(new_package));
+  engine_->RegisterPackage(name, std::move(new_package));
   return base::OkStatus();
 }
 
@@ -857,11 +857,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine_.get()));
 
-  // Register stdlib modules.
-  auto stdlib_modules = GetStdlibModules();
-  for (auto module_it = stdlib_modules.GetIterator(); module_it; ++module_it) {
+  // Register stdlib packages.
+  auto packages = GetStdlibPackages();
+  for (auto package = packages.GetIterator(); package; ++package) {
     base::Status status =
-        RegisterSqlModule({module_it.key(), module_it.value(), false});
+        RegisterSqlModule({/*name=*/package.key(), /*modules=*/package.value(),
+                           /*allow_package_override=*/false});
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
@@ -1066,7 +1067,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
     }
   }
 
-  // Import prelude module.
+  // Import prelude package.
   {
     auto result = engine_->Execute(SqlSource::FromTraceProcessorImplementation(
         "INCLUDE PERFETTO MODULE prelude.*"));
@@ -1085,9 +1086,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Fill trace bounds table.
   BuildBoundsTable(db, GetTraceTimestampBoundsNs(*context_.storage));
 
-  // Reregister overriden/added custom stdlib modules
-  for (const auto& module : manually_registered_sql_packages_) {
-    RegisterSqlModule(module);
+  // Reregister manually added stdlib packages.
+  for (const auto& package : manually_registered_sql_packages_) {
+    RegisterSqlModule(package);
   }
 }
 

@@ -20,26 +20,22 @@
 #include <string>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/trace_processor/basic_types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace sql_modules {
+namespace perfetto ::trace_processor::sql_modules {
 
-using NameToModule =
+using NameToPackage =
     base::FlatHashMap<std::string,
                       std::vector<std::pair<std::string, std::string>>>;
 
 // Map from include key to sql file. Include key is the string used in INCLUDE
 // function.
-struct RegisteredModule {
+struct RegisteredPackage {
   struct ModuleFile {
     std::string sql;
     bool included;
   };
-  base::FlatHashMap<std::string, ModuleFile> include_key_to_file;
+  base::FlatHashMap<std::string, ModuleFile> modules;
 };
 
 inline std::string ReplaceSlashWithDot(std::string str) {
@@ -51,13 +47,13 @@ inline std::string ReplaceSlashWithDot(std::string str) {
   return str;
 }
 
-inline std::string GetIncludeKey(std::string path) {
+inline std::string GetIncludeKey(const std::string& path) {
   base::StringView path_view(path);
   auto path_no_extension = path_view.substr(0, path_view.rfind('.'));
   return ReplaceSlashWithDot(path_no_extension.ToStdString());
 }
 
-inline std::string GetModuleName(std::string str) {
+inline std::string GetPackageName(const std::string& str) {
   size_t found = str.find('.');
   if (found == std::string::npos) {
     return str;
@@ -65,7 +61,5 @@ inline std::string GetModuleName(std::string str) {
   return str.substr(0, found);
 }
 
-}  // namespace sql_modules
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::sql_modules
 #endif  // SRC_TRACE_PROCESSOR_UTIL_SQL_MODULES_H_
