@@ -35,6 +35,12 @@ import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
+import {TrackEventDetails} from '../../public/selection';
+import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
+import {
+  getSched,
+  getSchedWakeupInfo,
+} from '../../trace_processor/sql_utils/sched';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -307,62 +313,68 @@ export class CpuSliceTrack implements Track {
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
-    const selection = globals.selectionManager.legacySelection;
-    const details = globals.selectionManager.legacySelectionDetails;
-    if (selection !== null && selection.kind === 'SCHED_SLICE') {
-      const [startIndex, endIndex] = searchEq(data.ids, selection.id);
-      if (startIndex !== endIndex) {
-        const tStart = Time.fromRaw(data.startQs[startIndex]);
-        const tEnd = Time.fromRaw(data.endQs[startIndex]);
-        const utid = data.utids[startIndex];
-        const color = colorForThread(globals.threads.get(utid));
-        const rectStart = timescale.timeToPx(tStart);
-        const rectEnd = timescale.timeToPx(tEnd);
-        const rectWidth = Math.max(1, rectEnd - rectStart);
+    const selection = globals.selectionManager.selection;
+    if (selection.kind === 'single') {
+      if (selection.trackUri === this.uri) {
+        const [startIndex, endIndex] = searchEq(data.ids, selection.eventId);
+        if (startIndex !== endIndex) {
+          const tStart = Time.fromRaw(data.startQs[startIndex]);
+          const tEnd = Time.fromRaw(data.endQs[startIndex]);
+          const utid = data.utids[startIndex];
+          const color = colorForThread(globals.threads.get(utid));
+          const rectStart = timescale.timeToPx(tStart);
+          const rectEnd = timescale.timeToPx(tEnd);
+          const rectWidth = Math.max(1, rectEnd - rectStart);
 
-        // Draw a rectangle around the slice that is currently selected.
-        ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
-        ctx.beginPath();
-        ctx.lineWidth = 3;
-        ctx.strokeRect(rectStart, MARGIN_TOP - 1.5, rectWidth, RECT_HEIGHT + 3);
-        ctx.closePath();
-        // Draw arrow from wakeup time of current slice.
-        if (details?.wakeupTs) {
-          const wakeupPos = timescale.timeToPx(details.wakeupTs);
-          const latencyWidth = rectStart - wakeupPos;
-          drawDoubleHeadedArrow(
-            ctx,
-            wakeupPos,
-            MARGIN_TOP + RECT_HEIGHT,
-            latencyWidth,
-            latencyWidth >= 20,
+          // Draw a rectangle around the slice that is currently selected.
+          ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
+          ctx.beginPath();
+          ctx.lineWidth = 3;
+          ctx.strokeRect(
+            rectStart,
+            MARGIN_TOP - 1.5,
+            rectWidth,
+            RECT_HEIGHT + 3,
           );
-          // Latency time with a white semi-transparent background.
-          const latency = tStart - details.wakeupTs;
-          const displayText = Duration.humanise(latency);
-          const measured = ctx.measureText(displayText);
-          if (latencyWidth >= measured.width + 2) {
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            ctx.fillRect(
-              wakeupPos + latencyWidth / 2 - measured.width / 2 - 1,
-              MARGIN_TOP + RECT_HEIGHT - 12,
-              measured.width + 2,
-              11,
+          ctx.closePath();
+          // Draw arrow from wakeup time of current slice.
+          if (selection.wakeupTs) {
+            const wakeupPos = timescale.timeToPx(selection.wakeupTs);
+            const latencyWidth = rectStart - wakeupPos;
+            drawDoubleHeadedArrow(
+              ctx,
+              wakeupPos,
+              MARGIN_TOP + RECT_HEIGHT,
+              latencyWidth,
+              latencyWidth >= 20,
             );
-            ctx.textBaseline = 'bottom';
-            ctx.fillStyle = 'black';
-            ctx.fillText(
-              displayText,
-              wakeupPos + latencyWidth / 2,
-              MARGIN_TOP + RECT_HEIGHT - 1,
-            );
+            // Latency time with a white semi-transparent background.
+            const latency = tStart - selection.wakeupTs;
+            const displayText = Duration.humanise(latency);
+            const measured = ctx.measureText(displayText);
+            if (latencyWidth >= measured.width + 2) {
+              ctx.fillStyle = 'rgba(255,255,255,0.7)';
+              ctx.fillRect(
+                wakeupPos + latencyWidth / 2 - measured.width / 2 - 1,
+                MARGIN_TOP + RECT_HEIGHT - 12,
+                measured.width + 2,
+                11,
+              );
+              ctx.textBaseline = 'bottom';
+              ctx.fillStyle = 'black';
+              ctx.fillText(
+                displayText,
+                wakeupPos + latencyWidth / 2,
+                MARGIN_TOP + RECT_HEIGHT - 1,
+              );
+            }
           }
         }
       }
 
       // Draw diamond if the track being drawn is the cpu of the waker.
-      if (details && this.cpu === details.wakerCpu && details.wakeupTs) {
-        const wakeupPos = Math.floor(timescale.timeToPx(details.wakeupTs));
+      if (this.cpu === selection.wakerCpu && selection.wakeupTs) {
+        const wakeupPos = Math.floor(timescale.timeToPx(selection.wakeupTs));
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
         ctx.fillStyle = 'black';
@@ -372,19 +384,19 @@ export class CpuSliceTrack implements Track {
         ctx.fill();
         ctx.closePath();
       }
-    }
 
-    const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
-    if (hoveredThread !== undefined && this.mousePos !== undefined) {
-      const tidText = `T: ${hoveredThread.threadName}
+      const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
+      if (hoveredThread !== undefined && this.mousePos !== undefined) {
+        const tidText = `T: ${hoveredThread.threadName}
       [${hoveredThread.tid}]`;
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (hoveredThread.pid) {
-        const pidText = `P: ${hoveredThread.procName}
+        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+        if (hoveredThread.pid) {
+          const pidText = `P: ${hoveredThread.procName}
         [${hoveredThread.pid}]`;
-        drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
-      } else {
-        drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
+          drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
+        } else {
+          drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
+        }
       }
     }
   }
@@ -434,13 +446,24 @@ export class CpuSliceTrack implements Track {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.utidHoveredInThisTrack === -1) return false;
 
-    globals.selectionManager.selectLegacy({
-      kind: 'SCHED_SLICE',
-      id,
-      trackUri: this.uri,
-    });
-
+    globals.selectionManager.selectTrackEvent(this.uri, id);
     return true;
+  }
+
+  async getSelectionDetails?(
+    eventId: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const sched = await getSched(this.engine, asSchedSqlId(eventId));
+    if (sched === undefined) {
+      return undefined;
+    }
+    const wakeup = await getSchedWakeupInfo(this.engine, sched);
+    return {
+      ts: sched.ts,
+      dur: sched.dur,
+      wakeupTs: wakeup?.wakeupTs,
+      wakerCpu: wakeup?.wakerCpu,
+    };
   }
 }
 

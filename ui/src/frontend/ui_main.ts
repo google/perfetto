@@ -269,8 +269,8 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.SetTemporarySpanNote',
         name: 'Set the temporary span note based on the current selection',
-        callback: async () => {
-          const range = await trace.selection.findTimeRangeOfSelection();
+        callback: () => {
+          const range = trace.selection.findTimeRangeOfSelection();
           if (range) {
             trace.notes.addSpanNote({
               start: range.start,
@@ -284,8 +284,8 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.AddSpanNote',
         name: 'Add a new span note based on the current selection',
-        callback: async () => {
-          const range = await trace.selection.findTimeRangeOfSelection();
+        callback: () => {
+          const range = trace.selection.findTimeRangeOfSelection();
           if (range) {
             trace.notes.addSpanNote({
               start: range.start,

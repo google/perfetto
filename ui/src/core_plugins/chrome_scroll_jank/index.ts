@@ -40,6 +40,7 @@ import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {ThreadSliceDetailsPanel} from '../../frontend/thread_slice_details_tab';
 
 const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   id: 'enableScrollJankPluginV2',
@@ -130,6 +131,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         trace: ctx,
         uri,
       }),
+      detailsPanel: new ThreadSliceDetailsPanel(ctx, 'slice'),
     });
     const group = getOrCreateGroupForThread(ctx.workspace, utid);
     const track = new TrackNode({uri, title});

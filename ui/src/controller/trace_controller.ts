@@ -460,7 +460,7 @@ export class TraceController extends Controller<States> {
         return;
       }
       globals.selectionManager.selectSqlEvent('slice', row.id, {
-        pendingScrollId: row.id,
+        scrollToSelection: true,
         switchToCurrentSelectionTab: false,
       });
     }

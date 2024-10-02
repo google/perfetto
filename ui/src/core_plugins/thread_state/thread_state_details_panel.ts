@@ -13,45 +13,39 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {time} from '../base/time';
-import {raf} from '../core/raf_scheduler';
-import {Anchor} from '../widgets/anchor';
-import {Button} from '../widgets/button';
-import {DetailsShell} from '../widgets/details_shell';
-import {GridLayout} from '../widgets/grid_layout';
-import {Section} from '../widgets/section';
-import {SqlRef} from '../widgets/sql_ref';
-import {Tree, TreeNode} from '../widgets/tree';
-import {Intent} from '../widgets/common';
-import {BottomTab, NewBottomTabArgs} from '../public/lib/bottom_tab';
-import {
-  SchedSqlId,
-  ThreadStateSqlId,
-} from '../trace_processor/sql_utils/core_types';
+import {time} from '../../base/time';
+import {raf} from '../../core/raf_scheduler';
+import {Anchor} from '../../widgets/anchor';
+import {Button} from '../../widgets/button';
+import {DetailsShell} from '../../widgets/details_shell';
+import {GridLayout} from '../../widgets/grid_layout';
+import {Section} from '../../widgets/section';
+import {SqlRef} from '../../widgets/sql_ref';
+import {Tree, TreeNode} from '../../widgets/tree';
+import {Intent} from '../../widgets/common';
+import {SchedSqlId} from '../../trace_processor/sql_utils/core_types';
 import {
   getThreadState,
   getThreadStateFromConstraints,
   ThreadState,
-} from '../trace_processor/sql_utils/thread_state';
-import {DurationWidget, renderDuration} from './widgets/duration';
-import {Timestamp} from './widgets/timestamp';
-import {globals} from './globals';
-import {getProcessName} from '../trace_processor/sql_utils/process';
+} from '../../trace_processor/sql_utils/thread_state';
+import {DurationWidget, renderDuration} from '../../frontend/widgets/duration';
+import {Timestamp} from '../../frontend/widgets/timestamp';
+import {globals} from '../../frontend/globals';
+import {getProcessName} from '../../trace_processor/sql_utils/process';
 import {
   getFullThreadName,
   getThreadName,
-} from '../trace_processor/sql_utils/thread';
-import {ThreadStateRef} from './widgets/thread_state';
+} from '../../trace_processor/sql_utils/thread';
+import {ThreadStateRef} from '../../frontend/widgets/thread_state';
 import {
   CRITICAL_PATH_CMD,
   CRITICAL_PATH_LITE_CMD,
-} from '../public/exposed_commands';
-import {goToSchedSlice} from './widgets/sched';
-
-interface ThreadStateTabConfig {
-  // Id into |thread_state| sql table.
-  readonly id: ThreadStateSqlId;
-}
+} from '../../public/exposed_commands';
+import {goToSchedSlice} from '../../frontend/widgets/sched';
+import {TrackSelectionDetailsPanel} from '../../public/details_panel';
+import {Trace} from '../../public/trace';
+import {AsyncLimiter} from '../../base/async_limiter';
 
 interface RelatedThreadStates {
   prev?: ThreadState;
@@ -61,28 +55,28 @@ interface RelatedThreadStates {
   wakee?: ThreadState[];
 }
 
-export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
-  static readonly kind = 'dev.perfetto.ThreadStateTab';
+export class ThreadStateDetailsPanel implements TrackSelectionDetailsPanel {
+  private readonly queryLimiter = new AsyncLimiter();
+  private state?: ThreadState;
+  private relatedStates?: RelatedThreadStates;
+  private id?: number;
 
-  state?: ThreadState;
-  relatedStates?: RelatedThreadStates;
-  loaded: boolean = false;
+  constructor(private readonly trace: Trace) {}
 
-  static create(args: NewBottomTabArgs<ThreadStateTabConfig>): ThreadStateTab {
-    return new ThreadStateTab(args);
+  render(id: number): m.Children {
+    if (id !== this.id) {
+      this.id = id;
+      this.queryLimiter.schedule(async () => {
+        await this.load(id);
+        raf.scheduleFullRedraw();
+      });
+    }
+
+    return this.renderView();
   }
 
-  constructor(args: NewBottomTabArgs<ThreadStateTabConfig>) {
-    super(args);
-
-    this.load().then(() => {
-      this.loaded = true;
-      raf.scheduleFullRedraw();
-    });
-  }
-
-  async load() {
-    this.state = await getThreadState(this.engine, this.config.id);
+  private async load(id: number): Promise<void> {
+    this.state = await getThreadState(this.trace.engine, id);
 
     if (!this.state) {
       return;
@@ -90,7 +84,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
 
     const relatedStates: RelatedThreadStates = {};
     relatedStates.prev = (
-      await getThreadStateFromConstraints(this.engine, {
+      await getThreadStateFromConstraints(this.trace.engine, {
         filters: [
           `ts + dur = ${this.state.ts}`,
           `utid = ${this.state.thread?.utid}`,
@@ -99,7 +93,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
       })
     )[0];
     relatedStates.next = (
-      await getThreadStateFromConstraints(this.engine, {
+      await getThreadStateFromConstraints(this.trace.engine, {
         filters: [
           `ts = ${this.state.ts + this.state.dur}`,
           `utid = ${this.state.thread?.utid}`,
@@ -109,7 +103,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     )[0];
     if (this.state.wakerId !== undefined) {
       relatedStates.waker = await getThreadState(
-        this.engine,
+        this.trace.engine,
         this.state.wakerId,
       );
     }
@@ -118,22 +112,19 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     // the thread_state table).
     relatedStates.wakerInterruptCtx = this.state.wakerInterruptCtx;
 
-    relatedStates.wakee = await getThreadStateFromConstraints(this.engine, {
-      filters: [
-        `waker_id = ${this.config.id}`,
-        `(irq_context is null or irq_context = 0)`,
-      ],
-    });
-
+    relatedStates.wakee = await getThreadStateFromConstraints(
+      this.trace.engine,
+      {
+        filters: [
+          `waker_id = ${this.id}`,
+          `(irq_context is null or irq_context = 0)`,
+        ],
+      },
+    );
     this.relatedStates = relatedStates;
   }
 
-  getTitle() {
-    // TODO(altimin): Support dynamic titles here.
-    return 'Current Selection';
-  }
-
-  viewTab() {
+  private renderView() {
     // TODO(altimin/stevegolton): Differentiate between "Current Selection" and
     // "Pinned" views in DetailsShell.
     return m(
@@ -156,14 +147,10 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
   }
 
   private renderLoadingText() {
-    if (!this.loaded) {
+    if (!this.state) {
       return 'Loading';
     }
-    if (!this.state) {
-      return `Thread state ${this.config.id} does not exist`;
-    }
-    // TODO(stevegolton): Return something intelligent here.
-    return this.config.id;
+    return this.id;
   }
 
   private renderTree(state: ThreadState) {

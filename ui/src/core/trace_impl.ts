@@ -125,7 +125,6 @@ export class TraceContext implements Disposable {
     if (switchToCurrentSelectionTab) {
       this.tabMgr.showCurrentSelectionTab();
     }
-    // pendingScrollId is handled by SelectionManager internally.
 
     if (selection.kind === 'area') {
       this.pivotTableMgr.setSelectionArea(selection);

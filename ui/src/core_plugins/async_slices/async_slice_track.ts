@@ -19,6 +19,7 @@ import {
 } from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
+import {TrackEventDetails} from '../../public/selection';
 import {Slice} from '../../public/track';
 
 export class AsyncSliceTrack extends NamedSliceTrack {
@@ -60,5 +61,16 @@ export class AsyncSliceTrack extends NamedSliceTrack {
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
+  }
+
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const baseDetails = await super.getSelectionDetails(id);
+    if (!baseDetails) return undefined;
+    return {
+      ...baseDetails,
+      tableName: 'slice',
+    };
   }
 }
