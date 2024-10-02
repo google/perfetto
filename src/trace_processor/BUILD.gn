@@ -156,7 +156,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_processor_impl.cc",
       "trace_processor_impl.h",
     ]
-
     deps = [
       ":metatrace",
       ":storage_minimal",
@@ -206,6 +205,9 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
     if (enable_perfetto_trace_processor_mac_instruments) {
       deps += [ "importers/instruments" ]
+    }
+    if (enable_perfetto_trace_processor_json) {
+      deps += [ "importers/gecko" ]
     }
   }
 
