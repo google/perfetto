@@ -67,7 +67,7 @@ class TraceProcessorImpl : public TraceProcessor,
   base::Status RegisterMetric(const std::string& path,
                               const std::string& sql) override;
 
-  base::Status RegisterSqlModule(SqlModule sql_module) override;
+  base::Status RegisterSqlModule(SqlModule) override;
 
   base::Status ExtendMetricsProto(const uint8_t* data, size_t size) override;
 
@@ -117,6 +117,11 @@ class TraceProcessorImpl : public TraceProcessor,
   DescriptorPool pool_;
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
+
+  // Manually registeres SQL packages are stored here, to be able to restore
+  // them when running |RestoreInitialTables()|.
+  std::vector<SqlModule> manually_registered_sql_packages_;
+
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
   std::unordered_map<std::string, std::string> proto_fn_name_to_path_;
 
