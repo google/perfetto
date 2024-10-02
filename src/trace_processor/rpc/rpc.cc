@@ -412,14 +412,14 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
 
 base::Status Rpc::RegisterSqlModule(protozero::ConstBytes bytes) {
   protos::pbzero::RegisterSqlModuleArgs::Decoder args(bytes);
-  SqlModule module;
-  module.name = args.top_level_package_name().ToStdString();
-  module.allow_module_override = args.allow_module_override();
+  SqlModule package;
+  package.name = args.top_level_package_name().ToStdString();
+  package.allow_module_override = args.allow_module_override();
   for (auto it = args.modules(); it; ++it) {
     protos::pbzero::RegisterSqlModuleArgs::Module::Decoder m(*it);
-    module.files.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
+    package.files.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
   }
-  return trace_processor_->RegisterSqlModule(module);
+  return trace_processor_->RegisterSqlModule(package);
 }
 
 void Rpc::MaybePrintProgress() {
