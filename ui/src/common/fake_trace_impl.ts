@@ -42,6 +42,8 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     gpuCount: 0,
     importErrors: 0,
     traceType: 'proto',
+    uuid: '',
+    cached: false,
   };
   return TraceImpl.newInstance(
     new FakeEngine(args.allowQueries ?? false),
