@@ -617,6 +617,20 @@ base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
   if (tse.read_tracing_buffers_completed()) {
     context_->sorter->NotifyReadBufferEvent();
   }
+  if (tse.has_slow_starting_data_sources()) {
+    protos::pbzero::TracingServiceEvent::DataSources::Decoder msg(
+        tse.slow_starting_data_sources());
+    for (auto it = msg.data_source(); it; it++) {
+      protos::pbzero::TracingServiceEvent::DataSources::DataSource::Decoder
+          data_source(*it);
+      std::string formatted = data_source.producer_name().ToStdString() + " " +
+                              data_source.data_source_name().ToStdString();
+      context_->metadata_tracker->AppendMetadata(
+          metadata::slow_start_data_source,
+          Variadic::String(
+              context_->storage->InternString(base::StringView(formatted))));
+    }
+  }
   return base::OkStatus();
 }
 

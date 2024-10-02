@@ -42,6 +42,10 @@ class TestTaskRunner : public TaskRunner {
   void RunUntilCheckpoint(const std::string& checkpoint,
                           uint32_t timeout_ms = 5000);
 
+  // Pretends (for the purposes of running delayed tasks) that time advanced by
+  // `ms`. Run until then.
+  void AdvanceTimeAndRunUntilIdle(uint32_t ms);
+
   // TaskRunner implementation.
   void PostTask(std::function<void()> closure) override;
   void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
