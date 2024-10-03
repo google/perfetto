@@ -341,18 +341,7 @@ function onCssLoaded() {
   maybeChangeRpcPortFromFragment();
   CheckHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
-    globals.dispatch(
-      Actions.maybeSetPendingDeeplink({
-        ts: route.args.ts,
-        tid: route.args.tid,
-        dur: route.args.dur,
-        pid: route.args.pid,
-        query: route.args.query,
-        visStart: route.args.visStart,
-        visEnd: route.args.visEnd,
-      }),
-    );
-
+    AppImpl.instance.setInitialRouteArgs(route.args);
     if (!globals.embeddedMode) {
       installFileDropHandler();
     }

@@ -286,11 +286,5 @@ function reportUpdateProgress(uploader: GcsUploader) {
 }
 
 function updateStatus(msg: string): void {
-  // TODO(hjd): Unify loading updates.
-  globals.dispatch(
-    Actions.updateStatus({
-      msg,
-      timestamp: Date.now() / 1000,
-    }),
-  );
+  AppImpl.instance.omnibox.showStatusMessage(msg);
 }

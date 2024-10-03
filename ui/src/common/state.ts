@@ -114,11 +114,6 @@ export interface QueryConfig {
   query: string;
 }
 
-export interface Status {
-  msg: string;
-  timestamp: number; // Epoch in seconds (Date.now() / 1000).
-}
-
 export interface Pagination {
   offset: number;
   count: number;
@@ -180,7 +175,6 @@ export interface State {
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
-  status: Status;
   traceConversionInProgress: boolean;
   flamegraphModalDismissed: boolean;
 
@@ -209,10 +203,6 @@ export interface State {
 
   fetchChromeCategories: boolean;
   chromeCategories: string[] | undefined;
-
-  // Pending deeplink which will happen when we first finish opening a
-  // trace.
-  pendingDeeplink?: PendingDeeplinkState;
 
   trackFilterTerm: string | undefined;
 

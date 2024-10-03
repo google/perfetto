@@ -17,18 +17,10 @@ import {time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {createEmptyState} from './empty_state';
 import {
-  MetatraceTrackId,
-  traceEventBegin,
-  traceEventEnd,
-  TraceEventScope,
-} from './metatracing';
-import {
   AdbRecordingTarget,
   LoadedConfig,
-  PendingDeeplinkState,
   RecordingTarget,
   State,
-  Status,
 } from './state';
 import {SerializedAppState} from '../public/state_serialization_schema';
 
@@ -85,8 +77,6 @@ function generateNextId(draft: StateDraft): string {
   return nextId;
 }
 
-let statusTraceEvent: TraceEventScope | undefined;
-
 export const StateActions = {
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
     clearTraceState(state);
@@ -138,24 +128,6 @@ export const StateActions = {
     } else {
       state.lastTrackReloadRequest = 1;
     }
-  },
-
-  maybeSetPendingDeeplink(state: StateDraft, args: PendingDeeplinkState) {
-    state.pendingDeeplink = args;
-  },
-
-  clearPendingDeeplink(state: StateDraft, _: {}) {
-    state.pendingDeeplink = undefined;
-  },
-
-  updateStatus(state: StateDraft, args: Status): void {
-    if (statusTraceEvent) {
-      traceEventEnd(statusTraceEvent);
-    }
-    statusTraceEvent = traceEventBegin(args.msg, {
-      track: MetatraceTrackId.kOmniboxStatus,
-    });
-    state.status = args;
   },
 
   // TODO(hjd): Remove setState - it causes problems due to reuse of ids.

@@ -244,15 +244,10 @@ function loadTraceFromUrl(url: string) {
 }
 
 function openTraceFromAndroidBugTool() {
-  // TODO(hjd): Unify updateStatus and TaskTracker
-  globals.dispatch(
-    Actions.updateStatus({
-      msg: 'Loading trace from ABT extension',
-      timestamp: Date.now() / 1000,
-    }),
-  );
+  const msg = 'Loading trace from ABT extension';
+  AppImpl.instance.omnibox.showStatusMessage(msg);
   const loadInfo = loadAndroidBugToolInfo();
-  taskTracker.trackPromise(loadInfo, 'Loading trace from ABT extension');
+  taskTracker.trackPromise(loadInfo, msg);
   loadInfo
     .then((info) => {
       globals.dispatch(
