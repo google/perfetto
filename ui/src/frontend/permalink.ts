@@ -37,7 +37,7 @@ import {Optional} from '../base/utils';
 import {
   SERIALIZED_STATE_VERSION,
   SerializedAppState,
-} from '../common/state_serialization_schema';
+} from '../public/state_serialization_schema';
 import {z} from 'zod';
 import {showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
@@ -194,19 +194,22 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
     Router.navigate('#!/record');
     return;
   }
+  let serializedAppState: Optional<SerializedAppState> = undefined;
   if (permalink.appState !== undefined) {
     // This is the most common case where the permalink contains the app state
     // (and optionally a traceUrl, below). globals.restoreAppStateAfterTraceLoad
     // will be processed by trace_controller.ts after the trace has loaded.
     const parseRes = parseAppState(permalink.appState);
     if (parseRes.success) {
-      globals.restoreAppStateAfterTraceLoad = parseRes.data;
+      serializedAppState = parseRes.data;
     } else {
       error = parseRes.error;
     }
   }
   if (permalink.traceUrl) {
-    globals.dispatch(Actions.openTraceFromUrl({url: permalink.traceUrl}));
+    globals.dispatch(
+      Actions.openTraceFromUrl({url: permalink.traceUrl, serializedAppState}),
+    );
   }
 
   if (error) {
