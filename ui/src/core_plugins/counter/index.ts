@@ -172,7 +172,7 @@ class CounterPlugin implements PerfettoPlugin {
             unit,
           },
         }),
-        detailsPanel: () => new CounterDetailsPanel(ctx.engine, trackId, title),
+        detailsPanel: () => new CounterDetailsPanel(ctx, trackId, title),
       });
       const track = new TrackNode({uri, title});
       ctx.workspace.addChildInOrder(track);
@@ -248,7 +248,7 @@ class CounterPlugin implements PerfettoPlugin {
           trackId: trackId,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: () => new CounterDetailsPanel(ctx.engine, trackId, name),
+        detailsPanel: () => new CounterDetailsPanel(ctx, trackId, name),
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -20});
       ctx.workspace.addChildInOrder(trackNode);
@@ -315,7 +315,7 @@ class CounterPlugin implements PerfettoPlugin {
           trackId: trackId,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: () => new CounterDetailsPanel(ctx.engine, trackId, name),
+        detailsPanel: () => new CounterDetailsPanel(ctx, trackId, name),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title: name, sortOrder: 30});
@@ -373,7 +373,7 @@ class CounterPlugin implements PerfettoPlugin {
           trackId: trackId,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: () => new CounterDetailsPanel(ctx.engine, trackId, name),
+        detailsPanel: () => new CounterDetailsPanel(ctx, trackId, name),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title: name, sortOrder: 20});
@@ -413,8 +413,7 @@ class CounterPlugin implements PerfettoPlugin {
             trackId: trackId,
             options: getDefaultCounterOptions(name),
           }),
-          detailsPanel: () =>
-            new CounterDetailsPanel(ctx.engine, trackId, name),
+          detailsPanel: () => new CounterDetailsPanel(ctx, trackId, name),
         });
         const track = new TrackNode({uri, title: name, sortOrder: -20});
         ctx.workspace.addChildInOrder(track);
