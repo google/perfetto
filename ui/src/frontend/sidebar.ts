@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
-import {Actions} from '../common/actions';
 import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
@@ -312,12 +311,8 @@ function downloadTraceFromUrl(url: string): Promise<File> {
       xhr.responseType = 'blob';
       xhr.onprogress = (progress) => {
         const percent = ((100 * progress.loaded) / progress.total).toFixed(1);
-        globals.dispatch(
-          Actions.updateStatus({
-            msg: `Downloading trace ${percent}%`,
-            timestamp: Date.now() / 1000,
-          }),
-        );
+        const msg = `Downloading trace ${percent}%`;
+        AppImpl.instance.omnibox.showStatusMessage(msg);
       };
     },
     extract: (xhr) => {
