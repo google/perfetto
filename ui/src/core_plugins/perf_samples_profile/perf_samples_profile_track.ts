@@ -21,10 +21,7 @@ import {
 import {NewTrackArgs} from '../../frontend/track';
 import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
 import {getColorForSample} from '../../core/colorizer';
-import {Time} from '../../base/time';
-import {globals} from '../../frontend/globals';
-import {ProfileType} from '../../public/selection';
-import {LegacySelection} from '../../public/selection';
+import {ProfileType, TrackEventDetails} from '../../public/selection';
 import {assertExists} from '../../base/logging';
 
 interface PerfSampleRow extends NamedRow {
@@ -50,14 +47,15 @@ abstract class BasePerfSamplesProfileTrack extends BaseSliceTrack<
     return {...baseSlice, title: name, colorScheme};
   }
 
-  isSelectionHandled(selection: LegacySelection): boolean {
-    return selection.kind === 'PERF_SAMPLES';
-  }
-
   onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
+  }
+
+  onSliceClick(args: OnSliceClickArgs<Slice>): void {
+    // TODO(stevegolton): Perhaps we could just move this to BaseSliceTrack?
+    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 }
 
@@ -85,15 +83,16 @@ export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack 
     `;
   }
 
-  onSliceClick({slice}: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.selectLegacy({
-      kind: 'PERF_SAMPLES',
-      id: slice.id,
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const details = await super.getSelectionDetails(id);
+    if (details === undefined) return undefined;
+    return {
+      ...details,
       upid: this.upid,
-      leftTs: Time.fromRaw(slice.ts),
-      rightTs: Time.fromRaw(slice.ts),
-      type: ProfileType.PERF_SAMPLE,
-    });
+      profileType: ProfileType.PERF_SAMPLE,
+    };
   }
 }
 
@@ -120,14 +119,15 @@ export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
     `;
   }
 
-  onSliceClick({slice}: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.selectLegacy({
-      kind: 'PERF_SAMPLES',
-      id: slice.id,
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const details = await super.getSelectionDetails(id);
+    if (details === undefined) return undefined;
+    return {
+      ...details,
       utid: this.utid,
-      leftTs: Time.fromRaw(slice.ts),
-      rightTs: Time.fromRaw(slice.ts),
-      type: ProfileType.PERF_SAMPLE,
-    });
+      profileType: ProfileType.PERF_SAMPLE,
+    };
   }
 }

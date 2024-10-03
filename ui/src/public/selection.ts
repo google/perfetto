@@ -125,21 +125,9 @@ export interface LegacySelectionWrapper {
   readonly legacySelection: LegacySelection;
 }
 
-export type LegacySelection = (
-  | PerfSamplesSelection
-  | LogSelection
-  | GenericSliceSelection
-) & {trackUri?: string};
-
-export interface PerfSamplesSelection {
-  readonly kind: 'PERF_SAMPLES';
-  readonly id: number;
-  readonly utid?: number;
-  readonly upid?: number;
-  readonly leftTs: time;
-  readonly rightTs: time;
-  readonly type: ProfileType;
-}
+export type LegacySelection = (LogSelection | GenericSliceSelection) & {
+  trackUri?: string;
+};
 
 export interface LogSelection {
   readonly kind: 'LOG';
@@ -179,6 +167,7 @@ export interface TrackEventDetails {
   // the core.
   readonly wakeupTs?: time;
   readonly wakerCpu?: number;
+  readonly upid?: number;
   readonly utid?: number;
   readonly tableName?: string;
   readonly profileType?: ProfileType;
