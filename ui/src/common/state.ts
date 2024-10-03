@@ -103,8 +103,6 @@ export const STATE_VERSION = 61;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
-export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
-
 export interface EngineConfig {
   id: string;
   source: TraceSource;
@@ -177,7 +175,6 @@ export interface State {
   /**
    * Open traces.
    */
-  newEngineMode: NewEngineMode;
   engine?: EngineConfig;
 
   debugTrackId?: string;

@@ -20,6 +20,7 @@ import {OmniboxManagerImpl} from './omnibox_manager';
 import {raf} from './raf_scheduler';
 import {SidebarManagerImpl} from './sidebar_manager';
 import {PluginManager} from './plugin_manager';
+import {NewEngineMode} from '../trace_processor/engine';
 
 // The pseudo plugin id used for the core instance of AppImpl.
 
@@ -38,6 +39,7 @@ export class AppContext {
   readonly omniboxMgr = new OmniboxManagerImpl();
   readonly sidebarMgr = new SidebarManagerImpl();
   readonly pluginMgr: PluginManager;
+  newEngineMode: NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE';
 
   // The most recently created trace context. Can be undefined before any trace
   // is loaded.
@@ -139,6 +141,14 @@ export class AppImpl implements App {
   forkForPlugin(pluginId: string): AppImpl {
     assertTrue(pluginId != CORE_PLUGIN_ID);
     return new AppImpl(this.appCtx, pluginId);
+  }
+
+  get newEngineMode() {
+    return this.appCtx.newEngineMode;
+  }
+
+  set newEngineMode(mode: NewEngineMode) {
+    this.appCtx.newEngineMode = mode;
   }
 
   get isLoadingTrace() {

@@ -24,11 +24,10 @@ import {
   enableMetatracing,
   isMetatracingEnabled,
 } from '../common/metatracing';
-import {EngineMode} from 'src/trace_processor/engine';
+import {Engine, EngineMode} from 'src/trace_processor/engine';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
-import {EngineBase} from '../trace_processor/engine';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
 import {downloadData, downloadUrl} from './download_utils';
@@ -155,7 +154,7 @@ function insertSidebarMenuitems(
     });
 }
 
-function getSections(): Section[] {
+function getSections(trace?: Trace): Section[] {
   return [
     {
       title: 'Navigation',
@@ -198,7 +197,7 @@ function getSections(): Section[] {
         },
         {
           t: 'Download',
-          a: downloadTrace,
+          a: (e: Event) => trace && downloadTrace(e, trace),
           i: 'file_download',
           checkDownloadDisabled: true,
         },
@@ -277,18 +276,22 @@ function getSections(): Section[] {
           a: getBugReportUrl(),
           i: 'bug_report',
         },
-        {
-          t: 'Record metatrace',
-          a: recordMetatrace,
-          i: 'fiber_smart_record',
-          checkMetatracingDisabled: true,
-        },
-        {
-          t: 'Finalise metatrace',
-          a: finaliseMetatrace,
-          i: 'file_download',
-          checkMetatracingEnabled: true,
-        },
+        ...(trace
+          ? [
+              {
+                t: 'Record metatrace',
+                a: (e: Event) => recordMetatrace(e, trace.engine),
+                i: 'fiber_smart_record',
+                checkMetatracingDisabled: true,
+              },
+              {
+                t: 'Finalise metatrace',
+                a: (e: Event) => finaliseMetatrace(e, trace.engine),
+                i: 'file_download',
+                checkMetatracingEnabled: true,
+              },
+            ]
+          : []),
       ],
     },
   ];
@@ -434,16 +437,14 @@ function handleShareTrace(e: Event) {
   shareTrace();
 }
 
-function downloadTrace(e: Event) {
+function downloadTrace(e: Event, trace: Trace) {
   e.preventDefault();
   if (!isDownloadable() || !isTraceLoaded()) return;
   globals.logging.logEvent('Trace Actions', 'Download trace');
 
-  const engine = globals.getCurrentEngine();
-  if (!engine) return;
   let url = '';
   let fileName = `trace${TRACE_SUFFIX}`;
-  const src = engine.source;
+  const src = trace.traceInfo.source;
   if (src.type === 'URL') {
     url = src.url;
     fileName = url.split('/').slice(-1)[0];
@@ -468,12 +469,6 @@ function downloadTrace(e: Event) {
   downloadUrl(fileName, url);
 }
 
-function getCurrentEngine(): EngineBase | undefined {
-  const engineId = globals.getCurrentEngine()?.id;
-  if (engineId === undefined) return undefined;
-  return globals.engines.get(engineId);
-}
-
 function highPrecisionTimersAvailable(): boolean {
   // High precision timers are available either when the page is cross-origin
   // isolated or when the trace processor is a standalone binary.
@@ -483,12 +478,9 @@ function highPrecisionTimersAvailable(): boolean {
   );
 }
 
-function recordMetatrace(e: Event) {
+function recordMetatrace(e: Event, engine: Engine) {
   e.preventDefault();
   globals.logging.logEvent('Trace Actions', 'Record metatrace');
-
-  const engine = getCurrentEngine();
-  if (!engine) return;
 
   if (!highPrecisionTimersAvailable()) {
     const PROMPT = `High-precision timers are not available to WASM trace processor yet.
@@ -524,14 +516,11 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
   }
 }
 
-async function finaliseMetatrace(e: Event) {
+async function finaliseMetatrace(e: Event, engine: Engine) {
   e.preventDefault();
   globals.logging.logEvent('Trace Actions', 'Finalise metatrace');
 
   const jsEvents = disableMetatracingAndGetTrace();
-
-  const engine = getCurrentEngine();
-  if (!engine) return;
 
   const result = await engine.stopAndGetMetatrace();
   if (result.error.length !== 0) {
@@ -567,7 +556,7 @@ class EngineRPCWidget implements m.ClassComponent<OptionalTraceAttrs> {
     if (mode === undefined) {
       if (
         globals.httpRpcState.connected &&
-        globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
+        AppImpl.instance.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
       ) {
         mode = 'HTTP_RPC';
       } else {
@@ -717,7 +706,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
   view({attrs}: m.CVnode<OptionalTraceAttrs>) {
     if (globals.hideSidebar) return null;
     const vdomSections = [];
-    for (const section of getSections()) {
+    for (const section of getSections(attrs.trace)) {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
       const vdomItems = [];
       for (const item of section.items) {
