@@ -17,6 +17,8 @@ import("../../../../../gn/perfetto_sql.gni")
 perfetto_sql_source_set("wattson") {
   sources = [
     "arm_dsu.sql",
+    "cpu_freq.sql",
+    "cpu_freq_idle.sql",
     "cpu_idle.sql",
     "cpu_split.sql",
     "curves/device.sql",
