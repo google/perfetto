@@ -21,7 +21,6 @@ import {
   Result,
   success,
 } from '../base/result';
-import {pluginManager, PluginManager} from '../common/plugins';
 import {raf} from '../core/raf_scheduler';
 import {MetricVisualisation} from '../public/plugin';
 import {Engine} from '../trace_processor/engine';
@@ -31,6 +30,7 @@ import {Spinner} from '../widgets/spinner';
 import {VegaView} from '../widgets/vega_view';
 import {PageWithTraceAttrs} from './pages';
 import {assertExists} from '../base/logging';
+import {AppImpl} from '../core/app_impl';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
@@ -59,7 +59,6 @@ async function getMetric(
 
 class MetricsController {
   engine: Engine;
-  plugins: PluginManager;
   private _metrics: string[];
   private _selected?: string;
   private _result: Result<string>;
@@ -67,8 +66,7 @@ class MetricsController {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _json: any;
 
-  constructor(plugins: PluginManager, engine: Engine) {
-    this.plugins = plugins;
+  constructor(engine: Engine) {
     this.engine = engine;
     this._metrics = [];
     this._result = success('');
@@ -84,7 +82,7 @@ class MetricsController {
   }
 
   get visualisations(): MetricVisualisation[] {
-    return this.plugins
+    return AppImpl.instance.plugins
       .metricVisualisations()
       .filter((v) => v.metric === this.selected);
   }
@@ -247,7 +245,7 @@ export class MetricsPage implements m.ClassComponent<PageWithTraceAttrs> {
 
   oninit({attrs}: m.Vnode<PageWithTraceAttrs>) {
     const engine = attrs.trace.engine.getProxy('MetricsPage');
-    this.controller = new MetricsController(pluginManager, engine);
+    this.controller = new MetricsController(engine);
   }
 
   view() {
