@@ -399,10 +399,7 @@ export class UiMainPerTrace implements m.ClassComponent {
 
   private renderOmnibox(): m.Children {
     const msgTTL = globals.state.status.timestamp + 1 - Date.now() / 1e3;
-    const engineIsBusy =
-      globals.state.engine !== undefined && !globals.state.engine.ready;
-
-    if (msgTTL > 0 || engineIsBusy) {
+    if (msgTTL > 0 || AppImpl.instance.isLoadingTrace) {
       setTimeout(() => raf.scheduleFullRedraw(), msgTTL * 1000);
       return m(
         `.omnibox.message-mode`,
