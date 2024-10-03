@@ -491,6 +491,7 @@ export abstract class EngineBase implements Engine, Disposable {
     const args = (rpc.registerSqlModuleArgs = new RegisterSqlModuleArgs());
     args.topLevelPackageName = p.name;
     args.modules = p.modules;
+    args.allowModuleOverride = true;
     this.pendingRegisterSqlModule = result;
     this.rpcSendRequest(rpc);
     return result;
