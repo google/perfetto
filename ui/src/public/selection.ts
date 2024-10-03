@@ -126,7 +126,6 @@ export interface LegacySelectionWrapper {
 }
 
 export type LegacySelection = (
-  | CpuProfileSampleSelection
   | PerfSamplesSelection
   | LogSelection
   | GenericSliceSelection
@@ -140,13 +139,6 @@ export interface PerfSamplesSelection {
   readonly leftTs: time;
   readonly rightTs: time;
   readonly type: ProfileType;
-}
-
-export interface CpuProfileSampleSelection {
-  readonly kind: 'CPU_PROFILE_SAMPLE';
-  readonly id: number;
-  readonly utid: number;
-  readonly ts: time;
 }
 
 export interface LogSelection {
