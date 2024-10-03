@@ -17,12 +17,11 @@ import {Trace} from '../public/trace';
 import {App} from '../public/app';
 import {MetricVisualisation} from '../public/plugin';
 import {PerfettoPlugin, PluginDescriptor} from '../public/plugin';
-import {Flag, featureFlags} from '../core/feature_flags';
-import {assertExists, assertTrue} from '../base/logging';
-import {raf} from '../core/raf_scheduler';
-import {defaultPlugins} from '../core/default_plugins';
-import {TraceImpl} from '../core/trace_impl';
-import {AppImpl, CORE_PLUGIN_ID} from '../core/app_impl';
+import {Flag, featureFlags} from './feature_flags';
+import {assertExists} from '../base/logging';
+import {raf} from './raf_scheduler';
+import {defaultPlugins} from './default_plugins';
+import {TraceImpl} from './trace_impl';
 
 // 'Static' registry of all known plugins.
 export class PluginRegistry extends Registry<PluginDescriptor> {
@@ -50,16 +49,20 @@ function makePlugin(info: PluginDescriptor): PerfettoPlugin {
   }
 }
 
+// This interface injects AppImpl's methods into PluginManager to avoid
+// circular dependencies between PluginManager and AppImpl.
+export interface PluginAppInterface {
+  forkForPlugin(pluginId: string): App;
+  get trace(): TraceImpl | undefined;
+}
+
 export class PluginManager {
-  private registry: PluginRegistry;
-  private _plugins: Map<string, PluginDetails>;
+  private registry = new PluginRegistry();
+  private _plugins = new Map<string, PluginDetails>();
   private flags = new Map<string, Flag>();
   private _needsRestart = false;
 
-  constructor(registry: PluginRegistry) {
-    this.registry = registry;
-    this._plugins = new Map();
-  }
+  constructor(private app: PluginAppInterface) {}
 
   get plugins(): Map<string, PluginDetails> {
     return this._plugins;
@@ -67,7 +70,7 @@ export class PluginManager {
 
   // Must only be called once on startup
   async initialize(): Promise<void> {
-    for (const {pluginId} of pluginRegistry.values()) {
+    for (const {pluginId} of this.registry.values()) {
       const flagId = `plugin_${pluginId}`;
       const name = `Plugin: ${pluginId}`;
       const flag = featureFlags.register({
@@ -81,6 +84,10 @@ export class PluginManager {
         await this.activatePlugin(pluginId);
       }
     }
+  }
+
+  registerPlugin(descriptor: PluginDescriptor) {
+    this.registry.register(descriptor);
   }
 
   /**
@@ -119,7 +126,7 @@ export class PluginManager {
     const pluginInfo = this.registry.get(id);
     const plugin = makePlugin(pluginInfo);
 
-    const app = AppImpl.instance.forkForPlugin(id);
+    const app = this.app.forkForPlugin(id);
 
     plugin.onActivate?.(app);
 
@@ -127,7 +134,7 @@ export class PluginManager {
 
     // If a trace is already loaded when plugin is activated, make sure to
     // call onTraceLoad().
-    const maybeTrace = AppImpl.instance.trace;
+    const maybeTrace = this.app.trace;
     if (maybeTrace !== undefined) {
       await doPluginTraceLoad(pluginDetails, maybeTrace);
       await doPluginTraceReady(pluginDetails);
@@ -143,7 +150,7 @@ export class PluginManager {
    * Also activates new plugins to match flag settings.
    */
   async restoreDefaults(): Promise<void> {
-    for (const plugin of pluginRegistry.values()) {
+    for (const plugin of this.registry.values()) {
       const pluginId = plugin.pluginId;
       const flag = assertExists(this.flags.get(pluginId));
       flag.reset();
@@ -155,8 +162,12 @@ export class PluginManager {
     }
   }
 
+  getRegisteredPlugins(): ReadonlyArray<PluginDescriptor> {
+    return this.registry.valuesAsArray();
+  }
+
   hasPlugin(pluginId: string): boolean {
-    return pluginRegistry.has(pluginId);
+    return this.registry.has(pluginId);
   }
 
   isActive(pluginId: string): boolean {
@@ -178,8 +189,6 @@ export class PluginManager {
     traceCore: TraceImpl,
     beforeEach?: (id: string) => void,
   ): Promise<void> {
-    assertTrue(traceCore.pluginId === CORE_PLUGIN_ID);
-
     // Awaiting all plugins in parallel will skew timing data as later plugins
     // will spend most of their time waiting for earlier plugins to load.
     // Running in parallel will have very little performance benefit assuming
@@ -233,8 +242,6 @@ async function doPluginTraceLoad(
   pluginDetails: PluginDetails,
   traceCore: TraceImpl,
 ): Promise<void> {
-  assertTrue(traceCore.pluginId === CORE_PLUGIN_ID);
-  assertTrue(pluginDetails.app.pluginId !== CORE_PLUGIN_ID);
   const {plugin} = pluginDetails;
   const trace = traceCore.forkForPlugin(pluginDetails.app.pluginId);
 
@@ -261,7 +268,3 @@ async function doPluginTraceUnload(
     // call.
   }
 }
-
-// TODO(hjd): Sort out the story for global singletons like these:
-export const pluginRegistry = new PluginRegistry();
-export const pluginManager = new PluginManager(pluginRegistry);

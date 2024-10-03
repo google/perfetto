@@ -15,7 +15,7 @@
 import {Time} from '../base/time';
 import {TraceInfo} from '../public/trace_info';
 import {EngineBase} from '../trace_processor/engine';
-import {TraceImpl} from '../core/trace_impl';
+import {TraceImpl} from './trace_impl';
 
 export interface FakeTraceImplArgs {
   // If true suppresses exceptions when trying to issue a query. This is to

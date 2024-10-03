@@ -19,6 +19,7 @@ import {CommandManagerImpl} from './command_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {raf} from './raf_scheduler';
 import {SidebarManagerImpl} from './sidebar_manager';
+import {PluginManager} from './plugin_manager';
 
 // The pseudo plugin id used for the core instance of AppImpl.
 
@@ -36,6 +37,7 @@ export class AppContext {
   readonly commandMgr = new CommandManagerImpl();
   readonly omniboxMgr = new OmniboxManagerImpl();
   readonly sidebarMgr = new SidebarManagerImpl();
+  readonly pluginMgr: PluginManager;
 
   // The most recently created trace context. Can be undefined before any trace
   // is loaded.
@@ -47,7 +49,14 @@ export class AppContext {
     return (AppContext._instance = AppContext._instance ?? new AppContext());
   }
 
-  private constructor() {}
+  private constructor() {
+    this.pluginMgr = new PluginManager({
+      forkForPlugin: (p) => AppImpl.instance.forkForPlugin(p),
+      get trace() {
+        return AppImpl.instance.trace;
+      },
+    });
+  }
 
   get currentTraceCtx(): TraceContext | undefined {
     return this.traceCtx;
@@ -103,6 +112,10 @@ export class AppImpl implements App {
 
   get omnibox(): OmniboxManagerImpl {
     return this.appCtx.omniboxMgr;
+  }
+
+  get plugins(): PluginManager {
+    return this.appCtx.pluginMgr;
   }
 
   get trace(): TraceImpl | undefined {

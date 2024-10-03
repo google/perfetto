@@ -14,7 +14,8 @@
 
 import {PerfettoPlugin} from '../public/plugin';
 import {createFakeTraceImpl} from './fake_trace_impl';
-import {PluginManager, PluginRegistry} from './plugins';
+import {PluginManager} from './plugin_manager';
+import {AppImpl} from './app_impl';
 
 function makeMockPlugin(): PerfettoPlugin {
   return {
@@ -30,12 +31,11 @@ let manager: PluginManager;
 describe('PluginManger', () => {
   beforeEach(() => {
     mockPlugin = makeMockPlugin();
-    const registry = new PluginRegistry();
-    registry.register({
+    manager = new PluginManager(AppImpl.instance);
+    manager.registerPlugin({
       pluginId: 'foo',
       plugin: mockPlugin,
     });
-    manager = new PluginManager(registry);
   });
 
   it('can activate plugin', async () => {
