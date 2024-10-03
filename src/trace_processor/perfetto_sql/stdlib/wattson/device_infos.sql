@@ -98,7 +98,9 @@ WITH data(device, cpu, policy) AS (
   ("Tensor G4", 4, 4),
   ("Tensor G4", 5, 4),
   ("Tensor G4", 6, 4),
-  ("Tensor G4", 7, 7)
+  ("Tensor G4", 7, 7),
+  -- need 255 policy to match devfreq
+  ("Tensor G4", 255, 255)
 )
 select * from data;
 
@@ -140,3 +142,26 @@ SELECT
 FROM _device_min_volt_vote as vote_tbl
 JOIN _wattson_device as device
 WHERE vote_tbl.device = device.name;
+
+-- Devices that require using devfreq
+CREATE PERFETTO TABLE _use_devfreq
+AS
+WITH data(device) AS (
+  VALUES
+  ("Tensor G4")
+)
+select * from data;
+
+-- Creates non-empty table if device needs devfreq
+CREATE PERFETTO TABLE _use_devfreq_for_calc AS
+SELECT TRUE AS devfreq_necessary
+FROM _use_devfreq as d
+JOIN _wattson_device as device
+ON d.device = device.name;
+
+-- Creates empty table if device needs devfreq; inverse of _use_devfreq_for_calc
+CREATE PERFETTO TABLE _skip_devfreq_for_calc AS
+SELECT FALSE AS devfreq_necessary
+FROM _use_devfreq as d
+JOIN _wattson_device as device
+ON d.device != device.name;

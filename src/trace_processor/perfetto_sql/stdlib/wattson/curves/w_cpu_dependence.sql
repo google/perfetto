@@ -37,9 +37,28 @@ WITH max_power_tbl AS (
       static_7
     ) as max_static_vote
   FROM _w_independent_cpus_calc
+  -- _skip_devfreq_for_calc short circuits this table if devfreq is needed
+  JOIN _skip_devfreq_for_calc
 )
 SELECT
-  *,
+  ts,
+  dur,
+  freq_0, idle_0,
+  freq_1, idle_1,
+  freq_2, idle_2,
+  freq_3, idle_3,
+  cpu0_curve,
+  cpu1_curve,
+  cpu2_curve,
+  cpu3_curve,
+  cpu4_curve,
+  cpu5_curve,
+  cpu6_curve,
+  cpu7_curve,
+  l3_hit_count,
+  l3_miss_count,
+  no_static,
+  all_cpu_deep_idle,
   CASE max_static_vote
     WHEN -1 THEN _get_min_freq_vote()
     WHEN static_4 THEN freq_4
@@ -57,4 +76,3 @@ SELECT
     ELSE 4
   END dependent_policy
 FROM max_power_tbl;
-

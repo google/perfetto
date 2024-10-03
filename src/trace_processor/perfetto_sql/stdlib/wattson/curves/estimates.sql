@@ -16,7 +16,42 @@
 INCLUDE PERFETTO MODULE wattson.cpu_split;
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 INCLUDE PERFETTO MODULE wattson.curves.w_cpu_dependence;
+INCLUDE PERFETTO MODULE wattson.curves.w_dsu_dependence;
 INCLUDE PERFETTO MODULE wattson.device_infos;
+
+-- One of the two tables will be empty, depending on whether the device is
+-- dependent on devfreq or a different CPU's frequency
+CREATE PERFETTO VIEW _curves_w_dependencies(
+  ts LONG,
+  dur LONG,
+  freq_0 INT,
+  idle_0 INT,
+  freq_1 INT,
+  idle_1 INT,
+  freq_2 INT,
+  idle_2 INT,
+  freq_3 INT,
+  idle_3 INT,
+  cpu0_curve FLOAT,
+  cpu1_curve FLOAT,
+  cpu2_curve FLOAT,
+  cpu3_curve FLOAT,
+  cpu4_curve FLOAT,
+  cpu5_curve FLOAT,
+  cpu6_curve FLOAT,
+  cpu7_curve FLOAT,
+  l3_hit_count INT,
+  l3_miss_count INT,
+  no_static INT,
+  all_cpu_deep_idle INT,
+  dependent_freq INT,
+  dependent_policy INT
+) AS
+-- Table that is dependent on differet CPU's frequency
+SELECT * FROM _w_cpu_dependence
+UNION ALL
+-- Table that is dependent of devfreq frequency
+SELECT * FROM _w_dsu_dependence;
 
 -- Final table showing the curves per CPU per slice
 CREATE PERFETTO TABLE _system_state_curves
@@ -47,7 +82,7 @@ SELECT
     0,
     base.l3_miss_count * l3_miss_lut.curve_value
   ) as l3_miss_value
-FROM _w_cpu_dependence as base
+FROM _curves_w_dependencies as base
 -- LUT for 2D dependencies
 LEFT JOIN _filtered_curves_2d lut0 ON
   lut0.freq_khz = base.freq_0 AND
