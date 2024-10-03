@@ -55,7 +55,6 @@ export function createEmptyState(): State {
     displayConfigAsPbtxt: false,
     lastLoadedConfig: {type: 'NONE'},
 
-    status: {msg: '', timestamp: 0},
     traceConversionInProgress: false,
 
     perfDebug: false,
