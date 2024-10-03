@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {time} from '../../base/time';
-import {raf} from '../../core/raf_scheduler';
 import {Anchor} from '../../widgets/anchor';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -43,9 +42,8 @@ import {
   CRITICAL_PATH_LITE_CMD,
 } from '../../public/exposed_commands';
 import {goToSchedSlice} from '../../frontend/widgets/sched';
-import {TrackSelectionDetailsPanel} from '../../public/details_panel';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import {AsyncLimiter} from '../../base/async_limiter';
 
 interface RelatedThreadStates {
   prev?: ThreadState;
@@ -55,27 +53,17 @@ interface RelatedThreadStates {
   wakee?: ThreadState[];
 }
 
-export class ThreadStateDetailsPanel implements TrackSelectionDetailsPanel {
-  private readonly queryLimiter = new AsyncLimiter();
+export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
   private state?: ThreadState;
   private relatedStates?: RelatedThreadStates;
-  private id?: number;
 
-  constructor(private readonly trace: Trace) {}
+  constructor(
+    private readonly trace: Trace,
+    private readonly id: number,
+  ) {}
 
-  render(id: number): m.Children {
-    if (id !== this.id) {
-      this.id = id;
-      this.queryLimiter.schedule(async () => {
-        await this.load(id);
-        raf.scheduleFullRedraw();
-      });
-    }
-
-    return this.renderView();
-  }
-
-  private async load(id: number): Promise<void> {
+  async load() {
+    const id = this.id;
     this.state = await getThreadState(this.trace.engine, id);
 
     if (!this.state) {
@@ -116,7 +104,7 @@ export class ThreadStateDetailsPanel implements TrackSelectionDetailsPanel {
       this.trace.engine,
       {
         filters: [
-          `waker_id = ${this.id}`,
+          `waker_id = ${id}`,
           `(irq_context is null or irq_context = 0)`,
         ],
       },
@@ -124,7 +112,7 @@ export class ThreadStateDetailsPanel implements TrackSelectionDetailsPanel {
     this.relatedStates = relatedStates;
   }
 
-  private renderView() {
+  render() {
     // TODO(altimin/stevegolton): Differentiate between "Current Selection" and
     // "Pinned" views in DetailsShell.
     return m(

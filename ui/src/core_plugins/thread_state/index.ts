@@ -91,7 +91,7 @@ class ThreadState implements PerfettoPlugin {
           },
           utid,
         ),
-        detailsPanel: new ThreadStateDetailsPanel(ctx),
+        detailsPanel: (id) => new ThreadStateDetailsPanel(ctx, id),
       });
 
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
