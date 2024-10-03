@@ -14,13 +14,10 @@
 
 import m from 'mithril';
 import {assertExists, assertFalse} from '../../base/logging';
-import {Monitor} from '../../base/monitor';
-import {profileType, ProfileType, Selection} from '../../public/selection';
-import {HeapProfileSelection} from '../../public/selection';
+import {ProfileType, TrackEventSelection} from '../../public/selection';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
 import {HEAP_PROFILE_TRACK_KIND} from '../../public/track_kinds';
-import {DetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -31,7 +28,7 @@ import {
   QueryFlamegraphAttrs,
   metricsFromTableOrSubquery,
 } from '../../core/query_flamegraph';
-import {Time, time} from '../../base/time';
+import {time} from '../../base/time';
 import {Popup} from '../../widgets/popup';
 import {Icon} from '../../widgets/icon';
 import {Button} from '../../widgets/button';
@@ -45,9 +42,21 @@ import {Router} from '../../frontend/router';
 import {Actions} from '../../common/actions';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+
+function getUriForTrack(upid: number): string {
+  return `/process_${upid}/heap_profile`;
+}
 
 class HeapProfilePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const it = await ctx.engine.query(`
+      select value from stats
+      where name = 'heap_graph_non_finalized_graph'
+    `);
+    const incomplete = it.firstRow({value: NUM}).value > 0;
+
     const result = await ctx.engine.query(`
       select distinct upid from heap_profile_allocation
       union
@@ -55,8 +64,50 @@ class HeapProfilePlugin implements PerfettoPlugin {
     `);
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
-      const uri = `/process_${upid}/heap_profile`;
+      const uri = getUriForTrack(upid);
       const title = 'Heap Profile';
+      const tableName = `_heap_profile_${upid}`;
+
+      createPerfettoTable(
+        ctx.engine,
+        tableName,
+        `
+          with
+            heaps as (select group_concat(distinct heap_name) h from heap_profile_allocation where upid = ${upid}),
+            allocation_tses as (select distinct ts from heap_profile_allocation where upid = ${upid}),
+            graph_tses as (select distinct graph_sample_ts from heap_graph_object where upid = ${upid})
+          select
+            *,
+            0 AS dur,
+            0 AS depth
+          from (
+            select
+              (
+                select a.id
+                from heap_profile_allocation a
+                where a.ts = t.ts
+                order by a.id
+                limit 1
+              ) as id,
+              ts,
+              'heap_profile:' || (select h from heaps) AS type
+            from allocation_tses t
+            union all
+            select
+              (
+                select o.id
+                from heap_graph_object o
+                where o.graph_sample_ts = g.graph_sample_ts
+                order by o.id
+                limit 1
+              ) as id,
+              graph_sample_ts AS ts,
+              'graph' AS type
+            from graph_tses g
+          )
+        `,
+      );
+
       ctx.tracks.registerTrack({
         uri,
         title,
@@ -69,21 +120,15 @@ class HeapProfilePlugin implements PerfettoPlugin {
             trace: ctx,
             uri,
           },
-          upid,
+          tableName,
         ),
+        detailsPanel: () =>
+          new HeapProfileFlamegraphDetailsPanel(ctx, incomplete, upid),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title, sortOrder: -30});
       group.addChildInOrder(track);
     }
-    const it = await ctx.engine.query(`
-      select value from stats
-      where name = 'heap_graph_non_finalized_graph'
-    `);
-    const incomplete = it.firstRow({value: NUM}).value > 0;
-    ctx.tabs.registerDetailsPanel(
-      new HeapProfileFlamegraphDetailsPanel(ctx.engine, incomplete),
-    );
 
     await selectFirstHeapProfile(ctx);
   }
@@ -105,51 +150,49 @@ async function selectFirstHeapProfile(ctx: Trace) {
     order by ts
     limit 1
   `;
-  const profile = await assertExists(ctx.engine).query(query);
+  const profile = await ctx.engine.query(query);
   if (profile.numRows() !== 1) return;
   const row = profile.firstRow({ts: LONG, type: STR, upid: NUM});
-  const ts = Time.fromRaw(row.ts);
   const upid = row.upid;
-  ctx.selection.selectLegacy({
-    kind: 'HEAP_PROFILE',
-    id: 0,
-    upid,
-    ts,
-    type: profileType(row.type),
-  });
+
+  ctx.selection.selectTrackEvent(getUriForTrack(upid), 0);
 }
 
-class HeapProfileFlamegraphDetailsPanel implements DetailsPanel {
-  private sel?: HeapProfileSelection;
-  private selMonitor = new Monitor([
-    () => this.sel?.ts,
-    () => this.sel?.upid,
-    () => this.sel?.type,
-  ]);
+interface Props {
+  ts: time;
+  type: ProfileType;
+}
+
+class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel {
   private flamegraphAttrs?: QueryFlamegraphAttrs;
+  private props?: Props;
 
   constructor(
-    private engine: Engine,
+    private trace: Trace,
     private heapGraphIncomplete: boolean,
+    private upid: number,
   ) {}
 
-  render(sel: Selection) {
-    if (sel.kind !== 'legacy') {
-      this.sel = undefined;
-      return;
-    }
+  async load(sel: TrackEventSelection) {
+    const {profileType, ts} = sel;
 
-    const legacySel = sel.legacySelection;
-    if (legacySel.kind !== 'HEAP_PROFILE') {
-      this.sel = undefined;
+    this.flamegraphAttrs = flamegraphAttrs(
+      this.trace.engine,
+      ts,
+      this.upid,
+      assertExists(profileType),
+    );
+
+    this.props = {ts, type: assertExists(profileType)};
+  }
+
+  render() {
+    if (!this.props) {
       return undefined;
     }
 
-    const {ts, upid, type} = legacySel;
-    this.sel = legacySel;
-    if (this.selMonitor.ifStateChanged()) {
-      this.flamegraphAttrs = flamegraphAttrs(this.engine, ts, upid, type);
-    }
+    const {type, ts} = this.props;
+
     return m(
       '.flamegraph-profile',
       maybeShowModal(type, this.heapGraphIncomplete),
@@ -160,7 +203,7 @@ class HeapProfileFlamegraphDetailsPanel implements DetailsPanel {
           title: m(
             '.title',
             getFlamegraphTitle(type),
-            legacySel.type === ProfileType.MIXED_HEAP_PROFILE &&
+            type === ProfileType.MIXED_HEAP_PROFILE &&
               m(
                 Popup,
                 {
@@ -176,13 +219,13 @@ class HeapProfileFlamegraphDetailsPanel implements DetailsPanel {
           description: [],
           buttons: [
             m('.time', `Snapshot time: `, m(Timestamp, {ts})),
-            (legacySel.type === ProfileType.NATIVE_HEAP_PROFILE ||
-              legacySel.type === ProfileType.JAVA_HEAP_SAMPLES) &&
+            (type === ProfileType.NATIVE_HEAP_PROFILE ||
+              type === ProfileType.JAVA_HEAP_SAMPLES) &&
               m(Button, {
                 icon: 'file_download',
                 intent: Intent.Primary,
                 onclick: () => {
-                  downloadPprof(this.engine, upid, ts);
+                  downloadPprof(this.trace.engine, this.upid, ts);
                   raf.scheduleFullRedraw();
                 },
               }),
@@ -193,11 +236,6 @@ class HeapProfileFlamegraphDetailsPanel implements DetailsPanel {
     );
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.HeapProfile',
-  plugin: HeapProfilePlugin,
-};
 
 function flamegraphAttrs(
   engine: Engine,
@@ -514,3 +552,8 @@ function maybeShowModal(type: ProfileType, heapGraphIncomplete: boolean) {
     ],
   });
 }
+
+export const plugin: PluginDescriptor = {
+  pluginId: 'perfetto.HeapProfile',
+  plugin: HeapProfilePlugin,
+};

@@ -400,7 +400,7 @@ export abstract class BaseSliceTrack<
     let selectedId: number | undefined = undefined;
     const selection = globals.selectionManager.selection;
     switch (selection.kind) {
-      case 'single':
+      case 'track_event':
         if (selection.trackUri === this.uri) {
           selectedId = selection.eventId;
         }

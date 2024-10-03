@@ -144,7 +144,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     if (this.selectionMonitor.ifStateChanged()) {
       const currentSelection = globals.selectionManager.selection;
       // Show single selection panels if they are registered
-      if (currentSelection.kind !== 'single') {
+      if (currentSelection.kind !== 'track_event') {
         this.trackEventDetailsPanel = undefined;
         return;
       }
@@ -155,7 +155,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
         return;
       }
 
-      const detailsPanel = td.detailsPanel?.(currentSelection.eventId);
+      const detailsPanel = td.detailsPanel?.(currentSelection);
       if (!detailsPanel) {
         this.trackEventDetailsPanel = undefined;
         return;
@@ -166,7 +166,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
         isLoading: true,
       };
       this.limiter.schedule(async () => {
-        await detailsPanel?.load?.(currentSelection.eventId);
+        await detailsPanel?.load?.(currentSelection);
         renderable.isLoading = false;
         raf.scheduleFullRedraw();
       });

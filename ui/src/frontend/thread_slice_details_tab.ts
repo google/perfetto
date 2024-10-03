@@ -44,6 +44,7 @@ import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists} from '../base/logging';
 import {Trace} from '../public/trace';
 import {TrackEventDetailsPanel} from '../public/details_panel';
+import {TrackEventSelection} from '../public/selection';
 
 interface ContextMenuItem {
   name: string;
@@ -261,9 +262,9 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     private readonly tableName: string,
   ) {}
 
-  async load(id: number) {
+  async load({eventId}: TrackEventSelection) {
     const {trace, tableName} = this;
-    const details = await getSliceDetails(trace.engine, id, tableName);
+    const details = await getSliceDetails(trace.engine, eventId, tableName);
 
     if (
       details !== undefined &&
