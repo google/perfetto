@@ -24,7 +24,7 @@ import {
   enableMetatracing,
   isMetatracingEnabled,
 } from '../common/metatracing';
-import {EngineMode} from '../common/state';
+import {EngineMode} from 'src/trace_processor/engine';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
@@ -479,7 +479,7 @@ function highPrecisionTimersAvailable(): boolean {
   // isolated or when the trace processor is a standalone binary.
   return (
     window.crossOriginIsolated ||
-    globals.getCurrentEngine()?.mode === 'HTTP_RPC'
+    AppImpl.instance.trace?.engine.mode === 'HTTP_RPC'
   );
 }
 
@@ -549,12 +549,12 @@ class EngineRPCWidget implements m.ClassComponent<OptionalTraceAttrs> {
     let failed = false;
     let mode: EngineMode | undefined;
 
-    const engineCfg = globals.state.engine;
-    if (engineCfg !== undefined) {
-      mode = engineCfg.mode;
-      if (engineCfg.failed !== undefined) {
+    const engine = attrs.trace?.engine;
+    if (engine !== undefined) {
+      mode = engine.mode;
+      if (engine.failed !== undefined) {
         cssClass += '.red';
-        title = 'Query engine crashed\n' + engineCfg.failed;
+        title = 'Query engine crashed\n' + engine.failed;
         failed = true;
       }
     }
