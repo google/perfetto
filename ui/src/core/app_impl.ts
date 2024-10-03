@@ -21,6 +21,8 @@ import {raf} from './raf_scheduler';
 import {SidebarManagerImpl} from './sidebar_manager';
 import {PluginManager} from './plugin_manager';
 import {NewEngineMode} from '../trace_processor/engine';
+import {RouteArgs} from './route_schema';
+import {Optional} from '../base/utils';
 
 // The pseudo plugin id used for the core instance of AppImpl.
 
@@ -40,6 +42,7 @@ export class AppContext {
   readonly sidebarMgr = new SidebarManagerImpl();
   readonly pluginMgr: PluginManager;
   newEngineMode: NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE';
+  initialRouteArgs?: RouteArgs = undefined;
 
   // The most recently created trace context. Can be undefined before any trace
   // is loaded.
@@ -149,6 +152,16 @@ export class AppImpl implements App {
 
   set newEngineMode(mode: NewEngineMode) {
     this.appCtx.newEngineMode = mode;
+  }
+
+  setInitialRouteArgs(args: RouteArgs) {
+    this.appCtx.initialRouteArgs = args;
+  }
+
+  getAndClearInitialRouteArgs(): Optional<RouteArgs> {
+    const args = this.appCtx.initialRouteArgs;
+    this.appCtx.initialRouteArgs = {};
+    return args;
   }
 
   get isLoadingTrace() {
