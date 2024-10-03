@@ -20,7 +20,7 @@ import {Size2D, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
-import {TrackSelectionDetailsPanel} from './details_panel';
+import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails} from './selection';
 
 export interface TrackManager {
@@ -103,8 +103,10 @@ export interface TrackDescriptor {
 
   readonly pluginId?: string;
 
-  // Optional: A details panel to use when this track is selected.
-  readonly detailsPanel?: TrackSelectionDetailsPanel;
+  // Optional: A factory that returns a details panel object. This is called
+  // each time the selection is changed (and the selection is relevant to this
+  // track).
+  readonly detailsPanel?: (id: number) => TrackEventDetailsPanel;
 }
 
 /**

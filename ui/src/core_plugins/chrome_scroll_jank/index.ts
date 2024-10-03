@@ -131,7 +131,7 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         trace: ctx,
         uri,
       }),
-      detailsPanel: new ThreadSliceDetailsPanel(ctx, 'slice'),
+      detailsPanel: () => new ThreadSliceDetailsPanel(ctx, 'slice'),
     });
     const group = getOrCreateGroupForThread(ctx.workspace, utid);
     const track = new TrackNode({uri, title});
