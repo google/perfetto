@@ -300,17 +300,7 @@ export class SelectionManagerImpl implements SelectionManager {
         });
         break;
       case 'log':
-        this.selectLegacy(
-          {
-            kind: 'LOG',
-            id: eventId,
-            trackUri,
-          },
-          {
-            clearSearch: false,
-            switchToCurrentSelectionTab: true,
-          },
-        );
+        // TODO(stevegolton): Get log selection working.
         break;
       case 'slice':
         // Search results only include slices from the slice table for now.
@@ -373,9 +363,7 @@ export class SelectionManagerImpl implements SelectionManager {
       return undefined;
     }
 
-    if (legacySel.kind === 'LOG') {
-      // TODO(hjd): Make focus selection work for logs.
-    } else if (legacySel.kind === 'GENERIC_SLICE') {
+    if (legacySel.kind === 'GENERIC_SLICE') {
       return findTimeRangeOfSlice({
         ts: legacySel.start,
         dur: legacySel.duration,
