@@ -13,6 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE intervals.intersect;
 INCLUDE PERFETTO MODULE wattson.cpu_freq;
 INCLUDE PERFETTO MODULE wattson.cpu_idle;
 INCLUDE PERFETTO MODULE wattson.curves.utils;
