@@ -21,7 +21,7 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
-import {EngineConfig, EngineMode, PendingDeeplinkState} from '../common/state';
+import {EngineConfig, PendingDeeplinkState} from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
 import {globals, QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {
@@ -33,7 +33,7 @@ import {
 } from '../frontend/publish';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {Router} from '../frontend/router';
-import {Engine, EngineBase} from '../trace_processor/engine';
+import {Engine, EngineBase, EngineMode} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {
   LONG,
@@ -44,10 +44,7 @@ import {
   STR,
   STR_NULL,
 } from '../trace_processor/query_result';
-import {
-  resetEngineWorker,
-  WasmEngineProxy,
-} from '../trace_processor/wasm_engine_proxy';
+import {WasmEngineProxy} from '../trace_processor/wasm_engine_proxy';
 import {Controller} from './controller';
 import {
   TraceBufferStream,
@@ -169,19 +166,10 @@ export class TraceController extends Controller<States> {
   }
 
   run() {
-    const engineCfg = assertExists(globals.state.engine);
     switch (this.state) {
       case 'init':
         this.loadTrace()
-          .then((mode) => {
-            globals.dispatch(
-              Actions.setEngineReady({
-                engineId: this.engineId,
-                ready: true,
-                mode,
-              }),
-            );
-          })
+          .then(() => AppImpl.instance.setIsLoadingTrace(false))
           .catch((err) => {
             this.updateStatus(`${err}`);
             throw err;
@@ -193,7 +181,9 @@ export class TraceController extends Controller<States> {
       case 'loading_trace':
         // Stay in this state until loadTrace() returns and marks the engine as
         // ready.
-        if (this.engine === undefined || !engineCfg.ready) return;
+        if (this.engine === undefined || AppImpl.instance.isLoadingTrace) {
+          return;
+        }
         this.setState('ready');
         break;
 
@@ -226,17 +216,10 @@ export class TraceController extends Controller<States> {
       console.log('Opening trace using native accelerator over HTTP+RPC');
       engineMode = 'HTTP_RPC';
       engine = new HttpRpcEngine(this.engineId);
-      engine.errorHandler = (err) => {
-        globals.dispatch(
-          Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}),
-        );
-        throw err;
-      };
     } else {
       console.log('Opening trace using built-in WASM engine');
       engineMode = 'WASM';
-      const enginePort = resetEngineWorker();
-      engine = new WasmEngineProxy(this.engineId, enginePort);
+      engine = new WasmEngineProxy(this.engineId);
       engine.resetTraceProcessor({
         cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
         ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
@@ -254,13 +237,7 @@ export class TraceController extends Controller<States> {
     }
 
     globals.engines.set(this.engineId, engine);
-    globals.dispatch(
-      Actions.setEngineReady({
-        engineId: this.engineId,
-        ready: false,
-        mode: engineMode,
-      }),
-    );
+    AppImpl.instance.setIsLoadingTrace(true);
     const engineCfg = assertExists(globals.state.engine);
     assertTrue(engineCfg.id === this.engineId);
     let traceStream: TraceStream | undefined;

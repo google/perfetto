@@ -27,11 +27,12 @@ export interface HttpRpcState {
 }
 
 export class HttpRpcEngine extends EngineBase {
+  readonly mode = 'HTTP_RPC';
   readonly id: string;
-  errorHandler: (err: string) => void = () => {};
   private requestQueue = new Array<Uint8Array>();
   private websocket?: WebSocket;
   private connected = false;
+  private disposed = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
@@ -43,13 +44,14 @@ export class HttpRpcEngine extends EngineBase {
 
   rpcSendRequestBytes(data: Uint8Array): void {
     if (this.websocket === undefined) {
+      if (this.disposed) return;
       const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket`;
       this.websocket = new WebSocket(wsUrl);
       this.websocket.onopen = () => this.onWebsocketConnected();
       this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
       this.websocket.onclose = (e) => this.onWebsocketClosed(e);
       this.websocket.onerror = (e) =>
-        this.errorHandler(
+        super.fail(
           `WebSocket error rs=${(e.target as WebSocket)?.readyState} (ERR:ws)`,
         );
     }
@@ -71,6 +73,7 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   private onWebsocketClosed(e: CloseEvent) {
+    if (this.disposed) return;
     if (e.code === 1006 && this.connected) {
       // On macbooks the act of closing the lid / suspending often causes socket
       // disconnections. Try to gracefully re-connect.
@@ -79,7 +82,7 @@ export class HttpRpcEngine extends EngineBase {
       this.connected = false;
       this.rpcSendRequestBytes(new Uint8Array()); // Triggers a reconnection.
     } else {
-      this.errorHandler(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
+      super.fail(`Websocket closed (${e.code}: ${e.reason}) (ERR:ws)`);
     }
   }
 
@@ -123,5 +126,12 @@ export class HttpRpcEngine extends EngineBase {
 
   static get hostAndPort() {
     return `127.0.0.1:${HttpRpcEngine.rpcPort}`;
+  }
+
+  [Symbol.dispose]() {
+    this.disposed = true;
+    const websocket = this.websocket;
+    this.websocket = undefined;
+    websocket?.close();
   }
 }

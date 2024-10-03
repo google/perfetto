@@ -68,6 +68,7 @@ export class TraceContext implements Disposable {
   constructor(gctx: AppContext, engine: EngineBase, traceInfo: TraceInfo) {
     this.appCtx = gctx;
     this.engine = engine;
+    this.trash.use(engine);
     this.traceInfo = traceInfo;
     this.timeline = new TimelineImpl(traceInfo);
 

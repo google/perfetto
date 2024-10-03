@@ -52,6 +52,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
 }
 
 class FakeEngine extends EngineBase {
+  readonly mode = 'WASM';
   id: string = 'TestEngine';
 
   constructor(private allowQueries: boolean) {
@@ -67,4 +68,6 @@ class FakeEngine extends EngineBase {
       );
     }
   }
+
+  [Symbol.dispose]() {}
 }

@@ -62,6 +62,9 @@ export class AppContext {
     }
     this.traceCtx = traceCtx;
   }
+
+  // This is set to true when calling loadTrace() and cleared when it resolves.
+  isLoadingTrace = false;
 }
 /*
  * Every plugin gets its own instance. This is how we keep track
@@ -123,5 +126,16 @@ export class AppImpl implements App {
   forkForPlugin(pluginId: string): AppImpl {
     assertTrue(pluginId != CORE_PLUGIN_ID);
     return new AppImpl(this.appCtx, pluginId);
+  }
+
+  get isLoadingTrace() {
+    return this.appCtx.isLoadingTrace;
+  }
+
+  // TODO(primiano): this is very temporary and will go away as soon as
+  // TraceController is turned into an async function.
+  setIsLoadingTrace(loading: boolean) {
+    this.appCtx.isLoadingTrace = loading;
+    raf.scheduleFullRedraw();
   }
 }

@@ -28,9 +28,8 @@ export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
 class Progress implements m.ClassComponent<TraceAttrs> {
   view({attrs}: m.CVnode<TraceAttrs>): m.Children {
     const engine = attrs.trace.engine;
-    const engineCfg = globals.getCurrentEngine();
     const isLoading =
-      (engineCfg && !engineCfg.ready) ||
+      AppImpl.instance.isLoadingTrace ||
       engine.numRequestsPending > 0 ||
       taskTracker.hasPendingTasks();
     const classes = classNames(isLoading && 'progress-anim');
