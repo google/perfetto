@@ -15,14 +15,13 @@
 import m from 'mithril';
 import {CPU_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {DetailsPanel} from '../../public/details_panel';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {CpuProfileTrack} from './cpu_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
-import {Monitor} from '../../base/monitor';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
@@ -31,9 +30,10 @@ import {
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {assertExists} from '../../base/logging';
 import {DetailsShell} from '../../widgets/details_shell';
-import {CpuProfileSampleSelection, Selection} from '../../public/selection';
+import {TrackEventSelection} from '../../public/selection';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
+import {time} from '../../base/time';
 
 class CpuProfile implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -79,84 +79,79 @@ class CpuProfile implements PerfettoPlugin {
           },
           utid,
         ),
+        detailsPanel: (selection: TrackEventSelection) => {
+          const {ts, utid} = selection;
+
+          return new CpuProfileSampleFlamegraphDetailsPanel(
+            ctx.engine,
+            ts,
+            assertExists(utid),
+          );
+        },
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title, sortOrder: -40});
       group.addChildInOrder(track);
     }
-    ctx.tabs.registerDetailsPanel(
-      new CpuProfileSampleFlamegraphDetailsPanel(ctx.engine),
-    );
   }
 }
 
-class CpuProfileSampleFlamegraphDetailsPanel implements DetailsPanel {
-  private sel?: CpuProfileSampleSelection;
-  private selMonitor = new Monitor([() => this.sel?.ts, () => this.sel?.utid]);
-  private flamegraphAttrs?: QueryFlamegraphAttrs;
+class CpuProfileSampleFlamegraphDetailsPanel implements TrackEventDetailsPanel {
+  private readonly flamegraphAttrs: QueryFlamegraphAttrs;
 
-  constructor(private engine: Engine) {}
+  constructor(
+    private engine: Engine,
+    private ts: time,
+    utid: number,
+  ) {
+    this.flamegraphAttrs = {
+      engine: this.engine,
+      metrics: [
+        ...metricsFromTableOrSubquery(
+          `
+            (
+              select
+                id,
+                parent_id as parentId,
+                name,
+                mapping_name,
+                source_file,
+                cast(line_number AS text) as line_number,
+                self_count
+              from _callstacks_for_cpu_profile_stack_samples!((
+                select p.callsite_id
+                from cpu_profile_stack_sample p
+                where p.ts = ${ts} and p.utid = ${utid}
+              ))
+            )
+          `,
+          [
+            {
+              name: 'CPU Profile Samples',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'include perfetto module callstacks.stack_profile',
+          [{name: 'mapping_name', displayName: 'Mapping'}],
+          [
+            {
+              name: 'source_file',
+              displayName: 'Source File',
+              mergeAggregation: 'ONE_OR_NULL',
+            },
+            {
+              name: 'line_number',
+              displayName: 'Line Number',
+              mergeAggregation: 'ONE_OR_NULL',
+            },
+          ],
+        ),
+      ],
+    };
+  }
 
-  render(sel: Selection) {
-    if (sel.kind !== 'legacy') {
-      this.sel = undefined;
-      return;
-    }
-
-    const legacySel = sel.legacySelection;
-    if (legacySel.kind !== 'CPU_PROFILE_SAMPLE') {
-      this.sel = undefined;
-      return undefined;
-    }
-    const {ts, utid} = legacySel;
-    this.sel = legacySel;
-    if (this.selMonitor.ifStateChanged()) {
-      this.flamegraphAttrs = {
-        engine: this.engine,
-        metrics: [
-          ...metricsFromTableOrSubquery(
-            `
-              (
-                select
-                  id,
-                  parent_id as parentId,
-                  name,
-                  mapping_name,
-                  source_file,
-                  cast(line_number AS text) as line_number,
-                  self_count
-                from _callstacks_for_cpu_profile_stack_samples!((
-                  select p.callsite_id
-                  from cpu_profile_stack_sample p
-                  where p.ts = ${ts} and p.utid = ${utid}
-                ))
-              )
-            `,
-            [
-              {
-                name: 'CPU Profile Samples',
-                unit: '',
-                columnName: 'self_count',
-              },
-            ],
-            'include perfetto module callstacks.stack_profile',
-            [{name: 'mapping_name', displayName: 'Mapping'}],
-            [
-              {
-                name: 'source_file',
-                displayName: 'Source File',
-                mergeAggregation: 'ONE_OR_NULL',
-              },
-              {
-                name: 'line_number',
-                displayName: 'Line Number',
-                mergeAggregation: 'ONE_OR_NULL',
-              },
-            ],
-          ),
-        ],
-      };
-    }
+  render() {
     return m(
       '.flamegraph-profile',
       m(
@@ -165,11 +160,9 @@ class CpuProfileSampleFlamegraphDetailsPanel implements DetailsPanel {
           fillParent: true,
           title: m('.title', 'CPU Profile Samples'),
           description: [],
-          buttons: [
-            m('div.time', `Timestamp: `, m(Timestamp, {ts: this.sel.ts})),
-          ],
+          buttons: [m('div.time', `Timestamp: `, m(Timestamp, {ts: this.ts}))],
         },
-        m(QueryFlamegraph, assertExists(this.flamegraphAttrs)),
+        m(QueryFlamegraph, this.flamegraphAttrs),
       ),
     );
   }

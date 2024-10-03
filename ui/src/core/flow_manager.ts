@@ -437,7 +437,7 @@ export class FlowManager {
     // focus. In all other cases the focusedFlowId(Left|Right) will be set to -1.
     this._focusedFlowIdLeft = -1;
     this._focusedFlowIdRight = -1;
-    if (this._curSelection?.kind === 'single') {
+    if (this._curSelection?.kind === 'track_event') {
       const sliceId = this._curSelection.eventId;
       for (const flow of connectedFlows) {
         if (flow.begin.sliceId === sliceId) {
@@ -468,7 +468,7 @@ export class FlowManager {
 
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
-    if (selection.kind === 'single' && selection.tableName === 'slice') {
+    if (selection.kind === 'track_event' && selection.tableName === 'slice') {
       this.sliceSelected(selection.eventId);
     } else {
       this.setConnectedFlows([]);
@@ -484,7 +484,7 @@ export class FlowManager {
   // Change focus to the next flow event (matching the direction)
   focusOtherFlow(direction: FlowDirection) {
     const currentSelection = this._curSelection;
-    if (!currentSelection || currentSelection.kind !== 'single') {
+    if (!currentSelection || currentSelection.kind !== 'track_event') {
       return;
     }
     const sliceId = currentSelection.eventId;
@@ -517,7 +517,7 @@ export class FlowManager {
   // Select the slice connected to the flow in focus
   moveByFocusedFlow(direction: FlowDirection): void {
     const currentSelection = this._curSelection;
-    if (!currentSelection || currentSelection.kind !== 'single') {
+    if (!currentSelection || currentSelection.kind !== 'track_event') {
       return;
     }
 

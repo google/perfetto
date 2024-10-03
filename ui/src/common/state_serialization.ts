@@ -22,7 +22,6 @@ import {
   SerializedAppState,
 } from '../public/state_serialization_schema';
 import {TimeSpan} from '../base/time';
-import {ProfileType} from '../public/selection';
 import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
 
@@ -80,24 +79,12 @@ export function serializeAppState(): SerializedAppState {
 
   const selection = new Array<SerializedSelection>();
   const stateSel = globals.selectionManager.selection;
-  if (stateSel.kind === 'single') {
+  if (stateSel.kind === 'track_event') {
     selection.push({
       kind: 'TRACK_EVENT',
       trackKey: stateSel.trackUri,
       eventId: stateSel.eventId.toString(),
     });
-  } else if (stateSel.kind === 'legacy') {
-    // TODO(primiano): get rid of these once we unify selection.
-    switch (stateSel.legacySelection.kind) {
-      case 'HEAP_PROFILE':
-        selection.push({
-          kind: 'LEGACY_HEAP_PROFILE',
-          id: stateSel.legacySelection.id,
-          upid: stateSel.legacySelection.upid,
-          ts: stateSel.legacySelection.ts,
-          type: stateSel.legacySelection.type,
-        });
-    }
   }
 
   const plugins = new Array<SerializedPluginState>();
@@ -222,15 +209,6 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
         break;
       case 'LEGACY_THREAD_STATE':
         selMgr.selectSqlEvent('thread_slice', sel.id);
-        break;
-      case 'LEGACY_HEAP_PROFILE':
-        selMgr.selectLegacy({
-          kind: 'HEAP_PROFILE',
-          id: sel.id,
-          upid: sel.upid,
-          ts: sel.ts,
-          type: sel.type as ProfileType,
-        });
         break;
     }
   }

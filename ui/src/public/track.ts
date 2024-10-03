@@ -21,7 +21,7 @@ import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
-import {TrackEventDetails} from './selection';
+import {TrackEventDetails, TrackEventSelection} from './selection';
 
 export interface TrackManager {
   /**
@@ -106,7 +106,7 @@ export interface TrackDescriptor {
   // Optional: A factory that returns a details panel object. This is called
   // each time the selection is changed (and the selection is relevant to this
   // track).
-  readonly detailsPanel?: (id: number) => TrackEventDetailsPanel;
+  readonly detailsPanel?: (id: TrackEventSelection) => TrackEventDetailsPanel;
 }
 
 /**

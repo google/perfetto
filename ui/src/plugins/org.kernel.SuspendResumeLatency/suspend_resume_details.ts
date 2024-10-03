@@ -27,6 +27,7 @@ import {scrollTo} from '../../public/scroll_helper';
 import {Engine} from '../../trace_processor/engine';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {TrackEventSelection} from '../../public/selection';
 
 interface SuspendResumeEventDetails {
   ts: time;
@@ -47,10 +48,10 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
     this.engine = engine;
   }
 
-  async load(id: number) {
+  async load({eventId}: TrackEventSelection) {
     this.suspendResumeEventDetails = await loadSuspendResumeEventDetails(
       this.engine,
-      id,
+      eventId,
     );
   }
 
