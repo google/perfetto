@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Duration, Time} from '../../base/time';
 import {
   BASE_ROW,
   BaseSliceTrack,
@@ -21,13 +22,12 @@ import {
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
 import {
-  LegacySelection,
   ProfileType,
   profileType,
+  TrackEventDetails,
 } from '../../public/selection';
 import {Slice} from '../../public/track';
-import {STR} from '../../trace_processor/query_result';
-import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {LONG, STR} from '../../trace_processor/query_result';
 
 const HEAP_PROFILE_ROW = {
   ...BASE_ROW,
@@ -42,57 +42,15 @@ export class HeapProfileTrack extends BaseSliceTrack<
   HeapProfileSlice,
   HeapProfileRow
 > {
-  private upid: number;
-
-  constructor(args: NewTrackArgs, upid: number) {
+  constructor(
+    args: NewTrackArgs,
+    private readonly tableName: string,
+  ) {
     super(args);
-    this.upid = upid;
-  }
-
-  async onInit() {
-    return createPerfettoTable(
-      this.engine,
-      `_heap_profile_track_${this.trackUuid}`,
-      `
-      with
-        heaps as (select group_concat(distinct heap_name) h from heap_profile_allocation where upid = ${this.upid}),
-        allocation_tses as (select distinct ts from heap_profile_allocation where upid = ${this.upid}),
-        graph_tses as (select distinct graph_sample_ts from heap_graph_object where upid = ${this.upid})
-      select
-        *,
-        0 AS dur,
-        0 AS depth
-      from (
-        select
-          (
-            select a.id
-            from heap_profile_allocation a
-            where a.ts = t.ts
-            order by a.id
-            limit 1
-          ) as id,
-          ts,
-          'heap_profile:' || (select h from heaps) AS type
-        from allocation_tses t
-        union all
-        select
-          (
-            select o.id
-            from heap_graph_object o
-            where o.graph_sample_ts = g.graph_sample_ts
-            order by o.id
-            limit 1
-          ) as id,
-          graph_sample_ts AS ts,
-          'graph' AS type
-        from graph_tses g
-      )
-    `,
-    );
   }
 
   getSqlSource(): string {
-    return `_heap_profile_track_${this.trackUuid}`;
+    return this.tableName;
   }
 
   getRowSpec(): HeapProfileRow {
@@ -112,16 +70,36 @@ export class HeapProfileTrack extends BaseSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    globals.selectionManager.selectLegacy({
-      kind: 'HEAP_PROFILE',
-      id: args.slice.id,
-      upid: this.upid,
-      ts: args.slice.ts,
-      type: args.slice.type,
-    });
+    globals.selectionManager.selectTrackEvent(this.uri, args.slice.id);
   }
 
-  protected isSelectionHandled(selection: LegacySelection): boolean {
-    return selection.kind === 'HEAP_PROFILE';
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const query = `
+      SELECT
+        ts,
+        dur,
+        type
+      FROM (${this.getSqlSource()})
+      WHERE id = ${id}
+    `;
+
+    const result = await this.engine.query(query);
+    if (result.numRows() === 0) {
+      return undefined;
+    }
+
+    const row = result.iter({
+      ts: LONG,
+      dur: LONG,
+      type: STR,
+    });
+
+    return {
+      ts: Time.fromRaw(row.ts),
+      dur: Duration.fromRaw(row.dur),
+      profileType: profileType(row.type),
+    };
   }
 }
