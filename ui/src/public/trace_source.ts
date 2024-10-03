@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {SerializedAppState} from './state_serialization_schema';
+
 export interface TraceFileSource {
   type: 'FILE';
   file: File;
@@ -42,6 +44,10 @@ export interface TraceArrayBufferSource {
 export interface TraceUrlSource {
   type: 'URL';
   url: string;
+
+  // When loading from a permalink, the permalink might supply also the app
+  // state alongside the URL of the trace.
+  serializedAppState?: SerializedAppState;
 }
 
 export interface TraceHttpRpcSource {

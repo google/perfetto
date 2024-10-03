@@ -38,6 +38,7 @@ import TPM = TraceProcessorRpc.TraceProcessorMethod;
 import {exists, Optional, Result} from '../base/utils';
 
 export type EngineMode = 'WASM' | 'HTTP_RPC';
+export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
 
 // This is used to skip the decoding of queryResult from protobufjs and deal
 // with it ourselves. See the comment below around `QueryResult.decode = ...`.
@@ -93,6 +94,9 @@ export interface Engine {
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array>;
+
+  enableMetatrace(categories?: MetatraceCategories): void;
+  stopAndGetMetatrace(): Promise<DisableAndReadMetatraceResult>;
 
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
@@ -570,6 +574,14 @@ export class EngineProxy implements Engine, Disposable {
       return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
     }
     return this.engine.computeMetric(metrics, format);
+  }
+
+  enableMetatrace(categories?: MetatraceCategories): void {
+    this.engine.enableMetatrace(categories);
+  }
+
+  stopAndGetMetatrace(): Promise<DisableAndReadMetatraceResult> {
+    return this.engine.stopAndGetMetatrace();
   }
 
   get engineId(): string {

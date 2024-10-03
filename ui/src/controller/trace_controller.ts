@@ -60,6 +60,7 @@ import {TraceInfo} from '../public/trace_info';
 import {AppImpl} from '../core/app_impl';
 import {raf} from '../core/raf_scheduler';
 import {TraceImpl} from '../core/trace_impl';
+import {SerializedAppState} from '../public/state_serialization_schema';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -198,7 +199,6 @@ export class TraceController extends Controller<States> {
   onDestroy() {
     AppImpl.instance.plugins.onTraceClose();
     AppImpl.instance.closeCurrentTrace();
-    globals.engines.delete(this.engineId);
   }
 
   private async loadTrace(): Promise<EngineMode> {
@@ -207,7 +207,7 @@ export class TraceController extends Controller<States> {
     // HTTP RPC mode (i.e. trace_processor_shell -D).
     let engineMode: EngineMode;
     let useRpc = false;
-    if (globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
+    if (AppImpl.instance.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
       useRpc = (await HttpRpcEngine.checkConnection()).connected;
     }
     let engine;
@@ -235,17 +235,18 @@ export class TraceController extends Controller<States> {
       );
     }
 
-    globals.engines.set(this.engineId, engine);
     AppImpl.instance.setIsLoadingTrace(true);
     const engineCfg = assertExists(globals.state.engine);
     assertTrue(engineCfg.id === this.engineId);
     let traceStream: TraceStream | undefined;
+    let serializedAppState: SerializedAppState | undefined;
     if (engineCfg.source.type === 'FILE') {
       traceStream = new TraceFileStream(engineCfg.source.file);
     } else if (engineCfg.source.type === 'ARRAY_BUFFER') {
       traceStream = new TraceBufferStream(engineCfg.source.buffer);
     } else if (engineCfg.source.type === 'URL') {
       traceStream = new TraceHttpStream(engineCfg.source.url);
+      serializedAppState = engineCfg.source.serializedAppState;
     } else if (engineCfg.source.type === 'HTTP_RPC') {
       traceStream = undefined;
     } else {
@@ -307,8 +308,8 @@ export class TraceController extends Controller<States> {
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
-    if (globals.restoreAppStateAfterTraceLoad) {
-      deserializeAppStatePhase1(globals.restoreAppStateAfterTraceLoad, trace);
+    if (serializedAppState !== undefined) {
+      deserializeAppStatePhase1(serializedAppState, trace);
     }
 
     await AppImpl.instance.plugins.onTraceLoad(trace, (id) => {
@@ -373,13 +374,12 @@ export class TraceController extends Controller<States> {
       }
     }
 
-    if (globals.restoreAppStateAfterTraceLoad) {
+    if (serializedAppState !== undefined) {
       // Wait that plugins have completed their actions and then proceed with
       // the final phase of app state restore.
       // TODO(primiano): this can probably be removed once we refactor tracks
       // to be URI based and can deal with non-existing URIs.
-      deserializeAppStatePhase2(globals.restoreAppStateAfterTraceLoad);
-      globals.restoreAppStateAfterTraceLoad = undefined;
+      deserializeAppStatePhase2(serializedAppState);
     }
 
     await AppImpl.instance.plugins.onTraceReady();

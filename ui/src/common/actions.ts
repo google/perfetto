@@ -25,12 +25,12 @@ import {
 import {
   AdbRecordingTarget,
   LoadedConfig,
-  NewEngineMode,
   PendingDeeplinkState,
   RecordingTarget,
   State,
   Status,
 } from './state';
+import {SerializedAppState} from '../public/state_serialization_schema';
 
 type StateDraft = Draft<State>;
 
@@ -68,7 +68,6 @@ function clearTraceState(state: StateDraft) {
   const extensionInstalled = state.extensionInstalled;
   const availableAdbDevices = state.availableAdbDevices;
   const chromeCategories = state.chromeCategories;
-  const newEngineMode = state.newEngineMode;
 
   Object.assign(state, createEmptyState());
   state.nextId = nextId;
@@ -78,7 +77,6 @@ function clearTraceState(state: StateDraft) {
   state.extensionInstalled = extensionInstalled;
   state.availableAdbDevices = availableAdbDevices;
   state.chromeCategories = chromeCategories;
-  state.newEngineMode = newEngineMode;
 }
 
 function generateNextId(draft: StateDraft): string {
@@ -108,12 +106,19 @@ export const StateActions = {
     };
   },
 
-  openTraceFromUrl(state: StateDraft, args: {url: string}): void {
+  openTraceFromUrl(
+    state: StateDraft,
+    args: {url: string; serializedAppState?: SerializedAppState},
+  ): void {
     clearTraceState(state);
     const id = generateNextId(state);
     state.engine = {
       id,
-      source: {type: 'URL', url: args.url},
+      source: {
+        type: 'URL',
+        url: args.url,
+        serializedAppState: args.serializedAppState,
+      },
     };
   },
 
@@ -141,10 +146,6 @@ export const StateActions = {
 
   clearPendingDeeplink(state: StateDraft, _: {}) {
     state.pendingDeeplink = undefined;
-  },
-
-  setNewEngineMode(state: StateDraft, args: {mode: NewEngineMode}): void {
-    state.newEngineMode = args.mode;
   },
 
   updateStatus(state: StateDraft, args: Status): void {
