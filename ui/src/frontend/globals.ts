@@ -35,7 +35,7 @@ import {Workspace} from '../public/workspace';
 import {ratelimit} from './rate_limiters';
 import {setRerunControllersFunction, TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
-import {createFakeTraceImpl} from '../common/fake_trace_impl';
+import {createFakeTraceImpl} from '../core/fake_trace_impl';
 
 type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;

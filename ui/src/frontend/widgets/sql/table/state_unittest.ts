@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createFakeTraceImpl} from '../../../../common/fake_trace_impl';
+import {createFakeTraceImpl} from '../../../../core/fake_trace_impl';
 import {tableColumnId} from './column';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';

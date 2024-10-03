@@ -15,8 +15,8 @@
 // Keep this import first.
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
-import '../gen/all_plugins';
-import '../gen/all_core_plugins';
+import NON_CORE_PLUGINS from '../gen/all_plugins';
+import CORE_PLUGINS from '../gen/all_core_plugins';
 import {Draft} from 'immer';
 import m from 'mithril';
 import {defer} from '../base/deferred';
@@ -24,7 +24,6 @@ import {addErrorHandler, reportError} from '../base/logging';
 import {Store} from '../base/store';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {traceEvent} from '../common/metatracing';
-import {pluginManager} from '../common/plugins';
 import {State} from '../common/state';
 import {initController, runControllers} from '../controller';
 import {isGetCategoriesResponse} from '../controller/chrome_proxy_record_controller';
@@ -381,9 +380,11 @@ function onCssLoaded() {
   // point for context menus.
   setAddSqlTableTabImplFunction(addSqlTableTabImpl);
 
-  // Initialize plugins, now that we are ready to go
+  // Initialize plugins, now that we are ready to go.
+  const pluginManager = AppImpl.instance.plugins;
+  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
   pluginManager.initialize();
-
   const route = Router.parseUrl(window.location.href);
   for (const pluginId of (route.args.enablePlugins ?? '').split(',')) {
     if (pluginManager.hasPlugin(pluginId)) {

@@ -20,7 +20,6 @@ import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../common/metatracing';
-import {pluginManager} from '../common/plugins';
 import {EngineConfig, PendingDeeplinkState} from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
 import {globals, QuantizedLoad, ThreadDesc} from '../frontend/globals';
@@ -197,7 +196,7 @@ export class TraceController extends Controller<States> {
   }
 
   onDestroy() {
-    pluginManager.onTraceClose();
+    AppImpl.instance.plugins.onTraceClose();
     AppImpl.instance.closeCurrentTrace();
     globals.engines.delete(this.engineId);
   }
@@ -312,7 +311,7 @@ export class TraceController extends Controller<States> {
       deserializeAppStatePhase1(globals.restoreAppStateAfterTraceLoad, trace);
     }
 
-    await pluginManager.onTraceLoad(trace, (id) => {
+    await AppImpl.instance.plugins.onTraceLoad(trace, (id) => {
       this.updateStatus(`Running plugin: ${id}`);
     });
 
@@ -383,7 +382,7 @@ export class TraceController extends Controller<States> {
       globals.restoreAppStateAfterTraceLoad = undefined;
     }
 
-    await pluginManager.onTraceReady();
+    await AppImpl.instance.plugins.onTraceReady();
 
     return engineMode;
   }
