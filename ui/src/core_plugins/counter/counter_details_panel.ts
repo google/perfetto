@@ -28,6 +28,7 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {DurationWidget} from '../../frontend/widgets/duration';
+import {TrackEventSelection} from '../../public/selection';
 
 interface CounterDetails {
   // The "left" timestamp of the counter sample T(N)
@@ -62,11 +63,11 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
     this.rootTable = rootTable;
   }
 
-  async load(id: number) {
+  async load({eventId}: TrackEventSelection) {
     this.counterDetails = await loadCounterDetails(
       this.engine,
       this.trackId,
-      id,
+      eventId,
       this.rootTable,
     );
   }

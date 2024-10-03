@@ -116,7 +116,7 @@ async function getThreadInfoForUtidOrSelection(
 ): Promise<Optional<ThreadInfo>> {
   if (utid === undefined) {
     const selection = trace.selection.selection;
-    if (selection.kind === 'single') {
+    if (selection.kind === 'track_event') {
       if (selection.utid !== undefined) {
         utid = asUtid(selection.utid);
       }

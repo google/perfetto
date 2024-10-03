@@ -314,7 +314,7 @@ export class CpuSliceTrack implements Track {
     }
 
     const selection = globals.selectionManager.selection;
-    if (selection.kind === 'single') {
+    if (selection.kind === 'track_event') {
       if (selection.trackUri === this.uri) {
         const [startIndex, endIndex] = searchEq(data.ids, selection.eventId);
         if (startIndex !== endIndex) {

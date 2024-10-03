@@ -491,7 +491,7 @@ export function renderWakeupVertical(
   size: Size2D,
 ) {
   const selection = globals.selectionManager.selection;
-  if (selection.kind === 'single' && selection.wakeupTs) {
+  if (selection.kind === 'track_event' && selection.wakeupTs) {
     drawVerticalLineAtTime(
       ctx,
       timescale,
