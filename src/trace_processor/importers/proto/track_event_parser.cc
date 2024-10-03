@@ -218,13 +218,6 @@ class TrackEventParser::EventImporter {
 
     RETURN_IF_ERROR(ParseTrackAssociation());
 
-    // Counter-type events don't support arguments (those are on the
-    // CounterDescriptor instead). All they have is a |{double_,}counter_value|.
-    if (event_.type() == TrackEvent::TYPE_COUNTER) {
-      ParseCounterEvent();
-      return base::OkStatus();
-    }
-
     // If we have legacy thread time / instruction count fields, also parse them
     // into the counters tables.
     ParseLegacyThreadTimeAndInstructionsAsCounters();
@@ -233,6 +226,12 @@ class TrackEventParser::EventImporter {
     // can update the slice's thread time / instruction count fields based on
     // these counter values and also parse them as slice attributes / arguments.
     ParseExtraCounterValues();
+
+    // Non-legacy counters are treated differently. Legacy counters do not have
+    // a track_id_ and should instead go through the switch below.
+    if (event_.type() == TrackEvent::TYPE_COUNTER) {
+      return ParseCounterEvent();
+    }
 
     // TODO(eseckler): Replace phase with type and remove handling of
     // legacy_event_.phase() once it is no longer used by producers.
@@ -561,7 +560,7 @@ class TrackEventParser::EventImporter {
     }
   }
 
-  void ParseCounterEvent() {
+  base::Status ParseCounterEvent() {
     // Tokenizer ensures that TYPE_COUNTER events are associated with counter
     // tracks and have values.
     PERFETTO_DCHECK(storage_->counter_track_table().FindById(track_id_));
@@ -569,7 +568,9 @@ class TrackEventParser::EventImporter {
                     event_.has_double_counter_value());
 
     context_->event_tracker->PushCounter(
-        ts_, static_cast<double>(event_data_->counter_value), track_id_);
+        ts_, static_cast<double>(event_data_->counter_value), track_id_,
+        [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    return base::OkStatus();
   }
 
   void ParseLegacyThreadTimeAndInstructionsAsCounters() {
