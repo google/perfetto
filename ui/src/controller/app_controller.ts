@@ -46,7 +46,7 @@ export class AppController extends Controller<'main'> {
     }
     if (globals.state.engine !== undefined) {
       const engineCfg = globals.state.engine;
-      childControllers.push(Child(engineCfg.id, TraceController, engineCfg.id));
+      childControllers.push(Child(engineCfg.id, TraceController, engineCfg));
     }
     return childControllers;
   }

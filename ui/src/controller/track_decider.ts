@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TraceImpl} from '../core/trace_impl';
 import {globals} from '../frontend/globals';
 import {TrackNode} from '../public/workspace';
 
@@ -197,7 +198,7 @@ function groupTracksByRegex(regex: RegExp, groupName: string): void {
   }
 }
 
-export async function decideTracks(): Promise<void> {
+export async function decideTracks(trace: TraceImpl): Promise<void> {
   groupGlobalIonTracks();
   groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
   groupGlobalIostatTracks(F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
@@ -216,17 +217,17 @@ export async function decideTracks(): Promise<void> {
   groupMiscNonAllowlistedTracks(MISC_GROUP);
 
   // Move groups underneath tracks
-  Array.from(globals.workspace.children)
+  Array.from(trace.workspace.children)
     .sort((a, b) => {
       // Get the index in the order array
       const indexA = a.hasChildren ? 1 : 0;
       const indexB = b.hasChildren ? 1 : 0;
       return indexA - indexB;
     })
-    .forEach((n) => globals.workspace.addChildLast(n));
+    .forEach((n) => trace.workspace.addChildLast(n));
 
   // If there is only one group, expand it
-  const rootLevelChildren = globals.workspace.children;
+  const rootLevelChildren = trace.workspace.children;
   if (rootLevelChildren.length === 1 && rootLevelChildren[0].hasChildren) {
     rootLevelChildren[0].expand();
   }
