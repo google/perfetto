@@ -87,7 +87,7 @@ class FramesPlugin implements PerfettoPlugin {
           upid,
           kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         },
-        detailsPanel: new ThreadSliceDetailsPanel(ctx, 'slice'),
+        detailsPanel: () => new ThreadSliceDetailsPanel(ctx, 'slice'),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title, sortOrder: -50});
@@ -151,7 +151,7 @@ class FramesPlugin implements PerfettoPlugin {
           trackIds,
           kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         },
-        detailsPanel: new ThreadSliceDetailsPanel(ctx, 'slice'),
+        detailsPanel: () => new ThreadSliceDetailsPanel(ctx, 'slice'),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title, sortOrder: -50});

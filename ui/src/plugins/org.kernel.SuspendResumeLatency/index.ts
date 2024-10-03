@@ -26,6 +26,7 @@ import {globals} from '../../frontend/globals';
 
 // SuspendResumeSliceTrack exists so as to override the `onSliceClick` function
 // in AsyncSliceTrack.
+// TODO(stevegolton): Remove this?
 class SuspendResumeSliceTrack extends AsyncSliceTrack {
   constructor(args: NewTrackArgs, maxDepth: number, trackIds: number[]) {
     super(args, maxDepth, trackIds);
@@ -81,7 +82,7 @@ class SuspendResumeLatency implements PerfettoPlugin {
         kind: ASYNC_SLICE_TRACK_KIND,
       },
       track: new SuspendResumeSliceTrack({uri, trace: ctx}, maxDepth, trackIds),
-      detailsPanel: new SuspendResumeDetailsPanel(ctx.engine),
+      detailsPanel: () => new SuspendResumeDetailsPanel(ctx.engine),
     });
 
     // Display the track in the UI.

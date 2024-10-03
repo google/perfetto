@@ -117,7 +117,7 @@ class ThreadSlicesPlugin implements PerfettoPlugin {
           maxDepth,
           tableName,
         ),
-        detailsPanel: new ThreadSliceDetailsPanel(ctx, tableName),
+        detailsPanel: () => new ThreadSliceDetailsPanel(ctx, tableName),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title, sortOrder: 20});
