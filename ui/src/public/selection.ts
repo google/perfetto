@@ -125,15 +125,9 @@ export interface LegacySelectionWrapper {
   readonly legacySelection: LegacySelection;
 }
 
-export type LegacySelection = (LogSelection | GenericSliceSelection) & {
+export type LegacySelection = GenericSliceSelection & {
   trackUri?: string;
 };
-
-export interface LogSelection {
-  readonly kind: 'LOG';
-  readonly id: number;
-  readonly trackUri: string;
-}
 
 export interface GenericSliceSelection {
   readonly kind: 'GENERIC_SLICE';
