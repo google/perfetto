@@ -973,7 +973,11 @@ export abstract class BaseSliceTrack<
     id: number,
   ): Promise<TrackEventDetails | undefined> {
     const query = `
-      SELECT ts, dur FROM (${this.getSqlSource()}) WHERE id = ${id}
+      SELECT
+        ts,
+        dur
+      FROM (${this.getSqlSource()})
+      WHERE id = ${id}
     `;
 
     const result = await this.engine.query(query);
