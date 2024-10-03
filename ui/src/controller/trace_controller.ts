@@ -32,7 +32,7 @@ import {
 } from '../frontend/publish';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {Router} from '../frontend/router';
-import {Engine, EngineBase, EngineMode} from '../trace_processor/engine';
+import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {
   LONG,
@@ -61,6 +61,7 @@ import {AppImpl} from '../core/app_impl';
 import {raf} from '../core/raf_scheduler';
 import {TraceImpl} from '../core/trace_impl';
 import {SerializedAppState} from '../public/state_serialization_schema';
+import {TraceSource} from '../public/trace_source';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -157,31 +158,33 @@ async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
 // tracks data and SQL queries. There is one TraceController instance for each
 // trace opened in the UI (for now only one trace is supported).
 export class TraceController extends Controller<States> {
-  private readonly engineId: string;
-  private engine?: EngineBase;
+  private trace?: TraceImpl = undefined;
 
-  constructor(engineId: string) {
+  constructor(private engineCfg: EngineConfig) {
     super('init');
-    this.engineId = engineId;
   }
 
   run() {
     switch (this.state) {
       case 'init':
-        this.loadTrace()
-          .then(() => AppImpl.instance.setIsLoadingTrace(false))
+        updateStatus('Opening trace');
+        this.setState('loading_trace');
+        loadTrace(this.engineCfg.source, this.engineCfg.id)
+          .then((traceImpl) => {
+            this.trace = traceImpl;
+            globals.dispatch(Actions.runControllers({}));
+            AppImpl.instance.setIsLoadingTrace(false);
+          })
           .catch((err) => {
-            this.updateStatus(`${err}`);
+            updateStatus(`${err}`);
             throw err;
           });
-        this.updateStatus('Opening trace');
-        this.setState('loading_trace');
         break;
 
       case 'loading_trace':
         // Stay in this state until loadTrace() returns and marks the engine as
         // ready.
-        if (this.engine === undefined || AppImpl.instance.isLoadingTrace) {
+        if (this.trace === undefined || AppImpl.instance.isLoadingTrace) {
           return;
         }
         this.setState('ready');
@@ -200,12 +203,25 @@ export class TraceController extends Controller<States> {
     AppImpl.instance.plugins.onTraceClose();
     AppImpl.instance.closeCurrentTrace();
   }
+}
 
-  private async loadTrace(): Promise<EngineMode> {
-    this.updateStatus('Creating trace processor');
+// TODO(primiano): the extra indentation here is purely to help Gerrit diff
+// detection algorithm. It can be re-formatted in the next CL.
+
+  async function loadTrace(
+    traceSource: TraceSource,
+    engineId: string,
+  ): Promise<TraceImpl> {
+    // TODO(primiano): in the next CL remember to invoke here clearState() because
+    // the openActions (which today do that) will be gone.
+    //  globals.dispatch(Actions.clearState({}));
+    const engine = await createEngine(engineId);
+    return await loadTraceIntoEngine(traceSource, engine);
+  }
+
+  async function createEngine(engineId: string): Promise<EngineBase> {
     // Check if there is any instance of the trace_processor_shell running in
     // HTTP RPC mode (i.e. trace_processor_shell -D).
-    let engineMode: EngineMode;
     let useRpc = false;
     if (AppImpl.instance.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
       useRpc = (await HttpRpcEngine.checkConnection()).connected;
@@ -213,12 +229,10 @@ export class TraceController extends Controller<States> {
     let engine;
     if (useRpc) {
       console.log('Opening trace using native accelerator over HTTP+RPC');
-      engineMode = 'HTTP_RPC';
-      engine = new HttpRpcEngine(this.engineId);
+      engine = new HttpRpcEngine(engineId);
     } else {
       console.log('Opening trace using built-in WASM engine');
-      engineMode = 'WASM';
-      engine = new WasmEngineProxy(this.engineId);
+      engine = new WasmEngineProxy(engineId);
       engine.resetTraceProcessor({
         cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
         ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
@@ -227,30 +241,31 @@ export class TraceController extends Controller<States> {
       });
     }
     engine.onResponseReceived = () => raf.scheduleFullRedraw();
-    this.engine = engine;
 
     if (isMetatracingEnabled()) {
-      this.engine.enableMetatrace(
-        assertExists(getEnabledMetatracingCategories()),
-      );
+      engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
     }
+    return engine;
+  }
 
+  async function loadTraceIntoEngine(
+    traceSource: TraceSource,
+    engine: EngineBase,
+  ): Promise<TraceImpl> {
     AppImpl.instance.setIsLoadingTrace(true);
-    const engineCfg = assertExists(globals.state.engine);
-    assertTrue(engineCfg.id === this.engineId);
     let traceStream: TraceStream | undefined;
     let serializedAppState: SerializedAppState | undefined;
-    if (engineCfg.source.type === 'FILE') {
-      traceStream = new TraceFileStream(engineCfg.source.file);
-    } else if (engineCfg.source.type === 'ARRAY_BUFFER') {
-      traceStream = new TraceBufferStream(engineCfg.source.buffer);
-    } else if (engineCfg.source.type === 'URL') {
-      traceStream = new TraceHttpStream(engineCfg.source.url);
-      serializedAppState = engineCfg.source.serializedAppState;
-    } else if (engineCfg.source.type === 'HTTP_RPC') {
+    if (traceSource.type === 'FILE') {
+      traceStream = new TraceFileStream(traceSource.file);
+    } else if (traceSource.type === 'ARRAY_BUFFER') {
+      traceStream = new TraceBufferStream(traceSource.buffer);
+    } else if (traceSource.type === 'URL') {
+      traceStream = new TraceHttpStream(traceSource.url);
+      serializedAppState = traceSource.serializedAppState;
+    } else if (traceSource.type === 'HTTP_RPC') {
       traceStream = undefined;
     } else {
-      throw new Error(`Unknown source: ${JSON.stringify(engineCfg.source)}`);
+      throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
     }
 
     // |traceStream| can be undefined in the case when we are using the external
@@ -262,7 +277,7 @@ export class TraceController extends Controller<States> {
       const tStart = performance.now();
       for (;;) {
         const res = await traceStream.readChunk();
-        await this.engine.parse(res.data);
+        await engine.parse(res.data);
         const elapsed = (performance.now() - tStart) / 1000;
         let status = 'Loading trace ';
         if (res.bytesTotal > 0) {
@@ -272,20 +287,20 @@ export class TraceController extends Controller<States> {
           status += `${Math.round(res.bytesRead / 1e6)} MB`;
         }
         status += ` - ${Math.ceil(res.bytesRead / elapsed / 1e6)} MB/s`;
-        this.updateStatus(status);
+        updateStatus(status);
         if (res.eof) break;
       }
-      await this.engine.notifyEof();
+      await engine.notifyEof();
     } else {
-      assertTrue(this.engine instanceof HttpRpcEngine);
-      await this.engine.restoreInitialTables();
+      assertTrue(engine instanceof HttpRpcEngine);
+      await engine.restoreInitialTables();
     }
     for (const p of globals.extraSqlPackages) {
-      await this.engine.registerSqlModules(p);
+      await engine.registerSqlModules(p);
     }
 
-    const traceDetails = await getTraceInfo(this.engine, engineCfg);
-    const trace = TraceImpl.newInstance(this.engine, traceDetails);
+    const traceDetails = await getTraceInfo(engine, traceSource);
+    const trace = TraceImpl.newInstance(engine, traceDetails);
     await globals.onTraceLoad(trace);
 
     AppImpl.instance.omnibox.reset();
@@ -294,17 +309,17 @@ export class TraceController extends Controller<States> {
       traceDetails.start,
       traceDetails.end,
       trace.traceInfo.traceType === 'json',
-      this.engine,
+      engine,
     );
 
-    globals.timeline.updateVisibleTime(visibleTimeSpan);
+    trace.timeline.updateVisibleTime(visibleTimeSpan);
 
     const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
     Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
     // Make sure the helper views are available before we start adding tracks.
-    await this.initialiseHelperViews();
-    await this.includeSummaryTables();
+    await initialiseHelperViews(engine);
+    await includeSummaryTables(engine);
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
@@ -313,15 +328,17 @@ export class TraceController extends Controller<States> {
     }
 
     await AppImpl.instance.plugins.onTraceLoad(trace, (id) => {
-      this.updateStatus(`Running plugin: ${id}`);
+      updateStatus(`Running plugin: ${id}`);
     });
 
-    await this.listTracks();
+    updateStatus('Loading tracks');
+    await decideTracks(trace);
 
-    this.decideTabs();
+    decideTabs(trace);
 
-    await this.listThreads();
-    await this.loadTimelineOverview(
+    await listThreads(engine);
+    await loadTimelineOverview(
+      engine,
       new TimeSpan(traceDetails.start, traceDetails.end),
     );
 
@@ -340,12 +357,13 @@ export class TraceController extends Controller<States> {
     const pendingDeeplink = globals.state.pendingDeeplink;
     if (pendingDeeplink !== undefined) {
       globals.dispatch(Actions.clearPendingDeeplink({}));
-      await this.selectPendingDeeplink(pendingDeeplink);
+      await selectPendingDeeplink(trace, pendingDeeplink);
       if (
         pendingDeeplink.visStart !== undefined &&
         pendingDeeplink.visEnd !== undefined
       ) {
-        this.zoomPendingDeeplink(
+        zoomPendingDeeplink(
+          trace,
           pendingDeeplink.visStart,
           pendingDeeplink.visEnd,
         );
@@ -366,7 +384,7 @@ export class TraceController extends Controller<States> {
     ) {
       const reliableRangeStart = await computeTraceReliableRangeStart(engine);
       if (reliableRangeStart > 0) {
-        globals.noteManager.addNote({
+        trace.notes.addNote({
           timestamp: reliableRangeStart,
           color: '#ff0000',
           text: 'Reliable Range Start',
@@ -382,12 +400,15 @@ export class TraceController extends Controller<States> {
       deserializeAppStatePhase2(serializedAppState);
     }
 
-    await AppImpl.instance.plugins.onTraceReady();
+    await trace.plugins.onTraceReady();
 
-    return engineMode;
+    return trace;
   }
 
-  private async selectPendingDeeplink(link: PendingDeeplinkState) {
+  async function selectPendingDeeplink(
+    trace: TraceImpl,
+    link: PendingDeeplinkState,
+  ) {
     const conditions = [];
     const {ts, dur} = link;
 
@@ -411,7 +432,7 @@ export class TraceController extends Controller<States> {
       where ${conditions.join(' and ')}
     ;`;
 
-    const result = await assertExists(this.engine).query(query);
+    const result = await trace.engine.query(query);
     if (result.numRows() > 0) {
       const row = result.firstRow({
         id: NUM,
@@ -420,35 +441,29 @@ export class TraceController extends Controller<States> {
       });
 
       const id = row.traceProcessorTrackId;
-      const track = globals.workspace.flatTracks.find(
+      const track = trace.workspace.flatTracks.find(
         (t) =>
-          t.uri &&
-          globals.trackManager.getTrack(t.uri)?.tags?.trackIds?.includes(id),
+          t.uri && trace.tracks.getTrack(t.uri)?.tags?.trackIds?.includes(id),
       );
       if (track === undefined) {
         return;
       }
-      globals.selectionManager.selectSqlEvent('slice', row.id, {
+      trace.selection.selectSqlEvent('slice', row.id, {
         scrollToSelection: true,
         switchToCurrentSelectionTab: false,
       });
     }
   }
 
-  private async listTracks() {
-    this.updateStatus('Loading tracks');
-    await decideTracks();
-  }
-
-  // Show the list of default tabs, but don't make them active!
-  private decideTabs() {
-    for (const tabUri of globals.tabManager.defaultTabs) {
-      globals.tabManager.showTab(tabUri);
+  function decideTabs(trace: TraceImpl) {
+    // Show the list of default tabs, but don't make them active!
+    for (const tabUri of trace.tabs.defaultTabs) {
+      trace.tabs.showTab(tabUri);
     }
   }
 
-  private async listThreads() {
-    this.updateStatus('Reading thread list');
+  async function listThreads(engine: Engine) {
+    updateStatus('Reading thread list');
     const query = `select
         utid,
         tid,
@@ -461,7 +476,7 @@ export class TraceController extends Controller<States> {
         from (select * from thread order by upid) as thread
         left join (select * from process order by upid) as process
         using(upid)`;
-    const result = await assertExists(this.engine).query(query);
+    const result = await engine.query(query);
     const threads: ThreadDesc[] = [];
     const it = result.iter({
       utid: NUM,
@@ -483,9 +498,8 @@ export class TraceController extends Controller<States> {
     publishThreads(threads);
   }
 
-  private async loadTimelineOverview(trace: TimeSpan) {
+  async function loadTimelineOverview(engine: Engine, trace: TimeSpan) {
     clearOverviewData();
-    const engine = assertExists<Engine>(this.engine);
     const stepSize = Duration.max(1n, trace.duration / 100n);
     const hasSchedSql = 'select ts from sched limit 1';
     const hasSchedOverview = (await engine.query(hasSchedSql)).numRows() > 0;
@@ -498,7 +512,7 @@ export class TraceController extends Controller<States> {
       ) {
         const progress = start - trace.start;
         const ratio = Number(progress) / Number(trace.duration);
-        this.updateStatus('Loading overview ' + `${Math.round(ratio * 100)}%`);
+        updateStatus('Loading overview ' + `${Math.round(ratio * 100)}%`);
         const end = Time.add(start, stepSize);
         // The (async() => {})() queues all the 100 async promises in one batch.
         // Without that, we would wait for each step to be rendered before
@@ -528,21 +542,21 @@ export class TraceController extends Controller<States> {
 
     // Slices overview.
     const sliceResult = await engine.query(`select
-           bucket,
-           upid,
-           ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
-         from thread
-         inner join (
-           select
-             ifnull(cast((ts - ${trace.start})/${stepSize} as int), 0) as bucket,
-             sum(dur) as utid_sum,
-             utid
-           from slice
-           inner join thread_track on slice.track_id = thread_track.id
-           group by bucket, utid
-         ) using(utid)
-         where upid is not null
-         group by bucket, upid`);
+            bucket,
+            upid,
+            ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
+          from thread
+          inner join (
+            select
+              ifnull(cast((ts - ${trace.start})/${stepSize} as int), 0) as bucket,
+              sum(dur) as utid_sum,
+              utid
+            from slice
+            inner join thread_track on slice.track_id = thread_track.id
+            group by bucket, utid
+          ) using(utid)
+          where upid is not null
+          group by bucket, upid`);
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
     const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
@@ -564,10 +578,8 @@ export class TraceController extends Controller<States> {
     publishOverviewData(slicesData);
   }
 
-  async initialiseHelperViews() {
-    const engine = assertExists(this.engine);
-
-    this.updateStatus('Creating annotation counter track table');
+  async function initialiseHelperViews(engine: Engine) {
+    updateStatus('Creating annotation counter track table');
     // Create the helper tables for all the annotations related data.
     // NULL in min/max means "figure it out per track in the usual way".
     await engine.query(`
@@ -580,7 +592,7 @@ export class TraceController extends Controller<States> {
         max_value DOUBLE
       );
     `);
-    this.updateStatus('Creating annotation slice track table');
+    updateStatus('Creating annotation slice track table');
     await engine.query(`
       CREATE TABLE annotation_slice_track(
         id INTEGER PRIMARY KEY,
@@ -591,7 +603,7 @@ export class TraceController extends Controller<States> {
       );
     `);
 
-    this.updateStatus('Creating annotation counter table');
+    updateStatus('Creating annotation counter table');
     await engine.query(`
       CREATE TABLE annotation_counter(
         id BIGINT,
@@ -601,7 +613,7 @@ export class TraceController extends Controller<States> {
         PRIMARY KEY (track_id, ts)
       ) WITHOUT ROWID;
     `);
-    this.updateStatus('Creating annotation slice table');
+    updateStatus('Creating annotation slice table');
     await engine.query(`
       CREATE TABLE annotation_slice(
         id INTEGER PRIMARY KEY,
@@ -628,7 +640,7 @@ export class TraceController extends Controller<States> {
         continue;
       }
 
-      this.updateStatus(`Computing ${metric} metric`);
+      updateStatus(`Computing ${metric} metric`);
       try {
         // We don't care about the actual result of metric here as we are just
         // interested in the annotation tracks.
@@ -642,7 +654,7 @@ export class TraceController extends Controller<States> {
         }
       }
 
-      this.updateStatus(`Inserting data for ${metric} metric`);
+      updateStatus(`Inserting data for ${metric} metric`);
       try {
         const result = await engine.query(`pragma table_info(${metric}_event)`);
         let hasSliceName = false;
@@ -739,26 +751,24 @@ export class TraceController extends Controller<States> {
     }
   }
 
-  async includeSummaryTables() {
-    const engine = assertExists<Engine>(this.engine);
-
-    this.updateStatus('Creating slice summaries');
+  async function includeSummaryTables(engine: Engine) {
+    updateStatus('Creating slice summaries');
     await engine.query(`include perfetto module viz.summary.slices;`);
 
-    this.updateStatus('Creating counter summaries');
+    updateStatus('Creating counter summaries');
     await engine.query(`include perfetto module viz.summary.counters;`);
 
-    this.updateStatus('Creating thread summaries');
+    updateStatus('Creating thread summaries');
     await engine.query(`include perfetto module viz.summary.threads;`);
 
-    this.updateStatus('Creating processes summaries');
+    updateStatus('Creating processes summaries');
     await engine.query(`include perfetto module viz.summary.processes;`);
 
-    this.updateStatus('Creating track summaries');
+    updateStatus('Creating track summaries');
     await engine.query(`include perfetto module viz.summary.tracks;`);
   }
 
-  private updateStatus(msg: string): void {
+  function updateStatus(msg: string): void {
     globals.dispatch(
       Actions.updateStatus({
         msg,
@@ -767,24 +777,26 @@ export class TraceController extends Controller<States> {
     );
   }
 
-  private zoomPendingDeeplink(visStart: string, visEnd: string) {
+  function zoomPendingDeeplink(
+    trace: TraceImpl,
+    visStart: string,
+    visEnd: string,
+  ) {
     const visualStart = Time.fromRaw(BigInt(visStart));
     const visualEnd = Time.fromRaw(BigInt(visEnd));
-    const traceContext = globals.traceContext;
 
     if (
       !(
         visualStart < visualEnd &&
-        traceContext.start <= visualStart &&
-        visualEnd <= traceContext.end
+        trace.traceInfo.start <= visualStart &&
+        visualEnd <= trace.traceInfo.end
       )
     ) {
       return;
     }
 
-    globals.timeline.updateVisibleTime(new TimeSpan(visualStart, visualEnd));
+    trace.timeline.updateVisibleTime(new TimeSpan(visualStart, visualEnd));
   }
-}
 
 async function computeFtraceBounds(engine: Engine): Promise<TimeSpan | null> {
   const result = await engine.query(`
@@ -841,7 +853,7 @@ async function computeVisibleTime(
 
 async function getTraceInfo(
   engine: Engine,
-  engineCfg: EngineConfig,
+  traceSource: TraceSource,
 ): Promise<TraceInfo> {
   const traceTime = await getTraceTimeBounds(engine);
 
@@ -910,23 +922,21 @@ async function getTraceInfo(
 
   let traceTitle = '';
   let traceUrl = '';
-  switch (engineCfg.source.type) {
+  switch (traceSource.type) {
     case 'FILE':
       // Split on both \ and / (because C:\Windows\paths\are\like\this).
-      traceTitle = engineCfg.source.file.name.split(/[/\\]/).pop()!;
-      const fileSizeMB = Math.ceil(engineCfg.source.file.size / 1e6);
+      traceTitle = traceSource.file.name.split(/[/\\]/).pop()!;
+      const fileSizeMB = Math.ceil(traceSource.file.size / 1e6);
       traceTitle += ` (${fileSizeMB} MB)`;
       break;
     case 'URL':
-      traceUrl = engineCfg.source.url;
+      traceUrl = traceSource.url;
       traceTitle = traceUrl.split('/').pop()!;
       break;
     case 'ARRAY_BUFFER':
-      traceTitle = engineCfg.source.title;
-      traceUrl = engineCfg.source.url ?? '';
-      const arrayBufferSizeMB = Math.ceil(
-        engineCfg.source.buffer.byteLength / 1e6,
-      );
+      traceTitle = traceSource.title;
+      traceUrl = traceSource.url ?? '';
+      const arrayBufferSizeMB = Math.ceil(traceSource.buffer.byteLength / 1e6);
       traceTitle += ` (${arrayBufferSizeMB} MB)`;
       break;
     case 'HTTP_RPC':
@@ -947,7 +957,7 @@ async function getTraceInfo(
   // trace_uuid can be missing from the TP tables if the trace is empty or in
   // other similar edge cases.
   const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({uuid: STR}).uuid : '';
-  const cached = await cacheTrace(engineCfg.source, uuid);
+  const cached = await cacheTrace(traceSource, uuid);
 
   return {
     ...traceTime,
@@ -959,7 +969,7 @@ async function getTraceInfo(
     cpus: await getCpus(engine),
     gpuCount: await getNumberOfGpus(engine),
     importErrors: await getTraceErrors(engine),
-    source: engineCfg.source,
+    source: traceSource,
     traceType,
     uuid,
     cached,
