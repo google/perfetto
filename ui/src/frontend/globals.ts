@@ -30,8 +30,7 @@ import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import type {Analytics} from './analytics';
 import {getServingRoot} from '../base/http_utils';
 import {Workspace} from '../public/workspace';
-import {ratelimit} from './rate_limiters';
-import {setRerunControllersFunction, TraceImpl} from '../core/trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
 import {createFakeTraceImpl} from '../core/fake_trace_impl';
 
@@ -106,10 +105,6 @@ class Globals {
   // is gone, figure out what to do with createSearchOverviewTrack().
   async onTraceLoad(trace: TraceImpl): Promise<void> {
     this._trace = trace;
-
-    this._trace.timeline.retriggerControllersOnChange = () =>
-      ratelimit(() => this.store.edit(() => {}), 50);
-
     this._currentTraceId = trace.engine.engineId;
   }
 
@@ -126,10 +121,6 @@ class Globals {
     // We just want an empty instance of TraceImpl but don't want to mark it
     // as the current trace, otherwise this will trigger the plugins' OnLoad().
     AppImpl.instance.closeCurrentTrace();
-
-    setRerunControllersFunction(() =>
-      this.dispatch(Actions.runControllers({})),
-    );
   }
 
   initialize(

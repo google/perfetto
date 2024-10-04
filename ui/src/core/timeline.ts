@@ -37,15 +37,6 @@ export class TimelineImpl implements Timeline {
   private _visibleWindow: HighPrecisionTimeSpan;
   private _hoverCursorTimestamp?: time;
 
-  // This is a giant hack. Basically, removing visible window from the state
-  // means that we no longer update the state periodically while navigating
-  // the timeline, which means that controllers are not running. This keeps
-  // making null edits to the store which triggers the controller to run.
-  // This function is injected from Globals.initialize() to avoid a dependency
-  // on the State.
-  // TODO(stevegolton): When we remove controllers, we can remove this!
-  retriggerControllersOnChange: () => void = () => {};
-
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
   private _selectedArea?: Area;
@@ -67,7 +58,6 @@ export class TimelineImpl implements Timeline {
       .fitWithin(this.traceInfo.start, this.traceInfo.end);
 
     raf.scheduleRedraw();
-    this.retriggerControllersOnChange();
   }
 
   panVisibleWindow(delta: number) {
@@ -76,7 +66,6 @@ export class TimelineImpl implements Timeline {
       .fitWithin(this.traceInfo.start, this.traceInfo.end);
 
     raf.scheduleRedraw();
-    this.retriggerControllersOnChange();
   }
 
   // Given a timestamp, if |ts| is not currently in view move the view to
@@ -134,7 +123,6 @@ export class TimelineImpl implements Timeline {
       .fitWithin(this.traceInfo.start, this.traceInfo.end);
 
     raf.scheduleRedraw();
-    this.retriggerControllersOnChange();
   }
 
   // Get the bounds of the visible window as a high-precision time span
