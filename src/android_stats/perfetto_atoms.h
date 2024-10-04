@@ -27,9 +27,11 @@ enum class PerfettoStatsdAtom {
   // Checkpoints inside perfetto_cmd before tracing is finished.
   kTraceBegin = 1,
   kBackgroundTraceBegin = 2,
-  kCloneTraceBegin = 55,
-  kCloneTriggerTraceBegin = 56,
+  kCmdCloneTraceBegin = 55,
+  kCmdCloneTriggerTraceBegin = 56,
   kOnConnect = 3,
+  kCmdOnSessionClone = 57,
+  kCmdOnTriggerSessionClone = 58,
 
   // Guardrails inside perfetto_cmd before tracing is finished.
   kOnTimeout = 16,
