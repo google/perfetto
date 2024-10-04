@@ -34,6 +34,8 @@ message AndroidCodecMetrics {
     optional int64 total_cpu_ns = 2;
     // CPU time ( time 'Running' on cpu)
     optional int64 running_cpu_ns = 3;
+    // CPU cycles
+    optional int64 cpu_cycles = 4;
   }
 
   // These are traces and could indicate framework queue latency
@@ -67,7 +69,26 @@ message AndroidCodecMetrics {
     repeated AndroidCpuMetric.CoreTypeData core_data = 5;
   }
 
+  // Shows energy breakdown base on subsystem
+  message EnergyBreakdown {
+    // name of subsystem
+    optional string subsystem = 1;
+    // energy consumed by this system
+    optional double energy = 2;
+  }
+
+  // have the energy usage for the codec running time
+  message EnergyUsage {
+    // total energy taken by the system during this time
+    optional double total_energy = 1;
+    // total time for this energy is calculated
+    optional int64 duration = 2;
+    // enery breakdown by subsystem
+    repeated EnergyBreakdown subsystem = 3;
+  }
+
   repeated CpuUsage cpu_usage = 1;
   repeated CodecFunction codec_function = 2;
+  optional EnergyUsage energy_usage = 3;
 
 }
