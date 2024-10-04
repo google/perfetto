@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 541> descriptors{{
+std::array<FtraceMessageDescriptor, 542> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5983,6 +5983,18 @@ std::array<FtraceMessageDescriptor, 541> descriptors{{
             {"task_util", ProtoSchemaType::kUint64},
             {"uclamp_min", ProtoSchemaType::kUint64},
             {"vruntime", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "devfreq_frequency",
+        5,
+        {
+            {},
+            {"dev_name", ProtoSchemaType::kString},
+            {"freq", ProtoSchemaType::kUint64},
+            {"prev_freq", ProtoSchemaType::kUint64},
+            {"busy_time", ProtoSchemaType::kUint64},
+            {"total_time", ProtoSchemaType::kUint64},
         },
     },
 }};

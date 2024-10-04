@@ -31,6 +31,7 @@ import "protos/perfetto/trace/ftrace/compaction.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
 import "protos/perfetto/trace/ftrace/cros_ec.proto";
 import "protos/perfetto/trace/ftrace/dcvsh.proto";
+import "protos/perfetto/trace/ftrace/devfreq.proto";
 import "protos/perfetto/trace/ftrace/dma_fence.proto";
 import "protos/perfetto/trace/ftrace/dmabuf_heap.proto";
 import "protos/perfetto/trace/ftrace/dpu.proto";
@@ -678,5 +679,6 @@ message FtraceEvent {
     PixelMmKswapdWakeFtraceEvent pixel_mm_kswapd_wake = 538;
     PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
     SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
+    DevfreqFrequencyFtraceEvent devfreq_frequency = 541;
   }
 }
