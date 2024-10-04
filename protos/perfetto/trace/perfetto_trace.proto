@@ -7351,6 +7351,18 @@ message DcvshFreqFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/dcvsh.proto
 
+// Begin of protos/perfetto/trace/ftrace/devfreq.proto
+
+message DevfreqFrequencyFtraceEvent {
+  optional string dev_name = 1;
+  optional uint64 freq = 2;
+  optional uint64 prev_freq = 3;
+  optional uint64 busy_time = 4;
+  optional uint64 total_time = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/devfreq.proto
+
 // Begin of protos/perfetto/trace/ftrace/dma_fence.proto
 
 message DmaFenceInitFtraceEvent {
@@ -11144,6 +11156,7 @@ message FtraceEvent {
     PixelMmKswapdWakeFtraceEvent pixel_mm_kswapd_wake = 538;
     PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
     SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
+    DevfreqFrequencyFtraceEvent devfreq_frequency = 541;
   }
 }
 
