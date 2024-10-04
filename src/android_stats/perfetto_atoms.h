@@ -30,8 +30,8 @@ enum class PerfettoStatsdAtom {
   kCmdCloneTraceBegin = 55,
   kCmdCloneTriggerTraceBegin = 56,
   kOnConnect = 3,
-  kCmdOnSessionClone = 57,
-  kCmdOnTriggerSessionClone = 58,
+  kCmdOnSessionClone = 58,
+  kCmdOnTriggerSessionClone = 59,
 
   // Guardrails inside perfetto_cmd before tracing is finished.
   kOnTimeout = 16,
