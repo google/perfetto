@@ -25,6 +25,7 @@ export const defaultPlugins = [
   'dev.perfetto.AndroidBinderVizPlugin',
   'dev.perfetto.AndroidClientServer',
   'dev.perfetto.AndroidCujs',
+  'dev.perfetto.AndroidDmabuf',
   'dev.perfetto.AndroidLongBatteryTracing',
   'dev.perfetto.AndroidNetwork',
   'dev.perfetto.AndroidPerf',
