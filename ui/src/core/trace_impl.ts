@@ -133,11 +133,6 @@ export class TraceContext implements Disposable {
     }
 
     this.flowMgr.updateFlows(selection);
-
-    // TODO(primiano): this is temporarily necessary until we kill
-    // controllers. The flow controller needs to be re-kicked when we change
-    // the selection.
-    rerunControllersFunction?.();
   }
 
   private onResultStep(searchResult: SearchResult) {
@@ -349,12 +344,4 @@ function createProxy<T extends object>(target: T, overrides: Partial<T>): T {
         : baseValue;
     },
   }) as T;
-}
-
-// TODO(primiano): remove this once we get rid of controllers. This function
-// gets bound to `globals.dispatch(Actions.runControllers({}));` and exists
-// only to avoid a circular dependency between globals.ts and this file.
-let rerunControllersFunction: () => void;
-export function setRerunControllersFunction(f: () => void) {
-  rerunControllersFunction = f;
 }
