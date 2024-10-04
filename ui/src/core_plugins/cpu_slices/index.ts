@@ -51,7 +51,7 @@ class CpuSlices implements PerfettoPlugin {
           kind: CPU_SLICE_TRACK_KIND,
           cpu,
         },
-        track: new CpuSliceTrack(ctx.engine, uri, cpu),
+        track: new CpuSliceTrack(ctx, uri, cpu),
         detailsPanel: () => new SchedSliceDetailsPanel(ctx),
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -50});

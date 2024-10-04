@@ -23,7 +23,6 @@ import {
   SLICE_FLAGS_INCOMPLETE,
   SLICE_FLAGS_INSTANT,
 } from './base_slice_track';
-import {globals} from './globals';
 import {NewTrackArgs} from './track';
 import {renderDuration} from './widgets/duration';
 
@@ -67,6 +66,6 @@ export abstract class NamedSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<SliceType>) {
-    globals.selectionManager.selectTrackEvent(this.uri, args.slice.id);
+    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 }
