@@ -14,17 +14,18 @@
 """Contains tables for tracks."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import ColumnDoc
+from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
-from python.generators.trace_processor_table.public import CppString
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import TableDoc
-from python.generators.trace_processor_table.public import ColumnDoc
-from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppSelfTableId
+from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.metadata_tables import CPU_TABLE, MACHINE_TABLE
 
@@ -40,6 +41,7 @@ TRACK_TABLE = Table(
         C("classification", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
         C("tags", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
     ],
+    wrapping_sql_view=WrappingSqlView('track'),
     tabledoc=TableDoc(
         doc='''
           Tracks are a fundamental concept in trace processor and represent a
@@ -130,6 +132,7 @@ CPU_TRACK_TABLE = Table(
     columns=[
         C('ucpu', CppTableId(CPU_TABLE)),
     ],
+    wrapping_sql_view=WrappingSqlView('cpu_track'),
     parent=TRACK_TABLE,
     tabledoc=TableDoc(
         doc='Tracks which are associated to a single CPU',
@@ -259,6 +262,7 @@ CPU_COUNTER_TRACK_TABLE = Table(
     columns=[
         C('ucpu', CppTableId(CPU_TABLE)),
     ],
+    wrapping_sql_view=WrappingSqlView('cpu_counter_track'),
     parent=COUNTER_TRACK_TABLE,
     tabledoc=TableDoc(
         doc='Tracks containing counter-like events associated to a CPU.',
