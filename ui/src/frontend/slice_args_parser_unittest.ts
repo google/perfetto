@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {convertArgsToObject, convertArgsToTree} from './args_parser';
+import {convertArgsToObject, convertArgsToTree} from './slice_args_parser';
 
 const args = [
   {key: 'simple_key', value: 'simple_value'},
