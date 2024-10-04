@@ -31,6 +31,7 @@ ftrace_proto_names = [
   "cpuhp.proto",
   "cros_ec.proto",
   "dcvsh.proto",
+  "devfreq.proto",
   "dma_fence.proto",
   "dmabuf_heap.proto",
   "dpu.proto",
