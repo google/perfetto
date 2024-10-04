@@ -129,7 +129,9 @@ class HeapProfilePlugin implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: -30});
       group.addChildInOrder(track);
     }
+  }
 
+  async onTraceReady(ctx: Trace): Promise<void> {
     await selectFirstHeapProfile(ctx);
   }
 }
