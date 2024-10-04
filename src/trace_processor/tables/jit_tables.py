@@ -27,6 +27,7 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
+from python.generators.trace_processor_table.public import WrappingSqlView
 from .profiler_tables import STACK_PROFILE_FRAME_TABLE
 
 JIT_CODE_TABLE = Table(
@@ -43,6 +44,7 @@ JIT_CODE_TABLE = Table(
         C('native_code_base64', CppOptional(CppString())),
         C('jit_code_id', Alias('id')),
     ],
+    wrapping_sql_view=WrappingSqlView('jit_code'),
     tabledoc=TableDoc(
         doc="""
           Represents a jitted code snippet
@@ -73,6 +75,7 @@ JIT_FRAME_TABLE = Table(
         C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
         C('frame_id', CppTableId(STACK_PROFILE_FRAME_TABLE)),
     ],
+    wrapping_sql_view=WrappingSqlView('jit_frame'),
     tabledoc=TableDoc(
         doc="""
           Represents a jitted frame
