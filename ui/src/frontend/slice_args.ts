@@ -17,7 +17,7 @@ import {isString} from '../base/object_utils';
 import {Icons} from '../base/semantic_icons';
 import {sqliteString} from '../base/string_utils';
 import {exists} from '../base/utils';
-import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
+import {ArgNode, convertArgsToTree, Key} from './slice_args_parser';
 import {addVisualisedArgTracks} from './visualized_args_tracks';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';

@@ -197,8 +197,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
   let serializedAppState: Optional<SerializedAppState> = undefined;
   if (permalink.appState !== undefined) {
     // This is the most common case where the permalink contains the app state
-    // (and optionally a traceUrl, below). globals.restoreAppStateAfterTraceLoad
-    // will be processed by trace_controller.ts after the trace has loaded.
+    // (and optionally a traceUrl, below).
     const parseRes = parseAppState(permalink.appState);
     if (parseRes.success) {
       serializedAppState = parseRes.data;
