@@ -30,7 +30,6 @@ import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Point2D} from '../../base/geom';
-import {Engine} from '../../trace_processor/engine';
 import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
@@ -41,6 +40,7 @@ import {
   getSched,
   getSchedWakeupInfo,
 } from '../../trace_processor/sql_utils/sched';
+import {Trace} from '../../public/trace';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -65,19 +65,19 @@ export class CpuSliceTrack implements Track {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private lastRowId = -1;
-  private engine: Engine;
+  private trace: Trace;
   private cpu: number;
   private uri: string;
   private trackUuid = uuidv4Sql();
 
-  constructor(engine: Engine, uri: string, cpu: number) {
-    this.engine = engine;
+  constructor(trace: Trace, uri: string, cpu: number) {
+    this.trace = trace;
     this.uri = uri;
     this.cpu = cpu;
   }
 
   async onCreate() {
-    await this.engine.query(`
+    await this.trace.engine.query(`
       create virtual table cpu_slice_${this.trackUuid}
       using __intrinsic_slice_mipmap((
         select
@@ -89,7 +89,7 @@ export class CpuSliceTrack implements Track {
         where cpu = ${this.cpu} and utid != 0
       ));
     `);
-    const it = await this.engine.query(`
+    const it = await this.trace.engine.query(`
       select coalesce(max(id), -1) as lastRowId
       from sched
       where cpu = ${this.cpu} and utid != 0
@@ -111,7 +111,7 @@ export class CpuSliceTrack implements Track {
   ): Promise<Data> {
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
-    const queryRes = await this.engine.query(`
+    const queryRes = await this.trace.engine.query(`
       select
         (z.ts / ${resolution}) * ${resolution} as tsQ,
         (((z.ts + z.dur) / ${resolution}) + 1) * ${resolution} as tsEndQ,
@@ -163,7 +163,7 @@ export class CpuSliceTrack implements Track {
   }
 
   async onDestroy() {
-    await this.engine.tryQuery(
+    await this.trace.engine.tryQuery(
       `drop table if exists cpu_slice_${this.trackUuid}`,
     );
     this.fetcher[Symbol.dispose]();
@@ -446,18 +446,18 @@ export class CpuSliceTrack implements Track {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.utidHoveredInThisTrack === -1) return false;
 
-    globals.selectionManager.selectTrackEvent(this.uri, id);
+    this.trace.selection.selectTrackEvent(this.uri, id);
     return true;
   }
 
   async getSelectionDetails?(
     eventId: number,
   ): Promise<TrackEventDetails | undefined> {
-    const sched = await getSched(this.engine, asSchedSqlId(eventId));
+    const sched = await getSched(this.trace.engine, asSchedSqlId(eventId));
     if (sched === undefined) {
       return undefined;
     }
-    const wakeup = await getSchedWakeupInfo(this.engine, sched);
+    const wakeup = await getSchedWakeupInfo(this.trace.engine, sched);
     return {
       ts: sched.ts,
       dur: sched.dur,

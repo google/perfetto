@@ -19,7 +19,6 @@ import {
   BaseSliceTrack,
   OnSliceClickArgs,
 } from '../../frontend/base_slice_track';
-import {globals} from '../../frontend/globals';
 import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {NUM} from '../../trace_processor/query_result';
@@ -70,7 +69,7 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
   }
 
   onSliceClick({slice}: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.selectTrackEvent(this.uri, slice.id);
+    this.trace.selection.selectTrackEvent(this.uri, slice.id);
   }
 
   async getSelectionDetails(
