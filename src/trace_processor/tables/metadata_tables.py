@@ -203,6 +203,7 @@ CPU_TABLE = Table(
         C('capacity', CppOptional(CppUint32())),
         C('arg_set_id', CppOptional(CppUint32())),
     ],
+    wrapping_sql_view=WrappingSqlView('cpu'),
     tabledoc=TableDoc(
         doc='''
           Contains information of processes seen during the trace
@@ -212,8 +213,7 @@ CPU_TABLE = Table(
             'cpu':
                 '''the index (0-based) of the CPU core on the device''',
             'cluster_id':
-                '''the cluster id is shared by CPUs in
-the same cluster''',
+                '''the cluster id is shared by CPUs in the same cluster''',
             'processor':
                 '''a string describing this core''',
             'machine_id':
@@ -243,11 +243,14 @@ RAW_TABLE = Table(
         C('common_flags', CppUint32()),
         C('ucpu', CppTableId(CPU_TABLE))
     ],
+    wrapping_sql_view=WrappingSqlView('track'),
     tabledoc=TableDoc(
         doc='''
           Contains 'raw' events from the trace for some types of events. This
           table only exists for debugging purposes and should not be relied on
           in production usecases (i.e. metrics, standard library etc).
+
+          If you are looking for ftrace_events: please use the ftrace_event table.
         ''',
         group='Events',
         columns={
@@ -281,6 +284,7 @@ FTRACE_EVENT_TABLE = Table(
     sql_name='__intrinsic_ftrace_event',
     parent=RAW_TABLE,
     columns=[],
+    wrapping_sql_view=WrappingSqlView('ftrace_event'),
     tabledoc=TableDoc(
         doc='''
           Contains all the ftrace events in the trace. This table exists only
@@ -401,6 +405,7 @@ CPU_FREQ_TABLE = Table(
         C('ucpu', CppTableId(CPU_TABLE)),
         C('freq', CppUint32()),
     ],
+    wrapping_sql_view=WrappingSqlView('cpu_freq'),
     tabledoc=TableDoc(
         doc='''''', group='Misc', columns={
             'ucpu': '''''',
@@ -456,6 +461,7 @@ TRACE_FILE_TABLE = Table(
         C('size', CppInt64()),
         C('trace_type', CppString()),
     ],
+    wrapping_sql_view=WrappingSqlView('trace_file'),
     tabledoc=TableDoc(
         doc='''
             Metadata related to the trace file parsed. Note the order in which

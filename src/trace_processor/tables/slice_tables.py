@@ -352,25 +352,37 @@ ANDROID_NETWORK_PACKETS_TABLE = Table(
         C('packet_tcp_flags_str', CppOptional(CppString())),
     ],
     parent=SLICE_TABLE,
+    wrapping_sql_view=WrappingSqlView('android_network_packets'),
     tabledoc=TableDoc(
         doc="""
         This table contains details on Android Network activity.
         """,
         group='Slice',
         columns={
-            'iface': 'The name of the network interface used',
-            'direction': 'The direction of traffic (Received or Transmitted)',
+            'iface':
+                'The name of the network interface used',
+            'direction':
+                'The direction of traffic (Received or Transmitted)',
             'packet_transport':
                 'The transport protocol of packets in this event',
-            'packet_length': 'The length (in bytes) of packets in this event',
-            'packet_count': 'The number of packets contained in this event',
-            'socket_tag': 'The Android network tag of the socket',
-            'socket_tag_str': 'The socket tag formatted as a hex string',
-            'socket_uid': 'The Linux user id of the socket',
-            'local_port': 'The local udp/tcp port',
-            'remote_port': 'The remote udp/tcp port',
-            'packet_icmp_type': 'The 1-byte ICMP type identifier',
-            'packet_icmp_code': 'The 1-byte ICMP code identifier',
+            'packet_length':
+                'The length (in bytes) of packets in this event',
+            'packet_count':
+                'The number of packets contained in this event',
+            'socket_tag':
+                'The Android network tag of the socket',
+            'socket_tag_str':
+                'The socket tag formatted as a hex string',
+            'socket_uid':
+                'The Linux user id of the socket',
+            'local_port':
+                'The local udp/tcp port',
+            'remote_port':
+                'The remote udp/tcp port',
+            'packet_icmp_type':
+                'The 1-byte ICMP type identifier',
+            'packet_icmp_code':
+                'The 1-byte ICMP code identifier',
             'packet_tcp_flags':
                 'The TCP flags as an integer bitmask (FIN=0x1, SYN=0x2, etc)',
             'packet_tcp_flags_str':
