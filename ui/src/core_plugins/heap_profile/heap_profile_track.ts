@@ -19,7 +19,6 @@ import {
   OnSliceClickArgs,
   OnSliceOverArgs,
 } from '../../frontend/base_slice_track';
-import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   ProfileType,
@@ -70,7 +69,7 @@ export class HeapProfileTrack extends BaseSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    globals.selectionManager.selectTrackEvent(this.uri, args.slice.id);
+    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 
   async getSelectionDetails(

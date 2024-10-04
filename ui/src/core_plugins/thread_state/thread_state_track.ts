@@ -18,7 +18,6 @@ import {
   BaseSliceTrack,
   OnSliceClickArgs,
 } from '../../frontend/base_slice_track';
-import {globals} from '../../frontend/globals';
 import {
   SLICE_LAYOUT_FLAT_DEFAULTS,
   SliceLayout,
@@ -85,7 +84,7 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
   }
 
   onSliceClick(args: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.selectTrackEvent(this.uri, args.slice.id);
+    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 
   // Add utid to selection details
