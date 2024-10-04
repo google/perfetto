@@ -14,7 +14,8 @@
 
 import m from 'mithril';
 import {Time} from '../base/time';
-import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
+import {Actions} from '../common/actions';
+import {PostedTrace} from '../public/trace_source';
 import {showModal} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
 import {globals} from './globals';
@@ -30,6 +31,12 @@ interface PostedTraceWrapped {
 
 interface PostedScrollToRangeWrapped {
   perfetto: PostedScrollToRange;
+}
+
+interface PostedScrollToRange {
+  timeStart: number;
+  timeEnd: number;
+  viewPercentage?: number;
 }
 
 // Returns whether incoming traces should be opened automatically or should

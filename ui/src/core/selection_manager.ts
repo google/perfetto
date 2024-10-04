@@ -83,7 +83,7 @@ export class SelectionManagerImpl implements SelectionManager {
       .getTrack(trackUri)
       ?.track.getSelectionDetails?.(eventId);
 
-    if (!details) {
+    if (!exists(details)) {
       throw new Error('Unable to resolve selection details');
     }
 
