@@ -236,7 +236,9 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: -50});
       group.addChildInOrder(track);
     }
+  }
 
+  async onTraceReady(ctx: Trace): Promise<void> {
     await selectPerfSample(ctx);
   }
 }
