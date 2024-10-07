@@ -64,6 +64,7 @@
 #include "src/tracing/core/trace_writer_impl.h"
 #include "src/tracing/test/mock_consumer.h"
 #include "src/tracing/test/mock_producer.h"
+#include "src/tracing/test/proxy_producer_endpoint.h"
 #include "src/tracing/test/test_shared_memory.h"
 #include "test/gtest_and_gmock.h"
 
@@ -272,11 +273,6 @@ class TracingServiceImplTest : public testing::Test {
 
   SharedMemoryArbiterImpl* GetShmemArbiterForProducer(ProducerID producer_id) {
     return svc->GetProducer(producer_id)->inproc_shmem_arbiter_.get();
-  }
-
-  std::unique_ptr<SharedMemoryArbiterImpl> StealShmemArbiterForProducer(
-      ProducerID producer_id) {
-    return std::move(svc->GetProducer(producer_id)->inproc_shmem_arbiter_);
   }
 
   void SetTriggerWindowNs(int64_t window_ns) {
@@ -3362,8 +3358,19 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
   consumer->Connect(svc.get());
 
   std::unique_ptr<MockProducer> producer = CreateMockProducer();
-  producer->Connect(svc.get(), "mock_producer");
-  ProducerID producer_id = *last_producer_id();
+
+  static constexpr size_t kShmSizeBytes = 1024 * 1024;
+  static constexpr size_t kShmPageSizeBytes = 4 * 1024;
+
+  TestSharedMemory::Factory factory;
+  auto shm = factory.CreateSharedMemory(kShmSizeBytes);
+
+  // Service should adopt the SMB provided by the producer.
+  producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
+                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                    TestRefSharedMemory::Create(shm.get()),
+                    /*in_process=*/false);
+
   producer->RegisterDataSource("data_source");
 
   TraceConfig trace_config;
@@ -3377,9 +3384,19 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
 
-  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[0]);
-  // Wait for TraceWriter to be registered.
+  auto client_producer_endpoint = std::make_unique<ProxyProducerEndpoint>();
+  client_producer_endpoint->set_backend(producer->endpoint());
+
+  auto shmem_arbiter = std::make_unique<SharedMemoryArbiterImpl>(
+      shm->start(), shm->size(), SharedMemoryABI::ShmemMode::kDefault,
+      kShmPageSizeBytes, client_producer_endpoint.get(), &task_runner);
+  shmem_arbiter->SetDirectSMBPatchingSupportedByService();
+
+  const auto* ds_inst = producer->GetDataSourceInstance("data_source");
+  ASSERT_NE(nullptr, ds_inst);
+  std::unique_ptr<TraceWriter> writer =
+      shmem_arbiter->CreateTraceWriter(ds_inst->target_buffer);
+  // Wait for the TraceWriter to be registered.
   task_runner.RunUntilIdle();
 
   // Write a few trace packets.
@@ -3388,9 +3405,8 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
   writer->NewTracePacket()->set_for_testing()->set_str("payload3");
 
   // Disconnect the producer without committing the chunk. This should cause a
-  // scrape of the SMB. Avoid destroying the ShmemArbiter until writer is
-  // destroyed.
-  auto shmem_arbiter = StealShmemArbiterForProducer(producer_id);
+  // scrape of the SMB.
+  client_producer_endpoint->set_backend(nullptr);
   producer.reset();
 
   // Chunk with the packets should have been scraped.
@@ -3405,9 +3421,6 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
                                          Property(&protos::gen::TestEvent::str,
                                                   Eq("payload3")))));
 
-  // Cleanup writer without causing a crash because the producer already went
-  // away.
-  static_cast<TraceWriterImpl*>(writer.get())->ResetChunkForTesting();
   writer.reset();
   shmem_arbiter.reset();
 

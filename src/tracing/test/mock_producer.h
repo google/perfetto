@@ -51,7 +51,8 @@ class MockProducer : public Producer {
                pid_t pid = 1025,
                size_t shared_memory_size_hint_bytes = 0,
                size_t shared_memory_page_size_hint_bytes = 0,
-               std::unique_ptr<SharedMemory> shm = nullptr);
+               std::unique_ptr<SharedMemory> shm = nullptr,
+               bool in_process = true);
   void RegisterDataSource(const std::string& name,
                           bool ack_stop = false,
                           bool ack_start = false,

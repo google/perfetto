@@ -21,7 +21,6 @@
 
 #include <memory>
 
-#include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "src/tracing/core/in_process_shared_memory.h"
 
@@ -30,6 +29,33 @@ namespace perfetto {
 // A dummy implementation of shared memory for single process unittests
 // (just a wrapper around malloc() that fits the SharedMemory API).
 using TestSharedMemory = InProcessSharedMemory;
+
+// An implementation of the SharedMemory that doesn't own any memory, but just
+// points to memory owned by another SharedMemory.
+//
+// This is useful to test two components that own separate SharedMemory that
+// really point to the same memory underneath without setting up real posix
+// shared memory.
+class TestRefSharedMemory : public SharedMemory {
+ public:
+  // N.B. `*mem` must outlive `*this`.
+  explicit TestRefSharedMemory(SharedMemory* mem)
+      : start_(mem->start()), size_(mem->size()) {}
+  ~TestRefSharedMemory() override;
+
+  static std::unique_ptr<TestRefSharedMemory> Create(SharedMemory* mem) {
+    return std::make_unique<TestRefSharedMemory>(mem);
+  }
+
+  // SharedMemory implementation.
+  using SharedMemory::start;  // Equal priority to const and non-const versions
+  const void* start() const override;
+  size_t size() const override;
+
+ private:
+  void* start_;
+  size_t size_;
+};
 
 }  // namespace perfetto
 

@@ -73,13 +73,15 @@ void MockProducer::Connect(TracingService* svc,
                            pid_t pid,
                            size_t shared_memory_size_hint_bytes,
                            size_t shared_memory_page_size_hint_bytes,
-                           std::unique_ptr<SharedMemory> shm) {
+                           std::unique_ptr<SharedMemory> shm,
+                           bool in_process) {
   producer_name_ = producer_name;
-  service_endpoint_ = svc->ConnectProducer(
-      this, ClientIdentity(uid, pid), producer_name,
-      shared_memory_size_hint_bytes,
-      /*in_process=*/true, TracingService::ProducerSMBScrapingMode::kDefault,
-      shared_memory_page_size_hint_bytes, std::move(shm));
+  service_endpoint_ =
+      svc->ConnectProducer(this, ClientIdentity(uid, pid), producer_name,
+                           shared_memory_size_hint_bytes,
+                           /*in_process=*/in_process,
+                           TracingService::ProducerSMBScrapingMode::kDefault,
+                           shared_memory_page_size_hint_bytes, std::move(shm));
   auto checkpoint_name = "on_producer_connect_" + producer_name;
   auto on_connect = task_runner_->CreateCheckpoint(checkpoint_name);
   EXPECT_CALL(*this, OnConnect()).WillOnce(Invoke(on_connect));

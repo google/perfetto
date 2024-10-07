@@ -14932,6 +14932,8 @@ filegroup {
         "src/tracing/test/fake_packet.cc",
         "src/tracing/test/mock_consumer.cc",
         "src/tracing/test/mock_producer.cc",
+        "src/tracing/test/proxy_producer_endpoint.cc",
+        "src/tracing/test/test_shared_memory.cc",
         "src/tracing/test/traced_value_test_support.cc",
     ],
 }
