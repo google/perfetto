@@ -214,6 +214,12 @@ class MockClock : public tracing_service::Clock {
   MOCK_METHOD(base::TimeNanos, GetWallTimeNs, (), (override));
 };
 
+class MockRandom : public tracing_service::Random {
+ public:
+  ~MockRandom() override = default;
+  MOCK_METHOD(double, GetValue, (), (override));
+};
+
 }  // namespace
 
 class TracingServiceImplTest : public testing::Test {
@@ -235,6 +241,16 @@ class TracingServiceImplTest : public testing::Test {
     ON_CALL(*mock_clock_, GetWallTimeNs).WillByDefault(Invoke([&] {
       return real_clock_.GetWallTimeNs() + mock_clock_displacement_;
     }));
+
+    auto mock_random = std::make_unique<NiceMock<MockRandom>>();
+    mock_random_ = mock_random.get();
+    deps.random = std::move(mock_random);
+    real_random_ = std::make_unique<tracing_service::RandomImpl>(
+        real_clock_.GetWallTimeMs().count());
+    ON_CALL(*mock_random_, GetValue).WillByDefault(Invoke([&] {
+      return real_random_->GetValue();
+    }));
+
     svc = std::make_unique<TracingServiceImpl>(
         std::move(shm_factory), &task_runner, std::move(deps), init_opts);
   }
@@ -266,13 +282,11 @@ class TracingServiceImplTest : public testing::Test {
     task_runner.AdvanceTimeAndRunUntilIdle(ms);
   }
 
-  void OverrideNextTriggerRandomNumber(double number) {
-    svc->trigger_rnd_override_for_testing_ = number;
-  }
-
   base::TimeNanos mock_clock_displacement_{0};
   tracing_service::ClockImpl real_clock_;
   MockClock* mock_clock_;  // Owned by svc;
+  std::unique_ptr<tracing_service::RandomImpl> real_random_;
+  MockRandom* mock_random_;  // Owned by svc;
 
   base::TestTaskRunner task_runner;
   std::unique_ptr<TracingServiceImpl> svc;
@@ -1352,14 +1366,14 @@ TEST_F(TracingServiceImplTest, SkipProbability) {
   req.push_back("trigger_name");
 
   // This is below the probability of 0.15 so should be skipped.
-  OverrideNextTriggerRandomNumber(0.14);
+  EXPECT_CALL(*mock_random_, GetValue).WillOnce(Return(0.14));
   producer->endpoint()->ActivateTriggers(req);
 
   // When triggers are not hit, the tracing session doesn't return any data.
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
 
-  // This is above the probaility of 0.15 so should be allowed.
-  OverrideNextTriggerRandomNumber(0.16);
+  // This is above the probability of 0.15 so should be allowed.
+  EXPECT_CALL(*mock_random_, GetValue).WillOnce(Return(0.16));
   producer->endpoint()->ActivateTriggers(req);
 
   auto writer = producer->CreateTraceWriter("data_source");

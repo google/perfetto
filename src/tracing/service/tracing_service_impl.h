@@ -22,7 +22,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <random>
 #include <set>
 #include <utility>
 #include <vector>
@@ -51,6 +50,7 @@
 #include "src/tracing/core/id_allocator.h"
 #include "src/tracing/service/clock.h"
 #include "src/tracing/service/dependencies.h"
+#include "src/tracing/service/random.h"
 
 namespace protozero {
 class MessageFilter;
@@ -883,6 +883,7 @@ class TracingServiceImpl : public TracingService {
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<tracing_service::Clock> clock_;
+  std::unique_ptr<tracing_service::Random> random_;
   const InitOpts init_opts_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;
@@ -910,10 +911,6 @@ class TracingServiceImpl : public TracingService {
 
   bool smb_scraping_enabled_ = false;
   bool lockdown_mode_ = false;
-
-  std::minstd_rand trigger_probability_rand_;
-  std::uniform_real_distribution<> trigger_probability_dist_;
-  double trigger_rnd_override_for_testing_ = 0;  // Overridable for testing.
 
   uint8_t sync_marker_packet_[32];  // Lazily initialized.
   size_t sync_marker_packet_size_ = 0;

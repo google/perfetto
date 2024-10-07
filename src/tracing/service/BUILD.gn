@@ -46,6 +46,8 @@ source_set("service") {
     "metatrace_writer.h",
     "packet_stream_validator.cc",
     "packet_stream_validator.h",
+    "random.cc",
+    "random.h",
     "trace_buffer.cc",
     "trace_buffer.h",
     "tracing_service_impl.cc",
