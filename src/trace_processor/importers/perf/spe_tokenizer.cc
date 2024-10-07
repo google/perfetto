@@ -20,6 +20,7 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -56,7 +57,7 @@ base::Status SpeTokenizer::Parse(AuxRecord aux, TraceBlobView data) {
 }
 
 bool SpeTokenizer::ProcessRecord() {
-  for (auto it = buffer_.begin(); it;) {
+  for (auto it = buffer_.GetIterator(); it;) {
     uint8_t byte_0 = *it;
     // Must be true (we passed the for loop condition).
     it.MaybeAdvance(1);
