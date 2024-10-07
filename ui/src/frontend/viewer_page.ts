@@ -91,7 +91,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
 
-  private overviewTimelinePanel = new OverviewTimelinePanel();
+  private overviewTimelinePanel: OverviewTimelinePanel;
   private timeAxisPanel = new TimeAxisPanel();
   private timeSelectionPanel = new TimeSelectionPanel();
   private notesPanel = new NotesPanel();
@@ -102,6 +102,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
 
   constructor(vnode: m.CVnode<PageWithTraceAttrs>) {
     this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
+    this.overviewTimelinePanel = new OverviewTimelinePanel(vnode.attrs.trace);
   }
 
   oncreate(vnode: m.CVnodeDOM<PageWithTraceAttrs>) {
