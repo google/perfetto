@@ -767,11 +767,11 @@ no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
-  SqlModule module;
+  SqlPackage module;
   module.name = "foo";
-  module.files.push_back(std::make_pair("foo.bar", "select t from slice"));
+  module.modules.push_back(std::make_pair("foo.bar", "select t from slice"));
 
-  ASSERT_TRUE(Processor()->RegisterSqlModule(module).ok());
+  ASSERT_TRUE(Processor()->RegisterSqlPackage(module).ok());
 
   auto it = Query("include perfetto module foo.bar;");
   ASSERT_FALSE(it.Next());

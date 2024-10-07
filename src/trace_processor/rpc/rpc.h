@@ -131,7 +131,7 @@ class Rpc {
  private:
   void ParseRpcRequest(const uint8_t*, size_t);
   void ResetTraceProcessor(const uint8_t*, size_t);
-  base::Status RegisterSqlModule(protozero::ConstBytes);
+  base::Status RegisterSqlPackage(protozero::ConstBytes);
   void ResetTraceProcessorInternal(const Config&);
   void MaybePrintProgress();
   Iterator QueryInternal(const uint8_t*, size_t);
