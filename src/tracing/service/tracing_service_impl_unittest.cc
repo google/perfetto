@@ -102,6 +102,7 @@ using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::Mock;
 using ::testing::Ne;
+using ::testing::NiceMock;
 using ::testing::Not;
 using ::testing::Pointee;
 using ::testing::Property;
@@ -206,6 +207,13 @@ std::vector<std::string> GetReceivedTriggers(
   return triggers;
 }
 
+class MockClock : public tracing_service::Clock {
+ public:
+  ~MockClock() override = default;
+  MOCK_METHOD(base::TimeNanos, GetBootTimeNs, (), (override));
+  MOCK_METHOD(base::TimeNanos, GetWallTimeNs, (), (override));
+};
+
 }  // namespace
 
 class TracingServiceImplTest : public testing::Test {
@@ -215,10 +223,20 @@ class TracingServiceImplTest : public testing::Test {
   void InitializeSvcWithOpts(TracingService::InitOpts init_opts) {
     auto shm_factory =
         std::unique_ptr<SharedMemory::Factory>(new TestSharedMemory::Factory());
-    svc.reset(static_cast<TracingServiceImpl*>(
-        TracingService::CreateInstance(std::move(shm_factory), &task_runner,
-                                       init_opts)
-            .release()));
+
+    tracing_service::Dependencies deps;
+
+    auto mock_clock = std::make_unique<NiceMock<MockClock>>();
+    mock_clock_ = mock_clock.get();
+    deps.clock = std::move(mock_clock);
+    ON_CALL(*mock_clock_, GetBootTimeNs).WillByDefault(Invoke([&] {
+      return real_clock_.GetBootTimeNs() + mock_clock_displacement_;
+    }));
+    ON_CALL(*mock_clock_, GetWallTimeNs).WillByDefault(Invoke([&] {
+      return real_clock_.GetWallTimeNs() + mock_clock_displacement_;
+    }));
+    svc = std::make_unique<TracingServiceImpl>(
+        std::move(shm_factory), &task_runner, std::move(deps), init_opts);
   }
 
   std::unique_ptr<MockProducer> CreateMockProducer() {
@@ -248,12 +266,17 @@ class TracingServiceImplTest : public testing::Test {
   }
 
   void AdvanceTimeAndRunUntilIdle(uint32_t ms) {
+    mock_clock_displacement_ += base::TimeMillis(ms);
     task_runner.AdvanceTimeAndRunUntilIdle(ms);
   }
 
   void OverrideNextTriggerRandomNumber(double number) {
     svc->trigger_rnd_override_for_testing_ = number;
   }
+
+  base::TimeNanos mock_clock_displacement_{0};
+  tracing_service::ClockImpl real_clock_;
+  MockClock* mock_clock_;  // Owned by svc;
 
   base::TestTaskRunner task_runner;
   std::unique_ptr<TracingServiceImpl> svc;
