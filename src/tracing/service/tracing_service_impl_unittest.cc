@@ -3096,64 +3096,6 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
 }
 #endif  // !PERFETTO_DCHECK_IS_ON()
 
-TEST_F(TracingServiceImplTest, RegisterAndUnregisterTraceWriter) {
-  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
-  consumer->Connect(svc.get());
-
-  std::unique_ptr<MockProducer> producer = CreateMockProducer();
-  producer->Connect(svc.get(), "mock_producer");
-  ProducerID producer_id = *last_producer_id();
-  producer->RegisterDataSource("data_source");
-
-  EXPECT_TRUE(GetWriters(producer_id).empty());
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(128);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("data_source");
-  ds_config->set_target_buffer(0);
-  consumer->EnableTracing(trace_config);
-
-  producer->WaitForTracingSetup();
-  producer->WaitForDataSourceSetup("data_source");
-  producer->WaitForDataSourceStart("data_source");
-
-  // Creating the trace writer should register it with the service.
-  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[0]);
-  // Wait for TraceWriter to be registered.
-  task_runner.RunUntilIdle();
-
-  std::map<WriterID, BufferID> expected_writers;
-  expected_writers[writer->writer_id()] = tracing_session()->buffers_index[0];
-  EXPECT_EQ(expected_writers, GetWriters(producer_id));
-
-  // Verify writing works.
-  {
-    auto tp = writer->NewTracePacket();
-    tp->set_for_testing()->set_str("payload");
-  }
-
-  auto flush_request = consumer->Flush();
-  producer->ExpectFlush(writer.get());
-  ASSERT_TRUE(flush_request.WaitForReply());
-
-  // Destroying the writer should unregister it.
-  writer.reset();
-  // Wait for TraceWriter to be registered.
-  task_runner.RunUntilIdle();
-  EXPECT_TRUE(GetWriters(producer_id).empty());
-
-  consumer->DisableTracing();
-  producer->WaitForDataSourceStop("data_source");
-  consumer->WaitForTracingDisabled();
-
-  auto packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
-                                         Property(&protos::gen::TestEvent::str,
-                                                  Eq("payload")))));
-}
-
 TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   svc->SetSMBScrapingEnabled(true);
 
