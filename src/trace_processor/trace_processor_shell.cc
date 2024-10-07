@@ -1256,9 +1256,9 @@ base::Status IncludeSqlModule(std::string root, bool allow_override) {
         .first->push_back({import_key, file_contents});
   }
   for (auto module_it = modules.GetIterator(); module_it; ++module_it) {
-    auto status = g_tp->RegisterSqlModule(
-        {/*name=*/module_it.key(), /*files=*/module_it.value(),
-         /*allow_module_override=*/allow_override});
+    auto status = g_tp->RegisterSqlPackage({/*name=*/module_it.key(),
+                                            /*files=*/module_it.value(),
+                                            /*allow_override=*/allow_override});
     if (!status.ok())
       return status;
   }
@@ -1294,9 +1294,9 @@ base::Status LoadOverridenStdlib(std::string root) {
         .first->push_back({module_name, module_file});
   }
   for (auto package = packages.GetIterator(); package; ++package) {
-    g_tp->RegisterSqlModule({/*name=*/package.key(),
-                             /*files=*/package.value(),
-                             /*allow_module_override=*/true});
+    g_tp->RegisterSqlPackage({/*name=*/package.key(),
+                              /*files=*/package.value(),
+                              /*allow_override=*/true});
   }
 
   return base::OkStatus();

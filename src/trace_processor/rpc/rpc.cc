@@ -324,10 +324,10 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
-    case RpcProto::TPM_REGISTER_SQL_MODULE: {
+    case RpcProto::TPM_REGISTER_SQL_PACKAGE: {
       Response resp(tx_seq_id_++, req_type);
-      base::Status status = RegisterSqlModule(req.register_sql_module_args());
-      auto* res = resp->set_register_sql_module_result();
+      base::Status status = RegisterSqlPackage(req.register_sql_package_args());
+      auto* res = resp->set_register_sql_package_result();
       if (!status.ok()) {
         res->set_error(status.message());
       }
@@ -410,16 +410,16 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
   ResetTraceProcessorInternal(config);
 }
 
-base::Status Rpc::RegisterSqlModule(protozero::ConstBytes bytes) {
-  protos::pbzero::RegisterSqlModuleArgs::Decoder args(bytes);
-  SqlModule package;
-  package.name = args.top_level_package_name().ToStdString();
-  package.allow_module_override = args.allow_module_override();
+base::Status Rpc::RegisterSqlPackage(protozero::ConstBytes bytes) {
+  protos::pbzero::RegisterSqlPackageArgs::Decoder args(bytes);
+  SqlPackage package;
+  package.name = args.package_name().ToStdString();
+  package.allow_override = args.allow_override();
   for (auto it = args.modules(); it; ++it) {
-    protos::pbzero::RegisterSqlModuleArgs::Module::Decoder m(*it);
-    package.files.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
+    protos::pbzero::RegisterSqlPackageArgs::Module::Decoder m(*it);
+    package.modules.emplace_back(m.name().ToStdString(), m.sql().ToStdString());
   }
-  return trace_processor_->RegisterSqlModule(package);
+  return trace_processor_->RegisterSqlPackage(package);
 }
 
 void Rpc::MaybePrintProgress() {

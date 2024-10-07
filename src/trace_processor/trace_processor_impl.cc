@@ -593,10 +593,10 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
   return field_idx != nullptr;
 }
 
-base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule sql_package) {
+base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
   sql_modules::RegisteredPackage new_package;
   std::string name = sql_package.name;
-  if (engine_->FindPackage(name) && !sql_package.allow_module_override) {
+  if (engine_->FindPackage(name) && !sql_package.allow_override) {
     return base::ErrStatus(
         "Package '%s' is already registered. Choose a different name.\n"
         "If you want to replace the existing package using trace processor "
@@ -605,7 +605,7 @@ base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule sql_package) {
         "to pass the module path.",
         name.c_str());
   }
-  for (auto const& module_name_and_sql : sql_package.files) {
+  for (auto const& module_name_and_sql : sql_package.modules) {
     if (sql_modules::GetPackageName(module_name_and_sql.first) != name) {
       return base::ErrStatus(
           "Module name doesn't match the package name. First part of module "
@@ -615,7 +615,7 @@ base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule sql_package) {
     new_package.modules.Insert(module_name_and_sql.first,
                                {module_name_and_sql.second, false});
   }
-  manually_registered_sql_packages_.push_back(SqlModule(sql_package));
+  manually_registered_sql_packages_.push_back(SqlPackage(sql_package));
   engine_->RegisterPackage(name, std::move(new_package));
   return base::OkStatus();
 }
@@ -868,8 +868,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   auto packages = GetStdlibPackages();
   for (auto package = packages.GetIterator(); package; ++package) {
     base::Status status =
-        RegisterSqlModule({/*name=*/package.key(), /*modules=*/package.value(),
-                           /*allow_package_override=*/false});
+        RegisterSqlPackage({/*name=*/package.key(), /*modules=*/package.value(),
+                            /*allow_override=*/false});
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
@@ -1095,7 +1095,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   // Reregister manually added stdlib packages.
   for (const auto& package : manually_registered_sql_packages_) {
-    RegisterSqlModule(package);
+    RegisterSqlPackage(package);
   }
 }
 
