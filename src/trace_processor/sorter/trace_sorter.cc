@@ -28,6 +28,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
+#include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
@@ -267,6 +268,10 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
       context.gecko_trace_parser->ParseGeckoEvent(
           event.ts, token_buffer_.Extract<gecko_importer::GeckoEvent>(id));
       return;
+    case TimestampedEvent::Type::kArtMethodEvent:
+      context.art_method_parser->ParseArtMethodEvent(
+          event.ts, token_buffer_.Extract<art_method::ArtMethodEvent>(id));
+      return;
     case TimestampedEvent::Type::kInlineSchedSwitch:
     case TimestampedEvent::Type::kInlineSchedWaking:
     case TimestampedEvent::Type::kEtwEvent:
@@ -300,6 +305,7 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kAndroidLogEvent:
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
     case TimestampedEvent::Type::kGeckoEvent:
+    case TimestampedEvent::Type::kArtMethodEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -335,6 +341,7 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kAndroidLogEvent:
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
     case TimestampedEvent::Type::kGeckoEvent:
+    case TimestampedEvent::Type::kArtMethodEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -388,6 +395,10 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
     case TimestampedEvent::Type::kGeckoEvent:
       base::ignore_result(
           token_buffer_.Extract<gecko_importer::GeckoEvent>(id));
+      return;
+    case TimestampedEvent::Type::kArtMethodEvent:
+      base::ignore_result(
+          token_buffer_.Extract<art_method::ArtMethodEvent>(id));
       return;
   }
   PERFETTO_FATAL("For GCC");

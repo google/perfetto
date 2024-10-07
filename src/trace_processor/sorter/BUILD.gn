@@ -30,6 +30,7 @@ source_set("sorter") {
     "../../../include/perfetto/trace_processor:storage",
     "../../base",
     "../importers/android_bugreport:android_log_event",
+    "../importers/art_method:art_method_event",
     "../importers/common:parser_types",
     "../importers/common:trace_parser_hdr",
     "../importers/fuchsia:fuchsia_record",

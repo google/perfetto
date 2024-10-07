@@ -35,6 +35,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
+#include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
@@ -247,9 +248,16 @@ class TraceSorter {
   }
 
   inline void PushGeckoEvent(int64_t timestamp,
-                             gecko_importer::GeckoEvent event) {
-    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(event));
+                             const gecko_importer::GeckoEvent& event) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(event);
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kGeckoEvent, id);
+  }
+
+  inline void PushArtMethodEvent(int64_t timestamp,
+                                 const art_method::ArtMethodEvent& event) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(event);
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kArtMethodEvent,
+                         id);
   }
 
   inline void PushInlineFtraceEvent(
@@ -333,11 +341,12 @@ class TraceSorter {
       kTracePacket,
       kTrackEvent,
       kGeckoEvent,
+      kArtMethodEvent,
       kMax = kGeckoEvent,
     };
 
     // Number of bits required to store the max element in |Type|.
-    static constexpr uint32_t kMaxTypeBits = 4;
+    static constexpr uint32_t kMaxTypeBits = 6;
     static_assert(static_cast<uint8_t>(Type::kMax) <= (1 << kMaxTypeBits),
                   "Max type does not fit inside storage");
 
