@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <optional>
 
 #include "perfetto/base/logging.h"
@@ -46,12 +47,56 @@ class TraceBlobViewReader {
  public:
   class Iterator {
    public:
-    Iterator(const Iterator&) = default;
+    ~Iterator() = default;
+
+    Iterator(const Iterator&) = delete;
+    Iterator& operator=(const Iterator&) = delete;
+
     Iterator(Iterator&&) = default;
-    Iterator& operator=(const Iterator&) = default;
     Iterator& operator=(Iterator&&) = default;
 
-    ~Iterator() = default;
+    // Tries to advance the iterator |size| bytes forward. Returns true if
+    // the advance was successful and false if it would overflow the iterator.
+    // If false is returned, the state of the iterator is not changed.
+    bool MaybeAdvance(size_t delta) {
+      file_offset_ += delta;
+      if (PERFETTO_LIKELY(file_offset_ < iter_->end_offset())) {
+        return true;
+      }
+      if (file_offset_ == end_offset_) {
+        return true;
+      }
+      if (file_offset_ > end_offset_) {
+        file_offset_ -= delta;
+        return false;
+      }
+      do {
+        ++iter_;
+      } while (file_offset_ >= iter_->end_offset());
+      return true;
+    }
+
+    // Tries to find a byte equal to |chr| in the iterator and, if found,
+    // advance to it. Returns true if the byte was found and could be advanced
+    // to and false if no such byte was found before the end of the iterator. If
+    // false is returned, the state of the iterator is not changed.
+    bool MaybeFindAndAdvance(uint8_t chr) {
+      size_t off = file_offset_;
+      while (off < end_offset_) {
+        size_t iter_off = off - iter_->start_offset;
+        size_t iter_rem = iter_->data.size() - iter_off;
+        const auto* p = reinterpret_cast<const uint8_t*>(
+            memchr(iter_->data.data() + iter_off, chr, iter_rem));
+        if (p) {
+          file_offset_ =
+              iter_->start_offset + static_cast<size_t>(p - iter_->data.data());
+          return true;
+        }
+        off = iter_->end_offset();
+        ++iter_;
+      }
+      return false;
+    }
 
     uint8_t operator*() const {
       PERFETTO_DCHECK(file_offset_ < iter_->end_offset());
@@ -62,45 +107,20 @@ class TraceBlobViewReader {
 
     size_t file_offset() const { return file_offset_; }
 
-    bool MaybeAdvance(size_t delta) {
-      if (delta == 0) {
-        return true;
-      }
-      if (delta > end_offset_ - file_offset_) {
-        return false;
-      }
-      file_offset_ += delta;
-      if (PERFETTO_LIKELY(file_offset_ < iter_->end_offset())) {
-        return true;
-      }
-      while (file_offset_ > iter_->end_offset()) {
-        ++iter_;
-      }
-      if (file_offset_ == iter_->end_offset()) {
-        ++iter_;
-      }
-
-      return true;
-    }
-
    private:
     friend TraceBlobViewReader;
     Iterator(base::CircularQueue<Entry>::Iterator iter,
              size_t file_offset,
              size_t end_offset)
-        : iter_(std::move(iter)),
-          file_offset_(file_offset),
-          end_offset_(end_offset) {}
+        : iter_(iter), file_offset_(file_offset), end_offset_(end_offset) {}
+
     base::CircularQueue<Entry>::Iterator iter_;
     size_t file_offset_;
     size_t end_offset_;
   };
 
-  Iterator begin() const {
-    return Iterator(data_.begin(), start_offset(), end_offset());
-  }
-  Iterator end() const {
-    return Iterator(data_.end(), end_offset(), end_offset());
+  Iterator GetIterator() const {
+    return {data_.begin(), start_offset(), end_offset()};
   }
 
   // Adds a `TraceBlobView` at the back.
@@ -129,6 +149,7 @@ class TraceBlobViewReader {
   //
   // NOTE: If `offset` < 'file_offset()' this method will CHECK fail.
   std::optional<TraceBlobView> SliceOff(size_t offset, size_t length) const;
+
   // Returns the offset to the start of the available data.
   size_t start_offset() const {
     return data_.empty() ? end_offset_ : data_.front().start_offset;

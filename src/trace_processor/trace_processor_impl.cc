@@ -46,6 +46,8 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/importers/art_method/art_method_parser_impl.h"
+#include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
@@ -441,6 +443,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         std::make_unique<gecko_importer::GeckoTraceParserImpl>(&context_);
 #endif
   }
+
+  context_.reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
+      kArtMethodTraceType);
+  context_.art_method_parser =
+      std::make_unique<art_method::ArtMethodParserImpl>(&context_);
 
   if (context_.config.analyze_trace_proto_content) {
     context_.content_analyzer =
