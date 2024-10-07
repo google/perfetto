@@ -263,9 +263,9 @@ struct PERFETTO_EXPORT_COMPONENT SqlValue {
 };
 
 // Data used to register a new SQL package.
-struct SqlModule {
+struct SqlPackage {
   // Must be unique among modules, or can be used to override existing module if
-  // |allow_module_override| is set.
+  // |allow_override| is set.
   std::string name;
 
   // Pairs of strings used for |INCLUDE| with the contents of SQL files being
@@ -276,10 +276,18 @@ struct SqlModule {
   // run, with slashes replaced by dots and without the SQL extension. For
   // example, 'android/camera/jank.sql' would be included by
   // 'android.camera.jank'.
-  std::vector<std::pair<std::string, std::string>> files;
+  std::vector<std::pair<std::string, std::string>> modules;
 
   // If true, SqlPackage will override registered module with the same name. Can
   // only be set if enable_dev_features is true, otherwise will throw an error.
+  bool allow_override = false;
+};
+
+// Deprecated. Use only with |trace_processor->RegisterSqlModule()|. Alias of
+// |SqlPackage|.
+struct SqlModule {
+  std::string name;
+  std::vector<std::pair<std::string, std::string>> files;
   bool allow_module_override = false;
 };
 

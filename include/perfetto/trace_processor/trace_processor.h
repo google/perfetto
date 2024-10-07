@@ -63,7 +63,7 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // PERFETTO MODULE camera.cpu.metrics". The first word of the string has to be
   // a package name and there can be only one package registered with a given
   // name.
-  virtual base::Status RegisterSqlModule(SqlModule) = 0;
+  virtual base::Status RegisterSqlPackage(SqlPackage) = 0;
 
   // Registers a metric at the given path which will run the specified SQL.
   virtual base::Status RegisterMetric(const std::string& path,
@@ -138,6 +138,11 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // loaded by trace processor shell at runtime. The message is encoded as
   // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
+
+  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
+  // functionality to |RegisterSqlModule()| and the only difference is in
+  // the argument, which is directly translatable to |SqlPackage|.
+  virtual base::Status RegisterSqlModule(SqlModule) = 0;
 };
 
 }  // namespace trace_processor

@@ -6,9 +6,18 @@ Unreleased:
     * Increased watchdog timeout to 180s from 30s to make watchdog crashes
       much less likely when system is under heavy load.
   SQL Standard library:
-    *
+    * Improved CPU cycles calculation in `linux.cpu.utilization` modules:
+     `process`, `system` and `thread` by fixing a bug responsible for too high
+      CPU cycles values.
+    * Introduces functions responsible for calculating CPU cycles with
+      breakdown by CPU, thread, process and slice for a given interval.
   Trace Processor:
-    *
+    * Renamed Trace Processor's C++ method `RegisterSqlModule()` to
+     `RegisterSqlPackage()`, which better represents the module/package
+      relationship. Package is the top level grouping of modules, which are
+      objects being included with `INCLUDE PERFETTO MODULE`.
+      `RegisterSqlModule()` is still available and runs `RegisterSqlPackage()`.
+      `RegisterSqlModule()` will be deprecated in v50.0.
   UI:
     * Scheduling wakeup information now reflects whether the wakeup came
       from an interrupt context. The per-cpu scheduling tracks now show only
