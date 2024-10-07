@@ -279,24 +279,6 @@ class TracingServiceImplTest : public testing::Test {
     return std::move(svc->GetProducer(producer_id)->inproc_shmem_arbiter_);
   }
 
-  void WaitForTraceWritersChanged(ProducerID producer_id) {
-    static int i = 0;
-    auto checkpoint_name = "writers_changed_" + std::to_string(producer_id) +
-                           "_" + std::to_string(i++);
-    auto writers_changed = task_runner.CreateCheckpoint(checkpoint_name);
-    auto writers = GetWriters(producer_id);
-    std::function<void()> task;
-    task = [&task, writers, writers_changed, producer_id, this]() {
-      if (writers != GetWriters(producer_id)) {
-        writers_changed();
-        return;
-      }
-      task_runner.PostDelayedTask(task, 1);
-    };
-    task_runner.PostDelayedTask(task, 1);
-    task_runner.RunUntilCheckpoint(checkpoint_name);
-  }
-
   void SetTriggerWindowNs(int64_t window_ns) {
     svc->trigger_window_ns_ = window_ns;
   }
@@ -3195,8 +3177,8 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregisterTraceWriter) {
   // Creating the trace writer should register it with the service.
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
-
-  WaitForTraceWritersChanged(producer_id);
+  // Wait for TraceWriter to be registered.
+  task_runner.RunUntilIdle();
 
   std::map<WriterID, BufferID> expected_writers;
   expected_writers[writer->writer_id()] = tracing_session()->buffers_index[0];
@@ -3214,7 +3196,8 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregisterTraceWriter) {
 
   // Destroying the writer should unregister it.
   writer.reset();
-  WaitForTraceWritersChanged(producer_id);
+  // Wait for TraceWriter to be registered.
+  task_runner.RunUntilIdle();
   EXPECT_TRUE(GetWriters(producer_id).empty());
 
   consumer->DisableTracing();
@@ -3235,7 +3218,6 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
 
   std::unique_ptr<MockProducer> producer = CreateMockProducer();
   producer->Connect(svc.get(), "mock_producer");
-  ProducerID producer_id = *last_producer_id();
   producer->RegisterDataSource("data_source");
 
   TraceConfig trace_config;
@@ -3251,7 +3233,8 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
-  WaitForTraceWritersChanged(producer_id);
+  // Wait for TraceWriter to be registered.
+  task_runner.RunUntilIdle();
 
   // Write a few trace packets.
   writer->NewTracePacket()->set_for_testing()->set_str("payload1");
@@ -3322,7 +3305,6 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersFromAnotherThread) {
 
   std::unique_ptr<MockProducer> producer = CreateMockProducer();
   producer->Connect(svc.get(), "mock_producer");
-  ProducerID producer_id = *last_producer_id();
   producer->RegisterDataSource("data_source");
 
   TraceConfig trace_config;
@@ -3338,7 +3320,8 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersFromAnotherThread) {
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0], BufferExhaustedPolicy::kDrop);
-  WaitForTraceWritersChanged(producer_id);
+  // Wait for TraceWriter to be registered.
+  task_runner.RunUntilIdle();
 
   std::atomic<bool> packets_written = false;
   std::atomic<bool> quit = false;
@@ -3396,7 +3379,8 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
-  WaitForTraceWritersChanged(producer_id);
+  // Wait for TraceWriter to be registered.
+  task_runner.RunUntilIdle();
 
   // Write a few trace packets.
   writer->NewTracePacket()->set_for_testing()->set_str("payload1");
@@ -3439,7 +3423,6 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnDisable) {
 
   std::unique_ptr<MockProducer> producer = CreateMockProducer();
   producer->Connect(svc.get(), "mock_producer");
-  ProducerID producer_id = *last_producer_id();
   producer->RegisterDataSource("data_source");
 
   TraceConfig trace_config;
@@ -3455,7 +3438,8 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnDisable) {
 
   std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
       tracing_session()->buffers_index[0]);
-  WaitForTraceWritersChanged(producer_id);
+  // Wait for TraceWriter to be registered.
+  task_runner.RunUntilIdle();
 
   // Write a few trace packets.
   writer->NewTracePacket()->set_for_testing()->set_str("payload1");
@@ -3507,7 +3491,8 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
 
     writer_ = producer_->endpoint()->CreateTraceWriter(
         tracing_session()->buffers_index[0]);
-    WaitForTraceWritersChanged(producer_id);
+    // Wait for TraceWriter to be registered.
+    task_runner.RunUntilIdle();
 
     arbiter_ = GetShmemArbiterForProducer(producer_id);
   }
