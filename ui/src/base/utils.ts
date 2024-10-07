@@ -36,3 +36,22 @@ export function escapeCSSSelector(selector: string): string {
 // Make field K required in T
 export type RequiredField<T, K extends keyof T> = Omit<T, K> &
   Required<Pick<T, K>>;
+
+// The lowest common denoninator between Map<> and WeakMap<>.
+// This is just to avoid duplication of the getOrCreate below.
+interface MapLike<K, V> {
+  get(key: K): V | undefined;
+  set(key: K, value: V): this;
+}
+
+export function getOrCreate<K, V>(
+  map: MapLike<K, V>,
+  key: K,
+  factory: () => V,
+): V {
+  let value = map.get(key);
+  if (value !== undefined) return value;
+  value = factory();
+  map.set(key, value);
+  return value;
+}
