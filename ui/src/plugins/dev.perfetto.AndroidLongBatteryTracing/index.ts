@@ -1513,8 +1513,8 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
     for (; slicesIt.valid(); slicesIt.next()) {
       this.addSliceTrack(
         ctx,
-        it.name,
-        `select ts dur, slice_name as name from pixel_modem_counters
+        slicesIt.track_name,
+        `select ts, dur, slice_name as name from pixel_modem_slices
             where track_name = '${slicesIt.track_name}'`,
         groupName,
       );
