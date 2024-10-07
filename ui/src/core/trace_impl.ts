@@ -48,7 +48,7 @@ import {PluginManager} from './plugin_manager';
  * This is the underlying storage for AppImpl, which instead has one instance
  * per trace per plugin.
  */
-export class TraceContext implements Disposable {
+class TraceContext implements Disposable {
   readonly appCtx: AppContext;
   readonly engine: EngineBase;
   readonly omniboxMgr = new OmniboxManagerImpl();
@@ -166,19 +166,21 @@ export class TraceImpl implements Trace {
   // engine has been set up. It obtains a new TraceImpl for the core. From that
   // we can fork sibling instances (i.e. bound to the same TraceContext) for
   // the various plugins.
-  static newInstance(engine: EngineBase, traceInfo: TraceInfo): TraceImpl {
-    const appCtx = AppContext.instance;
+  static createInstanceForCore(
+    engine: EngineBase,
+    traceInfo: TraceInfo,
+  ): TraceImpl {
     const appImpl = AppImpl.instance;
-    const traceCtx = new TraceContext(appCtx, engine, traceInfo);
+    const traceCtx = new TraceContext(
+      appImpl.__appCtxForTraceImplCtor,
+      engine,
+      traceInfo,
+    );
     const traceImpl = new TraceImpl(appImpl, traceCtx);
-    appImpl.setActiveTrace(traceImpl, traceCtx);
-
-    // TODO(primiano): remove this injection once we plumb Trace everywhere.
-    setScrollToFunction((x: ScrollToArgs) => traceCtx.scrollHelper.scrollTo(x));
     return traceImpl;
   }
 
-  constructor(appImpl: AppImpl, ctx: TraceContext) {
+  private constructor(appImpl: AppImpl, ctx: TraceContext) {
     const pluginId = appImpl.pluginId;
     this.appImpl = appImpl;
     this.traceCtx = ctx;
@@ -215,6 +217,9 @@ export class TraceImpl implements Trace {
         return disposable;
       },
     });
+
+    // TODO(primiano): remove this injection once we plumb Trace everywhere.
+    setScrollToFunction((x: ScrollToArgs) => ctx.scrollHelper.scrollTo(x));
   }
 
   scrollTo(where: ScrollToArgs): void {
@@ -321,6 +326,12 @@ export class TraceImpl implements Trace {
 
   scheduleRedraw(): void {
     this.appImpl.scheduleRedraw();
+  }
+
+  [Symbol.dispose]() {
+    if (this.pluginId === CORE_PLUGIN_ID) {
+      this.traceCtx[Symbol.dispose]();
+    }
   }
 }
 

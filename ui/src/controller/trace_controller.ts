@@ -303,10 +303,8 @@ async function loadTraceIntoEngine(
   }
 
   const traceDetails = await getTraceInfo(engine, traceSource);
-  const trace = TraceImpl.newInstance(engine, traceDetails);
-  await globals.onTraceLoad(trace);
-
-  AppImpl.instance.omnibox.reset();
+  const trace = TraceImpl.createInstanceForCore(engine, traceDetails);
+  AppImpl.instance.setActiveTrace(trace);
 
   const visibleTimeSpan = await computeVisibleTime(
     traceDetails.start,

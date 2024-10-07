@@ -27,25 +27,6 @@ import {PostedTrace} from '../public/trace_source';
 
 type StateDraft = Draft<State>;
 
-function clearTraceState(state: StateDraft) {
-  const nextId = state.nextId;
-  const recordConfig = state.recordConfig;
-  const recordingTarget = state.recordingTarget;
-  const fetchChromeCategories = state.fetchChromeCategories;
-  const extensionInstalled = state.extensionInstalled;
-  const availableAdbDevices = state.availableAdbDevices;
-  const chromeCategories = state.chromeCategories;
-
-  Object.assign(state, createEmptyState());
-  state.nextId = nextId;
-  state.recordConfig = recordConfig;
-  state.recordingTarget = recordingTarget;
-  state.fetchChromeCategories = fetchChromeCategories;
-  state.extensionInstalled = extensionInstalled;
-  state.availableAdbDevices = availableAdbDevices;
-  state.chromeCategories = chromeCategories;
-}
-
 function generateNextId(draft: StateDraft): string {
   const nextId = String(Number(draft.nextId) + 1);
   draft.nextId = nextId;
@@ -53,8 +34,27 @@ function generateNextId(draft: StateDraft): string {
 }
 
 export const StateActions = {
+  clearState(state: StateDraft, _args: {}) {
+    const nextId = state.nextId;
+    const recordConfig = state.recordConfig;
+    const recordingTarget = state.recordingTarget;
+    const fetchChromeCategories = state.fetchChromeCategories;
+    const extensionInstalled = state.extensionInstalled;
+    const availableAdbDevices = state.availableAdbDevices;
+    const chromeCategories = state.chromeCategories;
+
+    Object.assign(state, createEmptyState());
+    state.nextId = nextId;
+    state.recordConfig = recordConfig;
+    state.recordingTarget = recordingTarget;
+    state.fetchChromeCategories = fetchChromeCategories;
+    state.extensionInstalled = extensionInstalled;
+    state.availableAdbDevices = availableAdbDevices;
+    state.chromeCategories = chromeCategories;
+  },
+
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
-    clearTraceState(state);
+    this.clearState(state, {});
     const id = generateNextId(state);
     state.engine = {
       id,
@@ -63,7 +63,7 @@ export const StateActions = {
   },
 
   openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
-    clearTraceState(state);
+    this.clearState(state, {});
     const id = generateNextId(state);
     state.engine = {
       id,
@@ -75,7 +75,7 @@ export const StateActions = {
     state: StateDraft,
     args: {url: string; serializedAppState?: SerializedAppState},
   ): void {
-    clearTraceState(state);
+    this.clearState(state, {});
     const id = generateNextId(state);
     state.engine = {
       id,
@@ -88,7 +88,7 @@ export const StateActions = {
   },
 
   openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
-    clearTraceState(state);
+    this.clearState(state, {});
     const id = generateNextId(state);
     state.engine = {
       id,
