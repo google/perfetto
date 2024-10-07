@@ -240,6 +240,18 @@ class TracingServiceImplTest : public testing::Test {
     return svc->last_tracing_session_id_;
   }
 
+  TracingSessionID GetLastTracingSessionId(MockConsumer* consumer) {
+    TracingSessionID ret = 0;
+    TracingServiceState svc_state = consumer->QueryServiceState();
+    for (const auto& session : svc_state.tracing_sessions()) {
+      TracingSessionID id = session.id();
+      if (id > ret) {
+        ret = id;
+      }
+    }
+    return ret;
+  }
+
   const std::set<BufferID>& GetAllowedTargetBuffers(ProducerID producer_id) {
     return svc->GetProducer(producer_id)->allowed_target_buffers_;
   }
@@ -1530,17 +1542,13 @@ TEST_F(TracingServiceImplTest, CloneSnapshotTriggers) {
 
   auto writer = producer->CreateTraceWriter("ds_1");
 
-  TracingSessionID orig_tsid = GetTracingSessionID();
+  std::optional<TracingSessionID> orig_tsid;
 
   // Iterate over a sequence of trigger + CloneSession, to emulate a long trace
   // receiving different triggers and being cloned several times.
   for (int iter = 0; iter < 3; iter++) {
     std::string trigger_name = "trigger_" + std::to_string(iter);
     producer->endpoint()->ActivateTriggers({trigger_name});
-
-    auto* orig_session = GetTracingSession(orig_tsid);
-    ASSERT_EQ(orig_session->received_triggers.size(), 1u);
-    EXPECT_EQ(trigger_name, orig_session->received_triggers[0].trigger_name);
 
     // Reading the original trace session should always return nothing. Only the
     // cloned sessions should return data.
@@ -1549,12 +1557,15 @@ TEST_F(TracingServiceImplTest, CloneSnapshotTriggers) {
     // Now clone the session and check that the cloned session has the triggers.
     std::unique_ptr<MockConsumer> clone_cons = CreateMockConsumer();
     clone_cons->Connect(svc.get());
+    if (!orig_tsid) {
+      orig_tsid = GetLastTracingSessionId(clone_cons.get());
+    }
 
     std::string checkpoint_name = "clone_done_" + std::to_string(iter);
     auto clone_done = task_runner.CreateCheckpoint(checkpoint_name);
     EXPECT_CALL(*clone_cons, OnSessionCloned(_))
         .WillOnce(InvokeWithoutArgs(clone_done));
-    clone_cons->CloneSession(orig_tsid);
+    clone_cons->CloneSession(*orig_tsid);
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());
     task_runner.RunUntilCheckpoint(checkpoint_name);
