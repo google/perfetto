@@ -14,7 +14,6 @@
 
 import {TrackContext} from '../public/track';
 import {
-  CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from './tracks/custom_sql_table_slice_track';
@@ -23,10 +22,7 @@ import {
   SqlDataSource,
 } from '../public/lib/debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
-import {
-  ARG_PREFIX,
-  DebugSliceDetailsTab,
-} from '../public/lib/debug_tracks/details_tab';
+import {ARG_PREFIX} from '../public/lib/debug_tracks/details_tab';
 import {createPerfettoTable} from '../trace_processor/sql_utils';
 import {Trace} from '../public/trace';
 
@@ -38,7 +34,7 @@ export interface SimpleSliceTrackConfig {
 
 export class SimpleSliceTrack extends CustomSqlTableSliceTrack {
   private config: SimpleSliceTrackConfig;
-  private sqlTableName: string;
+  public readonly sqlTableName: string;
 
   constructor(trace: Trace, ctx: TrackContext, config: SimpleSliceTrackConfig) {
     super({
@@ -63,18 +59,6 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack {
     return {
       sqlTableName: this.sqlTableName,
       disposable: table,
-    };
-  }
-
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    // We currently borrow the debug slice details tab.
-    // TODO: Don't do this!
-    return {
-      kind: DebugSliceDetailsTab.kind,
-      config: {
-        sqlTableName: this.sqlTableName,
-        title: 'Debug Slice',
-      },
     };
   }
 

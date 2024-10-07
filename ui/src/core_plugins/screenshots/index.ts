@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4} from '../../base/uuid';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {TrackNode} from '../../public/workspace';
-import {BottomTabToSCSAdapter} from '../../public/utils';
 import {NUM} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {ScreenshotTab} from './screenshot_panel';
+import {ScreenshotDetailsPanel} from './screenshot_panel';
 import {ScreenshotsTrack} from './screenshots_track';
 
 class ScreenshotsPlugin implements PerfettoPlugin {
@@ -45,28 +42,10 @@ class ScreenshotsPlugin implements PerfettoPlugin {
         tags: {
           kind: ScreenshotsTrack.kind,
         },
+        detailsPanel: () => new ScreenshotDetailsPanel(ctx.engine),
       });
       const trackNode = new TrackNode({uri, title, sortOrder: -60});
       ctx.workspace.addChildInOrder(trackNode);
-
-      ctx.tabs.registerDetailsPanel(
-        new BottomTabToSCSAdapter({
-          tabFactory: (selection) => {
-            if (
-              selection.kind === 'GENERIC_SLICE' &&
-              selection.detailsPanelConfig.kind === ScreenshotTab.kind
-            ) {
-              const config = selection.detailsPanelConfig.config;
-              return new ScreenshotTab({
-                config: config as GenericSliceDetailsTabConfig,
-                trace: ctx,
-                uuid: uuidv4(),
-              });
-            }
-            return undefined;
-          },
-        }),
-      );
     }
   }
 }

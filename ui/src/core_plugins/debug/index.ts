@@ -12,16 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4} from '../../base/uuid';
 import {
   addDebugCounterTrack,
   addDebugSliceTrack,
 } from '../../public/lib/debug_tracks/debug_tracks';
-import {BottomTabToSCSAdapter} from '../../public/utils';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {DebugSliceDetailsTab} from '../../public/lib/debug_tracks/details_tab';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {Optional, exists} from '../../base/utils';
 
 class DebugTracksPlugin implements PerfettoPlugin {
@@ -65,28 +61,6 @@ class DebugTracksPlugin implements PerfettoPlugin {
         }
       },
     });
-
-    // TODO(stevegolton): While debug tracks are in their current state, we rely
-    // on this plugin to provide the details panel for them. In the future, this
-    // details panel will become part of the debug track's definition.
-    ctx.tabs.registerDetailsPanel(
-      new BottomTabToSCSAdapter({
-        tabFactory: (selection) => {
-          if (
-            selection.kind === 'GENERIC_SLICE' &&
-            selection.detailsPanelConfig.kind === DebugSliceDetailsTab.kind
-          ) {
-            const config = selection.detailsPanelConfig.config;
-            return new DebugSliceDetailsTab({
-              config: config as GenericSliceDetailsTabConfig,
-              trace: ctx,
-              uuid: uuidv4(),
-            });
-          }
-          return undefined;
-        },
-      }),
-    );
   }
 }
 

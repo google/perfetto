@@ -14,8 +14,6 @@
 
 import m from 'mithril';
 import {duration, Time, time} from '../../../base/time';
-import {BottomTab, NewBottomTabArgs} from '../bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../../../frontend/generic_slice_details_tab';
 import {hasArgs, renderArguments} from '../../../frontend/slice_args';
 import {getSlice, SliceDetails} from '../../../trace_processor/sql_utils/slice';
 import {
@@ -49,6 +47,8 @@ import {threadStateRef} from '../../../frontend/widgets/thread_state';
 import {getThreadName} from '../../../trace_processor/sql_utils/thread';
 import {getProcessName} from '../../../trace_processor/sql_utils/process';
 import {sliceRef} from '../../../frontend/widgets/slice';
+import {TrackEventDetailsPanel} from '../../details_panel';
+import {Trace} from '../../trace';
 
 export const ARG_PREFIX = 'arg_';
 
@@ -78,10 +78,8 @@ function renderTreeContents(dict: {[key: string]: m.Child}): m.Child[] {
   return children;
 }
 
-export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'dev.perfetto.DebugSliceDetailsTab';
-
-  data?: {
+export class DebugSliceDetailsPanel implements TrackEventDetailsPanel {
+  private data?: {
     name: string;
     ts: time;
     dur: duration;
@@ -91,14 +89,14 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
   // tables. These values will be set if the relevant columns exist and
   // are consistent (e.g. 'ts' and 'dur' for this slice correspond to values
   // in these well-known tables).
-  threadState?: ThreadState;
-  slice?: SliceDetails;
+  private threadState?: ThreadState;
+  private slice?: SliceDetails;
 
-  static create(
-    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
-  ): DebugSliceDetailsTab {
-    return new DebugSliceDetailsTab(args);
-  }
+  constructor(
+    private readonly trace: Trace,
+    private readonly tableName: string,
+    private readonly eventId: number,
+  ) {}
 
   private async maybeLoadThreadState(
     id: number | undefined,
@@ -110,7 +108,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
     if (id === undefined) return undefined;
     if (utid === undefined) return undefined;
 
-    const threadState = await getThreadState(this.engine, id);
+    const threadState = await getThreadState(this.trace.engine, id);
     if (threadState === undefined) return undefined;
     if (
       table === 'thread_state' ||
@@ -150,7 +148,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
     if (id === undefined) return undefined;
     if (table !== 'slice' && trackId === undefined) return undefined;
 
-    const slice = await getSlice(this.engine, asSliceSqlId(id));
+    const slice = await getSlice(this.trace.engine, asSliceSqlId(id));
     if (slice === undefined) return undefined;
     if (
       table === 'slice' ||
@@ -193,9 +191,9 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
     );
   }
 
-  private async loadData() {
-    const queryResult = await this.engine.query(
-      `select * from ${this.config.sqlTableName} where id = ${this.config.id}`,
+  async load() {
+    const queryResult = await this.trace.engine.query(
+      `select * from ${this.tableName} where id = ${this.eventId}`,
     );
     const row = queryResult.firstRow({
       ts: LONG,
@@ -237,12 +235,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
     this.trace.scheduleRedraw();
   }
 
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-    this.loadData();
-  }
-
-  viewTab() {
+  render() {
     if (this.data === undefined) {
       return m('h2', 'Loading');
     }
@@ -250,7 +243,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
       'Name': this.data['name'] as string,
       'Start time': m(Timestamp, {ts: timeFromSql(this.data['ts'])}),
       'Duration': m(DurationWidget, {dur: durationFromSql(this.data['dur'])}),
-      'Debug slice id': `${this.config.sqlTableName}[${this.config.id}]`,
+      'Debug slice id': `${this.tableName}[${this.eventId}]`,
     });
     details.push(this.renderThreadStateInfo());
     details.push(this.renderSliceInfo());

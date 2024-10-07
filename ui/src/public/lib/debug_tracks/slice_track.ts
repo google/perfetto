@@ -14,12 +14,10 @@
 
 import m from 'mithril';
 import {
-  CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../../frontend/tracks/custom_sql_table_slice_track';
 import {TrackContext} from '../../track';
-import {DebugSliceDetailsTab} from './details_tab';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Trace} from '../../trace';
@@ -38,16 +36,6 @@ export class DebugSliceTrack extends CustomSqlTableSliceTrack {
   async getSqlDataSource(): Promise<CustomSqlTableDefConfig> {
     return {
       sqlTableName: this.sqlTableName,
-    };
-  }
-
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: DebugSliceDetailsTab.kind,
-      config: {
-        sqlTableName: this.sqlTableName,
-        title: 'Debug Slice',
-      },
     };
   }
 
