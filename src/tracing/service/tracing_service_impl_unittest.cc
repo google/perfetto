@@ -263,10 +263,6 @@ class TracingServiceImplTest : public testing::Test {
     return ret;
   }
 
-  const std::set<BufferID>& GetAllowedTargetBuffers(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->allowed_target_buffers_;
-  }
-
   const std::map<WriterID, BufferID>& GetWriters(ProducerID producer_id) {
     return svc->GetProducer(producer_id)->writers_;
   }
@@ -3002,82 +2998,6 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
                    Eq(4u)))));
 }
 
-TEST_F(TracingServiceImplTest, AllowedBuffers) {
-  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
-  consumer->Connect(svc.get());
-
-  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
-  producer1->Connect(svc.get(), "mock_producer1");
-  ProducerID producer1_id = *last_producer_id();
-  producer1->RegisterDataSource("data_source1");
-  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
-  producer2->Connect(svc.get(), "mock_producer2");
-  ProducerID producer2_id = *last_producer_id();
-  producer2->RegisterDataSource("data_source2.1");
-  producer2->RegisterDataSource("data_source2.2");
-  producer2->RegisterDataSource("data_source2.3");
-
-  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer1_id));
-  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer2_id));
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(128);
-  trace_config.add_buffers()->set_size_kb(128);
-  trace_config.add_buffers()->set_size_kb(128);
-  auto* ds_config1 = trace_config.add_data_sources()->mutable_config();
-  ds_config1->set_name("data_source1");
-  ds_config1->set_target_buffer(0);
-  auto* ds_config21 = trace_config.add_data_sources()->mutable_config();
-  ds_config21->set_name("data_source2.1");
-  ds_config21->set_target_buffer(1);
-  auto* ds_config22 = trace_config.add_data_sources()->mutable_config();
-  ds_config22->set_name("data_source2.2");
-  ds_config22->set_target_buffer(2);
-  auto* ds_config23 = trace_config.add_data_sources()->mutable_config();
-  ds_config23->set_name("data_source2.3");
-  ds_config23->set_target_buffer(2);  // same buffer as data_source2.2.
-  consumer->EnableTracing(trace_config);
-
-  producer1->WaitForTracingSetup();
-  producer1->WaitForDataSourceSetup("data_source1");
-
-  producer2->WaitForTracingSetup();
-  producer2->WaitForDataSourceSetup("data_source2.1");
-  producer2->WaitForDataSourceSetup("data_source2.2");
-  producer2->WaitForDataSourceSetup("data_source2.3");
-
-  ASSERT_EQ(3u, tracing_session()->num_buffers());
-  std::set<BufferID> expected_buffers_producer1 = {
-      tracing_session()->buffers_index[0]};
-  std::set<BufferID> expected_buffers_producer2 = {
-      tracing_session()->buffers_index[1], tracing_session()->buffers_index[2]};
-  EXPECT_EQ(expected_buffers_producer1, GetAllowedTargetBuffers(producer1_id));
-  EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
-
-  producer1->WaitForDataSourceStart("data_source1");
-  producer2->WaitForDataSourceStart("data_source2.1");
-  producer2->WaitForDataSourceStart("data_source2.2");
-  producer2->WaitForDataSourceStart("data_source2.3");
-
-  producer2->UnregisterDataSource("data_source2.3");
-  producer2->WaitForDataSourceStop("data_source2.3");
-
-  // Should still be allowed to write to buffers 1 (data_source2.1) and 2
-  // (data_source2.2).
-  EXPECT_EQ(expected_buffers_producer2, GetAllowedTargetBuffers(producer2_id));
-
-  consumer->DisableTracing();
-  producer1->WaitForDataSourceStop("data_source1");
-  producer2->WaitForDataSourceStop("data_source2.1");
-  producer2->WaitForDataSourceStop("data_source2.2");
-  consumer->WaitForTracingDisabled();
-
-  consumer->FreeBuffers();
-  task_runner.RunUntilIdle();
-  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer1_id));
-  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer2_id));
-}
-
 #if !PERFETTO_DCHECK_IS_ON()
 TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
@@ -3085,10 +3005,11 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
 
   std::unique_ptr<MockProducer> producer = CreateMockProducer();
   producer->Connect(svc.get(), "mock_producer");
-  ProducerID producer_id = *last_producer_id();
   producer->RegisterDataSource("data_source");
 
-  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer_id));
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2");
+  producer2->RegisterDataSource("data_source_2");
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
@@ -3096,42 +3017,74 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("data_source");
   ds_config->set_target_buffer(0);
+  ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source_2");
+  ds_config->set_target_buffer(1);
   consumer->EnableTracing(trace_config);
-
-  ASSERT_EQ(2u, tracing_session()->num_buffers());
-  std::set<BufferID> expected_buffers = {tracing_session()->buffers_index[0]};
-  EXPECT_EQ(expected_buffers, GetAllowedTargetBuffers(producer_id));
 
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
+
+  producer2->WaitForTracingSetup();
+  producer2->WaitForDataSourceSetup("data_source_2");
+
   producer->WaitForDataSourceStart("data_source");
+  producer2->WaitForDataSourceStart("data_source_2");
+
+  const auto* ds1 = producer->GetDataSourceInstance("data_source");
+  ASSERT_NE(ds1, nullptr);
+  const auto* ds2 = producer2->GetDataSourceInstance("data_source_2");
+  ASSERT_NE(ds2, nullptr);
+  BufferID buf0 = ds1->target_buffer;
+  BufferID buf1 = ds2->target_buffer;
 
   // Try to write to the correct buffer.
-  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[0]);
+  std::unique_ptr<TraceWriter> writer =
+      producer->endpoint()->CreateTraceWriter(buf0);
   {
     auto tp = writer->NewTracePacket();
     tp->set_for_testing()->set_str("good_payload");
   }
 
   auto flush_request = consumer->Flush();
-  producer->ExpectFlush(writer.get());
+  EXPECT_CALL(*producer, Flush)
+      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                           const DataSourceInstanceID*, size_t, FlushFlags) {
+        writer->Flush();
+        producer->endpoint()->NotifyFlushComplete(flush_req_id);
+      }));
+  EXPECT_CALL(*producer2, Flush)
+      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                           const DataSourceInstanceID*, size_t, FlushFlags) {
+        producer2->endpoint()->NotifyFlushComplete(flush_req_id);
+      }));
   ASSERT_TRUE(flush_request.WaitForReply());
 
   // Try to write to the wrong buffer.
-  writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[1]);
+  writer = producer->endpoint()->CreateTraceWriter(buf1);
   {
     auto tp = writer->NewTracePacket();
     tp->set_for_testing()->set_str("bad_payload");
   }
 
   flush_request = consumer->Flush();
-  producer->ExpectFlush(writer.get());
+  EXPECT_CALL(*producer, Flush)
+      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                           const DataSourceInstanceID*, size_t, FlushFlags) {
+        writer->Flush();
+        producer->endpoint()->NotifyFlushComplete(flush_req_id);
+      }));
+  EXPECT_CALL(*producer2, Flush)
+      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                           const DataSourceInstanceID*, size_t, FlushFlags) {
+        producer2->endpoint()->NotifyFlushComplete(flush_req_id);
+      }));
+
   ASSERT_TRUE(flush_request.WaitForReply());
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("data_source");
+  producer2->WaitForDataSourceStop("data_source_2");
   consumer->WaitForTracingDisabled();
 
   auto packets = consumer->ReadBuffers();
@@ -3144,7 +3097,6 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
                   Property(&protos::gen::TestEvent::str, Eq("bad_payload"))))));
 
   consumer->FreeBuffers();
-  EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer_id));
 }
 #endif  // !PERFETTO_DCHECK_IS_ON()
 
