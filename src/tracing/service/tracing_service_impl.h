@@ -422,8 +422,6 @@ class TracingServiceImpl : public TracingService {
   friend class TracingServiceImplTest;
   friend class TracingIntegrationTest;
 
-  static constexpr int64_t kOneDayInNs = 24ll * 60 * 60 * 1000 * 1000 * 1000;
-
   struct TriggerHistory {
     int64_t timestamp_ns;
     uint64_t name_hash;
@@ -906,13 +904,12 @@ class TracingServiceImpl : public TracingService {
   std::map<std::string, int64_t> session_to_last_trace_s_;
 
   // Contains timestamps of triggers.
-  // The queue is sorted by timestamp and invocations older than
-  // |trigger_window_ns_| are purged when a trigger happens.
+  // The queue is sorted by timestamp and invocations older than 24 hours are
+  // purged when a trigger happens.
   base::CircularQueue<TriggerHistory> trigger_history_;
 
   bool smb_scraping_enabled_ = false;
   bool lockdown_mode_ = false;
-  int64_t trigger_window_ns_ = kOneDayInNs;  // Overridable for testing.
 
   std::minstd_rand trigger_probability_rand_;
   std::uniform_real_distribution<> trigger_probability_dist_;

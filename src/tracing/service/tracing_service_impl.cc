@@ -3919,12 +3919,13 @@ void TracingServiceImpl::MaybeLogTriggerEvent(const TraceConfig& cfg,
 size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
     int64_t now_ns,
     uint64_t trigger_name_hash) {
+  constexpr int64_t kOneDayInNs = 24ll * 60 * 60 * 1000 * 1000 * 1000;
   PERFETTO_DCHECK(
       std::is_sorted(trigger_history_.begin(), trigger_history_.end()));
   size_t remove_count = 0;
   size_t trigger_count = 0;
   for (const TriggerHistory& h : trigger_history_) {
-    if (h.timestamp_ns < now_ns - trigger_window_ns_) {
+    if (h.timestamp_ns < now_ns - kOneDayInNs) {
       remove_count++;
     } else if (h.name_hash == trigger_name_hash) {
       trigger_count++;

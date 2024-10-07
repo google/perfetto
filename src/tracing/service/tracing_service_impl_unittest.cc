@@ -261,10 +261,6 @@ class TracingServiceImplTest : public testing::Test {
     return ret;
   }
 
-  void SetTriggerWindowNs(int64_t window_ns) {
-    svc->trigger_window_ns_ = window_ns;
-  }
-
   void AdvanceTimeAndRunUntilIdle(uint32_t ms) {
     mock_clock_displacement_ += base::TimeMillis(ms);
     task_runner.AdvanceTimeAndRunUntilIdle(ms);
@@ -1210,6 +1206,8 @@ TEST_F(TracingServiceImplTest, SecondTriggerHitsLimit) {
     EXPECT_THAT(GetReceivedTriggers(packets), ElementsAre("trigger_name"));
   }
 
+  AdvanceTimeAndRunUntilIdle(23 * 60 * 60 * 1000);  // 23h
+
   // Second session.
   {
     std::unique_ptr<MockProducer> producer = CreateMockProducer();
@@ -1256,10 +1254,6 @@ TEST_F(TracingServiceImplTest, SecondTriggerDoesntHitLimit) {
 
   auto* ds = trace_config.add_data_sources()->mutable_config();
 
-  // Set the trigger window size to something really small so the second
-  // session is still allowed through.
-  SetTriggerWindowNs(1);
-
   // First session.
   {
     std::unique_ptr<MockProducer> producer = CreateMockProducer();
@@ -1292,8 +1286,7 @@ TEST_F(TracingServiceImplTest, SecondTriggerDoesntHitLimit) {
     EXPECT_THAT(GetReceivedTriggers(packets), ElementsAre("trigger_name"));
   }
 
-  // Sleep 1 micro so that we're sure that the window time would have elapsed.
-  base::SleepMicroseconds(1);
+  AdvanceTimeAndRunUntilIdle(24 * 60 * 60 * 1000);  // 24h
 
   // Second session.
   {
