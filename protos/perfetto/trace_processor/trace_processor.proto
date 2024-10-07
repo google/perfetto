@@ -88,13 +88,15 @@ message TraceProcessorRpc {
   optional string fatal_error = 5;
 
   enum TraceProcessorMethod {
+    reserved 4, 12;
+    reserved "TPM_QUERY_RAW_DEPRECATED";
+    reserved "TPM_REGISTER_SQL_MODULE";
+
     TPM_UNSPECIFIED = 0;
     TPM_APPEND_TRACE_DATA = 1;
     TPM_FINALIZE_TRACE_DATA = 2;
     TPM_QUERY_STREAMING = 3;
     // Previously: TPM_QUERY_RAW_DEPRECATED
-    reserved 4;
-    reserved "TPM_QUERY_RAW_DEPRECATED";
     TPM_COMPUTE_METRIC = 5;
     TPM_GET_METRIC_DESCRIPTORS = 6;
     TPM_RESTORE_INITIAL_TABLES = 7;
@@ -102,7 +104,7 @@ message TraceProcessorRpc {
     TPM_DISABLE_AND_READ_METATRACE = 9;
     TPM_GET_STATUS = 10;
     TPM_RESET_TRACE_PROCESSOR = 11;
-    TPM_REGISTER_SQL_MODULE = 12;
+    TPM_REGISTER_SQL_PACKAGE = 13;
   }
 
   oneof type {
@@ -134,8 +136,8 @@ message TraceProcessorRpc {
     EnableMetatraceArgs enable_metatrace_args = 106;
     // For TPM_RESET_TRACE_PROCESSOR.
     ResetTraceProcessorArgs reset_trace_processor_args = 107;
-    // For TPM_REGISTER_SQL_MODULE.
-    RegisterSqlModuleArgs register_sql_module_args = 108;
+    // For TPM_REGISTER_SQL_PACKAGE.
+    RegisterSqlPackageArgs register_sql_package_args = 108;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -150,8 +152,8 @@ message TraceProcessorRpc {
     DisableAndReadMetatraceResult metatrace = 209;
     // For TPM_GET_STATUS.
     StatusResult status = 210;
-    // For TPM_REGISTER_SQL_MODULE.
-    RegisterSqlModuleResult register_sql_module_result = 211;
+    // For TPM_REGISTER_SQL_PACKAGE.
+    RegisterSqlPackageResult register_sql_package_result = 211;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -335,15 +337,16 @@ message ResetTraceProcessorArgs {
   optional bool ftrace_drop_until_all_cpus_valid = 4;
 }
 
-message RegisterSqlModuleArgs {
+message RegisterSqlPackageArgs {
   message Module {
     optional string name = 1;
     optional string sql = 2;
   }
-  optional string top_level_package_name = 1;
+  optional string package_name = 1;
   repeated Module modules = 2;
-  optional bool allow_module_override = 3;
+  optional bool allow_override = 3;
 }
-message RegisterSqlModuleResult {
+
+message RegisterSqlPackageResult {
   optional string error = 1;
 }

@@ -22,7 +22,7 @@ import {
   MetatraceCategories,
   QueryArgs,
   QueryResult as ProtoQueryResult,
-  RegisterSqlModuleArgs,
+  RegisterSqlPackageArgs,
   ResetTraceProcessorArgs,
   TraceProcessorRpc,
   TraceProcessorRpcStream,
@@ -127,7 +127,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
-  private pendingRegisterSqlModule?: Deferred<void>;
+  private pendingRegisterSqlPackage?: Deferred<void>;
   private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
   private _failed: Optional<string> = undefined;
@@ -265,9 +265,9 @@ export abstract class EngineBase implements Engine, Disposable {
         assertExists(this.pendingReadMetatrace).resolve(metatraceRes);
         this.pendingReadMetatrace = undefined;
         break;
-      case TPM.TPM_REGISTER_SQL_MODULE:
-        const registerResult = assertExists(rpc.registerSqlModuleResult);
-        const res = assertExists(this.pendingRegisterSqlModule);
+      case TPM.TPM_REGISTER_SQL_PACKAGE:
+        const registerResult = assertExists(rpc.registerSqlPackageResult);
+        const res = assertExists(this.pendingRegisterSqlPackage);
         if (exists(registerResult.error) && registerResult.error.length > 0) {
           res.reject(registerResult.error);
         } else {
@@ -476,23 +476,23 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
-  registerSqlModules(p: {
+  registerSqlPackages(p: {
     name: string;
     modules: {name: string; sql: string}[];
   }): Promise<void> {
-    if (this.pendingRegisterSqlModule) {
+    if (this.pendingRegisterSqlPackage) {
       return Promise.reject(new Error('Already finalising a metatrace'));
     }
 
     const result = defer<void>();
 
     const rpc = TraceProcessorRpc.create();
-    rpc.request = TPM.TPM_REGISTER_SQL_MODULE;
-    const args = (rpc.registerSqlModuleArgs = new RegisterSqlModuleArgs());
-    args.topLevelPackageName = p.name;
+    rpc.request = TPM.TPM_REGISTER_SQL_PACKAGE;
+    const args = (rpc.registerSqlPackageArgs = new RegisterSqlPackageArgs());
+    args.packageName = p.name;
     args.modules = p.modules;
-    args.allowModuleOverride = true;
-    this.pendingRegisterSqlModule = result;
+    args.allowOverride = true;
+    this.pendingRegisterSqlPackage = result;
     this.rpcSendRequest(rpc);
     return result;
   }
