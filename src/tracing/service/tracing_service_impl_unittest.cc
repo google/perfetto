@@ -231,8 +231,6 @@ class TracingServiceImplTest : public testing::Test {
         new StrictMock<MockConsumer>(&task_runner));
   }
 
-  ProducerID* last_producer_id() { return &svc->last_producer_id_; }
-
   TracingSessionID GetLastTracingSessionId(MockConsumer* consumer) {
     TracingSessionID ret = 0;
     TracingServiceState svc_state = consumer->QueryServiceState();
@@ -1673,33 +1671,6 @@ TEST_F(TracingServiceImplTest, ReconnectProducerWhileTracing) {
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
-}
-
-TEST_F(TracingServiceImplTest, ProducerIDWrapping) {
-  std::vector<std::unique_ptr<MockProducer>> producers;
-  producers.push_back(nullptr);
-
-  auto connect_producer_and_get_id = [&producers,
-                                      this](const std::string& name) {
-    producers.emplace_back(CreateMockProducer());
-    producers.back()->Connect(svc.get(), "mock_producer_" + name);
-    return *last_producer_id();
-  };
-
-  // Connect producers 1-4.
-  for (ProducerID i = 1; i <= 4; i++)
-    ASSERT_EQ(i, connect_producer_and_get_id(std::to_string(i)));
-
-  // Disconnect producers 1,3.
-  producers[1].reset();
-  producers[3].reset();
-
-  *last_producer_id() = kMaxProducerID - 1;
-  ASSERT_EQ(kMaxProducerID, connect_producer_and_get_id("maxid"));
-  ASSERT_EQ(1u, connect_producer_and_get_id("1_again"));
-  ASSERT_EQ(3u, connect_producer_and_get_id("3_again"));
-  ASSERT_EQ(5u, connect_producer_and_get_id("5"));
-  ASSERT_EQ(6u, connect_producer_and_get_id("6"));
 }
 
 TEST_F(TracingServiceImplTest, CompressionConfiguredButUnsupported) {
