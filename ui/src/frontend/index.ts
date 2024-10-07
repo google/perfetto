@@ -63,6 +63,7 @@ import {pageWithTrace} from './pages';
 import {AppImpl} from '../core/app_impl';
 import {setAddSqlTableTabImplFunction} from './sql_table_tab_interface';
 import {addSqlTableTabImpl} from './sql_table_tab';
+import {getServingRoot} from '../base/http_utils';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -204,10 +205,17 @@ function setupExtentionPort(extensionLocalChannel: MessageChannel) {
 }
 
 function main() {
+  // Setup content security policy before anything else.
+  setupContentSecurityPolicy();
+
+  AppImpl.initialize({
+    rootUrl: getServingRoot(),
+    initialRouteArgs: Router.parseUrl(window.location.href).args,
+    clearState: () => globals.dispatch(Actions.clearState({})),
+  });
+
   // Wire up raf for widgets.
   setScheduleFullRedraw(() => raf.scheduleFullRedraw());
-
-  setupContentSecurityPolicy();
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
   // appendChild returns.
@@ -341,7 +349,6 @@ function onCssLoaded() {
   maybeChangeRpcPortFromFragment();
   CheckHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
-    AppImpl.instance.setInitialRouteArgs(route.args);
     if (!globals.embeddedMode) {
       installFileDropHandler();
     }

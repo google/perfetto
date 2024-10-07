@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {getServingRoot} from '../base/http_utils';
 import {Time} from '../base/time';
 import {TraceInfo} from '../public/trace_info';
 import {EngineBase} from '../trace_processor/engine';
+import {AppImpl} from './app_impl';
 import {TraceImpl} from './trace_impl';
 
 export interface FakeTraceImplArgs {
@@ -24,11 +26,28 @@ export interface FakeTraceImplArgs {
   allowQueries?: boolean;
 }
 
+let appImplInitialized = false;
+
+export function initializeAppImplForTesting(): AppImpl {
+  if (!appImplInitialized) {
+    appImplInitialized = true;
+    AppImpl.initialize({
+      rootUrl: getServingRoot(), // NOTE: will be '' in unittests.
+      initialRouteArgs: {},
+      clearState: () => {},
+    });
+  }
+  return AppImpl.instance;
+}
+
 // This is used:
 // - For testing.
 // - By globals.ts before we have an actual trace loaded, to avoid causing
 //   if (!= undefined) checks everywhere.
 export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
+  if (!AppImpl.initialized) {
+    initializeAppImplForTesting();
+  }
   const fakeTraceInfo: TraceInfo = {
     source: {type: 'URL', url: ''},
     traceTitle: '',
@@ -45,7 +64,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     uuid: '',
     cached: false,
   };
-  return TraceImpl.newInstance(
+  return TraceImpl.createInstanceForCore(
     new FakeEngine(args.allowQueries ?? false),
     fakeTraceInfo,
   );
