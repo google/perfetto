@@ -237,20 +237,6 @@ class TracingServiceImplTest : public testing::Test {
     return svc->GetProducer(producer_id)->uid();
   }
 
-  TracingServiceImpl::TracingSession* GetTracingSession(TracingSessionID tsid) {
-    auto* session = svc->GetTracingSession(tsid);
-    EXPECT_NE(nullptr, session);
-    return session;
-  }
-
-  TracingServiceImpl::TracingSession* tracing_session() {
-    return GetTracingSession(GetTracingSessionID());
-  }
-
-  TracingSessionID GetTracingSessionID() {
-    return svc->last_tracing_session_id_;
-  }
-
   TracingSessionID GetLastTracingSessionId(MockConsumer* consumer) {
     TracingSessionID ret = 0;
     TracingServiceState svc_state = consumer->QueryServiceState();
@@ -261,10 +247,6 @@ class TracingServiceImplTest : public testing::Test {
       }
     }
     return ret;
-  }
-
-  const std::map<WriterID, BufferID>& GetWriters(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->writers_;
   }
 
   void SetTriggerWindowNs(int64_t window_ns) {
