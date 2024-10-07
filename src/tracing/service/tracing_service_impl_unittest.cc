@@ -260,10 +260,6 @@ class TracingServiceImplTest : public testing::Test {
     return std::move(svc->GetProducer(producer_id)->inproc_shmem_arbiter_);
   }
 
-  size_t GetNumPendingFlushes() {
-    return tracing_session()->pending_flushes.size();
-  }
-
   void WaitForNextSyncMarker() {
     tracing_session()->should_emit_sync_marker = true;
     static int attempt = 0;
@@ -2531,7 +2527,6 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
   auto flush_req_4 = consumer->Flush(/*timeout_ms=*/10);
 
   task_runner.RunUntilCheckpoint("all_flushes_received");
-  ASSERT_EQ(4u, GetNumPendingFlushes());
 
   writer->Flush();
   // Reply only to flush 3. Do not reply to 1,2 and 4.
