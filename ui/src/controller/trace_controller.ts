@@ -13,21 +13,19 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/logging';
-import {Duration, time, Time, TimeSpan} from '../base/time';
+import {time, Time, TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
 import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../common/metatracing';
-import {EngineConfig, PendingDeeplinkState} from '../common/state';
+import {EngineConfig} from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
-import {globals, QuantizedLoad, ThreadDesc} from '../frontend/globals';
+import {globals, ThreadDesc} from '../frontend/globals';
 import {
-  clearOverviewData,
   publishHasFtrace,
   publishMetricError,
-  publishOverviewData,
   publishThreads,
 } from '../frontend/publish';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
@@ -62,6 +60,7 @@ import {raf} from '../core/raf_scheduler';
 import {TraceImpl} from '../core/trace_impl';
 import {SerializedAppState} from '../public/state_serialization_schema';
 import {TraceSource} from '../public/trace_source';
+import {RouteArgs} from '../core/route_schema';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -338,10 +337,6 @@ async function loadTraceIntoEngine(
   decideTabs(trace);
 
   await listThreads(engine);
-  await loadTimelineOverview(
-    engine,
-    new TimeSpan(traceDetails.start, traceDetails.end),
-  );
 
   {
     // Check if we have any ftrace events at all
@@ -357,7 +352,7 @@ async function loadTraceIntoEngine(
 
   const pendingDeeplink = AppImpl.instance.getAndClearInitialRouteArgs();
   if (pendingDeeplink !== undefined) {
-    await selectPendingDeeplink(trace, pendingDeeplink);
+    await selectInitialRouteArgs(trace, pendingDeeplink);
     if (
       pendingDeeplink.visStart !== undefined &&
       pendingDeeplink.visEnd !== undefined
@@ -405,12 +400,9 @@ async function loadTraceIntoEngine(
   return trace;
 }
 
-async function selectPendingDeeplink(
-  trace: TraceImpl,
-  link: PendingDeeplinkState,
-) {
+async function selectInitialRouteArgs(trace: TraceImpl, args: RouteArgs) {
   const conditions = [];
-  const {ts, dur} = link;
+  const {ts, dur} = args;
 
   if (ts !== undefined) {
     conditions.push(`ts = ${ts}`);
@@ -496,86 +488,6 @@ async function listThreads(engine: Engine) {
     threads.push({utid, tid, threadName, pid, procName, cmdline});
   }
   publishThreads(threads);
-}
-
-async function loadTimelineOverview(engine: Engine, trace: TimeSpan) {
-  clearOverviewData();
-  const stepSize = Duration.max(1n, trace.duration / 100n);
-  const hasSchedSql = 'select ts from sched limit 1';
-  const hasSchedOverview = (await engine.query(hasSchedSql)).numRows() > 0;
-  if (hasSchedOverview) {
-    const stepPromises = [];
-    for (
-      let start = trace.start;
-      start < trace.end;
-      start = Time.add(start, stepSize)
-    ) {
-      const progress = start - trace.start;
-      const ratio = Number(progress) / Number(trace.duration);
-      updateStatus('Loading overview ' + `${Math.round(ratio * 100)}%`);
-      const end = Time.add(start, stepSize);
-      // The (async() => {})() queues all the 100 async promises in one batch.
-      // Without that, we would wait for each step to be rendered before
-      // kicking off the next one. That would interleave an animation frame
-      // between each step, slowing down significantly the overall process.
-      stepPromises.push(
-        (async () => {
-          const schedResult = await engine.query(
-            `select cast(sum(dur) as float)/${stepSize} as load, cpu from sched ` +
-              `where ts >= ${start} and ts < ${end} and utid != 0 ` +
-              'group by cpu order by cpu',
-          );
-          const schedData: {[key: string]: QuantizedLoad} = {};
-          const it = schedResult.iter({load: NUM, cpu: NUM});
-          for (; it.valid(); it.next()) {
-            const load = it.load;
-            const cpu = it.cpu;
-            schedData[cpu] = {start, end, load};
-          }
-          publishOverviewData(schedData);
-        })(),
-      );
-    } // for(start = ...)
-    await Promise.all(stepPromises);
-    return;
-  } // if (hasSchedOverview)
-
-  // Slices overview.
-  const sliceResult = await engine.query(`select
-            bucket,
-            upid,
-            ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
-          from thread
-          inner join (
-            select
-              ifnull(cast((ts - ${trace.start})/${stepSize} as int), 0) as bucket,
-              sum(dur) as utid_sum,
-              utid
-            from slice
-            inner join thread_track on slice.track_id = thread_track.id
-            group by bucket, utid
-          ) using(utid)
-          where upid is not null
-          group by bucket, upid`);
-
-  const slicesData: {[key: string]: QuantizedLoad[]} = {};
-  const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
-  for (; it.valid(); it.next()) {
-    const bucket = it.bucket;
-    const upid = it.upid;
-    const load = it.load;
-
-    const start = Time.add(trace.start, stepSize * bucket);
-    const end = Time.add(start, stepSize);
-
-    const upidStr = upid.toString();
-    let loadArray = slicesData[upidStr];
-    if (loadArray === undefined) {
-      loadArray = slicesData[upidStr] = [];
-    }
-    loadArray.push({start, end, load});
-  }
-  publishOverviewData(slicesData);
 }
 
 async function initialiseHelperViews(engine: Engine) {

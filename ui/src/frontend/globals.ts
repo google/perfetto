@@ -14,7 +14,6 @@
 
 import {assertExists} from '../base/logging';
 import {createStore, Store} from '../base/store';
-import {time} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {CommandManagerImpl} from '../core/command_manager';
 import {
@@ -36,13 +35,6 @@ import {createFakeTraceImpl} from '../core/fake_trace_impl';
 
 type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
-
-export interface QuantizedLoad {
-  start: time;
-  end: time;
-  load: number;
-}
-type OverviewStore = Map<string, QuantizedLoad[]>;
 
 export interface ThreadDesc {
   utid: number;
@@ -68,7 +60,6 @@ class Globals {
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
-  private _overviewStore?: OverviewStore = undefined;
   private _threadMap?: ThreadMap = undefined;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
@@ -122,7 +113,6 @@ class Globals {
     // initialize() is only called ever once. (But then i'm going to kill this
     // entire file soon).
     this._trackDataStore = new Map<string, {}>();
-    this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._threadMap = new Map<number, ThreadDesc>();
   }
 
@@ -186,10 +176,6 @@ class Globals {
   // soon.
   get traceContext() {
     return this.trace.traceInfo;
-  }
-
-  get overviewStore(): OverviewStore {
-    return assertExists(this._overviewStore);
   }
 
   get trackDataStore(): TrackDataStore {
