@@ -207,7 +207,6 @@ class TracingServiceImplTest : public testing::Test {
         TracingService::CreateInstance(std::move(shm_factory), &task_runner,
                                        init_opts)
             .release()));
-    svc->min_write_period_ms_ = 1;
   }
 
   std::unique_ptr<MockProducer> CreateMockProducer() {
@@ -269,17 +268,6 @@ class TracingServiceImplTest : public testing::Test {
     return std::move(svc->GetProducer(producer_id)->inproc_shmem_arbiter_);
   }
 
-  void WaitForNextSyncMarker() {
-    tracing_session()->should_emit_sync_marker = true;
-    static int attempt = 0;
-    while (tracing_session()->should_emit_sync_marker) {
-      auto checkpoint_name = "wait_snapshot_" + std::to_string(attempt++);
-      auto timer_expired = task_runner.CreateCheckpoint(checkpoint_name);
-      task_runner.PostDelayedTask([timer_expired] { timer_expired(); }, 1);
-      task_runner.RunUntilCheckpoint(checkpoint_name);
-    }
-  }
-
   void WaitForTraceWritersChanged(ProducerID producer_id) {
     static int i = 0;
     auto checkpoint_name = "writers_changed_" + std::to_string(producer_id) +
@@ -300,6 +288,10 @@ class TracingServiceImplTest : public testing::Test {
 
   void SetTriggerWindowNs(int64_t window_ns) {
     svc->trigger_window_ns_ = window_ns;
+  }
+
+  void AdvanceTimeAndRunUntilIdle(uint32_t ms) {
+    task_runner.AdvanceTimeAndRunUntilIdle(ms);
   }
 
   void OverrideNextTriggerRandomNumber(double number) {
@@ -2919,7 +2911,8 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("data_source");
   trace_config.set_write_into_file(true);
-  trace_config.set_file_write_period_ms(1);
+  trace_config.set_file_write_period_ms(100);
+  trace_config.mutable_builtin_data_sources()->set_snapshot_interval_ms(100);
   base::TempFile tmp_file = base::TempFile::Create();
   consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
   producer->WaitForTracingSetup();
@@ -2936,7 +2929,8 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
     writer->NewTracePacket()->set_for_testing()->set_str(payload.c_str());
     if (i % (100 / kNumMarkers) == 0) {
       writer->Flush();
-      WaitForNextSyncMarker();
+      // The snapshot will happen every 100ms
+      AdvanceTimeAndRunUntilIdle(100);
     }
   }
   writer->Flush();
