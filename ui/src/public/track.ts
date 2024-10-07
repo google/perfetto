@@ -106,7 +106,7 @@ export interface TrackDescriptor {
   // Optional: A factory that returns a details panel object. This is called
   // each time the selection is changed (and the selection is relevant to this
   // track).
-  readonly detailsPanel?: (id: TrackEventSelection) => TrackEventDetailsPanel;
+  readonly detailsPanel?: (sel: TrackEventSelection) => TrackEventDetailsPanel;
 }
 
 /**

@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import {
-  CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {ScreenshotTab} from './screenshot_panel';
 
 export class ScreenshotsTrack extends CustomSqlTableSliceTrack {
   static readonly kind = 'dev.perfetto.ScreenshotsTrack';
@@ -26,16 +24,6 @@ export class ScreenshotsTrack extends CustomSqlTableSliceTrack {
     return {
       sqlTableName: 'android_screenshots',
       columns: ['*'],
-    };
-  }
-
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: ScreenshotTab.kind,
-      config: {
-        sqlTableName: this.tableName,
-        title: 'Screenshots',
-      },
     };
   }
 }

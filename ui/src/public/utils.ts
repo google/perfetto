@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LegacySelection, Selection} from '../public/selection';
 import {BottomTab} from './lib/bottom_tab';
 import {Tab} from './tab';
 import {exists} from '../base/utils';
-import {DetailsPanel} from './details_panel';
 import {Trace} from './trace';
 import {TimeSpan} from '../base/time';
 
@@ -98,10 +96,6 @@ export function getTrackName(
   return 'Unknown';
 }
 
-export interface BottomTabAdapterAttrs {
-  tabFactory: (sel: LegacySelection) => BottomTab | undefined;
-}
-
 /**
  * This adapter wraps a BottomTab, converting it into a the new "current
  * selection" API.
@@ -130,34 +124,6 @@ export interface BottomTabAdapterAttrs {
       },
     })
  */
-export class BottomTabToSCSAdapter implements DetailsPanel {
-  private oldSelection?: Selection;
-  private bottomTab?: BottomTab;
-  private attrs: BottomTabAdapterAttrs;
-
-  constructor(attrs: BottomTabAdapterAttrs) {
-    this.attrs = attrs;
-  }
-
-  render(selection: Selection): m.Children {
-    // Detect selection changes, assuming selection is immutable
-    if (selection !== this.oldSelection) {
-      this.oldSelection = selection;
-      if (selection.kind === 'legacy') {
-        this.bottomTab = this.attrs.tabFactory(selection.legacySelection);
-      } else {
-        this.bottomTab = undefined;
-      }
-    }
-
-    return this.bottomTab?.renderPanel();
-  }
-
-  // Note: Must be called after render()
-  isLoading(): boolean {
-    return this.bottomTab?.isLoading() ?? false;
-  }
-}
 
 /**
  * This adapter wraps a BottomTab, converting it to work with the Tab API.

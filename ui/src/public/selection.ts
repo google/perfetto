@@ -16,12 +16,10 @@ import {time, duration, TimeSpan} from '../base/time';
 import {Optional} from '../base/utils';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
-import {GenericSliceDetailsTabConfigBase} from './details_panel';
 import {TrackDescriptor} from './track';
 
 export interface SelectionManager {
   readonly selection: Selection;
-  readonly legacySelection: LegacySelection | null;
 
   findTimeRangeOfSelection(): Optional<TimeSpan>;
   clear(): void;
@@ -49,14 +47,6 @@ export interface SelectionManager {
   selectSqlEvent(sqlTableName: string, id: number, opts?: SelectionOpts): void;
 
   /**
-   * Select a legacy selection.
-   *
-   * @param selection - The legacy selection to select.
-   * @param opts - Additional options.
-   */
-  selectLegacy(selection: LegacySelection, opts?: SelectionOpts): void;
-
-  /**
    * Create an area selection for the purposes of aggregation.
    *
    * @param args - The area to select.
@@ -66,20 +56,6 @@ export interface SelectionManager {
 
   scrollToCurrentSelection(): void;
   registerAreaSelectionAggreagtor(aggr: AreaSelectionAggregator): void;
-
-  // TODO(primiano): I don't undertsand what this generic slice is, but now
-  // is exposed to plugins. For now i'm just carrying it forward.
-  selectGenericSlice(args: {
-    id: number;
-    sqlTableName: string;
-    start: time;
-    duration: duration;
-    trackUri: string;
-    detailsPanelConfig: {
-      kind: string;
-      config: GenericSliceDetailsTabConfigBase;
-    };
-  }): void;
 
   /**
    * Register a new SQL selection resolver.
@@ -108,8 +84,7 @@ export type Selection =
   | AreaSelection
   | NoteSelection
   | UnionSelection
-  | EmptySelection
-  | LegacySelectionWrapper;
+  | EmptySelection;
 
 /** Defines how changes to selection affect the rest of the UI state */
 export interface SelectionOpts {
@@ -117,32 +92,6 @@ export interface SelectionOpts {
   switchToCurrentSelectionTab?: boolean; // Default: true.
   scrollToSelection?: boolean; // Default: false.
 }
-
-// LEGACY Selection types:
-
-export interface LegacySelectionWrapper {
-  readonly kind: 'legacy';
-  readonly legacySelection: LegacySelection;
-}
-
-export type LegacySelection = GenericSliceSelection & {
-  trackUri?: string;
-};
-
-export interface GenericSliceSelection {
-  readonly kind: 'GENERIC_SLICE';
-  readonly id: number;
-  readonly sqlTableName: string;
-  readonly start: time;
-  readonly duration: duration;
-  // NOTE: this config can be expanded for multiple details panel types.
-  readonly detailsPanelConfig: {
-    readonly kind: string;
-    readonly config: GenericSliceDetailsTabConfigBase;
-  };
-}
-
-// New Selection types:
 
 export interface TrackEventSelection extends TrackEventDetails {
   readonly kind: 'track_event';
@@ -165,6 +114,7 @@ export interface TrackEventDetails {
   readonly utid?: number;
   readonly tableName?: string;
   readonly profileType?: ProfileType;
+  readonly interactionType?: string;
 }
 
 export interface Area {
