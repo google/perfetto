@@ -233,10 +233,6 @@ class TracingServiceImplTest : public testing::Test {
 
   ProducerID* last_producer_id() { return &svc->last_producer_id_; }
 
-  uid_t GetProducerUid(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->uid();
-  }
-
   TracingSessionID GetLastTracingSessionId(MockConsumer* consumer) {
     TracingSessionID ret = 0;
     TracingServiceState svc_state = consumer->QueryServiceState();
@@ -334,11 +330,15 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   mock_producer_1->Connect(svc.get(), "mock_producer_1", 123u /* uid */);
   mock_producer_2->Connect(svc.get(), "mock_producer_2", 456u /* uid */);
 
-  ASSERT_EQ(2u, svc->num_producers());
-  ASSERT_EQ(mock_producer_1->endpoint(), svc->GetProducer(1));
-  ASSERT_EQ(mock_producer_2->endpoint(), svc->GetProducer(2));
-  ASSERT_EQ(123u, GetProducerUid(1));
-  ASSERT_EQ(456u, GetProducerUid(2));
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TracingServiceState svc_state = consumer->QueryServiceState();
+  ASSERT_EQ(svc_state.producers_size(), 2);
+  EXPECT_EQ(svc_state.producers().at(0).id(), 1);
+  EXPECT_EQ(svc_state.producers().at(0).uid(), 123);
+  EXPECT_EQ(svc_state.producers().at(1).id(), 2);
+  EXPECT_EQ(svc_state.producers().at(1).uid(), 456);
 
   mock_producer_1->RegisterDataSource("foo");
   mock_producer_2->RegisterDataSource("bar");
@@ -347,13 +347,15 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   mock_producer_2->UnregisterDataSource("bar");
 
   mock_producer_1.reset();
-  ASSERT_EQ(1u, svc->num_producers());
-  ASSERT_EQ(nullptr, svc->GetProducer(1));
+
+  svc_state = consumer->QueryServiceState();
+  ASSERT_EQ(svc_state.producers_size(), 1);
+  EXPECT_EQ(svc_state.producers().at(0).id(), 2);
 
   mock_producer_2.reset();
-  ASSERT_EQ(nullptr, svc->GetProducer(2));
 
-  ASSERT_EQ(0u, svc->num_producers());
+  svc_state = consumer->QueryServiceState();
+  ASSERT_EQ(svc_state.producers_size(), 0);
 }
 
 TEST_F(TracingServiceImplTest, EnableAndDisableTracing) {
