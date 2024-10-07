@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/base/test/gtest_test_suite.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
