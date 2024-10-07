@@ -49,6 +49,8 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/tracing/core/id_allocator.h"
+#include "src/tracing/service/clock.h"
+#include "src/tracing/service/dependencies.h"
 
 namespace protozero {
 class MessageFilter;
@@ -312,6 +314,7 @@ class TracingServiceImpl : public TracingService {
 
   explicit TracingServiceImpl(std::unique_ptr<SharedMemory::Factory>,
                               base::TaskRunner*,
+                              tracing_service::Dependencies,
                               InitOpts = {});
   ~TracingServiceImpl() override;
 
@@ -510,13 +513,6 @@ class TracingServiceImpl : public TracingService {
     TracingSession& operator=(TracingSession&&) = delete;
 
     size_t num_buffers() const { return buffers_index.size(); }
-
-    uint32_t delay_to_next_write_period_ms() const {
-      PERFETTO_DCHECK(write_period_ms > 0);
-      return write_period_ms -
-             static_cast<uint32_t>(base::GetWallTimeMs().count() %
-                                   write_period_ms);
-    }
 
     uint32_t flush_timeout_ms() {
       uint32_t timeout_ms = config.flush_timeout_ms();
@@ -783,6 +779,7 @@ class TracingServiceImpl : public TracingService {
   // shared memory and trace buffers.
   void UpdateMemoryGuardrail();
 
+  uint32_t DelayToNextWritePeriodMs(const TracingSession&);
   void StartDataSourceInstance(ProducerEndpointImpl*,
                                TracingSession*,
                                DataSourceInstance*);
@@ -887,6 +884,7 @@ class TracingServiceImpl : public TracingService {
                                      TracingSessionID);
 
   base::TaskRunner* const task_runner_;
+  std::unique_ptr<tracing_service::Clock> clock_;
   const InitOpts init_opts_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;

@@ -3930,6 +3930,9 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_service_service",
     srcs = [
+        "src/tracing/service/clock.cc",
+        "src/tracing/service/clock.h",
+        "src/tracing/service/dependencies.h",
         "src/tracing/service/histogram.h",
         "src/tracing/service/metatrace_writer.cc",
         "src/tracing/service/metatrace_writer.h",
