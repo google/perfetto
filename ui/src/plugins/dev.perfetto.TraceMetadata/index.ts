@@ -17,6 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {SimpleSliceTrack} from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
+import {DebugSliceDetailsPanel} from '../../public/lib/debug_tracks/details_tab';
 class TraceMetadata implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
@@ -28,27 +29,30 @@ class TraceMetadata implements PerfettoPlugin {
     }
     const uri = `/clock_snapshots`;
     const title = 'Clock Snapshots';
+    const track = new SimpleSliceTrack(
+      ctx,
+      {trackUri: uri},
+      {
+        data: {
+          sqlSource: `
+            select ts, 0 as dur, 'Snapshot' as name
+            from clock_snapshot
+          `,
+          columns: ['ts', 'dur', 'name'],
+        },
+        columns: {ts: 'ts', dur: 'dur', name: 'name'},
+        argColumns: [],
+      },
+    );
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new SimpleSliceTrack(
-        ctx,
-        {trackUri: uri},
-        {
-          data: {
-            sqlSource: `
-              select ts, 0 as dur, 'Snapshot' as name
-              from clock_snapshot
-            `,
-            columns: ['ts', 'dur', 'name'],
-          },
-          columns: {ts: 'ts', dur: 'dur', name: 'name'},
-          argColumns: [],
-        },
-      ),
+      track,
+      detailsPanel: ({eventId}) =>
+        new DebugSliceDetailsPanel(ctx, track.sqlTableName, eventId),
     });
-    const track = new TrackNode({uri, title});
-    ctx.workspace.addChildInOrder(track);
+    const trackNode = new TrackNode({uri, title});
+    ctx.workspace.addChildInOrder(trackNode);
   }
 }
 

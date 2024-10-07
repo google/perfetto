@@ -16,8 +16,6 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
-import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
 import {asSliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {DurationWidget} from '../../frontend/widgets/duration';
@@ -30,13 +28,9 @@ import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
-import {
-  EventLatencySlice,
-  getEventLatencyDescendantSlice,
-  getEventLatencySlice,
-  getSliceForTrack,
-} from './scroll_jank_slice';
-import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public/track_kinds';
+import {EVENT_LATENCY_TRACK_URI, renderSliceRef} from './selection_utils';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {Trace} from '../../public/trace';
 
 interface Data {
   name: string;
@@ -64,10 +58,8 @@ async function getSliceDetails(
   return getSlice(engine, asSliceSqlId(id));
 }
 
-export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.ScrollJankV3DetailsPanel';
-  data: Data | undefined;
-  loaded = false;
+export class ScrollJankV3DetailsPanel implements TrackEventDetailsPanel {
+  private data?: Data;
 
   //
   // Linking to associated slices
@@ -80,29 +72,34 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
 
   // Link to the Event Latency in the EventLatencyTrack (subset of event
   // latencies associated with input events).
-  private eventLatencySliceDetails?: EventLatencySlice;
+  private eventLatencySliceDetails?: {
+    ts: time;
+    dur: duration;
+  };
 
   // Link to the scroll jank cause stage of the associated EventLatencyTrack
   // slice. May be unknown.
-  private causeSliceDetails?: EventLatencySlice;
+  private causeSliceDetails?: {
+    id: number;
+    ts: time;
+    dur: duration;
+  };
 
   // Link to the scroll jank sub-cause stage of the associated EventLatencyTrack
   // slice. Does not apply to all causes.
-  private subcauseSliceDetails?: EventLatencySlice;
+  private subcauseSliceDetails?: {
+    id: number;
+    ts: time;
+    dur: duration;
+  };
 
-  static create(
-    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
-  ): ScrollJankV3DetailsPanel {
-    return new ScrollJankV3DetailsPanel(args);
-  }
+  constructor(
+    private readonly trace: Trace,
+    private readonly id: number,
+  ) {}
 
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-    this.loadData();
-  }
-
-  private async loadData() {
-    const queryResult = await this.engine.query(`
+  async load() {
+    const queryResult = await this.trace.engine.query(`
       SELECT
         IIF(
           cause_of_jank IS NOT NULL,
@@ -117,7 +114,7 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
         IFNULL(cause_of_jank, "UNKNOWN") AS causeOfJank,
         IFNULL(sub_cause_of_jank, "UNKNOWN") AS subcauseOfJank
       FROM chrome_janky_frame_presentation_intervals
-      WHERE id = ${this.config.id}`);
+      WHERE id = ${this.id}`);
 
     const iter = queryResult.firstRow({
       name: STR,
@@ -143,7 +140,6 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
     await this.loadJankyFrames();
 
     await this.loadSlices();
-    this.loaded = true;
     raf.scheduleFullRedraw();
   }
 
@@ -164,35 +160,62 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
   private async loadSlices() {
     if (exists(this.data)) {
       this.sliceDetails = await getSliceDetails(
-        this.engine,
+        this.trace.engine,
         this.data.eventLatencyId,
       );
-      this.eventLatencySliceDetails = await getEventLatencySlice(
-        this.engine,
-        this.data.eventLatencyId,
-      );
+      const it = (
+        await this.trace.engine.query(`
+        SELECT ts, dur
+        FROM slice
+        WHERE id = ${this.data.eventLatencyId}
+      `)
+      ).iter({ts: LONG, dur: LONG});
+      this.eventLatencySliceDetails = {
+        ts: Time.fromRaw(it.ts),
+        dur: it.dur,
+      };
 
       if (this.hasCause()) {
-        this.causeSliceDetails = await getEventLatencyDescendantSlice(
-          this.engine,
-          this.data.eventLatencyId,
-          this.data.jankCause,
-        );
+        const it = (
+          await this.trace.engine.query(`
+          SELECT id, ts, dur
+          FROM descendant_slice(${this.data.eventLatencyId})
+          WHERE name = "${this.data.jankCause}"
+        `)
+        ).iter({id: NUM, ts: LONG, dur: LONG});
+
+        if (it.valid()) {
+          this.causeSliceDetails = {
+            id: it.id,
+            ts: Time.fromRaw(it.ts),
+            dur: it.dur,
+          };
+        }
       }
 
       if (this.hasSubcause()) {
-        this.subcauseSliceDetails = await getEventLatencyDescendantSlice(
-          this.engine,
-          this.data.eventLatencyId,
-          this.data.jankSubcause,
-        );
+        const it = (
+          await this.trace.engine.query(`
+          SELECT id, ts, dur
+          FROM descendant_slice(${this.data.eventLatencyId})
+          WHERE name = "${this.data.jankSubcause}"
+        `)
+        ).iter({id: NUM, ts: LONG, dur: LONG});
+
+        if (it.valid()) {
+          this.subcauseSliceDetails = {
+            id: it.id,
+            ts: Time.fromRaw(it.ts),
+            dur: it.dur,
+          };
+        }
       }
     }
   }
 
   private async loadJankyFrames() {
     if (exists(this.data)) {
-      const queryResult = await this.engine.query(`
+      const queryResult = await this.trace.engine.query(`
         SELECT
           COUNT(*) AS jankyFrames
         FROM chrome_frame_info_with_delay
@@ -263,33 +286,36 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
     const result: {[key: string]: m.Child} = {};
 
     if (exists(this.sliceDetails) && exists(this.data)) {
-      result['Janked Event Latency stage'] = exists(this.causeSliceDetails)
-        ? getSliceForTrack(
-            this.causeSliceDetails,
-            CHROME_EVENT_LATENCY_TRACK_KIND,
-            this.data.jankCause,
-          )
-        : this.data.jankCause;
+      result['Janked Event Latency stage'] =
+        exists(this.causeSliceDetails) &&
+        renderSliceRef({
+          trace: this.trace,
+          id: this.causeSliceDetails.id,
+          trackUri: EVENT_LATENCY_TRACK_URI,
+          title: this.data.jankCause,
+        });
 
       if (this.hasSubcause()) {
-        result['Sub-cause of Jank'] = exists(this.subcauseSliceDetails)
-          ? getSliceForTrack(
-              this.subcauseSliceDetails,
-              CHROME_EVENT_LATENCY_TRACK_KIND,
-              this.data.jankSubcause,
-            )
-          : this.data.jankSubcause;
+        result['Sub-cause of Jank'] =
+          exists(this.subcauseSliceDetails) &&
+          renderSliceRef({
+            trace: this.trace,
+            id: this.subcauseSliceDetails.id,
+            trackUri: EVENT_LATENCY_TRACK_URI,
+            title: this.data.jankCause,
+          });
       }
 
       const children = dictToTreeNodes(result);
       if (exists(this.eventLatencySliceDetails)) {
         children.unshift(
           m(TreeNode, {
-            left: getSliceForTrack(
-              this.eventLatencySliceDetails,
-              CHROME_EVENT_LATENCY_TRACK_KIND,
-              'Input EventLatency in context of ScrollUpdates',
-            ),
+            left: renderSliceRef({
+              trace: this.trace,
+              id: this.data.eventLatencyId,
+              trackUri: EVENT_LATENCY_TRACK_URI,
+              title: this.data.jankCause,
+            }),
             right: '',
           }),
         );
@@ -303,7 +329,7 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
     return dictToTreeNodes(result);
   }
 
-  viewTab() {
+  render() {
     if (this.data === undefined) {
       return m('h2', 'Loading');
     }
@@ -313,7 +339,7 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
     return m(
       DetailsShell,
       {
-        title: this.getTitle(),
+        title: 'EventLatency',
       },
       m(
         GridLayout,
@@ -325,13 +351,5 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
         ),
       ),
     );
-  }
-
-  getTitle(): string {
-    return this.config.title;
-  }
-
-  isLoading() {
-    return !this.loaded;
   }
 }
