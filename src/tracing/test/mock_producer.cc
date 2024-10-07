@@ -192,10 +192,11 @@ void MockProducer::WaitForDataSourceStop(const std::string& name) {
 }
 
 std::unique_ptr<TraceWriter> MockProducer::CreateTraceWriter(
-    const std::string& data_source_name) {
+    const std::string& data_source_name,
+    BufferExhaustedPolicy buffer_exhausted_policy) {
   PERFETTO_DCHECK(data_source_instances_.count(data_source_name));
   BufferID buf_id = data_source_instances_[data_source_name].target_buffer;
-  return service_endpoint_->CreateTraceWriter(buf_id);
+  return service_endpoint_->CreateTraceWriter(buf_id, buffer_exhausted_policy);
 }
 
 void MockProducer::ExpectFlush(TraceWriter* writer_to_flush,

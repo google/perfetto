@@ -3227,9 +3227,9 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
 
-  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[0]);
-  // Wait for TraceWriter to be registered.
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the writer to be registered.
   task_runner.RunUntilIdle();
 
   // Write a few trace packets.
@@ -3314,9 +3314,9 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersFromAnotherThread) {
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
 
-  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[0], BufferExhaustedPolicy::kDrop);
-  // Wait for TraceWriter to be registered.
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source", BufferExhaustedPolicy::kDrop);
+  // Wait for the writer to be registered.
   task_runner.RunUntilIdle();
 
   std::atomic<bool> packets_written = false;
@@ -3449,9 +3449,9 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnDisable) {
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
 
-  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[0]);
-  // Wait for TraceWriter to be registered.
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the TraceWriter to be registered.
   task_runner.RunUntilIdle();
 
   // Write a few trace packets.

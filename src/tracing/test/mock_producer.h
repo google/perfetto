@@ -74,7 +74,9 @@ class MockProducer : public Producer {
   DataSourceInstanceID GetDataSourceInstanceId(const std::string& name);
   const EnabledDataSource* GetDataSourceInstance(const std::string& name);
   std::unique_ptr<TraceWriter> CreateTraceWriter(
-      const std::string& data_source_name);
+      const std::string& data_source_name,
+      BufferExhaustedPolicy buffer_exhausted_policy =
+          BufferExhaustedPolicy::kDefault);
 
   // Expect a flush. Flushes |writer_to_flush| if non-null. If |reply| is true,
   // replies to the flush request, otherwise ignores it and doesn't reply.
