@@ -267,10 +267,6 @@ class TracingServiceImplTest : public testing::Test {
     return svc->GetProducer(producer_id)->writers_;
   }
 
-  SharedMemoryArbiterImpl* GetShmemArbiterForProducer(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->inproc_shmem_arbiter_.get();
-  }
-
   void SetTriggerWindowNs(int64_t window_ns) {
     svc->trigger_window_ns_ = window_ns;
   }
@@ -3439,8 +3435,19 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
     consumer_ = CreateMockConsumer();
     consumer_->Connect(svc.get());
     producer_ = CreateMockProducer();
-    producer_->Connect(svc.get(), "mock_producer");
-    ProducerID producer_id = *last_producer_id();
+
+    static constexpr size_t kShmSizeBytes = 1024 * 1024;
+    static constexpr size_t kShmPageSizeBytes = 4 * 1024;
+
+    TestSharedMemory::Factory factory;
+    shm_ = factory.CreateSharedMemory(kShmSizeBytes);
+
+    // Service should adopt the SMB provided by the producer.
+    producer_->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
+                       /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                       TestRefSharedMemory::Create(shm_.get()),
+                       /*in_process=*/false);
+
     producer_->RegisterDataSource("data_source");
 
     TraceConfig trace_config;
@@ -3454,12 +3461,19 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
     producer_->WaitForDataSourceSetup("data_source");
     producer_->WaitForDataSourceStart("data_source");
 
-    writer_ = producer_->endpoint()->CreateTraceWriter(
-        tracing_session()->buffers_index[0]);
-    // Wait for TraceWriter to be registered.
-    task_runner.RunUntilIdle();
+    arbiter_ = std::make_unique<SharedMemoryArbiterImpl>(
+        shm_->start(), shm_->size(), SharedMemoryABI::ShmemMode::kDefault,
+        kShmPageSizeBytes, producer_->endpoint(), &task_runner);
+    arbiter_->SetDirectSMBPatchingSupportedByService();
 
-    arbiter_ = GetShmemArbiterForProducer(producer_id);
+    const auto* ds = producer_->GetDataSourceInstance("data_source");
+    ASSERT_NE(ds, nullptr);
+
+    target_buffer_ = ds->target_buffer;
+
+    writer_ = arbiter_->CreateTraceWriter(target_buffer_);
+    // Wait for the writer to be registered.
+    task_runner.RunUntilIdle();
   }
 
   void TearDown() override {
@@ -3474,17 +3488,23 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
   std::optional<std::vector<protos::gen::TracePacket>> FlushAndRead() {
     // Scrape: ask the service to flush but don't flush the chunk.
     auto flush_request = consumer_->Flush();
-    producer_->ExpectFlush(nullptr, /*reply=*/true);
+
+    EXPECT_CALL(*producer_, Flush)
+        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                             const DataSourceInstanceID*, size_t, FlushFlags) {
+          arbiter_->NotifyFlushComplete(flush_req_id);
+        }));
     if (flush_request.WaitForReply()) {
       return consumer_->ReadBuffers();
     }
     return std::nullopt;
   }
   std::unique_ptr<MockConsumer> consumer_;
+  std::unique_ptr<SharedMemory> shm_;
+  std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
   std::unique_ptr<MockProducer> producer_;
   std::unique_ptr<TraceWriter> writer_;
-  // Owned by `svc`.
-  SharedMemoryArbiterImpl* arbiter_;
+  BufferID target_buffer_{};
 
   struct : public protozero::ScatteredStreamWriter::Delegate {
     protozero::ContiguousMemoryRange GetNewBuffer() override {
@@ -3555,8 +3575,7 @@ TEST_F(TracingServiceImplScrapingWithSmbTest, ScrapeAfterInflatedCount) {
                   &protos::gen::TracePacket::for_testing,
                   Property(&protos::gen::TestEvent::str, Eq("payload1"))))));
 
-  arbiter_->ReturnCompletedChunk(std::move(chunk),
-                                 tracing_session()->buffers_index[0],
+  arbiter_->ReturnCompletedChunk(std::move(chunk), target_buffer_,
                                  &empty_patch_list_);
 
   packets = FlushAndRead();
@@ -3611,8 +3630,7 @@ TEST_F(TracingServiceImplScrapingWithSmbTest, ScrapeAfterCompleteChunk) {
   uint8_t zero_size = 0;
   stream_writer.WriteBytesUnsafe(&zero_size, sizeof zero_size);
 
-  arbiter_->ReturnCompletedChunk(std::move(chunk),
-                                 tracing_session()->buffers_index[0],
+  arbiter_->ReturnCompletedChunk(std::move(chunk), target_buffer_,
                                  &empty_patch_list_);
 
   packets = FlushAndRead();
