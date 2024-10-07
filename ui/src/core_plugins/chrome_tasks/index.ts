@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4} from '../../base/uuid';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
 import {asUtid} from '../../trace_processor/sql_utils/core_types';
-import {BottomTabToSCSAdapter} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {ChromeTasksDetailsTab} from './details';
+import {ChromeTasksDetailsPanel} from './details';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 import {TrackNode} from '../../public/workspace';
+import {TrackEventSelection} from '../../public/selection';
 
 class ChromeTasksPlugin implements PerfettoPlugin {
   onActivate() {}
@@ -103,30 +101,14 @@ class ChromeTasksPlugin implements PerfettoPlugin {
         uri,
         track: new ChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
         title,
+        detailsPanel: (sel: TrackEventSelection) => {
+          return new ChromeTasksDetailsPanel(ctx, sel.eventId);
+        },
       });
       const track = new TrackNode({uri, title});
       group.addChildInOrder(track);
       ctx.workspace.addChildInOrder(group);
     }
-
-    ctx.tabs.registerDetailsPanel(
-      new BottomTabToSCSAdapter({
-        tabFactory: (selection) => {
-          if (
-            selection.kind === 'GENERIC_SLICE' &&
-            selection.detailsPanelConfig.kind === ChromeTasksDetailsTab.kind
-          ) {
-            const config = selection.detailsPanelConfig.config;
-            return new ChromeTasksDetailsTab({
-              config: config as GenericSliceDetailsTabConfig,
-              trace: ctx,
-              uuid: uuidv4(),
-            });
-          }
-          return undefined;
-        },
-      }),
-    );
   }
 }
 

@@ -14,11 +14,9 @@
 
 import {Utid} from '../../trace_processor/sql_utils/core_types';
 import {
-  CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {ChromeTasksDetailsTab} from './details';
 import {Trace} from '../../public/trace';
 
 export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
@@ -35,16 +33,6 @@ export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
       columns: ['name', 'id', 'ts', 'dur'],
       sqlTableName: 'chrome_tasks',
       whereClause: `utid = ${this.utid}`,
-    };
-  }
-
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: ChromeTasksDetailsTab.kind,
-      config: {
-        sqlTableName: 'chrome_tasks',
-        title: 'Chrome Tasks',
-      },
     };
   }
 }

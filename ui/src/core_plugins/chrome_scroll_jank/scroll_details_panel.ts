@@ -15,19 +15,21 @@
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {raf} from '../../core/raf_scheduler';
-import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
   ColumnDescriptor,
-  numberColumn,
   Table,
   TableData,
   widgetColumn,
 } from '../../frontend/tables/table';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
@@ -41,12 +43,9 @@ import {
   getPredictorJankDeltas,
   getPresentedScrollDeltas,
 } from './scroll_delta_graph';
-import {
-  getScrollJankSlices,
-  getSliceForTrack,
-  ScrollJankSlice,
-} from './scroll_jank_slice';
-import {SCROLL_JANK_V3_TRACK_KIND} from '../../public/track_kinds';
+import {JANKS_TRACK_URI, renderSliceRef} from './selection_utils';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {Trace} from '../../public/trace';
 
 interface Data {
   // Scroll ID.
@@ -71,32 +70,27 @@ interface Metrics {
 
 interface JankSliceDetails {
   cause: string;
-  jankSlice: ScrollJankSlice;
-  delayDur: duration;
-  delayVsync: number;
+  id: number;
+  ts: time;
+  dur?: duration;
+  delayVsync?: number;
 }
 
-export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.ScrollDetailsPanel';
-  loaded = false;
-  data: Data | undefined;
-  metrics: Metrics = {};
-  orderedJankSlices: JankSliceDetails[] = [];
-  scrollDeltas: m.Child;
+export class ScrollDetailsPanel implements TrackEventDetailsPanel {
+  private data?: Data;
+  private metrics: Metrics = {};
+  private orderedJankSlices: JankSliceDetails[] = [];
 
-  static create(
-    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
-  ): ScrollDetailsPanel {
-    return new ScrollDetailsPanel(args);
-  }
+  // TODO(altimin): Don't store Mithril vnodes between render cycles.
+  private scrollDeltas: m.Child;
 
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-    this.loadData();
-  }
+  constructor(
+    private readonly trace: Trace,
+    private readonly id: number,
+  ) {}
 
-  private async loadData() {
-    const queryResult = await this.engine.query(`
+  async load() {
+    const queryResult = await this.trace.engine.query(`
       WITH scrolls AS (
         SELECT
           id,
@@ -107,7 +101,7 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
               THEN gesture_scroll_begin_ts + dur
             ELSE ts + dur
           END AS end_ts
-        FROM chrome_scrolls WHERE id = ${this.config.id})
+        FROM chrome_scrolls WHERE id = ${this.id})
       SELECT
         id,
         start_ts AS ts,
@@ -126,8 +120,6 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
     };
 
     await this.loadMetrics();
-    this.loaded = true;
-    raf.scheduleFullRedraw();
   }
 
   private async loadMetrics() {
@@ -139,7 +131,7 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
 
   private async loadInputEventCount() {
     if (exists(this.data)) {
-      const queryResult = await this.engine.query(`
+      const queryResult = await this.trace.engine.query(`
         SELECT
           COUNT(*) AS inputEventCount
         FROM slice s
@@ -159,7 +151,7 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
 
   private async loadFrameStats() {
     if (exists(this.data)) {
-      const queryResult = await this.engine.query(`
+      const queryResult = await this.trace.engine.query(`
         SELECT
           IFNULL(frame_count, 0) AS frameCount,
           IFNULL(missed_vsyncs, 0) AS missedVsyncs,
@@ -190,39 +182,36 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
 
   private async loadDelayData() {
     if (exists(this.data)) {
-      const queryResult = await this.engine.query(`
+      const queryResult = await this.trace.engine.query(`
         SELECT
+          id,
+          ts,
+          dur,
           IFNULL(sub_cause_of_jank, IFNULL(cause_of_jank, 'Unknown')) AS cause,
-          IFNULL(event_latency_id, 0) AS eventLatencyId,
-          IFNULL(dur, 0) AS delayDur,
-          IFNULL(delayed_frame_count, 0) AS delayVsync
+          event_latency_id AS eventLatencyId,
+          delayed_frame_count AS delayVsync
         FROM chrome_janky_frame_presentation_intervals s
         WHERE s.ts >= ${this.data.ts}
           AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
-        ORDER by delayDur DESC;
+        ORDER by dur DESC;
       `);
 
-      const iter = queryResult.iter({
+      const it = queryResult.iter({
+        id: NUM,
+        ts: LONG,
+        dur: LONG_NULL,
         cause: STR,
-        eventLatencyId: NUM,
-        delayDur: LONG,
-        delayVsync: NUM,
+        eventLatencyId: NUM_NULL,
+        delayVsync: NUM_NULL,
       });
 
-      for (; iter.valid(); iter.next()) {
-        if (iter.delayDur <= 0) {
-          break;
-        }
-        const jankSlices = await getScrollJankSlices(
-          this.engine,
-          iter.eventLatencyId,
-        );
-
+      for (; it.valid(); it.next()) {
         this.orderedJankSlices.push({
-          cause: iter.cause,
-          jankSlice: jankSlices[0],
-          delayDur: iter.delayDur,
-          delayVsync: iter.delayVsync,
+          id: it.id,
+          ts: Time.fromRaw(it.ts),
+          dur: it.dur ?? undefined,
+          cause: it.cause,
+          delayVsync: it.delayVsync ?? undefined,
         });
       }
     }
@@ -230,17 +219,20 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
 
   private async loadScrollOffsets() {
     if (exists(this.data)) {
-      const inputDeltas = await getInputScrollDeltas(this.engine, this.data.id);
+      const inputDeltas = await getInputScrollDeltas(
+        this.trace.engine,
+        this.data.id,
+      );
       const presentedDeltas = await getPresentedScrollDeltas(
-        this.engine,
+        this.trace.engine,
         this.data.id,
       );
       const predictorDeltas = await getPredictorJankDeltas(
-        this.engine,
+        this.trace.engine,
         this.data.id,
       );
       const jankIntervals = await getJankIntervals(
-        this.engine,
+        this.trace.engine,
         this.data.ts,
         this.data.dur,
       );
@@ -310,31 +302,27 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
 
   private getDelayTable(): m.Child {
     if (this.orderedJankSlices.length > 0) {
-      interface DelayData {
-        jankLink: m.Child;
-        dur: m.Child;
-        delayedVSyncs: number;
-      }
-
-      const columns: ColumnDescriptor<DelayData>[] = [
-        widgetColumn<DelayData>('Cause', (x) => x.jankLink),
-        widgetColumn<DelayData>('Duration', (x) => x.dur),
-        numberColumn<DelayData>('Delayed Vsyncs', (x) => x.delayedVSyncs),
+      const columns: ColumnDescriptor<JankSliceDetails>[] = [
+        widgetColumn<JankSliceDetails>('Cause', (jankSlice) =>
+          renderSliceRef({
+            trace: this.trace,
+            id: jankSlice.id,
+            trackUri: JANKS_TRACK_URI,
+            title: jankSlice.cause,
+          }),
+        ),
+        widgetColumn<JankSliceDetails>('Duration', (jankSlice) =>
+          jankSlice.dur !== undefined
+            ? m(DurationWidget, {dur: jankSlice.dur})
+            : 'NULL',
+        ),
+        widgetColumn<JankSliceDetails>(
+          'Delayed Vsyncs',
+          (jankSlice) => jankSlice.delayVsync,
+        ),
       ];
-      const data: DelayData[] = [];
-      for (const jankSlice of this.orderedJankSlices) {
-        data.push({
-          jankLink: getSliceForTrack(
-            jankSlice.jankSlice,
-            SCROLL_JANK_V3_TRACK_KIND,
-            jankSlice.cause,
-          ),
-          dur: m(DurationWidget, {dur: jankSlice.delayDur}),
-          delayedVSyncs: jankSlice.delayVsync,
-        });
-      }
 
-      const tableData = new TableData(data);
+      const tableData = new TableData(this.orderedJankSlices);
 
       return m(Table, {
         data: tableData,
@@ -391,8 +379,8 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
     );
   }
 
-  viewTab() {
-    if (this.isLoading() || this.data == undefined) {
+  render() {
+    if (this.data == undefined) {
       return m('h2', 'Loading');
     }
 
@@ -400,13 +388,13 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
       'Scroll ID': this.data.id,
       'Start time': m(Timestamp, {ts: this.data.ts}),
       'Duration': m(DurationWidget, {dur: this.data.dur}),
-      'SQL ID': m(SqlRef, {table: 'chrome_scrolls', id: this.config.id}),
+      'SQL ID': m(SqlRef, {table: 'chrome_scrolls', id: this.id}),
     });
 
     return m(
       DetailsShell,
       {
-        title: this.getTitle(),
+        title: 'Scroll',
       },
       m(
         GridLayout,
@@ -436,13 +424,5 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
         ),
       ),
     );
-  }
-
-  getTitle(): string {
-    return this.config.title;
-  }
-
-  isLoading() {
-    return !this.loaded;
   }
 }

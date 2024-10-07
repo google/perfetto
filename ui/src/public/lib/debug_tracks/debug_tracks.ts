@@ -19,9 +19,10 @@ import {
   sqlValueToReadableString,
 } from '../../../trace_processor/sql_utils';
 import {DebugCounterTrack} from './counter_track';
-import {ARG_PREFIX} from './details_tab';
+import {ARG_PREFIX, DebugSliceDetailsPanel} from './details_tab';
 import {TrackNode} from '../../workspace';
 import {Trace} from '../../trace';
+import {TrackEventSelection} from '../../selection';
 
 let trackCounter = 0; // For reproducible ids.
 
@@ -123,6 +124,9 @@ export async function addDebugSliceTrack(
     uri,
     title: trackName,
     track: new DebugSliceTrack(trace, {trackUri: uri}, tableName),
+    detailsPanel: (sel: TrackEventSelection) => {
+      return new DebugSliceDetailsPanel(trace, tableName, sel.eventId);
+    },
   });
 
   // Create the actions to add this track to the tracklist

@@ -21,7 +21,7 @@ import {drawIncompleteSlice, drawTrackHoverTooltip} from '../base/canvas_utils';
 import {cropText} from '../base/string_utils';
 import {colorCompare} from '../public/color';
 import {UNEXPECTED_PINK} from '../core/colorizer';
-import {LegacySelection, TrackEventDetails} from '../public/selection';
+import {TrackEventDetails} from '../public/selection';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {Track} from '../public/track';
@@ -277,10 +277,6 @@ export abstract class BaseSliceTrack<
     }
   }
 
-  protected isSelectionHandled(_selection: LegacySelection): boolean {
-    return false;
-  }
-
   private getTitleFont(): string {
     const size = this.sliceLayout.titleSizePx ?? 12;
     return `${size}px Roboto Condensed`;
@@ -397,21 +393,11 @@ export abstract class BaseSliceTrack<
       visibleWindow.end.toTime('ceil'),
     );
 
-    let selectedId: number | undefined = undefined;
     const selection = globals.selectionManager.selection;
-    switch (selection.kind) {
-      case 'track_event':
-        if (selection.trackUri === this.uri) {
-          selectedId = selection.eventId;
-        }
-        break;
-      case 'legacy':
-        const legacySelection = selection.legacySelection;
-        if (this.isSelectionHandled(legacySelection)) {
-          selectedId = (legacySelection as {id: number}).id;
-        }
-        break;
-    }
+    const selectedId =
+      selection.kind === 'track_event' && selection.trackUri === this.uri
+        ? selection.eventId
+        : undefined;
 
     if (selectedId === undefined) {
       this.selectedSlice = undefined;

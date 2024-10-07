@@ -19,6 +19,7 @@ import {
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
+import {DebugSliceDetailsPanel} from '../../public/lib/debug_tracks/details_tab';
 
 class Plugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -49,10 +50,13 @@ class Plugin implements PerfettoPlugin {
 
     const title = 'Test Track';
     const uri = `/test_track`;
+    const track = new SimpleSliceTrack(ctx, {trackUri: uri}, config);
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new SimpleSliceTrack(ctx, {trackUri: uri}, config),
+      track,
+      detailsPanel: ({eventId}) =>
+        new DebugSliceDetailsPanel(ctx, track.sqlTableName, eventId),
     });
 
     this.addNestedTracks(ctx, uri);

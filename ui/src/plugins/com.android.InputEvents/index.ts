@@ -21,6 +21,7 @@ import {
 } from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateUserInteractionGroup} from '../../public/standard_groups';
+import {DebugSliceDetailsPanel} from '../../public/lib/debug_tracks/details_tab';
 
 class InputEvents implements PerfettoPlugin {
   private readonly SQL_SOURCE = `
@@ -33,12 +34,12 @@ class InputEvents implements PerfettoPlugin {
     `;
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const cnt = await(ctx.engine.query(`
+    const cnt = await ctx.engine.query(`
       SELECT
         count(*) as cnt
       FROM slice
       WHERE name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
-    `));
+    `);
     if (cnt.firstRow({cnt: LONG}).cnt == 0n) {
       return;
     }
@@ -51,13 +52,16 @@ class InputEvents implements PerfettoPlugin {
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: [],
     };
-    await ctx.engine.query("INCLUDE PERFETTO MODULE android.input;");
+    await ctx.engine.query('INCLUDE PERFETTO MODULE android.input;');
     const uri = 'com.android.InputEvents#InputEventsTrack';
     const title = 'Input Events';
+    const track = new SimpleSliceTrack(ctx, {trackUri: uri}, config);
     ctx.tracks.registerTrack({
       uri,
       title: title,
-      track: new SimpleSliceTrack(ctx, {trackUri: uri}, config)
+      track,
+      detailsPanel: ({eventId}) =>
+        new DebugSliceDetailsPanel(ctx, track.sqlTableName, eventId),
     });
     const node = new TrackNode({uri, title});
     const group = getOrCreateUserInteractionGroup(ctx.workspace);

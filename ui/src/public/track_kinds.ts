@@ -27,12 +27,4 @@ export const COUNTER_TRACK_KIND = 'CounterTrack';
 export const CPUSS_ESTIMATE_TRACK_KIND = 'CpuSubsystemEstimateTrack';
 export const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
-export const CHROME_TOPLEVEL_SCROLLS_KIND =
-  'org.chromium.TopLevelScrolls.scrolls';
-export const CHROME_EVENT_LATENCY_TRACK_KIND =
-  'org.chromium.ScrollJank.event_latencies';
-export const SCROLL_JANK_V3_TRACK_KIND =
-  'org.chromium.ScrollJank.scroll_jank_v3_track';
-export const CHROME_SCROLL_JANK_TRACK_KIND =
-  'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
