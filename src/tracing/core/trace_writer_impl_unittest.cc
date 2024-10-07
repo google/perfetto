@@ -26,7 +26,6 @@
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/test/aligned_buffer_test.h"
