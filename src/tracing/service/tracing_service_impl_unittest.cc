@@ -220,8 +220,6 @@ class MockRandom : public tracing_service::Random {
   MOCK_METHOD(double, GetValue, (), (override));
 };
 
-}  // namespace
-
 class TracingServiceImplTest : public testing::Test {
  public:
   TracingServiceImplTest() { InitializeSvcWithOpts({}); }
@@ -289,7 +287,7 @@ class TracingServiceImplTest : public testing::Test {
   MockRandom* mock_random_;  // Owned by svc;
 
   base::TestTaskRunner task_runner;
-  std::unique_ptr<TracingServiceImpl> svc;
+  std::unique_ptr<TracingService> svc;
 };
 
 TEST_F(TracingServiceImplTest, AtMostOneConfig) {
@@ -5982,5 +5980,7 @@ TEST_F(TracingServiceImplTest, FlushTimeoutEventsEmitted) {
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
 }
+
+}  // namespace
 
 }  // namespace perfetto

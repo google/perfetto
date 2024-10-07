@@ -162,8 +162,6 @@ class TracingServiceImpl : public TracingService {
 
    private:
     friend class TracingServiceImpl;
-    friend class TracingServiceImplTest;
-    friend class TracingIntegrationTest;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
@@ -419,9 +417,6 @@ class TracingServiceImpl : public TracingService {
   ProducerEndpointImpl* GetProducer(ProducerID) const;
 
  private:
-  friend class TracingServiceImplTest;
-  friend class TracingIntegrationTest;
-
   struct TriggerHistory {
     int64_t timestamp_ns;
     uint64_t name_hash;
