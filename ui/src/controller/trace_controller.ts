@@ -22,8 +22,7 @@ import {
 } from '../common/metatracing';
 import {EngineConfig} from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
-import {globals, ThreadDesc} from '../frontend/globals';
-import {publishThreads} from '../frontend/publish';
+import {globals} from '../frontend/globals';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {Router} from '../frontend/router';
 import {Engine, EngineBase} from '../trace_processor/engine';
@@ -57,6 +56,7 @@ import {TraceImpl} from '../core/trace_impl';
 import {SerializedAppState} from '../public/state_serialization_schema';
 import {TraceSource} from '../public/trace_source';
 import {RouteArgs} from '../core/route_schema';
+import {ThreadDesc} from '../public/threads';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -332,7 +332,7 @@ async function loadTraceIntoEngine(
 
   decideTabs(trace);
 
-  await listThreads(engine);
+  await listThreads(trace);
 
   const pendingDeeplink = AppImpl.instance.getAndClearInitialRouteArgs();
   if (pendingDeeplink !== undefined) {
@@ -438,7 +438,7 @@ function decideTabs(trace: TraceImpl) {
   }
 }
 
-async function listThreads(engine: Engine) {
+async function listThreads(trace: TraceImpl) {
   updateStatus('Reading thread list');
   const query = `select
         utid,
@@ -452,8 +452,8 @@ async function listThreads(engine: Engine) {
         from (select * from thread order by upid) as thread
         left join (select * from process order by upid) as process
         using(upid)`;
-  const result = await engine.query(query);
-  const threads: ThreadDesc[] = [];
+  const result = await trace.engine.query(query);
+  const threads = new Map<number, ThreadDesc>();
   const it = result.iter({
     utid: NUM,
     tid: NUM,
@@ -469,9 +469,9 @@ async function listThreads(engine: Engine) {
     const threadName = it.threadName;
     const procName = it.procName === null ? undefined : it.procName;
     const cmdline = it.cmdline === null ? undefined : it.cmdline;
-    threads.push({utid, tid, threadName, pid, procName, cmdline});
+    threads.set(utid, {utid, tid, threadName, pid, procName, cmdline});
   }
-  publishThreads(threads);
+  trace.setThreads(threads);
 }
 
 async function initialiseHelperViews(trace: TraceImpl) {

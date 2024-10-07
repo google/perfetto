@@ -36,16 +36,6 @@ import {createFakeTraceImpl} from '../core/fake_trace_impl';
 type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
 
-export interface ThreadDesc {
-  utid: number;
-  tid: number;
-  threadName: string;
-  pid?: number;
-  procName?: string;
-  cmdline?: string;
-}
-type ThreadMap = Map<number, ThreadDesc>;
-
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -60,7 +50,6 @@ class Globals {
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
-  private _threadMap?: ThreadMap = undefined;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
@@ -111,7 +100,6 @@ class Globals {
     // initialize() is only called ever once. (But then i'm going to kill this
     // entire file soon).
     this._trackDataStore = new Map<string, {}>();
-    this._threadMap = new Map<number, ThreadDesc>();
   }
 
   get root() {
@@ -178,10 +166,6 @@ class Globals {
 
   get trackDataStore(): TrackDataStore {
     return assertExists(this._trackDataStore);
-  }
-
-  get threads() {
-    return assertExists(this._threadMap);
   }
 
   get bufferUsage() {
