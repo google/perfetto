@@ -82,7 +82,8 @@ class Alerts implements m.ClassComponent {
 // loaded (including the case of no trace at the beginning).
 export class UiMain implements m.ClassComponent {
   view({children}: m.CVnode) {
-    return [m(UiMainPerTrace, {key: globals.currentTraceId}, children)];
+    const currentTraceId = AppImpl.instance.trace?.engine.engineId ?? '';
+    return [m(UiMainPerTrace, {key: currentTraceId}, children)];
   }
 }
 

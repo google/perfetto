@@ -13,9 +13,12 @@
 // limitations under the License.
 
 import {PerfettoPlugin} from '../public/plugin';
-import {createFakeTraceImpl} from './fake_trace_impl';
-import {PluginManager} from './plugin_manager';
 import {AppImpl} from './app_impl';
+import {
+  createFakeTraceImpl,
+  initializeAppImplForTesting,
+} from './fake_trace_impl';
+import {PluginManager} from './plugin_manager';
 
 function makeMockPlugin(): PerfettoPlugin {
   return {
@@ -31,7 +34,8 @@ let manager: PluginManager;
 describe('PluginManger', () => {
   beforeEach(() => {
     mockPlugin = makeMockPlugin();
-    manager = new PluginManager(AppImpl.instance);
+    initializeAppImplForTesting();
+    manager = new PluginManager(initializeAppImplForTesting());
     manager.registerPlugin({
       pluginId: 'foo',
       plugin: mockPlugin,
@@ -46,14 +50,18 @@ describe('PluginManger', () => {
   });
 
   it('invokes onTraceLoad when trace is loaded', async () => {
+    const trace = createFakeTraceImpl();
+    AppImpl.instance.setActiveTrace(trace);
+    await manager.onTraceLoad(trace);
     await manager.activatePlugin('foo');
-    await manager.onTraceLoad(createFakeTraceImpl());
 
     expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
   });
 
   it('invokes onTraceLoad when plugin activated while trace loaded', async () => {
-    await manager.onTraceLoad(createFakeTraceImpl());
+    const trace = createFakeTraceImpl();
+    AppImpl.instance.setActiveTrace(trace);
+    await manager.onTraceLoad(trace);
     await manager.activatePlugin('foo');
 
     expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
