@@ -136,15 +136,15 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
   ASSERT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices[0].ts(), 123);
 
-  EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::Integer(72)));
-  EXPECT_TRUE(HasArg(1u, "socket_uid", Variadic::Integer(1010)));
-  EXPECT_TRUE(HasArg(1u, "local_port", Variadic::Integer(5100)));
-  EXPECT_TRUE(HasArg(1u, "remote_port", Variadic::Integer(443)));
-  EXPECT_TRUE(HasArg(1u, "packet_transport",
+  EXPECT_TRUE(HasArg(2u, "packet_length", Variadic::Integer(72)));
+  EXPECT_TRUE(HasArg(2u, "socket_uid", Variadic::Integer(1010)));
+  EXPECT_TRUE(HasArg(2u, "local_port", Variadic::Integer(5100)));
+  EXPECT_TRUE(HasArg(2u, "remote_port", Variadic::Integer(443)));
+  EXPECT_TRUE(HasArg(2u, "packet_transport",
                      Variadic::String(storage_->InternString("IPPROTO_TCP"))));
-  EXPECT_TRUE(HasArg(1u, "socket_tag",
+  EXPECT_TRUE(HasArg(2u, "socket_tag",
                      Variadic::String(storage_->InternString("0x407"))));
-  EXPECT_TRUE(HasArg(1u, "packet_tcp_flags",
+  EXPECT_TRUE(HasArg(2u, "packet_tcp_flags",
                      Variadic::String(storage_->InternString(".s..a..."))));
 }
 
@@ -176,8 +176,8 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
   EXPECT_EQ(slices[0].ts(), 123);
   EXPECT_EQ(slices[1].ts(), 133);
 
-  EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::Integer(72)));
-  EXPECT_TRUE(HasArg(2u, "packet_length", Variadic::Integer(100)));
+  EXPECT_TRUE(HasArg(2u, "packet_length", Variadic::Integer(72)));
+  EXPECT_TRUE(HasArg(3u, "packet_length", Variadic::Integer(100)));
 }
 
 TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
@@ -201,8 +201,8 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
   EXPECT_EQ(slices[0].ts(), 123);
   EXPECT_EQ(slices[0].dur(), 10);
 
-  EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::Integer(172)));
-  EXPECT_TRUE(HasArg(1u, "packet_count", Variadic::Integer(2)));
+  EXPECT_TRUE(HasArg(2u, "packet_length", Variadic::Integer(172)));
+  EXPECT_TRUE(HasArg(2u, "packet_count", Variadic::Integer(2)));
 }
 
 }  // namespace

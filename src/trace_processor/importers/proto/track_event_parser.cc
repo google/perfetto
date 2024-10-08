@@ -496,7 +496,7 @@ class TrackEventParser::EventImporter {
           id_scope = storage_->InternString(base::StringView(concat));
         }
 
-        track_id_ = context_->track_tracker->InternLegacyChromeAsyncTrack(
+        track_id_ = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
             name_id_, upid_.value_or(0), source_id, source_id_is_process_scoped,
             id_scope);
         legacy_passthrough_utid_ = utid_;
@@ -517,7 +517,7 @@ class TrackEventParser::EventImporter {
             break;
           case LegacyEvent::SCOPE_GLOBAL:
             track_id_ = context_->track_tracker->InternGlobalTrack(
-                TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
+                TrackTracker::TrackClassification::kChromeLegacyGlobalInstant);
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;
