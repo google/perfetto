@@ -11,8 +11,18 @@ Unreleased:
       CPU cycles values.
     * Introduces functions responsible for calculating CPU cycles with
       breakdown by CPU, thread, process and slice for a given interval.
+    * Added `linux.perf.samples` module for easy querying of perf samples
+      in traces.
+    * Added `stacks.cpu_profiling` module for easy querying of all CPU
+      profiling data in traces.
   Trace Processor:
-    * Renamed Trace Processor's C++ method `RegisterSqlModule()` to
+    * Added partial support for the Gecko JSON profiler format. Only parsing
+      of samples is supported; parsing of markers and any other features
+      (e.g. colours) is *not* supported.
+    * Added support for parsing non-streaming ART method tracing format.
+    * Added support for parsing GZIP files with multiple gzip streams.
+    * Added support for parsing V8 CPU profling samples from proto traces.
+u    * Renamed Trace Processor's C++ method `RegisterSqlModule()` to
      `RegisterSqlPackage()`, which better represents the module/package
       relationship. Package is the top level grouping of modules, which are
       objects being included with `INCLUDE PERFETTO MODULE`.
