@@ -15,7 +15,7 @@
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {raf} from '../core/raf_scheduler';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-import {globals, ThreadDesc} from './globals';
+import {globals} from './globals';
 
 export function publishTrackData(args: {id: string; data: {}}) {
   globals.setTrackData(args.id, args.data);
@@ -25,11 +25,6 @@ export function publishTrackData(args: {id: string; data: {}}) {
 export function publishHttpRpcState(httpRpcState: HttpRpcState) {
   globals.httpRpcState = httpRpcState;
   raf.scheduleFullRedraw();
-}
-
-export function publishHasFtrace(value: boolean): void {
-  globals.hasFtrace = value;
-  globals.publishRedraw();
 }
 
 export function publishConversionJobStatusUpdate(
@@ -46,19 +41,6 @@ export function publishBufferUsage(args: {percentage: number}) {
 
 export function publishRecordingLog(args: {logs: string}) {
   globals.setRecordingLog(args.logs);
-  globals.publishRedraw();
-}
-
-export function publishMetricError(error: string) {
-  globals.setMetricError(error);
-  globals.publishRedraw();
-}
-
-export function publishThreads(data: ThreadDesc[]) {
-  globals.threads.clear();
-  data.forEach((thread) => {
-    globals.threads.set(thread.utid, thread);
-  });
   globals.publishRedraw();
 }
 

@@ -237,7 +237,7 @@ export class CpuSliceTrack implements Track {
       const rectEnd = timescale.timeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
-      const threadInfo = globals.threads.get(utid);
+      const threadInfo = this.trace.threads.get(utid);
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
@@ -321,7 +321,7 @@ export class CpuSliceTrack implements Track {
           const tStart = Time.fromRaw(data.startQs[startIndex]);
           const tEnd = Time.fromRaw(data.endQs[startIndex]);
           const utid = data.utids[startIndex];
-          const color = colorForThread(globals.threads.get(utid));
+          const color = colorForThread(this.trace.threads.get(utid));
           const rectStart = timescale.timeToPx(tStart);
           const rectEnd = timescale.timeToPx(tEnd);
           const rectWidth = Math.max(1, rectEnd - rectStart);
@@ -385,7 +385,7 @@ export class CpuSliceTrack implements Track {
         ctx.closePath();
       }
 
-      const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
+      const hoveredThread = this.trace.threads.get(this.utidHoveredInThisTrack);
       if (hoveredThread !== undefined && this.mousePos !== undefined) {
         const tidText = `T: ${hoveredThread.threadName}
       [${hoveredThread.tid}]`;
@@ -423,7 +423,7 @@ export class CpuSliceTrack implements Track {
       }
     }
     this.utidHoveredInThisTrack = hoveredUtid;
-    const threadInfo = globals.threads.get(hoveredUtid);
+    const threadInfo = this.trace.threads.get(hoveredUtid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     globals.dispatch(

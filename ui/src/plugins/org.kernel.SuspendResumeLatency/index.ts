@@ -81,7 +81,7 @@ class SuspendResumeLatency implements PerfettoPlugin {
         kind: ASYNC_SLICE_TRACK_KIND,
       },
       track: new SuspendResumeSliceTrack({uri, trace: ctx}, maxDepth, trackIds),
-      detailsPanel: () => new SuspendResumeDetailsPanel(ctx.engine),
+      detailsPanel: () => new SuspendResumeDetailsPanel(ctx),
     });
 
     // Display the track in the UI.
