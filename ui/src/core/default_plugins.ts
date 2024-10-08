@@ -44,7 +44,6 @@ export const defaultPlugins = [
   'perfetto.AndroidLog',
   'perfetto.Annotation',
   'perfetto.AsyncSlices',
-  'perfetto.ChromeScrollJank',
   'perfetto.CoreCommands',
   'perfetto.Counter',
   'perfetto.CpuFreq',
