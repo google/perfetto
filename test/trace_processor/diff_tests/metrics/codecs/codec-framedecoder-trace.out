@@ -81,6 +81,6 @@ codec_metrics {
       running_cpu_ns: 17917404
     }
   }
-  energy_usage {
+  energy {
   }
 }
