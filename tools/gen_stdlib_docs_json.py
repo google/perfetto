@@ -30,6 +30,7 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--json-out', required=True)
   parser.add_argument('--input-list-file')
+  parser.add_argument('--minify')
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
@@ -142,8 +143,10 @@ def main():
     }
     modules[module_name].append(file_dict)
 
+  indent = None if args.minify else 4
+
   with open(args.json_out, 'w+') as f:
-    json.dump(modules, f, indent=4)
+    json.dump(modules, f, indent=indent)
 
   return 0
 
