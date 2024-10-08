@@ -16,6 +16,28 @@ Unreleased:
       link to an exact waker slice or state that the wakeup is from an
       interrupt. Older traces that are recorded without interrupt context
       information treat all wakeups as non-interrupt.
+    * Nest global/user async tracks according to their parent/child relationship
+      in the trace.
+    * Introduced new workspace API which allows nested tracks & multiple
+      workspace support.
+    * Introduced middle ellipsis in track titles when title text is longer than
+      the available space, while preserving the start and end of title text &
+      add popup of full title text on hover.
+    * Fixed spurious judder issue in popups with tall content.
+    * Fixed bug where marker durations were not rendered on selected markers.
+    * Removed ChromeScrollJank V1 track (V2 should be used from now on).
+    * Major internal changes (affecting pugin developers and core contributors):
+      * Removed legacy selection types, use track event selection types going
+        forward for all single event selections.
+      * Details panels are now attached to the track rather than registered
+        separately.
+      * Introduced `registerSqlSelectionResolver`, which allow plugins to add
+        handlers allowing other parts of the codebase to make selection on
+        tracks from other plugins based on a sql table name and id.
+      * Changed lifetime of track instances; they are now created on trace load
+        by plugins and survive the lifetime of the trace, rather than getting
+        created and destroyed as they appear/disappear on the timeline.
+      * Fix circular dependencies and turn future instances into errors.
   SDK:
     *
 
