@@ -14,3 +14,4 @@
 "is_root_in_scope","is_root_in_scope",1,"[NULL]"
 "source","source","[NULL]","descriptor"
 "trace_id","trace_id",12345,"[NULL]"
+"utid","utid",1,"[NULL]"

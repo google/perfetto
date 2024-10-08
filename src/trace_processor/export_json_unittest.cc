@@ -251,7 +251,7 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 }
 
 TEST_F(ExportJsonTest, SystemEventsIgnored) {
-  TrackId track = context_.track_tracker->CreateProcessAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyCreateProcessAsyncTrack(
       /*name=*/kNullStringId, /*upid=*/0, /*source=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
 
@@ -769,7 +769,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global legacy track.
   TrackId track = context_.track_tracker->InternGlobalTrack(
-      TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
+      TrackTracker::TrackClassification::kChromeLegacyGlobalInstant);
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
@@ -982,11 +982,11 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   StringId name3_id = context_.storage->InternString(base::StringView(kName3));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   constexpr int64_t kSourceId2 = 236;
-  TrackId track2 = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track2 = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name3_id, upid, kSourceId2, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1129,11 +1129,11 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   };
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   constexpr int64_t kSourceId2 = 236;
-  TrackId track2 = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track2 = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name3_id, upid, kSourceId2, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1252,7 +1252,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1308,7 +1308,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1353,7 +1353,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+  TrackId track = context_.track_tracker->LegacyInternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
       /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.

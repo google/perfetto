@@ -177,8 +177,9 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
         StringifyCounter(protos::pbzero::PerfEvents::SW_CPU_CLOCK));
   }
 
-  TrackId timebase_track_id = context_->track_tracker->CreatePerfCounterTrack(
-      name_id, session_id, cpu, /*is_timebase=*/true);
+  TrackId timebase_track_id =
+      context_->track_tracker->LegacyCreatePerfCounterTrack(
+          name_id, session_id, cpu, /*is_timebase=*/true);
 
   std::vector<TrackId> follower_track_ids;
   if (perf_defaults.has_value()) {
@@ -186,7 +187,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
     follower_track_ids.reserve(name_ids.size());
     for (const auto& follower_name_id : name_ids) {
       follower_track_ids.push_back(
-          context_->track_tracker->CreatePerfCounterTrack(
+          context_->track_tracker->LegacyCreatePerfCounterTrack(
               follower_name_id, session_id, cpu, /*is_timebase=*/true));
     }
   }

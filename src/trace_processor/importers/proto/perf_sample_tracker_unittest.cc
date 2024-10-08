@@ -19,6 +19,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
@@ -37,6 +38,8 @@ class PerfSampleTrackerTest : public ::testing::Test {
  public:
   PerfSampleTrackerTest() {
     context.storage.reset(new TraceStorage());
+    context.global_args_tracker.reset(
+        new GlobalArgsTracker(context.storage.get()));
     context.track_tracker.reset(new TrackTracker(&context));
     context.perf_sample_tracker.reset(new PerfSampleTracker(&context));
   }

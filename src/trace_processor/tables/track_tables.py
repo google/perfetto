@@ -38,8 +38,8 @@ TRACK_TABLE = Table(
         C("parent_id", CppOptional(CppSelfTableId())),
         C("source_arg_set_id", CppOptional(CppUint32())),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
-        C("classification", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
-        C("tags", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
+        C("classification", CppString(), flags=ColumnFlag.HIDDEN),
+        C("dimensions", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
     ],
     wrapping_sql_view=WrappingSqlView('track'),
     tabledoc=TableDoc(
@@ -78,9 +78,13 @@ TRACK_TABLE = Table(
                   Classification of this track. Responsible for grouping
                   similar tracks together.
                 ''',
-            'tags':
+            'dimensions':
                 ColumnDoc(
-                    doc='Additional details about the track.',
+                    doc='''
+                      Dimensions of the track classification, used to
+                      associate the track with certain properties (like CPU or
+                      thread id). Join with `args` table to recover the values.
+                    ''',
                     joinable='args.arg_set_id'),
         }))
 
