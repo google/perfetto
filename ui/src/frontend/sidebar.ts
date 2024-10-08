@@ -246,7 +246,7 @@ function getSections(trace?: Trace): Section[] {
           t: 'Convert to .systrace',
           a: convertTraceToSystrace,
           i: 'file_download',
-          isVisible: () => globals.hasFtrace,
+          isVisible: () => Boolean(trace?.traceInfo.hasFtrace),
           isPending: () =>
             globals.getConversionJobStatus('convert_systrace') ===
             ConversionJobStatus.InProgress,

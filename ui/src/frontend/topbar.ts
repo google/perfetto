@@ -21,12 +21,12 @@ import {Popup, PopupPosition} from '../widgets/popup';
 import {assertFalse} from '../base/logging';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {AppImpl} from '../core/app_impl';
-import {Trace, TraceAttrs} from '../public/trace';
+import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
 
-class Progress implements m.ClassComponent<TraceAttrs> {
-  view({attrs}: m.CVnode<TraceAttrs>): m.Children {
+class Progress implements m.ClassComponent<TraceImplAttrs> {
+  view({attrs}: m.CVnode<TraceImplAttrs>): m.Children {
     const engine = attrs.trace.engine;
     const isLoading =
       AppImpl.instance.isLoadingTrace ||
@@ -72,23 +72,20 @@ class HelpPanningNotification implements m.ClassComponent {
   }
 }
 
-class TraceErrorIcon implements m.ClassComponent<TraceAttrs> {
+class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
   private tracePopupErrorDismissed = false;
 
-  view({attrs}: m.CVnode<TraceAttrs>) {
+  view({attrs}: m.CVnode<TraceImplAttrs>) {
     const trace = attrs.trace;
     if (globals.embeddedMode) return;
 
     const mode = AppImpl.instance.omnibox.mode;
-    const errors = trace.traceInfo.importErrors;
-    if (
-      (!Boolean(errors) && !globals.metricError) ||
-      mode === OmniboxMode.Command
-    ) {
+    const totErrors = trace.traceInfo.importErrors + trace.loadingErrors.length;
+    if (totErrors === 0 || mode === OmniboxMode.Command) {
       return;
     }
-    const message = Boolean(errors)
-      ? `${errors} import or data loss errors detected.`
+    const message = Boolean(totErrors)
+      ? `${totErrors} import or data loss errors detected.`
       : `Metric error detected.`;
     return m(
       '.error-box',
@@ -122,7 +119,7 @@ class TraceErrorIcon implements m.ClassComponent<TraceAttrs> {
 
 export interface TopbarAttrs {
   omnibox: m.Children;
-  trace?: Trace;
+  trace?: TraceImpl;
 }
 
 export class Topbar implements m.ClassComponent<TopbarAttrs> {

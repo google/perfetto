@@ -28,6 +28,7 @@ import {Engine} from '../../trace_processor/engine';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackEventSelection} from '../../public/selection';
+import {Trace} from '../../public/trace';
 
 interface SuspendResumeEventDetails {
   ts: time;
@@ -41,16 +42,16 @@ interface SuspendResumeEventDetails {
 }
 
 export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
-  private readonly engine: Engine;
+  private readonly trace: Trace;
   private suspendResumeEventDetails?: SuspendResumeEventDetails;
 
-  constructor(engine: Engine) {
-    this.engine = engine;
+  constructor(trace: Trace) {
+    this.trace = trace;
   }
 
   async load({eventId}: TrackEventSelection) {
     this.suspendResumeEventDetails = await loadSuspendResumeEventDetails(
-      this.engine,
+      this.trace.engine,
       eventId,
     );
   }
@@ -58,7 +59,7 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
   render() {
     const eventDetails = this.suspendResumeEventDetails;
     if (eventDetails) {
-      const threadInfo = globals.threads.get(eventDetails.utid);
+      const threadInfo = this.trace.threads.get(eventDetails.utid);
       if (!threadInfo) {
         return null;
       }
@@ -127,7 +128,7 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
   }
 
   goToThread(utid: number, ts: time, threadStateId: number) {
-    const threadInfo = globals.threads.get(utid);
+    const threadInfo = this.trace.threads.get(utid);
     if (threadInfo === undefined) {
       return;
     }
