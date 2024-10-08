@@ -56,21 +56,6 @@ enum class SortingMode {
   // heuristics trace processor would normally use to ingest partially sorted
   // data to be skipped.
   kForceFullSort = 1,
-
-  // This option is deprecated in v18; trace processor will ignore it and
-  // use |kDefaultHeuristics|.
-  //
-  // Rationale for deprecation:
-  // The new windowed sorting logic in trace processor uses a combination of
-  // flush and buffer-read lifecycle events inside the trace instead of
-  // using time-periods from the config.
-  //
-  // Recommended migration:
-  // Users of this option should switch to using |kDefaultHeuristics| which
-  // will act very similarly to the pre-v20 behaviour of this option.
-  //
-  // This option is scheduled to be removed in v21.
-  kForceFlushPeriodWindowedSort = 2
 };
 
 // Enum which encodes which event (if any) should be used to drop ftrace data
