@@ -36,6 +36,6 @@ perfetto_proto_library("custom_options_@TYPE@") {
 perfetto_proto_library("descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "metrics.descriptor"
-  deps = [ ":source_set" ]
+  link_deps = [ ":source_set" ]
   sources = [ "metrics.proto" ]
 }

@@ -5089,6 +5089,7 @@ perfetto_proto_descriptor(
     name = "protos_perfetto_trace_android_android_track_event_descriptor",
     deps = [
         ":protos_perfetto_trace_android_android_track_event_protos",
+        ":protos_perfetto_trace_track_event_protos",
     ],
     outs = [
         "protos_perfetto_trace_android_android_track_event_descriptor.bin",
