@@ -50,5 +50,10 @@ perfetto_proto_library("@TYPE@") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "track_event.descriptor"
   sources = [ "track_event.proto" ]
-  deps = [ ":source_set" ]
+
+  # TODO(lalitm): remove this target when we found better way to propagate
+  # indirect input deps.
+  deps = [ ":zero" ]
+
+  link_deps = [ ":source_set" ]
 }
