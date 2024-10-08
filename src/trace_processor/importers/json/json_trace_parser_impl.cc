@@ -205,14 +205,14 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
         const std::string& real_id = id.empty() ? global : id;
         int64_t cookie = static_cast<int64_t>(
             base::Hasher::Combine(cat_id.raw_id(), real_id));
-        track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
+        track_id = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
             name_id, upid, cookie, false /* source_id_is_process_scoped */,
             kNullStringId /* source_scope */);
       } else {
         PERFETTO_DCHECK(!local.empty());
         int64_t cookie =
             static_cast<int64_t>(base::Hasher::Combine(cat_id.raw_id(), local));
-        track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
+        track_id = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
             name_id, upid, cookie, true /* source_id_is_process_scoped */,
             kNullStringId /* source_scope */);
       }
@@ -290,7 +290,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       TrackId track_id;
       if (scope == "g") {
         track_id = context_->track_tracker->InternGlobalTrack(
-            TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
+            TrackTracker::TrackClassification::kChromeLegacyGlobalInstant);
       } else if (scope == "p") {
         if (!opt_pid) {
           context_->storage->IncrementStats(stats::json_parser_failure);

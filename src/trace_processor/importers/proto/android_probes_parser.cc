@@ -202,8 +202,9 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
   auto consumer_type = energy_consumer_specs->type;
   auto ordinal = energy_consumer_specs->ordinal;
 
-  TrackId energy_track = context_->track_tracker->InternEnergyCounterTrack(
-      consumer_name, consumer_id, consumer_type, ordinal);
+  TrackId energy_track =
+      context_->track_tracker->LegacyInternLegacyEnergyCounterTrack(
+          consumer_name, consumer_id, consumer_type, ordinal);
   context_->event_tracker->PushCounter(ts, total_energy, energy_track);
 
   // Consumers providing per-uid energy breakdown
@@ -218,7 +219,7 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
     }
 
     TrackId energy_uid_track =
-        context_->track_tracker->InternEnergyPerUidCounterTrack(
+        context_->track_tracker->LegacyInternLegacyEnergyPerUidCounterTrack(
             consumer_name, consumer_id, breakdown.uid());
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(breakdown.energy_uws()), energy_uid_track);
