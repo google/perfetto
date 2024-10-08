@@ -118,6 +118,21 @@ class Flags {
 
     this.store.save(this.overrides);
   }
+
+  /**
+   * Modify an override at runtime and save it back to local storage.
+   *
+   * This method operates on the raw JSON in local storage and doesn't require
+   * the presence of a flag to work. Thus, it may be called at any point in the
+   * lifecycle of the flags object.
+   *
+   * @param key - The key of the flag to modify.
+   * @param state - The desired state of the flag override.
+   */
+  patchOverride(key: string, state: OverrideState): void {
+    this.overrides[key] = state;
+    this.save();
+  }
 }
 
 export interface Flag {
