@@ -557,6 +557,7 @@ def gen_proto_label(target: GnParser.Target):
   if target.proto_plugin == 'descriptor':
     plugin_label.outs = [plugin_label_name + '.bin']
 
+  plugin_label.deps = sorted(set(plugin_label.deps))
   return plugin_label
 
 

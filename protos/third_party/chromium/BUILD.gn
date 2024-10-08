@@ -11,7 +11,7 @@ perfetto_proto_library("@TYPE@") {
   proto_generators = [ "descriptor" ]
   sources = chrome_track_event_sources
   generate_descriptor = "chrome_track_event.descriptor"
-  deps = [ ":source_set" ]
+  link_deps = [ ":source_set" ]
 
   # When rolled into Chrome, extension descriptor is going to be linked into
   # binary, therefore increasing its size. Including imports means that the
