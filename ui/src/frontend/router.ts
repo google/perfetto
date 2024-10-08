@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {PageAttrs} from './pages';
-import {RouteArgs, ROUTE_SCHEMA} from '../core/route_schema';
+import {RouteArgs, ROUTE_SCHEMA} from '../public/route_schema';
 
 export const ROUTE_PREFIX = '#!';
 const DEFAULT_ROUTE = '/';

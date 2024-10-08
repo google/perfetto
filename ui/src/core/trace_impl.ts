@@ -40,6 +40,7 @@ import {FlowManager} from './flow_manager';
 import {AppContext, AppImpl, CORE_PLUGIN_ID} from './app_impl';
 import {PluginManager} from './plugin_manager';
 import {ThreadDesc, ThreadMap} from '../public/threads';
+import {RouteArgs} from '../public/route_schema';
 
 /**
  * Handles the per-trace state of the UI
@@ -346,6 +347,10 @@ export class TraceImpl implements Trace {
 
   get plugins(): PluginManager {
     return this.appImpl.plugins;
+  }
+
+  get initialRouteArgs(): RouteArgs {
+    return this.appImpl.initialRouteArgs;
   }
 
   scheduleRedraw(): void {

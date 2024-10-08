@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {RouteArgs} from './route_schema';
 import {CommandManager} from './command';
 import {OmniboxManager} from './omnibox';
 import {SidebarManager} from './sidebar';
@@ -29,6 +30,12 @@ export interface App {
   readonly commands: CommandManager;
   readonly sidebar: SidebarManager;
   readonly omnibox: OmniboxManager;
+
+  /**
+   * The parsed querystring passed when starting the app, before any navigation
+   * happens.
+   */
+  readonly initialRouteArgs: RouteArgs;
 
   // TODO(primiano): this should be needed in extremely rare cases. We should
   // probably switch to mithril auto-redraw at some point.

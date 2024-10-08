@@ -21,8 +21,7 @@ import {raf} from './raf_scheduler';
 import {SidebarManagerImpl} from './sidebar_manager';
 import {PluginManager} from './plugin_manager';
 import {NewEngineMode} from '../trace_processor/engine';
-import {RouteArgs} from './route_schema';
-import {Optional} from '../base/utils';
+import {RouteArgs} from '../public/route_schema';
 import {SqlPackage} from '../public/extra_sql_packages';
 
 // The pseudo plugin id used for the core instance of AppImpl.
@@ -54,7 +53,7 @@ export class AppContext {
   readonly sidebarMgr = new SidebarManagerImpl();
   readonly pluginMgr: PluginManager;
   newEngineMode: NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE';
-  initialRouteArgs?: RouteArgs = undefined;
+  initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
   readonly initArgs: AppInitArgs;
 
@@ -157,10 +156,8 @@ export class AppImpl implements App {
     this.appCtx.newEngineMode = mode;
   }
 
-  getAndClearInitialRouteArgs(): Optional<RouteArgs> {
-    const args = this.appCtx.initialRouteArgs;
-    this.appCtx.initialRouteArgs = undefined;
-    return args;
+  get initialRouteArgs(): RouteArgs {
+    return this.appCtx.initialRouteArgs;
   }
 
   closeCurrentTrace() {
