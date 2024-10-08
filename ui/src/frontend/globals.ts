@@ -63,11 +63,9 @@ class Globals {
   private _threadMap?: ThreadMap = undefined;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
-  private _metricError?: string = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
-  private _hasFtrace: boolean = false;
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
   permalinkHash?: string;
@@ -186,28 +184,12 @@ class Globals {
     return assertExists(this._threadMap);
   }
 
-  get metricError() {
-    return this._metricError;
-  }
-
-  setMetricError(arg: string) {
-    this._metricError = arg;
-  }
-
   get bufferUsage() {
     return this._bufferUsage;
   }
 
   get recordingLog() {
     return this._recordingLog;
-  }
-
-  set hasFtrace(value: boolean) {
-    this._hasFtrace = value;
-  }
-
-  get hasFtrace(): boolean {
-    return this._hasFtrace;
   }
 
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {

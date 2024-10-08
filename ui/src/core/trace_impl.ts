@@ -66,6 +66,11 @@ class TraceContext implements Disposable {
   readonly pivotTableMgr;
   readonly trash = new DisposableStack();
 
+  // List of errors that were encountered while loading the trace by the TS
+  // code. These are on top of traceInfo.importErrors, which is a summary of
+  // what TraceProcessor reports on the stats table at import time.
+  readonly loadingErrors: string[] = [];
+
   constructor(gctx: AppContext, engine: EngineBase, traceInfo: TraceInfo) {
     this.appCtx = gctx;
     this.engine = engine;
@@ -302,6 +307,14 @@ export class TraceImpl implements Trace {
     return this.traceCtx.flowMgr;
   }
 
+  get loadingErrors(): ReadonlyArray<string> {
+    return this.traceCtx.loadingErrors;
+  }
+
+  addLoadingError(err: string) {
+    this.traceCtx.loadingErrors.push(err);
+  }
+
   // App interface implementation.
 
   get pluginId(): string {
@@ -333,6 +346,11 @@ export class TraceImpl implements Trace {
       this.traceCtx[Symbol.dispose]();
     }
   }
+}
+
+// A convenience interface to inject the App in Mithril components.
+export interface TraceImplAttrs {
+  trace: TraceImpl;
 }
 
 // Allows to take an existing class instance (`target`) and override some of its

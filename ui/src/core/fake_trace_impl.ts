@@ -61,6 +61,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     gpuCount: 0,
     importErrors: 0,
     traceType: 'proto',
+    hasFtrace: false,
     uuid: '',
     cached: false,
   };

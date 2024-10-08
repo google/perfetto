@@ -27,11 +27,6 @@ export function publishHttpRpcState(httpRpcState: HttpRpcState) {
   raf.scheduleFullRedraw();
 }
 
-export function publishHasFtrace(value: boolean): void {
-  globals.hasFtrace = value;
-  globals.publishRedraw();
-}
-
 export function publishConversionJobStatusUpdate(
   job: ConversionJobStatusUpdate,
 ) {
@@ -46,11 +41,6 @@ export function publishBufferUsage(args: {percentage: number}) {
 
 export function publishRecordingLog(args: {logs: string}) {
   globals.setRecordingLog(args.logs);
-  globals.publishRedraw();
-}
-
-export function publishMetricError(error: string) {
-  globals.setMetricError(error);
   globals.publishRedraw();
 }
 

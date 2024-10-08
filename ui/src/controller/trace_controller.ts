@@ -23,11 +23,7 @@ import {
 import {EngineConfig} from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
 import {globals, ThreadDesc} from '../frontend/globals';
-import {
-  publishHasFtrace,
-  publishMetricError,
-  publishThreads,
-} from '../frontend/publish';
+import {publishThreads} from '../frontend/publish';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {Router} from '../frontend/router';
 import {Engine, EngineBase} from '../trace_processor/engine';
@@ -318,7 +314,7 @@ async function loadTraceIntoEngine(
   Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
-  await initialiseHelperViews(engine);
+  await initialiseHelperViews(trace);
   await includeSummaryTables(engine);
 
   await defineMaxLayoutDepthSqlFunction(engine);
@@ -337,18 +333,6 @@ async function loadTraceIntoEngine(
   decideTabs(trace);
 
   await listThreads(engine);
-
-  {
-    // Check if we have any ftrace events at all
-    const query = `
-        select
-          *
-        from ftrace_event
-        limit 1`;
-
-    const res = await engine.query(query);
-    publishHasFtrace(res.numRows() > 0);
-  }
 
   const pendingDeeplink = AppImpl.instance.getAndClearInitialRouteArgs();
   if (pendingDeeplink !== undefined) {
@@ -490,7 +474,8 @@ async function listThreads(engine: Engine) {
   publishThreads(threads);
 }
 
-async function initialiseHelperViews(engine: Engine) {
+async function initialiseHelperViews(trace: TraceImpl) {
+  const engine = trace.engine;
   updateStatus('Creating annotation counter track table');
   // Create the helper tables for all the annotations related data.
   // NULL in min/max means "figure it out per track in the usual way".
@@ -553,13 +538,14 @@ async function initialiseHelperViews(engine: Engine) {
     }
 
     updateStatus(`Computing ${metric} metric`);
+
     try {
       // We don't care about the actual result of metric here as we are just
       // interested in the annotation tracks.
       await engine.computeMetric([metric], 'proto');
     } catch (e) {
       if (e instanceof QueryError) {
-        publishMetricError('MetricError: ' + e.message);
+        trace.addLoadingError('MetricError: ' + e.message);
         continue;
       } else {
         throw e;
@@ -655,7 +641,7 @@ async function initialiseHelperViews(engine: Engine) {
       }
     } catch (e) {
       if (e instanceof QueryError) {
-        publishMetricError('MetricError: ' + e.message);
+        trace.addLoadingError('MetricError: ' + e.message);
       } else {
         throw e;
       }
@@ -860,6 +846,9 @@ async function getTraceInfo(
     )
   ).firstRow({str_value: STR}).str_value;
 
+  const hasFtrace =
+    (await engine.query(`select * from ftrace_event limit 1`)).numRows() > 0;
+
   const uuidRes = await engine.query(`select str_value as uuid from metadata
     where name = 'trace_uuid'`);
   // trace_uuid can be missing from the TP tables if the trace is empty or in
@@ -879,6 +868,7 @@ async function getTraceInfo(
     importErrors: await getTraceErrors(engine),
     source: traceSource,
     traceType,
+    hasFtrace,
     uuid,
     cached,
   };
