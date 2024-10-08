@@ -23,7 +23,6 @@ import {
 import {EngineConfig} from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
 import {globals} from '../frontend/globals';
-import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {Router} from '../frontend/router';
 import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
@@ -55,7 +54,6 @@ import {raf} from '../core/raf_scheduler';
 import {TraceImpl} from '../core/trace_impl';
 import {SerializedAppState} from '../public/state_serialization_schema';
 import {TraceSource} from '../public/trace_source';
-import {RouteArgs} from '../core/route_schema';
 import {ThreadDesc} from '../public/threads';
 
 type States = 'init' | 'loading_trace' | 'ready';
@@ -334,27 +332,6 @@ async function loadTraceIntoEngine(
 
   await listThreads(trace);
 
-  const pendingDeeplink = AppImpl.instance.getAndClearInitialRouteArgs();
-  if (pendingDeeplink !== undefined) {
-    await selectInitialRouteArgs(trace, pendingDeeplink);
-    if (
-      pendingDeeplink.visStart !== undefined &&
-      pendingDeeplink.visEnd !== undefined
-    ) {
-      zoomPendingDeeplink(
-        trace,
-        pendingDeeplink.visStart,
-        pendingDeeplink.visEnd,
-      );
-    }
-    if (pendingDeeplink.query !== undefined) {
-      addQueryResultsTab(trace, {
-        query: pendingDeeplink.query,
-        title: 'Deeplink Query',
-      });
-    }
-  }
-
   // Trace Processor doesn't support the reliable range feature for JSON
   // traces.
   if (
@@ -382,53 +359,6 @@ async function loadTraceIntoEngine(
   await trace.plugins.onTraceReady();
 
   return trace;
-}
-
-async function selectInitialRouteArgs(trace: TraceImpl, args: RouteArgs) {
-  const conditions = [];
-  const {ts, dur} = args;
-
-  if (ts !== undefined) {
-    conditions.push(`ts = ${ts}`);
-  }
-  if (dur !== undefined) {
-    conditions.push(`dur = ${dur}`);
-  }
-
-  if (conditions.length === 0) {
-    return;
-  }
-
-  const query = `
-      select
-        id,
-        track_id as traceProcessorTrackId,
-        type
-      from slice
-      where ${conditions.join(' and ')}
-    ;`;
-
-  const result = await trace.engine.query(query);
-  if (result.numRows() > 0) {
-    const row = result.firstRow({
-      id: NUM,
-      traceProcessorTrackId: NUM,
-      type: STR,
-    });
-
-    const id = row.traceProcessorTrackId;
-    const track = trace.workspace.flatTracks.find(
-      (t) =>
-        t.uri && trace.tracks.getTrack(t.uri)?.tags?.trackIds?.includes(id),
-    );
-    if (track === undefined) {
-      return;
-    }
-    trace.selection.selectSqlEvent('slice', row.id, {
-      scrollToSelection: true,
-      switchToCurrentSelectionTab: false,
-    });
-  }
 }
 
 function decideTabs(trace: TraceImpl) {
@@ -669,27 +599,6 @@ async function includeSummaryTables(engine: Engine) {
 function updateStatus(msg: string): void {
   const showUntilDismissed = 0;
   AppImpl.instance.omnibox.showStatusMessage(msg, showUntilDismissed);
-}
-
-function zoomPendingDeeplink(
-  trace: TraceImpl,
-  visStart: string,
-  visEnd: string,
-) {
-  const visualStart = Time.fromRaw(BigInt(visStart));
-  const visualEnd = Time.fromRaw(BigInt(visEnd));
-
-  if (
-    !(
-      visualStart < visualEnd &&
-      trace.traceInfo.start <= visualStart &&
-      visualEnd <= trace.traceInfo.end
-    )
-  ) {
-    return;
-  }
-
-  trace.timeline.updateVisibleTime(new TimeSpan(visualStart, visualEnd));
 }
 
 async function computeFtraceBounds(engine: Engine): Promise<TimeSpan | null> {
