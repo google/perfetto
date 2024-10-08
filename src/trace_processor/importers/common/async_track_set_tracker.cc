@@ -184,7 +184,7 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
     case TrackSetScope::kGlobal:
       // TODO(lalitm): propogate source from callers rather than just passing
       // kNullStringId here.
-      return context_->track_tracker->CreateGlobalAsyncTrack(
+      return context_->track_tracker->LegacyCreateGlobalAsyncTrack(
           set.global_track_name, kNullStringId);
     case TrackSetScope::kProcess:
       // TODO(lalitm): propogate source from callers rather than just passing
@@ -193,7 +193,7 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
           set.nesting_behaviour == NestingBehaviour::kLegacySaturatingUnnestable
               ? android_source_
               : kNullStringId;
-      return context_->track_tracker->CreateProcessAsyncTrack(
+      return context_->track_tracker->LegacyCreateProcessAsyncTrack(
           set.process_tuple.name, set.process_tuple.upid, source);
   }
   PERFETTO_FATAL("For GCC");
