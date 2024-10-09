@@ -95,3 +95,11 @@
     height: 10px;
   }
 }
+
+.pf-track-crash-popup {
+  font-family: $pf-font;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 6px;
+}
