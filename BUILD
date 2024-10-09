@@ -248,6 +248,9 @@ perfetto_cc_library(
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
         ":src_trace_processor_importers_perf_record",
+        ":src_trace_processor_importers_perf_text_perf_text",
+        ":src_trace_processor_importers_perf_text_perf_text_event",
+        ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_perf_tracker",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
@@ -1890,6 +1893,34 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/perf/dso_tracker.cc",
         "src/trace_processor/importers/perf/dso_tracker.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/perf_text:perf_text
+perfetto_filegroup(
+    name = "src_trace_processor_importers_perf_text_perf_text",
+    srcs = [
+        "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.cc",
+        "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.h",
+        "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.cc",
+        "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/perf_text:perf_text_event
+perfetto_filegroup(
+    name = "src_trace_processor_importers_perf_text_perf_text_event",
+    srcs = [
+        "src/trace_processor/importers/perf_text/perf_text_event.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/perf_text:perf_text_sample_line_parser
+perfetto_filegroup(
+    name = "src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
+    srcs = [
+        "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.cc",
+        "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h",
     ],
 )
 
@@ -6404,6 +6435,9 @@ perfetto_cc_library(
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
         ":src_trace_processor_importers_perf_record",
+        ":src_trace_processor_importers_perf_text_perf_text",
+        ":src_trace_processor_importers_perf_text_perf_text_event",
+        ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_perf_tracker",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
@@ -6605,6 +6639,9 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
         ":src_trace_processor_importers_perf_record",
+        ":src_trace_processor_importers_perf_text_perf_text",
+        ":src_trace_processor_importers_perf_text_perf_text_event",
+        ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_perf_tracker",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
@@ -6863,6 +6900,9 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
         ":src_trace_processor_importers_perf_record",
+        ":src_trace_processor_importers_perf_text_perf_text",
+        ":src_trace_processor_importers_perf_text_perf_text_event",
+        ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_perf_tracker",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",

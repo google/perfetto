@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstring>
 #include <optional>
+#include <string_view>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
@@ -77,10 +78,48 @@ class TraceBlobViewReader {
     }
 
     // Tries to find a byte equal to |chr| in the iterator and, if found,
+    // advance to it. Returns a TraceBlobView containing the data if the byte
+    // was found and could be advanced to and std::nulloptr if no such byte was
+    // found before the end of the iterator. If false is returned, the state of
+    // the iterator is not changed.
+    std::optional<TraceBlobView> MaybeFindAndAdvance(uint8_t chr) {
+      size_t begin = file_offset();
+      if (!MaybeFindAndAdvanceInner(chr)) {
+        return std::nullopt;
+      }
+      std::optional<TraceBlobView> tbv =
+          reader_->SliceOff(begin, file_offset() - begin);
+      PERFETTO_CHECK(tbv);
+      PERFETTO_CHECK(MaybeAdvance(1));
+      return tbv;
+    }
+
+    uint8_t operator*() const {
+      PERFETTO_DCHECK(file_offset_ < iter_->end_offset());
+      return iter_->data.data()[file_offset_ - iter_->start_offset];
+    }
+
+    explicit operator bool() const { return file_offset_ != end_offset_; }
+
+    size_t file_offset() const { return file_offset_; }
+
+   private:
+    friend TraceBlobViewReader;
+
+    Iterator(const TraceBlobViewReader* reader,
+             base::CircularQueue<Entry>::Iterator iter,
+             size_t file_offset,
+             size_t end_offset)
+        : reader_(reader),
+          iter_(iter),
+          file_offset_(file_offset),
+          end_offset_(end_offset) {}
+
+    // Tries to find a byte equal to |chr| in the iterator and, if found,
     // advance to it. Returns true if the byte was found and could be advanced
     // to and false if no such byte was found before the end of the iterator. If
     // false is returned, the state of the iterator is not changed.
-    bool MaybeFindAndAdvance(uint8_t chr) {
+    bool MaybeFindAndAdvanceInner(uint8_t chr) {
       size_t off = file_offset_;
       while (off < end_offset_) {
         size_t iter_off = off - iter_->start_offset;
@@ -98,29 +137,14 @@ class TraceBlobViewReader {
       return false;
     }
 
-    uint8_t operator*() const {
-      PERFETTO_DCHECK(file_offset_ < iter_->end_offset());
-      return iter_->data.data()[file_offset_ - iter_->start_offset];
-    }
-
-    explicit operator bool() const { return file_offset_ != end_offset_; }
-
-    size_t file_offset() const { return file_offset_; }
-
-   private:
-    friend TraceBlobViewReader;
-    Iterator(base::CircularQueue<Entry>::Iterator iter,
-             size_t file_offset,
-             size_t end_offset)
-        : iter_(iter), file_offset_(file_offset), end_offset_(end_offset) {}
-
+    const TraceBlobViewReader* reader_;
     base::CircularQueue<Entry>::Iterator iter_;
     size_t file_offset_;
     size_t end_offset_;
   };
 
   Iterator GetIterator() const {
-    return {data_.begin(), start_offset(), end_offset()};
+    return {this, data_.begin(), start_offset(), end_offset()};
   }
 
   // Adds a `TraceBlobView` at the back.
@@ -130,12 +154,18 @@ class TraceBlobViewReader {
   // given offset is reached. If not enough data is present as much data as
   // possible will be dropped and `false` will be returned.
   //
-  // NOTE: If `offset` < 'file_offset()' this method will CHECK fail.
+  // Note:
+  //  * if `offset` < 'file_offset()' this method will CHECK fail.
+  //  * calling this function invalidates all iterators created from this
+  //  reader.
   bool PopFrontUntil(size_t offset);
 
   // Shrinks the buffer by dropping `bytes` from the front of the buffer. If not
   // enough data is present as much data as possible will be dropped and `false`
   // will be returned.
+  //
+  // Note: calling this function invalidates all iterators created from this
+  // reader.
   bool PopFrontBytes(size_t bytes) {
     return PopFrontUntil(start_offset() + bytes);
   }

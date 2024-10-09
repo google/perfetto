@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -260,6 +261,13 @@ class TraceSorter {
                          id);
   }
 
+  inline void PushPerfTextEvent(
+      int64_t timestamp,
+      const perf_text_importer::PerfTextEvent& event) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(event);
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kPerfTextEvent, id);
+  }
+
   inline void PushInlineFtraceEvent(
       uint32_t cpu,
       int64_t timestamp,
@@ -342,7 +350,8 @@ class TraceSorter {
       kTrackEvent,
       kGeckoEvent,
       kArtMethodEvent,
-      kMax = kGeckoEvent,
+      kPerfTextEvent,
+      kMax = kPerfTextEvent,
     };
 
     // Number of bits required to store the max element in |Type|.

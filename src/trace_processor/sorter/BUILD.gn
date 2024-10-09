@@ -37,6 +37,7 @@ source_set("sorter") {
     "../importers/gecko:gecko_event",
     "../importers/instruments:row",
     "../importers/perf:record",
+    "../importers/perf_text:perf_text_event",
     "../importers/proto:packet_sequence_state_generation_hdr",
     "../importers/systrace:systrace_line",
     "../storage",
