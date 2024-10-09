@@ -32,6 +32,7 @@ import {globals} from './globals';
 import {Panel} from './panel_container';
 import {TrackWidget} from '../widgets/track_widget';
 import {raf} from '../core/raf_scheduler';
+import {Intent} from '../widgets/common';
 
 const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   id: 'showTrackDetailsButton',
@@ -86,6 +87,8 @@ export class TrackPanel implements Panel {
       reorderable = false,
     } = this.attrs;
 
+    const error = trackRenderer?.getError();
+
     const buttons = [
       SHOW_TRACK_DETAILS_BUTTON.get() &&
         renderTrackDetailsButton(node, trackRenderer?.desc),
@@ -93,6 +96,7 @@ export class TrackPanel implements Panel {
       // Can't pin groups.. yet!
       !node.hasChildren && renderPinButton(node),
       renderAreaSelectionCheckbox(node),
+      error && renderCrashButton(error, trackRenderer?.desc.pluginId),
     ];
 
     let scrollIntoView = false;
@@ -106,7 +110,7 @@ export class TrackPanel implements Panel {
       title: node.title,
       path: node.fullPath.join('/'),
       heightPx: this.heightPx,
-      error: trackRenderer?.getError(),
+      error: Boolean(trackRenderer?.getError()),
       chips: trackRenderer?.desc.chips,
       indentationLevel,
       topOffsetPx,
@@ -208,6 +212,34 @@ export class TrackPanel implements Panel {
     }
     return this.attrs.trackRenderer.track.getSliceVerticalBounds?.(depth);
   }
+}
+
+function renderCrashButton(error: Error, pluginId?: string) {
+  return m(
+    Popup,
+    {
+      trigger: m(Button, {
+        icon: Icons.Crashed,
+        compact: true,
+      }),
+    },
+    m(
+      '.pf-track-crash-popup',
+      m('span', 'This track has crashed.'),
+      pluginId && m('span', `Owning plugin: ${pluginId}`),
+      m(Button, {
+        label: 'View & Report Crash',
+        intent: Intent.Primary,
+        className: Popup.DISMISS_POPUP_GROUP_CLASS,
+        onclick: () => {
+          throw error;
+        },
+      }),
+      // TODO(stevegolton): In the future we should provide a quick way to
+      // disable the plugin, or provide a link to the plugin page, but this
+      // relies on the plugin page being fully functional.
+    ),
+  );
 }
 
 function getTimescaleForBounds(bounds: Bounds2D) {
