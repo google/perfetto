@@ -125,7 +125,7 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   // a NAN must return false.
   double d_exp = exp;
   double d_arg = arg;
-  if (isnan(d_exp) || isnan(d_arg))
+  if (std::isnan(d_exp) || std::isnan(d_arg))
     return false;
   return fabs(d_arg - d_exp) < 1e-128;
 }
