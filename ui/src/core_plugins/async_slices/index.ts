@@ -26,6 +26,7 @@ import {
 } from '../../public/standard_groups';
 import {exists} from '../../base/utils';
 import {ThreadSliceDetailsPanel} from '../../frontend/thread_slice_details_tab';
+import {assertExists, assertTrue} from '../../base/logging';
 
 class AsyncSlicePlugin implements PerfettoPlugin {
   private readonly trackIdsToUris = new Map<number, string>();
@@ -77,6 +78,8 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     // by a mechanism for more specific plugins to override tracks from more generic plugins.
     const suspendResumeLatencyTrackName = 'Suspend/Resume Latency';
     const rawGlobalAsyncTracks = await engine.query(`
+      include perfetto module graphs.search;
+
       with global_tracks_grouped as (
         select
           parent_id,
@@ -85,9 +88,29 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           count() as trackCount
         from track t
         join _slice_track_summary using (id)
-        where t.type in ('__intrinsic_track', 'gpu_track', '__intrinsic_cpu_track')
-              and (name != '${suspendResumeLatencyTrackName}' or name is null)
+        where
+          t.type in ('__intrinsic_track', 'gpu_track', '__intrinsic_cpu_track')
+          and (name != '${suspendResumeLatencyTrackName}' or name is null)
         group by parent_id, name
+      ),
+      intermediate_groups as (
+        select
+          t.name,
+          t.id,
+          t.parent_id
+        from graph_reachable_dfs!(
+          (
+            select id as source_node_id, parent_id as dest_node_id
+            from track
+            where parent_id is not null
+          ),
+          (
+            select distinct parent_id as node_id
+            from global_tracks_grouped
+            where parent_id is not null
+          )
+        ) g
+        join track t on g.node_id = t.id
       )
       select
         t.name as name,
@@ -95,12 +118,22 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         t.trackIds as trackIds,
         __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks_grouped t
+      union all
+      select
+        t.name as name,
+        t.parent_id as parentId,
+        cast_string!(t.id) as trackIds,
+        NULL as maxDepth
+      from intermediate_groups t
+      left join _slice_track_summary s using (id)
+      where s.id is null
+      order by name
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
       parentId: NUM_NULL,
       trackIds: STR,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
 
     // Create a map of track nodes by id
@@ -119,32 +152,42 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const maxDepth = it.maxDepth;
 
-      const uri = `/async_slices_${rawName}_${it.parentId}`;
-      ctx.tracks.registerTrack({
-        uri,
-        title,
-        tags: {
-          trackIds,
-          kind: ASYNC_SLICE_TRACK_KIND,
-          scope: 'global',
-        },
-        track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
-        detailsPanel: () => new ThreadSliceDetailsPanel(ctx, 'slice'),
-      });
-      const trackNode = new TrackNode({uri, title, sortOrder: -25});
-      trackIds.forEach((id) => {
-        trackMap.set(id, {parentId: it.parentId, trackNode});
-        this.trackIdsToUris.set(id, uri);
-      });
+      if (maxDepth === null) {
+        assertTrue(trackIds.length == 1);
+        const trackNode = new TrackNode({title, sortOrder: -25});
+        trackMap.set(trackIds[0], {parentId: it.parentId, trackNode});
+      } else {
+        const uri = `/async_slices_${rawName}_${it.parentId}`;
+        ctx.tracks.registerTrack({
+          uri,
+          title,
+          tags: {
+            trackIds,
+            kind: ASYNC_SLICE_TRACK_KIND,
+            scope: 'global',
+          },
+          track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
+          detailsPanel: () => new ThreadSliceDetailsPanel(ctx, 'slice'),
+        });
+        const trackNode = new TrackNode({
+          uri,
+          title,
+          sortOrder: it.parentId === undefined ? -25 : 0,
+        });
+        trackIds.forEach((id) => {
+          trackMap.set(id, {parentId: it.parentId, trackNode});
+          this.trackIdsToUris.set(id, uri);
+        });
+      }
     }
 
     // Attach track nodes to parents / or the workspace if they have no parent
-    trackMap.forEach((t) => {
-      const parent = exists(t.parentId) && trackMap.get(t.parentId);
-      if (parent !== false && parent !== undefined) {
-        parent.trackNode.addChildInOrder(t.trackNode);
+    trackMap.forEach(({parentId, trackNode}) => {
+      if (exists(parentId)) {
+        const parent = assertExists(trackMap.get(parentId));
+        parent.trackNode.addChildInOrder(trackNode);
       } else {
-        ctx.workspace.addChildInOrder(t.trackNode);
+        ctx.workspace.addChildInOrder(trackNode);
       }
     });
   }
