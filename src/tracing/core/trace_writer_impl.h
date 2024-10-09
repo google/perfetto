@@ -67,10 +67,6 @@ class TraceWriterImpl : public TraceWriter,
     return protobuf_stream_writer_.written();
   }
 
-  void ResetChunkForTesting() {
-    cur_chunk_ = SharedMemoryABI::Chunk();
-    cur_chunk_packet_count_inflated_ = false;
-  }
   bool drop_packets_for_testing() const { return drop_packets_; }
 
  private:
