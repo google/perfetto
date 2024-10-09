@@ -50,6 +50,7 @@ interface TrackPanelAttrs {
   readonly trackRenderer?: TrackRenderer;
   readonly revealOnCreate?: boolean;
   readonly topOffsetPx: number;
+  readonly reorderable?: boolean;
 }
 
 export class TrackPanel implements Panel {
@@ -76,8 +77,14 @@ export class TrackPanel implements Panel {
   }
 
   render(): m.Children {
-    const {node, indentationLevel, trackRenderer, revealOnCreate, topOffsetPx} =
-      this.attrs;
+    const {
+      node,
+      indentationLevel,
+      trackRenderer,
+      revealOnCreate,
+      topOffsetPx,
+      reorderable = false,
+    } = this.attrs;
 
     const buttons = [
       SHOW_TRACK_DETAILS_BUTTON.get() &&
@@ -109,6 +116,7 @@ export class TrackPanel implements Panel {
       collapsed: node.collapsed,
       highlight: isHighlighted(node),
       isSummary: node.isSummary,
+      reorderable,
       onToggleCollapsed: () => {
         node.hasChildren && node.toggleCollapsed();
       },
@@ -136,6 +144,20 @@ export class TrackPanel implements Panel {
       },
       onupdate: () => {
         trackRenderer?.track.onFullRedraw?.();
+      },
+      onMoveBefore: (nodeId: string) => {
+        const targetNode = node.workspace?.getTrackById(nodeId);
+        if (targetNode !== undefined) {
+          // Insert the target node before this one
+          targetNode.parent?.addChildBefore(targetNode, node);
+        }
+      },
+      onMoveAfter: (nodeId: string) => {
+        const targetNode = node.workspace?.getTrackById(nodeId);
+        if (targetNode !== undefined) {
+          // Insert the target node after this one
+          targetNode.parent?.addChildAfter(targetNode, node);
+        }
       },
     });
   }
