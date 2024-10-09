@@ -16,15 +16,19 @@
 
 #include "src/trace_processor/importers/ftrace/pixel_mm_kswapd_event_tracker.h"
 
-#include "perfetto/ext/base/string_utils.h"
+#include <cmath>
+#include <cstdint>
+
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/pixel_mm.pbzero.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 PixelMmKswapdEventTracker::PixelMmKswapdEventTracker(
     TraceProcessorContext* context)
@@ -82,5 +86,4 @@ void PixelMmKswapdEventTracker::ParsePixelMmKswapdDone(
       });
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
