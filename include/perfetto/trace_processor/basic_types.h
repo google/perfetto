@@ -17,9 +17,9 @@
 #ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
 
-#include <assert.h>
-#include <math.h>
-#include <stdarg.h>
+#include <cassert>
+#include <cstdarg>
+#include <cstddef>
 #include <cstdint>
 
 #include <string>
@@ -30,8 +30,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // All metrics protos are in this directory. When loading metric extensions, the
 // protos are mounted onto a virtual path inside this directory.
@@ -249,34 +248,36 @@ struct PERFETTO_EXPORT_COMPONENT SqlValue {
 
 // Data used to register a new SQL package.
 struct SqlPackage {
-  // Must be unique among modules, or can be used to override existing module if
-  // |allow_override| is set.
+  // Must be unique among package, or can be used to override existing package
+  // if |allow_override| is set.
   std::string name;
 
-  // Pairs of strings used for |INCLUDE| with the contents of SQL files being
-  // run. Strings should only contain alphanumeric characters and '.', where
-  // string before the first dot has to be module name.
+  // Pairs of strings mapping from the name of the module used by `INCLUDE
+  // PERFETTO MODULE` statements to the contents of SQL files being executed.
+  // Module names should only contain alphanumeric characters and '.', where
+  // string before the first dot must be the package name.
   //
   // It is encouraged that include key should be the path to the SQL file being
   // run, with slashes replaced by dots and without the SQL extension. For
   // example, 'android/camera/jank.sql' would be included by
-  // 'android.camera.jank'.
+  // 'android.camera.jank'. This conforms to user expectations of how modules
+  // behave in other languages (e.g. Java, Python etc).
   std::vector<std::pair<std::string, std::string>> modules;
 
-  // If true, SqlPackage will override registered module with the same name. Can
-  // only be set if enable_dev_features is true, otherwise will throw an error.
+  // If true, will allow overriding a package which already exists with `name.
+  // Can only be set if enable_dev_features (in the TraceProcessorConfig object
+  // when creating TraceProcessor) is true. Otherwise, this option will throw an
+  // error.
   bool allow_override = false;
 };
 
-// Deprecated. Use only with |trace_processor->RegisterSqlModule()|. Alias of
-// |SqlPackage|.
+// Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.
 struct SqlModule {
   std::string name;
   std::vector<std::pair<std::string, std::string>> files;
   bool allow_module_override = false;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
