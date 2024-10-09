@@ -22,8 +22,8 @@ import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
   isMetatracingEnabled,
-} from '../common/metatracing';
-import {Engine, EngineMode} from 'src/trace_processor/engine';
+} from '../core/metatracing';
+import {Engine, EngineMode} from '../trace_processor/engine';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
@@ -32,7 +32,6 @@ import {Animation} from './animation';
 import {downloadData, downloadUrl} from './download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {Router} from './router';
 import {
   createTraceLink,
   isDownloadable,
@@ -48,6 +47,7 @@ import {formatHotkey} from '../base/hotkeys';
 import {SidebarMenuItem} from '../public/sidebar';
 import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
+import {Router} from '../core/router';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';

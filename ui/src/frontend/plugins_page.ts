@@ -19,7 +19,7 @@ import {exists} from '../base/utils';
 import {PluginDescriptor} from '../public/plugin';
 import {defaultPlugins} from '../core/default_plugins';
 import {Intent} from '../widgets/common';
-import {PageAttrs} from './pages';
+import {PageAttrs} from '../core/router';
 import {AppImpl} from '../core/app_impl';
 
 export class PluginsPage implements m.ClassComponent<PageAttrs> {

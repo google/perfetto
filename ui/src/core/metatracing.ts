@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {featureFlags} from '../core/feature_flags';
+import {featureFlags} from './feature_flags';
 import {MetatraceCategories, PerfettoMetatrace} from '../protos';
 import protobuf from 'protobufjs/minimal';
 

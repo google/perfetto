@@ -13,15 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Actions} from '../common/actions';
-import {tryGetTrace} from '../common/cache_manager';
+import {tryGetTrace} from '../core/cache_manager';
 import {showModal} from '../widgets/modal';
 import {loadPermalink} from './permalink';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
-import {globals} from './globals';
-import {Route, Router} from './router';
+import {Route} from '../core/router';
 import {taskTracker} from './task_tracker';
 import {AppImpl} from '../core/app_impl';
+import {Actions} from '../common/actions';
+import {globals} from './globals';
+import {Router} from '../core/router';
 
 function getCurrentTraceUrl(): undefined | string {
   const source = AppImpl.instance.trace?.traceInfo.source;

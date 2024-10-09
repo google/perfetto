@@ -25,7 +25,7 @@ import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {downloadData} from '../../../frontend/download_utils';
 import {globals} from '../../../frontend/globals';
-import {Router} from '../../../frontend/router';
+import {Router} from '../../../core/router';
 import {scrollTo} from '../../scroll_helper';
 
 interface QueryTableRowAttrs {

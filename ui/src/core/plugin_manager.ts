@@ -23,6 +23,9 @@ import {raf} from './raf_scheduler';
 import {defaultPlugins} from './default_plugins';
 import {TraceImpl} from './trace_impl';
 
+// The pseudo plugin id used for the core instance of AppImpl.
+export const CORE_PLUGIN_ID = '__core__';
+
 // 'Static' registry of all known plugins.
 export class PluginRegistry extends Registry<PluginDescriptor> {
   constructor() {

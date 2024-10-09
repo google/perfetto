@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../frontend/globals';
 import {
   SERIALIZED_STATE_VERSION,
   APP_STATE_SCHEMA,
@@ -22,8 +21,7 @@ import {
   SerializedAppState,
 } from '../public/state_serialization_schema';
 import {TimeSpan} from '../base/time';
-import {TraceImpl} from '../core/trace_impl';
-import {AppImpl} from '../core/app_impl';
+import {TraceImpl} from './trace_impl';
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
@@ -52,11 +50,11 @@ import {AppImpl} from '../core/app_impl';
  * in a permalink (@see permalink.ts).
  * @returns A @type {SerializedAppState} object, @see state_serialization_schema.ts
  */
-export function serializeAppState(): SerializedAppState {
-  const vizWindow = globals.timeline.visibleWindow.toTimeSpan();
+export function serializeAppState(trace: TraceImpl): SerializedAppState {
+  const vizWindow = trace.timeline.visibleWindow.toTimeSpan();
 
   const notes = new Array<SerializedNote>();
-  for (const [id, note] of globals.noteManager.notes.entries()) {
+  for (const [id, note] of trace.notes.notes.entries()) {
     if (note.noteType === 'DEFAULT') {
       notes.push({
         noteType: 'DEFAULT',
@@ -78,7 +76,7 @@ export function serializeAppState(): SerializedAppState {
   }
 
   const selection = new Array<SerializedSelection>();
-  const stateSel = globals.selectionManager.selection;
+  const stateSel = trace.selection.selection;
   if (stateSel.kind === 'track_event') {
     selection.push({
       kind: 'TRACK_EVENT',
@@ -88,8 +86,7 @@ export function serializeAppState(): SerializedAppState {
   }
 
   const plugins = new Array<SerializedPluginState>();
-  const pluginsStore =
-    AppImpl.instance.trace?.getPluginStoreForSerialization() ?? {};
+  const pluginsStore = trace.getPluginStoreForSerialization();
 
   for (const [id, pluginState] of Object.entries(pluginsStore)) {
     plugins.push({id, state: pluginState});
@@ -97,7 +94,7 @@ export function serializeAppState(): SerializedAppState {
 
   return {
     version: SERIALIZED_STATE_VERSION,
-    pinnedTracks: globals.workspace.pinnedTracks
+    pinnedTracks: trace.workspace.pinnedTracks
       .map((t) => t.uri)
       .filter((uri) => uri !== undefined),
     viewport: {
@@ -158,17 +155,21 @@ export function deserializeAppStatePhase1(
  * This function gets invoked after the trace controller has run and all plugins
  * have executed.
  * @param appState the .data object returned by parseAppState() when successful.
+ * @param trace the target trace object to manipulate.
  */
-export function deserializeAppStatePhase2(appState: SerializedAppState): void {
+export function deserializeAppStatePhase2(
+  appState: SerializedAppState,
+  trace: TraceImpl,
+): void {
   if (appState.viewport !== undefined) {
-    globals.timeline.updateVisibleTime(
+    trace.timeline.updateVisibleTime(
       new TimeSpan(appState.viewport.start, appState.viewport.end),
     );
   }
 
   // Restore the pinned tracks, if they exist.
   for (const uri of appState.pinnedTracks) {
-    const track = globals.workspace.findTrackByUri(uri);
+    const track = trace.workspace.findTrackByUri(uri);
     if (track) {
       track.pin();
     }
@@ -183,9 +184,9 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
       text: note.text,
     };
     if (note.noteType === 'DEFAULT') {
-      globals.noteManager.addNote({...commonArgs});
+      trace.notes.addNote({...commonArgs});
     } else if (note.noteType === 'SPAN') {
-      globals.noteManager.addSpanNote({
+      trace.notes.addSpanNote({
         ...commonArgs,
         start: commonArgs.timestamp,
         end: note.end,
@@ -196,7 +197,7 @@ export function deserializeAppStatePhase2(appState: SerializedAppState): void {
   // Restore the selection
   const sel = appState.selection[0];
   if (sel !== undefined) {
-    const selMgr = globals.selectionManager;
+    const selMgr = trace.selection;
     switch (sel.kind) {
       case 'TRACK_EVENT':
         selMgr.selectTrackEvent(sel.trackKey, parseInt(sel.eventId));
