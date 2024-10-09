@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
@@ -272,6 +273,11 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
       context.art_method_parser->ParseArtMethodEvent(
           event.ts, token_buffer_.Extract<art_method::ArtMethodEvent>(id));
       return;
+    case TimestampedEvent::Type::kPerfTextEvent:
+      context.perf_text_parser->ParsePerfTextEvent(
+          event.ts,
+          token_buffer_.Extract<perf_text_importer::PerfTextEvent>(id));
+      return;
     case TimestampedEvent::Type::kInlineSchedSwitch:
     case TimestampedEvent::Type::kInlineSchedWaking:
     case TimestampedEvent::Type::kEtwEvent:
@@ -306,6 +312,7 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
     case TimestampedEvent::Type::kGeckoEvent:
     case TimestampedEvent::Type::kArtMethodEvent:
+    case TimestampedEvent::Type::kPerfTextEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -342,6 +349,7 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
     case TimestampedEvent::Type::kGeckoEvent:
     case TimestampedEvent::Type::kArtMethodEvent:
+    case TimestampedEvent::Type::kPerfTextEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
@@ -399,6 +407,10 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
     case TimestampedEvent::Type::kArtMethodEvent:
       base::ignore_result(
           token_buffer_.Extract<art_method::ArtMethodEvent>(id));
+      return;
+    case TimestampedEvent::Type::kPerfTextEvent:
+      base::ignore_result(
+          token_buffer_.Extract<perf_text_importer::PerfTextEvent>(id));
       return;
   }
   PERFETTO_FATAL("For GCC");
