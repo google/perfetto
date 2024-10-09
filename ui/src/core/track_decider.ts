@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TraceImpl} from '../core/trace_impl';
-import {globals} from '../frontend/globals';
+import {Trace} from '../public/trace';
 import {TrackNode} from '../public/workspace';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
@@ -48,11 +47,11 @@ const CHROME_TRACK_REGEX = new RegExp('^Chrome.*|^InputLatency::.*');
 const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
 
-function groupGlobalIonTracks(): void {
+function groupGlobalIonTracks(trace: Trace): void {
   const ionTracks: TrackNode[] = [];
   let hasSummary = false;
 
-  for (const track of globals.workspace.children) {
+  for (const track of trace.workspace.children) {
     if (track.hasChildren) continue;
 
     const isIon = track.title.startsWith(MEM_ION);
@@ -73,23 +72,27 @@ function groupGlobalIonTracks(): void {
   let group: TrackNode | undefined;
   for (const track of ionTracks) {
     if (!group && [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.title)) {
-      globals.workspace.removeChild(track);
+      trace.workspace.removeChild(track);
       group = new TrackNode({
         title: track.title,
         uri: track.uri,
         isSummary: true,
       });
-      globals.workspace.addChildInOrder(group);
+      trace.workspace.addChildInOrder(group);
     } else {
       group?.addChildInOrder(track);
     }
   }
 }
 
-function groupGlobalIostatTracks(tag: string, groupName: string): void {
+function groupGlobalIostatTracks(
+  trace: Trace,
+  tag: string,
+  groupName: string,
+): void {
   const devMap = new Map<string, TrackNode>();
 
-  for (const track of globals.workspace.children) {
+  for (const track of trace.workspace.children) {
     if (track.hasChildren) continue;
     if (track.title.startsWith(tag)) {
       const name = track.title.split('.', 3);
@@ -98,7 +101,7 @@ function groupGlobalIostatTracks(tag: string, groupName: string): void {
       let parentGroup = devMap.get(key);
       if (!parentGroup) {
         const group = new TrackNode({title: groupName, isSummary: true});
-        globals.workspace.addChildInOrder(group);
+        trace.workspace.addChildInOrder(group);
         devMap.set(key, group);
         parentGroup = group;
       }
@@ -109,10 +112,10 @@ function groupGlobalIostatTracks(tag: string, groupName: string): void {
   }
 }
 
-function groupGlobalBuddyInfoTracks(): void {
+function groupGlobalBuddyInfoTracks(trace: Trace): void {
   const devMap = new Map<string, TrackNode>();
 
-  for (const track of globals.workspace.children) {
+  for (const track of trace.workspace.children) {
     if (track.hasChildren) continue;
     if (track.title.startsWith(BUDDY_INFO_TAG)) {
       const tokens = track.title.split('[');
@@ -124,7 +127,7 @@ function groupGlobalBuddyInfoTracks(): void {
       if (!devMap.has(groupName)) {
         const group = new TrackNode({title: groupName, isSummary: true});
         devMap.set(groupName, group);
-        globals.workspace.addChildInOrder(group);
+        trace.workspace.addChildInOrder(group);
       }
       track.title = 'Chunk size: ' + size;
       const group = devMap.get(groupName)!;
@@ -133,10 +136,10 @@ function groupGlobalBuddyInfoTracks(): void {
   }
 }
 
-function groupFrequencyTracks(groupName: string): void {
+function groupFrequencyTracks(trace: Trace, groupName: string): void {
   const group = new TrackNode({title: groupName, isSummary: true});
 
-  for (const track of globals.workspace.children) {
+  for (const track of trace.workspace.children) {
     if (track.hasChildren) continue;
     // Group all the frequency tracks together (except the CPU and GPU
     // frequency ones).
@@ -150,11 +153,11 @@ function groupFrequencyTracks(groupName: string): void {
   }
 
   if (group.children.length > 0) {
-    globals.workspace.addChildInOrder(group);
+    trace.workspace.addChildInOrder(group);
   }
 }
 
-function groupMiscNonAllowlistedTracks(groupName: string): void {
+function groupMiscNonAllowlistedTracks(trace: Trace, groupName: string): void {
   // List of allowlisted track names.
   const ALLOWLIST_REGEXES = [
     new RegExp('^Cpu .*$', 'i'),
@@ -166,7 +169,7 @@ function groupMiscNonAllowlistedTracks(groupName: string): void {
   ];
 
   const group = new TrackNode({title: groupName, isSummary: true});
-  for (const track of globals.workspace.children) {
+  for (const track of trace.workspace.children) {
     if (track.hasChildren) continue;
     let allowlisted = false;
     for (const regex of ALLOWLIST_REGEXES) {
@@ -179,14 +182,18 @@ function groupMiscNonAllowlistedTracks(groupName: string): void {
   }
 
   if (group.children.length > 0) {
-    globals.workspace.addChildInOrder(group);
+    trace.workspace.addChildInOrder(group);
   }
 }
 
-function groupTracksByRegex(regex: RegExp, groupName: string): void {
+function groupTracksByRegex(
+  trace: Trace,
+  regex: RegExp,
+  groupName: string,
+): void {
   const group = new TrackNode({title: groupName, isSummary: true});
 
-  for (const track of globals.workspace.children) {
+  for (const track of trace.workspace.children) {
     if (track.hasChildren) continue;
     if (regex.test(track.title)) {
       group.addChildInOrder(track);
@@ -194,27 +201,31 @@ function groupTracksByRegex(regex: RegExp, groupName: string): void {
   }
 
   if (group.children.length > 0) {
-    globals.workspace.addChildInOrder(group);
+    trace.workspace.addChildInOrder(group);
   }
 }
 
-export async function decideTracks(trace: TraceImpl): Promise<void> {
-  groupGlobalIonTracks();
-  groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
-  groupGlobalIostatTracks(F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
-  groupGlobalIostatTracks(DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
-  groupTracksByRegex(UFS_CMD_TAG_REGEX, UFS_CMD_TAG_GROUP);
-  groupGlobalBuddyInfoTracks();
-  groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
-  groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
-  groupTracksByRegex(ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
-  groupTracksByRegex(UCLAMP_REGEX, UCLAMP_GROUP);
-  groupFrequencyTracks(FREQUENCY_GROUP);
-  groupTracksByRegex(POWER_RAILS_REGEX, POWER_RAILS_GROUP);
-  groupTracksByRegex(TEMPERATURE_REGEX, TEMPERATURE_GROUP);
-  groupTracksByRegex(IRQ_REGEX, IRQ_GROUP);
-  groupTracksByRegex(CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
-  groupMiscNonAllowlistedTracks(MISC_GROUP);
+export async function decideTracks(trace: Trace): Promise<void> {
+  groupGlobalIonTracks(trace);
+  groupGlobalIostatTracks(trace, F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
+  groupGlobalIostatTracks(
+    trace,
+    F2FS_IOSTAT_LAT_TAG,
+    F2FS_IOSTAT_LAT_GROUP_NAME,
+  );
+  groupGlobalIostatTracks(trace, DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
+  groupTracksByRegex(trace, UFS_CMD_TAG_REGEX, UFS_CMD_TAG_GROUP);
+  groupGlobalBuddyInfoTracks(trace);
+  groupTracksByRegex(trace, KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
+  groupTracksByRegex(trace, NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
+  groupTracksByRegex(trace, ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
+  groupTracksByRegex(trace, UCLAMP_REGEX, UCLAMP_GROUP);
+  groupFrequencyTracks(trace, FREQUENCY_GROUP);
+  groupTracksByRegex(trace, POWER_RAILS_REGEX, POWER_RAILS_GROUP);
+  groupTracksByRegex(trace, TEMPERATURE_REGEX, TEMPERATURE_GROUP);
+  groupTracksByRegex(trace, IRQ_REGEX, IRQ_GROUP);
+  groupTracksByRegex(trace, CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
+  groupMiscNonAllowlistedTracks(trace, MISC_GROUP);
 
   // Move groups underneath tracks
   Array.from(trace.workspace.children)

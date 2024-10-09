@@ -16,10 +16,7 @@ import m from 'mithril';
 import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
 import {HomePage} from './home_page';
-
-export interface PageAttrs {
-  subpage?: string;
-}
+import {PageAttrs} from '../core/router';
 
 export interface PageWithTraceAttrs extends PageAttrs {
   trace: TraceImpl;

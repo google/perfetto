@@ -26,7 +26,7 @@ import {Section} from '../widgets/section';
 import {Tree} from '../widgets/tree';
 import {addDebugSliceTrack} from '../public/lib/debug_tracks/debug_tracks';
 import {globals} from './globals';
-import {Flow, FlowPoint} from 'src/core/flow_types';
+import {Flow, FlowPoint} from '../core/flow_types';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {hasArgs, renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
