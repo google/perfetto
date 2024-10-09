@@ -279,6 +279,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
             if (trackNode.uri) {
               const tr = globals.trackManager.getTrackRenderer(trackNode.uri);
               return new TrackPanel({
+                reorderable: true,
                 node: trackNode,
                 trackRenderer: tr,
                 revealOnCreate: true,
