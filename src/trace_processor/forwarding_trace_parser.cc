@@ -68,6 +68,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kAndroidLogcatTraceType:
     case kGeckoTraceType:
     case kArtMethodTraceType:
+    case kPerfTextTraceType:
       return TraceSorter::SortingMode::kFullSort;
 
     case kProtoTraceType:

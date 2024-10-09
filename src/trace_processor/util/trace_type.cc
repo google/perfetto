@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
+#include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -131,6 +132,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "gecko";
     case kArtMethodTraceType:
       return "art_method";
+    case kPerfTextTraceType:
+      return "perf_text";
     case kUnknownTraceType:
       return "unknown";
   }
@@ -213,6 +216,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (AndroidLogEvent::IsAndroidLogcat(data, size)) {
     return kAndroidLogcatTraceType;
   }
+
+  // Perf text format.
+  if (perf_text_importer::IsPerfTextFormatTrace(data, size))
+    return kPerfTextTraceType;
 
   // Systrace with no header or leading HTML.
   if (base::StartsWith(start, " "))

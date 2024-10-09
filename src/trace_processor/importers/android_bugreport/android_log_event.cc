@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -35,8 +36,7 @@ std::vector<base::StringView> FindLines(const uint8_t* data, size_t size) {
 
   for (; ptr != end; ++ptr) {
     if (*ptr == '\n') {
-      lines.push_back(
-          base::StringView(line_start, static_cast<size_t>(ptr - line_start)));
+      lines.emplace_back(line_start, static_cast<size_t>(ptr - line_start));
       line_start = ptr + 1;
     }
   }

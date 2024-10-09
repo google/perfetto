@@ -63,6 +63,8 @@
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
+#include "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.h"
+#include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -448,6 +450,12 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       kArtMethodTraceType);
   context_.art_method_parser =
       std::make_unique<art_method::ArtMethodParserImpl>(&context_);
+
+  context_.reader_registry
+      ->RegisterTraceReader<perf_text_importer::PerfTextTraceTokenizer>(
+          kPerfTextTraceType);
+  context_.perf_text_parser =
+      std::make_unique<perf_text_importer::PerfTextTraceParserImpl>(&context_);
 
   if (context_.config.analyze_trace_proto_content) {
     context_.content_analyzer =

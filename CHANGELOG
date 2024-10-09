@@ -16,9 +16,14 @@ Unreleased:
     * Added `stacks.cpu_profiling` module for easy querying of all CPU
       profiling data in traces.
   Trace Processor:
-    * Added partial support for the Gecko JSON profiler format. Only parsing
-      of samples is supported; parsing of markers and any other features
-      (e.g. colours) is *not* supported.
+    * Added (partial) support for the Gecko (Firefox) JSON profiler format.
+      Parsing is optimized for CPU profiling collected with `perf` and converted
+      to the Gecko format. Only parsing of samples is supported; parsing of
+      markers and any other features (e.g. colours) is *not* supported.
+    * Added (partial) suppoort for the perf script text format from both perf
+      and simpleperf. Only parsing files with the default formating or with pids
+      included (i.e. `-F +pid`) is supported. Any other formatting options are
+      *not* supported.
     * Added support for parsing non-streaming ART method tracing format.
     * Added support for parsing GZIP files with multiple gzip streams.
     * Added support for parsing V8 CPU profling samples from proto traces.

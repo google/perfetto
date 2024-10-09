@@ -24,7 +24,6 @@
 #include <string_view>
 #include <utility>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -47,16 +46,8 @@ namespace {
 
 constexpr uint32_t kTraceMagic = 0x574f4c53;  // 'SLOW'
 
-std::string_view ReadLine(util::TraceBlobViewReader& reader,
-                          util::TraceBlobViewReader::Iterator& it) {
-  size_t begin = it.file_offset();
-  if (!it.MaybeFindAndAdvance('\n')) {
-    return {};
-  }
-  auto x = reader.SliceOff(begin, it.file_offset() - begin);
-  std::string_view str(reinterpret_cast<const char*>(x->data()), x->size());
-  PERFETTO_CHECK(it.MaybeAdvance(1));
-  return str;
+std::string_view ToStringView(const TraceBlobView& tbv) {
+  return {reinterpret_cast<const char*>(tbv.data()), tbv.size()};
 }
 
 std::string ConstructPathname(const std::string& class_name,
@@ -178,25 +169,26 @@ base::StatusOr<bool> ArtMethodTokenizer::ParseHeaderDetection(Iterator& it) {
     return base::ErrStatus(
         "ART Method trace is in streaming format: this is not supported");
   }
-  auto line = ReadLine(reader_, it);
-  if (line.empty()) {
+  auto raw = it.MaybeFindAndAdvance('\n');
+  if (!raw) {
     return false;
   }
   context_->clock_tracker->SetTraceTimeClock(
       protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
-  RETURN_IF_ERROR(ParseHeaderSectionLine(line));
+  RETURN_IF_ERROR(ParseHeaderSectionLine(ToStringView(*raw)));
   return true;
 }
 
 base::StatusOr<bool> ArtMethodTokenizer::ParseHeaderVersion(Iterator& it) {
-  auto version_str = ReadLine(reader_, it);
-  if (version_str.empty()) {
+  auto line = it.MaybeFindAndAdvance('\n');
+  if (!line) {
     return false;
   }
-  auto version = base::StringToInt32(std::string(version_str));
+  std::string version_str(ToStringView(*line));
+  auto version = base::StringToInt32(version_str);
   if (!version || *version < 1 || *version > 3) {
     return base::ErrStatus("ART Method trace: trace version (%s) not supported",
-                           std::string(version_str).c_str());
+                           version_str.c_str());
   }
   version_ = static_cast<uint32_t>(*version);
   mode_ = kHeaderOptions;
@@ -204,7 +196,9 @@ base::StatusOr<bool> ArtMethodTokenizer::ParseHeaderVersion(Iterator& it) {
 }
 
 base::StatusOr<bool> ArtMethodTokenizer::ParseHeaderOptions(Iterator& it) {
-  for (auto l = ReadLine(reader_, it); !l.empty(); l = ReadLine(reader_, it)) {
+  for (auto r = it.MaybeFindAndAdvance('\n'); r;
+       r = it.MaybeFindAndAdvance('\n')) {
+    std::string_view l = ToStringView(*r);
     if (l[0] == '*') {
       RETURN_IF_ERROR(ParseHeaderSectionLine(l));
       return true;
@@ -232,7 +226,9 @@ base::StatusOr<bool> ArtMethodTokenizer::ParseHeaderOptions(Iterator& it) {
 }
 
 base::StatusOr<bool> ArtMethodTokenizer::ParseHeaderThreads(Iterator& it) {
-  for (auto l = ReadLine(reader_, it); !l.empty(); l = ReadLine(reader_, it)) {
+  for (auto r = it.MaybeFindAndAdvance('\n'); r;
+       r = it.MaybeFindAndAdvance('\n')) {
+    std::string_view l = ToStringView(*r);
     if (l[0] == '*') {
       RETURN_IF_ERROR(ParseHeaderSectionLine(l));
       return true;
@@ -242,7 +238,9 @@ base::StatusOr<bool> ArtMethodTokenizer::ParseHeaderThreads(Iterator& it) {
 }
 
 base::StatusOr<bool> ArtMethodTokenizer::ParseHeaderMethods(Iterator& it) {
-  for (auto l = ReadLine(reader_, it); !l.empty(); l = ReadLine(reader_, it)) {
+  for (auto r = it.MaybeFindAndAdvance('\n'); r;
+       r = it.MaybeFindAndAdvance('\n')) {
+    std::string_view l = ToStringView(*r);
     if (l[0] == '*') {
       RETURN_IF_ERROR(ParseHeaderSectionLine(l));
       return true;

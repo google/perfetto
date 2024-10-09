@@ -58,6 +58,7 @@ class MultiMachineTraceManager;
 class PacketAnalyzer;
 class PerfRecordParser;
 class PerfSampleTracker;
+class PerfTextTraceParser;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
 class ProtoImporterModule;
@@ -177,6 +178,7 @@ class TraceProcessorContext {
   std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
   std::unique_ptr<GeckoTraceParser> gecko_trace_parser;
   std::unique_ptr<ArtMethodParser> art_method_parser;
+  std::unique_ptr<PerfTextTraceParser> perf_text_parser;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.
