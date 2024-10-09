@@ -13,6 +13,7 @@
 // limitations under the License.
 
 @use "sass:math";
+@import "theme";
 
 .pf-track {
   --text-color-dark: hsl(213, 22%, 30%);

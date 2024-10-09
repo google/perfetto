@@ -17,12 +17,10 @@ import {classNames} from '../base/classnames';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Bounds2D, Point2D, Vector2D} from '../base/geom';
 import {Icons} from '../base/semantic_icons';
-import {Button, ButtonBar} from './button';
+import {ButtonBar} from './button';
 import {Chip, ChipBar} from './chip';
-import {Intent} from './common';
 import {Icon} from './icon';
 import {MiddleEllipsis} from './middle_ellipsis';
-import {Popup} from './popup';
 import {clamp} from '../base/math_utils';
 
 /**
@@ -41,40 +39,6 @@ import {clamp} from '../base/math_utils';
  * │└─────────────────────────────────────────┘└─────────────────────┘│
  * └──────────────────────────────────────────────────────────────────┘
  */
-
-export interface CrashButtonAttrs {
-  error: Error;
-}
-
-export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
-  view({attrs}: m.Vnode<CrashButtonAttrs>): m.Children {
-    return m(
-      Popup,
-      {
-        trigger: m(Button, {
-          icon: Icons.Crashed,
-          compact: true,
-        }),
-      },
-      this.renderErrorMessage(attrs.error),
-    );
-  }
-
-  private renderErrorMessage(error: Error): m.Children {
-    return m(
-      '',
-      'This track has crashed',
-      m(Button, {
-        label: 'Re-raise exception',
-        intent: Intent.Primary,
-        className: Popup.DISMISS_POPUP_GROUP_CLASS,
-        onclick: () => {
-          throw error;
-        },
-      }),
-    );
-  }
-}
 
 export interface TrackComponentAttrs {
   // The title of this track.
@@ -98,8 +62,8 @@ export interface TrackComponentAttrs {
   // Optional list of chips to display after the track title.
   readonly chips?: ReadonlyArray<string>;
 
-  // Optional error to display on this track.
-  readonly error?: Error | undefined;
+  // Render this track in error colours.
+  readonly error?: boolean;
 
   // The integer indentation level of this track. If omitted, defaults to 0.
   readonly indentationLevel?: number;
@@ -320,7 +284,6 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
             onclick: (e: MouseEvent) => e.stopPropagation(),
           },
           attrs.buttons,
-          attrs.error && m(CrashButton, {error: attrs.error}),
         ),
       ),
     );
