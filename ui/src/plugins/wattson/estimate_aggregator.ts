@@ -50,7 +50,7 @@ export class WattsonEstimateSelectionAggregator
   ): string {
     const duration = area.end - area.start;
     let query = `
-      INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+      INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
       CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT

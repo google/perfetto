@@ -16,7 +16,7 @@
 -- This file established the tables that define the relationships between rails
 -- and subrails as well as the hierarchical power estimates of each rail
 
-INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
 -- Take only the Wattson estimations that are in the window of interest
 DROP TABLE IF EXISTS _windowed_wattson;
