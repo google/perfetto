@@ -17,6 +17,7 @@ import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {TrackDescriptor} from '../../public/track';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -54,66 +55,181 @@ class RestorePinnedTrack implements PerfettoPlugin {
   private saveTracks() {
     const workspace = this.ctx.workspace;
     const pinnedTracks = workspace.pinnedTracks;
-    const tracksToSave: SavedPinnedTrack[] = pinnedTracks.map((track) => ({
-      groupName: groupName(track),
-      trackName: track.title,
-    }));
-    window.localStorage.setItem(SAVED_TRACKS_KEY, JSON.stringify(tracksToSave));
+    const tracksToSave: SavedPinnedTrack[] = pinnedTracks.map((track) =>
+      this.toSavedTrack(track),
+    );
+
+    this.savedState = {
+      tracks: tracksToSave,
+    };
   }
 
   private restoreTracks() {
-    const savedTracks = window.localStorage.getItem(SAVED_TRACKS_KEY);
-    if (!savedTracks) {
+    const savedState = this.savedState;
+    if (!savedState) {
       alert('No saved tracks. Use the Save command first');
       return;
     }
-    const tracksToRestore: SavedPinnedTrack[] = JSON.parse(savedTracks);
-    const workspace = this.ctx.workspace;
-    const tracks = workspace.flatTracks;
+    const tracksToRestore: SavedPinnedTrack[] = savedState.tracks;
+
+    const localTracks: Array<LocalTrack> = this.ctx.workspace.flatTracks.map(
+      (track) => ({
+        savedTrack: this.toSavedTrack(track),
+        track: track,
+      }),
+    );
+
     tracksToRestore.forEach((trackToRestore) => {
-      // Check for an exact match
-      const exactMatch = tracks.find((track) => {
-        return (
-          trackToRestore.trackName === track.title &&
-          trackToRestore.groupName === groupName(track)
-        );
-      });
-
-      if (exactMatch) {
-        exactMatch.pin();
+      const foundTrack = this.findMatchingTrack(localTracks, trackToRestore);
+      if (foundTrack) {
+        foundTrack.pin();
       } else {
-        // We attempt a match after removing numbers to potentially pin a
-        // "similar" track from a different trace. Removing numbers allows
-        // flexibility; for instance, with multiple 'sysui' processes (e.g.
-        // track group name: "com.android.systemui 123") without this approach,
-        // any could be mistakenly pinned. The goal is to restore specific
-        // tracks within the same trace, ensuring that a previously pinned track
-        // is pinned again.
-        // If the specific process with that PID is unavailable, pinning any
-        // other process matching the package name is attempted.
-        const fuzzyMatch = tracks.find((track) => {
-          return (
-            this.removeNumbers(trackToRestore.trackName) ===
-              this.removeNumbers(track.title) &&
-            this.removeNumbers(trackToRestore.groupName) ===
-              this.removeNumbers(groupName(track))
-          );
-        });
-
-        if (fuzzyMatch) {
-          fuzzyMatch.pin();
-        } else {
-          console.warn(
-            '[RestorePinnedTracks] No track found that matches',
-            trackToRestore,
-          );
-        }
+        console.warn(
+          '[RestorePinnedTracks] No track found that matches',
+          trackToRestore,
+        );
       }
     });
   }
 
+  private findMatchingTrack(
+    localTracks: Array<LocalTrack>,
+    savedTrack: SavedPinnedTrack,
+  ): TrackNode | null {
+    let mostSimilarTrack: LocalTrack | null = null;
+    let mostSimilarTrackDifferenceScore: number = 0;
+
+    for (let i = 0; i < localTracks.length; i++) {
+      const localTrack = localTracks[i];
+      const differenceScore = this.calculateSimilarityScore(
+        localTrack.savedTrack,
+        savedTrack,
+      );
+
+      // Return immediately if we found the exact match
+      if (differenceScore === Number.MAX_SAFE_INTEGER) {
+        return localTrack.track;
+      }
+
+      // Ignore too different objects
+      if (differenceScore === 0) {
+        continue;
+      }
+
+      if (differenceScore > mostSimilarTrackDifferenceScore) {
+        mostSimilarTrackDifferenceScore = differenceScore;
+        mostSimilarTrack = localTrack;
+      }
+    }
+
+    return mostSimilarTrack?.track || null;
+  }
+
+  /**
+   * Returns the similarity score where 0 means the objects are completely
+   * different, and the higher the number, the smaller the difference is.
+   * Returns Number.MAX_SAFE_INTEGER if the objects are completely equal.
+   * We attempt a fuzzy match based on the similarity score.
+   * For example, one of the ways we do this is we remove the numbers
+   * from the title to potentially pin a "similar" track from a different trace.
+   * Removing numbers allows flexibility; for instance, with multiple 'sysui'
+   * processes (e.g. track group name: "com.android.systemui 123") without
+   * this approach, any could be mistakenly pinned. The goal is to restore
+   * specific tracks within the same trace, ensuring that a previously pinned
+   * track is pinned again.
+   * If the specific process with that PID is unavailable, pinning any
+   * other process matching the package name is attempted.
+   * @param track1 first saved track to compare
+   * @param track2 second saved track to compare
+   * @private
+   */
+  private calculateSimilarityScore(
+    track1: SavedPinnedTrack,
+    track2: SavedPinnedTrack,
+  ): number {
+    // Return immediately when objects are equal
+    if (
+      track1.trackName === track2.trackName &&
+      track1.groupName === track2.groupName &&
+      track1.pluginId === track2.pluginId &&
+      track1.kind === track2.kind &&
+      track1.isMainThread === track2.isMainThread
+    ) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
+    let similarityScore = 0;
+    if (track1.trackName === track2.trackName) {
+      similarityScore += 100;
+    } else if (
+      this.removeNumbers(track1.trackName) ===
+      this.removeNumbers(track2.trackName)
+    ) {
+      similarityScore += 50;
+    }
+
+    if (track1.groupName === track2.groupName) {
+      similarityScore += 90;
+    } else if (
+      this.removeNumbers(track1.groupName) ===
+      this.removeNumbers(track2.groupName)
+    ) {
+      similarityScore += 45;
+    }
+
+    // Do not consider other parameters if there is no match in name/group
+    if (similarityScore === 0) return similarityScore;
+
+    if (track1.pluginId === track2.pluginId) {
+      similarityScore += 30;
+    }
+
+    if (track1.kind === track2.kind) {
+      similarityScore += 20;
+    }
+
+    if (track1.isMainThread === track2.isMainThread) {
+      similarityScore += 10;
+    }
+
+    return similarityScore;
+  }
+
   private removeNumbers(inputString?: string): string | undefined {
     return inputString?.replace(/\d+/g, '');
+  }
+
+  private toSavedTrack(track: TrackNode): SavedPinnedTrack {
+    let trackDescriptor: TrackDescriptor | undefined = undefined;
+    if (track.uri != null) {
+      trackDescriptor = this.ctx.tracks.getTrack(track.uri);
+    }
+
+    return {
+      groupName: groupName(track),
+      trackName: track.title,
+      pluginId: trackDescriptor?.pluginId,
+      kind: trackDescriptor?.tags?.kind,
+      isMainThread: trackDescriptor?.chips?.includes('main thread') || false,
+    };
+  }
+
+  private get savedState(): SavedState | null {
+    const savedStateString = window.localStorage.getItem(SAVED_TRACKS_KEY);
+    if (!savedStateString) {
+      return null;
+    }
+
+    const savedState: SavedState = JSON.parse(savedStateString);
+    if (!(savedState.tracks instanceof Array)) {
+      return null;
+    }
+
+    return savedState;
+  }
+
+  private set savedState(state: SavedState) {
+    window.localStorage.setItem(SAVED_TRACKS_KEY, JSON.stringify(state));
   }
 }
 
@@ -127,12 +243,30 @@ function groupName(track: TrackNode): Optional<string> {
   return undefined;
 }
 
+interface SavedState {
+  tracks: Array<SavedPinnedTrack>;
+}
+
 interface SavedPinnedTrack {
   // Optional: group name for the track. Usually matches with process name.
   groupName?: string;
 
   // Track name to restore.
   trackName: string;
+
+  // Plugin used to create this track
+  pluginId?: string;
+
+  // Kind of the track
+  kind?: string;
+
+  // If it's a thread track, it should be true in case it's a main thread track
+  isMainThread: boolean;
+}
+
+interface LocalTrack {
+  savedTrack: SavedPinnedTrack;
+  track: TrackNode;
 }
 
 export const plugin: PluginDescriptor = {
