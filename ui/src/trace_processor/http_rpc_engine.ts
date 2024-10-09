@@ -14,7 +14,6 @@
 
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists} from '../base/logging';
-import {globals} from '../frontend/globals';
 import {StatusResult} from '../protos';
 import {EngineBase} from '../trace_processor/engine';
 
@@ -95,9 +94,6 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   static async checkConnection(): Promise<HttpRpcState> {
-    // Avoid ERR_CONNECTION_REFUSED errors on tests.
-    if (globals.testing) return {connected: false};
-
     const RPC_URL = `http://${HttpRpcEngine.hostAndPort}/`;
     const httpRpcState: HttpRpcState = {connected: false};
     console.info(

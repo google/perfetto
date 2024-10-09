@@ -14,11 +14,14 @@
 
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
-import {PageAttrs} from './pages';
 import {RouteArgs, ROUTE_SCHEMA} from '../public/route_schema';
 
 export const ROUTE_PREFIX = '#!';
 const DEFAULT_ROUTE = '/';
+
+export interface PageAttrs {
+  subpage?: string;
+}
 
 // The set of args that can be set on the route via #!/page?a=1&b2.
 // Route args are orthogonal to pages (i.e. should NOT make sense only in a
@@ -246,44 +249,5 @@ export class Router {
     if (this.recentChanges.length > EVENT_LIMIT) {
       throw new Error('History rewriting livelock');
     }
-  }
-
-  static getUrlForVersion(versionCode: string): string {
-    const url = `${window.location.origin}/${versionCode}/`;
-    return url;
-  }
-
-  static async isVersionAvailable(
-    versionCode: string,
-  ): Promise<string | undefined> {
-    if (versionCode === '') {
-      return undefined;
-    }
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1000);
-    const url = Router.getUrlForVersion(versionCode);
-    let r;
-    try {
-      r = await fetch(url, {signal: controller.signal});
-    } catch (e) {
-      console.error(
-        `No UI version for ${versionCode} at ${url}. This is an error if ${versionCode} is a released Perfetto version`,
-      );
-      return undefined;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-    if (!r.ok) {
-      return undefined;
-    }
-    return url;
-  }
-
-  static navigateToVersion(versionCode: string): void {
-    const url = Router.getUrlForVersion(versionCode);
-    if (url === undefined) {
-      throw new Error(`No URL known for UI version ${versionCode}.`);
-    }
-    window.location.replace(url);
   }
 }
