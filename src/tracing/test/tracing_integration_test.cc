@@ -200,35 +200,6 @@ class TracingIntegrationTest : public ::testing::Test {
     return TracingService::ProducerSMBScrapingMode::kDefault;
   }
 
-  void WaitForTraceWritersChanged(ProducerID producer_id) {
-    static int i = 0;
-    auto checkpoint_name = "writers_changed_" + std::to_string(producer_id) +
-                           "_" + std::to_string(i++);
-    auto writers_changed = task_runner_->CreateCheckpoint(checkpoint_name);
-    auto writers = GetWriters(producer_id);
-    std::function<void()> task;
-    task = [&task, writers, writers_changed, producer_id, this]() {
-      if (writers != GetWriters(producer_id)) {
-        writers_changed();
-        return;
-      }
-      task_runner_->PostDelayedTask(task, 1);
-    };
-    task_runner_->PostDelayedTask(task, 1);
-    task_runner_->RunUntilCheckpoint(checkpoint_name);
-  }
-
-  const std::map<WriterID, BufferID>& GetWriters(ProducerID producer_id) {
-    return reinterpret_cast<TracingServiceImpl*>(svc_->service())
-        ->GetProducer(producer_id)
-        ->writers_;
-  }
-
-  ProducerID* last_producer_id() {
-    return &reinterpret_cast<TracingServiceImpl*>(svc_->service())
-                ->last_producer_id_;
-  }
-
   std::unique_ptr<base::TestTaskRunner> task_runner_;
   std::unique_ptr<ServiceIPCHost> svc_;
   std::unique_ptr<TracingService::ProducerEndpoint> producer_endpoint_;
@@ -515,7 +486,7 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
   ASSERT_TRUE(writer);
 
   // Wait for the writer to be registered.
-  WaitForTraceWritersChanged(*last_producer_id());
+  task_runner_->RunUntilIdle();
 
   // Write a few trace packets.
   writer->NewTracePacket()->set_for_testing()->set_str("payload1");
