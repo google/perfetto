@@ -21,8 +21,8 @@ import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {globals} from './globals';
-import {Router} from './router';
 import {AppImpl} from '../core/app_impl';
+import {Router} from '../core/router';
 
 const MODAL_KEY = 'crash_modal';
 

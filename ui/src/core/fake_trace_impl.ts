@@ -66,6 +66,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     cached: false,
   };
   return TraceImpl.createInstanceForCore(
+    AppImpl.instance,
     new FakeEngine(args.allowQueries ?? false),
     fakeTraceInfo,
   );

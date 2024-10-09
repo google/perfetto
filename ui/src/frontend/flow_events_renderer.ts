@@ -17,7 +17,7 @@ import {Size2D, Point2D, HorizontalBounds} from '../base/geom';
 import {Optional} from '../base/utils';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {globals} from './globals';
-import {Flow} from 'src/core/flow_types';
+import {Flow} from '../core/flow_types';
 import {RenderedPanelInfo} from './panel_container';
 import {TimeScale} from '../base/time_scale';
 import {TrackNode} from '../public/workspace';

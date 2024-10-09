@@ -16,7 +16,7 @@ import {ErrorDetails} from '../base/logging';
 import {getCurrentChannel} from '../common/channels';
 import {VERSION} from '../gen/perfetto_version';
 import {globals} from './globals';
-import {Router} from './router';
+import {Router} from '../core/router';
 
 type TraceCategories = 'Trace Actions' | 'Record Trace' | 'User Actions';
 const ANALYTICS_ID = 'G-BD89KT2P3C';

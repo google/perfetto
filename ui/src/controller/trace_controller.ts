@@ -15,15 +15,14 @@
 import {assertExists, assertTrue} from '../base/logging';
 import {time, Time, TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
-import {cacheTrace} from '../common/cache_manager';
+import {cacheTrace} from '../core/cache_manager';
 import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
-} from '../common/metatracing';
+} from '../core/metatracing';
 import {EngineConfig} from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
 import {globals} from '../frontend/globals';
-import {Router} from '../frontend/router';
 import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {
@@ -43,11 +42,11 @@ import {
   TraceHttpStream,
   TraceStream,
 } from '../core/trace_stream';
-import {decideTracks} from './track_decider';
+import {decideTracks} from '../core/track_decider';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
-} from '../common/state_serialization';
+} from '../core/state_serialization';
 import {TraceInfo} from '../public/trace_info';
 import {AppImpl} from '../core/app_impl';
 import {raf} from '../core/raf_scheduler';
@@ -55,6 +54,7 @@ import {TraceImpl} from '../core/trace_impl';
 import {SerializedAppState} from '../public/state_serialization_schema';
 import {TraceSource} from '../public/trace_source';
 import {ThreadDesc} from '../public/threads';
+import {Router} from '../core/router';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -296,7 +296,11 @@ async function loadTraceIntoEngine(
   }
 
   const traceDetails = await getTraceInfo(engine, traceSource);
-  const trace = TraceImpl.createInstanceForCore(engine, traceDetails);
+  const trace = TraceImpl.createInstanceForCore(
+    AppImpl.instance,
+    engine,
+    traceDetails,
+  );
   AppImpl.instance.setActiveTrace(trace);
 
   const visibleTimeSpan = await computeVisibleTime(
@@ -353,7 +357,7 @@ async function loadTraceIntoEngine(
     // the final phase of app state restore.
     // TODO(primiano): this can probably be removed once we refactor tracks
     // to be URI based and can deal with non-existing URIs.
-    deserializeAppStatePhase2(serializedAppState);
+    deserializeAppStatePhase2(serializedAppState, trace);
   }
 
   await trace.plugins.onTraceReady();
