@@ -26,6 +26,10 @@ sys.path.append(os.path.join(ROOT_DIR))
 from python.generators.sql_processing.docs_parse import parse_file
 
 
+def _summary_desc(s: str) -> str:
+  return s.split('. ')[0].replace('\n', ' ')
+
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--json-out', required=True)
@@ -68,8 +72,8 @@ def main():
   modules = defaultdict(list)
   # Add documentation from each file
   for path, sql in sql_outputs.items():
-    module_name = path.split("/")[0]
-    import_key = path.split(".sql")[0].replace("/", ".")
+    package = path.split("/")[0]
+    module_name = path.split(".sql")[0].replace("/", ".")
 
     docs = parse_file(path, sql)
 
@@ -83,12 +87,12 @@ def main():
       return 1
 
     file_dict = {
-        'import_key':
-            import_key,
-        'imports': [{
+        'module_name':
+            module_name,
+        'tables/views': [{
             'name': table.name,
             'desc': table.desc,
-            'summary_desc': table.desc.split('\n\n')[0].replace('\n', ' '),
+            'summary_desc': _summary_desc(table.desc),
             'type': table.type,
             'cols': {
                 col_name: {
@@ -100,7 +104,7 @@ def main():
         'functions': [{
             'name': function.name,
             'desc': function.desc,
-            'summary_desc': function.desc.split('\n\n')[0].replace('\n', ' '),
+            'summary_desc': _summary_desc(function.desc),
             'args': {
                 arg_name: {
                     'type': arg.type,
@@ -113,7 +117,7 @@ def main():
         'table_functions': [{
             'name': function.name,
             'desc': function.desc,
-            'summary_desc': function.desc.split('\n\n')[0].replace('\n', ' '),
+            'summary_desc': _summary_desc(function.desc),
             'args': {
                 arg_name: {
                     'type': arg.type,
@@ -130,7 +134,7 @@ def main():
         'macros': [{
             'name': macro.name,
             'desc': macro.desc,
-            'summary_desc': macro.desc.split('\n\n')[0].replace('\n', ' '),
+            'summary_desc': _summary_desc(macro.desc),
             'return_desc': macro.return_desc,
             'return_type': macro.return_type,
             'args': {
@@ -141,7 +145,7 @@ def main():
             },
         } for macro in docs.macros],
     }
-    modules[module_name].append(file_dict)
+    modules[package].append(file_dict)
 
   indent = None if args.minify else 4
 
