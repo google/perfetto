@@ -399,13 +399,15 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   private renderOmnibox(): m.Children {
-    const omniboxMode = AppImpl.instance.omnibox.mode;
-    if (omniboxMode === OmniboxMode.StatusMessage) {
+    const omnibox = AppImpl.instance.omnibox;
+    const omniboxMode = omnibox.mode;
+    const statusMessage = omnibox.statusMessage;
+    if (statusMessage !== '') {
       return m(
         `.omnibox.message-mode`,
         m(`input[readonly][disabled][ref=omnibox]`, {
           value: '',
-          placeholder: AppImpl.instance.omnibox.statusMessage,
+          placeholder: statusMessage,
         }),
       );
     } else if (omniboxMode === OmniboxMode.Command) {
