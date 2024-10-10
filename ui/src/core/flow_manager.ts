@@ -25,7 +25,6 @@ import {TrackDescriptor, TrackManager} from '../public/track';
 import {AreaSelection, Selection, SelectionManager} from '../public/selection';
 import {raf} from './raf_scheduler';
 import {Engine} from '../trace_processor/engine';
-import {Workspace} from '../public/workspace';
 
 const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   id: 'showIndirectPrecedingFlows',
@@ -49,7 +48,6 @@ export class FlowManager {
     private engine: Engine,
     private trackMgr: TrackManager,
     private selectionMgr: SelectionManager,
-    private getCurWorkspace: () => Workspace,
   ) {}
 
   // TODO(primiano): the only reason why this is not done in the constructor is
@@ -535,17 +533,9 @@ export class FlowManager {
     for (const flow of this._connectedFlows) {
       if (flow.id === flowId) {
         const flowPoint = direction === 'Backward' ? flow.begin : flow.end;
-        const track = this.getCurWorkspace().flatTracks.find((t) => {
-          if (t.uri === undefined) return false;
-          return this.trackMgr
-            .getTrack(t.uri)
-            ?.tags?.trackIds?.includes(flowPoint.trackId);
+        this.selectionMgr.selectSqlEvent('slice', flowPoint.sliceId, {
+          scrollToSelection: true,
         });
-        if (track) {
-          this.selectionMgr.selectSqlEvent('slice', flowPoint.sliceId, {
-            scrollToSelection: true,
-          });
-        }
       }
     }
   }

@@ -23,10 +23,8 @@ import {Timestamp} from '../../frontend/widgets/timestamp';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Anchor} from '../../widgets/anchor';
 import {globals} from '../../frontend/globals';
-import {scrollTo} from '../../public/scroll_helper';
 import {Engine} from '../../trace_processor/engine';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 
@@ -100,11 +98,7 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
                   {
                     icon: 'call_made',
                     onclick: () => {
-                      this.goToThread(
-                        eventDetails.utid,
-                        eventDetails.ts,
-                        eventDetails.thread_state_id,
-                      );
+                      this.goToThread(eventDetails.thread_state_id);
                     },
                   },
                   `${threadInfo.threadName} [${threadInfo.tid}]`,
@@ -127,25 +121,10 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
     return this.suspendResumeEventDetails === undefined;
   }
 
-  goToThread(utid: number, ts: time, threadStateId: number) {
-    const threadInfo = this.trace.threads.get(utid);
-    if (threadInfo === undefined) {
-      return;
-    }
-
-    const trackDescriptor = globals.trackManager.findTrack(
-      (td) =>
-        td.tags?.kind === THREAD_STATE_TRACK_KIND &&
-        td.tags?.utid === threadInfo.utid,
-    );
-
-    if (trackDescriptor) {
-      globals.selectionManager.selectSqlEvent('thread_state', threadStateId);
-      scrollTo({
-        track: {uri: trackDescriptor.uri, expandGroup: true},
-        time: {start: ts},
-      });
-    }
+  goToThread(threadStateId: number) {
+    globals.selectionManager.selectSqlEvent('thread_state', threadStateId, {
+      scrollToSelection: true,
+    });
   }
 }
 

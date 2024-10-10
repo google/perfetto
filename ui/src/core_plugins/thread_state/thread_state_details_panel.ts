@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {time} from '../../base/time';
 import {Anchor} from '../../widgets/anchor';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -156,12 +155,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       }),
       m(TreeNode, {
         left: 'State',
-        right: this.renderState(
-          state.state,
-          state.cpu,
-          state.schedSqlId,
-          state.ts,
-        ),
+        right: this.renderState(state.state, state.cpu, state.schedSqlId),
       }),
       state.blockedFunction &&
         m(TreeNode, {
@@ -185,7 +179,6 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
     state: string,
     cpu: number | undefined,
     id: SchedSqlId | undefined,
-    ts: time,
   ): m.Children {
     if (!state) {
       return null;
@@ -198,7 +191,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       {
         title: 'Go to CPU slice',
         icon: 'call_made',
-        onclick: () => goToSchedSlice(cpu, id, ts),
+        onclick: () => goToSchedSlice(id),
       },
       `${state} on CPU ${cpu}`,
     );
@@ -212,9 +205,6 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
     const renderRef = (state: ThreadState, name?: string) =>
       m(ThreadStateRef, {
         id: state.threadStateSqlId,
-        ts: state.ts,
-        dur: state.dur,
-        utid: state.thread!.utid,
         name,
       });
 

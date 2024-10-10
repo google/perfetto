@@ -23,7 +23,6 @@ import {globals} from '../../frontend/globals';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
-import {scrollTo} from '../../public/scroll_helper';
 import {
   getSched,
   getSchedWakeupInfo,
@@ -35,7 +34,6 @@ import {raf} from '../../core/raf_scheduler';
 import {translateState} from '../../trace_processor/sql_utils/thread_state';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackEventSelection} from '../../public/selection';
 import {ThreadDesc} from '../../public/threads';
 
@@ -251,27 +249,12 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   goToThread(data: Data) {
-    const threadInfo = this.trace.threads.get(data.sched.thread.utid);
-
-    if (threadInfo === undefined) {
-      return;
-    }
-
-    const trackDescriptor = globals.trackManager.findTrack(
-      (td) =>
-        td.tags?.kind === THREAD_STATE_TRACK_KIND &&
-        td.tags?.utid === threadInfo.utid,
-    );
-
-    if (trackDescriptor && data.sched.threadStateId) {
+    if (data.sched.threadStateId) {
       globals.selectionManager.selectSqlEvent(
         'thread_state',
         data.sched.threadStateId,
+        {scrollToSelection: true},
       );
-      scrollTo({
-        track: {uri: trackDescriptor.uri, expandGroup: true},
-        time: {start: data.sched.ts},
-      });
     }
   }
 

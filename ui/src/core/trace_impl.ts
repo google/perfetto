@@ -114,7 +114,6 @@ class TraceContext implements Disposable {
       engine.getProxy('FlowManager'),
       this.trackMgr,
       this.selectionMgr,
-      () => this.workspaceMgr.currentWorkspace,
     );
 
     this.searchMgr = new SearchManagerImpl({
