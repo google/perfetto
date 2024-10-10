@@ -49,7 +49,7 @@ export interface TraceInfo {
   // The trace type inferred by TraceProcessor (e.g. 'proto', 'json, ...).
   // See TraceTypeToString() in src/trace_processor/util/trace_type.cc for
   // all the available types.
-  readonly traceType: string;
+  readonly traceType?: string;
 
   // True if the trace contains any ftrace data (sched or other ftrace events).
   readonly hasFtrace: boolean;
