@@ -231,26 +231,6 @@ class TracingServiceImplTest : public testing::Test {
         new StrictMock<MockConsumer>(&task_runner));
   }
 
-  ProducerID* last_producer_id() { return &svc->last_producer_id_; }
-
-  uid_t GetProducerUid(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->uid();
-  }
-
-  TracingServiceImpl::TracingSession* GetTracingSession(TracingSessionID tsid) {
-    auto* session = svc->GetTracingSession(tsid);
-    EXPECT_NE(nullptr, session);
-    return session;
-  }
-
-  TracingServiceImpl::TracingSession* tracing_session() {
-    return GetTracingSession(GetTracingSessionID());
-  }
-
-  TracingSessionID GetTracingSessionID() {
-    return svc->last_tracing_session_id_;
-  }
-
   TracingSessionID GetLastTracingSessionId(MockConsumer* consumer) {
     TracingSessionID ret = 0;
     TracingServiceState svc_state = consumer->QueryServiceState();
@@ -261,14 +241,6 @@ class TracingServiceImplTest : public testing::Test {
       }
     }
     return ret;
-  }
-
-  const std::map<WriterID, BufferID>& GetWriters(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->writers_;
-  }
-
-  SharedMemoryArbiterImpl* GetShmemArbiterForProducer(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->inproc_shmem_arbiter_.get();
   }
 
   void SetTriggerWindowNs(int64_t window_ns) {
@@ -356,11 +328,15 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   mock_producer_1->Connect(svc.get(), "mock_producer_1", 123u /* uid */);
   mock_producer_2->Connect(svc.get(), "mock_producer_2", 456u /* uid */);
 
-  ASSERT_EQ(2u, svc->num_producers());
-  ASSERT_EQ(mock_producer_1->endpoint(), svc->GetProducer(1));
-  ASSERT_EQ(mock_producer_2->endpoint(), svc->GetProducer(2));
-  ASSERT_EQ(123u, GetProducerUid(1));
-  ASSERT_EQ(456u, GetProducerUid(2));
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TracingServiceState svc_state = consumer->QueryServiceState();
+  ASSERT_EQ(svc_state.producers_size(), 2);
+  EXPECT_EQ(svc_state.producers().at(0).id(), 1);
+  EXPECT_EQ(svc_state.producers().at(0).uid(), 123);
+  EXPECT_EQ(svc_state.producers().at(1).id(), 2);
+  EXPECT_EQ(svc_state.producers().at(1).uid(), 456);
 
   mock_producer_1->RegisterDataSource("foo");
   mock_producer_2->RegisterDataSource("bar");
@@ -369,13 +345,15 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   mock_producer_2->UnregisterDataSource("bar");
 
   mock_producer_1.reset();
-  ASSERT_EQ(1u, svc->num_producers());
-  ASSERT_EQ(nullptr, svc->GetProducer(1));
+
+  svc_state = consumer->QueryServiceState();
+  ASSERT_EQ(svc_state.producers_size(), 1);
+  EXPECT_EQ(svc_state.producers().at(0).id(), 2);
 
   mock_producer_2.reset();
-  ASSERT_EQ(nullptr, svc->GetProducer(2));
 
-  ASSERT_EQ(0u, svc->num_producers());
+  svc_state = consumer->QueryServiceState();
+  ASSERT_EQ(svc_state.producers_size(), 0);
 }
 
 TEST_F(TracingServiceImplTest, EnableAndDisableTracing) {
@@ -1693,33 +1671,6 @@ TEST_F(TracingServiceImplTest, ReconnectProducerWhileTracing) {
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
-}
-
-TEST_F(TracingServiceImplTest, ProducerIDWrapping) {
-  std::vector<std::unique_ptr<MockProducer>> producers;
-  producers.push_back(nullptr);
-
-  auto connect_producer_and_get_id = [&producers,
-                                      this](const std::string& name) {
-    producers.emplace_back(CreateMockProducer());
-    producers.back()->Connect(svc.get(), "mock_producer_" + name);
-    return *last_producer_id();
-  };
-
-  // Connect producers 1-4.
-  for (ProducerID i = 1; i <= 4; i++)
-    ASSERT_EQ(i, connect_producer_and_get_id(std::to_string(i)));
-
-  // Disconnect producers 1,3.
-  producers[1].reset();
-  producers[3].reset();
-
-  *last_producer_id() = kMaxProducerID - 1;
-  ASSERT_EQ(kMaxProducerID, connect_producer_and_get_id("maxid"));
-  ASSERT_EQ(1u, connect_producer_and_get_id("1_again"));
-  ASSERT_EQ(3u, connect_producer_and_get_id("3_again"));
-  ASSERT_EQ(5u, connect_producer_and_get_id("5"));
-  ASSERT_EQ(6u, connect_producer_and_get_id("6"));
 }
 
 TEST_F(TracingServiceImplTest, CompressionConfiguredButUnsupported) {
@@ -3100,64 +3051,6 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
 }
 #endif  // !PERFETTO_DCHECK_IS_ON()
 
-TEST_F(TracingServiceImplTest, RegisterAndUnregisterTraceWriter) {
-  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
-  consumer->Connect(svc.get());
-
-  std::unique_ptr<MockProducer> producer = CreateMockProducer();
-  producer->Connect(svc.get(), "mock_producer");
-  ProducerID producer_id = *last_producer_id();
-  producer->RegisterDataSource("data_source");
-
-  EXPECT_TRUE(GetWriters(producer_id).empty());
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(128);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("data_source");
-  ds_config->set_target_buffer(0);
-  consumer->EnableTracing(trace_config);
-
-  producer->WaitForTracingSetup();
-  producer->WaitForDataSourceSetup("data_source");
-  producer->WaitForDataSourceStart("data_source");
-
-  // Creating the trace writer should register it with the service.
-  std::unique_ptr<TraceWriter> writer = producer->endpoint()->CreateTraceWriter(
-      tracing_session()->buffers_index[0]);
-  // Wait for TraceWriter to be registered.
-  task_runner.RunUntilIdle();
-
-  std::map<WriterID, BufferID> expected_writers;
-  expected_writers[writer->writer_id()] = tracing_session()->buffers_index[0];
-  EXPECT_EQ(expected_writers, GetWriters(producer_id));
-
-  // Verify writing works.
-  {
-    auto tp = writer->NewTracePacket();
-    tp->set_for_testing()->set_str("payload");
-  }
-
-  auto flush_request = consumer->Flush();
-  producer->ExpectFlush(writer.get());
-  ASSERT_TRUE(flush_request.WaitForReply());
-
-  // Destroying the writer should unregister it.
-  writer.reset();
-  // Wait for TraceWriter to be registered.
-  task_runner.RunUntilIdle();
-  EXPECT_TRUE(GetWriters(producer_id).empty());
-
-  consumer->DisableTracing();
-  producer->WaitForDataSourceStop("data_source");
-  consumer->WaitForTracingDisabled();
-
-  auto packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
-                                         Property(&protos::gen::TestEvent::str,
-                                                  Eq("payload")))));
-}
-
 TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   svc->SetSMBScrapingEnabled(true);
 
@@ -3439,8 +3332,19 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
     consumer_ = CreateMockConsumer();
     consumer_->Connect(svc.get());
     producer_ = CreateMockProducer();
-    producer_->Connect(svc.get(), "mock_producer");
-    ProducerID producer_id = *last_producer_id();
+
+    static constexpr size_t kShmSizeBytes = 1024 * 1024;
+    static constexpr size_t kShmPageSizeBytes = 4 * 1024;
+
+    TestSharedMemory::Factory factory;
+    shm_ = factory.CreateSharedMemory(kShmSizeBytes);
+
+    // Service should adopt the SMB provided by the producer.
+    producer_->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
+                       /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                       TestRefSharedMemory::Create(shm_.get()),
+                       /*in_process=*/false);
+
     producer_->RegisterDataSource("data_source");
 
     TraceConfig trace_config;
@@ -3454,12 +3358,19 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
     producer_->WaitForDataSourceSetup("data_source");
     producer_->WaitForDataSourceStart("data_source");
 
-    writer_ = producer_->endpoint()->CreateTraceWriter(
-        tracing_session()->buffers_index[0]);
-    // Wait for TraceWriter to be registered.
-    task_runner.RunUntilIdle();
+    arbiter_ = std::make_unique<SharedMemoryArbiterImpl>(
+        shm_->start(), shm_->size(), SharedMemoryABI::ShmemMode::kDefault,
+        kShmPageSizeBytes, producer_->endpoint(), &task_runner);
+    arbiter_->SetDirectSMBPatchingSupportedByService();
 
-    arbiter_ = GetShmemArbiterForProducer(producer_id);
+    const auto* ds = producer_->GetDataSourceInstance("data_source");
+    ASSERT_NE(ds, nullptr);
+
+    target_buffer_ = ds->target_buffer;
+
+    writer_ = arbiter_->CreateTraceWriter(target_buffer_);
+    // Wait for the writer to be registered.
+    task_runner.RunUntilIdle();
   }
 
   void TearDown() override {
@@ -3474,17 +3385,23 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
   std::optional<std::vector<protos::gen::TracePacket>> FlushAndRead() {
     // Scrape: ask the service to flush but don't flush the chunk.
     auto flush_request = consumer_->Flush();
-    producer_->ExpectFlush(nullptr, /*reply=*/true);
+
+    EXPECT_CALL(*producer_, Flush)
+        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                             const DataSourceInstanceID*, size_t, FlushFlags) {
+          arbiter_->NotifyFlushComplete(flush_req_id);
+        }));
     if (flush_request.WaitForReply()) {
       return consumer_->ReadBuffers();
     }
     return std::nullopt;
   }
   std::unique_ptr<MockConsumer> consumer_;
+  std::unique_ptr<SharedMemory> shm_;
+  std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
   std::unique_ptr<MockProducer> producer_;
   std::unique_ptr<TraceWriter> writer_;
-  // Owned by `svc`.
-  SharedMemoryArbiterImpl* arbiter_;
+  BufferID target_buffer_{};
 
   struct : public protozero::ScatteredStreamWriter::Delegate {
     protozero::ContiguousMemoryRange GetNewBuffer() override {
@@ -3555,8 +3472,7 @@ TEST_F(TracingServiceImplScrapingWithSmbTest, ScrapeAfterInflatedCount) {
                   &protos::gen::TracePacket::for_testing,
                   Property(&protos::gen::TestEvent::str, Eq("payload1"))))));
 
-  arbiter_->ReturnCompletedChunk(std::move(chunk),
-                                 tracing_session()->buffers_index[0],
+  arbiter_->ReturnCompletedChunk(std::move(chunk), target_buffer_,
                                  &empty_patch_list_);
 
   packets = FlushAndRead();
@@ -3611,8 +3527,7 @@ TEST_F(TracingServiceImplScrapingWithSmbTest, ScrapeAfterCompleteChunk) {
   uint8_t zero_size = 0;
   stream_writer.WriteBytesUnsafe(&zero_size, sizeof zero_size);
 
-  arbiter_->ReturnCompletedChunk(std::move(chunk),
-                                 tracing_session()->buffers_index[0],
+  arbiter_->ReturnCompletedChunk(std::move(chunk), target_buffer_,
                                  &empty_patch_list_);
 
   packets = FlushAndRead();
