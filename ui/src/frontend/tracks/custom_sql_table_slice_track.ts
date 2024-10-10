@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
+import {generateSqlWithInternalLayout} from '../../trace_processor/sql_utils/layout';
 import {GenericSliceDetailsTabConfigBase} from '../generic_slice_details_tab';
 import {NAMED_ROW, NamedRow, NamedSliceTrack} from '../named_slice_track';
 import {NewTrackArgs} from '../track';
