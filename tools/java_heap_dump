@@ -237,7 +237,7 @@ def main(argv):
       "--buffer-size",
       help="Buffer size in memory that store the whole java heap graph. N(kb|mb|gb)",
       type=str,
-      default="100024kb")
+      default="256mb")
   parser.add_argument(
       "-c",
       "--continuous-dump",
