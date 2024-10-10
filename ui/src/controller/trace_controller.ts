@@ -753,11 +753,7 @@ async function getTraceInfo(
       break;
   }
 
-  const traceType = (
-    await engine.query(
-      `select str_value from metadata where name = 'trace_type'`,
-    )
-  ).firstRow({str_value: STR}).str_value;
+  const traceType = await getTraceType(engine);
 
   const hasFtrace =
     (await engine.query(`select * from ftrace_event limit 1`)).numRows() > 0;
@@ -785,6 +781,15 @@ async function getTraceInfo(
     uuid,
     cached,
   };
+}
+
+async function getTraceType(engine: Engine) {
+  const result = await engine.query(
+    `select str_value from metadata where name = 'trace_type'`,
+  );
+
+  if (result.numRows() === 0) return undefined;
+  return result.firstRow({str_value: STR}).str_value;
 }
 
 async function getTraceTimeBounds(engine: Engine): Promise<TimeSpan> {
