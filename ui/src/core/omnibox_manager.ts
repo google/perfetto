@@ -21,7 +21,6 @@ export enum OmniboxMode {
   Query,
   Command,
   Prompt,
-  StatusMessage,
 }
 
 interface Prompt {
@@ -101,17 +100,12 @@ export class OmniboxManagerImpl implements OmniboxManager {
   showStatusMessage(msg: string, durationMs = 2000) {
     this._statusMessage = msg;
     const generation = ++this._statusMessageGeneration;
-    const prevMode = this._mode;
-    this._mode = OmniboxMode.StatusMessage;
     raf.scheduleFullRedraw();
     if (durationMs === 0) return; // Don't auto-reset
     setTimeout(() => {
       if (this._statusMessageGeneration !== generation) return;
       raf.scheduleFullRedraw();
       this._statusMessage = '';
-      if (this._mode === OmniboxMode.StatusMessage) {
-        this._mode = prevMode;
-      }
     }, durationMs);
   }
 
@@ -160,6 +154,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
   reset(focus = true): void {
     this.setMode(defaultMode, focus);
     this._omniboxSelectionIndex = 0;
+    this._statusMessage = '';
     raf.scheduleFullRedraw();
   }
 
