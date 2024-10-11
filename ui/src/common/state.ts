@@ -158,7 +158,6 @@ export interface PendingDeeplinkState {
 
 export interface State {
   version: number;
-  nextId: string;
 
   /**
    * State of the ConfigEditor.

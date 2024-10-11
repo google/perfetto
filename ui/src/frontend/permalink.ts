@@ -206,9 +206,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
     }
   }
   if (permalink.traceUrl) {
-    globals.dispatch(
-      Actions.openTraceFromUrl({url: permalink.traceUrl, serializedAppState}),
-    );
+    AppImpl.instance.openTraceFromUrl(permalink.traceUrl, serializedAppState);
   }
 
   if (error) {

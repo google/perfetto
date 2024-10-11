@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import {RECORDING_V2_FLAG} from '../core/feature_flags';
-import {globals} from '../frontend/globals';
 import {Child, Controller, ControllerInitializerAny} from './controller';
 import {RecordController} from './record_controller';
-import {TraceController} from './trace_controller';
 
 // The root controller for the entire app. It handles the lifetime of all
 // the other controllers (e.g., track and query controllers) according to the
@@ -43,10 +41,6 @@ export class AppController extends Controller<'main'> {
       childControllers.push(
         Child('record', RecordController, {extensionPort: this.extensionPort}),
       );
-    }
-    if (globals.state.engine !== undefined) {
-      const engineCfg = globals.state.engine;
-      childControllers.push(Child(engineCfg.id, TraceController, engineCfg));
     }
     return childControllers;
   }

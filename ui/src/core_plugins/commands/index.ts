@@ -337,7 +337,7 @@ function onInputElementFileSelectionChanged(e: Event) {
   }
 
   globals.logging.logEvent('Trace Actions', 'Open trace from file');
-  globals.dispatch(Actions.openTraceFromFile({file}));
+  AppImpl.instance.openTraceFromFile(file);
 }
 
 async function openWithLegacyUi(file: File) {
