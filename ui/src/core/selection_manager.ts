@@ -92,6 +92,10 @@ export class SelectionManagerImpl implements SelectionManager {
     );
   }
 
+  selectTrack(trackUri: string, opts?: SelectionOpts) {
+    this.setSelection({kind: 'track', trackUri}, opts);
+  }
+
   selectNote(args: {id: string}, opts?: SelectionOpts) {
     this.setSelection(
       {
@@ -230,8 +234,9 @@ export class SelectionManagerImpl implements SelectionManager {
     }
     switch (source) {
       case 'track':
-        this.scrollHelper.scrollTo({
-          track: {uri: trackUri, expandGroup: true},
+        this.selectTrack(trackUri, {
+          clearSearch: false,
+          scrollToSelection: true,
         });
         break;
       case 'cpu':
@@ -262,6 +267,7 @@ export class SelectionManagerImpl implements SelectionManager {
     const uri = (() => {
       switch (this.selection.kind) {
         case 'track_event':
+        case 'track':
           return this.selection.trackUri;
         // TODO(stevegolton): Handle scrolling to area and note selections.
         default:
