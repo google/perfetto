@@ -14,11 +14,9 @@
 
 import m from 'mithril';
 import {Time} from '../base/time';
-import {Actions} from '../common/actions';
 import {PostedTrace} from '../public/trace_source';
 import {showModal} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
-import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {scrollTo} from '../public/scroll_helper';
 import {AppImpl} from '../core/app_impl';
@@ -212,7 +210,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace.
     postedTrace.localOnly = true;
-    globals.dispatch(Actions.openTraceFromBuffer(postedTrace));
+    AppImpl.instance.openTraceFromBuffer(postedTrace);
   };
 
   const trustAndOpenTrace = () => {
