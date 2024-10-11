@@ -1,5 +1,18 @@
 Unreleased:
   Tracing service and probes:
+    *
+  SQL Standard library:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v48.0 - 2024-10-11:
+  Tracing service and probes:
     * Improved accuracy of ftrace event cropping when there are multiple
       concurrent tracing sessions. See `previous_bundle_end_timestamp` in
       ftrace_event_bundle.proto.
