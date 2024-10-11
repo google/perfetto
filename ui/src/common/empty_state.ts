@@ -46,7 +46,6 @@ export function keyedMap<T>(
 export function createEmptyState(): State {
   return {
     version: STATE_VERSION,
-    nextId: '-1',
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()
       ? autosaveConfigStore.get()

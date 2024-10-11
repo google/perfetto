@@ -14,12 +14,10 @@
 
 import m from 'mithril';
 import {assertExists} from '../base/logging';
-import {Actions} from '../common/actions';
 import {VERSION} from '../gen/perfetto_version';
 import {StatusResult, TraceProcessorApiVersion} from '../protos';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
-import {globals} from './globals';
 import {publishHttpRpcState} from './publish';
 import {AppImpl} from '../core/app_impl';
 
@@ -213,7 +211,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
     switch (result) {
       case PreloadedDialogResult.Dismissed:
       case PreloadedDialogResult.UseRpcWithPreloadedTrace:
-        globals.dispatch(Actions.openTraceFromHttpRpc({}));
+        AppImpl.instance.openTraceFromHttpRpc();
         return;
       case PreloadedDialogResult.UseRpc:
         // Resetting state is the default.

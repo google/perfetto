@@ -17,12 +17,9 @@ import {tryGetTrace} from '../core/cache_manager';
 import {showModal} from '../widgets/modal';
 import {loadPermalink} from './permalink';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
-import {Route} from '../core/router';
+import {Route, Router} from '../core/router';
 import {taskTracker} from './task_tracker';
 import {AppImpl} from '../core/app_impl';
-import {Actions} from '../common/actions';
-import {globals} from './globals';
-import {Router} from '../core/router';
 
 function getCurrentTraceUrl(): undefined | string {
   const source = AppImpl.instance.trace?.traceInfo.source;
@@ -165,7 +162,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // discarding, reloading or pasting a url with a local_cache_key in an empty
   // instance.
   if (curTrace === undefined) {
-    globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
+    AppImpl.instance.openTraceFromBuffer(maybeTrace);
     return;
   }
 
@@ -202,7 +199,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
         primary: true,
         action: () => {
           hasOpenedNewTrace = true;
-          globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
+          AppImpl.instance.openTraceFromBuffer(maybeTrace);
         },
       },
       {text: 'Cancel'},
@@ -230,17 +227,11 @@ function loadTraceFromUrl(url: string) {
     const fileName = url.split('/').pop() ?? 'local_trace.pftrace';
     const request = fetch(url)
       .then((response) => response.blob())
-      .then((blob) => {
-        globals.dispatch(
-          Actions.openTraceFromFile({
-            file: new File([blob], fileName),
-          }),
-        );
-      })
+      .then((b) => AppImpl.instance.openTraceFromFile(new File([b], fileName)))
       .catch((e) => alert(`Could not load local trace ${e}`));
     taskTracker.trackPromise(request, 'Downloading local trace');
   } else {
-    globals.dispatch(Actions.openTraceFromUrl({url}));
+    AppImpl.instance.openTraceFromUrl(url);
   }
 }
 
@@ -250,14 +241,6 @@ function openTraceFromAndroidBugTool() {
   const loadInfo = loadAndroidBugToolInfo();
   taskTracker.trackPromise(loadInfo, msg);
   loadInfo
-    .then((info) => {
-      globals.dispatch(
-        Actions.openTraceFromFile({
-          file: info.file,
-        }),
-      );
-    })
-    .catch((e) => {
-      console.error(e);
-    });
+    .then((info) => AppImpl.instance.openTraceFromFile(info.file))
+    .catch((e) => console.error(e));
 }

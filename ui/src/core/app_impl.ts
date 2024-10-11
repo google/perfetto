@@ -23,10 +23,10 @@ import {PluginManager} from './plugin_manager';
 import {NewEngineMode} from '../trace_processor/engine';
 import {RouteArgs} from '../public/route_schema';
 import {SqlPackage} from '../public/extra_sql_packages';
-
-// The pseudo plugin id used for the core instance of AppImpl.
-
-export const CORE_PLUGIN_ID = '__core__';
+import {SerializedAppState} from '../public/state_serialization_schema';
+import {PostedTrace, TraceSource} from '../public/trace_source';
+import {loadTrace} from './load_trace';
+import {CORE_PLUGIN_ID} from './plugin_manager';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -160,6 +160,50 @@ export class AppImpl implements App {
     return this.appCtx.initialRouteArgs;
   }
 
+  openTraceFromFile(file: File): void {
+    this.openTrace({type: 'FILE', file});
+  }
+
+  openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
+    this.openTrace({type: 'URL', url, serializedAppState});
+  }
+
+  openTraceFromBuffer(postMessageArgs: PostedTrace): void {
+    this.openTrace({type: 'ARRAY_BUFFER', ...postMessageArgs});
+  }
+
+  openTraceFromHttpRpc(): void {
+    this.openTrace({type: 'HTTP_RPC'});
+  }
+
+  private async openTrace(src: TraceSource) {
+    assertTrue(this.pluginId === CORE_PLUGIN_ID);
+    this.closeCurrentTrace();
+    this.appCtx.isLoadingTrace = true;
+    try {
+      // loadTrace() in trace_loader.ts will do the following:
+      // - Create a new engine.
+      // - Pump the data from the TraceSource into the engine.
+      // - Do the initial queries to build the TraceImpl object
+      // - Call AppImpl.setActiveTrace(TraceImpl)
+      // - Continue with the trace loading logic (track decider, plugins, etc)
+      // - Resolve the promise when everything is done.
+      await loadTrace(this, src);
+      this.omnibox.reset(/* focus= */ false);
+      // loadTrace() internally will call setActiveTrace() and change our
+      // _currentTrace in the middle of its ececution. We cannot wait for
+      // loadTrace to be finished before setting it because some internal
+      // implementation details of loadTrace() rely on that trace to be current
+      // to work properly (mainly the router hash uuid).
+    } catch (err) {
+      this.omnibox.showStatusMessage(`${err}`);
+      throw err;
+    } finally {
+      this.appCtx.isLoadingTrace = false;
+      raf.scheduleFullRedraw();
+    }
+  }
+
   closeCurrentTrace() {
     // This method should be called only on the core instance, plugins don't
     // have access to openTrace*() methods.
@@ -188,13 +232,6 @@ export class AppImpl implements App {
 
   get isLoadingTrace() {
     return this.appCtx.isLoadingTrace;
-  }
-
-  // TODO(primiano): this is very temporary and will go away as soon as
-  // TraceController is turned into an async function.
-  setIsLoadingTrace(loading: boolean) {
-    this.appCtx.isLoadingTrace = loading;
-    raf.scheduleFullRedraw();
   }
 
   get rootUrl() {
