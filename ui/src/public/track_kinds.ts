@@ -18,10 +18,9 @@
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
-export const THREAD_SLICE_TRACK_KIND = 'ThreadSliceTrack';
+export const SLICE_TRACK_KIND = 'SliceTrack';
 export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
-export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
 export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 export const CPUSS_ESTIMATE_TRACK_KIND = 'CpuSubsystemEstimateTrack';

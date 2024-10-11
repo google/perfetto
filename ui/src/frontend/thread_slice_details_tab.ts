@@ -340,9 +340,6 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
                   id: asSliceSqlId(flow.begin.sliceId),
                   name:
                     flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
-                  ts: flow.begin.sliceStartTs,
-                  dur: flow.begin.sliceEndTs - flow.begin.sliceStartTs,
-                  sqlTrackId: flow.begin.trackId,
                 }),
             },
             {
@@ -386,9 +383,6 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
                 m(SliceRef, {
                   id: asSliceSqlId(flow.end.sliceId),
                   name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
-                  ts: flow.end.sliceStartTs,
-                  dur: flow.end.sliceEndTs - flow.end.sliceStartTs,
-                  sqlTrackId: flow.end.trackId,
                 }),
             },
             {

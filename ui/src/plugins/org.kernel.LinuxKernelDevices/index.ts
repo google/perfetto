@@ -16,7 +16,7 @@ import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {AsyncSliceTrack} from '../../core_plugins/async_slices/async_slice_track';
-import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 
 // This plugin renders visualizations of runtime power state transitions for
@@ -54,7 +54,7 @@ class LinuxKernelDevices implements PerfettoPlugin {
           [trackId],
         ),
         tags: {
-          kind: ASYNC_SLICE_TRACK_KIND,
+          kind: SLICE_TRACK_KIND,
           trackIds: [trackId],
           groupName: `Linux Kernel Devices`,
         },
