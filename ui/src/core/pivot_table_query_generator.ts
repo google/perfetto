@@ -20,7 +20,10 @@ import {
   TableColumn,
 } from './pivot_table_types';
 import {AreaSelection} from '../public/selection';
-import {SLICE_TRACK_KIND} from '../public/track_kinds';
+import {
+  ASYNC_SLICE_TRACK_KIND,
+  THREAD_SLICE_TRACK_KIND,
+} from '../public/track_kinds';
 
 interface Table {
   name: string;
@@ -174,7 +177,11 @@ export function generateQueryFromState(
 function getSelectedTrackSqlIds(area: AreaSelection): number[] {
   const selectedTrackKeys: number[] = [];
   for (const trackInfo of area.tracks) {
-    if (trackInfo?.tags?.kind === SLICE_TRACK_KIND) {
+    if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
+      trackInfo.tags.trackIds &&
+        selectedTrackKeys.push(...trackInfo.tags.trackIds);
+    }
+    if (trackInfo?.tags?.kind === ASYNC_SLICE_TRACK_KIND) {
       trackInfo.tags.trackIds &&
         selectedTrackKeys.push(...trackInfo.tags.trackIds);
     }

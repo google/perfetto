@@ -14,7 +14,7 @@
 
 import {removeFalsyValues} from '../../base/array_utils';
 import {TrackNode} from '../../public/workspace';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
@@ -146,7 +146,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const rawName = it.name === null ? undefined : it.name;
       const title = getTrackName({
         name: rawName,
-        kind: SLICE_TRACK_KIND,
+        kind: ASYNC_SLICE_TRACK_KIND,
       });
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
@@ -163,7 +163,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           title,
           tags: {
             trackIds,
-            kind: SLICE_TRACK_KIND,
+            kind: ASYNC_SLICE_TRACK_KIND,
             scope: 'global',
           },
           track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
@@ -231,7 +231,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       const pid = it.pid;
       const maxDepth = it.maxDepth;
 
-      const kind = SLICE_TRACK_KIND;
+      const kind = ASYNC_SLICE_TRACK_KIND;
       const title = getTrackName({
         name: trackName,
         upid,
@@ -246,7 +246,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         title,
         tags: {
           trackIds,
-          kind: SLICE_TRACK_KIND,
+          kind: ASYNC_SLICE_TRACK_KIND,
           scope: 'process',
           upid,
         },
@@ -292,6 +292,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       from _thread_track_summary_by_utid_and_name t
       join _threads_with_kernel_flag k using(utid)
       join thread using (utid)
+      where t.track_count > 1
     `);
 
     const it = result.iter({
@@ -340,11 +341,10 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         title,
         tags: {
           trackIds,
-          kind: SLICE_TRACK_KIND,
+          kind: ASYNC_SLICE_TRACK_KIND,
           scope: 'thread',
           utid,
           upid: upid ?? undefined,
-          ...(isKernelThread === 1 && {kernelThread: true}),
         },
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
@@ -409,7 +409,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
 
     for (; it.valid(); it.next()) {
       const {name, uid, maxDepth, parentId} = it;
-      const kind = SLICE_TRACK_KIND;
+      const kind = ASYNC_SLICE_TRACK_KIND;
       const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
       const trackIds = it.trackIds.split(',').map((v) => Number(v));
 
@@ -427,7 +427,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         title,
         tags: {
           trackIds: trackIds,
-          kind: SLICE_TRACK_KIND,
+          kind: ASYNC_SLICE_TRACK_KIND,
         },
         track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
         detailsPanel: () => new ThreadSliceDetailsPanel(ctx, 'slice'),
