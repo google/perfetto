@@ -1393,6 +1393,7 @@ message ChromeGraphicsPipeline {
   enum StepName {
     STEP_UNKNOWN = 0;
     STEP_DID_NOT_PRODUCE_FRAME = 1;
+    STEP_DID_NOT_PRODUCE_COMPOSITOR_FRAME = 22;
     STEP_GENERATE_COMPOSITOR_FRAME = 2;
     STEP_GENERATE_RENDER_PASS = 3;
     STEP_ISSUE_BEGIN_FRAME = 4;
@@ -1466,6 +1467,10 @@ message ChromeGraphicsPipeline {
   // `viz::BeginFrameAck.trace_id`s for frames aggregated at this step.
   // Used with `STEP_SURFACE_AGGREGATION` only.
   repeated int64 aggregated_frames_ids = 8;
+
+  // List of LatencyInfo.trace_ids associated with this frame, which
+  // should allow us to match input to frame production.
+  repeated int64 latency_ids = 9;
 };
 
 message LibunwindstackUnwinder {
@@ -2014,7 +2019,7 @@ message ChromeLatencyInfo2 {
     // Occurs on Browser Main.
     STEP_GESTURE_EVENT_HANDLED = 13;
     // Renderer's compositor.
-    STEP_SWAP_BUFFERS = 6;
+    STEP_SWAP_BUFFERS = 6 [deprecated = true];
     // Happens on the VizCompositor in the GPU process.
     STEP_DRAW_AND_SWAP = 7 [deprecated = true];
     // Happens on the GPU main thread after the swap has completed.
