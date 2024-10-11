@@ -654,7 +654,7 @@ export abstract class BaseSliceTrack<
       );
     }
 
-    const resolution = rawSlicesKey.bucketSize;
+    const resolution = slicesKey.bucketSize;
     const extraCols = this.extraSqlColumns.join(',');
     const queryRes = await this.engine.query(`
       SELECT
@@ -668,7 +668,7 @@ export abstract class BaseSliceTrack<
       FROM ${this.getTableName()}(
         ${slicesKey.start},
         ${slicesKey.end},
-        ${slicesKey.bucketSize}
+        ${resolution}
       ) z
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
