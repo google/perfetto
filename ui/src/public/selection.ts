@@ -38,6 +38,14 @@ export interface SelectionManager {
   ): void;
 
   /**
+   * Select a track.
+   *
+   * @param trackUri - The URI for the track to select.
+   * @param opts - Additional options.
+   */
+  selectTrack(trackUri: string, opts?: SelectionOpts): void;
+
+  /**
    * Select a track event via a sql table name + id.
    *
    * @param sqlTableName - The name of the SQL table to resolve.
@@ -81,6 +89,7 @@ export interface AreaSelectionAggregator {
 
 export type Selection =
   | TrackEventSelection
+  | TrackSelection
   | AreaSelection
   | NoteSelection
   | UnionSelection
@@ -97,6 +106,11 @@ export interface TrackEventSelection extends TrackEventDetails {
   readonly kind: 'track_event';
   readonly trackUri: string;
   readonly eventId: number;
+}
+
+export interface TrackSelection {
+  readonly kind: 'track';
+  readonly trackUri: string;
 }
 
 export interface TrackEventDetails {

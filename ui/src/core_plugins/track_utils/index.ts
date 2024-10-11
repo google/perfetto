@@ -14,10 +14,11 @@
 
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
-import {PromptOption} from '../../public/omnibox';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
+import {exists} from '../../base/utils';
+import {TrackNode} from '../../public/workspace';
 
 class TrackUtilsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -37,13 +38,22 @@ class TrackUtilsPlugin implements PerfettoPlugin {
 
     ctx.commands.registerCommand({
       // Selects & reveals the first track on the timeline with a given URI.
-      id: 'perfetto.FindTrack',
-      name: 'Find track by URI',
+      id: 'perfetto.FindTrackByName',
+      name: 'Find track by name',
       callback: async () => {
-        const tracks = ctx.tracks.getAllTracks();
-        const options = tracks.map(({uri}): PromptOption => {
-          return {key: uri, displayName: uri};
-        });
+        const tracks = ctx.workspace.flatTracks;
+        const options = tracks
+          .map((node) => (exists(node.uri) ? {uri: node.uri, node} : undefined))
+          .filter((pair) => pair !== undefined)
+          .map(({uri, node}) => {
+            let parent = node.parent;
+            let fullPath = [node.title];
+            while (parent && parent instanceof TrackNode) {
+              fullPath = [parent.title, ...fullPath];
+              parent = parent.parent;
+            }
+            return {key: uri, displayName: fullPath.join(' \u2023 ')};
+          });
 
         // Sort tracks in a natural sort order
         const collator = new Intl.Collator('en', {
@@ -59,12 +69,38 @@ class TrackUtilsPlugin implements PerfettoPlugin {
           sortedOptions,
         );
         if (selectedUri === undefined) return; // Prompt cancelled.
-        ctx.scrollTo({track: {uri: selectedUri, expandGroup: true}});
-        ctx.selection.selectArea({
-          start: ctx.traceInfo.start,
-          end: ctx.traceInfo.end,
-          trackUris: [selectedUri],
+        ctx.selection.selectTrack(selectedUri, {scrollToSelection: true});
+      },
+    });
+
+    ctx.commands.registerCommand({
+      // Selects & reveals the first track on the timeline with a given URI.
+      id: 'perfetto.FindTrackByUri',
+      name: 'Find track by URI',
+      callback: async () => {
+        const tracks = ctx.workspace.flatTracks;
+        const options = tracks
+          .map((track) => track.uri)
+          .filter((uri) => uri !== undefined)
+          .map((uri) => {
+            return {key: uri, displayName: uri};
+          });
+
+        // Sort tracks in a natural sort order
+        const collator = new Intl.Collator('en', {
+          numeric: true,
+          sensitivity: 'base',
         });
+        const sortedOptions = options.sort((a, b) => {
+          return collator.compare(a.displayName, b.displayName);
+        });
+
+        const selectedUri = await ctx.omnibox.prompt(
+          'Choose a track...',
+          sortedOptions,
+        );
+        if (selectedUri === undefined) return; // Prompt cancelled.
+        ctx.selection.selectTrack(selectedUri, {scrollToSelection: true});
       },
     });
   }

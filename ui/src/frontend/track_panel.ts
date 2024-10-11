@@ -263,6 +263,13 @@ function isHighlighted(node: TrackNode) {
       return true;
     }
   }
+
+  if (globals.selectionManager.selection.kind === 'track') {
+    if (globals.selectionManager.selection.trackUri === node.uri) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -421,6 +428,10 @@ function renderTrackDetailsButton(
         }),
         m(TreeNode, {left: 'Path', right: fullPath}),
         m(TreeNode, {left: 'Title', right: node.title}),
+        m(TreeNode, {
+          left: 'Workspace',
+          right: node.workspace?.title ?? '[no workspace]',
+        }),
         td && m(TreeNode, {left: 'Plugin ID', right: td.pluginId}),
         td &&
           m(
