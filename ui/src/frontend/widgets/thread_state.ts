@@ -13,23 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  ThreadStateSqlId,
-  Utid,
-} from '../../trace_processor/sql_utils/core_types';
-import {duration, time} from '../../base/time';
+import {ThreadStateSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {ThreadState} from '../../trace_processor/sql_utils/thread_state';
-import {scrollTo} from '../../public/scroll_helper';
 
 interface ThreadStateRefAttrs {
   id: ThreadStateSqlId;
-  ts: time;
-  dur: duration;
-  utid: Utid;
   // If not present, a placeholder name will be used.
   name?: string;
 
@@ -46,28 +37,15 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          const trackDescriptor = globals.trackManager
-            .getAllTracks()
-            .find(
-              (td) =>
-                td.tags?.kind === THREAD_STATE_TRACK_KIND &&
-                td.tags?.utid === vnode.attrs.utid,
-            );
-
-          if (trackDescriptor === undefined) return;
-
           globals.selectionManager.selectSqlEvent(
             'thread_state',
             vnode.attrs.id,
             {
               switchToCurrentSelectionTab:
                 vnode.attrs.switchToCurrentSelectionTab,
+              scrollToSelection: true,
             },
           );
-          scrollTo({
-            track: {uri: trackDescriptor.uri, expandGroup: true},
-            time: {start: vnode.attrs.ts},
-          });
         },
       },
       vnode.attrs.name ?? `Thread State ${vnode.attrs.id}`,
@@ -80,8 +58,5 @@ export function threadStateRef(state: ThreadState): m.Child {
 
   return m(ThreadStateRef, {
     id: state.threadStateSqlId,
-    ts: state.ts,
-    dur: state.dur,
-    utid: state.thread?.utid,
   });
 }
