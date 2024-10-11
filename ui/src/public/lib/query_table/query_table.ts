@@ -155,18 +155,15 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       });
       const sliceId = getSliceId(row);
       if (sliceId !== undefined) {
-        this.selectSlice(sliceId, trackUri, switchToCurrentSelectionTab);
+        this.selectSlice(sliceId, switchToCurrentSelectionTab);
       }
     }
   }
 
-  private selectSlice(
-    sliceId: number,
-    _trackUuid: string,
-    switchToCurrentSelectionTab: boolean,
-  ) {
+  private selectSlice(sliceId: number, switchToCurrentSelectionTab: boolean) {
     globals.selectionManager.selectSqlEvent('slice', sliceId, {
       switchToCurrentSelectionTab,
+      scrollToSelection: true,
     });
   }
 }

@@ -241,9 +241,6 @@ export class SliceIdColumn extends TableColumn {
     return m(SliceRef, {
       id: asSliceSqlId(Number(id)),
       name: `${id}`,
-      ts: Time.fromRaw(ts),
-      dur: dur,
-      sqlTrackId: Number(trackId),
       switchToCurrentSelectionTab: false,
     });
   }
@@ -385,9 +382,6 @@ export class SchedIdColumn extends TableColumn {
 
     return m(SchedRef, {
       id: asSchedSqlId(Number(id)),
-      ts: Time.fromRaw(ts),
-      dur: dur,
-      cpu: Number(cpu),
       name: `${id}`,
       switchToCurrentSelectionTab: false,
     });
@@ -471,9 +465,6 @@ export class ThreadStateIdColumn extends TableColumn {
 
     return m(ThreadStateRef, {
       id: asThreadStateSqlId(Number(id)),
-      ts: Time.fromRaw(ts),
-      dur: dur,
-      utid: asUtid(Number(utid)),
       name: `${id}`,
       switchToCurrentSelectionTab: false,
     });
