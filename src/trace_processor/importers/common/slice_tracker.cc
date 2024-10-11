@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cstdint>
 #include <limits>
 
 #include <stdint.h>
@@ -28,6 +29,9 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace {
+constexpr uint32_t kMaxDepth = 512;
+}
 
 SliceTracker::SliceTracker(TraceProcessorContext* context)
     : legacy_unnestable_begin_count_string_id_(
@@ -177,7 +181,7 @@ std::optional<SliceId> SliceTracker::StartSlice(
 
   SliceId id = inserter();
   tables::SliceTable::RowReference ref = *slices->FindById(id);
-  if (depth >= std::numeric_limits<uint8_t>::max()) {
+  if (depth >= kMaxDepth) {
     auto parent_name = context_->storage->GetString(
         parent_ref->name().value_or(kNullStringId));
     auto name =
@@ -191,7 +195,7 @@ std::optional<SliceId> SliceTracker::StartSlice(
 
   // Post fill all the relevant columns. All the other columns should have
   // been filled by the inserter.
-  ref.set_depth(static_cast<uint8_t>(depth));
+  ref.set_depth(static_cast<uint32_t>(depth));
   ref.set_parent_stack_id(parent_stack_id);
   ref.set_stack_id(GetStackHash(stack));
   if (parent_id)
