@@ -46,6 +46,9 @@ message TracingServiceEvent {
     // sources have been recording events.
     bool all_data_sources_started = 1;
 
+    // Emitted when a flush is started.
+    bool flush_started = 9;
+
     // Emitted when all data sources have been flushed successfully or with an
     // error (including timeouts). This can generally happen many times over the
     // course of the trace.
