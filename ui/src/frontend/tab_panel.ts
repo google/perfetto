@@ -27,6 +27,10 @@ import {TraceAttrs} from '../public/trace';
 import {Monitor} from '../base/monitor';
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackEventDetailsPanel} from '../public/details_panel';
+import {DetailsShell} from '../widgets/details_shell';
+import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
+import {Section} from '../widgets/section';
+import {Tree, TreeNode} from '../widgets/tree';
 
 interface TabWithContent extends Tab {
   content: m.Children;
@@ -194,6 +198,13 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
       };
     }
 
+    if (currentSelection.kind === 'track') {
+      return {
+        isLoading: false,
+        content: this.renderTrackDetailsPanel(currentSelection.trackUri),
+      };
+    }
+
     // If there is a details panel present, show this
     const dpRenderable = this.trackEventDetailsPanel;
     if (dpRenderable) {
@@ -228,6 +239,42 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
           `Selection kind: '${currentSelection.kind}'`,
         ),
       };
+    }
+  }
+
+  private renderTrackDetailsPanel(trackUri: string) {
+    const track = globals.trackManager.getTrack(trackUri);
+    if (track) {
+      return m(
+        DetailsShell,
+        {title: 'Track', description: track.title},
+        m(
+          GridLayout,
+          m(
+            GridLayoutColumn,
+            m(
+              Section,
+              {title: 'Details'},
+              m(
+                Tree,
+                m(TreeNode, {left: 'Name', right: track.title}),
+                m(TreeNode, {left: 'URI', right: track.uri}),
+                m(TreeNode, {left: 'Plugin ID', right: track.pluginId}),
+                m(
+                  TreeNode,
+                  {left: 'Tags'},
+                  track.tags &&
+                    Object.entries(track.tags).map(([key, value]) => {
+                      return m(TreeNode, {left: key, right: value?.toString()});
+                    }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      return undefined; // TODO show something sensible here
     }
   }
 }
