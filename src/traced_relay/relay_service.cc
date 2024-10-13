@@ -22,13 +22,13 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/client.h"
-#include "perfetto/tracing/core/clock_snapshots.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
 #include "src/ipc/buffered_frame_deserializer.h"
@@ -143,7 +143,7 @@ void RelayClient::SendSyncClockRequest() {
       break;
   }
 
-  ClockSnapshotVector snapshot_data = CaptureClockSnapshots();
+  base::ClockSnapshotVector snapshot_data = base::CaptureClockSnapshots();
   for (auto& clock : snapshot_data) {
     auto* clock_proto = request.add_clocks();
     clock_proto->set_clock_id(clock.clock_id);
