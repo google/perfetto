@@ -32,6 +32,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/small_vector.h"
@@ -1149,6 +1150,8 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     uint64_t realtime_timestamp = static_cast<uint64_t>(
         std::chrono::system_clock::now().time_since_epoch() /
         std::chrono::nanoseconds(1));
+    uint64_t monotonic_timestamp =
+        static_cast<uint64_t>(base::GetWallTimeNs().count());
     uint64_t boottime_timestamp = metatrace::TraceTimeNowNs();
     auto* clock_snapshot = trace->add_packet()->set_clock_snapshot();
     {
@@ -1158,6 +1161,12 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
       realtime_clock->set_timestamp(realtime_timestamp);
     }
     {
+      auto* mono_clock = clock_snapshot->add_clocks();
+      mono_clock->set_clock_id(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_MONOTONIC);
+      mono_clock->set_timestamp(monotonic_timestamp);
+    }
+    {
       auto* boottime_clock = clock_snapshot->add_clocks();
       boottime_clock->set_clock_id(
           protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
@@ -1165,34 +1174,35 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     }
   }
 
+  auto tid = static_cast<uint32_t>(base::GetThreadId());
   base::FlatHashMap<std::string, uint64_t> interned_strings;
-  metatrace::DisableAndReadBuffer([&trace, &interned_strings](
-                                      metatrace::Record* record) {
-    auto* packet = trace->add_packet();
-    packet->set_timestamp(record->timestamp_ns);
-    auto* evt = packet->set_perfetto_metatrace();
+  metatrace::DisableAndReadBuffer(
+      [&trace, &interned_strings, tid](metatrace::Record* record) {
+        auto* packet = trace->add_packet();
+        packet->set_timestamp(record->timestamp_ns);
+        auto* evt = packet->set_perfetto_metatrace();
 
-    StringInterner interner(*evt, interned_strings);
+        StringInterner interner(*evt, interned_strings);
 
-    evt->set_event_name_iid(interner.InternString(record->event_name));
-    evt->set_event_duration_ns(record->duration_ns);
-    evt->set_thread_id(1);  // Not really important, just required for the ui.
+        evt->set_event_name_iid(interner.InternString(record->event_name));
+        evt->set_event_duration_ns(record->duration_ns);
+        evt->set_thread_id(tid);
 
-    if (record->args_buffer_size == 0)
-      return;
+        if (record->args_buffer_size == 0)
+          return;
 
-    base::StringSplitter s(
-        record->args_buffer, record->args_buffer_size, '\0',
-        base::StringSplitter::EmptyTokenMode::ALLOW_EMPTY_TOKENS);
-    for (; s.Next();) {
-      auto* arg_proto = evt->add_args();
-      arg_proto->set_key_iid(interner.InternString(s.cur_token()));
+        base::StringSplitter s(
+            record->args_buffer, record->args_buffer_size, '\0',
+            base::StringSplitter::EmptyTokenMode::ALLOW_EMPTY_TOKENS);
+        for (; s.Next();) {
+          auto* arg_proto = evt->add_args();
+          arg_proto->set_key_iid(interner.InternString(s.cur_token()));
 
-      bool has_next = s.Next();
-      PERFETTO_CHECK(has_next);
-      arg_proto->set_value_iid(interner.InternString(s.cur_token()));
-    }
-  });
+          bool has_next = s.Next();
+          PERFETTO_CHECK(has_next);
+          arg_proto->set_value_iid(interner.InternString(s.cur_token()));
+        }
+      });
   *trace_proto = trace.SerializeAsArray();
   return base::OkStatus();
 }
