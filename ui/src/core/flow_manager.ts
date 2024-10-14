@@ -19,7 +19,7 @@ import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
-  THREAD_SLICE_TRACK_KIND,
+  SLICE_TRACK_KIND,
 } from '../public/track_kinds';
 import {TrackDescriptor, TrackManager} from '../public/track';
 import {AreaSelection, Selection, SelectionManager} from '../public/selection';
@@ -371,7 +371,7 @@ export class FlowManager {
     for (const trackInfo of area.tracks) {
       const kind = trackInfo?.tags?.kind;
       if (
-        kind === THREAD_SLICE_TRACK_KIND ||
+        kind === SLICE_TRACK_KIND ||
         kind === ACTUAL_FRAMES_SLICE_TRACK_KIND
       ) {
         if (trackInfo?.tags?.trackIds) {
