@@ -42,3 +42,25 @@ class ArtMethodParser(TestSuite):
           430421819490000,-1,"java.lang.Thread.run: ()V","Thread.java"
           430421819508000,-1,"java.lang.Daemons$Daemon.run: ()V","Daemons.java"
         '''))
+
+  def test_art_method_streaming_smoke(self):
+    return DiffTestBlueprint(
+        trace=DataPath('art-method-tracing-streaming.trace'),
+        query="""
+          SELECT ts, dur, name, extract_arg(arg_set_id, 'pathname') AS pathname
+          FROM slice
+          LIMIT 10
+        """,
+        out=Csv('''
+          "ts","dur","name","pathname"
+          793682591000,-1,"com.android.internal.os.ZygoteInit.main: ([Ljava/lang/String;)V","ZygoteInit.java"
+          793682591000,-1,"com.android.internal.os.Zygote$MethodAndArgsCaller.run: ()V","Zygote.java"
+          793682591000,-1,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","Method.java"
+          793682591000,-1,"android.app.ActivityThread.main: ([Ljava/lang/String;)V","ActivityThread.java"
+          793682591000,-1,"android.os.Looper.loop: ()V","Looper.java"
+          793682591000,4354287000,"android.os.MessageQueue.next: ()Landroid/os/Message;","MessageQueue.java"
+          793682591000,10159000,"android.os.StrictMode$5.queueIdle: ()Z","StrictMode.java"
+          793682591000,10159000,"android.os.StrictMode.conditionallyCheckInstanceCounts: ()V","StrictMode.java"
+          793682591000,2364000,"java.lang.System.runFinalization: ()V","System.java"
+          793682591000,2364000,"java.lang.Runtime.gc: ()V","Runtime.java"
+        '''))

@@ -64,7 +64,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
   // Loop over each sample.
   for (;;) {
     auto it = reader_.GetIterator();
-    auto r = it.MaybeFindAndAdvance('\n');
+    auto r = it.MaybeFindAndRead('\n');
     if (!r) {
       return base::OkStatus();
     }
@@ -83,7 +83,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
 
     // Loop over the frames in the sample.
     for (;;) {
-      auto raw_frame = it.MaybeFindAndAdvance('\n');
+      auto raw_frame = it.MaybeFindAndRead('\n');
       // If we don't manage to parse the full stack, we should bail out.
       if (!raw_frame) {
         return base::OkStatus();
