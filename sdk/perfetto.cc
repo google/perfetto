@@ -41349,8 +41349,8 @@ const char* GetVersionCode();
 #ifndef GEN_PERFETTO_VERSION_GEN_H_
 #define GEN_PERFETTO_VERSION_GEN_H_
 
-#define PERFETTO_VERSION_STRING() "v48.0-5d94090d4"
-#define PERFETTO_VERSION_SCM_REVISION() "5d94090d42c5d078822cd16f95e48c1b4807892b"
+#define PERFETTO_VERSION_STRING() "v48.1-8fc0fb096"
+#define PERFETTO_VERSION_SCM_REVISION() "8fc0fb09660d380577f2a8e68131255b03a28b79"
 
 #endif  // GEN_PERFETTO_VERSION_GEN_H_
 /*
@@ -61649,7 +61649,8 @@ class SharedMemoryWindows : public SharedMemory {
   const base::ScopedPlatformHandle& handle() const { return handle_; }
 
   // SharedMemory implementation.
-  void* start() const override { return start_; }
+  using SharedMemory::start;  // Equal priority to const and non-const versions
+  const void* start() const override { return start_; }
   size_t size() const override { return size_; }
 
  private:
