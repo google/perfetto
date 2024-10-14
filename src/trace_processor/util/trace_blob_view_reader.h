@@ -50,13 +50,13 @@ class TraceBlobViewReader {
    public:
     ~Iterator() = default;
 
-    Iterator(const Iterator&) = delete;
-    Iterator& operator=(const Iterator&) = delete;
+    Iterator(const Iterator&) = default;
+    Iterator& operator=(const Iterator&) = default;
 
     Iterator(Iterator&&) = default;
     Iterator& operator=(Iterator&&) = default;
 
-    // Tries to advance the iterator |size| bytes forward. Returns true if
+    // Tries to advance the iterator `size` bytes forward. Returns true if
     // the advance was successful and false if it would overflow the iterator.
     // If false is returned, the state of the iterator is not changed.
     bool MaybeAdvance(size_t delta) {
@@ -77,12 +77,25 @@ class TraceBlobViewReader {
       return true;
     }
 
+    // Tries to read `size` bytes from the iterator.  Returns a TraceBlobView
+    // containing the data if `size` bytes were available and std::nullopt
+    // otherwise. If std::nullopt is returned, the state of the iterator is not
+    // changed.
+    std::optional<TraceBlobView> MaybeRead(size_t delta) {
+      std::optional<TraceBlobView> tbv =
+          reader_->SliceOff(file_offset(), delta);
+      if (PERFETTO_LIKELY(tbv)) {
+        PERFETTO_CHECK(MaybeAdvance(delta));
+      }
+      return tbv;
+    }
+
     // Tries to find a byte equal to |chr| in the iterator and, if found,
     // advance to it. Returns a TraceBlobView containing the data if the byte
-    // was found and could be advanced to and std::nulloptr if no such byte was
-    // found before the end of the iterator. If false is returned, the state of
-    // the iterator is not changed.
-    std::optional<TraceBlobView> MaybeFindAndAdvance(uint8_t chr) {
+    // was found and could be advanced to and std::nullopt if no such byte was
+    // found before the end of the iterator. If std::nullopt is returned, the
+    // state of the iterator is not changed.
+    std::optional<TraceBlobView> MaybeFindAndRead(uint8_t chr) {
       size_t begin = file_offset();
       if (!MaybeFindAndAdvanceInner(chr)) {
         return std::nullopt;
