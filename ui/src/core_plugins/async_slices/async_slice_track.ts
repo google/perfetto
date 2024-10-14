@@ -12,21 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  NAMED_ROW,
-  NamedRow,
-  NamedSliceTrack,
-} from '../../frontend/named_slice_track';
+import {BigintMath as BIMath} from '../../base/bigint_math';
+import {clamp} from '../../base/math_utils';
+import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {TrackEventDetails} from '../../public/selection';
 import {Slice} from '../../public/track';
+import {LONG_NULL} from '../../trace_processor/query_result';
 
-export class AsyncSliceTrack extends NamedSliceTrack {
+export const THREAD_SLICE_ROW = {
+  // Base columns (tsq, ts, dur, id, depth).
+  ...NAMED_ROW,
+
+  // Thread-specific columns.
+  threadDur: LONG_NULL,
+};
+export type ThreadSliceRow = typeof THREAD_SLICE_ROW;
+
+export class AsyncSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
   constructor(
     args: NewTrackArgs,
     maxDepth: number,
-    private trackIds: number[],
+    private readonly trackIds: number[],
   ) {
     super(args);
     this.sliceLayout = {
@@ -35,26 +43,49 @@ export class AsyncSliceTrack extends NamedSliceTrack {
     };
   }
 
-  getRowSpec(): NamedRow {
-    return NAMED_ROW;
+  getRowSpec(): ThreadSliceRow {
+    return THREAD_SLICE_ROW;
   }
 
-  rowToSlice(row: NamedRow): Slice {
-    return this.rowToSliceBase(row);
+  rowToSlice(row: ThreadSliceRow): Slice {
+    const namedSlice = this.rowToSliceBase(row);
+
+    if (row.dur > 0n && row.threadDur !== null) {
+      const fillRatio = clamp(BIMath.ratio(row.threadDur, row.dur), 0, 1);
+      return {...namedSlice, fillRatio};
+    } else {
+      return namedSlice;
+    }
   }
 
   getSqlSource(): string {
-    return `
-      select
-        ts,
-        dur,
-        layout_depth as depth,
-        ifnull(name, '[null]') as name,
-        id,
-        thread_dur as threadDur
-      from experimental_slice_layout
-      where filter_track_ids = '${this.trackIds.join(',')}'
-    `;
+    // If we only have one track ID we can avoid the overhead of
+    // experimental_slice_layout, and just go straight to the slice table.
+    if (this.trackIds.length === 1) {
+      return `
+        select
+          ts,
+          dur,
+          id,
+          depth,
+          ifnull(name, '[null]') as name,
+          thread_dur as threadDur
+        from slice
+        where track_id = ${this.trackIds[0]}
+      `;
+    } else {
+      return `
+        select
+          id,
+          ts,
+          dur,
+          layout_depth as depth,
+          ifnull(name, '[null]') as name,
+          thread_dur as threadDur
+        from experimental_slice_layout
+        where filter_track_ids = '${this.trackIds.join(',')}'
+      `;
+    }
   }
 
   onUpdatedSlices(slices: Slice[]) {
