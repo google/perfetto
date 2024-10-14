@@ -26,9 +26,11 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -65,6 +67,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kJsonTraceType:
     case kFuchsiaTraceType:
     case kZipFile:
+    case kTarTraceType:
     case kAndroidLogcatTraceType:
     case kGeckoTraceType:
     case kArtMethodTraceType:
@@ -85,8 +88,9 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
 
 }  // namespace
 
-ForwardingTraceParser::ForwardingTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+ForwardingTraceParser::ForwardingTraceParser(TraceProcessorContext* context,
+                                             tables::TraceFileTable::Id id)
+    : context_(context), file_id_(id) {}
 
 ForwardingTraceParser::~ForwardingTraceParser() {}
 
@@ -103,6 +107,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     // The UI's error_dialog.ts uses it to make the dialog more graceful.
     return base::ErrStatus("Unknown trace type provided (ERR:fmt)");
   }
+
+  context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> reader_or =
       context_->reader_registry->CreateTraceReader(trace_type_);
@@ -151,11 +157,17 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
   if (!reader_) {
     RETURN_IF_ERROR(Init(blob));
   }
+  trace_size_ += blob.size();
   return reader_->Parse(std::move(blob));
 }
 
 base::Status ForwardingTraceParser::NotifyEndOfFile() {
-  return reader_ ? reader_->NotifyEndOfFile() : base::OkStatus();
+  base::Status status = base::OkStatus();
+  if (reader_) {
+    status = reader_->NotifyEndOfFile();
+  }
+  context_->trace_file_tracker->DoneParsing(file_id_, trace_size_);
+  return status;
 }
 
 }  // namespace perfetto::trace_processor

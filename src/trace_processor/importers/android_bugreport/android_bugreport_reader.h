@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/util/zip_reader.h"
 
 namespace perfetto ::trace_processor {
@@ -46,10 +47,12 @@ class AndroidBugreportReader {
 
  private:
   struct BugReportFile {
+    tables::TraceFileTable::Id id;
     int32_t year;
     util::ZipFile file;
   };
   struct LogFile {
+    tables::TraceFileTable::Id id;
     int64_t timestamp;
     util::ZipFile file;
     // Sort files to ease the job of the line-based sort. Unfortunately

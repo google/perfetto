@@ -2473,6 +2473,7 @@ cc_test {
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
+        ":perfetto_src_trace_processor_importers_archive_archive",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
         ":perfetto_src_trace_processor_importers_common_common",
@@ -2487,7 +2488,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_fuchsia_full",
         ":perfetto_src_trace_processor_importers_fuchsia_minimal",
         ":perfetto_src_trace_processor_importers_gecko_gecko_event",
-        ":perfetto_src_trace_processor_importers_gzip_full",
         ":perfetto_src_trace_processor_importers_i2c_full",
         ":perfetto_src_trace_processor_importers_instruments_instruments",
         ":perfetto_src_trace_processor_importers_instruments_row",
@@ -2510,7 +2510,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
-        ":perfetto_src_trace_processor_importers_zip_full",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
@@ -12413,6 +12412,17 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/importers/archive:archive
+filegroup {
+    name: "perfetto_src_trace_processor_importers_archive_archive",
+    srcs: [
+        "src/trace_processor/importers/archive/archive_entry.cc",
+        "src/trace_processor/importers/archive/gzip_trace_parser.cc",
+        "src/trace_processor/importers/archive/tar_trace_reader.cc",
+        "src/trace_processor/importers/archive/zip_trace_reader.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/art_method:art_method
 filegroup {
     name: "perfetto_src_trace_processor_importers_art_method_art_method",
@@ -12449,7 +12459,6 @@ filegroup {
         "src/trace_processor/importers/common/process_track_translation_table.cc",
         "src/trace_processor/importers/common/process_tracker.cc",
         "src/trace_processor/importers/common/sched_event_tracker.cc",
-        "src/trace_processor/importers/common/scoped_active_trace_file.cc",
         "src/trace_processor/importers/common/slice_tracker.cc",
         "src/trace_processor/importers/common/slice_translation_table.cc",
         "src/trace_processor/importers/common/stack_profile_tracker.cc",
@@ -12593,14 +12602,6 @@ filegroup {
 // GN: //src/trace_processor/importers/gecko:gecko_event
 filegroup {
     name: "perfetto_src_trace_processor_importers_gecko_gecko_event",
-}
-
-// GN: //src/trace_processor/importers/gzip:full
-filegroup {
-    name: "perfetto_src_trace_processor_importers_gzip_full",
-    srcs: [
-        "src/trace_processor/importers/gzip/gzip_trace_parser.cc",
-    ],
 }
 
 // GN: //src/trace_processor/importers/i2c:full
@@ -13007,14 +13008,6 @@ filegroup {
     name: "perfetto_src_trace_processor_importers_systrace_unittests",
     srcs: [
         "src/trace_processor/importers/systrace/systrace_parser_unittest.cc",
-    ],
-}
-
-// GN: //src/trace_processor/importers/zip:full
-filegroup {
-    name: "perfetto_src_trace_processor_importers_zip_full",
-    srcs: [
-        "src/trace_processor/importers/zip/zip_trace_reader.cc",
     ],
 }
 
@@ -15640,6 +15633,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_unittests",
+        ":perfetto_src_trace_processor_importers_archive_archive",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
         ":perfetto_src_trace_processor_importers_common_common",
@@ -15657,7 +15651,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_fuchsia_minimal",
         ":perfetto_src_trace_processor_importers_fuchsia_unittests",
         ":perfetto_src_trace_processor_importers_gecko_gecko_event",
-        ":perfetto_src_trace_processor_importers_gzip_full",
         ":perfetto_src_trace_processor_importers_i2c_full",
         ":perfetto_src_trace_processor_importers_instruments_instruments",
         ":perfetto_src_trace_processor_importers_instruments_row",
@@ -15685,7 +15678,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
         ":perfetto_src_trace_processor_importers_systrace_unittests",
-        ":perfetto_src_trace_processor_importers_zip_full",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
@@ -16717,6 +16709,7 @@ cc_binary {
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
+        ":perfetto_src_trace_processor_importers_archive_archive",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
         ":perfetto_src_trace_processor_importers_common_common",
@@ -16731,7 +16724,6 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_fuchsia_full",
         ":perfetto_src_trace_processor_importers_fuchsia_minimal",
         ":perfetto_src_trace_processor_importers_gecko_gecko_event",
-        ":perfetto_src_trace_processor_importers_gzip_full",
         ":perfetto_src_trace_processor_importers_i2c_full",
         ":perfetto_src_trace_processor_importers_instruments_instruments",
         ":perfetto_src_trace_processor_importers_instruments_row",
@@ -16754,7 +16746,6 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
-        ":perfetto_src_trace_processor_importers_zip_full",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
@@ -17145,6 +17136,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
+        ":perfetto_src_trace_processor_importers_archive_archive",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
         ":perfetto_src_trace_processor_importers_common_common",
@@ -17159,7 +17151,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_fuchsia_full",
         ":perfetto_src_trace_processor_importers_fuchsia_minimal",
         ":perfetto_src_trace_processor_importers_gecko_gecko_event",
-        ":perfetto_src_trace_processor_importers_gzip_full",
         ":perfetto_src_trace_processor_importers_i2c_full",
         ":perfetto_src_trace_processor_importers_instruments_instruments",
         ":perfetto_src_trace_processor_importers_instruments_row",
@@ -17182,7 +17173,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
-        ":perfetto_src_trace_processor_importers_zip_full",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",

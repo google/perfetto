@@ -21,8 +21,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -59,12 +61,13 @@ bool TraceBlobViewReader::PopFrontUntil(const size_t target_offset) {
   return target_offset == end_offset_;
 }
 
-std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
-    size_t offset,
-    size_t length) const {
-  // If the length is zero, then a zero-sized blob view is always approrpriate.
+template <typename Visitor>
+auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
+                                       const size_t length,
+                                       Visitor& visitor) const {
+  // If the length is zero, then a zero-sized blob view is always appropiate.
   if (PERFETTO_UNLIKELY(length == 0)) {
-    return TraceBlobView();
+    return visitor.OneSlice(TraceBlobView());
   }
 
   PERFETTO_DCHECK(offset >= start_offset());
@@ -76,47 +79,105 @@ std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
       !data_.empty() &&
       offset + length <= data_.front().start_offset + data_.front().data.size();
   if (PERFETTO_LIKELY(is_fast_path)) {
-    return data_.front().data.slice_off(offset - data_.front().start_offset,
-                                        length);
+    return visitor.OneSlice(data_.front().data.slice_off(
+        offset - data_.front().start_offset, length));
   }
 
   // If we don't have any TBVs or the end of the slice does not fit, then we
   // cannot possibly return a full slice.
   if (PERFETTO_UNLIKELY(data_.empty() || offset + length > end_offset_)) {
-    return std::nullopt;
+    return visitor.NoData();
   }
 
   // Find the first block finishes *after* start_offset i.e. there is at least
   // one byte in that block which will end up in the slice. We know this *must*
   // exist because of the above check.
-  auto rit = std::upper_bound(
+  auto it = std::upper_bound(
       data_.begin(), data_.end(), offset, [](size_t offset, const Entry& rhs) {
         return offset < rhs.start_offset + rhs.data.size();
       });
-  PERFETTO_CHECK(rit != data_.end());
+  PERFETTO_CHECK(it != data_.end());
 
   // If the slice fits entirely in the block we found, then just slice that
   // block avoiding any copies.
-  size_t rel_off = offset - rit->start_offset;
-  if (rel_off + length <= rit->data.size()) {
-    return rit->data.slice_off(rel_off, length);
+  size_t rel_off = offset - it->start_offset;
+  if (rel_off + length <= it->data.size()) {
+    return visitor.OneSlice(it->data.slice_off(rel_off, length));
   }
 
-  // Otherwise, allocate some memory and make a copy.
-  auto buffer = TraceBlob::Allocate(length);
-  uint8_t* ptr = buffer.data();
-  uint8_t* end = buffer.data() + buffer.size();
+  auto res = visitor.StartMultiSlice(length);
 
-  // Copy all bytes in this block which overlap with the slice.
-  memcpy(ptr, rit->data.data() + rel_off, rit->data.length() - rel_off);
-  ptr += rit->data.length() - rel_off;
+  size_t res_offset = 0;
+  size_t left = length;
 
-  for (auto it = rit + 1; ptr != end; ++it) {
-    auto len = std::min(static_cast<size_t>(end - ptr), it->data.size());
-    memcpy(ptr, it->data.data(), len);
-    ptr += len;
+  size_t size = it->data.length() - rel_off;
+  visitor.AddSlice(res, res_offset, it->data.slice_off(rel_off, size));
+  left -= size;
+  res_offset += size;
+
+  for (++it; left != 0; ++it) {
+    size = std::min(left, it->data.size());
+    visitor.AddSlice(res, res_offset, it->data.slice_off(0, size));
+    left -= size;
+    res_offset += size;
   }
-  return TraceBlobView(std::move(buffer));
+
+  return visitor.Finalize(std::move(res));
+}
+
+std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
+    size_t offset,
+    size_t length) const {
+  struct Visitor {
+    std::optional<TraceBlobView> NoData() { return std::nullopt; }
+
+    std::optional<TraceBlobView> OneSlice(TraceBlobView tbv) {
+      return std::move(tbv);
+    }
+
+    TraceBlob StartMultiSlice(size_t length) {
+      return TraceBlob::Allocate(length);
+    }
+
+    void AddSlice(TraceBlob& blob, size_t offset, TraceBlobView tbv) {
+      memcpy(blob.data() + offset, tbv.data(), tbv.size());
+    }
+
+    std::optional<TraceBlobView> Finalize(TraceBlob blob) {
+      return TraceBlobView(std::move(blob));
+    }
+
+  } visitor;
+
+  return SliceOffImpl(offset, length, visitor);
+}
+
+std::vector<TraceBlobView> TraceBlobViewReader::MultiSliceOff(
+    size_t offset,
+    size_t length) const {
+  struct Visitor {
+    std::vector<TraceBlobView> NoData() { return {}; }
+
+    std::vector<TraceBlobView> OneSlice(TraceBlobView tbv) {
+      std::vector<TraceBlobView> res;
+      res.reserve(1);
+      res.push_back(std::move(tbv));
+      return res;
+    }
+
+    std::vector<TraceBlobView> StartMultiSlice(size_t) { return {}; }
+
+    void AddSlice(std::vector<TraceBlobView>& vec, size_t, TraceBlobView tbv) {
+      vec.push_back(std::move(tbv));
+    }
+
+    std::vector<TraceBlobView> Finalize(std::vector<TraceBlobView> vec) {
+      return vec;
+    }
+
+  } visitor;
+
+  return SliceOffImpl(offset, length, visitor);
 }
 
 }  // namespace perfetto::trace_processor::util
