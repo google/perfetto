@@ -104,17 +104,21 @@ util::Status AndroidBugreportReader::Parse(TraceProcessorContext* context,
 
   // Move the file to the end move it out of the list and pop the back.
   std::swap(files[res->file_index], files.back());
-  BugReportFile bug_report{res->year, std::move(files.back())};
+  auto id = context->trace_file_tracker->AddFile(files.back().name());
+  BugReportFile bug_report{id, res->year, std::move(files.back())};
   files.pop_back();
 
   std::set<LogFile> ordered_log_files;
   for (size_t i = 0; i < files.size(); ++i) {
+    id = context->trace_file_tracker->AddFile(files[i].name());
+    // Set size in case we end up not parsing this file.
+    context->trace_file_tracker->SetSize(id, files[i].compressed_size());
     if (!IsLogFile(files[i])) {
       continue;
     }
 
     int64_t timestamp = files[i].GetDatetime();
-    ordered_log_files.insert(LogFile{timestamp, std::move(files[i])});
+    ordered_log_files.insert(LogFile{id, timestamp, std::move(files[i])});
   }
 
   return AndroidBugreportReader(context, std::move(bug_report),
@@ -146,9 +150,8 @@ util::Status AndroidBugreportReader::ParseImpl() {
 
 base::Status AndroidBugreportReader::ParseDumpstateTxt(
     std::vector<TimestampedAndroidLogEvent> logcat_events) {
-  ScopedActiveTraceFile trace_file = context_->trace_file_tracker->StartNewFile(
-      bug_report_.file.name(), kAndroidDumpstateTraceType,
-      bug_report_.file.uncompressed_size());
+  context_->trace_file_tracker->StartParsing(bug_report_.id,
+                                             kAndroidDumpstateTraceType);
   AndroidDumpstateReader reader(context_, bug_report_.year,
                                 std::move(logcat_events));
   base::Status status = bug_report_.file.DecompressLines(
@@ -157,6 +160,8 @@ base::Status AndroidBugreportReader::ParseDumpstateTxt(
           reader.ParseLine(line);
         }
       });
+  context_->trace_file_tracker->DoneParsing(
+      bug_report_.id, bug_report_.file.uncompressed_size());
   return status;
 }
 
@@ -167,16 +172,16 @@ AndroidBugreportReader::ParsePersistentLogcat() {
   // Push all events into the AndroidLogParser. It will take care of string
   // interning into the pool. Appends entries into `log_events`.
   for (const auto& log_file : ordered_log_files_) {
-    ScopedActiveTraceFile trace_file =
-        context_->trace_file_tracker->StartNewFile(
-            log_file.file.name(), kAndroidLogcatTraceType,
-            log_file.file.uncompressed_size());
+    context_->trace_file_tracker->StartParsing(log_file.id,
+                                               kAndroidLogcatTraceType);
     RETURN_IF_ERROR(log_file.file.DecompressLines(
         [&](const std::vector<base::StringView>& lines) {
           for (const auto& line : lines) {
             log_reader.ParseLine(line);
           }
         }));
+    context_->trace_file_tracker->DoneParsing(
+        log_file.id, log_file.file.uncompressed_size());
   }
 
   return std::move(log_reader).ConsumeBufferedEvents();

@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ZIP_ZIP_TRACE_READER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ZIP_ZIP_TRACE_READER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_ZIP_TRACE_READER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_ZIP_TRACE_READER_H_
 
 #include <cstddef>
-#include <memory>
-#include <string>
-#include <vector>
+#include <map>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/archive/archive_entry.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/util/trace_type.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/util/zip_reader.h"
 
 namespace perfetto::trace_processor {
@@ -46,31 +44,14 @@ class ZipTraceReader : public ChunkedTraceReader {
   base::Status NotifyEndOfFile() override;
 
  private:
-  // Represents a file in the ZIP file. Used to sort them before sending the
-  // files one by one to a `ForwardingTraceParser` instance.
-  struct Entry {
-    // File name. Used to break ties.
-    std::string name;
-    // Position in the zip file. Used to break ties.
-    size_t index;
-    // Trace type. This is the main attribute traces are ordered by. Proto
-    // traces are always parsed first as they might contains clock sync
-    // data needed to correctly parse other traces.
-    TraceType trace_type;
-    TraceBlobView uncompressed_data;
-    // Comparator used to determine the order in which files in the ZIP will be
-    // read.
-    bool operator<(const Entry& rhs) const;
+  struct File {
+    tables::TraceFileTable::Id id;
+    TraceBlobView data;
   };
-
-  static base::StatusOr<std::vector<Entry>> ExtractEntries(
-      std::vector<util::ZipFile> files);
-  base::Status ParseEntry(Entry entry);
-
   TraceProcessorContext* const context_;
   util::ZipReader zip_reader_;
 };
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ZIP_ZIP_TRACE_READER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_ZIP_TRACE_READER_H_

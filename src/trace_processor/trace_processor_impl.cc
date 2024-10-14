@@ -46,6 +46,9 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/importers/archive/gzip_trace_parser.h"
+#include "src/trace_processor/importers/archive/tar_trace_reader.h"
+#include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_method/art_method_parser_impl.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -55,7 +58,6 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_parser_impl.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
-#include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 #include "src/trace_processor/importers/json/json_trace_parser_impl.h"
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 #include "src/trace_processor/importers/json/json_utils.h"
@@ -68,7 +70,6 @@
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
-#include "src/trace_processor/importers/zip/zip_trace_reader.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
@@ -456,6 +457,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           kPerfTextTraceType);
   context_.perf_text_parser =
       std::make_unique<perf_text_importer::PerfTextTraceParserImpl>(&context_);
+
+  context_.reader_registry->RegisterTraceReader<TarTraceReader>(kTarTraceType);
 
   if (context_.config.analyze_trace_proto_content) {
     context_.content_analyzer =

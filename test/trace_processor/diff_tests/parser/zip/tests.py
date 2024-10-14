@@ -59,20 +59,37 @@ class Zip(TestSuite):
         "main,E"
         '''))
 
-  def test_tokenization_order(self):
+  def test_zip_tokenization_order(self):
     return DiffTestBlueprint(
         trace=DataPath('zip/perf_track_sym.zip'),
         query='''
         SELECT *
         FROM __intrinsic_trace_file
-        ORDER BY id
+        ORDER BY processing_order
         ''',
         out=Csv('''
-        "id","type","parent_id","name","size","trace_type"
-        0,"__intrinsic_trace_file","[NULL]","[NULL]",94651,"zip"
-        1,"__intrinsic_trace_file",0,"c.trace.pb",379760,"proto"
-        2,"__intrinsic_trace_file",0,"b.simpleperf.data",554911,"perf"
-        3,"__intrinsic_trace_file",0,"a.symbols.pb",186149,"symbols"
+        "id","type","parent_id","name","size","trace_type","processing_order"
+        0,"__intrinsic_trace_file","[NULL]","[NULL]",94651,"zip",0
+        3,"__intrinsic_trace_file",0,"c.trace.pb",379760,"proto",1
+        1,"__intrinsic_trace_file",0,"b.simpleperf.data",554911,"perf",2
+        2,"__intrinsic_trace_file",0,"a.symbols.pb",186149,"symbols",3
+        '''))
+
+  def test_tar_gz_tokenization_order(self):
+    return DiffTestBlueprint(
+        trace=DataPath('perf_track_sym.tar.gz'),
+        query='''
+        SELECT *
+        FROM __intrinsic_trace_file
+        ORDER BY processing_order
+        ''',
+        out=Csv('''
+        "id","type","parent_id","name","size","trace_type","processing_order"
+        0,"__intrinsic_trace_file","[NULL]","[NULL]",94091,"gzip",0
+        1,"__intrinsic_trace_file",0,"",1126400,"tar",1
+        4,"__intrinsic_trace_file",1,"/c.trace.pb",379760,"proto",2
+        3,"__intrinsic_trace_file",1,"/b.simpleperf.data",554911,"perf",3
+        2,"__intrinsic_trace_file",1,"/a.symbols.pb",186149,"symbols",4
         '''))
 
   # Make sure the logcat timestamps are correctly converted to trace ts. All

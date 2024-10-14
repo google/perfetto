@@ -460,6 +460,7 @@ TRACE_FILE_TABLE = Table(
         C('name', CppOptional(CppString())),
         C('size', CppInt64()),
         C('trace_type', CppString()),
+        C('processing_order', CppOptional(CppInt64())),
     ],
     wrapping_sql_view=WrappingSqlView('trace_file'),
     tabledoc=TableDoc(
@@ -481,6 +482,8 @@ TRACE_FILE_TABLE = Table(
                 '''Size in bytes''',
             'trace_type':
                 '''Trace type''',
+            'processing_order':
+                '''In which order where the files were processed.''',
         }))
 
 # Keep this list sorted.
