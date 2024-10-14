@@ -308,25 +308,29 @@ struct IntervalTreeIntervalsAgg
   struct AggCtx : SqliteAggregateContext<AggCtx> {
     perfetto_sql::PartitionedTable partitions;
     std::vector<SqlValue> tmp_vals;
-    uint64_t max_ts = std::numeric_limits<uint32_t>::min();
+    uint64_t last_interval_start = 0;
   };
 
   static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
     auto argc = static_cast<uint32_t>(rargc);
     PERFETTO_DCHECK(argc >= kMinArgCount);
     auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
-    auto& parts = AggCtx::GetOrCreateContextForStep(ctx).partitions;
 
     // Fetch and validate the interval.
     Interval interval;
     interval.id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
     interval.start = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
-    if (interval.start < agg_ctx.max_ts) {
+    if (interval.start < agg_ctx.last_interval_start) {
+      if (sqlite::value::Int64(argv[1]) < 0) {
+        sqlite::result::Error(
+            ctx, "Interval intersect only accepts positive `ts` values.");
+        return;
+      }
       sqlite::result::Error(
           ctx, "Interval intersect requires intervals to be sorted by ts.");
       return;
     }
-    agg_ctx.max_ts = interval.start;
+    agg_ctx.last_interval_start = interval.start;
     int64_t dur = sqlite::value::Int64(argv[2]);
     if (dur < 1) {
       sqlite::result::Error(
@@ -336,6 +340,7 @@ struct IntervalTreeIntervalsAgg
     interval.end = interval.start + static_cast<uint64_t>(dur);
 
     // Fast path for no partitions.
+    auto& parts = agg_ctx.partitions;
     if (argc == kMinArgCount) {
       auto& part = parts.partitions_map[0];
       part.intervals.push_back(interval);
