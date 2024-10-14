@@ -18,7 +18,7 @@ import {NewTrackArgs} from '../../frontend/track';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {ASYNC_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SuspendResumeDetailsPanel} from './suspend_resume_details';
 import {Slice} from '../../public/track';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
@@ -78,7 +78,7 @@ class SuspendResumeLatency implements PerfettoPlugin {
       title: displayName,
       tags: {
         trackIds,
-        kind: ASYNC_SLICE_TRACK_KIND,
+        kind: SLICE_TRACK_KIND,
       },
       track: new SuspendResumeSliceTrack({uri, trace: ctx}, maxDepth, trackIds),
       detailsPanel: () => new SuspendResumeDetailsPanel(ctx),

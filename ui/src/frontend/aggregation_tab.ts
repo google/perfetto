@@ -26,7 +26,7 @@ import {Monitor} from '../base/monitor';
 import {
   CPU_PROFILE_TRACK_KIND,
   PERF_SAMPLES_PROFILE_TRACK_KIND,
-  THREAD_SLICE_TRACK_KIND,
+  SLICE_TRACK_KIND,
 } from '../public/track_kinds';
 import {
   QueryFlamegraph,
@@ -337,7 +337,7 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     }
     const trackIds = [];
     for (const trackInfo of currentSelection.tracks) {
-      if (trackInfo?.tags?.kind !== THREAD_SLICE_TRACK_KIND) {
+      if (trackInfo?.tags?.kind !== SLICE_TRACK_KIND) {
         continue;
       }
       if (trackInfo.tags?.trackIds === undefined) {
