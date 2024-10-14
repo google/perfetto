@@ -77,7 +77,7 @@ def _md_table_header(cols: List[str]) -> str:
 
 def _md_rolldown(summary: str, content: str) -> str:
   return f"""<details>
-  <summary>{summary}</summary>
+  <summary style="cursor: pointer;">{summary}</summary>
 
   {content}
 
