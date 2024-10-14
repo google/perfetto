@@ -57,7 +57,6 @@ import "protos/perfetto/metrics/android/mem_metric.proto";
 import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
 import "protos/perfetto/metrics/android/multiuser_metric.proto";
 import "protos/perfetto/metrics/android/network_metric.proto";
-import "protos/perfetto/metrics/android/other_traces.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/profiler_smaps.proto";
@@ -67,7 +66,6 @@ import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/surfaceflinger.proto";
 import "protos/perfetto/metrics/android/task_names.proto";
 import "protos/perfetto/metrics/android/trace_quality.proto";
-import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 import "protos/perfetto/metrics/android/binder_metric.proto";
 import "protos/perfetto/metrics/android/monitor_contention_metric.proto";
@@ -251,11 +249,13 @@ message TraceMetrics {
   // Metrics for IRQ runtime.
   optional AndroidIrqRuntimeMetric android_irq_runtime = 43;
 
-  // Metrics for the Trusty team.
-  optional AndroidTrustyWorkqueues android_trusty_workqueues = 44;
+  // Was metrics for the Trusty team.
+  reserved 44;
+  reserved 'android_trusty_workqueues';
 
-  // Summary of other concurrent trace recording.
-  optional AndroidOtherTracesMetric android_other_traces = 45;
+  // Was summary of concurrent trace recording.
+  reserved 45;
+  reserved 'android_other_traces';
 
   // Per-process Binder transaction metrics.
   optional AndroidBinderMetric android_binder = 46;
