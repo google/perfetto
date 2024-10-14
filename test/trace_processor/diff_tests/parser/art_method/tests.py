@@ -25,42 +25,48 @@ class ArtMethodParser(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('art-method-tracing.trace'),
         query="""
-          SELECT ts, dur, name, extract_arg(arg_set_id, 'pathname') AS pathname
-          FROM slice
+          INCLUDE PERFETTO MODULE slices.with_context;
+
+          SELECT ts, dur, name, thread_name, extract_arg(arg_set_id, 'pathname') AS pathname
+          FROM thread_slice
+          ORDER BY dur desc
           LIMIT 10
         """,
         out=Csv('''
-          "ts","dur","name","pathname"
-          430421819465000,-1,"com.android.internal.os.ZygoteInit.main: ([Ljava/lang/String;)V","ZygoteInit.java"
-          430421819468000,-1,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run: ()V","RuntimeInit.java"
-          430421819469000,-1,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","Method.java"
-          430421819472000,-1,"android.app.ActivityThread.main: ([Ljava/lang/String;)V","ActivityThread.java"
-          430421819473000,-1,"android.os.Looper.loop: ()V","Looper.java"
-          430421819473000,-1,"android.os.Looper.loopOnce: (Landroid/os/Looper;JI)Z","Looper.java"
-          430421819475000,-1,"android.os.MessageQueue.next: ()Landroid/os/Message;","MessageQueue.java"
-          430421819476000,-1,"android.os.MessageQueue.nativePollOnce: (JI)V","MessageQueue.java"
-          430421819490000,-1,"java.lang.Thread.run: ()V","Thread.java"
-          430421819508000,-1,"java.lang.Daemons$Daemon.run: ()V","Daemons.java"
+          "ts","dur","name","thread_name","pathname"
+          430421819633000,182000,"androidx.benchmark.MethodTracing.start: (Ljava/lang/String;)Landroidx/benchmark/Profiler$ResultFile;","Instr: androidx.test.runner.AndroidJUnitRunner","Profiler.kt"
+          430421819633000,175000,"androidx.benchmark.ProfilerKt.startRuntimeMethodTracing: (Ljava/lang/String;Z)Landroidx/benchmark/Profiler$ResultFile;","Instr: androidx.test.runner.AndroidJUnitRunner","Profiler.kt"
+          430421819634000,67000,"android.os.Debug.startMethodTracing: (Ljava/lang/String;II)V","Instr: androidx.test.runner.AndroidJUnitRunner","Debug.java"
+          430421819635000,62000,"dalvik.system.VMDebug.startMethodTracing: (Ljava/lang/String;IIZI)V","Instr: androidx.test.runner.AndroidJUnitRunner","VMDebug.java"
+          430421819636000,57000,"dalvik.system.VMDebug.startMethodTracingFilename: (Ljava/lang/String;IIZI)V","Instr: androidx.test.runner.AndroidJUnitRunner","VMDebug.java"
+          430421819788000,19000,"androidx.benchmark.Profiler$ResultFile.<init>: (Ljava/lang/String;Ljava/lang/String;)V","Instr: androidx.test.runner.AndroidJUnitRunner","Profiler.kt"
+          430421819795000,2000,"kotlin.jvm.internal.Intrinsics.checkNotNullParameter: (Ljava/lang/Object;Ljava/lang/String;)V","Instr: androidx.test.runner.AndroidJUnitRunner","Intrinsics.java"
+          430421819817000,2000,"androidx.benchmark.vmtrace.ArtTraceTest.myTracedMethod: ()V","Instr: androidx.test.runner.AndroidJUnitRunner","ArtTraceTest.kt"
+          430421819801000,1000,"kotlin.jvm.internal.Intrinsics.checkNotNullParameter: (Ljava/lang/Object;Ljava/lang/String;)V","Instr: androidx.test.runner.AndroidJUnitRunner","Intrinsics.java"
+          430421819804000,1000,"java.lang.Object.<init>: ()V","Instr: androidx.test.runner.AndroidJUnitRunner","Object.java"
         '''))
 
   def test_art_method_streaming_smoke(self):
     return DiffTestBlueprint(
         trace=DataPath('art-method-tracing-streaming.trace'),
         query="""
-          SELECT ts, dur, name, extract_arg(arg_set_id, 'pathname') AS pathname
-          FROM slice
+          INCLUDE PERFETTO MODULE slices.with_context;
+
+          SELECT ts, dur, name, thread_name, extract_arg(arg_set_id, 'pathname') AS pathname
+          FROM thread_slice
+          ORDER BY dur desc
           LIMIT 10
         """,
         out=Csv('''
-          "ts","dur","name","pathname"
-          793682591000,-1,"com.android.internal.os.ZygoteInit.main: ([Ljava/lang/String;)V","ZygoteInit.java"
-          793682591000,-1,"com.android.internal.os.Zygote$MethodAndArgsCaller.run: ()V","Zygote.java"
-          793682591000,-1,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","Method.java"
-          793682591000,-1,"android.app.ActivityThread.main: ([Ljava/lang/String;)V","ActivityThread.java"
-          793682591000,-1,"android.os.Looper.loop: ()V","Looper.java"
-          793682591000,4354287000,"android.os.MessageQueue.next: ()Landroid/os/Message;","MessageQueue.java"
-          793682591000,10159000,"android.os.StrictMode$5.queueIdle: ()Z","StrictMode.java"
-          793682591000,10159000,"android.os.StrictMode.conditionallyCheckInstanceCounts: ()V","StrictMode.java"
-          793682591000,2364000,"java.lang.System.runFinalization: ()V","System.java"
-          793682591000,2364000,"java.lang.Runtime.gc: ()V","Runtime.java"
+          "ts","dur","name","thread_name","pathname"
+          793682939000,26513017000,"java.util.concurrent.ThreadPoolExecutor.getTask: ()Ljava/lang/Runnable;","AsyncTask #1","ThreadPoolExecutor.java"
+          793682939000,26513017000,"java.util.concurrent.LinkedBlockingQueue.take: ()Ljava/lang/Object;","AsyncTask #1","LinkedBlockingQueue.java"
+          793682939000,26513017000,"java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await: ()V","AsyncTask #1","AbstractQueuedSynchronizer.java"
+          793682939000,26513017000,"java.util.concurrent.locks.LockSupport.park: (Ljava/lang/Object;)V","AsyncTask #1","LockSupport.java"
+          793682939000,26513017000,"sun.misc.Unsafe.park: (ZJ)V","AsyncTask #1","Unsafe.java"
+          793682939000,26513017000,"java.lang.Thread.parkFor$: (J)V","AsyncTask #1","Thread.java"
+          793682939000,26513017000,"java.lang.Object.wait: (JI)V","AsyncTask #1","Object.java"
+          810910588000,13004716000,"java.lang.Object.wait: ()V","ReferenceQueueDaemon","Object.java"
+          808685761000,12599705000,"java.lang.Object.wait: (JI)V","OkHttp ConnectionPool","Object.java"
+          800148789000,10759203000,"java.lang.Object.wait: ()V","ReferenceQueueDaemon","Object.java"
         '''))
