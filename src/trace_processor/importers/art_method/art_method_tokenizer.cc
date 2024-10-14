@@ -33,7 +33,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -187,6 +186,11 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
                                              const TraceBlobView& record) {
   ArtMethodEvent evt{};
   evt.tid = tid;
+  if (auto* it = thread_map_.Find(tid); it && !it->comm_used) {
+    evt.comm = it->comm;
+    it->comm_used = true;
+  }
+
   uint32_t methodid_action = ToInt(record.slice_off(0, 4));
   uint32_t ts_delta = clock_ == kDual ? ToInt(record.slice_off(8, 4))
                                       : ToInt(record.slice_off(4, 4));
@@ -211,6 +215,13 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
                                    protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
                                    (ts_ + ts_delta) * 1000));
   context_->sorter->PushArtMethodEvent(ts, evt);
+  return base::OkStatus();
+}
+
+base::Status ArtMethodTokenizer::ParseThread(uint32_t tid,
+                                             const std::string& comm) {
+  thread_map_.Insert(
+      tid, {context_->storage->InternString(base::StringView(comm)), false});
   return base::OkStatus();
 }
 
@@ -275,12 +286,12 @@ base::StatusOr<bool> ArtMethodTokenizer::Streaming::ParseHeaderStart(
 }
 
 base::StatusOr<bool> ArtMethodTokenizer::Streaming::ParseData(Iterator& it) {
-  std::optional<TraceBlobView> tid_tbv = it.MaybeRead(2);
-  if (!tid_tbv) {
+  std::optional<TraceBlobView> op_tbv = it.MaybeRead(2);
+  if (!op_tbv) {
     return false;
   }
-  uint32_t tid = ToShort(*tid_tbv);
-  if (tid != 0) {
+  uint32_t op = ToShort(*op_tbv);
+  if (op != 0) {
     // Just skip past the record: this will be handled later.
     // -2 because we already the tid above which forms part of the record.
     return it.MaybeAdvance(tokenizer_->record_size_ - 2);
@@ -315,12 +326,12 @@ base::StatusOr<bool> ArtMethodTokenizer::Streaming::ParseData(Iterator& it) {
       if (!method_tbv) {
         return false;
       }
-      tokenizer_->ParseMethodLine(ToStringView(*method_tbv));
+      RETURN_IF_ERROR(tokenizer_->ParseMethodLine(ToStringView(*method_tbv)));
       return true;
     }
     case kThreadsCode: {
-      // Advance past the tid.
-      if (!it.MaybeAdvance(2)) {
+      std::optional<TraceBlobView> tid_tbv = it.MaybeRead(2);
+      if (!tid_tbv) {
         return false;
       }
       std::optional<TraceBlobView> comm_len_tbv = it.MaybeRead(2);
@@ -328,9 +339,12 @@ base::StatusOr<bool> ArtMethodTokenizer::Streaming::ParseData(Iterator& it) {
         return false;
       }
       uint32_t comm_len = ToShort(*comm_len_tbv);
-      if (!it.MaybeAdvance(comm_len)) {
+      std::optional<TraceBlobView> comm_tbv = it.MaybeRead(comm_len);
+      if (!comm_tbv) {
         return false;
       }
+      RETURN_IF_ERROR(tokenizer_->ParseThread(
+          ToShort(*tid_tbv), std::string(ToStringView(*comm_tbv))));
       return true;
     }
     default:
@@ -505,6 +519,21 @@ base::StatusOr<bool> ArtMethodTokenizer::NonStreaming::ParseHeaderThreads(
       RETURN_IF_ERROR(ParseHeaderSectionLine(l));
       return true;
     }
+    std::string line(l);
+    auto tokens = base::SplitString(line, "\t");
+    if (tokens.size() != 2) {
+      return base::ErrStatus(
+          "ART method tracing: expected only one tab in thread line (context: "
+          "%s)",
+          line.c_str());
+    }
+    std::optional<uint32_t> tid = base::StringToUInt32(tokens[0]);
+    if (!tid) {
+      return base::ErrStatus(
+          "ART method tracing: failed parse tid in thread line (context: %s)",
+          tokens[0].c_str());
+    }
+    RETURN_IF_ERROR(tokenizer_->ParseThread(*tid, tokens[1]));
   }
   return false;
 }
@@ -517,7 +546,7 @@ base::StatusOr<bool> ArtMethodTokenizer::NonStreaming::ParseHeaderMethods(
       RETURN_IF_ERROR(ParseHeaderSectionLine(l));
       return true;
     }
-    tokenizer_->ParseMethodLine(l);
+    RETURN_IF_ERROR(tokenizer_->ParseMethodLine(l));
   }
   return false;
 }

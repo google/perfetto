@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -50,6 +51,10 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
     StringId name;
     std::optional<StringId> pathname;
     std::optional<uint32_t> line_number;
+  };
+  struct Thread {
+    StringId comm;
+    bool comm_used;
   };
   struct Detect {};
   struct NonStreaming {
@@ -95,9 +100,10 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   };
   using SubParser = std::variant<Detect, NonStreaming, Streaming>;
 
-  base::Status ParseMethodLine(std::string_view);
-  base::Status ParseOptionLine(std::string_view);
-  base::Status ParseRecord(uint32_t tid, const TraceBlobView&);
+  [[nodiscard]] base::Status ParseMethodLine(std::string_view);
+  [[nodiscard]] base::Status ParseOptionLine(std::string_view);
+  [[nodiscard]] base::Status ParseThread(uint32_t tid, const std::string&);
+  [[nodiscard]] base::Status ParseRecord(uint32_t tid, const TraceBlobView&);
 
   TraceProcessorContext* const context_;
   util::TraceBlobViewReader reader_;
@@ -112,6 +118,7 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   int64_t ts_ = std::numeric_limits<int64_t>::max();
   uint32_t record_size_ = std::numeric_limits<uint32_t>::max();
   base::FlatHashMap<uint32_t, Method> method_map_;
+  base::FlatHashMap<uint32_t, Thread> thread_map_;
 };
 
 }  // namespace perfetto::trace_processor::art_method

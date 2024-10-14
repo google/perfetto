@@ -39,6 +39,10 @@ ArtMethodParserImpl::~ArtMethodParserImpl() = default;
 
 void ArtMethodParserImpl::ParseArtMethodEvent(int64_t ts, ArtMethodEvent e) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(e.tid);
+  if (e.comm) {
+    context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
+        e.tid, *e.comm, ThreadNamePriority::kOther);
+  }
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   switch (e.action) {
     case ArtMethodEvent::kEnter:

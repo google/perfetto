@@ -26,6 +26,7 @@ namespace perfetto::trace_processor::art_method {
 
 struct alignas(8) ArtMethodEvent {
   uint32_t tid;
+  std::optional<StringPool::Id> comm;
   StringPool::Id method;
   enum { kEnter, kExit } action;
   std::optional<StringPool::Id> pathname;
