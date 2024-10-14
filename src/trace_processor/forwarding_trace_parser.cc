@@ -138,7 +138,26 @@ void ForwardingTraceParser::UpdateSorterForTraceType(TraceType trace_type) {
   }
 
   if (!context_->sorter) {
-    context_->sorter.reset(new TraceSorter(context_, *minimum_sorting_mode));
+    TraceSorter::EventHandling event_handling;
+    switch (context_->config.parsing_mode) {
+      case ParsingMode::kDefault:
+        event_handling = TraceSorter::EventHandling::kSortAndPush;
+        break;
+      case ParsingMode::kTokenizeOnly:
+        event_handling = TraceSorter::EventHandling::kDrop;
+        break;
+      case ParsingMode::kTokenizeAndSort:
+        event_handling = TraceSorter::EventHandling::kSortAndDrop;
+        break;
+    }
+    if (context_->config.enable_dev_features) {
+      auto it = context_->config.dev_flags.find("drop-after-sort");
+      if (it != context_->config.dev_flags.end() && it->second == "true") {
+        event_handling = TraceSorter::EventHandling::kSortAndDrop;
+      }
+    }
+    context_->sorter = std::make_shared<TraceSorter>(
+        context_, *minimum_sorting_mode, event_handling);
   }
 
   switch (context_->sorter->sorting_mode()) {

@@ -32,6 +32,8 @@ def run_tp_until_ingestion(args, env):
   tp_args = [os.path.join(args.out, 'trace_processor_shell'), args.trace_file]
   if not args.ftrace_raw:
     tp_args.append('--no-ftrace-raw')
+  tp_args.append('--dev')
+  tp_args.append('--dev-flag drop-after-sort=true')
   tp = subprocess.Popen(
       tp_args,
       stdin=subprocess.PIPE,
@@ -123,7 +125,6 @@ def regular_run(args):
 def only_sort_run(args):
   env = {
       'TRACE_PROCESSOR_NO_MMAP': '1',
-      'TRACE_PROCESSOR_SORT_ONLY': '1',
   }
   (tp, fail, time) = run_tp_until_ingestion(args, env)
 

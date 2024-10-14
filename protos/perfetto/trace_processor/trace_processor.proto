@@ -60,7 +60,8 @@ enum TraceProcessorApiVersion {
   // 12. Changed UI to be more aggresive about version matching.
   //     Added version_code.
   // 13. Added TPM_REGISTER_SQL_MODULE method.
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 13;
+  // 14. Added parsing mode option to RESET method.
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 14;
 }
 
 // At lowest level, the wire-format of the RPC protocol is a linear sequence of
@@ -330,11 +331,17 @@ message ResetTraceProcessorArgs {
     NO_DROP = 0;
     TRACK_EVENT_RANGE_OF_INTEREST = 1;
   }
+  enum ParsingMode {
+    DEFAULT = 0;
+    TOKENIZE_ONLY = 1;
+    TOKENIZE_AND_SORT = 2;
+  }
   // Mirror of the corresponding perfetto::trace_processor::Config fields.
   optional DropTrackEventDataBefore drop_track_event_data_before = 1;
   optional bool ingest_ftrace_in_raw_table = 2;
   optional bool analyze_trace_proto_content = 3;
   optional bool ftrace_drop_until_all_cpus_valid = 4;
+  optional ParsingMode parsing_mode = 5;
 }
 
 message RegisterSqlPackageArgs {
