@@ -36,9 +36,35 @@ namespace perfetto::trace_processor {
 // protos are mounted onto a virtual path inside this directory.
 constexpr char kMetricProtoRoot[] = "protos/perfetto/metrics/";
 
+// Enum which encodes how trace processor should parse the ingested data.
+enum class ParsingMode {
+  // This option causes trace processor to tokenize the raw trace bytes, sort
+  // the events into timestamp order and parse the events into tables.
+  //
+  // This is the default mode.
+  kDefault = 0,
+
+  // This option causes trace processor to skip the sorting and parsing
+  // steps of ingesting a trace, only retaining any information which could be
+  // gathered during tokenization of the trace files.
+  //
+  // Note the exact information available with this option is left intentionally
+  // undefined as it relies heavily on implementation details of trace
+  // processor. It is mainly intended for use by the Perfetto UI which
+  // integrates very closely with trace processor. General users should use
+  // `kDefault` unless they know what they are doing.
+  kTokenizeOnly = 1,
+
+  // This option causes trace processor to skip the parsing step of ingesting
+  // a trace.
+  //
+  // Note this option does not offer any visible benefits over `kTokenizeOnly`
+  // but has the downside of being slower. It mainly exists for use by
+  // developers debugging performance of trace processor.
+  kTokenizeAndSort = 2,
+};
+
 // Enum which encodes how trace processor should try to sort the ingested data.
-// Note that these options are only applicable to proto traces; other trace
-// types (e.g. JSON, Fuchsia) use full sorts.
 enum class SortingMode {
   // This option allows trace processor to use built-in heuristics about how to
   // sort the data. Generally, this option is correct for most embedders as
@@ -50,8 +76,8 @@ enum class SortingMode {
   // This is the default mode.
   kDefaultHeuristics = 0,
 
-  // This option forces trace processor to wait for all trace packets to be
-  // passed to it before doing a full sort of all the packets. This causes any
+  // This option forces trace processor to wait for all events to be passed to
+  // it before doing a full sort of all the events. This causes any
   // heuristics trace processor would normally use to ingest partially sorted
   // data to be skipped.
   kForceFullSort = 1,
@@ -112,8 +138,13 @@ enum class DropTrackEventDataBefore {
 
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
 struct PERFETTO_EXPORT_COMPONENT Config {
-  // Indicates the sortinng mode that trace processor should use on the passed
-  // trace packets. See the enum documentation for more details.
+  // Indicates the parsing mode trace processor should use to extract
+  // information from the raw trace bytes. See the enum documentation for more
+  // details.
+  ParsingMode parsing_mode = ParsingMode::kDefault;
+
+  // Indicates the sortinng mode that trace processor should use on the
+  // passed trace packets. See the enum documentation for more details.
   SortingMode sorting_mode = SortingMode::kDefaultHeuristics;
 
   // When set to false, this option makes the trace processor not include ftrace

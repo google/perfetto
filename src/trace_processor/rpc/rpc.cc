@@ -407,6 +407,18 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
             ? SoftDropFtraceDataBefore::kAllPerCpuBuffersValid
             : SoftDropFtraceDataBefore::kNoDrop;
   }
+  using Args = protos::pbzero::ResetTraceProcessorArgs;
+  switch (reset_trace_processor_args.parsing_mode()) {
+    case Args::ParsingMode::DEFAULT:
+      config.parsing_mode = ParsingMode::kDefault;
+      break;
+    case Args::ParsingMode::TOKENIZE_ONLY:
+      config.parsing_mode = ParsingMode::kTokenizeOnly;
+      break;
+    case Args::ParsingMode::TOKENIZE_AND_SORT:
+      config.parsing_mode = ParsingMode::kTokenizeAndSort;
+      break;
+  }
   ResetTraceProcessorInternal(config);
 }
 
