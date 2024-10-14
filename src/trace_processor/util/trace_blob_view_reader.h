@@ -180,6 +180,11 @@ class TraceBlobViewReader {
   // NOTE: If `offset` < 'file_offset()' this method will CHECK fail.
   std::optional<TraceBlobView> SliceOff(size_t offset, size_t length) const;
 
+  // Similar to SliceOff but this method will not combine slices but instead
+  // potentially return multiple chunks. Useful if we are extracting slices to
+  // forward them to a `ChunkedTraceReader`.
+  std::vector<TraceBlobView> MultiSliceOff(size_t offset, size_t length) const;
+
   // Returns the offset to the start of the available data.
   size_t start_offset() const {
     return data_.empty() ? end_offset_ : data_.front().start_offset;
@@ -194,6 +199,9 @@ class TraceBlobViewReader {
   bool empty() const { return data_.empty(); }
 
  private:
+  template <typename Visitor>
+  auto SliceOffImpl(size_t offset, size_t length, Visitor& visitor) const;
+
   // CircularQueue has no const_iterator, so mutable is needed to access it from
   // const methods.
   mutable base::CircularQueue<Entry> data_;

@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -76,8 +77,8 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
     return base::ErrStatus(
         "Failed unrecoverably while parsing in a previous Parse call");
   if (!parser_) {
-    active_file_ = context_.trace_file_tracker->StartNewFile();
-    auto parser = std::make_unique<ForwardingTraceParser>(&context_);
+    auto parser = std::make_unique<ForwardingTraceParser>(
+        &context_, context_.trace_file_tracker->AddFile());
     parser_ = parser.get();
     context_.chunk_readers.push_back(std::move(parser));
   }
@@ -97,7 +98,6 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
                                            Variadic::String(id_for_uuid));
   }
 
-  active_file_->AddSize(blob.size());
   base::Status status = parser_->Parse(std::move(blob));
   unrecoverable_parse_error_ |= !status.ok();
   return status;
@@ -121,9 +121,6 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   }
   Flush();
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
-  PERFETTO_CHECK(active_file_.has_value());
-  active_file_->SetTraceType(parser_->trace_type());
-  active_file_.reset();
   // NotifyEndOfFile might have pushed packets to the sorter.
   Flush();
   for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
@@ -144,8 +141,6 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
 }
 
 void TraceProcessorStorageImpl::DestroyContext() {
-  // End any active files. Eg. when NotifyEndOfFile is not called.
-  active_file_.reset();
   TraceProcessorContext context;
   context.storage = std::move(context_.storage);
 

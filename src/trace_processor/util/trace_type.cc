@@ -41,6 +41,9 @@ constexpr char kPerfMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
 constexpr char kZipMagic[] = {'P', 'K', '\x03', '\x04'};
 constexpr char kGzipMagic[] = {'\x1f', '\x8b'};
 constexpr char kArtMethodStreamingMagic[] = {'S', 'L', 'O', 'W'};
+constexpr char kTarPosixMagic[] = {'u', 's', 't', 'a', 'r', '\0'};
+constexpr char kTarGnuMagic[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
+constexpr size_t kTarMagicOffset = 257;
 
 constexpr uint8_t kTracePacketTag =
     protozero::proto_utils::MakeTagLengthDelimited(
@@ -59,11 +62,15 @@ std::string RemoveWhitespace(std::string str) {
 }
 
 template <size_t N>
-bool MatchesMagic(const uint8_t* data, size_t size, const char (&magic)[N]) {
-  if (size < N) {
+bool MatchesMagic(const uint8_t* data,
+                  size_t size,
+                  const char (&magic)[N],
+                  size_t offset = 0) {
+  if (size < N + offset) {
     return false;
   }
-  return memcmp(data, magic, N) == 0;
+
+  return memcmp(data + offset, magic, N) == 0;
 }
 
 bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
@@ -136,6 +143,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "perf_text";
     case kUnknownTraceType:
       return "unknown";
+    case kTarTraceType:
+      return "tar";
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -143,6 +152,14 @@ const char* TraceTypeToString(TraceType trace_type) {
 TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (size == 0) {
     return kUnknownTraceType;
+  }
+
+  if (MatchesMagic(data, size, kTarPosixMagic, kTarMagicOffset)) {
+    return kTarTraceType;
+  }
+
+  if (MatchesMagic(data, size, kTarGnuMagic, kTarMagicOffset)) {
+    return kTarTraceType;
   }
 
   if (MatchesMagic(data, size, kFuchsiaMagic)) {

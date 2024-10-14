@@ -56,8 +56,6 @@ source_set("common") {
     "sched_event_state.h",
     "sched_event_tracker.cc",
     "sched_event_tracker.h",
-    "scoped_active_trace_file.cc",
-    "scoped_active_trace_file.h",
     "slice_tracker.cc",
     "slice_tracker.h",
     "slice_translation_table.cc",
