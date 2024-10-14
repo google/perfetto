@@ -102,3 +102,65 @@ class ParsingTracedStats(TestSuite):
         1,1
         2,2
         """))
+
+  # Check that dropping all packets leads to
+  # `traced_buf_incremental_sequences_dropped` being set.
+  def test_sequence_all_incremental_dropped(self):
+    return DiffTestBlueprint(
+        trace=TextProto('''
+        packet {
+          trusted_packet_sequence_id: 2
+          previous_packet_dropped: true
+          first_packet_on_sequence: true
+          sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+        }
+        packet {
+          trusted_packet_sequence_id: 3
+          sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+        }
+        packet {
+          trusted_packet_sequence_id: 3
+          sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+        }
+        packet {
+          trusted_packet_sequence_id: 4
+          sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+        }
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          trace_stats {
+            writer_stats {
+              sequence_id: 2
+              buffer: 0
+            }
+            writer_stats {
+              sequence_id: 3
+              buffer: 1
+            }
+            writer_stats {
+              sequence_id: 4
+              buffer: 1
+            }
+          }
+        }
+        '''),
+        query='''
+          SELECT idx, value
+          FROM stats
+          WHERE name = 'traced_buf_incremental_sequences_dropped'
+          ORDER BY idx;
+        ''',
+        out=Csv('''
+        "idx","value"
+        0,0
+        1,2
+        '''))
