@@ -83,6 +83,13 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
       trackKey: stateSel.trackUri,
       eventId: stateSel.eventId.toString(),
     });
+  } else if (stateSel.kind === 'area') {
+    selection.push({
+      kind: 'AREA',
+      trackUris: stateSel.trackUris,
+      start: stateSel.start,
+      end: stateSel.end,
+    });
   }
 
   const plugins = new Array<SerializedPluginState>();
@@ -202,6 +209,12 @@ export function deserializeAppStatePhase2(
       case 'TRACK_EVENT':
         selMgr.selectTrackEvent(sel.trackKey, parseInt(sel.eventId));
         break;
+      case 'AREA':
+        selMgr.selectArea({
+          start: sel.start,
+          end: sel.end,
+          trackUris: sel.trackUris,
+        });
     }
   }
 }
