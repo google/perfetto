@@ -23,12 +23,12 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
-#include <regex>
 #include <string>
 #include <unordered_set>
+
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
-#include "perfetto/tracing/core/clock_snapshots.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
@@ -3492,7 +3492,8 @@ bool TracingServiceImpl::SnapshotClocks(
   // been emitted into the trace yet (see comment below).
   static constexpr int64_t kSignificantDriftNs = 10 * 1000 * 1000;  // 10 ms
 
-  TracingSession::ClockSnapshotData new_snapshot_data = CaptureClockSnapshots();
+  TracingSession::ClockSnapshotData new_snapshot_data =
+      base::CaptureClockSnapshots();
   // If we're about to update a session's latest clock snapshot that hasn't been
   // emitted into the trace yet, check whether the clocks have drifted enough to
   // warrant overriding the current snapshot values. The older snapshot would be
@@ -4993,8 +4994,8 @@ TracingServiceImpl::RelayEndpointImpl::~RelayEndpointImpl() = default;
 
 void TracingServiceImpl::RelayEndpointImpl::SyncClocks(
     SyncMode sync_mode,
-    ClockSnapshotVector client_clocks,
-    ClockSnapshotVector host_clocks) {
+    base::ClockSnapshotVector client_clocks,
+    base::ClockSnapshotVector host_clocks) {
   // We keep only the most recent 5 clock sync snapshots.
   static constexpr size_t kNumSyncClocks = 5;
   if (synced_clocks_.size() >= kNumSyncClocks)

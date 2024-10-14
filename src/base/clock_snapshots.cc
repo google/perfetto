@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include "perfetto/tracing/core/clock_snapshots.h"
+#include "perfetto/ext/base/clock_snapshots.h"
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/time.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
-namespace perfetto {
+namespace perfetto::base {
 
 ClockSnapshotVector CaptureClockSnapshots() {
   ClockSnapshotVector snapshot_data;

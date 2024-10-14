@@ -31,6 +31,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/uuid.h"
@@ -274,22 +275,22 @@ class TracingServiceImpl : public TracingService {
 
     struct SyncedClockSnapshots {
       SyncedClockSnapshots(SyncMode _sync_mode,
-                           ClockSnapshotVector _client_clocks,
-                           ClockSnapshotVector _host_clocks)
+                           base::ClockSnapshotVector _client_clocks,
+                           base::ClockSnapshotVector _host_clocks)
           : sync_mode(_sync_mode),
             client_clocks(std::move(_client_clocks)),
             host_clocks(std::move(_host_clocks)) {}
       SyncMode sync_mode;
-      ClockSnapshotVector client_clocks;
-      ClockSnapshotVector host_clocks;
+      base::ClockSnapshotVector client_clocks;
+      base::ClockSnapshotVector host_clocks;
     };
 
     explicit RelayEndpointImpl(RelayClientID relay_client_id,
                                TracingServiceImpl* service);
     ~RelayEndpointImpl() override;
     void SyncClocks(SyncMode sync_mode,
-                    ClockSnapshotVector client_clocks,
-                    ClockSnapshotVector host_clocks) override;
+                    base::ClockSnapshotVector client_clocks,
+                    base::ClockSnapshotVector host_clocks) override;
     void Disconnect() override;
 
     MachineID machine_id() const { return relay_client_id_.first; }
@@ -695,7 +696,7 @@ class TracingServiceImpl : public TracingService {
 
     std::vector<ArbitraryLifecycleEvent> last_flush_events;
 
-    using ClockSnapshotData = ClockSnapshotVector;
+    using ClockSnapshotData = base::ClockSnapshotVector;
 
     // Initial clock snapshot, captured at trace start time (when state goes to
     // TracingSession::STARTED). Emitted into the trace when the consumer first
