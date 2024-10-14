@@ -63,36 +63,6 @@ JOIN process
   ON long_latency_with_upid.upid = process.upid
 GROUP BY ts, process.pid;
 
--- Create the derived event track for long latency.
--- All tracks generated from chrome_long_latency_event are
--- placed under a track group named 'Long Latency', whose summary
--- track is the first track ('All Processes') in chrome_long_latency_event.
--- Note that the 'All Processes' track is generated only when there are more
--- than one source of long latency events.
-DROP VIEW IF EXISTS chrome_long_latency_event;
-CREATE PERFETTO VIEW chrome_long_latency_event AS
-SELECT
-  'slice' AS track_type,
-  'All Processes' AS track_name,
-  ts,
-  0 AS dur,
-  event_type AS slice_name,
-  'Long Latency' AS group_name
-FROM long_latency_with_process_info
-WHERE (SELECT COUNT(DISTINCT process_id)
-                    FROM long_latency_with_process_info) > 1
-GROUP BY ts
-UNION ALL
-SELECT
-  'slice' AS track_type,
-  process_name || ' ' || process_id AS track_name,
-  ts,
-  0 AS dur,
-  event_type AS slice_name,
-  'Long Latency' AS group_name
-FROM long_latency_with_process_info
-GROUP BY ts;
-
 -- Create the long latency metric output.
 DROP VIEW IF EXISTS chrome_long_latency_output;
 CREATE PERFETTO VIEW chrome_long_latency_output AS
