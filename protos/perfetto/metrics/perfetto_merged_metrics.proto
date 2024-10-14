@@ -527,13 +527,6 @@ message AndroidSysUINotificationsBlockingCallsMetric {
 
 // End of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
 
-// Begin of protos/perfetto/metrics/android/android_trusty_workqueues.proto
-
-// Metric used to generate a simplified view of the Trusty kworker events.
-message AndroidTrustyWorkqueues {}
-
-// End of protos/perfetto/metrics/android/android_trusty_workqueues.proto
-
 // Begin of protos/perfetto/metrics/android/anr_metric.proto
 
  message AndroidAnrMetric {
@@ -2120,16 +2113,6 @@ message AndroidNetworkMetric {
 
 // End of protos/perfetto/metrics/android/network_metric.proto
 
-// Begin of protos/perfetto/metrics/android/other_traces.proto
-
-message AndroidOtherTracesMetric {
-  // Uuids of other traces being finalized while the current trace was being
-  // recorded.
-  repeated string finalized_traces_uuid = 1;
-}
-
-// End of protos/perfetto/metrics/android/other_traces.proto
-
 // Begin of protos/perfetto/metrics/android/package_list.proto
 
 message AndroidPackageList {
@@ -3152,11 +3135,13 @@ message TraceMetrics {
   // Metrics for IRQ runtime.
   optional AndroidIrqRuntimeMetric android_irq_runtime = 43;
 
-  // Metrics for the Trusty team.
-  optional AndroidTrustyWorkqueues android_trusty_workqueues = 44;
+  // Was metrics for the Trusty team.
+  reserved 44;
+  reserved 'android_trusty_workqueues';
 
-  // Summary of other concurrent trace recording.
-  optional AndroidOtherTracesMetric android_other_traces = 45;
+  // Was summary of concurrent trace recording.
+  reserved 45;
+  reserved 'android_other_traces';
 
   // Per-process Binder transaction metrics.
   optional AndroidBinderMetric android_binder = 46;

@@ -43,10 +43,3 @@ Any registered metrics can be computed using using the `ComputeMetric` function.
 Metrics can also be registered at run time using the `RegisterMetric` and `ExtendMetricsProto` functions. These can subsequently be executed with `ComputeMetric`.
 
 WARNING: embedders should ensure that the path of any registered metric is consistent with the name used to execute the metric and output view in the SQL.
-
-### Creating derived events
-
-As creating derived events is tied to the metrics subsystem, the `ComputeMetrics` function in the trace processor API should be called with the appropriate metrics. This will create the `<metric_name>_event` table/view which can then be queried using the `ExectueQuery` function.
-
-NOTE: At some point, there are plans to add an API which does not create the metrics proto but just executes the queries in the metric.
-

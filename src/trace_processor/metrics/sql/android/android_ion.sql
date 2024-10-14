@@ -65,20 +65,6 @@ SELECT
 FROM ion_raw_allocs
 GROUP BY 1;
 
--- We need to group by ts here as we can have two ion events from
--- different processes occurring at the same timestamp. We take the
--- max as this will take both allocations into account at that
--- timestamp.
-DROP VIEW IF EXISTS android_ion_event;
-CREATE PERFETTO VIEW android_ion_event AS
-SELECT
-  'counter' AS track_type,
-  printf('ION allocations (heap: %s)', heap_name) AS track_name,
-  ts,
-  MAX(value) AS value
-FROM ion_raw_allocs
-GROUP BY 1, 2, 3;
-
 DROP VIEW IF EXISTS android_ion_output;
 CREATE PERFETTO VIEW android_ion_output AS
 SELECT AndroidIonMetric(

@@ -1141,18 +1141,6 @@ class Parsing(TestSuite):
         9
         """))
 
-  def test_otheruuids_android_other_traces(self):
-    return DiffTestBlueprint(
-        trace=Path('otheruuids.textproto'),
-        query=Metric('android_other_traces'),
-        out=TextProto(r"""
-        android_other_traces {
-          finalized_traces_uuid: "75e4c6d0-d8f6-4f82-fa4b-9e09c5512288"
-          finalized_traces_uuid: "ad836701-3113-3fb1-be4f-f7731e23fbbf"
-          finalized_traces_uuid: "0de1a010-efa1-a081-2345-969b1186a6ab"
-        }
-        """))
-
   # Per-process Binder transaction metrics
   def test_android_binder(self):
     return DiffTestBlueprint(
