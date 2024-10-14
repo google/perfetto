@@ -122,8 +122,9 @@ WITH maybe_broken_binder_txn AS (
     JOIN thread reply_thread ON reply_thread.utid = reply_thread_track.utid
     JOIN process reply_process ON reply_process.upid = reply_thread.upid
     LEFT JOIN slice aidl ON aidl.parent_id = binder_reply.id
-        AND (aidl.name GLOB 'AIDL::cpp*Server'
-             OR aidl.name GLOB 'AIDL::java*server'
+        -- Filter for only server side AIDL slices as there are some client side ones for cpp
+        AND (aidl.name GLOB 'AIDL::*Server'
+             OR aidl.name GLOB 'AIDL::*server'
              OR aidl.name GLOB 'HIDL::*server')
   )
 SELECT
@@ -323,8 +324,9 @@ WITH async_reply AS MATERIALIZED (
   SELECT id, ts, dur, track_id, name
   FROM slice
   WHERE
-    name GLOB 'AIDL::cpp*Server'
-    OR name GLOB 'AIDL::java*server'
+    -- Filter for only server side AIDL slices as there are some client side ones for cpp
+    name GLOB 'AIDL::*Server'
+    OR name GLOB 'AIDL::*server'
     OR name GLOB 'HIDL::*server'
     OR name = 'binder async rcv'
 ) SELECT *, LEAD(name) OVER (PARTITION BY track_id ORDER BY ts) AS next_name,
