@@ -11,6 +11,11 @@ Unreleased:
     *
 
 
+v48.1 - 2024-10-14:
+  SDK:
+    * Fix build with MSVC.
+
+
 v48.0 - 2024-10-11:
   Tracing service and probes:
     * Improved accuracy of ftrace event cropping when there are multiple
