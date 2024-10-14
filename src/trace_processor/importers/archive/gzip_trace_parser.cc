@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
+#include "src/trace_processor/importers/archive/gzip_trace_parser.h"
 
 #include <cstdint>
 #include <cstring>
@@ -30,6 +30,8 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -59,7 +61,8 @@ base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
 
   if (!inner_) {
     PERFETTO_CHECK(context_);
-    inner_.reset(new ForwardingTraceParser(context_));
+    inner_.reset(new ForwardingTraceParser(
+        context_, context_->trace_file_tracker->AddFile("")));
   }
 
   if (!first_chunk_parsed_) {

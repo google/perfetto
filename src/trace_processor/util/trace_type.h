@@ -41,6 +41,7 @@ enum TraceType {
   kGeckoTraceType,
   kArtMethodTraceType,
   kPerfTextTraceType,
+  kTarTraceType,
 };
 
 constexpr size_t kGuessTraceMaxLookahead = 64;

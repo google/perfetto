@@ -223,6 +223,7 @@ perfetto_cc_library(
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
+        ":src_trace_processor_importers_archive_archive",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
         ":src_trace_processor_importers_common_common",
@@ -238,7 +239,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
-        ":src_trace_processor_importers_gzip_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -261,7 +261,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_importers_systrace_systrace_parser",
-        ":src_trace_processor_importers_zip_full",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
@@ -1540,6 +1539,21 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/archive:archive
+perfetto_filegroup(
+    name = "src_trace_processor_importers_archive_archive",
+    srcs = [
+        "src/trace_processor/importers/archive/archive_entry.cc",
+        "src/trace_processor/importers/archive/archive_entry.h",
+        "src/trace_processor/importers/archive/gzip_trace_parser.cc",
+        "src/trace_processor/importers/archive/gzip_trace_parser.h",
+        "src/trace_processor/importers/archive/tar_trace_reader.cc",
+        "src/trace_processor/importers/archive/tar_trace_reader.h",
+        "src/trace_processor/importers/archive/zip_trace_reader.cc",
+        "src/trace_processor/importers/archive/zip_trace_reader.h",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/art_method:art_method
 perfetto_filegroup(
     name = "src_trace_processor_importers_art_method_art_method",
@@ -1603,8 +1617,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/sched_event_state.h",
         "src/trace_processor/importers/common/sched_event_tracker.cc",
         "src/trace_processor/importers/common/sched_event_tracker.h",
-        "src/trace_processor/importers/common/scoped_active_trace_file.cc",
-        "src/trace_processor/importers/common/scoped_active_trace_file.h",
         "src/trace_processor/importers/common/slice_tracker.cc",
         "src/trace_processor/importers/common/slice_tracker.h",
         "src/trace_processor/importers/common/slice_translation_table.cc",
@@ -1765,15 +1777,6 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_gecko_gecko_event",
     srcs = [
         "src/trace_processor/importers/gecko/gecko_event.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/gzip:full
-perfetto_filegroup(
-    name = "src_trace_processor_importers_gzip_full",
-    srcs = [
-        "src/trace_processor/importers/gzip/gzip_trace_parser.cc",
-        "src/trace_processor/importers/gzip/gzip_trace_parser.h",
     ],
 )
 
@@ -2217,15 +2220,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/systrace/systrace_parser.cc",
         "src/trace_processor/importers/systrace/systrace_parser.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/zip:full
-perfetto_filegroup(
-    name = "src_trace_processor_importers_zip_full",
-    srcs = [
-        "src/trace_processor/importers/zip/zip_trace_reader.cc",
-        "src/trace_processor/importers/zip/zip_trace_reader.h",
     ],
 )
 
@@ -6431,6 +6425,7 @@ perfetto_cc_library(
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
+        ":src_trace_processor_importers_archive_archive",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
         ":src_trace_processor_importers_common_common",
@@ -6446,7 +6441,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
-        ":src_trace_processor_importers_gzip_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -6469,7 +6463,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_importers_systrace_systrace_parser",
-        ":src_trace_processor_importers_zip_full",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
@@ -6636,6 +6629,7 @@ perfetto_cc_binary(
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
+        ":src_trace_processor_importers_archive_archive",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
         ":src_trace_processor_importers_common_common",
@@ -6651,7 +6645,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
-        ":src_trace_processor_importers_gzip_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -6674,7 +6667,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_importers_systrace_systrace_parser",
-        ":src_trace_processor_importers_zip_full",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
@@ -6898,6 +6890,7 @@ perfetto_cc_binary(
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
+        ":src_trace_processor_importers_archive_archive",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
         ":src_trace_processor_importers_common_common",
@@ -6913,7 +6906,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_minimal",
         ":src_trace_processor_importers_gecko_gecko",
         ":src_trace_processor_importers_gecko_gecko_event",
-        ":src_trace_processor_importers_gzip_full",
         ":src_trace_processor_importers_i2c_full",
         ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
@@ -6936,7 +6928,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_importers_systrace_systrace_parser",
-        ":src_trace_processor_importers_zip_full",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
