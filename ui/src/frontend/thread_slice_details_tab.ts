@@ -14,10 +14,9 @@
 
 import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
-import {Time, TimeSpan} from '../base/time';
+import {TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
 import {Engine} from '../trace_processor/engine';
-import {LONG, LONG_NULL, NUM, STR_NULL} from '../trace_processor/query_result';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
@@ -200,71 +199,22 @@ function getSliceContextMenuItems(slice: SliceDetails) {
   return ITEMS.filter((item) => item.shouldDisplay(slice));
 }
 
-async function getAnnotationSlice(
-  engine: Engine,
-  id: number,
-): Promise<SliceDetails | undefined> {
-  const query = await engine.query(`
-    SELECT
-      id,
-      name,
-      ts,
-      dur,
-      track_id as trackId,
-      thread_dur as threadDur,
-      cat,
-      ABS_TIME_STR(ts) as absTime
-    FROM annotation_slice
-    where id = ${id}`);
-
-  const it = query.firstRow({
-    id: NUM,
-    name: STR_NULL,
-    ts: LONG,
-    dur: LONG,
-    trackId: NUM,
-    threadDur: LONG_NULL,
-    cat: STR_NULL,
-    absTime: STR_NULL,
-  });
-
-  return {
-    id: asSliceSqlId(it.id),
-    name: it.name ?? 'null',
-    ts: Time.fromRaw(it.ts),
-    dur: it.dur,
-    depth: 0,
-    trackId: it.trackId,
-    threadDur: it.threadDur ?? undefined,
-    category: it.cat ?? undefined,
-    absTime: it.absTime ?? undefined,
-  };
-}
-
 async function getSliceDetails(
   engine: Engine,
   id: number,
-  table: string,
 ): Promise<SliceDetails | undefined> {
-  if (table === 'annotation_slice') {
-    return getAnnotationSlice(engine, id);
-  } else {
-    return getSlice(engine, asSliceSqlId(id));
-  }
+  return getSlice(engine, asSliceSqlId(id));
 }
 
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
 
-  constructor(
-    private readonly trace: Trace,
-    private readonly tableName: string,
-  ) {}
+  constructor(private readonly trace: Trace) {}
 
   async load({eventId}: TrackEventSelection) {
-    const {trace, tableName} = this;
-    const details = await getSliceDetails(trace.engine, eventId, tableName);
+    const {trace} = this;
+    const details = await getSliceDetails(trace.engine, eventId);
 
     if (
       details !== undefined &&

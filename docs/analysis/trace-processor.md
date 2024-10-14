@@ -509,36 +509,6 @@ TIP: To see how to add to add a new metric to trace processor, see the checklist
 The metrics subsystem is a significant part of trace processor and thus is
 documented on its own [page](/docs/analysis/metrics.md).
 
-## Creating derived events
-
-TIP: To see how to add to add a new annotation to trace processor, see the
-     checklist [here](/docs/contributing/common-tasks.md#new-annotation).
-
-This feature allows creation of new events (slices and counters) from the data
-in the trace. These events can then be displayed in the UI tracks as if they
-were part of the trace itself.
-
-This is useful as often the data in the trace is very low-level. While low
-level information is important for experts to perform deep debugging, often
-users are just looking for a high level overview without needing to consider
-events from multiple locations.
-
-For example, an app startup in Android spans multiple components including
-`ActivityManager`, `system_server`, and the newly created app process derived
-from `zygote`. Most users do not need this level of detail; they are only
-interested in a single slice spanning the entire startup.
-
-Creating derived events is tied very closely to
-[metrics subsystem](/docs/analysis/metrics.md); often SQL-based metrics need to
-create higher-level abstractions from raw events as intermediate artifacts.
-
-From previous example, the
-[startup metric](/src/trace_processor/metrics/sql/android/android_startup.sql)
-creates the exact `launching` slice we want to display in the UI.
-
-The other benefit of aligning the two is that changes in metrics are
-automatically kept in sync with what the user sees in the UI.
-
 ## Python API
 The trace processor's C++ library is also exposed through Python. This
 is documented on a [separate page](/docs/analysis/trace-processor-python.md).
