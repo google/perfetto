@@ -40,7 +40,7 @@ export class WattsonThreadSelectionAggregator
     engine.query(`
       INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
       INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
-      INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+      INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
       CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT
