@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
 -- The power calculations need to use the same time period in which energy
 -- calculations were made for consistency

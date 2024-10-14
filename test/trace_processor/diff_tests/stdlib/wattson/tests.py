@@ -200,7 +200,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+            INCLUDE PERFETTO MODULE wattson.curves.estimates;
               select * from _w_independent_cpus_calc
               WHERE ts > 359661672577
               ORDER by ts ASC
@@ -225,7 +225,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+            INCLUDE PERFETTO MODULE wattson.curves.estimates;
               select * from _system_state_curves
               ORDER by ts ASC
               LIMIT 5
@@ -244,7 +244,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+            INCLUDE PERFETTO MODULE wattson.curves.estimates;
               select * from _system_state_curves
               WHERE ts > 359661672577
               ORDER by ts ASC
@@ -264,7 +264,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+            INCLUDE PERFETTO MODULE wattson.curves.estimates;
               select * from _system_state_mw
               WHERE ts > 359661672577
               ORDER by ts ASC
@@ -289,7 +289,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_eos_suspend.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+            INCLUDE PERFETTO MODULE wattson.curves.estimates;
               select * from _system_state_curves
               WHERE ts > 24790009884888
               ORDER by ts ASC

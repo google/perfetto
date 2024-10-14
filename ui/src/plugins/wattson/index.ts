@@ -32,7 +32,7 @@ class Wattson implements PerfettoPlugin {
     // Short circuit if Wattson is not supported for this Perfetto trace
     if (!(await hasWattsonSupport(ctx.engine))) return;
 
-    ctx.engine.query(`INCLUDE PERFETTO MODULE wattson.curves.ungrouped;`);
+    ctx.engine.query(`INCLUDE PERFETTO MODULE wattson.curves.estimates;`);
 
     const group = new TrackNode({title: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
