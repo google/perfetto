@@ -16,10 +16,7 @@ import {ColumnDef, Sorting} from '../../public/aggregation';
 import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
-import {
-  ASYNC_SLICE_TRACK_KIND,
-  THREAD_SLICE_TRACK_KIND,
-} from '../../public/track_kinds';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 
 export class AsyncAndThreadSliceSelectionAggregator
   implements AreaSelectionAggregator
@@ -92,11 +89,7 @@ export class AsyncAndThreadSliceSelectionAggregator
 function getSelectedTrackSqlIds(area: AreaSelection): number[] {
   const selectedTrackKeys: number[] = [];
   for (const trackInfo of area.tracks) {
-    if (trackInfo?.tags?.kind === THREAD_SLICE_TRACK_KIND) {
-      trackInfo.tags.trackIds &&
-        selectedTrackKeys.push(...trackInfo.tags.trackIds);
-    }
-    if (trackInfo?.tags?.kind === ASYNC_SLICE_TRACK_KIND) {
+    if (trackInfo?.tags?.kind === SLICE_TRACK_KIND) {
       trackInfo.tags.trackIds &&
         selectedTrackKeys.push(...trackInfo.tags.trackIds);
     }
