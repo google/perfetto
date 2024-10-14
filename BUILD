@@ -2300,7 +2300,6 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/jank/cujs_boundaries.sql",
         "src/trace_processor/metrics/sql/android/jank/frames.sql",
         "src/trace_processor/metrics/sql/android/jank/internal/counters.sql",
-        "src/trace_processor/metrics/sql/android/jank/internal/derived_events.sql",
         "src/trace_processor/metrics/sql/android/jank/internal/query_base.sql",
         "src/trace_processor/metrics/sql/android/jank/internal/query_frame_slice.sql",
         "src/trace_processor/metrics/sql/android/jank/params.sql",
