@@ -29,7 +29,6 @@ source_set("core") {
     "../../base",
   ]
   sources = [
-    "clock_snapshots.cc",
     "id_allocator.cc",
     "id_allocator.h",
     "in_process_shared_memory.cc",

@@ -31,6 +31,7 @@ source_set("service") {
     "../../../protos/perfetto/trace/perfetto:zero",  # For MetatraceWriter.
     "../../android_stats",
     "../../base",
+    "../../base:clock_snapshots",
     "../../base:version",
     "../../protozero/filtering:message_filter",
     "../../protozero/filtering:string_filter",

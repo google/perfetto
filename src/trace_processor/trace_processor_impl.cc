@@ -34,6 +34,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_or.h"
@@ -1146,32 +1147,11 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     std::vector<uint8_t>* trace_proto) {
   protozero::HeapBuffered<protos::pbzero::Trace> trace;
 
-  {
-    uint64_t realtime_timestamp = static_cast<uint64_t>(
-        std::chrono::system_clock::now().time_since_epoch() /
-        std::chrono::nanoseconds(1));
-    uint64_t monotonic_timestamp =
-        static_cast<uint64_t>(base::GetWallTimeNs().count());
-    uint64_t boottime_timestamp = metatrace::TraceTimeNowNs();
-    auto* clock_snapshot = trace->add_packet()->set_clock_snapshot();
-    {
-      auto* realtime_clock = clock_snapshot->add_clocks();
-      realtime_clock->set_clock_id(
-          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_REALTIME);
-      realtime_clock->set_timestamp(realtime_timestamp);
-    }
-    {
-      auto* mono_clock = clock_snapshot->add_clocks();
-      mono_clock->set_clock_id(
-          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_MONOTONIC);
-      mono_clock->set_timestamp(monotonic_timestamp);
-    }
-    {
-      auto* boottime_clock = clock_snapshot->add_clocks();
-      boottime_clock->set_clock_id(
-          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
-      boottime_clock->set_timestamp(boottime_timestamp);
-    }
+  auto* clock_snapshot = trace->add_packet()->set_clock_snapshot();
+  for (const auto& [clock_id, ts] : base::CaptureClockSnapshots()) {
+    auto* clock = clock_snapshot->add_clocks();
+    clock->set_clock_id(clock_id);
+    clock->set_timestamp(ts);
   }
 
   auto tid = static_cast<uint32_t>(base::GetThreadId());

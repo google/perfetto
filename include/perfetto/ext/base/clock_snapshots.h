@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACING_CORE_CLOCK_SNAPSHOTS_H_
-#define INCLUDE_PERFETTO_TRACING_CORE_CLOCK_SNAPSHOTS_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_CLOCK_SNAPSHOTS_H_
+#define INCLUDE_PERFETTO_EXT_BASE_CLOCK_SNAPSHOTS_H_
 
 #include <cstdint>
 #include <vector>
 
-namespace perfetto {
+namespace perfetto::base {
+
 struct ClockReading {
   ClockReading(uint32_t _clock_id, uint64_t _timestamp)
       : clock_id(_clock_id), timestamp(_timestamp) {}
@@ -37,6 +38,6 @@ using ClockSnapshotVector = std::vector<ClockReading>;
 // Takes snapshots of clock readings of all supported built-in clocks.
 ClockSnapshotVector CaptureClockSnapshots();
 
-}  // namespace perfetto
+}  // namespace perfetto::base
 
-#endif  // INCLUDE_PERFETTO_TRACING_CORE_CLOCK_SNAPSHOTS_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_CLOCK_SNAPSHOTS_H_

@@ -165,6 +165,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../protos/perfetto/trace/perfetto:zero",
       "../../protos/perfetto/trace_processor:zero",
       "../base",
+      "../base:clock_snapshots",
       "../protozero",
       "db",
       "importers/android_bugreport",
