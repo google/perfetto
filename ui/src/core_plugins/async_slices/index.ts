@@ -27,6 +27,10 @@ import {
 import {exists} from '../../base/utils';
 import {ThreadSliceDetailsPanel} from '../../frontend/thread_slice_details_tab';
 import {assertExists, assertTrue} from '../../base/logging';
+import {SliceSelectionAggregator} from './slice_selection_aggregator';
+import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
+import {getSliceTable} from './table';
+import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
 
 class AsyncSlicePlugin implements PerfettoPlugin {
   private readonly trackIdsToUris = new Map<number, string>();
@@ -68,6 +72,22 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           trackUri,
           eventId: id,
         };
+      },
+    });
+
+    ctx.selection.registerAreaSelectionAggreagtor(
+      new SliceSelectionAggregator(),
+    );
+
+    sqlTableRegistry['slice'] = getSliceTable();
+
+    ctx.commands.registerCommand({
+      id: 'perfetto.ShowTable.slice',
+      name: 'Open table: slice',
+      callback: () => {
+        addSqlTableTab(ctx, {
+          table: getSliceTable(),
+        });
       },
     });
   }
