@@ -286,13 +286,20 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
 }
 
 void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
-  protos::pbzero::TraceConfig::Decoder trace_config(blob);
-  if (trace_config.write_into_file() && !trace_config.flush_period_ms()) {
-    PERFETTO_ELOG(
-        "It is strongly recommended to have flush_period_ms set when "
-        "write_into_file is turned on. This trace will be loaded fully "
-        "into memory before sorting which increases the likelihood of "
-        "OOMs.");
+  using Config = protos::pbzero::TraceConfig;
+  Config::Decoder trace_config(blob);
+  if (trace_config.write_into_file()) {
+    if (!trace_config.flush_period_ms()) {
+      context_->storage->IncrementStats(stats::config_write_into_file_no_flush);
+    }
+    int i = 0;
+    for (auto it = trace_config.buffers(); it; ++it, ++i) {
+      Config::BufferConfig::Decoder buf(*it);
+      if (buf.fill_policy() == Config::BufferConfig::FillPolicy::DISCARD) {
+        context_->storage->IncrementIndexedStats(
+            stats::config_write_into_file_discard, i);
+      }
+    }
   }
 }
 
