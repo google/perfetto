@@ -45,6 +45,7 @@ source_set("full") {
     "../../tables",
     "../../types",
     "../common",
+    "../common:parser_types",
     "../systrace:full",
     "../systrace:systrace_line",
   ]
