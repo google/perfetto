@@ -42,7 +42,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 namespace {
 
 std::optional<uint64_t> MaybeExtractFlowIdentifier(const Json::Value& value,
@@ -60,7 +59,6 @@ std::optional<uint64_t> MaybeExtractFlowIdentifier(const Json::Value& value,
 }
 
 }  // namespace
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 JsonTraceParserImpl::JsonTraceParserImpl(TraceProcessorContext* context)
     : context_(context), systrace_line_parser_(context) {}
@@ -75,7 +73,6 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
                                           std::string string_value) {
   PERFETTO_DCHECK(json::IsJsonSupported());
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   auto opt_value = json::ParseJsonString(base::StringView(string_value));
   if (!opt_value) {
     context_->storage->IncrementStats(stats::json_parser_failure);
@@ -381,18 +378,11 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       }
     }
   }
-#else
-  perfetto::base::ignore_result(timestamp);
-  perfetto::base::ignore_result(context_);
-  perfetto::base::ignore_result(string_value);
-  PERFETTO_ELOG("Cannot parse JSON trace due to missing JSON support");
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
 void JsonTraceParserImpl::MaybeAddFlow(TrackId track_id,
                                        const Json::Value& event) {
   PERFETTO_DCHECK(json::IsJsonSupported());
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   auto opt_bind_id = MaybeExtractFlowIdentifier(event, /* version2 = */ true);
   if (opt_bind_id) {
     FlowTracker* flow_tracker = context_->flow_tracker.get();
@@ -410,10 +400,6 @@ void JsonTraceParserImpl::MaybeAddFlow(TrackId track_id,
       context_->storage->IncrementStats(stats::flow_without_direction);
     }
   }
-#else
-  perfetto::base::ignore_result(track_id);
-  perfetto::base::ignore_result(event);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
 }  // namespace trace_processor
