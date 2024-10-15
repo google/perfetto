@@ -30,7 +30,7 @@ import {assertExists, assertTrue} from '../../base/logging';
 import {SliceSelectionAggregator} from './slice_selection_aggregator';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
 import {getSliceTable} from './table';
-import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
+import {extensions} from '../../public/lib/extensions';
 
 class AsyncSlicePlugin implements PerfettoPlugin {
   private readonly trackIdsToUris = new Map<number, string>();
@@ -85,7 +85,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       id: 'perfetto.ShowTable.slice',
       name: 'Open table: slice',
       callback: () => {
-        addSqlTableTab(ctx, {
+        extensions.addSqlTableTab(ctx, {
           table: getSliceTable(),
         });
       },

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
 import {asUtid} from '../../trace_processor/sql_utils/core_types';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
@@ -22,6 +21,7 @@ import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 import {TrackNode} from '../../public/workspace';
 import {TrackEventSelection} from '../../public/selection';
+import {extensions} from '../../public/lib/extensions';
 
 class ChromeTasksPlugin implements PerfettoPlugin {
   onActivate() {}
@@ -33,7 +33,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       id: 'org.chromium.ChromeTasks.ShowChromeTasksTable',
       name: 'Show chrome_tasks table',
       callback: () =>
-        addSqlTableTab(ctx, {
+        extensions.addSqlTableTab(ctx, {
           table: chromeTasksTable,
         }),
     });
