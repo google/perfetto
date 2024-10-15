@@ -20,6 +20,8 @@ import {
 } from '../../frontend/tracks/custom_sql_table_slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {getColorForSlice} from '../../core/colorizer';
+import {TrackEventSelection} from '../../public/selection';
+import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
@@ -58,5 +60,9 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack {
     } else {
       return {...slice, colorScheme: getColorForSlice(stage)};
     }
+  }
+
+  override detailsPanel(sel: TrackEventSelection) {
+    return new ScrollJankV3DetailsPanel(this.trace, sel.eventId);
   }
 }

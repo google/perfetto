@@ -40,6 +40,7 @@ import {
   getSched,
   getSchedWakeupInfo,
 } from '../../trace_processor/sql_utils/sched';
+import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 
 export interface Data extends TrackData {
@@ -464,6 +465,10 @@ export class CpuSliceTrack implements Track {
       wakeupTs: wakeup?.wakeupTs,
       wakerCpu: wakeup?.wakerCpu,
     };
+  }
+
+  detailsPanel() {
+    return new SchedSliceDetailsPanel(this.trace);
   }
 }
 

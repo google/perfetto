@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../../base/logging';
-import {TrackEventDetails} from '../../public/selection';
+import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {getColorForSample} from '../../core/colorizer';
 import {
   BaseSliceTrack,
@@ -23,6 +23,7 @@ import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {NUM} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
+import {CpuProfileSampleFlamegraphDetailsPanel} from './cpu_profile_details_panel';
 
 interface CpuProfileRow extends NamedRow {
   callsiteId: number;
@@ -78,5 +79,15 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
     const baseDetails = await super.getSelectionDetails(id);
     if (baseDetails === undefined) return undefined;
     return {...baseDetails, utid: this.utid};
+  }
+
+  detailsPanel(selection: TrackEventSelection) {
+    const {ts, utid} = selection;
+
+    return new CpuProfileSampleFlamegraphDetailsPanel(
+      this.trace.engine,
+      ts,
+      assertExists(utid),
+    );
   }
 }

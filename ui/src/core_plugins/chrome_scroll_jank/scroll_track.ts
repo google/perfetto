@@ -16,6 +16,8 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
+import {TrackEventSelection} from '../../public/selection';
+import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {
   getSqlDataSource(): CustomSqlTableDefConfig {
@@ -23,5 +25,9 @@ export class TopLevelScrollTrack extends CustomSqlTableSliceTrack {
       columns: [`printf("Scroll %s", CAST(id AS STRING)) AS name`, '*'],
       sqlTableName: 'chrome_scrolls',
     };
+  }
+
+  override detailsPanel(sel: TrackEventSelection) {
+    return new ScrollDetailsPanel(this.trace, sel.eventId);
   }
 }

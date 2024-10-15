@@ -25,7 +25,6 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {CounterOptions} from '../../frontend/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
-import {CounterDetailsPanel} from './counter_details_panel';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -167,12 +166,12 @@ class CounterPlugin implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackId,
+          trackName: title,
           options: {
             ...getDefaultCounterOptions(title),
             unit,
           },
         }),
-        detailsPanel: () => new CounterDetailsPanel(ctx, trackId, title),
       });
       const track = new TrackNode({uri, title});
       ctx.workspace.addChildInOrder(track);
@@ -246,9 +245,9 @@ class CounterPlugin implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackId: trackId,
+          trackName: name,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: () => new CounterDetailsPanel(ctx, trackId, name),
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -20});
       ctx.workspace.addChildInOrder(trackNode);
@@ -313,9 +312,9 @@ class CounterPlugin implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackId: trackId,
+          trackName: name,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: () => new CounterDetailsPanel(ctx, trackId, name),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title: name, sortOrder: 30});
@@ -371,9 +370,9 @@ class CounterPlugin implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackId: trackId,
+          trackName: name,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: () => new CounterDetailsPanel(ctx, trackId, name),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title: name, sortOrder: 20});
@@ -411,9 +410,9 @@ class CounterPlugin implements PerfettoPlugin {
             trace: ctx,
             uri,
             trackId: trackId,
+            trackName: name,
             options: getDefaultCounterOptions(name),
           }),
-          detailsPanel: () => new CounterDetailsPanel(ctx, trackId, name),
         });
         const track = new TrackNode({uri, title: name, sortOrder: -20});
         ctx.workspace.addChildInOrder(track);

@@ -21,7 +21,6 @@ import {
 } from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateUserInteractionGroup} from '../../public/standard_groups';
-import {DebugSliceDetailsPanel} from '../../public/lib/debug_tracks/details_tab';
 
 class InputEvents implements PerfettoPlugin {
   private readonly SQL_SOURCE = `
@@ -60,8 +59,6 @@ class InputEvents implements PerfettoPlugin {
       uri,
       title: title,
       track,
-      detailsPanel: ({eventId}) =>
-        new DebugSliceDetailsPanel(ctx, track.sqlTableName, eventId),
     });
     const node = new TrackNode({uri, title});
     const group = getOrCreateUserInteractionGroup(ctx.workspace);
