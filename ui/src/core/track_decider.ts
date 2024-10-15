@@ -69,18 +69,17 @@ function groupGlobalIonTracks(trace: Trace): void {
     return;
   }
 
-  let group: TrackNode | undefined;
+  const group = new TrackNode({title: 'Ion Tracks'});
+  group.isSummary = true;
+  trace.workspace.addChildInOrder(group);
+
   for (const track of ionTracks) {
-    if (!group && [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.title)) {
+    if ([MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.title)) {
       trace.workspace.removeChild(track);
-      group = new TrackNode({
-        title: track.title,
-        uri: track.uri,
-        isSummary: true,
-      });
-      trace.workspace.addChildInOrder(group);
+      group.uri = track.uri;
+      group.title = track.title;
     } else {
-      group?.addChildInOrder(track);
+      group.addChildInOrder(track);
     }
   }
 }
