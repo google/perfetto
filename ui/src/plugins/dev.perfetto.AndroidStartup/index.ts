@@ -20,7 +20,6 @@ import {
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
-import {DebugSliceDetailsPanel} from '../../public/lib/debug_tracks/details_tab';
 class AndroidStartup implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
@@ -49,8 +48,6 @@ class AndroidStartup implements PerfettoPlugin {
       uri,
       title: 'Android App Startups',
       track,
-      detailsPanel: ({eventId}) =>
-        new DebugSliceDetailsPanel(ctx, track.sqlTableName, eventId),
     });
     const trackNode = new TrackNode({title, uri});
     ctx.workspace.addChildInOrder(trackNode);

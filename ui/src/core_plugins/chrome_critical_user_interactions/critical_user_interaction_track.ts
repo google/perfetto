@@ -20,8 +20,12 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {TrackEventDetails} from '../../public/selection';
+import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Duration, Time} from '../../base/time';
+import {PageLoadDetailsPanel} from './page_load_details_panel';
+import {StartupDetailsPanel} from './startup_details_panel';
+import {WebContentInteractionPanel} from './web_content_interaction_details_panel';
+import {GenericSliceDetailsTab} from '../../frontend/generic_slice_details_tab';
 
 export const CRITICAL_USER_INTERACTIONS_KIND =
   'org.chromium.CriticalUserInteraction.track';
@@ -103,5 +107,23 @@ export class CriticalUserInteractionTrack extends CustomSqlTableSliceTrack {
     const scopedId = row.scopedId;
     const type = row.type;
     return {...baseSlice, scopedId, type};
+  }
+
+  override detailsPanel(sel: TrackEventSelection) {
+    switch (sel.interactionType) {
+      case 'chrome_page_loads':
+        return new PageLoadDetailsPanel(this.trace, sel.eventId);
+      case 'chrome_startups':
+        return new StartupDetailsPanel(this.trace, sel.eventId);
+      case 'chrome_web_content_interactions':
+        return new WebContentInteractionPanel(this.trace, sel.eventId);
+      default:
+        return new GenericSliceDetailsTab(
+          this.trace,
+          'chrome_interactions',
+          sel.eventId,
+          'Chrome Interaction',
+        );
+    }
   }
 }

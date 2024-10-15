@@ -16,11 +16,9 @@ import {asUtid} from '../../trace_processor/sql_utils/core_types';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {ChromeTasksDetailsPanel} from './details';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 import {TrackNode} from '../../public/workspace';
-import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../../public/lib/extensions';
 
 class ChromeTasksPlugin implements PerfettoPlugin {
@@ -101,9 +99,6 @@ class ChromeTasksPlugin implements PerfettoPlugin {
         uri,
         track: new ChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
         title,
-        detailsPanel: (sel: TrackEventSelection) => {
-          return new ChromeTasksDetailsPanel(ctx, sel.eventId);
-        },
       });
       const track = new TrackNode({uri, title});
       group.addChildInOrder(track);

@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {SimpleSliceTrack} from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
-import {DebugSliceDetailsPanel} from '../../public/lib/debug_tracks/details_tab';
+
 class TraceMetadata implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
@@ -48,8 +48,6 @@ class TraceMetadata implements PerfettoPlugin {
       uri,
       title,
       track,
-      detailsPanel: ({eventId}) =>
-        new DebugSliceDetailsPanel(ctx, track.sqlTableName, eventId),
     });
     const trackNode = new TrackNode({uri, title});
     ctx.workspace.addChildInOrder(trackNode);

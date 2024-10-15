@@ -20,7 +20,6 @@ import {HeapProfileTrack} from './heap_profile_track';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
-import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
 function getUriForTrack(upid: number): string {
   return `/process_${upid}/heap_profile`;
@@ -98,9 +97,9 @@ class HeapProfilePlugin implements PerfettoPlugin {
             uri,
           },
           tableName,
+          upid,
+          incomplete,
         ),
-        detailsPanel: () =>
-          new HeapProfileFlamegraphDetailsPanel(ctx, incomplete, upid),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title, sortOrder: -30});

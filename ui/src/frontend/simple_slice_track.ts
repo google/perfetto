@@ -22,9 +22,13 @@ import {
   SqlDataSource,
 } from '../public/lib/debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
-import {ARG_PREFIX} from '../public/lib/debug_tracks/details_tab';
+import {
+  ARG_PREFIX,
+  DebugSliceDetailsPanel,
+} from '../public/lib/debug_tracks/details_tab';
 import {createPerfettoTable} from '../trace_processor/sql_utils';
 import {Trace} from '../public/trace';
+import {TrackEventSelection} from '../public/selection';
 
 export interface SimpleSliceTrackConfig {
   data: SqlDataSource;
@@ -95,5 +99,9 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack {
       from prepared_data
       order by ts
     `;
+  }
+
+  override detailsPanel({eventId}: TrackEventSelection) {
+    return new DebugSliceDetailsPanel(this.trace, this.sqlTableName, eventId);
   }
 }

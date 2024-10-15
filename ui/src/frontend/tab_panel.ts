@@ -159,7 +159,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
         return;
       }
 
-      const detailsPanel = td.detailsPanel?.(currentSelection);
+      const detailsPanel = td.track.detailsPanel?.(currentSelection);
       if (!detailsPanel) {
         this.trackEventDetailsPanel = undefined;
         return;

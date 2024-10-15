@@ -20,6 +20,7 @@ import {NewTrackArgs} from './track';
 import {LONG_NULL} from '../trace_processor/query_result';
 import {Slice} from '../public/track';
 import {TrackEventDetails} from '../public/selection';
+import {ThreadSliceDetailsPanel} from './thread_slice_details_tab';
 
 export const THREAD_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -90,5 +91,9 @@ export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
       ...baseDetails,
       tableName: this.tableName,
     };
+  }
+
+  override detailsPanel() {
+    return new ThreadSliceDetailsPanel(this.trace);
   }
 }
