@@ -43,7 +43,6 @@ class JsonTraceParserImpl : public JsonTraceParser {
   // TraceParser implementation.
   void ParseJsonPacket(int64_t, std::string) override;
   void ParseSystraceLine(int64_t, SystraceLine) override;
-  void ParseLegacyV8ProfileEvent(int64_t, LegacyV8CpuProfileEvent) override;
 
  private:
   TraceProcessorContext* const context_;
