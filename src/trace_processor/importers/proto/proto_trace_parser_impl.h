@@ -61,8 +61,6 @@ class ProtoTraceParserImpl : public ProtoTraceParser {
                               int64_t /*ts*/,
                               InlineSchedWaking data) override;
 
-  void ParseLegacyV8ProfileEvent(int64_t ts, LegacyV8CpuProfileEvent) override;
-
  private:
   StringId GetMetatraceInternedString(uint64_t iid);
 
