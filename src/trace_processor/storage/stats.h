@@ -159,7 +159,17 @@ namespace perfetto::trace_processor::stats {
       "the RING_BUFFER start or after the DISCARD buffer end."),               \
   F(traced_buf_sequence_packet_loss,      kIndexed, kDataLoss, kAnalysis,      \
       "The number of groups of consecutive packets lost in each sequence for " \
-      "this buffer"), \
+      "this buffer"),                                                          \
+  F(traced_buf_incremental_sequences_dropped, kIndexed, kDataLoss, kAnalysis,  \
+      "For a given buffer, indicates the number of sequences where all the "   \
+      "packets on that sequence were dropped due to lack of a valid "          \
+      "incremental state (i.e. interned data). This is usually a strong sign " \
+      "that either: "                                                          \
+      "1) incremental state invalidation is disabled. "                        \
+      "2) the incremental state invalidation interval is too low. "            \
+      "In either case, see "                                                   \
+      "https://perfetto.dev/docs/concepts/buffers"                             \
+      "#incremental-state-in-trace-packets"),                                  \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace,    ""), \
   F(traced_chunks_discarded,              kSingle,  kInfo,     kTrace,    ""), \
   F(traced_data_sources_registered,       kSingle,  kInfo,     kTrace,    ""), \
