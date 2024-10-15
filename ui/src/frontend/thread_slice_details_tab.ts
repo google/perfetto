@@ -23,10 +23,8 @@ import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
 import {Tree} from '../widgets/tree';
-import {addDebugSliceTrack} from '../public/lib/debug_tracks/debug_tracks';
 import {globals} from './globals';
 import {Flow, FlowPoint} from '../core/flow_types';
-import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {hasArgs, renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails} from '../trace_processor/sql_utils/slice';
@@ -36,7 +34,6 @@ import {
 } from './sql/thread_state';
 import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
 import {DurationWidget} from './widgets/duration';
-import {addSqlTableTab} from './sql_table_tab_interface';
 import {SliceRef} from './widgets/slice';
 import {BasicTable} from '../widgets/basic_table';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
@@ -44,6 +41,7 @@ import {assertExists} from '../base/logging';
 import {Trace} from '../public/trace';
 import {TrackEventDetailsPanel} from '../public/details_panel';
 import {TrackEventSelection} from '../public/selection';
+import {extensions} from '../public/lib/extensions';
 
 interface ContextMenuItem {
   name: string;
@@ -92,7 +90,7 @@ const ITEMS: ContextMenuItem[] = [
     name: 'Ancestor slices',
     shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
     run: (slice: SliceDetails, trace: Trace) =>
-      addSqlTableTab(trace, {
+      extensions.addSqlTableTab(trace, {
         table: assertExists(getSqlTableDescription('slice')),
         filters: [
           {
@@ -108,7 +106,7 @@ const ITEMS: ContextMenuItem[] = [
     name: 'Descendant slices',
     shouldDisplay: () => true,
     run: (slice: SliceDetails, trace: Trace) =>
-      addSqlTableTab(trace, {
+      extensions.addSqlTableTab(trace, {
         table: assertExists(getSqlTableDescription('slice')),
         filters: [
           {
@@ -124,7 +122,7 @@ const ITEMS: ContextMenuItem[] = [
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
     run: (slice: SliceDetails, trace: Trace) =>
-      addQueryResultsTab(trace, {
+      extensions.addQueryResultsTab(trace, {
         query: `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
         title: `${slice.name} average dur`,
       }),
@@ -143,7 +141,7 @@ const ITEMS: ContextMenuItem[] = [
            INCLUDE PERFETTO MODULE android.monitor_contention;`,
         )
         .then(() =>
-          addDebugSliceTrack(
+          extensions.addDebugSliceTrack(
             trace,
             {
               sqlSource: `

@@ -21,20 +21,24 @@ import {
 import {TrackMouseEvent} from '../../public/track';
 import {TrackEventDetails} from '../../public/selection';
 import {Time} from '../../base/time';
+import {CounterDetailsPanel} from './counter_details_panel';
 
 interface TraceProcessorCounterTrackArgs extends BaseCounterTrackArgs {
-  trackId: number;
-  rootTable?: string;
+  readonly trackId: number;
+  readonly trackName: string;
+  readonly rootTable?: string;
 }
 
 export class TraceProcessorCounterTrack extends BaseCounterTrack {
-  private trackId: number;
-  private rootTable: string;
+  private readonly trackId: number;
+  private readonly rootTable: string;
+  private readonly trackName: string;
 
   constructor(args: TraceProcessorCounterTrackArgs) {
     super(args);
     this.trackId = args.trackId;
     this.rootTable = args.rootTable ?? 'counter';
+    this.trackName = args.trackName;
   }
 
   getSqlSource() {
@@ -103,5 +107,9 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
     const rightTs = row.rightTs !== null ? Time.fromRaw(row.rightTs) : leftTs;
     const duration = rightTs - leftTs;
     return {ts: leftTs, dur: duration};
+  }
+
+  detailsPanel() {
+    return new CounterDetailsPanel(this.trace, this.trackId, this.trackName);
   }
 }

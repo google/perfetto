@@ -25,7 +25,6 @@ import {
   SimpleCounterTrackConfig,
 } from '../../frontend/simple_counter_track';
 import {TrackNode} from '../../public/workspace';
-import {DebugSliceDetailsPanel} from '../../public/lib/debug_tracks/details_tab';
 
 interface ContainedTrace {
   uuid: string;
@@ -1190,8 +1189,6 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
       uri,
       title: name,
       track,
-      detailsPanel: ({eventId}) =>
-        new DebugSliceDetailsPanel(ctx, track.sqlTableName, eventId),
     });
     const trackNode = new TrackNode({uri, title: name});
     this.addTrack(ctx, trackNode, groupName);

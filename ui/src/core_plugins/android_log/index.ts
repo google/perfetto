@@ -17,13 +17,13 @@ import {LogFilteringCriteria, LogPanel} from './logs_panel';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
 import {NUM} from '../../trace_processor/query_result';
 import {AndroidLogTrack} from './logs_track';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {getAndroidLogsTable} from './table';
+import {extensions} from '../../public/lib/extensions';
 
 const VERSION = 1;
 
@@ -102,7 +102,7 @@ class AndroidLog implements PerfettoPlugin {
       id: 'perfetto.ShowTable.android_logs',
       name: 'Open table: android_logs',
       callback: () => {
-        addSqlTableTab(ctx, {
+        extensions.addSqlTableTab(ctx, {
           table: getAndroidLogsTable(),
         });
       },

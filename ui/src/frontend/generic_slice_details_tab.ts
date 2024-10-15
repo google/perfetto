@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Columns, TrackEventDetailsPanel} from '../public/details_panel';
+import {TrackEventDetailsPanel} from '../public/details_panel';
 import {ColumnType} from '../trace_processor/query_result';
 import {sqlValueToReadableString} from '../trace_processor/sql_utils';
 import {DetailsShell} from '../widgets/details_shell';
@@ -23,12 +23,13 @@ import {SqlRef} from '../widgets/sql_ref';
 import {dictToTree, Tree, TreeNode} from '../widgets/tree';
 import {Trace} from '../public/trace';
 
-export {
-  ColumnConfig,
-  Columns,
-  GenericSliceDetailsTabConfig,
-  GenericSliceDetailsTabConfigBase,
-} from '../public/details_panel';
+export interface ColumnConfig {
+  readonly displayName?: string;
+}
+
+export type Columns = {
+  readonly [columnName: string]: ColumnConfig;
+};
 
 // A details tab, which fetches slice-like object from a given SQL table by id
 // and renders it according to the provided config, specifying which columns

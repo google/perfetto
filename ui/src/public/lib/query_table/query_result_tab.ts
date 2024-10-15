@@ -17,10 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 import {assertExists} from '../../../base/logging';
 import {QueryResponse, runQuery} from './queries';
 import {QueryError} from '../../../trace_processor/query_result';
-import {
-  AddDebugTrackMenu,
-  uuidToViewName,
-} from '../debug_tracks/add_debug_track_menu';
+import {AddDebugTrackMenu} from '../debug_tracks/add_debug_track_menu';
 import {Button} from '../../../widgets/button';
 import {PopupMenu2} from '../../../widgets/menu';
 import {PopupPosition} from '../../../widgets/popup';
@@ -162,4 +159,8 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     }
     return viewId;
   }
+}
+
+export function uuidToViewName(uuid: string): string {
+  return `view_${uuid.split('-').join('_')}`;
 }

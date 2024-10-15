@@ -34,6 +34,10 @@ class SuspendResumeSliceTrack extends AsyncSliceTrack {
   onSliceClick(args: OnSliceClickArgs<Slice>) {
     this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
+
+  override detailsPanel() {
+    return new SuspendResumeDetailsPanel(this.trace);
+  }
 }
 
 class SuspendResumeLatency implements PerfettoPlugin {
@@ -81,7 +85,6 @@ class SuspendResumeLatency implements PerfettoPlugin {
         kind: SLICE_TRACK_KIND,
       },
       track: new SuspendResumeSliceTrack({uri, trace: ctx}, maxDepth, trackIds),
-      detailsPanel: () => new SuspendResumeDetailsPanel(ctx),
     });
 
     // Display the track in the UI.

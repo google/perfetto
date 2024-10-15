@@ -36,7 +36,7 @@ export interface AddSqlTableTabParams {
   imports?: string[];
 }
 
-export function addSqlTableTabImpl(
+export function addSqlTableTab(
   trace: Trace,
   config: AddSqlTableTabParams,
 ): void {

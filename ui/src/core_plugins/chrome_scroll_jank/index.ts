@@ -16,10 +16,7 @@ import {uuidv4Sql} from '../../base/uuid';
 import {generateSqlWithInternalLayout} from '../../trace_processor/sql_utils/layout';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {EventLatencyTrack, JANKY_LATENCY_NAME} from './event_latency_track';
-import {ScrollDetailsPanel} from './scroll_details_panel';
-import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {ScrollJankV3Track} from './scroll_jank_v3_track';
 import {TopLevelScrollTrack} from './scroll_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
@@ -99,9 +96,6 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         trace: ctx,
         uri,
       }),
-      detailsPanel: (sel) => {
-        return new ScrollDetailsPanel(ctx, sel.eventId);
-      },
     });
 
     const track = new TrackNode({uri, title});
@@ -215,9 +209,6 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
       uri,
       title,
       track: new EventLatencyTrack({trace: ctx, uri}, baseTable),
-      detailsPanel: (sel) => {
-        return new EventLatencySliceDetailsPanel(ctx, sel.eventId);
-      },
     });
 
     const track = new TrackNode({uri, title});
@@ -242,7 +233,6 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
         trace: ctx,
         uri,
       }),
-      detailsPanel: (sel) => new ScrollJankV3DetailsPanel(ctx, sel.eventId),
     });
 
     const track = new TrackNode({uri, title});

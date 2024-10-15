@@ -33,24 +33,3 @@ export interface TrackEventDetailsPanel {
   // is called regardless of whether |load| has completed yet.
   render(): m.Children;
 }
-
-// TODO(primiano): rationalize this GenericSliceDetailsTabConfig. it should be
-// probably moved to a public/lib/ next.
-export interface ColumnConfig {
-  readonly displayName?: string;
-}
-
-export type Columns = {
-  readonly [columnName: string]: ColumnConfig;
-};
-
-export interface GenericSliceDetailsTabConfigBase {
-  readonly sqlTableName: string;
-  readonly title: string;
-  // All columns are rendered if |columns| is undefined.
-  readonly columns?: Columns;
-}
-
-export type GenericSliceDetailsTabConfig = GenericSliceDetailsTabConfigBase & {
-  readonly id: number;
-};

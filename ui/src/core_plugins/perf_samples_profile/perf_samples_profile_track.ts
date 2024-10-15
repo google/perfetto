@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {NUM} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {
@@ -21,8 +22,20 @@ import {
 import {NewTrackArgs} from '../../frontend/track';
 import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
 import {getColorForSample} from '../../core/colorizer';
-import {ProfileType, TrackEventDetails} from '../../public/selection';
+import {
+  ProfileType,
+  TrackEventDetails,
+  TrackEventSelection,
+} from '../../public/selection';
 import {assertExists} from '../../base/logging';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+  QueryFlamegraphAttrs,
+} from '../../core/query_flamegraph';
+import {DetailsShell} from '../../widgets/details_shell';
+import {Timestamp} from '../../frontend/widgets/timestamp';
+import {time} from '../../base/time';
 
 interface PerfSampleRow extends NamedRow {
   callsiteId: number;
@@ -94,6 +107,64 @@ export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack 
       profileType: ProfileType.PERF_SAMPLE,
     };
   }
+
+  detailsPanel(sel: TrackEventSelection) {
+    const upid = assertExists(sel.upid);
+    const ts = sel.ts;
+
+    const flamegraphAttrs = {
+      engine: this.engine,
+      metrics: [
+        ...metricsFromTableOrSubquery(
+          `
+                (
+                  select
+                    id,
+                    parent_id as parentId,
+                    name,
+                    mapping_name,
+                    source_file,
+                    cast(line_number AS text) as line_number,
+                    self_count
+                  from _linux_perf_callstacks_for_samples!((
+                    select p.callsite_id
+                    from perf_sample p
+                    join thread t using (utid)
+                    where p.ts >= ${ts}
+                      and p.ts <= ${ts}
+                      and t.upid = ${upid}
+                  ))
+                )
+              `,
+          [
+            {
+              name: 'Perf Samples',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'include perfetto module linux.perf.samples',
+          [{name: 'mapping_name', displayName: 'Mapping'}],
+          [
+            {
+              name: 'source_file',
+              displayName: 'Source File',
+              mergeAggregation: 'ONE_OR_NULL',
+            },
+            {
+              name: 'line_number',
+              displayName: 'Line Number',
+              mergeAggregation: 'ONE_OR_NULL',
+            },
+          ],
+        ),
+      ],
+    };
+
+    return {
+      render: () => renderDetailsPanel(flamegraphAttrs, ts),
+    };
+  }
 }
 
 export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
@@ -130,4 +201,92 @@ export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
       profileType: ProfileType.PERF_SAMPLE,
     };
   }
+
+  detailsPanel(sel: TrackEventSelection) {
+    const utid = assertExists(sel.utid);
+    const ts = sel.ts;
+
+    const flamegraphAttrs = {
+      engine: this.engine,
+      metrics: [
+        ...metricsFromTableOrSubquery(
+          `
+            (
+              select
+                id,
+                parent_id as parentId,
+                name,
+                mapping_name,
+                source_file,
+                cast(line_number AS text) as line_number,
+                self_count
+              from _linux_perf_callstacks_for_samples!((
+                select p.callsite_id
+                from perf_sample p
+                where p.ts >= ${ts}
+                  and p.ts <= ${ts}
+                  and p.utid = ${utid}
+              ))
+            )
+          `,
+          [
+            {
+              name: 'Perf Samples',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'include perfetto module linux.perf.samples',
+          [{name: 'mapping_name', displayName: 'Mapping'}],
+          [
+            {
+              name: 'source_file',
+              displayName: 'Source File',
+              mergeAggregation: 'ONE_OR_NULL',
+            },
+            {
+              name: 'line_number',
+              displayName: 'Line Number',
+              mergeAggregation: 'ONE_OR_NULL',
+            },
+          ],
+        ),
+      ],
+    };
+
+    return {
+      render: () => renderDetailsPanel(flamegraphAttrs, ts),
+    };
+  }
+}
+
+function renderDetailsPanel(flamegraphAttrs: QueryFlamegraphAttrs, ts: time) {
+  return m(
+    '.flamegraph-profile',
+    m(
+      DetailsShell,
+      {
+        fillParent: true,
+        title: m('.title', 'Perf Samples'),
+        description: [],
+        buttons: [
+          m(
+            'div.time',
+            `First timestamp: `,
+            m(Timestamp, {
+              ts,
+            }),
+          ),
+          m(
+            'div.time',
+            `Last timestamp: `,
+            m(Timestamp, {
+              ts,
+            }),
+          ),
+        ],
+      },
+      m(QueryFlamegraph, assertExists(flamegraphAttrs)),
+    ),
+  );
 }

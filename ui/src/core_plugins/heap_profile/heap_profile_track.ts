@@ -27,6 +27,7 @@ import {
 } from '../../public/selection';
 import {Slice} from '../../public/track';
 import {LONG, STR} from '../../trace_processor/query_result';
+import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
 const HEAP_PROFILE_ROW = {
   ...BASE_ROW,
@@ -44,6 +45,8 @@ export class HeapProfileTrack extends BaseSliceTrack<
   constructor(
     args: NewTrackArgs,
     private readonly tableName: string,
+    private readonly upid: number,
+    private readonly heapProfileIsIncomplete: boolean,
   ) {
     super(args);
   }
@@ -100,5 +103,13 @@ export class HeapProfileTrack extends BaseSliceTrack<
       dur: Duration.fromRaw(row.dur),
       profileType: profileType(row.type),
     };
+  }
+
+  detailsPanel() {
+    return new HeapProfileFlamegraphDetailsPanel(
+      this.trace,
+      this.heapProfileIsIncomplete,
+      this.upid,
+    );
   }
 }

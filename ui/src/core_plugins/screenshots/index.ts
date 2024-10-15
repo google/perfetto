@@ -16,7 +16,6 @@ import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {ScreenshotDetailsPanel} from './screenshot_panel';
 import {ScreenshotsTrack} from './screenshots_track';
 
 class ScreenshotsPlugin implements PerfettoPlugin {
@@ -42,7 +41,6 @@ class ScreenshotsPlugin implements PerfettoPlugin {
         tags: {
           kind: ScreenshotsTrack.kind,
         },
-        detailsPanel: () => new ScreenshotDetailsPanel(ctx.engine),
       });
       const trackNode = new TrackNode({uri, title, sortOrder: -60});
       ctx.workspace.addChildInOrder(trackNode);
