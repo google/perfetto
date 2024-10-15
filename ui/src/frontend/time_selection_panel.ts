@@ -178,10 +178,18 @@ export class TimeSelectionPanel implements Panel {
       const start = Time.min(localArea.start, localArea.end);
       const end = Time.max(localArea.start, localArea.end);
       this.renderSpan(ctx, timescale, size, start, end);
-    } else if (selection.kind === 'area') {
-      const start = Time.min(selection.start, selection.end);
-      const end = Time.max(selection.start, selection.end);
-      this.renderSpan(ctx, timescale, size, start, end);
+    } else {
+      if (selection.kind === 'area') {
+        const start = Time.min(selection.start, selection.end);
+        const end = Time.max(selection.start, selection.end);
+        this.renderSpan(ctx, timescale, size, start, end);
+      } else if (selection.kind === 'track_event') {
+        const start = selection.ts;
+        const end = Time.add(selection.ts, selection.dur);
+        if (end > start) {
+          this.renderSpan(ctx, timescale, size, start, end);
+        }
+      }
     }
 
     if (globals.trace.timeline.hoverCursorTimestamp !== undefined) {
