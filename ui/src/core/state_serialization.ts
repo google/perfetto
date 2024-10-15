@@ -202,15 +202,6 @@ export function deserializeAppStatePhase2(
       case 'TRACK_EVENT':
         selMgr.selectTrackEvent(sel.trackKey, parseInt(sel.eventId));
         break;
-      case 'LEGACY_SCHED_SLICE':
-        selMgr.selectSqlEvent('sched_slice', sel.id);
-        break;
-      case 'LEGACY_SLICE':
-        selMgr.selectSqlEvent('slice', sel.id);
-        break;
-      case 'LEGACY_THREAD_STATE':
-        selMgr.selectSqlEvent('thread_slice', sel.id);
-        break;
     }
   }
 }

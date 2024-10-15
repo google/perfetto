@@ -35,16 +35,6 @@ const SELECTION_SCHEMA = z.discriminatedUnion('kind', [
     trackKey: z.string(),
     eventId: z.string(),
   }),
-  z.object({kind: z.literal('LEGACY_SLICE'), id: z.number()}),
-  z.object({kind: z.literal('LEGACY_SCHED_SLICE'), id: z.number()}),
-  z.object({kind: z.literal('LEGACY_THREAD_STATE'), id: z.number()}),
-  z.object({
-    kind: z.literal('LEGACY_HEAP_PROFILE'),
-    id: z.number(),
-    upid: z.number(),
-    ts: zTime,
-    type: z.string(),
-  }),
 ]);
 
 export type SerializedSelection = z.infer<typeof SELECTION_SCHEMA>;
