@@ -454,6 +454,9 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     PacketSequenceStateGeneration& state) {
   // We are just trying to parse out the V8 profiling events into the cpu
   // sampling tables: if we don't have JSON enabled, just don't do this.
+  if (!context_->json_trace_parser) {
+    return base::OkStatus();
+  }
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   for (auto it = event.debug_annotations(); it; ++it) {
     protos::pbzero::DebugAnnotation::Decoder da(*it);
