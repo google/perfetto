@@ -20,6 +20,8 @@ import {
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
 import {JANK_COLOR} from './jank_colors';
+import {TrackEventSelection} from '../../public/selection';
+import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
@@ -50,6 +52,7 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack {
     }
   }
 
-  // At the moment we will just display the slice details. However, on select,
-  // this behavior should be customized to show jank-related data.
+  override detailsPanel(sel: TrackEventSelection) {
+    return new EventLatencySliceDetailsPanel(this.trace, sel.eventId);
+  }
 }

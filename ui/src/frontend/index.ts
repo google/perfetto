@@ -61,9 +61,15 @@ import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {pageWithTrace} from './pages';
 import {AppImpl} from '../core/app_impl';
-import {setAddSqlTableTabImplFunction} from './sql_table_tab_interface';
-import {addSqlTableTabImpl} from './sql_table_tab';
+import {addSqlTableTab} from './sql_table_tab';
 import {getServingRoot} from '../base/http_utils';
+import {configureExtensions} from '../public/lib/extensions';
+import {
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+} from '../public/lib/debug_tracks/debug_tracks';
+import {addVisualisedArgTracks} from './visualized_args_tracks';
+import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -371,11 +377,6 @@ function onCssLoaded() {
   // Force one initial render to get everything in place
   m.render(document.body, m(UiMain, router.resolve()));
 
-  // TODO(primiano): this injection is to break a cirular dependency. See
-  // comment in sql_table_tab_interface.ts. Remove once we add an extension
-  // point for context menus.
-  setAddSqlTableTabImplFunction(addSqlTableTabImpl);
-
   // Initialize plugins, now that we are ready to go.
   const pluginManager = AppImpl.instance.plugins;
   CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
@@ -444,5 +445,16 @@ function scheduleRafAndRunControllersOnStateChange(
   // Run in a separate task to avoid avoid reentry.
   setTimeout(runControllers, 0);
 }
+
+// TODO(primiano): this injection is to break a cirular dependency. See
+// comment in sql_table_tab_interface.ts. Remove once we add an extension
+// point for context menus.
+configureExtensions({
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+  addVisualisedArgTracks,
+  addSqlTableTab,
+  addQueryResultsTab,
+});
 
 main();

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Engine} from '../../trace_processor/engine';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
@@ -52,7 +51,6 @@ class CpuSlices implements PerfettoPlugin {
           cpu,
         },
         track: new CpuSliceTrack(ctx, uri, cpu),
-        detailsPanel: () => new SchedSliceDetailsPanel(ctx),
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -50});
       ctx.workspace.addChildInOrder(trackNode);

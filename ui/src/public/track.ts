@@ -102,11 +102,6 @@ export interface TrackDescriptor {
   readonly chips?: ReadonlyArray<string>;
 
   readonly pluginId?: string;
-
-  // Optional: A factory that returns a details panel object. This is called
-  // each time the selection is changed (and the selection is relevant to this
-  // track).
-  readonly detailsPanel?: (sel: TrackEventSelection) => TrackEventDetailsPanel;
 }
 
 /**
@@ -190,6 +185,11 @@ export interface Track {
    * Optional: Get details of a track event given by eventId on this track.
    */
   getSelectionDetails?(eventId: number): Promise<TrackEventDetails | undefined>;
+
+  // Optional: A factory that returns a details panel object for a given track
+  // event selection. This is called each time the selection is changed (and the
+  // selection is relevant to this track).
+  detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel;
 }
 
 // An set of key/value pairs describing a given track. These are used for

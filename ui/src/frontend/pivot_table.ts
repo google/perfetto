@@ -38,13 +38,13 @@ import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from './widgets/duration';
-import {addSqlTableTab} from './sql_table_tab_interface';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists, assertFalse} from '../base/logging';
 import {Filter, SqlColumn} from './widgets/sql/table/column';
 import {argSqlColumn} from './widgets/sql/table/well_known_columns';
 import {TraceImpl} from '../core/trace_impl';
 import {PivotTableManager} from '../core/pivot_table_manager';
+import {extensions} from '../public/lib/extensions';
 
 interface PathItem {
   tree: PivotTree;
@@ -132,7 +132,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             if (this.pivotState.constrainToArea) {
               queryFilters.push(...areaFilters(attrs.selectionArea));
             }
-            addSqlTableTab(attrs.trace, {
+            extensions.addSqlTableTab(attrs.trace, {
               table: assertExists(getSqlTableDescription('slice')),
               // TODO(altimin): this should properly reference the required columns, but it works for now (until the pivot table is going to be rewritten to be more flexible).
               filters: queryFilters,

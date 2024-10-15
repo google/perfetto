@@ -19,11 +19,8 @@ import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {CpuProfileTrack} from './cpu_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
-import {assertExists} from '../../base/logging';
-import {TrackEventSelection} from '../../public/selection';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
-import {CpuProfileSampleFlamegraphDetailsPanel} from './cpu_profile_details_panel';
 
 class CpuProfile implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -69,15 +66,6 @@ class CpuProfile implements PerfettoPlugin {
           },
           utid,
         ),
-        detailsPanel: (selection: TrackEventSelection) => {
-          const {ts, utid} = selection;
-
-          return new CpuProfileSampleFlamegraphDetailsPanel(
-            ctx.engine,
-            ts,
-            assertExists(utid),
-          );
-        },
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title, sortOrder: -40});

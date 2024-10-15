@@ -18,6 +18,8 @@ import {
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
 import {Trace} from '../../public/trace';
+import {TrackEventSelection} from '../../public/selection';
+import {ChromeTasksDetailsPanel} from './details';
 
 export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
   constructor(
@@ -34,5 +36,9 @@ export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
       sqlTableName: 'chrome_tasks',
       whereClause: `utid = ${this.utid}`,
     };
+  }
+
+  override detailsPanel(sel: TrackEventSelection) {
+    return new ChromeTasksDetailsPanel(this.trace, sel.eventId);
   }
 }

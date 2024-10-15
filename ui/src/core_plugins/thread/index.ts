@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {addSqlTableTab} from '../../frontend/sql_table_tab_interface';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadTable} from './table';
+import {extensions} from '../../public/lib/extensions';
 
 class ThreadPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace) {
@@ -25,7 +25,7 @@ class ThreadPlugin implements PerfettoPlugin {
       id: 'perfetto.ShowTable.thread',
       name: 'Open table: thread',
       callback: () => {
-        addSqlTableTab(ctx, {
+        extensions.addSqlTableTab(ctx, {
           table: getThreadTable(),
         });
       },
