@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
-import {SliceTrack} from '../../core_plugins/slice/slice_track';
+import {AsyncSliceTrack} from '../../core_plugins/async_slices/async_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {Trace} from '../../public/trace';
@@ -26,7 +26,7 @@ import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 // SuspendResumeSliceTrack exists so as to override the `onSliceClick` function
 // in AsyncSliceTrack.
 // TODO(stevegolton): Remove this?
-class SuspendResumeSliceTrack extends SliceTrack {
+class SuspendResumeSliceTrack extends AsyncSliceTrack {
   constructor(args: NewTrackArgs, maxDepth: number, trackIds: number[]) {
     super(args, maxDepth, trackIds);
   }

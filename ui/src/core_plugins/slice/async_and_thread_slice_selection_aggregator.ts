@@ -18,7 +18,9 @@ import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 
-export class SliceSelectionAggregator implements AreaSelectionAggregator {
+export class AsyncAndThreadSliceSelectionAggregator
+  implements AreaSelectionAggregator
+{
   readonly id = 'slice_aggregation';
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
