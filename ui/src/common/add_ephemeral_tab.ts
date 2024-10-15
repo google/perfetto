@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import {uuidv4} from '../base/uuid';
-import {BottomTab} from '../public/lib/bottom_tab';
 import {globals} from '../frontend/globals';
 import {Tab} from '../public/tab';
-import {BottomTabToTabAdapter} from '../public/utils';
 
 export function addEphemeralTab(uriPrefix: string, tab: Tab): void {
   const uri = `${uriPrefix}#${uuidv4()}`;
@@ -23,17 +21,6 @@ export function addEphemeralTab(uriPrefix: string, tab: Tab): void {
   globals.tabManager.registerTab({
     uri,
     content: tab,
-    isEphemeral: true,
-  });
-  globals.tabManager.showTab(uri);
-}
-
-export function addBottomTab(tab: BottomTab, uriPrefix: string): void {
-  const uri = `${uriPrefix}#${tab.uuid}`;
-
-  globals.tabManager.registerTab({
-    uri,
-    content: new BottomTabToTabAdapter(tab),
     isEphemeral: true,
   });
   globals.tabManager.showTab(uri);

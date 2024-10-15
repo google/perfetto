@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {BottomTab} from './lib/bottom_tab';
-import {Tab} from './tab';
 import {exists} from '../base/utils';
 import {Trace} from './trace';
 import {TimeSpan} from '../base/time';
@@ -94,50 +91,6 @@ export function getTrackName(
     return `Unnamed ${kind}`;
   }
   return 'Unknown';
-}
-
-/**
- * This adapter wraps a BottomTab, converting it into a the new "current
- * selection" API.
- * This adapter is required because most bottom tab implementations expect to
- * be created when the selection changes, however current selection sections
- * stick around in memory forever and produce a section only when they detect a
- * relevant selection.
- * This adapter, given a bottom tab factory function, will simply call the
- * factory function whenever the selection changes. It's up to the implementer
- * to work out whether the selection is relevant and to construct a bottom tab.
- *
- * @example
- * new BottomTabAdapter({
-      tabFactory: (sel) => {
-        if (sel.kind !== 'SCHED_SLICE') {
-          return undefined;
-        }
-        return new ChromeSliceDetailsTab({
-          config: {
-            table: sel.table ?? 'slice',
-            id: sel.id,
-          },
-          trace: ctx,
-          uuid: uuidv4(),
-        });
-      },
-    })
- */
-
-/**
- * This adapter wraps a BottomTab, converting it to work with the Tab API.
- */
-export class BottomTabToTabAdapter implements Tab {
-  constructor(private bottomTab: BottomTab) {}
-
-  getTitle(): string {
-    return this.bottomTab.getTitle();
-  }
-
-  render(): m.Children {
-    return this.bottomTab.viewTab();
-  }
 }
 
 export function getThreadOrProcUri(
