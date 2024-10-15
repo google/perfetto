@@ -92,7 +92,7 @@ ForwardingTraceParser::ForwardingTraceParser(TraceProcessorContext* context,
                                              tables::TraceFileTable::Id id)
     : context_(context), file_id_(id) {}
 
-ForwardingTraceParser::~ForwardingTraceParser() {}
+ForwardingTraceParser::~ForwardingTraceParser() = default;
 
 base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   PERFETTO_CHECK(!reader_);
@@ -107,15 +107,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     // The UI's error_dialog.ts uses it to make the dialog more graceful.
     return base::ErrStatus("Unknown trace type provided (ERR:fmt)");
   }
-
   context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
-
-  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> reader_or =
-      context_->reader_registry->CreateTraceReader(trace_type_);
-  if (!reader_or.ok()) {
-    return reader_or.status();
-  }
-  reader_ = std::move(*reader_or);
+  ASSIGN_OR_RETURN(reader_,
+                   context_->reader_registry->CreateTraceReader(trace_type_));
 
   PERFETTO_DLOG("%s trace detected", TraceTypeToString(trace_type_));
   UpdateSorterForTraceType(trace_type_);
@@ -126,7 +120,6 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
     context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
   }
-
   return base::OkStatus();
 }
 
@@ -181,12 +174,13 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
 }
 
 base::Status ForwardingTraceParser::NotifyEndOfFile() {
-  base::Status status = base::OkStatus();
   if (reader_) {
-    status = reader_->NotifyEndOfFile();
+    RETURN_IF_ERROR(reader_->NotifyEndOfFile());
   }
-  context_->trace_file_tracker->DoneParsing(file_id_, trace_size_);
-  return status;
+  if (trace_type_ != kUnknownTraceType) {
+    context_->trace_file_tracker->DoneParsing(file_id_, trace_size_);
+  }
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor
