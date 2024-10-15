@@ -24,14 +24,11 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
-#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -42,7 +39,8 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto {
+namespace trace_processor {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 namespace {
@@ -418,16 +416,5 @@ void JsonTraceParserImpl::MaybeAddFlow(TrackId track_id,
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
-void JsonTraceParserImpl::ParseLegacyV8ProfileEvent(
-    int64_t ts,
-    LegacyV8CpuProfileEvent event) {
-  base::Status status = context_->legacy_v8_cpu_profile_tracker->AddSample(
-      ts, event.session_id, event.pid, event.tid, event.callsite_id);
-  if (!status.ok()) {
-    context_->storage->IncrementStats(
-        stats::legacy_v8_cpu_profile_invalid_sample);
-  }
-  context_->args_tracker->Flush();
-}
-
-}  // namespace perfetto::trace_processor
+}  // namespace trace_processor
+}  // namespace perfetto
