@@ -64,9 +64,7 @@ export const defaultPlugins = [
   'perfetto.ProcessThreadGroups',
   'perfetto.Sched',
   'perfetto.Screenshots',
-  'perfetto.Slice',
   'perfetto.Thread',
-  'perfetto.ThreadSlices',
   'perfetto.ThreadState',
   'perfetto.TrackUtils',
 ];
