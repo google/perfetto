@@ -57,7 +57,6 @@ class ProtoTraceParser {
   virtual void ParseFtraceEvent(uint32_t, int64_t, TracePacketData) = 0;
   virtual void ParseInlineSchedSwitch(uint32_t, int64_t, InlineSchedSwitch) = 0;
   virtual void ParseInlineSchedWaking(uint32_t, int64_t, InlineSchedWaking) = 0;
-  virtual void ParseLegacyV8ProfileEvent(int64_t, LegacyV8CpuProfileEvent) = 0;
 };
 
 class JsonTraceParser {
@@ -65,6 +64,7 @@ class JsonTraceParser {
   virtual ~JsonTraceParser();
   virtual void ParseJsonPacket(int64_t, std::string) = 0;
   virtual void ParseSystraceLine(int64_t, SystraceLine) = 0;
+  virtual void ParseLegacyV8ProfileEvent(int64_t, LegacyV8CpuProfileEvent) = 0;
 };
 
 class FuchsiaRecordParser {

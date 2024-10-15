@@ -440,13 +440,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.json_trace_parser =
         std::make_unique<JsonTraceParserImpl>(&context_);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
     context_.reader_registry
         ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
             kGeckoTraceType);
     context_.gecko_trace_parser =
         std::make_unique<gecko_importer::GeckoTraceParserImpl>(&context_);
-#endif
   }
 
   context_.reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(

@@ -175,7 +175,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/etw:full",
       "importers/ftrace:full",
       "importers/fuchsia:full",
-      "importers/json:full",
       "importers/json:minimal",
       "importers/ninja",
       "importers/perf",
@@ -209,7 +208,10 @@ if (enable_perfetto_trace_processor_sqlite) {
       deps += [ "importers/instruments" ]
     }
     if (enable_perfetto_trace_processor_json) {
-      deps += [ "importers/gecko" ]
+      deps += [
+        "importers/gecko",
+        "importers/json",
+      ]
     }
   }
 

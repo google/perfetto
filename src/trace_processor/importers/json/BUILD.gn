@@ -30,30 +30,31 @@ source_set("minimal") {
   }
 }
 
-source_set("full") {
-  sources = [
-    "json_trace_parser_impl.cc",
-    "json_trace_parser_impl.h",
-    "json_trace_tokenizer.cc",
-    "json_trace_tokenizer.h",
-  ]
-  deps = [
-    ":minimal",
-    "../../../../gn:default_deps",
-    "../../sorter",
-    "../../storage",
-    "../../tables",
-    "../../types",
-    "../common",
-    "../systrace:full",
-    "../systrace:systrace_line",
-  ]
-  if (enable_perfetto_trace_processor_json) {
-    public_deps = [ "../../../../gn:jsoncpp" ]
-  }
-}
-
 if (enable_perfetto_trace_processor_json) {
+  source_set("json") {
+    sources = [
+      "json_trace_parser_impl.cc",
+      "json_trace_parser_impl.h",
+      "json_trace_tokenizer.cc",
+      "json_trace_tokenizer.h",
+    ]
+    deps = [
+      ":minimal",
+      "../../../../gn:default_deps",
+      "../../sorter",
+      "../../storage",
+      "../../tables",
+      "../../types",
+      "../common",
+      "../common:parser_types",
+      "../systrace:full",
+      "../systrace:systrace_line",
+    ]
+    if (enable_perfetto_trace_processor_json) {
+      public_deps = [ "../../../../gn:jsoncpp" ]
+    }
+  }
+
   perfetto_unittest_source_set("unittests") {
     testonly = true
     sources = [
@@ -61,7 +62,7 @@ if (enable_perfetto_trace_processor_json) {
       "json_utils_unittest.cc",
     ]
     deps = [
-      ":full",
+      ":json",
       ":minimal",
       "../../../../gn:default_deps",
       "../../../../gn:gtest_and_gmock",

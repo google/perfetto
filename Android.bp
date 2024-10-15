@@ -2491,7 +2491,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_i2c_full",
         ":perfetto_src_trace_processor_importers_instruments_instruments",
         ":perfetto_src_trace_processor_importers_instruments_row",
-        ":perfetto_src_trace_processor_importers_json_full",
         ":perfetto_src_trace_processor_importers_json_minimal",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
@@ -12619,15 +12618,6 @@ filegroup {
     name: "perfetto_src_trace_processor_importers_instruments_row",
 }
 
-// GN: //src/trace_processor/importers/json:full
-filegroup {
-    name: "perfetto_src_trace_processor_importers_json_full",
-    srcs: [
-        "src/trace_processor/importers/json/json_trace_parser_impl.cc",
-        "src/trace_processor/importers/json/json_trace_tokenizer.cc",
-    ],
-}
-
 // GN: //src/trace_processor/importers/json:minimal
 filegroup {
     name: "perfetto_src_trace_processor_importers_json_minimal",
@@ -15642,7 +15632,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_i2c_full",
         ":perfetto_src_trace_processor_importers_instruments_instruments",
         ":perfetto_src_trace_processor_importers_instruments_row",
-        ":perfetto_src_trace_processor_importers_json_full",
         ":perfetto_src_trace_processor_importers_json_minimal",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_memory_tracker_unittests",
@@ -16715,7 +16704,6 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_i2c_full",
         ":perfetto_src_trace_processor_importers_instruments_instruments",
         ":perfetto_src_trace_processor_importers_instruments_row",
-        ":perfetto_src_trace_processor_importers_json_full",
         ":perfetto_src_trace_processor_importers_json_minimal",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
@@ -17142,7 +17130,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_i2c_full",
         ":perfetto_src_trace_processor_importers_instruments_instruments",
         ":perfetto_src_trace_processor_importers_instruments_row",
-        ":perfetto_src_trace_processor_importers_json_full",
         ":perfetto_src_trace_processor_importers_json_minimal",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",

@@ -261,7 +261,7 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
           event.ts, token_buffer_.Extract<AndroidLogEvent>(id));
       return;
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
-      context.proto_trace_parser->ParseLegacyV8ProfileEvent(
+      context.json_trace_parser->ParseLegacyV8ProfileEvent(
           event.ts, token_buffer_.Extract<LegacyV8CpuProfileEvent>(id));
       return;
     case TimestampedEvent::Type::kGeckoEvent:
