@@ -92,7 +92,6 @@ export type Selection =
   | TrackSelection
   | AreaSelection
   | NoteSelection
-  | UnionSelection
   | EmptySelection;
 
 /** Defines how changes to selection affect the rest of the UI state */
@@ -151,11 +150,6 @@ export interface AreaSelection extends Area {
 export interface NoteSelection {
   readonly kind: 'note';
   readonly id: string;
-}
-
-export interface UnionSelection {
-  readonly kind: 'union';
-  readonly selections: ReadonlyArray<Selection>;
 }
 
 export interface EmptySelection {
