@@ -46,6 +46,7 @@ if (enable_perfetto_trace_processor_json) {
       "../../tables",
       "../../types",
       "../common",
+      "../common:parser_types",
       "../systrace:full",
       "../systrace:systrace_line",
     ]
