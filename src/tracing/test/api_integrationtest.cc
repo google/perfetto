@@ -2045,6 +2045,72 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrack) {
   perfetto::TrackEvent::EraseTrackDescriptor(track);
 }
 
+TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  // Declare a custom track and give it a name.
+  uint64_t async_id = 123;
+
+  // Start events on one thread and end them on another.
+  TRACE_EVENT_BEGIN("bar", "AsyncEvent",
+                    perfetto::NamedTrack("MyCustomTrack", async_id),
+                    "debug_arg", 123);
+
+  TRACE_EVENT_BEGIN("bar", "SubEvent",
+                    perfetto::NamedTrack("MyCustomTrack", async_id),
+                    [](perfetto::EventContext) {});
+  const auto main_thread_track = perfetto::NamedTrack(
+      "MyCustomTrack", async_id, perfetto::ThreadTrack::Current());
+  std::thread thread([&] {
+    TRACE_EVENT_END("bar", perfetto::NamedTrack("MyCustomTrack", async_id));
+    TRACE_EVENT_END("bar", perfetto::NamedTrack("MyCustomTrack", async_id),
+                    "arg1", false, "arg2", true);
+    const auto thread_track = perfetto::NamedTrack(
+        "MyCustomTrack", async_id, perfetto::ThreadTrack::Current());
+    // Thread-scoped tracks will have different uuids on different thread even
+    // if the id matches.
+    ASSERT_NE(main_thread_track.uuid, thread_track.uuid);
+  });
+  thread.join();
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  // Check that the track uuids match on the begin and end events.
+  const auto track = perfetto::NamedTrack("MyCustomTrack", async_id);
+  uint32_t main_thread_sequence = GetMainThreadPacketSequenceId(trace);
+  int event_count = 0;
+  bool found_descriptor = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor() &&
+        !packet.track_descriptor().has_process() &&
+        !packet.track_descriptor().has_thread()) {
+      auto td = packet.track_descriptor();
+      EXPECT_EQ("MyCustomTrack", td.static_name());
+      EXPECT_EQ(track.uuid, td.uuid());
+      EXPECT_EQ(perfetto::ProcessTrack::Current().uuid, td.parent_uuid());
+      found_descriptor = true;
+      continue;
+    }
+
+    if (!packet.has_track_event())
+      continue;
+    auto track_event = packet.track_event();
+    if (track_event.type() ==
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
+      EXPECT_EQ(main_thread_sequence, packet.trusted_packet_sequence_id());
+      EXPECT_EQ(track.uuid, track_event.track_uuid());
+    } else {
+      EXPECT_NE(main_thread_sequence, packet.trusted_packet_sequence_id());
+      EXPECT_EQ(track.uuid, track_event.track_uuid());
+    }
+    event_count++;
+  }
+  EXPECT_TRUE(found_descriptor);
+  EXPECT_EQ(4, event_count);
+}
+
 TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"foo"});
