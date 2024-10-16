@@ -133,13 +133,6 @@ class TrackEventTracker {
   // GetDescriptorTrack is moved back.
   TrackId GetOrCreateDefaultDescriptorTrack();
 
-  // Track events timestamps in Chrome have microsecond resolution, while
-  // system events use nanoseconds. It results in broken event nesting when
-  // track events and system events share a track.
-  // So TrackEventTracker needs to support its own tracks, separate from the
-  // ones in the TrackTracker.
-  TrackId InternThreadTrack(UniqueTid utid);
-
   // Called by ProtoTraceReader whenever incremental state is cleared on a
   // packet sequence. Resets counter values for any incremental counters of
   // the sequence identified by |packet_sequence_id|.
@@ -238,7 +231,6 @@ class TrackEventTracker {
       uint64_t uuid,
       const DescriptorTrackReservation&,
       std::vector<uint64_t>* descendent_uuids);
-  TrackId InsertThreadTrack(UniqueTid utid);
 
   static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 

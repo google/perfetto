@@ -525,9 +525,12 @@ class TrackEventParser::EventImporter {
                   "Process-scoped instant event without process association");
             }
 
-            track_id_ =
-                context_->track_tracker->InternLegacyChromeProcessInstantTrack(
-                    *upid_);
+            track_id_ = context_->track_tracker->InternProcessTrack(
+                TrackTracker::TrackClassification::kChromeProcessInstant,
+                *upid_);
+            context_->args_tracker->AddArgsTo(track_id_).AddArg(
+                context_->storage->InternString("source"),
+                Variadic::String(context_->storage->InternString("chrome")));
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;
