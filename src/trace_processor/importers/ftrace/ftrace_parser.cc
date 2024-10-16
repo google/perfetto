@@ -319,6 +319,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
+      ucpu_id_(context->storage->InternString("ucpu")),
       suspend_resume_name_id_(
           context->storage->InternString("Suspend/Resume Latency")),
       suspend_resume_minimal_name_id_(
@@ -1079,7 +1080,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kSuspendResumeFieldNumber: {
-        ParseSuspendResume(ts, pid, fld_bytes);
+        ParseSuspendResume(ts, cpu, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kSuspendResumeMinimalFieldNumber: {
@@ -1295,7 +1296,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kDevicePmCallbackStartFieldNumber: {
-        ParseDevicePmCallbackStart(ts, pid, fld_bytes);
+        ParseDevicePmCallbackStart(ts, cpu, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kDevicePmCallbackEndFieldNumber: {
@@ -3326,6 +3327,7 @@ void FtraceParser::ParseWakeSourceDeactivate(int64_t timestamp,
 }
 
 void FtraceParser::ParseSuspendResume(int64_t timestamp,
+                                      uint32_t cpu,
                                       uint32_t tid,
                                       protozero::ConstBytes blob) {
   protos::pbzero::SuspendResumeFtraceEvent::Decoder evt(blob.data, blob.size);
@@ -3381,6 +3383,8 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
                          context_->process_tracker->GetOrCreateThread(tid)));
     inserter->AddArg(suspend_resume_event_type_arg_name_,
                      Variadic::String(suspend_resume_main_event_id_));
+    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+    inserter->AddArg(ucpu_id_, Variadic::UnsignedInteger(ucpu.value));
 
     // These fields are set to null as this is not a device PM callback event.
     inserter->AddArg(suspend_resume_device_arg_name_,
@@ -3592,6 +3596,7 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
 // Parses `device_pm_callback_start` events and begins corresponding slices in
 // the suspend / resume latency UI track.
 void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
+                                              uint32_t cpu,
                                               uint32_t tid,
                                               protozero::ConstBytes blob) {
   protos::pbzero::DevicePmCallbackStartFtraceEvent::Decoder dpm_event(
@@ -3626,6 +3631,8 @@ void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
                          context_->process_tracker->GetOrCreateThread(tid)));
     inserter->AddArg(suspend_resume_event_type_arg_name_,
                      Variadic::String(suspend_resume_device_pm_event_id_));
+    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+    inserter->AddArg(ucpu_id_, Variadic::UnsignedInteger(ucpu.value));
     inserter->AddArg(
         suspend_resume_device_arg_name_,
         Variadic::String(context_->storage->InternString(device_name.c_str())));
