@@ -3938,6 +3938,8 @@ perfetto_filegroup(
         "src/tracing/service/metatrace_writer.h",
         "src/tracing/service/packet_stream_validator.cc",
         "src/tracing/service/packet_stream_validator.h",
+        "src/tracing/service/random.cc",
+        "src/tracing/service/random.h",
         "src/tracing/service/trace_buffer.cc",
         "src/tracing/service/trace_buffer.h",
         "src/tracing/service/tracing_service_impl.cc",
