@@ -55,6 +55,7 @@
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cros_ec.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dcvsh.pbzero.h"
+#include "protos/perfetto/trace/ftrace/devfreq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
@@ -441,7 +442,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       suspend_resume_callback_phase_arg_name_(
           context->storage->InternString("callback_phase")),
       suspend_resume_event_type_arg_name_(
-          context->storage->InternString("event_type")) {
+          context->storage->InternString("event_type")),
+      device_name_id_(context->storage->InternString("device_name")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -1220,6 +1222,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kTrustyEnqueueNopFieldNumber: {
         ParseTrustyEnqueueNop(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDevfreqFrequencyFieldNumber: {
+        ParseDeviceFrequency(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kMaliMaliKCPUCQSSETFieldNumber:
@@ -3697,6 +3703,34 @@ StringId FtraceParser::InternedKernelSymbolOrFallback(
     name_id = context_->storage->InternString(slice_name.string_view());
   }
   return name_id;
+}
+
+void FtraceParser::ParseDeviceFrequency(int64_t ts,
+                                        protozero::ConstBytes blob) {
+  protos::pbzero::DevfreqFrequencyFtraceEvent::Decoder event(blob);
+  constexpr char delimiter[] = "devfreq_";
+  std::string dev_name = event.dev_name().ToStdString();
+  auto position = dev_name.find(delimiter);
+
+  if (position != std::string::npos) {
+    // Get device name by getting substring after delimiter and keep existing
+    // naming convention (e.g. cpufreq, gpufreq) consistent by adding a suffix
+    // to the devfreq name (e.g. dsufreq, bcifreq)
+    StringId device_name = context_->storage->InternString(
+        (dev_name.substr(position + sizeof(delimiter) - 1) + "freq").c_str());
+
+    TrackTracker::DimensionsBuilder dims_builder =
+        context_->track_tracker->CreateDimensionsBuilder();
+    dims_builder.AppendDimension(device_name_id_,
+                                 Variadic::String(device_name));
+    TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
+
+    TrackId track_id = context_->track_tracker->InternCounterTrack(
+        TrackTracker::TrackClassification::kLinuxDeviceFrequency, dims_id,
+        device_name);
+    context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
+                                         track_id);
+  }
 }
 
 }  // namespace perfetto::trace_processor
