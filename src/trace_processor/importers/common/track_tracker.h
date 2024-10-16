@@ -232,28 +232,21 @@ class TrackTracker {
                                    StringId description = kNullStringId);
 
   // Interns a thread track into the storage.
-  TrackId InternThreadTrack(UniqueTid,
-                            std::optional<Dimensions> = std::nullopt);
+  TrackId InternThreadTrack(UniqueTid);
 
   // Interns a counter track associated with a thread into the storage.
   // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
   // functions.
-  TrackId InternThreadCounterTrack(StringId name,
-                                   UniqueTid,
-                                   std::optional<Dimensions> = std::nullopt);
+  TrackId InternThreadCounterTrack(StringId name, UniqueTid);
 
-  TrackId InternProcessTrack(
-      TrackClassification,
-      UniquePid,
-      std::optional<Dimensions> use_other_dimension = std::nullopt,
-      StringId name = kNullStringId);
+  TrackId InternProcessTrack(TrackClassification,
+                             UniquePid,
+                             StringId name = kNullStringId);
 
   // Interns a process track into the storage.
-  TrackId InternProcessTrack(UniquePid,
-                             std::optional<Dimensions> = std::nullopt);
+  TrackId InternProcessTrack(UniquePid);
 
-  TrackId InternProcessCounterTrack(UniquePid,
-                                    std::optional<Dimensions> = std::nullopt);
+  TrackId InternProcessCounterTrack(UniquePid);
 
   // Interns a counter track associated with a process into the storage.
   // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
@@ -493,14 +486,11 @@ class TrackTracker {
                              std::optional<Dimensions>,
                              StringId name);
 
-  TrackId CreateThreadTrack(TrackClassification,
-                            UniqueTid,
-                            std::optional<Dimensions> = std::nullopt);
+  TrackId CreateThreadTrack(TrackClassification, UniqueTid);
 
   TrackId CreateThreadCounterTrack(TrackClassification,
                                    StringId name,
-                                   UniqueTid,
-                                   std::optional<Dimensions> = std::nullopt);
+                                   UniqueTid);
 
   TrackId CreateProcessTrack(TrackClassification,
                              UniquePid,
