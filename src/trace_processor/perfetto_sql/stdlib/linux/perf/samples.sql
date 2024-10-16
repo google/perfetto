@@ -15,36 +15,12 @@
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
-CREATE PERFETTO MACRO _linux_perf_callstacks_for_samples(
-  samples TableOrSubquery
-)
-RETURNS TableOrSubquery
-AS
-(
-  WITH metrics AS MATERIALIZED (
-    SELECT
-      callsite_id,
-      COUNT() AS self_count
-    FROM $samples
-    GROUP BY callsite_id
-  )
-  SELECT
-    c.id,
-    c.parent_id,
-    c.name,
-    c.mapping_name,
-    c.source_file,
-    c.line_number,
-    IFNULL(m.self_count, 0) AS self_count
-  FROM _callstacks_for_stack_profile_samples!(metrics) c
-  LEFT JOIN metrics m USING (callsite_id)
-);
-
 CREATE PERFETTO TABLE _linux_perf_raw_callstacks AS
 SELECT *
-FROM _linux_perf_callstacks_for_samples!(
-  (SELECT p.callsite_id FROM perf_sample p)
-) c
+FROM _callstacks_for_callsites!((
+  SELECT p.callsite_id
+  FROM perf_sample p
+)) c
 ORDER BY c.id;
 
 -- Table summarising the callstacks captured during all

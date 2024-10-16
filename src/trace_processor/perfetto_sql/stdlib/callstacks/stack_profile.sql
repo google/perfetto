@@ -114,7 +114,7 @@ AS
   JOIN stack_profile_mapping m ON f.mapping_id = m.id
 );
 
-CREATE PERFETTO MACRO _callstacks_for_cpu_profile_stack_samples(
+CREATE PERFETTO MACRO _callstacks_for_callsites(
   samples TableOrSubquery
 )
 RETURNS TableOrSubquery

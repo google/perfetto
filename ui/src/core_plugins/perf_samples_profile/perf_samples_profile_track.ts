@@ -126,7 +126,7 @@ export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack 
                     source_file,
                     cast(line_number AS text) as line_number,
                     self_count
-                  from _linux_perf_callstacks_for_samples!((
+                  from _callstacks_for_callsites!((
                     select p.callsite_id
                     from perf_sample p
                     join thread t using (utid)
@@ -220,7 +220,7 @@ export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
                 source_file,
                 cast(line_number AS text) as line_number,
                 self_count
-              from _linux_perf_callstacks_for_samples!((
+              from _callstacks_for_callsites!((
                 select p.callsite_id
                 from perf_sample p
                 where p.ts >= ${ts}

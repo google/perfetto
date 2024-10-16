@@ -299,7 +299,7 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
           `
             (
               select id, parent_id as parentId, name, self_count
-              from _linux_perf_callstacks_for_samples!((
+              from _callstacks_for_callsites!((
                 select p.callsite_id
                 from perf_sample p
                 join thread t using (utid)
