@@ -171,54 +171,6 @@ const NETWORK_SUMMARY = `
   )
   select * from final where ts is not null`;
 
-const MODEM_ACTIVITY_INFO = `
-  drop table if exists modem_activity_info;
-  create table modem_activity_info as
-  with modem_raw as (
-    select
-      ts,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.timestamp_millis') as timestamp_millis,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.sleep_time_millis') as sleep_time_millis,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.controller_idle_time_millis') as controller_idle_time_millis,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.controller_tx_time_pl0_millis') as controller_tx_time_pl0_millis,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.controller_tx_time_pl1_millis') as controller_tx_time_pl1_millis,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.controller_tx_time_pl2_millis') as controller_tx_time_pl2_millis,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.controller_tx_time_pl3_millis') as controller_tx_time_pl3_millis,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.controller_tx_time_pl4_millis') as controller_tx_time_pl4_millis,
-      EXTRACT_ARG(arg_set_id, 'modem_activity_info.controller_rx_time_millis') as controller_rx_time_millis
-    from track t join slice s on t.id = s.track_id
-    where t.name = 'Statsd Atoms'
-      and s.name = 'modem_activity_info'
-  ),
-  deltas as (
-      select
-          timestamp_millis * 1000000 as ts,
-          lead(timestamp_millis) over (order by ts) - timestamp_millis as dur_millis,
-          lead(sleep_time_millis) over (order by ts) - sleep_time_millis as sleep_time_millis,
-          lead(controller_idle_time_millis) over (order by ts) - controller_idle_time_millis as controller_idle_time_millis,
-          lead(controller_tx_time_pl0_millis) over (order by ts) - controller_tx_time_pl0_millis as controller_tx_time_pl0_millis,
-          lead(controller_tx_time_pl1_millis) over (order by ts) - controller_tx_time_pl1_millis as controller_tx_time_pl1_millis,
-          lead(controller_tx_time_pl2_millis) over (order by ts) - controller_tx_time_pl2_millis as controller_tx_time_pl2_millis,
-          lead(controller_tx_time_pl3_millis) over (order by ts) - controller_tx_time_pl3_millis as controller_tx_time_pl3_millis,
-          lead(controller_tx_time_pl4_millis) over (order by ts) - controller_tx_time_pl4_millis as controller_tx_time_pl4_millis,
-          lead(controller_rx_time_millis) over (order by ts) - controller_rx_time_millis as controller_rx_time_millis
-      from modem_raw
-  ),
-  ratios as (
-      select
-          ts,
-          100.0 * sleep_time_millis / dur_millis as sleep_time_ratio,
-          100.0 * controller_idle_time_millis / dur_millis as controller_idle_time_ratio,
-          100.0 * controller_tx_time_pl0_millis / dur_millis as controller_tx_time_pl0_ratio,
-          100.0 * controller_tx_time_pl1_millis / dur_millis as controller_tx_time_pl1_ratio,
-          100.0 * controller_tx_time_pl2_millis / dur_millis as controller_tx_time_pl2_ratio,
-          100.0 * controller_tx_time_pl3_millis / dur_millis as controller_tx_time_pl3_ratio,
-          100.0 * controller_tx_time_pl4_millis / dur_millis as controller_tx_time_pl4_ratio,
-          100.0 * controller_rx_time_millis / dur_millis as controller_rx_time_ratio
-      from deltas
-  )
-  select * from ratios where sleep_time_ratio is not null and sleep_time_ratio >= 0`;
-
 const MODEM_RIL_STRENGTH = `
   DROP VIEW IF EXISTS ScreenOn;
   CREATE VIEW ScreenOn AS
@@ -1311,6 +1263,50 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
     }
   }
 
+  async addAtomCounters(ctx: Trace): Promise<void> {
+    const e = ctx.engine;
+
+    try {
+      await e.query(
+        `INCLUDE PERFETTO MODULE
+            google3.wireless.android.telemetry.trace_extractor.modules.atom_counters_slices`,
+      );
+    } catch (e) {
+      return;
+    }
+
+    const counters = await e.query(
+      `select distinct ui_group, ui_name, ui_unit, counter_name
+       from atom_counters
+       where ui_name is not null`,
+    );
+    const countersIt = counters.iter({
+      ui_group: 'str',
+      ui_name: 'str',
+      ui_unit: 'str',
+      counter_name: 'str',
+    });
+    for (; countersIt.valid(); countersIt.next()) {
+      const unit = countersIt.ui_unit;
+      const opts =
+        unit === '%'
+          ? {yOverrideMaximum: 100, unit: '%'}
+          : unit !== undefined
+            ? {unit}
+            : undefined;
+
+      this.addCounterTrack(
+        ctx,
+        countersIt.ui_name,
+        `select ts, ${unit === '%' ? 100.0 : 1.0} * counter_value as value
+         from atom_counters
+         where counter_name = '${countersIt.counter_name}'`,
+        countersIt.ui_group,
+        opts,
+      );
+    }
+  }
+
   async addNetworkSummary(ctx: Trace, features: Set<string>): Promise<void> {
     if (!features.has('net.modem') && !features.has('net.wifi')) {
       return;
@@ -1418,34 +1414,10 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
 
   async addModemDetail(ctx: Trace, features: Set<string>): Promise<void> {
     const groupName = 'Modem Detail';
-    if (features.has('atom.modem_activity_info')) {
-      await this.addModemActivityInfo(ctx, groupName);
-    }
     if (features.has('track.ril')) {
       await this.addModemRil(ctx, groupName);
     }
     await this.addModemTeaData(ctx, groupName);
-  }
-
-  async addModemActivityInfo(ctx: Trace, groupName: string): Promise<void> {
-    const query = (name: string, col: string): void =>
-      this.addCounterTrack(
-        ctx,
-        name,
-        `select ts, ${col}_ratio as value from modem_activity_info`,
-        groupName,
-        {yOverrideMaximum: 100, unit: '%'},
-      );
-
-    await ctx.engine.query(MODEM_ACTIVITY_INFO);
-    query('Modem sleep', 'sleep_time');
-    query('Modem controller idle', 'controller_idle_time');
-    query('Modem RX time', 'controller_rx_time');
-    query('Modem TX time power 0', 'controller_tx_time_pl0');
-    query('Modem TX time power 1', 'controller_tx_time_pl1');
-    query('Modem TX time power 2', 'controller_tx_time_pl2');
-    query('Modem TX time power 3', 'controller_tx_time_pl3');
-    query('Modem TX time power 4', 'controller_tx_time_pl4');
   }
 
   async addModemRil(ctx: Trace, groupName: string): Promise<void> {
@@ -1851,6 +1823,7 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
 
     await ctx.engine.query(PACKAGE_LOOKUP);
     await this.addNetworkSummary(ctx, features);
+    await this.addAtomCounters(ctx);
     await this.addModemDetail(ctx, features);
     await this.addKernelWakelocks(ctx, features);
     await this.addWakeups(ctx, features);
