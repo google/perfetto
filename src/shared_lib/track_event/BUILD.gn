@@ -37,7 +37,21 @@ source_set("track_event") {
     "../../tracing:client_api",
     "../../tracing:platform_impl",
   ]
-  sources = [ "track_event.cc" ]
+  sources = [
+    "category_impl.cc",
+    "category_impl.h",
+    "category_utils.cc",
+    "category_utils.h",
+    "ds.cc",
+    "ds.h",
+    "global_state.cc",
+    "global_state.h",
+    "hl.cc",
+    "ll.cc",
+    "serialization.cc",
+    "serialization.h",
+    "track_event.cc",
+  ]
   defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 }
 
