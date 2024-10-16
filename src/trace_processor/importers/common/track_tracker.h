@@ -131,7 +131,6 @@ class TrackTracker {
     // General tracks.
     kThread,
     kProcess,
-    kLinuxDevice,
     kChromeProcessInstant,
     kAsync,
     kTrackEvent,
@@ -144,6 +143,10 @@ class TrackTracker {
 
     // Gpu tracks.
     kGpuFrequency,
+
+    // Linux device tracks.
+    kLinuxDevice,
+    kLinuxDeviceFrequency,
 
     // Cpu tracks.
     kIrqCpu,
@@ -420,6 +423,8 @@ class TrackTracker {
         return "chrome_process_instant";
       case TrackClassification::kLinuxDevice:
         return "linux_device";
+      case TrackClassification::kLinuxDeviceFrequency:
+        return "linux_device_frequency";
       case TrackClassification::kAsync:
         return "async";
       case TrackClassification::kTrackEvent:
