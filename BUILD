@@ -167,8 +167,10 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
         ":src_protozero_filtering_string_filter",
-        ":src_shared_lib_intern_map",
+        ":src_shared_lib_for_testing",
         ":src_shared_lib_shared_lib",
+        ":src_shared_lib_track_event_intern_map",
+        ":src_shared_lib_track_event_track_event",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
         ":src_tracing_core_core",
@@ -178,6 +180,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
+        ":src_tracing_platform_impl",
         ":src_tracing_service_service",
         ":src_tracing_system_backend",
     ],
@@ -1610,12 +1613,28 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/shared_lib:intern_map
+# GN target: //src/shared_lib/track_event:intern_map
 perfetto_filegroup(
-    name = "src_shared_lib_intern_map",
+    name = "src_shared_lib_track_event_intern_map",
     srcs = [
-        "src/shared_lib/intern_map.cc",
-        "src/shared_lib/intern_map.h",
+        "src/shared_lib/track_event/intern_map.cc",
+        "src/shared_lib/track_event/intern_map.h",
+    ],
+)
+
+# GN target: //src/shared_lib/track_event:track_event
+perfetto_filegroup(
+    name = "src_shared_lib_track_event_track_event",
+    srcs = [
+        "src/shared_lib/track_event/track_event.cc",
+    ],
+)
+
+# GN target: //src/shared_lib:for_testing
+perfetto_filegroup(
+    name = "src_shared_lib_for_testing",
+    srcs = [
+        "src/shared_lib/reset_for_testing.h",
     ],
 )
 
@@ -1627,12 +1646,10 @@ perfetto_filegroup(
         "src/shared_lib/heap_buffer.cc",
         "src/shared_lib/pb_decoder.cc",
         "src/shared_lib/producer.cc",
-        "src/shared_lib/reset_for_testing.h",
         "src/shared_lib/stream_writer.cc",
         "src/shared_lib/stream_writer.h",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
-        "src/shared_lib/track_event.cc",
     ],
 )
 
@@ -4489,6 +4506,11 @@ perfetto_filegroup(
     srcs = [
         "src/tracing/internal/in_process_tracing_backend.cc",
     ],
+)
+
+# GN target: //src/tracing:platform_impl
+perfetto_filegroup(
+    name = "src_tracing_platform_impl",
 )
 
 # GN target: //src/tracing:system_backend
