@@ -661,17 +661,8 @@ void ProbesProducer::ResetConnectionBackoff() {
 }
 
 void ProbesProducer::ActivateTrigger(std::string trigger) {
-  android_stats::MaybeLogTriggerEvent(
-      PerfettoTriggerAtom::kProbesProducerTrigger, trigger);
-
-  task_runner_->PostTask([this, trigger]() {
-    if (!endpoint_) {
-      android_stats::MaybeLogTriggerEvent(
-          PerfettoTriggerAtom::kProbesProducerTriggerFail, trigger);
-      return;
-    }
-    endpoint_->ActivateTriggers({trigger});
-  });
+  task_runner_->PostTask(
+      [this, trigger]() { endpoint_->ActivateTriggers({trigger}); });
 }
 
 }  // namespace perfetto

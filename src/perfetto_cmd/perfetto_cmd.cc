@@ -954,8 +954,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
   // connect as a consumer or run the trace. So bail out after processing all
   // the options.
   if (!triggers_to_activate_.empty()) {
-    LogTriggerEvents(PerfettoTriggerAtom::kCmdTrigger, triggers_to_activate_);
-
     bool finished_with_success = false;
     auto weak_this = weak_factory_.GetWeakPtr();
     TriggerProducer producer(
@@ -968,10 +966,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
         },
         &triggers_to_activate_);
     task_runner_.Run();
-    if (!finished_with_success) {
-      LogTriggerEvents(PerfettoTriggerAtom::kCmdTriggerFail,
-                       triggers_to_activate_);
-    }
     return finished_with_success ? 0 : 1;
   }  // if (triggers_to_activate_)
 
