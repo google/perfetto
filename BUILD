@@ -3082,6 +3082,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/idle_attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/utils.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/w_cpu_dependence.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/w_dsu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/device_infos.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/system_state.sql",
     ],

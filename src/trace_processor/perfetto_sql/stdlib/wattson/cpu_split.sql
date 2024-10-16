@@ -135,3 +135,90 @@ USING
 CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice
 USING
   SPAN_OUTER_JOIN(_idle_freq_l3_hit_slice, _arm_l3_miss_rate);
+
+-- Does calculations for CPUs that are independent of other CPUs or frequencies
+-- This is the last generic table before going to device specific table calcs
+CREATE PERFETTO TABLE _w_independent_cpus_calc
+AS
+SELECT
+  base.ts,
+  base.dur,
+  cast_int!(l3_hit_rate * base.dur) as l3_hit_count,
+  cast_int!(l3_miss_rate * base.dur) as l3_miss_count,
+  freq_0,
+  idle_0,
+  freq_1,
+  idle_1,
+  freq_2,
+  idle_2,
+  freq_3,
+  idle_3,
+  freq_4,
+  idle_4,
+  freq_5,
+  idle_5,
+  freq_6,
+  idle_6,
+  freq_7,
+  idle_7,
+  policy_4,
+  policy_5,
+  policy_6,
+  policy_7,
+  IIF(
+    suspended = 1,
+    1,
+    MIN(
+      IFNULL(idle_0, 1),
+      IFNULL(idle_1, 1),
+      IFNULL(idle_2, 1),
+      IFNULL(idle_3, 1)
+    )
+  ) as no_static,
+  IIF(suspended = 1, 0.0, cpu0_curve) as cpu0_curve,
+  IIF(suspended = 1, 0.0, cpu1_curve) as cpu1_curve,
+  IIF(suspended = 1, 0.0, cpu2_curve) as cpu2_curve,
+  IIF(suspended = 1, 0.0, cpu3_curve) as cpu3_curve,
+  IIF(suspended = 1, 0.0, cpu4_curve) as cpu4_curve,
+  IIF(suspended = 1, 0.0, cpu5_curve) as cpu5_curve,
+  IIF(suspended = 1, 0.0, cpu6_curve) as cpu6_curve,
+  IIF(suspended = 1, 0.0, cpu7_curve) as cpu7_curve,
+  -- If dependency CPUs are active, then that CPU could contribute static power
+  IIF(idle_4 = -1, lut4.curve_value, -1) as static_4,
+  IIF(idle_5 = -1, lut5.curve_value, -1) as static_5,
+  IIF(idle_6 = -1, lut6.curve_value, -1) as static_6,
+  IIF(idle_7 = -1, lut7.curve_value, -1) as static_7
+FROM _idle_freq_l3_hit_l3_miss_slice as base
+-- Get CPU power curves for CPUs guaranteed on device
+JOIN _stats_cpu0 ON _stats_cpu0._auto_id = base.cpu0_id
+JOIN _stats_cpu1 ON _stats_cpu1._auto_id = base.cpu1_id
+JOIN _stats_cpu2 ON _stats_cpu2._auto_id = base.cpu2_id
+JOIN _stats_cpu3 ON _stats_cpu3._auto_id = base.cpu3_id
+-- Get CPU power curves for CPUs that aren't always present
+LEFT JOIN _stats_cpu4 ON _stats_cpu4._auto_id = base.cpu4_id
+LEFT JOIN _stats_cpu5 ON _stats_cpu5._auto_id = base.cpu5_id
+LEFT JOIN _stats_cpu6 ON _stats_cpu6._auto_id = base.cpu6_id
+LEFT JOIN _stats_cpu7 ON _stats_cpu7._auto_id = base.cpu7_id
+-- Match power curves if possible on CPUs that decide 2D dependence
+LEFT JOIN _filtered_curves_2d lut4 ON
+  _stats_cpu0.freq_0 = lut4.freq_khz AND
+  _stats_cpu4.policy_4 = lut4.other_policy AND
+  _stats_cpu4.freq_4 = lut4.other_freq_khz AND
+  lut4.idle = 255
+LEFT JOIN _filtered_curves_2d lut5 ON
+  _stats_cpu0.freq_0 = lut5.freq_khz AND
+  _stats_cpu5.policy_5 = lut5.other_policy AND
+  _stats_cpu5.freq_5 = lut5.other_freq_khz AND
+  lut5.idle = 255
+LEFT JOIN _filtered_curves_2d lut6 ON
+  _stats_cpu0.freq_0 = lut6.freq_khz AND
+  _stats_cpu6.policy_6 = lut6.other_policy AND
+  _stats_cpu6.freq_6 = lut6.other_freq_khz AND
+  lut6.idle = 255
+LEFT JOIN _filtered_curves_2d lut7 ON
+  _stats_cpu0.freq_0 = lut7.freq_khz AND
+  _stats_cpu7.policy_7 = lut7.other_policy AND
+  _stats_cpu7.freq_7 = lut7.other_freq_khz AND
+  lut7.idle = 255
+-- Needs to be at least 1us to reduce inconsequential rows.
+WHERE base.dur > time_from_us(1);
