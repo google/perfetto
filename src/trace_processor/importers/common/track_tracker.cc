@@ -257,6 +257,18 @@ TrackId TrackTracker::InternTrack(TrackClassification classification,
   return id;
 }
 
+TrackId TrackTracker::InternCounterTrack(TrackClassification classification,
+                                         std::optional<Dimensions> dimensions,
+                                         StringId name) {
+  auto it = tracks_.Find({classification, dimensions});
+  if (it)
+    return *it;
+
+  TrackId id = CreateCounterTrack(classification, dimensions, name);
+  tracks_[{classification, dimensions}] = id;
+  return id;
+}
+
 TrackId TrackTracker::InternProcessTrack(TrackClassification classification,
                                          UniquePid upid,
                                          std::optional<Dimensions> dims,

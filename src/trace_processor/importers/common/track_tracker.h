@@ -213,6 +213,12 @@ class TrackTracker {
                       std::optional<Dimensions>,
                       StringId name);
 
+  // Interns counter track into TrackTable. If the track created with below
+  // arguments already exists, returns the TrackTable::Id of the track.
+  TrackId InternCounterTrack(TrackClassification,
+                             std::optional<Dimensions>,
+                             StringId name);
+
   // Interns a unique track into the storage.
   TrackId InternGlobalTrack(TrackClassification);
 
