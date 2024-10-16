@@ -335,6 +335,8 @@ std::unique_ptr<TracingService> TracingService::CreateInstance(
     InitOpts init_opts) {
   tracing_service::Dependencies deps;
   deps.clock = std::make_unique<tracing_service::ClockImpl>();
+  uint32_t seed = static_cast<uint32_t>(deps.clock->GetWallTimeMs().count());
+  deps.random = std::make_unique<tracing_service::RandomImpl>(seed);
   return std::unique_ptr<TracingService>(new TracingServiceImpl(
       std::move(shm_factory), task_runner, std::move(deps), init_opts));
 }
@@ -346,12 +348,11 @@ TracingServiceImpl::TracingServiceImpl(
     InitOpts init_opts)
     : task_runner_(task_runner),
       clock_(std::move(deps.clock)),
+      random_(std::move(deps.random)),
       init_opts_(init_opts),
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
-      trigger_probability_rand_(
-          static_cast<uint32_t>(clock_->GetWallTimeMs().count())),
       weak_ptr_factory_(this) {
   PERFETTO_DCHECK(task_runner_);
 }
@@ -1726,10 +1727,7 @@ void TracingServiceImpl::ActivateTriggers(
 
       // Use a random number between 0 and 1 to check if we should allow this
       // trigger through or not.
-      double trigger_rnd =
-          trigger_rnd_override_for_testing_ > 0
-              ? trigger_rnd_override_for_testing_
-              : trigger_probability_dist_(trigger_probability_rand_);
+      double trigger_rnd = random_->GetValue();
       PERFETTO_DCHECK(trigger_rnd >= 0 && trigger_rnd < 1);
       if (trigger_rnd < iter->skip_probability()) {
         MaybeLogTriggerEvent(tracing_session.config,

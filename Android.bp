@@ -14898,6 +14898,7 @@ filegroup {
         "src/tracing/service/clock.cc",
         "src/tracing/service/metatrace_writer.cc",
         "src/tracing/service/packet_stream_validator.cc",
+        "src/tracing/service/random.cc",
         "src/tracing/service/trace_buffer.cc",
         "src/tracing/service/tracing_service_impl.cc",
     ],

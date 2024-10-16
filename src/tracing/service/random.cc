@@ -14,23 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_SERVICE_DEPENDENCIES_H_
-#define SRC_TRACING_SERVICE_DEPENDENCIES_H_
-
-#include <memory>
-
-#include "src/tracing/service/clock.h"
 #include "src/tracing/service/random.h"
 
 namespace perfetto::tracing_service {
 
-// Dependencies of TracingServiceImpl. Can point to real implementations or to
-// mocks in tests.
-struct Dependencies {
-  std::unique_ptr<Clock> clock;
-  std::unique_ptr<Random> random;
-};
+Random::~Random() = default;
+
+RandomImpl::RandomImpl(uint32_t seed) : prng_(seed) {}
+RandomImpl::~RandomImpl() = default;
+
+double RandomImpl::GetValue() {
+  return dist_(prng_);
+}
 
 }  // namespace perfetto::tracing_service
-
-#endif  // SRC_TRACING_SERVICE_DEPENDENCIES_H_
