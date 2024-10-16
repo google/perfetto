@@ -134,6 +134,7 @@ class TrackTracker {
     kLinuxDevice,
     kChromeProcessInstant,
     kAsync,
+    kTrackEvent,
 
     // Irq tracks.
     kIrqCount,
@@ -209,8 +210,14 @@ class TrackTracker {
   // Interns track into TrackTable. If the track created with below arguments
   // already exists, returns the TrackTable::Id of the track.
   TrackId InternTrack(TrackClassification,
-                      std::optional<Dimensions> dimensions,
+                      std::optional<Dimensions>,
                       StringId name);
+
+  // Interns counter track into TrackTable. If the track created with below
+  // arguments already exists, returns the TrackTable::Id of the track.
+  TrackId InternCounterTrack(TrackClassification,
+                             std::optional<Dimensions>,
+                             StringId name);
 
   // Interns a unique track into the storage.
   TrackId InternGlobalTrack(TrackClassification);
@@ -225,15 +232,28 @@ class TrackTracker {
                                    StringId description = kNullStringId);
 
   // Interns a thread track into the storage.
-  TrackId InternThreadTrack(UniqueTid);
+  TrackId InternThreadTrack(UniqueTid,
+                            std::optional<Dimensions> = std::nullopt);
 
   // Interns a counter track associated with a thread into the storage.
   // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
   // functions.
-  TrackId InternThreadCounterTrack(StringId name, UniqueTid);
+  TrackId InternThreadCounterTrack(StringId name,
+                                   UniqueTid,
+                                   std::optional<Dimensions> = std::nullopt);
+
+  TrackId InternProcessTrack(
+      TrackClassification,
+      UniquePid,
+      std::optional<Dimensions> use_other_dimension = std::nullopt,
+      StringId name = kNullStringId);
 
   // Interns a process track into the storage.
-  TrackId InternProcessTrack(UniquePid);
+  TrackId InternProcessTrack(UniquePid,
+                             std::optional<Dimensions> = std::nullopt);
+
+  TrackId InternProcessCounterTrack(UniquePid,
+                                    std::optional<Dimensions> = std::nullopt);
 
   // Interns a counter track associated with a process into the storage.
   // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
@@ -257,13 +277,6 @@ class TrackTracker {
   // Interns a counter track associated with a GPU into the storage.
   TrackId InternGpuCounterTrack(TrackClassification, uint32_t gpu_id);
 
-  // Pushes async track into TrackTable. Returns the TrackTable::Id of the newly
-  // created track.
-  // TODO(mayzner): make name optional and later remove the option of adding it
-  // fully. Those changes can be made when we add support for autogenerating
-  // names.
-  TrackId CreateAsyncTrack(std::optional<Dimensions> dimensions, StringId name);
-
   // Interns a GPU work period track into the storage.
   // TODO(mayzner): Remove when all usages migrated to new track design.
   TrackId LegacyInternGpuWorkPeriodTrack(
@@ -276,11 +289,6 @@ class TrackTracker {
                                              int64_t trace_id,
                                              bool trace_id_is_process_scoped,
                                              StringId source_scope);
-
-  // Interns a track for legacy Chrome process-scoped instant events into the
-  // storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
-  TrackId InternLegacyChromeProcessInstantTrack(UniquePid);
 
   // Interns a counter track associated with a cpu into the storage.
   // TODO(mayzner): Remove when all usages migrated to new track design.
@@ -335,20 +343,10 @@ class TrackTracker {
                                         uint32_t upid,
                                         int64_t correlation_id);
 
-  // NOTE:
-  // The below method should only be called by AsyncTrackSetTracker
-
-  // Creates and inserts a global async track into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
-  TrackId LegacyCreateGlobalAsyncTrack(StringId name, StringId source);
-
-  // Creates and inserts a Android async track into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
-  TrackId LegacyCreateProcessAsyncTrack(StringId name,
-                                        UniquePid upid,
-                                        StringId source);
-
  private:
+  friend class AsyncTrackSetTracker;
+  friend class TrackEventTracker;
+
   struct TrackMapKey {
     TrackClassification classification;
     std::optional<Dimensions> dimensions;
@@ -424,6 +422,8 @@ class TrackTracker {
         return "linux_device";
       case TrackClassification::kAsync:
         return "async";
+      case TrackClassification::kTrackEvent:
+        return "track_event";
       case TrackClassification::kIrqCount:
         return "irq_count_num";
       case TrackClassification::kSoftirqCount:
@@ -485,13 +485,33 @@ class TrackTracker {
     PERFETTO_FATAL("For GCC");
   }
 
-  TrackId InternTrackForGroup(Group);
+  TrackId CreateTrack(TrackClassification,
+                      std::optional<Dimensions>,
+                      StringId name);
 
-  TrackId InternProcessTrack(
-      TrackClassification,
-      UniquePid,
-      std::optional<Dimensions> use_other_dimension = std::nullopt,
-      StringId name = kNullStringId);
+  TrackId CreateCounterTrack(TrackClassification,
+                             std::optional<Dimensions>,
+                             StringId name);
+
+  TrackId CreateThreadTrack(TrackClassification,
+                            UniqueTid,
+                            std::optional<Dimensions> = std::nullopt);
+
+  TrackId CreateThreadCounterTrack(TrackClassification,
+                                   StringId name,
+                                   UniqueTid,
+                                   std::optional<Dimensions> = std::nullopt);
+
+  TrackId CreateProcessTrack(TrackClassification,
+                             UniquePid,
+                             std::optional<Dimensions> = std::nullopt,
+                             StringId name = kNullStringId);
+
+  TrackId CreateProcessCounterTrack(TrackClassification,
+                                    UniquePid,
+                                    std::optional<Dimensions> = std::nullopt);
+
+  TrackId InternTrackForGroup(Group);
 
   std::array<std::optional<TrackId>, kGroupCount> group_track_ids_;
 
