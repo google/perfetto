@@ -49,6 +49,8 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/tracing/core/id_allocator.h"
+#include "src/tracing/service/clock.h"
+#include "src/tracing/service/dependencies.h"
 
 namespace protozero {
 class MessageFilter;
@@ -312,6 +314,7 @@ class TracingServiceImpl : public TracingService {
 
   explicit TracingServiceImpl(std::unique_ptr<SharedMemory::Factory>,
                               base::TaskRunner*,
+                              tracing_service::Dependencies,
                               InitOpts = {});
   ~TracingServiceImpl() override;
 
@@ -419,8 +422,6 @@ class TracingServiceImpl : public TracingService {
   friend class TracingServiceImplTest;
   friend class TracingIntegrationTest;
 
-  static constexpr int64_t kOneDayInNs = 24ll * 60 * 60 * 1000 * 1000 * 1000;
-
   struct TriggerHistory {
     int64_t timestamp_ns;
     uint64_t name_hash;
@@ -510,13 +511,6 @@ class TracingServiceImpl : public TracingService {
     TracingSession& operator=(TracingSession&&) = delete;
 
     size_t num_buffers() const { return buffers_index.size(); }
-
-    uint32_t delay_to_next_write_period_ms() const {
-      PERFETTO_DCHECK(write_period_ms > 0);
-      return write_period_ms -
-             static_cast<uint32_t>(base::GetWallTimeMs().count() %
-                                   write_period_ms);
-    }
 
     uint32_t flush_timeout_ms() {
       uint32_t timeout_ms = config.flush_timeout_ms();
@@ -783,6 +777,7 @@ class TracingServiceImpl : public TracingService {
   // shared memory and trace buffers.
   void UpdateMemoryGuardrail();
 
+  uint32_t DelayToNextWritePeriodMs(const TracingSession&);
   void StartDataSourceInstance(ProducerEndpointImpl*,
                                TracingSession*,
                                DataSourceInstance*);
@@ -887,6 +882,7 @@ class TracingServiceImpl : public TracingService {
                                      TracingSessionID);
 
   base::TaskRunner* const task_runner_;
+  std::unique_ptr<tracing_service::Clock> clock_;
   const InitOpts init_opts_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;
@@ -908,13 +904,12 @@ class TracingServiceImpl : public TracingService {
   std::map<std::string, int64_t> session_to_last_trace_s_;
 
   // Contains timestamps of triggers.
-  // The queue is sorted by timestamp and invocations older than
-  // |trigger_window_ns_| are purged when a trigger happens.
+  // The queue is sorted by timestamp and invocations older than 24 hours are
+  // purged when a trigger happens.
   base::CircularQueue<TriggerHistory> trigger_history_;
 
   bool smb_scraping_enabled_ = false;
   bool lockdown_mode_ = false;
-  int64_t trigger_window_ns_ = kOneDayInNs;  // Overridable for testing.
 
   std::minstd_rand trigger_probability_rand_;
   std::uniform_real_distribution<> trigger_probability_dist_;
