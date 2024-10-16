@@ -38,6 +38,9 @@ source_set("service") {
     "../core",
   ]
   sources = [
+    "clock.cc",
+    "clock.h",
+    "dependencies.h",
     "histogram.h",
     "metatrace_writer.cc",
     "metatrace_writer.h",
