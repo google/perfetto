@@ -86,9 +86,6 @@ int PERFETTO_EXPORT_ENTRYPOINT TriggerPerfettoMain(int argc, char** argv) {
     return PrintUsage(argv[0]);
   }
 
-  android_stats::MaybeLogTriggerEvents(
-      PerfettoTriggerAtom::kTriggerPerfettoTrigger, triggers_to_activate);
-
   bool finished_with_success = false;
   base::UnixTaskRunner task_runner;
   TriggerProducer producer(
@@ -101,8 +98,6 @@ int PERFETTO_EXPORT_ENTRYPOINT TriggerPerfettoMain(int argc, char** argv) {
   task_runner.Run();
 
   if (!finished_with_success) {
-    android_stats::MaybeLogTriggerEvents(
-        PerfettoTriggerAtom::kTriggerPerfettoTriggerFail, triggers_to_activate);
     return 1;
   }
   return 0;
