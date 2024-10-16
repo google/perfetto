@@ -18,7 +18,7 @@ import {
 } from '../../public/lib/debug_tracks/debug_tracks';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {Optional, exists} from '../../base/utils';
+import {exists} from '../../base/utils';
 
 class DebugTracksPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -70,7 +70,7 @@ class DebugTracksPlugin implements PerfettoPlugin {
 async function getStringFromArgOrPrompt(
   ctx: Trace,
   arg: unknown,
-): Promise<Optional<string>> {
+): Promise<string | undefined> {
   if (typeof arg === 'string') {
     return arg;
   } else {

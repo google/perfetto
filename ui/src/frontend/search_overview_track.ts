@@ -17,7 +17,6 @@ import {AsyncDisposableStack} from '../base/disposable_stack';
 import {Size2D} from '../base/geom';
 import {Duration, Time, TimeSpan, duration, time} from '../base/time';
 import {TimeScale} from '../base/time_scale';
-import {Optional} from '../base/utils';
 import {calculateResolution} from '../common/resolution';
 import {TraceImpl} from '../core/trace_impl';
 import {LONG, NUM} from '../trace_processor/query_result';
@@ -68,7 +67,7 @@ export async function createSearchOverviewTrack(
   let previousResolution: duration;
   let previousSpan: TimeSpan;
   let previousSearchGeneration = 0;
-  let searchSummary: Optional<SearchSummary>;
+  let searchSummary: SearchSummary | undefined;
   const limiter = new AsyncLimiter();
 
   async function update(

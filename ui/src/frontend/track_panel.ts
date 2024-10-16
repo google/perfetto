@@ -18,7 +18,7 @@ import {classNames} from '../base/classnames';
 import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {Icons} from '../base/semantic_icons';
 import {TimeScale} from '../base/time_scale';
-import {Optional, RequiredField} from '../base/utils';
+import {RequiredField} from '../base/utils';
 import {calculateResolution} from '../common/resolution';
 import {featureFlags} from '../core/feature_flags';
 import {TrackRenderer} from '../core/track_manager';
@@ -206,7 +206,7 @@ export class TrackPanel implements Panel {
     highlightIfTrackInAreaSelection(ctx, timescale, node, trackSize);
   }
 
-  getSliceVerticalBounds(depth: number): Optional<VerticalBounds> {
+  getSliceVerticalBounds(depth: number): VerticalBounds | undefined {
     if (this.attrs.trackRenderer === undefined) {
       return undefined;
     }

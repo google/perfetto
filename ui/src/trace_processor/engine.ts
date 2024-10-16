@@ -35,7 +35,7 @@ import {
   WritableQueryResult,
 } from './query_result';
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
-import {exists, Optional, Result} from '../base/utils';
+import {exists, Result} from '../base/utils';
 
 export type EngineMode = 'WASM' | 'HTTP_RPC';
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
@@ -100,7 +100,7 @@ export interface Engine {
 
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
-  readonly failed: Optional<string>;
+  readonly failed: string | undefined;
 }
 
 // Abstract interface of a trace proccessor.
@@ -130,7 +130,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingRegisterSqlPackage?: Deferred<void>;
   private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
-  private _failed: Optional<string> = undefined;
+  private _failed: string | undefined = undefined;
 
   // TraceController sets this to raf.scheduleFullRedraw().
   onResponseReceived?: () => void;
@@ -527,7 +527,7 @@ export abstract class EngineBase implements Engine, Disposable {
     throw new Error(reason);
   }
 
-  get failed(): Optional<string> {
+  get failed(): string | undefined {
     return this._failed;
   }
 

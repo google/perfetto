@@ -36,7 +36,6 @@ import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
 import {TimeScale} from '../base/time_scale';
-import {Optional} from '../base/utils';
 import {TrackNode} from '../public/workspace';
 import {HTMLAttrs} from '../widgets/common';
 
@@ -50,7 +49,7 @@ export interface Panel {
   // tracks!
   readonly trackNode?: TrackNode;
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D): void;
-  getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
+  getSliceVerticalBounds?(depth: number): VerticalBounds | undefined;
 }
 
 export interface PanelGroup {

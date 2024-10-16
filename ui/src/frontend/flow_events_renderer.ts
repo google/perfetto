@@ -14,7 +14,6 @@
 
 import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
 import {Size2D, Point2D, HorizontalBounds} from '../base/geom';
-import {Optional} from '../base/utils';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {globals} from './globals';
 import {Flow} from '../core/flow_types';
@@ -139,7 +138,7 @@ export function renderFlows(
     trackId: number,
     depth: number,
     x: number,
-  ): Optional<VerticalEdgeOrPoint> => {
+  ): VerticalEdgeOrPoint | undefined => {
     const track = sqlTrackIdToTrack.get(trackId);
     if (!track) {
       return undefined;

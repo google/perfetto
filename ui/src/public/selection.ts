@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {time, duration, TimeSpan} from '../base/time';
-import {Optional} from '../base/utils';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
 import {TrackDescriptor} from './track';
@@ -21,7 +20,7 @@ import {TrackDescriptor} from './track';
 export interface SelectionManager {
   readonly selection: Selection;
 
-  findTimeRangeOfSelection(): Optional<TimeSpan>;
+  findTimeRangeOfSelection(): TimeSpan | undefined;
   clear(): void;
 
   /**
