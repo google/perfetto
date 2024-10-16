@@ -32,7 +32,6 @@ import {
   publishConversionJobStatusUpdate,
   publishPermalinkHash,
 } from './publish';
-import {Optional} from '../base/utils';
 import {
   SERIALIZED_STATE_VERSION,
   SerializedAppState,
@@ -194,7 +193,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
     Router.navigate('#!/record');
     return;
   }
-  let serializedAppState: Optional<SerializedAppState> = undefined;
+  let serializedAppState: SerializedAppState | undefined = undefined;
   if (permalink.appState !== undefined) {
     // This is the most common case where the permalink contains the app state
     // (and optionally a traceUrl, below).
@@ -245,7 +244,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
 // the trace URL.
 // If we suceed, convert it to a new-style JSON object preserving some minimal
 // information (really just vieport and pinned tracks).
-function tryLoadLegacyPermalink(data: unknown): Optional<PermalinkState> {
+function tryLoadLegacyPermalink(data: unknown): PermalinkState | undefined {
   const legacyData = data as {
     version?: number;
     engine?: {source?: {url?: string}};

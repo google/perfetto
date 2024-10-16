@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {time} from '../base/time';
-import {Optional} from '../base/utils';
 
 /**
  * A helper to scroll to a combination of tracks and time ranges.
@@ -57,7 +56,7 @@ export interface ScrollToArgs {
 // to avoid too many invasive refactorings at once.
 
 type ScrollToFunction = (a: ScrollToArgs) => void;
-let _scrollToFunction: Optional<ScrollToFunction> = undefined;
+let _scrollToFunction: ScrollToFunction | undefined = undefined;
 
 // If a Trace object is avilable, prefer Trace.scrollTo(). It points to the
 // same function.

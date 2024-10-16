@@ -23,7 +23,7 @@ import {
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
-import {exists, Optional} from '../base/utils';
+import {exists} from '../base/utils';
 import {TrackManagerImpl} from './track_manager';
 import {Engine} from '../trace_processor/engine';
 import {ScrollHelper} from './scroll_helper';
@@ -284,7 +284,7 @@ export class SelectionManagerImpl implements SelectionManager {
   // Finds the time range range that we should actually focus on - using dummy
   // values for instant and incomplete slices, so we don't end up super zoomed
   // in.
-  private findFocusRangeOfSelection(): Optional<TimeSpan> {
+  private findFocusRangeOfSelection(): TimeSpan | undefined {
     const sel = this.selection;
     if (sel.kind === 'track_event') {
       // The focus range of slices is different to that of the actual span
@@ -300,7 +300,7 @@ export class SelectionManagerImpl implements SelectionManager {
     }
   }
 
-  findTimeRangeOfSelection(): Optional<TimeSpan> {
+  findTimeRangeOfSelection(): TimeSpan | undefined {
     const sel = this.selection;
     if (sel.kind === 'area') {
       return new TimeSpan(sel.start, sel.end);
