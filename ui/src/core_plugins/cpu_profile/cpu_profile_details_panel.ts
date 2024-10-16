@@ -48,7 +48,7 @@ export class CpuProfileSampleFlamegraphDetailsPanel
                 source_file,
                 cast(line_number AS text) as line_number,
                 self_count
-              from _callstacks_for_cpu_profile_stack_samples!((
+              from _callstacks_for_callsites!((
                 select p.callsite_id
                 from cpu_profile_stack_sample p
                 where p.ts = ${ts} and p.utid = ${utid}
