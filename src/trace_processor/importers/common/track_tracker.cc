@@ -210,10 +210,8 @@ TrackId TrackTracker::CreateProcessCounterTrack(
 }
 
 TrackId TrackTracker::CreateThreadTrack(TrackClassification classification,
-                                        UniqueTid utid,
-                                        std::optional<Dimensions> dims) {
-  Dimensions dims_id =
-      dims ? *dims : SingleDimension(utid_id_, Variadic::Integer(utid));
+                                        UniqueTid utid) {
+  Dimensions dims_id = SingleDimension(utid_id_, Variadic::Integer(utid));
 
   tables::ThreadTrackTable::Row row;
   row.utid = utid;
@@ -228,10 +226,8 @@ TrackId TrackTracker::CreateThreadTrack(TrackClassification classification,
 TrackId TrackTracker::CreateThreadCounterTrack(
     TrackClassification classification,
     StringId name,
-    UniqueTid utid,
-    std::optional<Dimensions> dims) {
-  Dimensions dims_id =
-      dims ? *dims : SingleDimension(utid_id_, Variadic::Integer(utid));
+    UniqueTid utid) {
+  Dimensions dims_id = SingleDimension(utid_id_, Variadic::Integer(utid));
 
   tables::ThreadCounterTrackTable::Row row(name);
   row.utid = utid;
@@ -271,31 +267,25 @@ TrackId TrackTracker::InternCounterTrack(TrackClassification classification,
 
 TrackId TrackTracker::InternProcessTrack(TrackClassification classification,
                                          UniquePid upid,
-                                         std::optional<Dimensions> dims,
                                          StringId name) {
-  Dimensions dims_id =
-      dims ? *dims : SingleDimension(upid_id_, Variadic::Integer(upid));
+  Dimensions dims_id = SingleDimension(upid_id_, Variadic::Integer(upid));
 
   auto it = tracks_.Find({classification, dims_id});
   if (it)
     return *it;
 
-  TrackId track_id = CreateProcessTrack(classification, upid, dims, name);
+  TrackId track_id =
+      CreateProcessTrack(classification, upid, std::nullopt, name);
   tracks_[{classification, dims_id}] = track_id;
   return track_id;
 }
 
-TrackId TrackTracker::InternProcessTrack(UniquePid upid,
-                                         std::optional<Dimensions> dims) {
-  return InternProcessTrack(TrackTracker::TrackClassification::kProcess, upid,
-                            dims);
+TrackId TrackTracker::InternProcessTrack(UniquePid upid) {
+  return InternProcessTrack(TrackTracker::TrackClassification::kProcess, upid);
 }
 
-TrackId TrackTracker::InternProcessCounterTrack(
-    UniquePid upid,
-    std::optional<Dimensions> dims) {
-  Dimensions dims_id =
-      dims ? *dims : SingleDimension(upid_id_, Variadic::Integer(upid));
+TrackId TrackTracker::InternProcessCounterTrack(UniquePid upid) {
+  Dimensions dims_id = SingleDimension(upid_id_, Variadic::Integer(upid));
 
   auto it = tracks_.Find({TrackClassification::kUnknown, dims_id});
   if (it) {
@@ -340,36 +330,30 @@ TrackId TrackTracker::InternProcessCounterTrack(StringId raw_name,
   return track_id;
 }
 
-TrackId TrackTracker::InternThreadTrack(UniqueTid utid,
-                                        std::optional<Dimensions> dims) {
-  Dimensions dims_id =
-      dims ? *dims : SingleDimension(utid_id_, Variadic::Integer(utid));
+TrackId TrackTracker::InternThreadTrack(UniqueTid utid) {
+  Dimensions dims = SingleDimension(utid_id_, Variadic::Integer(utid));
 
-  auto it = tracks_.Find({TrackClassification::kThread, dims_id});
+  auto it = tracks_.Find({TrackClassification::kThread, dims});
   if (it)
     return *it;
-  TrackId track_id =
-      CreateThreadTrack(TrackClassification::kThread, utid, dims_id);
-  tracks_[{TrackClassification::kThread, dims_id}] = track_id;
+  TrackId track_id = CreateThreadTrack(TrackClassification::kThread, utid);
+  tracks_[{TrackClassification::kThread, dims}] = track_id;
   return track_id;
 }
 
-TrackId TrackTracker::InternThreadCounterTrack(StringId name,
-                                               UniqueTid utid,
-                                               std::optional<Dimensions> dims) {
+TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
   TrackMapKey key;
   key.classification = TrackClassification::kUnknown;
   key.name = name;
-  key.dimensions =
-      dims ? *dims : SingleDimension(utid_id_, Variadic::Integer(utid));
+  key.dimensions = SingleDimension(utid_id_, Variadic::Integer(utid));
 
   auto it = tracks_.Find(key);
   if (it) {
     return *it;
   }
 
-  TrackId track_id = CreateThreadCounterTrack(TrackClassification::kUnknown,
-                                              name, utid, key.dimensions);
+  TrackId track_id =
+      CreateThreadCounterTrack(TrackClassification::kUnknown, name, utid);
   tracks_[key] = track_id;
   return track_id;
 }
