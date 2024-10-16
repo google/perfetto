@@ -14,7 +14,6 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {isString} from '../base/object_utils';
-import {Optional} from '../base/utils';
 import {AggregateData, Column, ColumnDef, Sorting} from '../public/aggregation';
 import {AreaSelection, AreaSelectionAggregator} from '../public/selection';
 import {Engine} from '../trace_processor/engine';
@@ -27,7 +26,7 @@ export class SelectionAggregationManager {
   private _aggregators = new Array<AreaSelectionAggregator>();
   private _aggregatedData = new Map<string, AggregateData>();
   private _sorting = new Map<string, Sorting>();
-  private _currentArea: Optional<AreaSelection> = undefined;
+  private _currentArea: AreaSelection | undefined = undefined;
 
   constructor(engine: Engine) {
     this.engine = engine;
@@ -63,7 +62,7 @@ export class SelectionAggregationManager {
     });
   }
 
-  getSortingPrefs(aggregatorId: string): Optional<Sorting> {
+  getSortingPrefs(aggregatorId: string): Sorting | undefined {
     return this._sorting.get(aggregatorId);
   }
 
@@ -97,7 +96,7 @@ export class SelectionAggregationManager {
     return this._aggregators;
   }
 
-  getAggregatedData(aggregatorId: string): Optional<AggregateData> {
+  getAggregatedData(aggregatorId: string): AggregateData | undefined {
     return this._aggregatedData.get(aggregatorId);
   }
 

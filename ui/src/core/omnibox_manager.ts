@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Optional} from '../base/utils';
 import {OmniboxManager, PromptOption} from '../public/omnibox';
 import {raf} from './raf_scheduler';
 
@@ -26,7 +25,7 @@ export enum OmniboxMode {
 interface Prompt {
   text: string;
   options?: PromptOption[];
-  resolve(result: Optional<string>): void;
+  resolve(result: string | undefined): void;
 }
 
 const defaultMode = OmniboxMode.Search;
@@ -114,12 +113,12 @@ export class OmniboxManagerImpl implements OmniboxManager {
 
   // Start a prompt. If options are supplied, the user must pick one from the
   // list, otherwise the input is free-form text.
-  prompt(text: string, options?: PromptOption[]): Promise<Optional<string>> {
+  prompt(text: string, options?: PromptOption[]): Promise<string | undefined> {
     this._mode = OmniboxMode.Prompt;
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
 
-    const promise = new Promise<Optional<string>>((resolve) => {
+    const promise = new Promise<string | undefined>((resolve) => {
       this._pendingPrompt = {
         text,
         options,

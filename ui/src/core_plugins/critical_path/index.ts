@@ -23,7 +23,6 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {asUtid, Utid} from '../../trace_processor/sql_utils/core_types';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 import {showModal} from '../../widgets/modal';
-import {Optional} from '../../base/utils';
 import {
   CRITICAL_PATH_CMD,
   CRITICAL_PATH_LITE_CMD,
@@ -113,7 +112,7 @@ function showModalErrorThreadStateRequired() {
 async function getThreadInfoForUtidOrSelection(
   trace: Trace,
   utid?: Utid,
-): Promise<Optional<ThreadInfo>> {
+): Promise<ThreadInfo | undefined> {
   if (utid === undefined) {
     const selection = trace.selection.selection;
     if (selection.kind === 'track_event') {

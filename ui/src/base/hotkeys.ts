@@ -46,7 +46,6 @@
 // these keys.
 
 import {elementIsEditable} from './dom_utils';
-import {Optional} from './utils';
 
 type Alphabet =
   | 'A'
@@ -170,7 +169,7 @@ export interface HotkeyParts {
 
 // Deconstruct a hotkey from its string representation into its constituent
 // parts.
-export function parseHotkey(hotkey: Hotkey): Optional<HotkeyParts> {
+export function parseHotkey(hotkey: Hotkey): HotkeyParts | undefined {
   const regex = /^(!?)((?:Mod\+|Shift\+|Alt\+|Ctrl\+)*)(.*)$/;
   const result = hotkey.match(regex);
 
@@ -189,7 +188,7 @@ export function parseHotkey(hotkey: Hotkey): Optional<HotkeyParts> {
 export function formatHotkey(
   hotkey: Hotkey,
   spoof?: Platform,
-): Optional<string> {
+): string | undefined {
   const parsed = parseHotkey(hotkey);
   return parsed && formatHotkeyParts(parsed, spoof);
 }

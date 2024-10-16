@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Optional} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
@@ -235,7 +234,7 @@ class RestorePinnedTrack implements PerfettoPlugin {
 
 // Return the displayname of the containing group
 // If the track is a child of a workspace, return undefined...
-function groupName(track: TrackNode): Optional<string> {
+function groupName(track: TrackNode): string | undefined {
   const parent = track.parent;
   if (parent instanceof TrackNode) {
     return parent.title;

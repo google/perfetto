@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {duration, time} from '../base/time';
-import {Optional} from '../base/utils';
 import {UntypedEventSet} from '../core/event_set';
 import {Size2D, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../base/time_scale';
@@ -169,7 +168,7 @@ export interface Track {
    * at a specific depth, given the slice height and padding/spacing that this
    * track uses.
    */
-  getSliceVerticalBounds?(depth: number): Optional<VerticalBounds>;
+  getSliceVerticalBounds?(depth: number): VerticalBounds | undefined;
   getHeight(): number;
   getTrackShellButtons?(): m.Children;
   onMouseMove?(event: TrackMouseEvent): void;
