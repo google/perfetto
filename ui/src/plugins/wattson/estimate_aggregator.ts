@@ -93,14 +93,14 @@ export class WattsonEstimateSelectionAggregator
         columnId: 'name',
       },
       {
-        title: 'Average power (estimated mW)',
+        title: 'Power (estimated mW)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'power',
         sum: true,
       },
       {
-        title: 'Total energy (estimated mWs)',
+        title: 'Energy (estimated mWs)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'energy',
