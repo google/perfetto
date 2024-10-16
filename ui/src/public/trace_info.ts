@@ -40,9 +40,6 @@ export interface TraceInfo {
   // The list of CPUs in the trace
   readonly cpus: number[];
 
-  // The number of gpus in the trace
-  readonly gpuCount: number;
-
   // The number of import/analysis errors present in the `stats` table.
   readonly importErrors: number;
 
