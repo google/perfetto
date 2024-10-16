@@ -236,6 +236,7 @@ class FtraceParser {
   void ParseWakeSourceActivate(int64_t timestamp, protozero::ConstBytes);
   void ParseWakeSourceDeactivate(int64_t timestamp, protozero::ConstBytes);
   void ParseSuspendResume(int64_t timestamp,
+                          uint32_t cpu,
                           uint32_t pid,
                           protozero::ConstBytes);
   void ParseSuspendResumeMinimal(int64_t timestamp, protozero::ConstBytes);
@@ -304,6 +305,7 @@ class FtraceParser {
   StringId GetRpmStatusStringId(int32_t rpm_status_val);
   void ParseRpmStatus(int64_t ts, protozero::ConstBytes);
   void ParseDevicePmCallbackStart(int64_t ts,
+                                  uint32_t cpu,
                                   uint32_t pid,
                                   protozero::ConstBytes);
   void ParseDevicePmCallbackEnd(int64_t ts, protozero::ConstBytes);
@@ -327,6 +329,7 @@ class FtraceParser {
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
+  const StringId ucpu_id_;
   const StringId suspend_resume_name_id_;
   const StringId suspend_resume_minimal_name_id_;
   const StringId suspend_resume_minimal_slice_name_id_;
