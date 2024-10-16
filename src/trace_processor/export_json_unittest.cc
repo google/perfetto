@@ -251,8 +251,8 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 }
 
 TEST_F(ExportJsonTest, SystemEventsIgnored) {
-  TrackId track = context_.track_tracker->LegacyCreateProcessAsyncTrack(
-      /*name=*/kNullStringId, /*upid=*/0, /*source=*/kNullStringId);
+  TrackId track = context_.track_tracker->InternProcessTrack(
+      TrackTracker::TrackClassification::kUnknown, 0);
   context_.args_tracker->Flush();  // Flush track args.
 
   // System events have no category.

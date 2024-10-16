@@ -296,9 +296,11 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
           break;
         }
         UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-        track_id =
-            context_->track_tracker->InternLegacyChromeProcessInstantTrack(
-                upid);
+        track_id = context_->track_tracker->InternProcessTrack(
+            TrackTracker::TrackClassification::kChromeProcessInstant, upid);
+        context_->args_tracker->AddArgsTo(track_id).AddArg(
+            context_->storage->InternString("source"),
+            Variadic::String(context_->storage->InternString("chrome")));
       } else if (scope == "t" || scope.data() == nullptr) {
         if (!opt_tid) {
           context_->storage->IncrementStats(stats::json_parser_failure);
