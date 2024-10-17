@@ -41,6 +41,7 @@ class PixelModemParser {
 
   const StringId template_id_;
   const StringId token_id_;
+  const StringId token_id_hex_;
   const StringId packet_timestamp_id_;
 };
 
