@@ -16,7 +16,6 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {Duration, duration, Time, time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {
   drawDoubleHeadedArrow,
   drawIncompleteSlice,
@@ -28,7 +27,6 @@ import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {globals} from '../../frontend/globals';
 import {Point2D} from '../../base/geom';
 import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
@@ -242,9 +240,9 @@ export class CpuSliceTrack implements Track {
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
-      const isHovering = globals.state.hoveredUtid !== -1;
-      const isThreadHovered = globals.state.hoveredUtid === utid;
-      const isProcessHovered = globals.state.hoveredPid === pid;
+      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
+      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
+      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
       const colorScheme = colorForThread(threadInfo);
       let color: Color;
       let textColor: Color;
@@ -314,7 +312,7 @@ export class CpuSliceTrack implements Track {
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
-    const selection = globals.selectionManager.selection;
+    const selection = this.trace.selection.selection;
     if (selection.kind === 'track_event') {
       if (selection.trackUri === this.uri) {
         const [startIndex, endIndex] = searchEq(data.ids, selection.eventId);
@@ -408,7 +406,8 @@ export class CpuSliceTrack implements Track {
     if (data === undefined) return;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
-      globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
+      this.trace.timeline.hoveredUtid = undefined;
+      this.trace.timeline.hoveredPid = undefined;
       return;
     }
     const t = timescale.pxToHpTime(x);
@@ -427,14 +426,14 @@ export class CpuSliceTrack implements Track {
     const threadInfo = this.trace.threads.get(hoveredUtid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
-    globals.dispatch(
-      Actions.setHoveredUtidAndPid({utid: hoveredUtid, pid: hoveredPid}),
-    );
+    this.trace.timeline.hoveredUtid = hoveredUtid;
+    this.trace.timeline.hoveredPid = hoveredPid;
   }
 
   onMouseOut() {
     this.utidHoveredInThisTrack = -1;
-    globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
+    this.trace.timeline.hoveredUtid = undefined;
+    this.trace.timeline.hoveredPid = undefined;
     this.mousePos = undefined;
   }
 

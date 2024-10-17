@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Draft} from 'immer';
-import {time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {createEmptyState} from './empty_state';
 import {
@@ -126,19 +125,6 @@ export const StateActions = {
 
   setSidebar(state: StateDraft, args: {visible: boolean}): void {
     state.sidebarVisible = args.visible;
-  },
-
-  setHoveredUtidAndPid(state: StateDraft, args: {utid: number; pid: number}) {
-    state.hoveredPid = args.pid;
-    state.hoveredUtid = args.utid;
-  },
-
-  setHighlightedSliceId(state: StateDraft, args: {sliceId: number}) {
-    state.highlightedSliceId = args.sliceId;
-  },
-
-  setHoveredNoteTimestamp(state: StateDraft, args: {ts: time}) {
-    state.hoveredNoteTimestamp = args.ts;
   },
 
   dismissFlamegraphModal(state: StateDraft, _: {}) {

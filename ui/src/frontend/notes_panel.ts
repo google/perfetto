@@ -15,8 +15,6 @@
 import m from 'mithril';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
-import {Time} from '../base/time';
-import {Actions} from '../common/actions';
 import {randomColor} from '../core/colorizer';
 import {SpanNote, Note} from '../public/note';
 import {raf} from '../core/raf_scheduler';
@@ -94,7 +92,7 @@ export class NotesPanel implements Panel {
         },
         onmouseout: () => {
           this.hoveredX = null;
-          globals.dispatch(Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
+          globals.timeline.hoveredNoteTimestamp = undefined;
         },
       },
       isTraceLoaded() &&
@@ -248,14 +246,14 @@ export class NotesPanel implements Panel {
     // A real note is hovered so we don't need to see the preview line.
     // TODO(hjd): Change cursor to pointer here.
     if (aNoteIsHovered) {
-      globals.dispatch(Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
+      globals.timeline.hoveredNoteTimestamp = undefined;
     }
 
     // View preview note flag when hovering on notes panel.
     if (!aNoteIsHovered && this.hoveredX !== null) {
       const timestamp = timescale.pxToHpTime(this.hoveredX).toTime();
       if (visibleWindow.contains(timestamp)) {
-        globals.dispatch(Actions.setHoveredNoteTimestamp({ts: timestamp}));
+        globals.timeline.hoveredNoteTimestamp = timestamp;
         const x = timescale.timeToPx(timestamp);
         const left = Math.floor(x);
         this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);

@@ -21,8 +21,6 @@ import {colorForCpu} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {globals} from '../../frontend/globals';
-import {Engine} from '../../trace_processor/engine';
 import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
@@ -30,6 +28,7 @@ import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D} from '../../base/geom';
 import {createView, createVirtualTable} from '../../trace_processor/sql_utils';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {Trace} from '../../public/trace';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;
@@ -58,23 +57,21 @@ export class CpuFreqTrack implements Track {
   private hoveredIdle: number | undefined = undefined;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
-  private engine: Engine;
-  private config: Config;
   private trackUuid = uuidv4Sql();
 
   private trash!: AsyncDisposableStack;
 
-  constructor(config: Config, engine: Engine) {
-    this.config = config;
-    this.engine = engine;
-  }
+  constructor(
+    private readonly config: Config,
+    private readonly trace: Trace,
+  ) {}
 
   async onCreate() {
     this.trash = new AsyncDisposableStack();
     if (this.config.idleTrackId === undefined) {
       this.trash.use(
         await createView(
-          this.engine,
+          this.trace.engine,
           `raw_freq_idle_${this.trackUuid}`,
           `
             select ts, dur, value as freqValue, -1 as idleValue
@@ -86,7 +83,7 @@ export class CpuFreqTrack implements Track {
     } else {
       this.trash.use(
         await createView(
-          this.engine,
+          this.trace.engine,
           `raw_freq_${this.trackUuid}`,
           `
             select ts, dur, value as freqValue
@@ -98,7 +95,7 @@ export class CpuFreqTrack implements Track {
 
       this.trash.use(
         await createView(
-          this.engine,
+          this.trace.engine,
           `raw_idle_${this.trackUuid}`,
           `
             select
@@ -113,7 +110,7 @@ export class CpuFreqTrack implements Track {
 
       this.trash.use(
         await createVirtualTable(
-          this.engine,
+          this.trace.engine,
           `raw_freq_idle_${this.trackUuid}`,
           `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`,
         ),
@@ -122,7 +119,7 @@ export class CpuFreqTrack implements Track {
 
     this.trash.use(
       await createVirtualTable(
-        this.engine,
+        this.trace.engine,
         `cpu_freq_${this.trackUuid}`,
         `
           __intrinsic_counter_mipmap((
@@ -135,7 +132,7 @@ export class CpuFreqTrack implements Track {
 
     this.trash.use(
       await createVirtualTable(
-        this.engine,
+        this.trace.engine,
         `cpu_idle_${this.trackUuid}`,
         `
           __intrinsic_counter_mipmap((
@@ -167,7 +164,7 @@ export class CpuFreqTrack implements Track {
     // function to make sense.
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
-    const freqResult = await this.engine.query(`
+    const freqResult = await this.trace.engine.query(`
       SELECT
         min_value as minFreq,
         max_value as maxFreq,
@@ -179,7 +176,7 @@ export class CpuFreqTrack implements Track {
         ${resolution}
       );
     `);
-    const idleResult = await this.engine.query(`
+    const idleResult = await this.trace.engine.query(`
       SELECT last_value as lastIdle
       FROM cpu_idle_${this.trackUuid}(
         ${start},
@@ -257,7 +254,7 @@ export class CpuFreqTrack implements Track {
 
     const color = colorForCpu(this.config.cpu);
     let saturation = 45;
-    if (globals.state.hoveredUtid !== -1) {
+    if (this.trace.timeline.hoveredUtid !== undefined) {
       saturation = 0;
     }
 
