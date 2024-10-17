@@ -28,6 +28,12 @@ export interface Timeline {
   // Render a vertical line on the timeline at this timestamp.
   hoverCursorTimestamp: time | undefined;
 
+  hoveredNoteTimestamp: time | undefined;
+  highlightedSliceId: number | undefined;
+
+  hoveredUtid: number | undefined;
+  hoveredPid: number | undefined;
+
   // Get the current timestamp offset.
   timestampOffset(): time;
 

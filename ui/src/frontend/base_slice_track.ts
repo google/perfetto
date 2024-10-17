@@ -16,7 +16,6 @@ import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
 import {Duration, Time, time} from '../base/time';
 import {exists} from '../base/utils';
-import {Actions} from '../common/actions';
 import {drawIncompleteSlice, drawTrackHoverTooltip} from '../base/canvas_utils';
 import {cropText} from '../base/string_utils';
 import {colorCompare} from '../public/color';
@@ -28,7 +27,6 @@ import {Track} from '../public/track';
 import {Slice} from '../public/track';
 import {LONG, NUM} from '../trace_processor/query_result';
 import {checkerboardExcept} from './checkerboard';
-import {globals} from './globals';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {NewTrackArgs} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey} from '../core/timeline_cache';
@@ -232,7 +230,7 @@ export abstract class BaseSliceTrack<
   //  - This is NOT guaranteed to be called on every frame. For instance you
   //    cannot use this to do some colour-based animation.
   onUpdatedSlices(slices: Array<SliceT>): void {
-    this.highlightHovererdAndSameTitle(slices);
+    this.highlightHoveredAndSameTitle(slices);
   }
 
   // TODO(hjd): Remove.
@@ -393,7 +391,7 @@ export abstract class BaseSliceTrack<
       visibleWindow.end.toTime('ceil'),
     );
 
-    const selection = globals.selectionManager.selection;
+    const selection = this.trace.selection.selection;
     const selectedId =
       selection.kind === 'track_event' && selection.trackUri === this.uri
         ? selection.eventId
@@ -813,15 +811,13 @@ export abstract class BaseSliceTrack<
     if (slice === lastHoveredSlice) return;
 
     if (this.hoveredSlice === undefined) {
-      globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1}));
+      this.trace.timeline.highlightedSliceId = undefined;
       this.onSliceOut({slice: assertExists(lastHoveredSlice)});
       this.hoverTooltip = [];
       this.hoverPos = undefined;
     } else {
       const args: OnSliceOverArgs<SliceT> = {slice: this.hoveredSlice};
-      globals.dispatch(
-        Actions.setHighlightedSliceId({sliceId: this.hoveredSlice.id}),
-      );
+      this.trace.timeline.highlightedSliceId = this.hoveredSlice.id;
       this.onSliceOver(args);
       this.hoverTooltip = args.tooltip || [];
     }
@@ -925,10 +921,10 @@ export abstract class BaseSliceTrack<
   // onUpdatedSlices() calls this. However, if the XxxSliceTrack impl overrides
   // onUpdatedSlices() this gives them a chance to call the highlighting without
   // having to reimplement it.
-  protected highlightHovererdAndSameTitle(slices: Slice[]) {
+  protected highlightHoveredAndSameTitle(slices: Slice[]) {
     for (const slice of slices) {
       const isHovering =
-        globals.state.highlightedSliceId === slice.id ||
+        this.trace.timeline.highlightedSliceId === slice.id ||
         (this.hoveredSlice && this.hoveredSlice.title === slice.title);
       slice.isHighlighted = !!isHovering;
     }
