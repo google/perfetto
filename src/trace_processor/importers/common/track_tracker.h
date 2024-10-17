@@ -18,22 +18,26 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <limits>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Tracks and stores tracks based on track types, ids and scopes.
 class TrackTracker {
@@ -111,78 +115,6 @@ class TrackTracker {
     TrackTracker* tt_;
     std::array<GlobalArgsTracker::Arg, 64> args_;
     uint32_t count_args = 0;
-  };
-
-  // The classification of the track. Each track has to have one of those.
-  // Together with dimensions they are responsible for uniquely identifying the
-  // track.
-  // When adding new track prefer to choose one of the below if possible, with
-  // remembering that dimensions are also used to identify the track.
-  //
-  // Example: under classification kAsync, you can have both global async tracks
-  // and process async tracks. The difference between those is in the fact that
-  // process async tracks will also have "upid" dimension.
-  enum class TrackClassification {
-    // Global tracks, unique per trace.
-    kTrigger,
-    kInterconnect,
-    kChromeLegacyGlobalInstant,
-
-    // General tracks.
-    kThread,
-    kProcess,
-    kChromeProcessInstant,
-    kAsync,
-    kTrackEvent,
-
-    // Irq tracks.
-    kIrqCount,
-
-    // Softirq tracks.
-    kSoftirqCount,
-
-    // Gpu tracks.
-    kGpuFrequency,
-
-    // Linux device tracks.
-    kLinuxDevice,
-    kLinuxDeviceFrequency,
-
-    // Cpu tracks.
-    kIrqCpu,
-    kSoftirqCpu,
-    kNapiGroCpu,
-    kMaliIrqCpu,
-    kMinFreqCpu,
-    kMaxFreqCpu,
-    kFuncgraphCpu,
-    kPkvmHypervisor,
-
-    // Cpu counter tracks.
-    kCpuFrequency,
-    kCpuFrequencyThrottle,
-    kCpuMaxFrequencyLimit,
-    kCpuMinFrequencyLimit,
-
-    kCpuIdle,
-    kCpuIdleState,
-    kCpuUtilization,
-    kCpuCapacity,
-    kCpuNumberRunning,
-
-    // Time CPU spent in state.
-    kUserTime,
-    kNiceUserTime,
-    kSystemModeTime,
-    kIoWaitTime,
-    kIrqTime,
-    kSoftIrqTime,
-    kCpuIdleTime,
-
-    // Not set. Legacy, never use for new tracks.
-    // If set the classification can't be used to decide the tracks and
-    // dimensions + name should be used instead. Strongly discouraged.
-    kUnknown
   };
 
   // Enum which groups global tracks to avoid an explosion of tracks at the top
@@ -400,89 +332,6 @@ class TrackTracker {
     return Dimensions{context_->global_args_tracker->AddArgSet(args, 0, 1)};
   }
 
-  std::string GetClassification(TrackClassification type) {
-    switch (type) {
-      case TrackClassification::kTrigger:
-        return "triggers";
-      case TrackClassification::kInterconnect:
-        return "interconnect_events";
-      case TrackClassification::kChromeLegacyGlobalInstant:
-        return "legacy_chrome_global_instants";
-      case TrackClassification::kThread:
-        return "thread";
-      case TrackClassification::kProcess:
-        return "process";
-      case TrackClassification::kChromeProcessInstant:
-        return "chrome_process_instant";
-      case TrackClassification::kLinuxDevice:
-        return "linux_device";
-      case TrackClassification::kLinuxDeviceFrequency:
-        return "linux_device_frequency";
-      case TrackClassification::kAsync:
-        return "async";
-      case TrackClassification::kTrackEvent:
-        return "track_event";
-      case TrackClassification::kIrqCount:
-        return "irq_count_num";
-      case TrackClassification::kSoftirqCount:
-        return "softirq_count_num";
-      case TrackClassification::kGpuFrequency:
-        return "gpu_frequency";
-      case TrackClassification::kFuncgraphCpu:
-        return "cpu_funcgraph";
-      case TrackClassification::kIrqCpu:
-        return "cpu_irq";
-      case TrackClassification::kIrqTime:
-        return "cpu_irq_time";
-      case TrackClassification::kMaliIrqCpu:
-        return "cpu_mali_irq";
-      case TrackClassification::kNapiGroCpu:
-        return "cpu_napi_gro";
-      case TrackClassification::kSoftirqCpu:
-        return "cpu_softirq";
-      case TrackClassification::kSoftIrqTime:
-        return "cpu_softirq_time";
-      case TrackClassification::kPkvmHypervisor:
-        return "pkvm_hypervisor";
-      case TrackClassification::kMaxFreqCpu:
-        return "cpu_max_frequency";
-      case TrackClassification::kMinFreqCpu:
-        return "cpu_min_frequency";
-      case TrackClassification::kCpuFrequency:
-        return "cpu_frequency";
-      case TrackClassification::kCpuFrequencyThrottle:
-        return "cpu_frequency_throttle";
-      case TrackClassification::kCpuMinFrequencyLimit:
-        return "cpu_min_frequency_limit";
-      case TrackClassification::kCpuMaxFrequencyLimit:
-        return "cpu_max_frequency_limit";
-      case TrackClassification::kCpuCapacity:
-        return "cpu_capacity";
-      case TrackClassification::kCpuIdle:
-        return "cpu_idle";
-      case TrackClassification::kCpuIdleTime:
-        return "cpu_idle_time";
-      case TrackClassification::kCpuIdleState:
-        return "cpu_idle_state";
-      case TrackClassification::kIoWaitTime:
-        return "cpu_io_wait_time";
-      case TrackClassification::kCpuNumberRunning:
-        return "cpu_nr_running";
-      case TrackClassification::kCpuUtilization:
-        return "cpu_utilization";
-      case TrackClassification::kSystemModeTime:
-        return "cpu_system_mode_time";
-      case TrackClassification::kUserTime:
-        return "cpu_user_time";
-      case TrackClassification::kNiceUserTime:
-        return "cpu_nice_user_time";
-
-      case TrackClassification::kUnknown:
-        return "N/A";
-    }
-    PERFETTO_FATAL("For GCC");
-  }
-
   TrackId CreateTrack(TrackClassification,
                       std::optional<Dimensions>,
                       StringId name);
@@ -531,7 +380,6 @@ class TrackTracker {
   TraceProcessorContext* const context_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_

@@ -515,7 +515,7 @@ class TrackEventParser::EventImporter {
             break;
           case LegacyEvent::SCOPE_GLOBAL:
             track_id_ = context_->track_tracker->InternGlobalTrack(
-                TrackTracker::TrackClassification::kChromeLegacyGlobalInstant);
+                TrackClassification::kChromeLegacyGlobalInstant);
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;
@@ -526,8 +526,7 @@ class TrackEventParser::EventImporter {
             }
 
             track_id_ = context_->track_tracker->InternProcessTrack(
-                TrackTracker::TrackClassification::kChromeProcessInstant,
-                *upid_);
+                TrackClassification::kChromeProcessInstant, *upid_);
             context_->args_tracker->AddArgsTo(track_id_).AddArg(
                 context_->storage->InternString("source"),
                 Variadic::String(context_->storage->InternString("chrome")));
