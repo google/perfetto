@@ -69,6 +69,7 @@ source_set("common") {
     "trace_file_tracker.cc",
     "trace_file_tracker.h",
     "trace_parser.cc",
+    "track_classification.h",
     "track_tracker.cc",
     "track_tracker.h",
     "virtual_memory_mapping.cc",

@@ -332,7 +332,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   uint32_t c = 0;
   for (auto it = sys_stats.cpufreq_khz(); it; ++it, ++c) {
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::TrackClassification::kCpuFrequency, c);
+        TrackClassification::kCpuFrequency, c);
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 
@@ -359,37 +359,37 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::TrackClassification::kUserTime, ct.cpu_id());
+        TrackClassification::kUserTime, ct.cpu_id());
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.user_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::TrackClassification::kNiceUserTime, ct.cpu_id());
+        TrackClassification::kNiceUserTime, ct.cpu_id());
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.user_nice_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::TrackClassification::kSystemModeTime, ct.cpu_id());
+        TrackClassification::kSystemModeTime, ct.cpu_id());
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.system_mode_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::TrackClassification::kCpuIdleTime, ct.cpu_id());
+        TrackClassification::kCpuIdleTime, ct.cpu_id());
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.idle_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::TrackClassification::kIoWaitTime, ct.cpu_id());
+        TrackClassification::kIoWaitTime, ct.cpu_id());
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.io_wait_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::TrackClassification::kIrqTime, ct.cpu_id());
+        TrackClassification::kIrqTime, ct.cpu_id());
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.irq_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackTracker::TrackClassification::kSoftIrqTime, ct.cpu_id());
+        TrackClassification::kSoftIrqTime, ct.cpu_id());
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.softirq_ns()), track);
   }
@@ -398,7 +398,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
 
     TrackId track = context_->track_tracker->LegacyInternIrqCounterTrack(
-        TrackTracker::TrackClassification::kIrqCount, ic.irq());
+        TrackClassification::kIrqCount, ic.irq());
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
@@ -407,7 +407,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
 
     TrackId track = context_->track_tracker->LegacyInternSoftirqCounterTrack(
-        TrackTracker::TrackClassification::kSoftirqCount, ic.irq());
+        TrackClassification::kSoftirqCount, ic.irq());
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
