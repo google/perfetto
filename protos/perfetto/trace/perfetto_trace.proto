@@ -927,10 +927,26 @@ message EtwConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 30
+// Next id: 31
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
+
+  message KprobeEvent {
+    enum KprobeType {
+      KPROBE_TYPE_UNKNOWN = 0;
+      KPROBE_TYPE_KPROBE = 1;
+      KPROBE_TYPE_KRETPROBE = 2;
+      KPROBE_TYPE_BOTH = 3;
+    }
+    // Kernel function name to attach to, for example "fuse_file_write_iter"
+    optional string probe = 1;
+    optional KprobeType type = 2;
+  }
+
+  // Ftrace events to record, specific for kprobes and kretprobes
+  repeated KprobeEvent kprobe_events = 30;
+
   // Android-specific event categories:
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
@@ -8600,6 +8616,17 @@ message GenericFtraceEvent {
   repeated Field field = 2;
 }
 
+message KprobeEvent {
+  enum KprobeType {
+    KPROBE_TYPE_UNKNOWN = 0;
+    KPROBE_TYPE_BEGIN = 1;
+    KPROBE_TYPE_END = 2;
+    KPROBE_TYPE_INSTANT = 3;
+  }
+  optional string name = 1;
+  optional KprobeType type = 2;
+}
+
 // End of protos/perfetto/trace/ftrace/generic.proto
 
 // Begin of protos/perfetto/trace/ftrace/google_icc_trace.proto
@@ -11157,6 +11184,7 @@ message FtraceEvent {
     PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
     SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
     DevfreqFrequencyFtraceEvent devfreq_frequency = 541;
+    KprobeEvent kprobe_event = 542;
   }
 }
 

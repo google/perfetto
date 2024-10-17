@@ -27,6 +27,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/utils.h"
+#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
@@ -36,6 +37,8 @@
 
 namespace perfetto {
 namespace {
+
+using protos::pbzero::KprobeEvent;
 
 constexpr uint64_t kDefaultLowRamPerCpuBufferSizeKb = 2 * (1ULL << 10);   // 2mb
 constexpr uint64_t kDefaultHighRamPerCpuBufferSizeKb = 8 * (1ULL << 10);  // 8mb
@@ -130,6 +133,43 @@ void PERFETTO_NO_INLINE InsertEvent(const char* group,
                                     const char* name,
                                     std::set<GroupAndName>* dst) {
   dst->insert(GroupAndName(group, name));
+}
+
+std::map<GroupAndName, KprobeEvent::KprobeType> GetFtraceKprobeEvents(
+    const FtraceConfig& request) {
+  std::map<GroupAndName, KprobeEvent::KprobeType> events;
+  for (const auto& config_value : request.kprobe_events()) {
+    switch (config_value.type()) {
+      case protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_KPROBE:
+        events[GroupAndName(kKprobeGroup, config_value.probe().c_str())] =
+            KprobeEvent::KprobeType::KPROBE_TYPE_INSTANT;
+        break;
+      case protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_KRETPROBE:
+        events[GroupAndName(kKretprobeGroup, config_value.probe().c_str())] =
+            KprobeEvent::KprobeType::KPROBE_TYPE_INSTANT;
+        break;
+      case protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_BOTH:
+        events[GroupAndName(kKprobeGroup, config_value.probe().c_str())] =
+            KprobeEvent::KprobeType::KPROBE_TYPE_BEGIN;
+        events[GroupAndName(kKretprobeGroup, config_value.probe().c_str())] =
+            KprobeEvent::KprobeType::KPROBE_TYPE_END;
+        break;
+      case protos::gen::FtraceConfig::KprobeEvent::KPROBE_TYPE_UNKNOWN:
+        PERFETTO_DLOG("Unknown kprobe event");
+        break;
+    }
+    PERFETTO_DLOG("Added kprobe event: %s", config_value.probe().c_str());
+  }
+  return events;
+}
+
+bool ValidateKprobeName(const std::string& name) {
+  for (const char& c : name) {
+    if (!std::isalnum(c) && c != '_') {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace
@@ -588,6 +628,29 @@ bool FtraceConfigMuxer::SetSyscallEventFilter(
   return true;
 }
 
+void FtraceConfigMuxer::EnableFtraceEvent(const Event* event,
+                                          const GroupAndName& group_and_name,
+                                          EventFilter* filter,
+                                          FtraceSetupErrors* errors) {
+  // Note: ftrace events are always implicitly enabled (and don't have an
+  // "enable" file). So they aren't tracked by the central event filter (but
+  // still need to be added to the per data source event filter to retain
+  // the events during parsing).
+  if (current_state_.ftrace_events.IsEventEnabled(event->ftrace_event_id) ||
+      std::string("ftrace") == event->group) {
+    filter->AddEnabledEvent(event->ftrace_event_id);
+    return;
+  }
+  if (ftrace_->EnableEvent(event->group, event->name)) {
+    current_state_.ftrace_events.AddEnabledEvent(event->ftrace_event_id);
+    filter->AddEnabledEvent(event->ftrace_event_id);
+  } else {
+    PERFETTO_DPLOG("Failed to enable %s.", group_and_name.ToString().c_str());
+    if (errors)
+      errors->failed_ftrace_events.push_back(group_and_name.ToString());
+  }
+}
+
 FtraceConfigMuxer::FtraceConfigMuxer(
     FtraceProcfs* ftrace,
     AtraceWrapper* atrace_wrapper,
@@ -646,6 +709,8 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
+  std::map<GroupAndName, KprobeEvent::KprobeType> events_kprobes =
+      GetFtraceKprobeEvents(request);
 
   // Vendors can provide a set of extra ftrace categories to be enabled when a
   // specific atrace category is used (e.g. "gfx" -> ["my_hw/my_custom_event",
@@ -675,7 +740,47 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     UpdateAtrace(request, errors ? &errors->atrace_errors : nullptr);
   }
 
+  base::FlatHashMap<uint32_t, KprobeEvent::KprobeType> kprobes;
+  for (const auto& [group_and_name, type] : events_kprobes) {
+    if (!ValidateKprobeName(group_and_name.name())) {
+      PERFETTO_ELOG("Invalid kprobes event %s", group_and_name.name().c_str());
+      if (errors)
+        errors->failed_ftrace_events.push_back(group_and_name.ToString());
+      continue;
+    }
+    // Kprobes events are created after their definition is written in the
+    // kprobe_events file
+    if (!ftrace_->CreateKprobeEvent(
+            group_and_name.group(), group_and_name.name(),
+            group_and_name.group() == kKretprobeGroup)) {
+      PERFETTO_ELOG("Failed creation of kprobes event %s",
+                    group_and_name.name().c_str());
+      if (errors)
+        errors->failed_ftrace_events.push_back(group_and_name.ToString());
+      continue;
+    }
+
+    const Event* event = table_->GetOrCreateKprobeEvent(group_and_name);
+    if (!event) {
+      PERFETTO_ELOG("Can't enable kprobe %s",
+                    group_and_name.ToString().c_str());
+      if (errors)
+        errors->unknown_ftrace_events.push_back(group_and_name.ToString());
+      continue;
+    }
+    EnableFtraceEvent(event, group_and_name, &filter, errors);
+    kprobes[event->ftrace_event_id] = type;
+  }
+
   for (const auto& group_and_name : events) {
+    if (group_and_name.group() == kKprobeGroup ||
+        group_and_name.group() == kKretprobeGroup) {
+      PERFETTO_DLOG("Can't enable %s, group reserved for kprobes",
+                    group_and_name.ToString().c_str());
+      if (errors)
+        errors->failed_ftrace_events.push_back(group_and_name.ToString());
+      continue;
+    }
     const Event* event = table_->GetOrCreateEvent(group_and_name);
     if (!event) {
       PERFETTO_DLOG("Can't enable %s, event not known",
@@ -684,6 +789,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
         errors->unknown_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
+
     // Niche option to skip events that are in the config, but don't have a
     // dedicated proto for the event in perfetto. Otherwise such events will be
     // encoded as GenericFtraceEvent.
@@ -694,23 +800,8 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
         errors->failed_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
-    // Note: ftrace events are always implicitly enabled (and don't have an
-    // "enable" file). So they aren't tracked by the central event filter (but
-    // still need to be added to the per data source event filter to retain
-    // the events during parsing).
-    if (current_state_.ftrace_events.IsEventEnabled(event->ftrace_event_id) ||
-        std::string("ftrace") == event->group) {
-      filter.AddEnabledEvent(event->ftrace_event_id);
-      continue;
-    }
-    if (ftrace_->EnableEvent(event->group, event->name)) {
-      current_state_.ftrace_events.AddEnabledEvent(event->ftrace_event_id);
-      filter.AddEnabledEvent(event->ftrace_event_id);
-    } else {
-      PERFETTO_DPLOG("Failed to enable %s.", group_and_name.ToString().c_str());
-      if (errors)
-        errors->failed_ftrace_events.push_back(group_and_name.ToString());
-    }
+
+    EnableFtraceEvent(event, group_and_name, &filter, errors);
   }
 
   EventFilter syscall_filter = BuildSyscallFilter(filter, request);
@@ -773,7 +864,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   std::vector<std::string> categories(request.atrace_categories());
   std::vector<std::string> categories_sdk_optout = Subtract(
       request.atrace_categories(), request.atrace_categories_prefer_sdk());
-  ds_configs_.emplace(
+  auto [it, inserted] = ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
       std::forward_as_tuple(
           std::move(filter), std::move(syscall_filter), compact_sched,
@@ -781,6 +872,9 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
           std::move(categories), std::move(categories_sdk_optout),
           request.symbolize_ksyms(), request.drain_buffer_percent(),
           GetSyscallsReturningFds(syscalls_)));
+  if (inserted) {
+    it->second.kprobes = std::move(kprobes);
+  }
   return true;
 }
 
@@ -866,6 +960,11 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     PERFETTO_DCHECK(event);
     if (ftrace_->DisableEvent(event->group, event->name))
       current_state_.ftrace_events.DisableEvent(event->ftrace_event_id);
+
+    if (event->group == kKprobeGroup || event->group == kKretprobeGroup) {
+      ftrace_->RemoveKprobeEvent(event->group, event->name);
+      table_->RemoveEvent({event->group, event->name});
+    }
   }
 
   auto active_it = active_configs_.find(config_id);

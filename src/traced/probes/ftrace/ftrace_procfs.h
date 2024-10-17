@@ -49,6 +49,16 @@ class FtraceProcfs {
   // Enable the event under with the given |group| and |name|.
   bool EnableEvent(const std::string& group, const std::string& name);
 
+  // Create the kprobe event for the function |name|. The event will be in
+  // |group|/|name|. Depending on the value of |is_retprobe|, installs a kprobe
+  // or a kretprobe.
+  bool CreateKprobeEvent(const std::string& group,
+                         const std::string& name,
+                         bool is_retprobe);
+
+  // Remove kprobe event from the system
+  bool RemoveKprobeEvent(const std::string& group, const std::string& name);
+
   // Disable the event under with the given |group| and |name|.
   bool DisableEvent(const std::string& group, const std::string& name);
 

@@ -170,6 +170,9 @@ ProtoType ProtoType::FromDescriptor(
   if (type == google::protobuf::FieldDescriptor::Type::TYPE_STRING)
     return String(is_repeated);
 
+  if (type == google::protobuf::FieldDescriptor::Type::TYPE_ENUM)
+    return Numeric(32, true, is_repeated);
+
   return Invalid();
 }
 
