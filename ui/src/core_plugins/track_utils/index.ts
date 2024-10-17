@@ -18,7 +18,6 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists} from '../../base/utils';
-import {TrackNode} from '../../public/workspace';
 
 class TrackUtilsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -37,70 +36,50 @@ class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      // Selects & reveals the first track on the timeline with a given URI.
       id: 'perfetto.FindTrackByName',
       name: 'Find track by name',
       callback: async () => {
-        const tracks = ctx.workspace.flatTracks;
-        const options = tracks
-          .map((node) => (exists(node.uri) ? {uri: node.uri, node} : undefined))
-          .filter((pair) => pair !== undefined)
-          .map(({uri, node}) => {
-            let parent = node.parent;
-            let fullPath = [node.title];
-            while (parent && parent instanceof TrackNode) {
-              fullPath = [parent.title, ...fullPath];
-              parent = parent.parent;
-            }
-            return {key: uri, displayName: fullPath.join(' \u2023 ')};
-          });
-
-        // Sort tracks in a natural sort order
-        const collator = new Intl.Collator('en', {
-          numeric: true,
-          sensitivity: 'base',
-        });
-        const sortedOptions = options.sort((a, b) => {
-          return collator.compare(a.displayName, b.displayName);
-        });
-
-        const selectedUri = await ctx.omnibox.prompt(
-          'Choose a track...',
-          sortedOptions,
-        );
-        if (selectedUri === undefined) return; // Prompt cancelled.
-        ctx.selection.selectTrack(selectedUri, {scrollToSelection: true});
+        const options = ctx.workspace.flatTracks
+          .map((node) => {
+            return exists(node.uri)
+              ? {key: node.uri, displayName: node.fullPath.join(' \u2023 ')}
+              : undefined;
+          })
+          .filter((pair) => pair !== undefined);
+        const uri = await ctx.omnibox.prompt('Choose a track...', options);
+        uri && ctx.selection.selectTrack(uri, {scrollToSelection: true});
       },
     });
 
     ctx.commands.registerCommand({
-      // Selects & reveals the first track on the timeline with a given URI.
       id: 'perfetto.FindTrackByUri',
       name: 'Find track by URI',
       callback: async () => {
-        const tracks = ctx.workspace.flatTracks;
-        const options = tracks
+        const options = ctx.workspace.flatTracks
           .map((track) => track.uri)
           .filter((uri) => uri !== undefined)
           .map((uri) => {
             return {key: uri, displayName: uri};
           });
 
-        // Sort tracks in a natural sort order
-        const collator = new Intl.Collator('en', {
-          numeric: true,
-          sensitivity: 'base',
-        });
-        const sortedOptions = options.sort((a, b) => {
-          return collator.compare(a.displayName, b.displayName);
-        });
+        const uri = await ctx.omnibox.prompt('Choose a track...', options);
+        uri && ctx.selection.selectTrack(uri, {scrollToSelection: true});
+      },
+    });
 
-        const selectedUri = await ctx.omnibox.prompt(
-          'Choose a track...',
-          sortedOptions,
-        );
-        if (selectedUri === undefined) return; // Prompt cancelled.
-        ctx.selection.selectTrack(selectedUri, {scrollToSelection: true});
+    ctx.commands.registerCommand({
+      id: 'perfetto.PinTrackByName',
+      name: 'Pin track by name',
+      callback: async () => {
+        const options = ctx.workspace.flatTracks
+          .map((node) => {
+            return exists(node.uri)
+              ? {key: node.id, displayName: node.fullPath.join(' \u2023 ')}
+              : undefined;
+          })
+          .filter((option) => option !== undefined);
+        const id = await ctx.omnibox.prompt('Choose a track...', options);
+        id && ctx.workspace.getTrackById(id)?.pin();
       },
     });
   }
