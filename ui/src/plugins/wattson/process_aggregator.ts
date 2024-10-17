@@ -14,10 +14,9 @@
 
 import {exists} from '../../base/utils';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
+import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {AreaSelectionAggregator} from '../../public/selection';
+import {Engine} from '../../trace_processor/engine';
 
 export class WattsonProcessSelectionAggregator
   implements AreaSelectionAggregator
@@ -54,8 +53,8 @@ export class WattsonProcessSelectionAggregator
       -- Grouped by UPID and made CPU agnostic
       CREATE VIEW ${this.id} AS
       SELECT
-        ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
-        ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
+        ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
+        ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
         COALESCE(idle_cost_mws, 0) as idle_cost_mws,
         pid,
         process_name
@@ -82,17 +81,17 @@ export class WattsonProcessSelectionAggregator
         columnId: 'pid',
       },
       {
-        title: 'Average power (estimated mW)',
+        title: 'Active power (estimated mW)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'avg_mw',
+        columnId: 'active_mw',
         sum: true,
       },
       {
-        title: 'Total energy (estimated mWs)',
+        title: 'Active energy (estimated mWs)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'total_mws',
+        columnId: 'active_mws',
         sum: true,
       },
       {
@@ -112,6 +111,6 @@ export class WattsonProcessSelectionAggregator
   }
 
   getDefaultSorting(): Sorting {
-    return {column: 'total_mws', direction: 'DESC'};
+    return {column: 'active_mws', direction: 'DESC'};
   }
 }
