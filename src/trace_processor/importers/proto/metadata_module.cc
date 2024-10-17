@@ -104,8 +104,8 @@ void MetadataModule::ParseTracePacketData(
 void MetadataModule::ParseTrigger(int64_t ts, ConstBytes blob) {
   protos::pbzero::Trigger::Decoder trigger(blob.data, blob.size);
   StringId cat_id = kNullStringId;
-  TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      TrackTracker::TrackClassification::kTrigger);
+  TrackId track_id =
+      context_->track_tracker->InternGlobalTrack(TrackClassification::kTrigger);
   StringId name_id = context_->storage->InternString(trigger.trigger_name());
   context_->slice_tracker->Scoped(
       ts, track_id, cat_id, name_id,
@@ -127,8 +127,8 @@ void MetadataModule::ParseTrigger(int64_t ts, ConstBytes blob) {
 void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   protos::pbzero::ChromeTrigger::Decoder trigger(blob.data, blob.size);
   StringId cat_id = kNullStringId;
-  TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      TrackTracker::TrackClassification::kTrigger);
+  TrackId track_id =
+      context_->track_tracker->InternGlobalTrack(TrackClassification::kTrigger);
   StringId name_id;
   if (trigger.has_trigger_name()) {
     name_id = context_->storage->InternString(trigger.trigger_name());

@@ -252,7 +252,7 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 
 TEST_F(ExportJsonTest, SystemEventsIgnored) {
   TrackId track = context_.track_tracker->InternProcessTrack(
-      TrackTracker::TrackClassification::kUnknown, 0);
+      TrackClassification::kUnknown, 0);
   context_.args_tracker->Flush();  // Flush track args.
 
   // System events have no category.
@@ -769,7 +769,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global legacy track.
   TrackId track = context_.track_tracker->InternGlobalTrack(
-      TrackTracker::TrackClassification::kChromeLegacyGlobalInstant);
+      TrackClassification::kChromeLegacyGlobalInstant);
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));

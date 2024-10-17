@@ -188,9 +188,9 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
           context_->track_tracker->CreateDimensionsBuilder();
       builder.AppendName(set.global_track_name);
 
-      return context_->track_tracker->CreateTrack(
-          TrackTracker::TrackClassification::kAsync, std::move(builder).Build(),
-          set.global_track_name);
+      return context_->track_tracker->CreateTrack(TrackClassification::kAsync,
+                                                  std::move(builder).Build(),
+                                                  set.global_track_name);
     }
     case TrackSetScope::kProcess:
       // TODO(lalitm): propogate source from callers rather than just passing
@@ -210,8 +210,7 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
       TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
 
       TrackId id = context_->track_tracker->CreateProcessTrack(
-          TrackTracker::TrackClassification::kAsync, set.process_tuple.upid,
-          dims_id, name);
+          TrackClassification::kAsync, set.process_tuple.upid, dims_id, name);
 
       if (!source.is_null()) {
         context_->args_tracker->AddArgsTo(id).AddArg(source,
