@@ -25,6 +25,8 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
+#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
+#include "src/base/test/tmp_dir_tree.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -42,6 +44,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
+#include "protos/perfetto/trace/ftrace/generic.gen.h"
 #include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
@@ -1223,6 +1226,82 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseCompactSchedSwitchAndWaking) {
   auto comm_intern_idx = compact_sched.waking_comm_index()[0];
   std::string comm = compact_sched.intern_table()[comm_intern_idx];
   EXPECT_EQ("kworker/u16:17", comm);
+}
+
+TEST_F(CpuReaderParsePagePayloadTest, ParseKprobeAndKretprobe) {
+  char kprobe_fuse_file_write_iter_page[] =
+      R"(
+    00000000: b31b bfe2 a513 0000 1400 0000 0000 0000  ................
+    00000010: 0400 0000 ff05 48ff 8a33 0000 443d 0e91  ......H..3..D=..
+    00000020: ffff ffff 0000 0000 0000 0000 0000 0000  ................
+    )";
+
+  std::unique_ptr<uint8_t[]> page =
+      PageFromXxd(kprobe_fuse_file_write_iter_page);
+
+  base::TmpDirTree ftrace;
+  ftrace.AddFile("available_events", "perfetto_kprobes:fuse_file_write_iter\n");
+  ftrace.AddDir("events");
+  ftrace.AddFile(
+      "events/header_page",
+      R"(        field: u64 timestamp;   offset:0;       size:8; signed:0;
+        field: local_t commit;  offset:8;       size:8; signed:1;
+        field: int overwrite;   offset:8;       size:1; signed:1;
+        field: char data;       offset:16;      size:4080;      signed:1;
+)");
+  ftrace.AddDir("events/perfetto_kprobes");
+  ftrace.AddDir("events/perfetto_kprobes/fuse_file_write_iter");
+  ftrace.AddFile("events/perfetto_kprobes/fuse_file_write_iter/format",
+                 R"format(name: fuse_file_write_iter
+ID: 1535
+format:
+        field:unsigned short common_type;       offset:0;       size:2; signed:0;
+        field:unsigned char common_flags;       offset:2;       size:1; signed:0;
+        field:unsigned char common_preempt_count;       offset:3;       size:1; signed:0;
+        field:int common_pid;   offset:4;       size:4; signed:1;
+
+        field:unsigned long __probe_ip; offset:8;       size:8; signed:0;
+
+print fmt: "(%lx)", REC->__probe_ip
+)format");
+  ftrace.AddFile("trace", "");
+
+  std::unique_ptr<FtraceProcfs> ftrace_procfs =
+      FtraceProcfs::Create(ftrace.path() + "/");
+  ASSERT_NE(ftrace_procfs.get(), nullptr);
+  std::unique_ptr<ProtoTranslationTable> table = ProtoTranslationTable::Create(
+      ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  table->GetOrCreateKprobeEvent(
+      GroupAndName("perfetto_kprobes", "fuse_file_write_iter"));
+
+  auto ftrace_evt_id = static_cast<uint32_t>(table->EventToFtraceId(
+      GroupAndName("perfetto_kprobes", "fuse_file_write_iter")));
+  FtraceDataSourceConfig ds_config = EmptyConfig();
+  ds_config.event_filter.AddEnabledEvent(ftrace_evt_id);
+  ds_config.kprobes[ftrace_evt_id] =
+      protos::pbzero::KprobeEvent::KprobeType::KPROBE_TYPE_INSTANT;
+
+  const uint8_t* parse_pos = page.get();
+  std::optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_LE(parse_pos + page_header->size, page_end);
+
+  FtraceParseStatus status = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table.get(), &ds_config,
+      CreateBundler(ds_config), &metadata_, &last_read_event_ts_);
+
+  EXPECT_EQ(status, FtraceParseStatus::FTRACE_STATUS_OK);
+
+  // Write the buffer out & check the serialized format:
+  auto bundle = GetBundle();
+  ASSERT_EQ(bundle.event_size(), 1);
+  EXPECT_EQ(bundle.event()[0].kprobe_event().name(), "fuse_file_write_iter");
+  EXPECT_EQ(bundle.event()[0].kprobe_event().type(),
+            protos::gen::KprobeEvent::KPROBE_TYPE_INSTANT);
 }
 
 TEST_F(CpuReaderTableTest, ParseAllFields) {

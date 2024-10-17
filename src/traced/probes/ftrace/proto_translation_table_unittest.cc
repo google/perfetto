@@ -29,8 +29,10 @@ using testing::_;
 using testing::AllOf;
 using testing::AnyNumber;
 using testing::Contains;
+using testing::ElementsAre;
 using testing::Eq;
 using testing::IsNull;
+using testing::NiceMock;
 using testing::Pointee;
 using testing::Return;
 using testing::StrEq;
@@ -598,6 +600,71 @@ TEST(TranslationTableTest, FuncgraphEvents) {
                   testing::Field(&Field::ftrace_type, kFtraceSymAddr64),
                   testing::Field(&Field::strategy, kFtraceSymAddr64ToUint64))));
   }
+}
+
+TEST(TranslationTableTest, CreateRemoveKprobeEvent) {
+  NiceMock<MockFtraceProcfs> ftrace;
+  ON_CALL(ftrace, ReadEventFormat(_, _)).WillByDefault(Return(""));
+  ON_CALL(ftrace, ReadPageHeaderFormat())
+      .WillByDefault(Return(
+          R"(	field: u64 timestamp;	offset:0;	size:8;	signed:0;
+	field: local_t commit;	offset:8;	size:4;	signed:1;
+	field: int overwrite;	offset:8;	size:1;	signed:1;
+	field: char data;	offset:16;	size:4080;	signed:0;)"));
+  auto table = ProtoTranslationTable::Create(&ftrace, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
+  PERFETTO_CHECK(table);
+
+  EXPECT_CALL(ftrace,
+              ReadEventFormat("perfetto_kprobe", "fuse_file_write_iter"))
+      .WillOnce(Return(R"format(name: fuse_file_write_iter
+ID: 1535
+format:
+        field:unsigned short common_type;       offset:0;       size:2; signed:0;
+        field:unsigned char common_flags;       offset:2;       size:1; signed:0;
+        field:unsigned char common_preempt_count;       offset:3;       size:1; signed:0;
+        field:int common_pid;   offset:4;       size:4; signed:1;
+
+        field:unsigned long __probe_ip; offset:8;       size:8; signed:0;
+
+print fmt: "(%lx)", REC->__probe_ip
+)format"));
+  const Event* event = table->GetOrCreateKprobeEvent(
+      {"perfetto_kprobe", "fuse_file_write_iter"});
+  ASSERT_NE(event, nullptr);
+  EXPECT_EQ(event->ftrace_event_id, 1535u);
+  EXPECT_EQ(table->GetEventByName("fuse_file_write_iter"), event);
+  EXPECT_THAT(table->GetEventsByGroup("perfetto_kprobe"),
+              Pointee(ElementsAre(event)));
+  EXPECT_EQ(table->GetEventById(1535), event);
+
+  table->RemoveEvent({"perfetto_kprobe", "fuse_file_write_iter"});
+  EXPECT_EQ(table->GetEventByName("fuse_file_write_iter"), nullptr);
+  EXPECT_EQ(table->GetEventsByGroup("perfetto_kprobe"), nullptr);
+  EXPECT_EQ(table->GetEventById(1535), nullptr);
+
+  EXPECT_CALL(ftrace,
+              ReadEventFormat("perfetto_kprobe", "fuse_file_write_iter"))
+      .WillOnce(Return(R"format(name: fuse_file_write_iter
+ID: 1536
+format:
+        field:unsigned short common_type;       offset:0;       size:2; signed:0;
+        field:unsigned char common_flags;       offset:2;       size:1; signed:0;
+        field:unsigned char common_preempt_count;       offset:3;       size:1; signed:0;
+        field:int common_pid;   offset:4;       size:4; signed:1;
+
+        field:unsigned long __probe_ip; offset:8;       size:8; signed:0;
+
+print fmt: "(%lx)", REC->__probe_ip
+)format"));
+  event = table->GetOrCreateKprobeEvent(
+      {"perfetto_kprobe", "fuse_file_write_iter"});
+  ASSERT_NE(event, nullptr);
+  EXPECT_EQ(event->ftrace_event_id, 1536u);
+  EXPECT_EQ(table->GetEventByName("fuse_file_write_iter"), event);
+  EXPECT_THAT(table->GetEventsByGroup("perfetto_kprobe"),
+              Pointee(ElementsAre(event)));
+  EXPECT_EQ(table->GetEventById(1536), event);
 }
 
 }  // namespace

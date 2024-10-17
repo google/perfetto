@@ -69,6 +69,7 @@ from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.cros.tests import Cros
 from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
+from diff_tests.parser.ftrace.kprobes_tests import Kprobes
 from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.gecko.tests import GeckoParser
 from diff_tests.parser.graphics.tests import GraphicsParser
@@ -236,6 +237,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ParsingMemoryCounters(index_path, 'parser/parsing',
                              'ParsingMemoryCounters').fetch(),
       *FtraceCrop(index_path, 'parser/ftrace', 'FtraceCrop').fetch(),
+      *Kprobes(index_path, 'parser/ftrace', 'Kprobes').fetch(),
       *ParsingTracedStats(index_path, 'parser/parsing',
                           'ParsingTracedStats').fetch(),
       *Zip(index_path, 'parser/zip', 'Zip').fetch(),
