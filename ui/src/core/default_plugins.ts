@@ -56,6 +56,7 @@ export const defaultPlugins = [
   'perfetto.Flows',
   'perfetto.Frames',
   'perfetto.FtraceRaw',
+  'perfetto.GlobalGroups',
   'perfetto.HeapProfile',
   'perfetto.PerfSamplesProfile',
   'perfetto.PivotTable',
