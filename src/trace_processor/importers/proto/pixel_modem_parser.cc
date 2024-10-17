@@ -64,6 +64,7 @@ PixelModemParser::PixelModemParser(TraceProcessorContext* context)
       detokenizer_(pigweed::CreateNullDetokenizer()),
       template_id_(context->storage->InternString("raw_template")),
       token_id_(context->storage->InternString("token_id")),
+      token_id_hex_(context->storage->InternString("token_id_hex")),
       packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
 
 PixelModemParser::~PixelModemParser() = default;
@@ -103,13 +104,17 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
         inserter->AddArg(template_id_,
                          Variadic::String(context_->storage->InternString(
                              detokenized_str.template_str().c_str())));
-        inserter->AddArg(token_id_, Variadic::Integer(detokenized_str.token()));
+        uint32_t token = detokenized_str.token();
+        inserter->AddArg(token_id_, Variadic::Integer(token));
+        inserter->AddArg(token_id_hex_,
+                         Variadic::String(context_->storage->InternString(
+                             base::IntToHexString(token).c_str())));
         inserter->AddArg(packet_timestamp_id_,
                          Variadic::UnsignedInteger(trace_packet_ts));
         auto pw_args = detokenized_str.args();
         for (size_t i = 0; i < pw_args.size(); i++) {
           StringId arg_name = context_->storage->InternString(
-              ("pw_token_" + std::to_string(detokenized_str.token()) + ".arg_" +
+              ("pw_token_" + std::to_string(token) + ".arg_" +
                std::to_string(i))
                   .c_str());
           auto arg = pw_args[i];
