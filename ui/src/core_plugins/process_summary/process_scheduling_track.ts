@@ -16,14 +16,12 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {Color} from '../../public/color';
 import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {globals} from '../../frontend/globals';
 import {Track} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
@@ -231,9 +229,9 @@ export class ProcessSchedulingTrack implements Track {
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
-      const isHovering = globals.state.hoveredUtid !== -1;
-      const isThreadHovered = globals.state.hoveredUtid === utid;
-      const isProcessHovered = globals.state.hoveredPid === pid;
+      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
+      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
+      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
       const colorScheme = colorForThread(threadInfo);
       let color: Color;
       if (isHovering && !isThreadHovered) {
@@ -269,7 +267,8 @@ export class ProcessSchedulingTrack implements Track {
     if (data === undefined) return;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
-      globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
+      this.trace.timeline.hoveredUtid = undefined;
+      this.trace.timeline.hoveredPid = undefined;
       return;
     }
 
@@ -280,7 +279,8 @@ export class ProcessSchedulingTrack implements Track {
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {
       this.utidHoveredInThisTrack = -1;
-      globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
+      this.trace.timeline.hoveredUtid = undefined;
+      this.trace.timeline.hoveredPid = undefined;
       return;
     }
 
@@ -289,12 +289,14 @@ export class ProcessSchedulingTrack implements Track {
     const threadInfo = this.trace.threads.get(utid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
-    globals.dispatch(Actions.setHoveredUtidAndPid({utid, pid}));
+    this.trace.timeline.hoveredUtid = utid;
+    this.trace.timeline.hoveredPid = pid;
   }
 
   onMouseOut() {
     this.utidHoveredInThisTrack = -1;
-    globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
+    this.trace.timeline.hoveredUtid = undefined;
+    this.trace.timeline.hoveredPid = undefined;
     this.mousePos = undefined;
   }
 }

@@ -36,6 +36,50 @@ const MIN_DURATION = 10;
 export class TimelineImpl implements Timeline {
   private _visibleWindow: HighPrecisionTimeSpan;
   private _hoverCursorTimestamp?: time;
+  private _highlightedSliceId?: number;
+  private _hoveredNoteTimestamp?: time;
+
+  // TODO(stevegolton): These are currently only referenced by the cpu slice
+  // tracks and the process summary tracks. We should just make this a local
+  // property of the cpu slice tracks and ignore them in the process tracks.
+  private _hoveredUtid?: number;
+  private _hoveredPid?: number;
+
+  get highlightedSliceId() {
+    return this._highlightedSliceId;
+  }
+
+  set highlightedSliceId(x) {
+    this._highlightedSliceId = x;
+    raf.scheduleFullRedraw();
+  }
+
+  get hoveredNoteTimestamp() {
+    return this._hoveredNoteTimestamp;
+  }
+
+  set hoveredNoteTimestamp(x) {
+    this._hoveredNoteTimestamp = x;
+    raf.scheduleFullRedraw();
+  }
+
+  get hoveredUtid() {
+    return this._hoveredUtid;
+  }
+
+  set hoveredUtid(x) {
+    this._hoveredUtid = x;
+    raf.scheduleFullRedraw();
+  }
+
+  get hoveredPid() {
+    return this._hoveredPid;
+  }
+
+  set hoveredPid(x) {
+    this._hoveredPid = x;
+    raf.scheduleFullRedraw();
+  }
 
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
