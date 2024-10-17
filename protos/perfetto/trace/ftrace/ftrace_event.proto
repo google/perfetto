@@ -680,5 +680,6 @@ message FtraceEvent {
     PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
     SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
     DevfreqFrequencyFtraceEvent devfreq_frequency = 541;
+    KprobeEvent kprobe_event = 542;
   }
 }
