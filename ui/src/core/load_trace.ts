@@ -37,7 +37,6 @@ import {
   TraceHttpStream,
   TraceStream,
 } from '../core/trace_stream';
-import {decideTracks} from './track_decider';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
@@ -237,9 +236,6 @@ async function loadTraceIntoEngine(
   await app.plugins.onTraceLoad(trace, (id) => {
     updateStatus(app, `Running plugin: ${id}`);
   });
-
-  updateStatus(app, 'Loading tracks');
-  await decideTracks(trace);
 
   decideTabs(trace);
 
