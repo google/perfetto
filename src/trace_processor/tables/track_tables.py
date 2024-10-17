@@ -38,8 +38,8 @@ TRACK_TABLE = Table(
         C("parent_id", CppOptional(CppSelfTableId())),
         C("source_arg_set_id", CppOptional(CppUint32())),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
-        C("classification", CppString(), flags=ColumnFlag.HIDDEN),
-        C("dimensions", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
+        C("classification", CppString()),
+        C("dimension_arg_set_id", CppOptional(CppUint32())),
     ],
     wrapping_sql_view=WrappingSqlView('track'),
     tabledoc=TableDoc(
@@ -61,14 +61,6 @@ TRACK_TABLE = Table(
                   The track which is the "parent" of this track. Only non-null
                   for tracks created using Perfetto's track_event API.
                 ''',
-            'source_arg_set_id':
-                ColumnDoc(
-                    doc='''
-                      Args for this track which store information about "source"
-                      of this track in the trace. For example: whether this
-                      track orginated from atrace, Chrome tracepoints etc.
-                    ''',
-                    joinable='args.arg_set_id'),
             'machine_id':
                 '''
                   Machine identifier, non-null for tracks on a remote machine.
@@ -78,12 +70,24 @@ TRACK_TABLE = Table(
                   Classification of this track. Responsible for grouping
                   similar tracks together.
                 ''',
-            'dimensions':
+            'dimension_arg_set_id':
                 ColumnDoc(
                     doc='''
-                      Dimensions of the track classification, used to
-                      associate the track with certain properties (like CPU or
-                      thread id). Join with `args` table to recover the values.
+                      The dimensions of the track which uniquely identify the
+                      track within a given classification.
+
+                      Join with the `args` table or use the `EXTRACT_ARG` helper
+                      function to expand the args.
+                    ''',
+                    joinable='args.arg_set_id'),
+            'source_arg_set_id':
+                ColumnDoc(
+                    doc='''
+                      Generic key-value pairs containing extra information about
+                      the track.
+
+                      Join with the `args` table or use the `EXTRACT_ARG` helper
+                      function to expand the args.
                     ''',
                     joinable='args.arg_set_id'),
         }))
