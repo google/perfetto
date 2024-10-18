@@ -28,25 +28,42 @@ CREATE PERFETTO VIEW track (
   -- Name of the track; can be null for some types of tracks (e.g. thread
   -- tracks).
   name STRING,
+  -- The classification of a track indicates the "type of data" the track
+  -- contains.
+  --
+  -- Every track is uniquely identified by the the combination of the
+  -- classification and a set of dimensions: classifications allow identifying
+  -- a set of tracks with the same type of data within the whole universe of
+  -- tracks while dimensions allow distinguishing between different tracks in
+  -- that set.
+  classification STRING,
+  -- The dimensions of the track which uniquely identify the track within a
+  -- given classification.
+  --
+  -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
+  -- expand the args.
+  dimension_arg_set_id UINT,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
   parent_id UINT,
-  -- Args for this track which store information about "source" of this track
-  -- in the trace. For example: whether this track orginated from atrace,
-  -- Chrome tracepoints etc. Alias of `args.arg_set_id`.
+  -- Generic key-value pairs containing extra information about the track.
+  --
+  -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
+  -- expand the args.
   source_arg_set_id UINT,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id UINT
 ) AS
 SELECT
   id,
-  type AS type,
+  type,
   name,
+  classification,
+  dimension_arg_set_id,
   parent_id,
   source_arg_set_id,
   machine_id
-FROM
-  __intrinsic_track;
+FROM __intrinsic_track;
 
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
