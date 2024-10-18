@@ -66,62 +66,60 @@ const char* GetNameForGroup(TrackTracker::Group group) {
 // This function is added to keep backward compatibility. Don't add new names.
 inline std::optional<std::string> GetCpuTrackName(TrackClassification type,
                                                   uint32_t cpu) {
-  std::optional<std::string> track_name;
   if (type == TrackClassification::kIrqCpu)
-    track_name = base::StackString<255>("Irq Cpu %u", cpu).c_str();
-  else if (type == TrackClassification::kSoftirqCpu)
-    track_name = base::StackString<255>("SoftIrq Cpu %u", cpu).c_str();
-  else if (type == TrackClassification::kNapiGroCpu)
-    track_name = base::StackString<255>("Napi Gro Cpu %u", cpu).c_str();
-  else if (type == TrackClassification::kMaxFreqCpu)
-    track_name = base::StackString<255>("Cpu %u Max Freq Limit", cpu).c_str();
-  else if (type == TrackClassification::kMinFreqCpu)
-    track_name = base::StackString<255>("Cpu %u Min Freq Limit", cpu).c_str();
-  else if (type == TrackClassification::kFuncgraphCpu)
-    track_name = base::StackString<255>("swapper%u -funcgraph", cpu).c_str();
-  else if (type == TrackClassification::kMaliIrqCpu)
-    track_name = base::StackString<255>("Mali Irq Cpu %u", cpu).c_str();
-  else if (type == TrackClassification::kPkvmHypervisor)
-    track_name = base::StackString<255>("pkVM Hypervisor CPU %u", cpu).c_str();
-  return track_name;
+    return base::StackString<255>("Irq Cpu %u", cpu).ToStdString();
+  if (type == TrackClassification::kSoftirqCpu)
+    return base::StackString<255>("SoftIrq Cpu %u", cpu).ToStdString();
+  if (type == TrackClassification::kNapiGroCpu)
+    return base::StackString<255>("Napi Gro Cpu %u", cpu).ToStdString();
+  if (type == TrackClassification::kMaxFreqCpu)
+    return base::StackString<255>("Cpu %u Max Freq Limit", cpu).ToStdString();
+  if (type == TrackClassification::kMinFreqCpu)
+    return base::StackString<255>("Cpu %u Min Freq Limit", cpu).ToStdString();
+  if (type == TrackClassification::kFuncgraphCpu)
+    return base::StackString<255>("swapper%u -funcgraph", cpu).ToStdString();
+  if (type == TrackClassification::kMaliIrqCpu)
+    return base::StackString<255>("Mali Irq Cpu %u", cpu).ToStdString();
+  if (type == TrackClassification::kPkvmHypervisor)
+    return base::StackString<255>("pkVM Hypervisor CPU %u", cpu).ToStdString();
+  return std::nullopt;
 }
 
 // This function is added to keep backward compatibility. Don't add new names.
 inline std::optional<std::string> GetCpuCounterTrackName(
     TrackClassification type,
     uint32_t cpu) {
-  std::optional<std::string> maybe_name;
   if (type == TrackClassification::kCpuFrequency)
-    maybe_name = "cpufreq";
-  else if (type == TrackClassification::kCpuFrequencyThrottle)
-    maybe_name = "cpufreq_throttle";
-  else if (type == TrackClassification::kCpuIdle)
-    maybe_name = "cpuidle";
-  else if (type == TrackClassification::kUserTime)
-    maybe_name = "cpu.times.user_ns";
-  else if (type == TrackClassification::kNiceUserTime)
-    maybe_name = "cpu.times.user_nice_ns";
-  else if (type == TrackClassification::kSystemModeTime)
-    maybe_name = "cpu.times.system_mode_ns";
-  else if (type == TrackClassification::kCpuIdleTime)
-    maybe_name = "cpu.times.idle_ns";
-  else if (type == TrackClassification::kIoWaitTime)
-    maybe_name = "cpu.times.io_wait_ns";
-  else if (type == TrackClassification::kIrqTime)
-    maybe_name = "cpu.times.irq_ns";
-  else if (type == TrackClassification::kSoftIrqTime)
-    maybe_name = "cpu.times.softirq_ns";
-  else if (type == TrackClassification::kCpuUtilization)
-    maybe_name = base::StackString<255>("Cpu %u Util", cpu).c_str();
-  else if (type == TrackClassification::kCpuCapacity)
-    maybe_name = base::StackString<255>("Cpu %u Cap", cpu).c_str();
-  else if (type == TrackClassification::kCpuNumberRunning)
-    maybe_name = base::StackString<255>("Cpu %u Nr Running", cpu).c_str();
-  else if (type == TrackClassification::kCpuMaxFrequencyLimit)
-    maybe_name = base::StackString<255>("Cpu %u Max Freq Limit", cpu).c_str();
-  else if (type == TrackClassification::kCpuMinFrequencyLimit)
-    maybe_name = base::StackString<255>("Cpu %u Min Freq Limit", cpu).c_str();
-  return maybe_name;
+    return "cpufreq";
+  if (type == TrackClassification::kCpuFrequencyThrottle)
+    return "cpufreq_throttle";
+  if (type == TrackClassification::kCpuIdle)
+    return "cpuidle";
+  if (type == TrackClassification::kUserTime)
+    return "cpu.times.user_ns";
+  if (type == TrackClassification::kNiceUserTime)
+    return "cpu.times.user_nice_ns";
+  if (type == TrackClassification::kSystemModeTime)
+    return "cpu.times.system_mode_ns";
+  if (type == TrackClassification::kCpuIdleTime)
+    return "cpu.times.idle_ns";
+  if (type == TrackClassification::kIoWaitTime)
+    return "cpu.times.io_wait_ns";
+  if (type == TrackClassification::kIrqTime)
+    return "cpu.times.irq_ns";
+  if (type == TrackClassification::kSoftIrqTime)
+    return "cpu.times.softirq_ns";
+  if (type == TrackClassification::kCpuUtilization)
+    return base::StackString<255>("Cpu %u Util", cpu).ToStdString();
+  if (type == TrackClassification::kCpuCapacity)
+    return base::StackString<255>("Cpu %u Cap", cpu).ToStdString();
+  if (type == TrackClassification::kCpuNumberRunning)
+    return base::StackString<255>("Cpu %u Nr Running", cpu).ToStdString();
+  if (type == TrackClassification::kCpuMaxFrequencyLimit)
+    return base::StackString<255>("Cpu %u Max Freq Limit", cpu).ToStdString();
+  if (type == TrackClassification::kCpuMinFrequencyLimit)
+    return base::StackString<255>("Cpu %u Min Freq Limit", cpu).ToStdString();
+  return std::nullopt;
 }
 
 }  // namespace
