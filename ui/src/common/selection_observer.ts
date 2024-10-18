@@ -26,7 +26,18 @@ export function onSelectionChanged(
   }
 }
 
+// Add a selection-changed observer.
+// Returns a function that removes the observer.
 export function addSelectionChangeObserver(observer: SelectionChangedObserver):
-    void {
+    () => void {
   selectionObservers.push(observer);
+  return () => removeSelectionChangeObserver(observer);
+}
+
+function removeSelectionChangeObserver(observer: SelectionChangedObserver):
+    void {
+  const index = selectionObservers.indexOf(observer);
+  if (index >= 0) {
+    selectionObservers.splice(index, 1);
+  }
 }
