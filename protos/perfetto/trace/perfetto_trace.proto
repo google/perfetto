@@ -3959,11 +3959,8 @@ message TraceConfig {
   }
   optional IncrementalStateConfig incremental_state_config = 21;
 
-  // Additional guardrail used by the Perfetto command line client.
-  // On user builds when --dropbox is set perfetto will refuse to trace unless
-  // this is also set.
-  // Added in Q.
-  optional bool allow_user_build_tracing = 19;
+  // No longer needed as we unconditionally allow tracing on user builds.
+  optional bool allow_user_build_tracing = 19 [deprecated = true];
 
   // If set the tracing service will ensure there is at most one tracing session
   // with this key.

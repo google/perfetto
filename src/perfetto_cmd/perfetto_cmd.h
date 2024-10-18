@@ -42,8 +42,6 @@
 
 namespace perfetto {
 
-class RateLimiter;
-
 // Directory for local state and temporary files. This is automatically
 // created by the system by setting setprop persist.traced.enable=1.
 extern const char* kStateDir;
@@ -145,7 +143,6 @@ class PerfettoCmd : public Consumer {
 
   base::UnixTaskRunner task_runner_;
 
-  std::unique_ptr<RateLimiter> limiter_;
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
