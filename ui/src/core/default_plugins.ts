@@ -39,7 +39,7 @@ export const defaultPlugins = [
   'dev.perfetto.RestorePinnedTrack',
   'dev.perfetto.TimelineSync',
   'dev.perfetto.TraceMetadata',
-  'org.kernel.LinuxKernelDevices',
+  'org.kernel.LinuxKernelSubsystems',
   'org.kernel.SuspendResumeLatency',
   'perfetto.AndroidLog',
   'perfetto.Annotation',
