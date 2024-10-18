@@ -11216,7 +11216,6 @@ filegroup {
         "src/perfetto_cmd/packet_writer.cc",
         "src/perfetto_cmd/perfetto_cmd.cc",
         "src/perfetto_cmd/perfetto_cmd_android.cc",
-        "src/perfetto_cmd/rate_limiter.cc",
     ],
 }
 
@@ -11287,7 +11286,6 @@ filegroup {
         "src/perfetto_cmd/config_unittest.cc",
         "src/perfetto_cmd/packet_writer_unittest.cc",
         "src/perfetto_cmd/pbtxt_to_pb_unittest.cc",
-        "src/perfetto_cmd/rate_limiter_unittest.cc",
     ],
 }
 

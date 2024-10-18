@@ -551,7 +551,6 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(NoDataNoFileWithoutTrigger)) {
   constexpr size_t kMessageSize = 32;
   protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
-  trace_config.set_allow_user_build_tracing(true);
   auto* incident_config = trace_config.mutable_incident_report_config();
   incident_config->set_destination_package("foo.bar.baz");
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
