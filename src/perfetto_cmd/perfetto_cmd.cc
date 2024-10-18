@@ -78,7 +78,6 @@
 #include "src/perfetto_cmd/config.h"
 #include "src/perfetto_cmd/packet_writer.h"
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
-#include "src/perfetto_cmd/rate_limiter.h"
 #include "src/perfetto_cmd/trigger_producer.h"
 
 #include "protos/perfetto/common/ftrace_descriptor.gen.h"
@@ -157,30 +156,6 @@ bool ParseTraceConfigPbtxt(const std::string& file_name,
   if (!config->ParseFromArray(buf.data(), buf.size()))
     return false;
   return true;
-}
-
-bool IsUserBuild() {
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  std::string build_type = base::GetAndroidProp("ro.build.type");
-  if (build_type.empty()) {
-    PERFETTO_ELOG("Unable to read ro.build.type: assuming user build");
-    return true;
-  }
-  return build_type == "user";
-#else
-  return false;
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-}
-
-std::optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
-    RateLimiter::ShouldTraceResponse resp) {
-  switch (resp) {
-    case RateLimiter::kNotAllowedOnUserBuild:
-      return PerfettoStatsdAtom::kCmdUserBuildTracingNotAllowed;
-    case RateLimiter::kOkToTrace:
-      return std::nullopt;
-  }
-  PERFETTO_FATAL("For GCC");
 }
 
 void ArgsAppend(std::string* str, const std::string& arg) {
@@ -334,7 +309,6 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   std::string trace_config_raw;
   bool parse_as_pbtxt = false;
   TraceConfig::StatsdMetadata statsd_metadata;
-  limiter_.reset(new RateLimiter());
 
   ConfigOptions config_options;
   bool has_config_options = false;
@@ -976,11 +950,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
     return 1;  // We can legitimately get here if the service disconnects.
   }
 
-  RateLimiter::Args args{};
-  args.is_user_build = IsUserBuild();
-  args.is_uploading = save_to_incidentd_ || report_to_android_framework_;
-  args.allow_user_build_tracing = trace_config_->allow_user_build_tracing();
-
   if (!trace_config_->unique_session_name().empty())
     base::MaybeSetThreadName("p-" + trace_config_->unique_session_name());
 
@@ -1015,12 +984,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
     LogUploadEvent(PerfettoStatsdAtom::kTraceBegin);
   } else {
     LogUploadEvent(PerfettoStatsdAtom::kBackgroundTraceBegin);
-  }
-
-  auto err_atom = ConvertRateLimiterResponseToAtom(limiter_->ShouldTrace(args));
-  if (err_atom) {
-    LogUploadEvent(err_atom.value());
-    return 1;
   }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -1125,7 +1088,7 @@ void PerfettoCmd::OnConnect() {
   // Failsafe mechanism to avoid waiting indefinitely if the service hangs.
   // Note: when using prefer_suspend_clock_for_duration the actual duration
   // might be < expected_duration_ms_ measured in in wall time. But this is fine
-  // because the resulting timeout will be conservative (it will be accurate
+  // because the resulting timeout will be conservative (it will be accut
   // if the device never suspends, and will be more lax if it does).
   if (expected_duration_ms_) {
     uint32_t trace_timeout = expected_duration_ms_ + 60000 +
