@@ -90,17 +90,10 @@ class TrackTracker {
     // Append custom dimension. Only use if none of the other Append functions
     // are suitable.
     void AppendDimension(StringId key, Variadic val) {
-      GlobalArgsTracker::Arg arg;
+      GlobalArgsTracker::CompactArg& arg = args_[count_args++];
       arg.flat_key = key;
       arg.key = key;
       arg.value = val;
-
-      // Those will not be used.
-      arg.row = std::numeric_limits<uint32_t>::max();
-      arg.column = nullptr;
-
-      args_[count_args] = std::move(arg);
-      count_args++;
     }
 
     // Build to fetch the `Dimensions` value of the Appended dimensions. Pushes
@@ -113,7 +106,7 @@ class TrackTracker {
 
    private:
     TrackTracker* tt_;
-    std::array<GlobalArgsTracker::Arg, 64> args_;
+    std::array<GlobalArgsTracker::CompactArg, 64> args_;
     uint32_t count_args = 0;
   };
 
@@ -318,18 +311,9 @@ class TrackTracker {
       static_cast<uint32_t>(Group::kSizeSentinel);
 
   Dimensions SingleDimension(StringId key, Variadic val) {
-    GlobalArgsTracker::Arg arg;
-    arg.flat_key = key;
-    arg.key = key;
-    arg.value = val;
-
-    // Those will not be used.
-    arg.row = std::numeric_limits<uint32_t>::max();
-    arg.column = nullptr;
-
-    std::vector<GlobalArgsTracker::Arg> args{arg};
-
-    return Dimensions{context_->global_args_tracker->AddArgSet(args, 0, 1)};
+    std::array args{GlobalArgsTracker::CompactArg{key, key, val}};
+    return Dimensions{
+        context_->global_args_tracker->AddArgSet(args.data(), 0, 1)};
   }
 
   TrackId CreateTrack(TrackClassification,
