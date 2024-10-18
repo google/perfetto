@@ -371,9 +371,10 @@ class TrackEventParser::EventImporter {
           track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_,
                                                    packet_sequence_id_);
       if (!opt_track_id) {
-        track_event_tracker_->ReserveDescriptorChildTrack(track_uuid_,
-                                                          /*parent_uuid=*/0,
-                                                          name_id_);
+        TrackEventTracker::DescriptorTrackReservation r;
+        r.parent_uuid = 0;
+        r.name = name_id_;
+        track_event_tracker_->ReserveDescriptorTrack(track_uuid_, r);
         opt_track_id = track_event_tracker_->GetDescriptorTrack(
             track_uuid_, name_id_, packet_sequence_id_);
       }
