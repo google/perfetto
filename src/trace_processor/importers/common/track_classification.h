@@ -51,8 +51,8 @@ enum class TrackClassification : size_t {
   // Gpu tracks.
   kGpuFrequency,
 
-  // Linux device tracks.
-  kLinuxDevice,
+  // Linux tracks.
+  kLinuxRuntimePowerManagement,
   kLinuxDeviceFrequency,
 
   // Cpu tracks.
@@ -110,8 +110,8 @@ static inline const char* TrackClassificationToString(
       return "process";
     case TrackClassification::kChromeProcessInstant:
       return "chrome_process_instant";
-    case TrackClassification::kLinuxDevice:
-      return "linux_device";
+    case TrackClassification::kLinuxRuntimePowerManagement:
+      return "linux_rpm";
     case TrackClassification::kLinuxDeviceFrequency:
       return "linux_device_frequency";
     case TrackClassification::kAsync:

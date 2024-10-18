@@ -2,7 +2,9 @@ Unreleased:
   Tracing service and probes:
     *
   SQL Standard library:
-    *
+    * Removed the `linux_device_track` table.  Runtime power management tracks
+      in this table now can be found in the `track` table with `classification`
+      `linux_rpm`.
   Trace Processor:
     *
   UI:

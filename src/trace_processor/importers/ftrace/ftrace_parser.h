@@ -33,11 +33,12 @@
 #include "src/trace_processor/importers/ftrace/gpu_work_period_tracker.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/pixel_mm_kswapd_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/thermal_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
-#include "src/trace_processor/importers/ftrace/pixel_mm_kswapd_event_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -332,6 +333,7 @@ class FtraceParser {
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
   const StringId ucpu_id_;
+  const StringId linux_device_name_id_;
   const StringId suspend_resume_name_id_;
   const StringId suspend_resume_minimal_name_id_;
   const StringId suspend_resume_minimal_slice_name_id_;
@@ -499,7 +501,7 @@ class FtraceParser {
 
   // Tracks Linux devices with active runtime power management (RPM) status
   // slices.
-  std::unordered_set<std::string> devices_with_active_rpm_slice_;
+  std::unordered_set<StringId> devices_with_active_rpm_slice_;
 
   // Tracks unique identifiers ("cookies") to create separate async tracks for
   // the Suspend/Resume UI track. The separation prevents unnestable slices from
