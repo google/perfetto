@@ -23,34 +23,67 @@ import {TrackNode} from '../../public/workspace';
 class AndroidStartup implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
-    await e.query(`include perfetto module android.startup.startups;`);
+    await e.query(`
+          include perfetto module android.startup.startups;
+          include perfetto module android.startup.startup_breakdowns;
+         `);
 
     const cnt = await e.query('select count() cnt from android_startups');
     if (cnt.firstRow({cnt: LONG}).cnt === 0n) {
       return;
     }
 
-    const config: SimpleSliceTrackConfig = {
-      data: {
-        sqlSource: `
+    const trackSource = `
           SELECT l.ts AS ts, l.dur AS dur, l.package AS name
           FROM android_startups l
-        `,
+    `;
+    const trackBreakdownSource = `
+        SELECT
+          ts,
+          dur,
+          reason AS name
+          FROM android_startup_opinionated_breakdown
+    `;
+
+    const trackNode = this.loadStartupTrack(
+      ctx,
+      trackSource,
+      `/android_startups`,
+      'Android App Startups',
+    );
+    const trackBreakdownNode = this.loadStartupTrack(
+      ctx,
+      trackBreakdownSource,
+      `/android_startups_breakdown`,
+      'Android App Startups Breakdown',
+    );
+
+    ctx.workspace.addChildInOrder(trackNode);
+    trackNode.addChildLast(trackBreakdownNode);
+  }
+
+  private loadStartupTrack(
+    ctx: Trace,
+    sqlSource: string,
+    uri: string,
+    title: string,
+  ): TrackNode {
+    const config: SimpleSliceTrackConfig = {
+      data: {
+        sqlSource,
         columns: ['ts', 'dur', 'name'],
       },
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: [],
     };
-    const uri = `/android_startups`;
-    const title = 'Android App Startups';
     const track = new SimpleSliceTrack(ctx, {trackUri: uri}, config);
     ctx.tracks.registerTrack({
       uri,
-      title: 'Android App Startups',
+      title,
       track,
     });
-    const trackNode = new TrackNode({title, uri});
-    ctx.workspace.addChildInOrder(trackNode);
+    // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
+    return new TrackNode({title, uri, sortOrder: -6});
   }
 }
 
