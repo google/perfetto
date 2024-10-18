@@ -16,21 +16,34 @@
 
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 
+#include <atomic>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <optional>
+#include <string>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/traced/sys_stats_counters.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/syscalls/syscall_tracker.h"
-#include "src/trace_processor/types/tcp_state.h"
+#include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_classification.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/android_probes_tracker.h"
+#include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
-#include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
@@ -42,15 +55,8 @@
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
-#include "protos/perfetto/trace/ps/process_stats.pbzero.h"
-#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
-#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
-#include "protos/perfetto/trace/system_info.pbzero.h"
 
-#include "src/trace_processor/importers/proto/android_probes_tracker.h"
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
     : context_(context),
@@ -65,7 +71,11 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
       device_state_id_(context->storage->InternString("DeviceStateChanged")),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
       plug_type_id_(context->storage->InternString("PlugType")),
-      rail_packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
+      rail_packet_timestamp_id_(context->storage->InternString("packet_ts")),
+      energy_consumer_id_(
+          context_->storage->InternString("energy_consumer_id")),
+      consumer_type_id_(context_->storage->InternString("consumer_type")),
+      ordinal_id_(context_->storage->InternString("ordinal")) {}
 
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob.data, blob.size);
@@ -202,9 +212,13 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
   auto consumer_type = energy_consumer_specs->type;
   auto ordinal = energy_consumer_specs->ordinal;
 
-  TrackId energy_track =
-      context_->track_tracker->LegacyInternLegacyEnergyCounterTrack(
-          consumer_name, consumer_id, consumer_type, ordinal);
+  TrackId energy_track = context_->track_tracker->InternSingleDimensionTrack(
+      TrackClassification::kAndroidEnergyEstimationBreakdown,
+      energy_consumer_id_, Variadic::Integer(consumer_id), consumer_name,
+      [&](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(consumer_type_id_, Variadic::String(consumer_type));
+        inserter.AddArg(ordinal_id_, Variadic::Integer(ordinal));
+      });
   context_->event_tracker->PushCounter(ts, total_energy, energy_track);
 
   // Consumers providing per-uid energy breakdown
@@ -218,9 +232,13 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
       continue;
     }
 
-    TrackId energy_uid_track =
-        context_->track_tracker->LegacyInternLegacyEnergyPerUidCounterTrack(
-            consumer_name, consumer_id, breakdown.uid());
+    auto builder = context_->track_tracker->CreateDimensionsBuilder();
+    builder.AppendUid(breakdown.uid());
+    builder.AppendDimension(energy_consumer_id_,
+                            Variadic::Integer(consumer_id));
+    TrackId energy_uid_track = context_->track_tracker->InternTrack(
+        TrackClassification::kAndroidEnergyEstimationBreakdownPerUid,
+        std::move(builder).Build(), consumer_name);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(breakdown.energy_uws()), energy_uid_track);
   }
@@ -482,5 +500,4 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

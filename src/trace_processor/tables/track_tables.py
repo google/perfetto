@@ -319,61 +319,11 @@ GPU_COUNTER_TRACK_TABLE = Table(
         columns={'gpu_id': 'The identifier for the GPU.'}))
 
 
-ENERGY_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='EnergyCounterTrackTable',
-    sql_name='energy_counter_track',
-    columns=[
-        C('consumer_id', CppInt32()),
-        C('consumer_type', CppString()),
-        C('ordinal', CppInt32()),
-    ],
-    parent=COUNTER_TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='''
-          Energy consumers' values for energy descriptors in
-          energy_estimation_breakdown packet
-        ''',
-        group='Counter Tracks',
-        columns={
-            'consumer_id': 'id of a distinct energy consumer',
-            'consumer_type': 'type of energy consumer',
-            'ordinal': 'ordinal of energy consumer'
-        }))
-
-UID_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='UidCounterTrackTable',
-    sql_name='uid_counter_track',
-    columns=[
-        C('uid', CppInt32()),
-    ],
-    parent=COUNTER_TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='The uid associated with this track',
-        group='Counter Tracks',
-        columns={'uid': 'uid of process for which breakdowns are emitted'}))
-
-ENERGY_PER_UID_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='EnergyPerUidCounterTrackTable',
-    sql_name='energy_per_uid_counter_track',
-    columns=[
-        C('consumer_id', CppInt32()),
-    ],
-    parent=UID_COUNTER_TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='Energy consumer values for per uid in uid_counter_track',
-        group='Counter Tracks',
-        columns={'consumer_id': 'id of the consumer process'}))
-
 # Keep this list sorted.
 ALL_TABLES = [
     COUNTER_TRACK_TABLE,
     CPU_COUNTER_TRACK_TABLE,
     CPU_TRACK_TABLE,
-    ENERGY_COUNTER_TRACK_TABLE,
-    ENERGY_PER_UID_COUNTER_TRACK_TABLE,
     GPU_COUNTER_TRACK_TABLE,
     GPU_TRACK_TABLE,
     GPU_WORK_PERIOD_TRACK_TABLE,
@@ -384,6 +334,5 @@ ALL_TABLES = [
     THREAD_COUNTER_TRACK_TABLE,
     THREAD_TRACK_TABLE,
     TRACK_TABLE,
-    UID_COUNTER_TRACK_TABLE,
     UID_TRACK_TABLE,
 ]
