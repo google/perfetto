@@ -104,6 +104,26 @@ class Slices(TestSuite):
         "NestedThreadSlice",6,1,1
       """))
 
+  def test_slice_remove_nulls_and_reparent(self):
+    return DiffTestBlueprint(
+        trace=Path('trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE slices.hierarchy;
+
+        SELECT id, parent_id, name, depth
+        FROM _slice_remove_nulls_and_reparent!(
+          (SELECT id, parent_id, depth, IIF(name = 'ProcessSlice', NULL, name) AS name
+          FROM slice),
+          name
+        ) LIMIT 10;
+      """,
+        out=Csv("""
+        "id","parent_id","name","depth"
+        0,"[NULL]","AsyncSlice",0
+        2,"[NULL]","ThreadSlice",0
+        3,2,"NestedThreadSlice",0
+      """))
+
   # Common functions
 
   def test_slice_flattened(self):
