@@ -410,3 +410,22 @@ class WattsonStdlib(TestSuite):
             4108587746105,12451,2.670000,2.670000,2.670000,205.600000,674.240000,674.240000,674.240000,3327.560000,1166.556475
             4108587758556,28524,2.670000,2.670000,205.600000,205.600000,674.240000,674.240000,674.240000,3327.560000,1166.680924
             """))
+
+  # Tests that suspend calculations are correct on 8 CPU device where suspend
+  # indication comes from "syscore" command
+  def test_wattson_syscore_suspend(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_syscore_suspend.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            SELECT ts, dur, cpu0_id, cpu1_id, cpu2_id, cpu3_id, suspended
+            FROM _stats_cpu0123_suspend
+            WHERE suspended
+            """),
+        out=Csv("""
+            "ts","dur","cpu0_id","cpu1_id","cpu2_id","cpu3_id","suspended"
+            385019771468,61975407053,12041,12218,10488,8910,1
+            448320364476,3674872885,13005,12954,11166,9272,1
+            452415394221,69579176303,13654,13361,11651,9609,1
+            564873995228,135118729231,45223,37594,22798,20132,1
+            """))
