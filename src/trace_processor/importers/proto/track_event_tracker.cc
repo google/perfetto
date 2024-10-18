@@ -51,15 +51,9 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
           context->storage->InternString("Default Track")),
       context_(context) {}
 
-void TrackEventTracker::ReserveDescriptorProcessTrack(uint64_t uuid,
-                                                      StringId name,
-                                                      uint32_t pid,
-                                                      int64_t timestamp) {
-  DescriptorTrackReservation reservation;
-  reservation.min_timestamp = timestamp;
-  reservation.pid = pid;
-  reservation.name = name;
-
+void TrackEventTracker::ReserveDescriptorTrack(
+    uint64_t uuid,
+    const DescriptorTrackReservation& reservation) {
   std::map<uint64_t, DescriptorTrackReservation>::iterator it;
   bool inserted;
   std::tie(it, inserted) =
@@ -69,109 +63,14 @@ void TrackEventTracker::ReserveDescriptorProcessTrack(uint64_t uuid,
     return;
 
   if (!it->second.IsForSameTrack(reservation)) {
-    // Process tracks should not be reassigned to a different pid later (neither
-    // should the type of the track change).
     PERFETTO_DLOG("New track reservation for process track with uuid %" PRIu64
                   " doesn't match earlier one",
                   uuid);
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return;
   }
-  it->second.min_timestamp = std::min(it->second.min_timestamp, timestamp);
-}
-
-void TrackEventTracker::ReserveDescriptorThreadTrack(uint64_t uuid,
-                                                     uint64_t parent_uuid,
-                                                     StringId name,
-                                                     uint32_t pid,
-                                                     uint32_t tid,
-                                                     int64_t timestamp,
-                                                     bool use_separate_track) {
-  DescriptorTrackReservation reservation;
-  reservation.min_timestamp = timestamp;
-  reservation.parent_uuid = parent_uuid;
-  reservation.pid = pid;
-  reservation.tid = tid;
-  reservation.name = name;
-  reservation.use_separate_track = use_separate_track;
-
-  std::map<uint64_t, DescriptorTrackReservation>::iterator it;
-  bool inserted;
-  std::tie(it, inserted) =
-      reserved_descriptor_tracks_.insert(std::make_pair<>(uuid, reservation));
-
-  if (inserted)
-    return;
-
-  if (!it->second.IsForSameTrack(reservation)) {
-    // Thread tracks should not be reassigned to a different pid/tid later
-    // (neither should the type of the track change).
-    PERFETTO_DLOG("New track reservation for thread track with uuid %" PRIu64
-                  " doesn't match earlier one",
-                  uuid);
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
-    return;
-  }
-
-  it->second.min_timestamp = std::min(it->second.min_timestamp, timestamp);
-}
-
-void TrackEventTracker::ReserveDescriptorCounterTrack(
-    uint64_t uuid,
-    uint64_t parent_uuid,
-    StringId name,
-    StringId category,
-    int64_t unit_multiplier,
-    bool is_incremental,
-    uint32_t packet_sequence_id) {
-  DescriptorTrackReservation reservation;
-  reservation.parent_uuid = parent_uuid;
-  reservation.is_counter = true;
-  reservation.name = name;
-  reservation.category = category;
-  reservation.unit_multiplier = unit_multiplier;
-  reservation.is_incremental = is_incremental;
-  // Incrementally encoded counters are only valid on a single sequence.
-  if (is_incremental)
-    reservation.packet_sequence_id = packet_sequence_id;
-
-  std::map<uint64_t, DescriptorTrackReservation>::iterator it;
-  bool inserted;
-  std::tie(it, inserted) =
-      reserved_descriptor_tracks_.insert(std::make_pair<>(uuid, reservation));
-
-  if (inserted || it->second.IsForSameTrack(reservation))
-    return;
-
-  // Counter tracks should not be reassigned to a different parent track later
-  // (neither should the type of the track change).
-  PERFETTO_DLOG("New track reservation for counter track with uuid %" PRIu64
-                " doesn't match earlier one",
-                uuid);
-  context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
-}
-
-void TrackEventTracker::ReserveDescriptorChildTrack(uint64_t uuid,
-                                                    uint64_t parent_uuid,
-                                                    StringId name) {
-  DescriptorTrackReservation reservation;
-  reservation.parent_uuid = parent_uuid;
-  reservation.name = name;
-
-  std::map<uint64_t, DescriptorTrackReservation>::iterator it;
-  bool inserted;
-  std::tie(it, inserted) =
-      reserved_descriptor_tracks_.insert(std::make_pair<>(uuid, reservation));
-
-  if (inserted || it->second.IsForSameTrack(reservation))
-    return;
-
-  // Child tracks should not be reassigned to a different parent track later
-  // (neither should the type of the track change).
-  PERFETTO_DLOG("New track reservation for child track with uuid %" PRIu64
-                " doesn't match earlier one",
-                uuid);
-  context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+  it->second.min_timestamp =
+      std::min(it->second.min_timestamp, reservation.min_timestamp);
 }
 
 std::optional<TrackId> TrackEventTracker::GetDescriptorTrack(
@@ -237,8 +136,10 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
       .AddArg(source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)))
       .AddArg(is_root_in_scope_key_,
               Variadic::Boolean(resolved_track->is_root_in_scope()));
-  if (!reservation.category.is_null())
-    args.AddArg(category_key_, Variadic::String(reservation.category));
+  if (reservation.counter_details &&
+      !reservation.counter_details->category.is_null())
+    args.AddArg(category_key_,
+                Variadic::String(reservation.counter_details->category));
   if (packet_sequence_id &&
       sequences_with_first_packet_.find(*packet_sequence_id) !=
           sequences_with_first_packet_.end()) {
@@ -517,8 +418,10 @@ TrackId TrackEventTracker::GetOrCreateDefaultDescriptorTrack() {
     return *track_id;
 
   // Otherwise reserve a new track and resolve it.
-  ReserveDescriptorChildTrack(kDefaultDescriptorTrackUuid, /*parent_uuid=*/0,
-                              default_descriptor_track_name_);
+  DescriptorTrackReservation r;
+  r.parent_uuid = 0;
+  r.name = default_descriptor_track_name_;
+  ReserveDescriptorTrack(kDefaultDescriptorTrackUuid, r);
   return *GetDescriptorTrack(kDefaultDescriptorTrackUuid);
 }
 
@@ -539,23 +442,27 @@ std::optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(
                   counter_track_uuid);
     return std::nullopt;
   }
+  if (!reservation.counter_details) {
+    PERFETTO_FATAL("Counter tracks require `counter_details`.");
+  }
+  DescriptorTrackReservation::CounterDetails& c_details =
+      *reservation.counter_details;
 
-  if (reservation.unit_multiplier > 0)
-    value *= static_cast<double>(reservation.unit_multiplier);
+  if (c_details.unit_multiplier > 0)
+    value *= static_cast<double>(c_details.unit_multiplier);
 
-  if (reservation.is_incremental) {
-    if (reservation.packet_sequence_id != packet_sequence_id) {
+  if (c_details.is_incremental) {
+    if (c_details.packet_sequence_id != packet_sequence_id) {
       PERFETTO_DLOG(
           "Incremental counter track with uuid %" PRIu64
           " was updated from the wrong packet sequence (expected: %" PRIu32
           " got:%" PRIu32 ")",
-          counter_track_uuid, reservation.packet_sequence_id,
-          packet_sequence_id);
+          counter_track_uuid, c_details.packet_sequence_id, packet_sequence_id);
       return std::nullopt;
     }
 
-    reservation.latest_value += value;
-    value = reservation.latest_value;
+    c_details.latest_value += value;
+    value = c_details.latest_value;
   }
 
   return value;
@@ -569,12 +476,13 @@ void TrackEventTracker::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
   for (auto& entry : reserved_descriptor_tracks_) {
     DescriptorTrackReservation& reservation = entry.second;
     // Only consider incremental counter tracks for current sequence.
-    if (!reservation.is_counter || !reservation.is_incremental ||
-        reservation.packet_sequence_id != packet_sequence_id) {
+    if (!reservation.is_counter || !reservation.counter_details ||
+        !reservation.counter_details->is_incremental ||
+        reservation.counter_details->packet_sequence_id != packet_sequence_id) {
       continue;
     }
     // Reset their value to 0, see CounterDescriptor's |is_incremental|.
-    reservation.latest_value = 0;
+    reservation.counter_details->latest_value = 0;
   }
 }
 
