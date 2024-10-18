@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 -- Compute the distribution of the overlap of the given intervals over time.
 --
 -- Each interval is a (ts, dur) pair and the overlap represented as a (ts, value)
@@ -94,6 +96,8 @@ FROM filtered
 
 -- Merges a |roots_table| and |children_table| into one table. See _intervals_flatten
 -- that accepts the output of this macro to flatten intervals.
+
+-- See: _intervals_merge_root_and_children_by_intersection.
 CREATE PERFETTO MACRO _intervals_merge_root_and_children(
   -- Table or subquery containing all the root intervals: (id, ts, dur).
   -- Note that parent_id is not necessary in this table as it will be NULL anyways.
@@ -139,6 +143,46 @@ AS (
       NULL AS dur
     FROM _roots_without_children
     JOIN _roots USING(root_id)
+);
+
+-- Merges a |roots_table| and |children_table| into one table. See _intervals_flatten
+-- that accepts the output of this macro to flatten intervals.
+
+-- This is very similar to _intervals_merge_root_and_children but there is no explicit
+-- root_id shared between the root and the children. Instead an _interval_intersect is
+-- used to derive the root and child relationships.
+CREATE PERFETTO MACRO _intervals_merge_root_and_children_by_intersection(
+  -- Table or subquery containing all the root intervals: (id, ts, dur).
+  -- Note that parent_id is not necessary in this table as it will be NULL anyways.
+  roots_table TableOrSubquery,
+  -- Table or subquery containing all the child intervals:
+  -- (root_id, id, parent_id, ts, dur)
+  children_table TableOrSubquery,
+  -- intersection key used in deriving the root child relationships.
+  key ColumnName)
+RETURNS TableOrSubQuery
+AS (
+  WITH
+    _roots AS (
+      SELECT * FROM $roots_table WHERE dur > 0 ORDER BY ts
+    ),
+    _children AS (
+      SELECT * FROM $children_table WHERE dur > 0 ORDER BY ts
+    )
+    SELECT
+      ii.ts,
+      ii.dur,
+      _children.id,
+      IIF(_children.parent_id IS NULL, id_1, _children.parent_id) AS parent_id,
+      _roots.id AS root_id,
+      _roots.ts AS root_ts,
+      _roots.dur AS root_dur,
+      ii.$key
+    FROM _interval_intersect!((_children, _roots), ($key)) ii
+    JOIN _children
+      ON _children.id = id_0
+    JOIN _roots
+      ON _roots.id = id_1
 );
 
 -- Partition and flatten a hierarchy of intervals into non-overlapping intervals where
