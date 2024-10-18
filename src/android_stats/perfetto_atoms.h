@@ -35,7 +35,6 @@ enum class PerfettoStatsdAtom {
 
   // Guardrails inside perfetto_cmd before tracing is finished.
   kOnTimeout = 16,
-  kCmdUserBuildTracingNotAllowed = 43,
 
   // Checkpoints inside traced.
   kTracedEnableTracing = 37,
@@ -113,6 +112,10 @@ enum class PerfettoStatsdAtom {
   // Contained status of guardrail state initialization and upload limit in
   // perfetto_cmd. Removed as perfetto no longer manages stateful guardrails
   // reserved 44, 45, 46;
+
+  // Contained the guardrail for user build tracing. Removed as this guardrail
+  // causes more problem than it solves these days.
+  // reserved 43;
 };
 
 // This must match the values of the PerfettoTrigger::TriggerType enum in:
