@@ -685,25 +685,6 @@ TrackId TrackTracker::LegacyInternLegacyEnergyPerUidCounterTrack(
   return track_id;
 }
 
-TrackId TrackTracker::LegacyInternLinuxDeviceTrack(StringId name) {
-  Dimensions dims_id = SingleDimension(name_id_, Variadic::String(name));
-
-  if (auto* it = tracks_.Find({TrackClassification::kLinuxDevice, dims_id});
-      it) {
-    return *it;
-  }
-
-  tables::LinuxDeviceTrackTable::Row row(name);
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-  row.classification = context_->storage->InternString(
-      TrackClassificationToString(TrackClassification::kLinuxDevice));
-
-  TrackId track_id =
-      context_->storage->mutable_linux_device_track_table()->Insert(row).id;
-  tracks_[{TrackClassification::kLinuxDevice, dims_id}] = track_id;
-  return track_id;
-}
-
 TrackId TrackTracker::LegacyCreateGpuCounterTrack(StringId name,
                                                   uint32_t gpu_id,
                                                   StringId description,
