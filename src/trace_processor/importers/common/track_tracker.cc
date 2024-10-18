@@ -241,13 +241,18 @@ TrackId TrackTracker::CreateThreadCounterTrack(
 
 TrackId TrackTracker::InternTrack(TrackClassification classification,
                                   std::optional<Dimensions> dimensions,
-                                  StringId name) {
+                                  StringId name,
+                                  const SetArgsCallback& callback) {
   auto* it = tracks_.Find({classification, dimensions});
   if (it)
     return *it;
 
   TrackId id = CreateTrack(classification, dimensions, name);
   tracks_[{classification, dimensions}] = id;
+  if (callback) {
+    ArgsTracker::BoundInserter inserter = context_->args_tracker->AddArgsTo(id);
+    callback(inserter);
+  }
   return id;
 }
 
@@ -610,78 +615,6 @@ TrackId TrackTracker::InternGpuCounterTrack(TrackClassification type,
       context_->storage->mutable_gpu_counter_track_table()->Insert(row).id;
 
   tracks_[{type, dims_id}] = track_id;
-  return track_id;
-}
-
-TrackId TrackTracker::LegacyInternLegacyEnergyCounterTrack(
-    StringId name,
-    int32_t consumer_id,
-    StringId consumer_type,
-    int32_t ordinal) {
-  Dimensions dims_id =
-      SingleDimension(context_->storage->InternString("energy_consumer_id"),
-                      Variadic::Integer(consumer_id));
-
-  TrackMapKey key;
-  key.classification = TrackClassification::kUnknown;
-  key.dimensions = dims_id;
-  key.name = name;
-
-  auto* it = tracks_.Find(key);
-  if (it) {
-    return *it;
-  }
-  tables::EnergyCounterTrackTable::Row row(name);
-  row.consumer_id = consumer_id;
-  row.consumer_type = consumer_type;
-  row.ordinal = ordinal;
-  row.machine_id = context_->machine_id();
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-  row.classification = context_->storage->InternString(
-      TrackClassificationToString(TrackClassification::kUnknown));
-
-  TrackId track_id =
-      context_->storage->mutable_energy_counter_track_table()->Insert(row).id;
-
-  tracks_[key] = track_id;
-  return track_id;
-}
-
-TrackId TrackTracker::LegacyInternLegacyEnergyPerUidCounterTrack(
-    StringId name,
-    int32_t consumer_id,
-    int32_t uid) {
-  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendUid(uid);
-  dims_builder.AppendDimension(
-      context_->storage->InternString("energy_consumer_id"),
-      Variadic::Integer(consumer_id));
-  Dimensions dims_id = std::move(dims_builder).Build();
-
-  TrackMapKey key;
-  key.classification = TrackClassification::kUnknown;
-  key.dimensions = dims_id;
-  key.name = name;
-
-  auto* it = tracks_.Find(key);
-  if (it) {
-    return *it;
-  }
-
-  tables::EnergyPerUidCounterTrackTable::Row row(name);
-  row.consumer_id = consumer_id;
-  row.uid = uid;
-  row.machine_id = context_->machine_id();
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-  row.classification = context_->storage->InternString(
-      TrackClassificationToString(TrackClassification::kUnknown));
-
-  TrackId track_id =
-      context_->storage->mutable_energy_per_uid_counter_track_table()
-          ->Insert(row)
-          .id;
-
-  tracks_[key] = track_id;
   return track_id;
 }
 
