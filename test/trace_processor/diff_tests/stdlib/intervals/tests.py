@@ -118,3 +118,72 @@ class StdlibIntervals(TestSuite):
         8,1,0,0
         9,1,1,1
         """))
+
+  def test_intervals_flatten_by_intersection(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        CREATE PERFETTO TABLE foo AS
+        WITH roots_data (id, ts, dur, utid) AS (
+          VALUES
+            (0, 0, 9, 0),
+            (0, 0, 9, 1),
+            (1, 9, 1, 2)
+        ), children_data (id, parent_id, ts, dur, utid) AS (
+          VALUES
+            (2, 0, 1, 3, 0),
+            (3, 0, 5, 1, 0),
+            (4, 0, 6, 1, 0),
+            (5, 0, 7, 0, 0),
+            (6, 0, 7, 1, 0),
+            (7, 2, 2, 1, 0)
+        )
+        SELECT *
+        FROM _intervals_merge_root_and_children_by_intersection!(roots_data, children_data, utid);
+
+        SELECT ts, dur, id, root_id FROM _intervals_flatten!(foo) ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id","root_id"
+        0,1,0,0
+        1,1,2,0
+        2,1,7,0
+        3,1,2,0
+        4,1,0,0
+        5,1,3,0
+        6,1,4,0
+        7,1,6,0
+        8,1,0,0
+        """))
+
+  def test_intervals_flatten_by_intersection_no_matching_key(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        CREATE PERFETTO TABLE foo AS
+        WITH roots_data (id, ts, dur, utid) AS (
+          VALUES
+            (0, 0, 9, 1),
+            (0, 0, 9, 2),
+            (1, 9, 1, 3)
+        ), children_data (id, parent_id, ts, dur, utid) AS (
+          VALUES
+            (2, 0, 1, 3, 0),
+            (3, 0, 5, 1, 0),
+            (4, 0, 6, 1, 0),
+            (5, 0, 7, 0, 0),
+            (6, 0, 7, 1, 0),
+            (7, 2, 2, 1, 0)
+        )
+        SELECT *
+        FROM _intervals_merge_root_and_children_by_intersection!(roots_data, children_data, utid);
+
+        SELECT ts, dur, id, root_id FROM _intervals_flatten!(foo) ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id","root_id"
+        """))

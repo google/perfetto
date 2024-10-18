@@ -16,6 +16,7 @@ import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("startup") {
   sources = [
+    "startup_breakdowns.sql",
     "startup_events.sql",
     "startups.sql",
     "startups_maxsdk28.sql",
