@@ -231,6 +231,12 @@ class TraceStorage {
   virtual StringId InternString(base::StringView str) {
     return string_pool_.InternString(str);
   }
+  virtual StringId InternString(const char* str) {
+    return InternString(base::StringView(str));
+  }
+  virtual StringId InternString(const std::string& str) {
+    return InternString(base::StringView(str));
+  }
 
   // Example usage: SetStats(stats::android_log_num_failed, 42);
   void SetStats(size_t key, int64_t value) {
@@ -385,13 +391,6 @@ class TraceStorage {
   }
   tables::EnergyCounterTrackTable* mutable_energy_counter_track_table() {
     return &energy_counter_track_table_;
-  }
-
-  const tables::LinuxDeviceTrackTable& linux_device_track_table() const {
-    return linux_device_track_table_;
-  }
-  tables::LinuxDeviceTrackTable* mutable_linux_device_track_table() {
-    return &linux_device_track_table_;
   }
 
   const tables::UidCounterTrackTable& uid_counter_track_table() const {
@@ -1078,8 +1077,6 @@ class TraceStorage {
       &string_pool_, &uid_track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
-  tables::LinuxDeviceTrackTable linux_device_track_table_{&string_pool_,
-                                                          &track_table_};
 
   // Track tables for counter events.
   tables::CounterTrackTable counter_track_table_{&string_pool_, &track_table_};

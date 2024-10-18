@@ -21,9 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <optional>
-#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
@@ -135,6 +133,12 @@ class TrackTracker {
     return DimensionsBuilder(this);
   }
 
+  Dimensions SingleDimension(StringId key, Variadic val) {
+    std::array args{GlobalArgsTracker::CompactArg{key, key, val}};
+    return Dimensions{
+        context_->global_args_tracker->AddArgSet(args.data(), 0, 1)};
+  }
+
   // Interns track into TrackTable. If the track created with below arguments
   // already exists, returns the TrackTable::Id of the track.
   TrackId InternTrack(TrackClassification,
@@ -238,11 +242,6 @@ class TrackTracker {
                                                      int32_t consumer_id,
                                                      int32_t uid);
 
-  // Interns a track associated with a Linux device (where a Linux device
-  // implies a kernel-level device managed by a Linux driver).
-  // TODO(mayzner): Remove when all usages migrated to new track design.
-  TrackId LegacyInternLinuxDeviceTrack(StringId name);
-
   // Creates a counter track associated with a GPU into the storage.
   // TODO(mayzner): Remove when all usages migrated to new track design.
   TrackId LegacyCreateGpuCounterTrack(StringId name,
@@ -309,12 +308,6 @@ class TrackTracker {
 
   static constexpr size_t kGroupCount =
       static_cast<uint32_t>(Group::kSizeSentinel);
-
-  Dimensions SingleDimension(StringId key, Variadic val) {
-    std::array args{GlobalArgsTracker::CompactArg{key, key, val}};
-    return Dimensions{
-        context_->global_args_tracker->AddArgSet(args.data(), 0, 1)};
-  }
 
   TrackId CreateTrack(TrackClassification,
                       std::optional<Dimensions>,

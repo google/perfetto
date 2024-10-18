@@ -15,15 +15,29 @@
  */
 
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
-#include <optional>
 
+#include <algorithm>
+#include <array>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
-
+#include "perfetto/protozero/proto_utils.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
@@ -32,9 +46,12 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
+#include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 #include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
 #include "src/trace_processor/importers/i2c/i2c_tracker.h"
@@ -46,6 +63,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/softirq_action.h"
 #include "src/trace_processor/types/tcp_state.h"
+#include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/types/version_number.h"
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/android_fs.pbzero.h"
@@ -322,6 +341,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
       ucpu_id_(context->storage->InternString("ucpu")),
+      linux_device_name_id_(
+          context->storage->InternString("linux_device_name")),
       suspend_resume_name_id_(
           context->storage->InternString("Suspend/Resume Latency")),
       suspend_resume_minimal_name_id_(
@@ -3605,15 +3626,16 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
 
   // Device here refers to anything managed by a Linux kernel driver.
   std::string device_name = rpm_event.name().ToStdString();
-  int32_t rpm_status = rpm_event.status();
-  StringId device_name_string_id =
-      context_->storage->InternString(device_name.c_str());
-  TrackId track_id = context_->track_tracker->LegacyInternLinuxDeviceTrack(
+  StringId device_name_string_id = context_->storage->InternString(device_name);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      TrackClassification::kLinuxRuntimePowerManagement,
+      context_->track_tracker->SingleDimension(
+          linux_device_name_id_, Variadic::String(device_name_string_id)),
       device_name_string_id);
 
   // A `runtime_status` event implies a potential change in state. Hence, if an
   // active slice exists for this device, end that slice.
-  if (devices_with_active_rpm_slice_.find(device_name) !=
+  if (devices_with_active_rpm_slice_.find(device_name_string_id) !=
       devices_with_active_rpm_slice_.end()) {
     context_->slice_tracker->End(ts, track_id);
   }
@@ -3621,14 +3643,15 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
   // To reduce visual clutter, the "SUSPENDED" state will be omitted from the
   // visualization, as devices typically spend the majority of their time in
   // this state.
+  int32_t rpm_status = rpm_event.status();
   if (rpm_status == RPM_SUSPENDED) {
-    devices_with_active_rpm_slice_.erase(device_name);
+    devices_with_active_rpm_slice_.erase(device_name_string_id);
     return;
   }
 
   context_->slice_tracker->Begin(ts, track_id, /*category=*/kNullStringId,
                                  /*raw_name=*/GetRpmStatusStringId(rpm_status));
-  devices_with_active_rpm_slice_.insert(device_name);
+  devices_with_active_rpm_slice_.insert(device_name_string_id);
 }
 
 // Parses `device_pm_callback_start` events and begins corresponding slices in
