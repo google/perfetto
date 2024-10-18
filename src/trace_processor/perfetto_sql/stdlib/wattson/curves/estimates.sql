@@ -59,10 +59,16 @@ AS
 SELECT
   base.ts,
   base.dur,
-  COALESCE(lut0.curve_value, cpu0_curve) as cpu0_curve,
-  COALESCE(lut1.curve_value, cpu1_curve) as cpu1_curve,
-  COALESCE(lut2.curve_value, cpu2_curve) as cpu2_curve,
-  COALESCE(lut3.curve_value, cpu3_curve) as cpu3_curve,
+  -- base.cpu[0-3]_curve will be non-zero if CPU has 1D dependency
+  -- base.cpu[0-3]_curve will be zero if device is suspended or deep idle
+  -- base.cpu[0-3]_curve will be NULL if 2D dependency required
+  COALESCE(base.cpu0_curve, lut0.curve_value) as cpu0_curve,
+  COALESCE(base.cpu1_curve, lut1.curve_value) as cpu1_curve,
+  COALESCE(base.cpu2_curve, lut2.curve_value) as cpu2_curve,
+  COALESCE(base.cpu3_curve, lut3.curve_value) as cpu3_curve,
+  -- base.cpu[4-7]_curve will be non-zero if CPU has 1D dependency
+  -- base.cpu[4-7]_curve will be zero if device is suspended or deep idle
+  -- base.cpu[4-7]_curve will be NULL if CPU doesn't exist on device
   COALESCE(base.cpu4_curve, 0.0) as cpu4_curve,
   COALESCE(base.cpu5_curve, 0.0) as cpu5_curve,
   COALESCE(base.cpu6_curve, 0.0) as cpu6_curve,
