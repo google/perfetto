@@ -25,8 +25,16 @@ class PowerEnergyBreakdown(TestSuite):
     return DiffTestBlueprint(
         trace=Path('energy_breakdown.textproto'),
         query="""
-        SELECT consumer_id, name, consumer_type, ordinal
-        FROM energy_counter_track;
+        SELECT
+          EXTRACT_ARG(
+            dimension_arg_set_id,
+            'energy_consumer_id'
+          ) AS consumer_id,
+          name,
+          EXTRACT_ARG(source_arg_set_id, 'consumer_type') AS consumer_type,
+          EXTRACT_ARG(source_arg_set_id, 'ordinal') AS ordinal
+        FROM track
+        WHERE classification = 'android_energy_estimation_breakdown';
         """,
         out=Csv("""
         "consumer_id","name","consumer_type","ordinal"
@@ -39,7 +47,7 @@ class PowerEnergyBreakdown(TestSuite):
         query="""
         SELECT ts, value
         FROM counter
-        JOIN energy_counter_track ON counter.track_id = energy_counter_track.id
+        JOIN track ON counter.track_id = track.id
         ORDER BY ts;
         """,
         out=Csv("""
@@ -47,42 +55,18 @@ class PowerEnergyBreakdown(TestSuite):
         1030255882785,98567522.000000
         """))
 
-  def test_energy_breakdown_uid_table(self):
-    return DiffTestBlueprint(
-        trace=Path('energy_breakdown_uid.textproto'),
-        query="""
-        SELECT uid, name
-        FROM uid_counter_track;
-        """,
-        out=Csv("""
-        "uid","name"
-        10234,"GPU"
-        10190,"GPU"
-        10235,"GPU"
-        """))
-
-  def test_energy_breakdown_uid_event(self):
-    return DiffTestBlueprint(
-        trace=Path('energy_breakdown_uid.textproto'),
-        query="""
-        SELECT ts, value
-        FROM counter
-        JOIN uid_counter_track ON counter.track_id = uid_counter_track.id
-        ORDER BY ts;
-        """,
-        out=Csv("""
-        "ts","value"
-        1026753926322,3004536.000000
-        1026753926322,0.000000
-        1026753926322,4002274.000000
-        """))
-
   def test_energy_per_uid_table(self):
     return DiffTestBlueprint(
         trace=Path('energy_breakdown_uid.textproto'),
         query="""
-        SELECT consumer_id, uid
-        FROM energy_per_uid_counter_track;
+        SELECT
+          EXTRACT_ARG(
+            dimension_arg_set_id,
+            'energy_consumer_id'
+          ) AS consumer_id,
+          EXTRACT_ARG(dimension_arg_set_id, 'uid') AS uid
+        FROM track
+        WHERE classification = 'android_energy_estimation_breakdown_per_uid';
         """,
         out=Csv("""
         "consumer_id","uid"
@@ -97,9 +81,12 @@ class PowerEnergyBreakdown(TestSuite):
         trace_modifier=TraceInjector(['android_energy_estimation_breakdown'],
                                      {'machine_id': 1001}),
         query="""
-        SELECT uid, name
-        FROM uid_counter_track
-        WHERE machine_id IS NOT NULL;
+        SELECT
+          EXTRACT_ARG(dimension_arg_set_id, 'uid') AS uid,
+          name
+        FROM track
+        WHERE classification = 'android_energy_estimation_breakdown_per_uid'
+          AND machine_id IS NOT NULL;
         """,
         out=Csv("""
         "uid","name"
@@ -114,9 +101,17 @@ class PowerEnergyBreakdown(TestSuite):
         trace_modifier=TraceInjector(['android_energy_estimation_breakdown'],
                                      {'machine_id': 1001}),
         query="""
-        SELECT consumer_id, name, consumer_type, ordinal
-        FROM energy_counter_track
-        WHERE machine_id IS NOT NULL;
+        SELECT
+          EXTRACT_ARG(
+            dimension_arg_set_id,
+            'energy_consumer_id'
+          ) AS consumer_id,
+          name,
+          EXTRACT_ARG(source_arg_set_id, 'consumer_type') AS consumer_type,
+          EXTRACT_ARG(source_arg_set_id, 'ordinal') AS ordinal
+        FROM track
+        WHERE classification = 'android_energy_estimation_breakdown'
+          AND machine_id IS NOT NULL;
         """,
         out=Csv("""
         "consumer_id","name","consumer_type","ordinal"

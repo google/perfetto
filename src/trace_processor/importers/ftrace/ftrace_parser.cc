@@ -3627,11 +3627,9 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
   // Device here refers to anything managed by a Linux kernel driver.
   std::string device_name = rpm_event.name().ToStdString();
   StringId device_name_string_id = context_->storage->InternString(device_name);
-  TrackId track_id = context_->track_tracker->InternTrack(
-      TrackClassification::kLinuxRuntimePowerManagement,
-      context_->track_tracker->SingleDimension(
-          linux_device_name_id_, Variadic::String(device_name_string_id)),
-      device_name_string_id);
+  TrackId track_id = context_->track_tracker->InternSingleDimensionTrack(
+      TrackClassification::kLinuxRuntimePowerManagement, linux_device_name_id_,
+      Variadic::String(device_name_string_id), device_name_string_id);
 
   // A `runtime_status` event implies a potential change in state. Hence, if an
   // active slice exists for this device, end that slice.

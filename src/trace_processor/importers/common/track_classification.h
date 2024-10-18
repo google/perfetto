@@ -51,10 +51,6 @@ enum class TrackClassification : size_t {
   // Gpu tracks.
   kGpuFrequency,
 
-  // Linux tracks.
-  kLinuxRuntimePowerManagement,
-  kLinuxDeviceFrequency,
-
   // Cpu tracks.
   kIrqCpu,
   kSoftirqCpu,
@@ -85,6 +81,17 @@ enum class TrackClassification : size_t {
   kIrqTime,
   kSoftIrqTime,
   kCpuIdleTime,
+
+  // Android begin.
+  // Energy estimation.
+  kAndroidEnergyEstimationBreakdown,
+  kAndroidEnergyEstimationBreakdownPerUid,
+  // Android end.
+
+  // Linux begin.
+  kLinuxRuntimePowerManagement,
+  kLinuxDeviceFrequency,
+  // Linux end.
 
   // Not set. Legacy, never use for new tracks.
   // If set the classification can't be used to decide the tracks and
@@ -172,7 +179,10 @@ static inline const char* TrackClassificationToString(
       return "cpu_user_time";
     case TrackClassification::kNiceUserTime:
       return "cpu_nice_user_time";
-
+    case TrackClassification::kAndroidEnergyEstimationBreakdown:
+      return "android_energy_estimation_breakdown";
+    case TrackClassification::kAndroidEnergyEstimationBreakdownPerUid:
+      return "android_energy_estimation_breakdown_per_uid";
     case TrackClassification::kUnknown:
       return "N/A";
   }

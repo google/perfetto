@@ -133,6 +133,10 @@ class CounterPlugin implements PerfettoPlugin {
         from counter_track
         join _counter_track_summary using (id)
         where type = 'counter_track'
+          and classification not in (
+            'android_energy_estimation_breakdown',
+            'android_energy_estimation_breakdown_per_uid'
+          )
         union
         select name, id, unit
         from gpu_counter_track
