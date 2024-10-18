@@ -36,7 +36,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/types.h"
@@ -58,8 +57,7 @@
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // UniquePid is an offset into |unique_processes_|. This is necessary because
 // Unix pids are reused and thus not guaranteed to be unique over a long
@@ -384,29 +382,6 @@ class TraceStorage {
   }
   tables::GpuCounterTrackTable* mutable_gpu_counter_track_table() {
     return &gpu_counter_track_table_;
-  }
-
-  const tables::EnergyCounterTrackTable& energy_counter_track_table() const {
-    return energy_counter_track_table_;
-  }
-  tables::EnergyCounterTrackTable* mutable_energy_counter_track_table() {
-    return &energy_counter_track_table_;
-  }
-
-  const tables::UidCounterTrackTable& uid_counter_track_table() const {
-    return uid_counter_track_table_;
-  }
-  tables::UidCounterTrackTable* mutable_uid_counter_track_table() {
-    return &uid_counter_track_table_;
-  }
-
-  const tables::EnergyPerUidCounterTrackTable&
-  energy_per_uid_counter_track_table() const {
-    return energy_per_uid_counter_track_table_;
-  }
-  tables::EnergyPerUidCounterTrackTable*
-  mutable_energy_per_uid_counter_track_table() {
-    return &energy_per_uid_counter_track_table_;
   }
 
   const tables::IrqCounterTrackTable& irq_counter_track_table() const {
@@ -1092,12 +1067,6 @@ class TraceStorage {
       &string_pool_, &counter_track_table_};
   tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
-  tables::EnergyCounterTrackTable energy_counter_track_table_{
-      &string_pool_, &counter_track_table_};
-  tables::UidCounterTrackTable uid_counter_track_table_{&string_pool_,
-                                                        &counter_track_table_};
-  tables::EnergyPerUidCounterTrackTable energy_per_uid_counter_track_table_{
-      &string_pool_, &uid_counter_track_table_};
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_};
   tables::PerfCounterTrackTable perf_counter_track_table_{
       &string_pool_, &counter_track_table_};
@@ -1248,8 +1217,7 @@ class TraceStorage {
   std::array<StringId, Variadic::kMaxType + 1> variadic_type_ids_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 template <>
 struct std::hash<::perfetto::trace_processor::BaseId> {

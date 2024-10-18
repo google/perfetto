@@ -17,13 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_PROBES_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_PROBES_PARSER_H_
 
-#include <vector>
+#include <cstdint>
 
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -59,8 +58,10 @@ class AndroidProbesParser {
   const StringId battery_status_id_;
   const StringId plug_type_id_;
   const StringId rail_packet_timestamp_id_;
+  const StringId energy_consumer_id_;
+  const StringId consumer_type_id_;
+  const StringId ordinal_id_;
 };
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_PROBES_PARSER_H_
