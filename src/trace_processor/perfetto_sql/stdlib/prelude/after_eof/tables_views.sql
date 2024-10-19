@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE prelude.views;
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Tracks are a fundamental concept in trace processor and represent a
 -- "timeline" for events of the same type and with the same context. See

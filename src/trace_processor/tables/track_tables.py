@@ -198,6 +198,7 @@ GPU_WORK_PERIOD_TRACK_TABLE = Table(
         doc='Tracks containing gpu_work_period events.',
         group='Tracks',
         columns={
+            'uid': 'The uid associated with this track.',
             'gpu_id': 'The identifier for the GPU.',
         }))
 

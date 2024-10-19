@@ -2973,17 +2973,29 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/prelude/after_eof:after_eof
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_prelude_after_eof_after_eof",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/casts.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/tables_views.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/views.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/prelude/before_eof:before_eof
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_prelude_before_eof_before_eof",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/tables.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/trace_bounds.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/prelude:prelude
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/prelude/casts.sql",
-        "src/trace_processor/perfetto_sql/stdlib/prelude/slices.sql",
-        "src/trace_processor/perfetto_sql/stdlib/prelude/tables.sql",
-        "src/trace_processor/perfetto_sql/stdlib/prelude/tables_views.sql",
-        "src/trace_processor/perfetto_sql/stdlib/prelude/trace_bounds.sql",
-        "src/trace_processor/perfetto_sql/stdlib/prelude/views.sql",
-    ],
 )
 
 # GN target: //src/trace_processor/perfetto_sql/stdlib/sched:sched
@@ -3117,6 +3129,8 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_linux_memory_memory",
         ":src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
+        ":src_trace_processor_perfetto_sql_stdlib_prelude_after_eof_after_eof",
+        ":src_trace_processor_perfetto_sql_stdlib_prelude_before_eof_before_eof",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
         ":src_trace_processor_perfetto_sql_stdlib_sched_sched",
         ":src_trace_processor_perfetto_sql_stdlib_slices_slices",

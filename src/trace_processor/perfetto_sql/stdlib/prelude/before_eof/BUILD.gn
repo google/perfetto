@@ -1,4 +1,4 @@
-# Copyright (C) 2024 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../../gn/perfetto_sql.gni")
+import("../../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("prelude") {
-  sources = []
-  deps = [
-    "after_eof",
-    "before_eof",
+perfetto_sql_source_set("before_eof") {
+  sources = [
+    "tables.sql",
+    "trace_bounds.sql",
   ]
 }

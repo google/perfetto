@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE prelude.casts;
+INCLUDE PERFETTO MODULE prelude.after_eof.casts;
 
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters(
@@ -146,7 +146,7 @@ CREATE PERFETTO VIEW slices(
   -- Alias of `slice.thread_instruction_delta`.
   thread_instruction_delta LONG,
   -- Alias of `slice.cat`.
-  cat LONG,
+  cat STRING,
   -- Alias of `slice.slice_id`.
   slice_id LONG
 ) AS
