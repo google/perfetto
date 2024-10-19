@@ -13,7 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.suspend;
 INCLUDE PERFETTO MODULE intervals.intersect;
 INCLUDE PERFETTO MODULE time.conversion;
 INCLUDE PERFETTO MODULE wattson.arm_dsu;
@@ -80,25 +79,20 @@ SELECT * FROM _stats_w_policy_subquery!(6, policy_6, cpu6_curve, freq_6, idle_6)
 CREATE PERFETTO TABLE _stats_cpu7 AS
 SELECT * FROM _stats_w_policy_subquery!(7, policy_7, cpu7_curve, freq_7, idle_7);
 
-CREATE PERFETTO TABLE _stats_cpu0123_suspend AS
+CREATE PERFETTO TABLE _stats_cpu0123 AS
 SELECT
   ii.ts,
   ii.dur,
-  id_0 as cpu0_id, id_1 as cpu1_id, id_2 as cpu2_id, id_3 as cpu3_id,
-  ss.power_state = 'suspended' as suspended
+  id_0 as cpu0_id, id_1 as cpu1_id, id_2 as cpu2_id, id_3 as cpu3_id
 FROM _interval_intersect!(
   (
     _ii_subquery!(_stats_cpu0),
     _ii_subquery!(_stats_cpu1),
     _ii_subquery!(_stats_cpu2),
-    _ii_subquery!(_stats_cpu3),
-    -- Includes suspend AND awake portions, which will cover entire trace and
-    -- allows us to use _interval_intersect instead of SPAN_OUTER_JOIN()
-    _ii_subquery!(android_suspend_state)
+    _ii_subquery!(_stats_cpu3)
   ),
   ()
-) as ii
-JOIN android_suspend_state AS ss ON ss._auto_id = id_4;
+) as ii;
 
 CREATE PERFETTO TABLE _stats_cpu4567 AS
 SELECT
@@ -116,14 +110,26 @@ FROM _interval_intersect!(
 ) as ii;
 
 -- SPAN OUTER JOIN because sometimes CPU4/5/6/7 are empty tables
-CREATE VIRTUAL TABLE _stats_cpu01234567_suspend
+CREATE VIRTUAL TABLE _stats_cpu01234567
 USING
-  SPAN_OUTER_JOIN(_stats_cpu0123_suspend, _stats_cpu4567);
+  SPAN_OUTER_JOIN(_stats_cpu0123, _stats_cpu4567);
+
+-- get suspend resume state as logged by ftrace.
+CREATE PERFETTO TABLE _suspend_slice AS
+SELECT
+  ts, dur, TRUE AS suspended
+FROM slice
+WHERE name GLOB "timekeeping_freeze(0)";
+
+-- Combine suspend information with CPU idle and frequency system states.
+CREATE VIRTUAL TABLE _idle_freq_suspend_slice
+USING
+  SPAN_OUTER_JOIN(_stats_cpu01234567, _suspend_slice);
 
 -- Combine system state so that it has idle, freq, and L3 hit info.
 CREATE VIRTUAL TABLE _idle_freq_l3_hit_slice
 USING
-  SPAN_OUTER_JOIN(_stats_cpu01234567_suspend, _arm_l3_hit_rate);
+  SPAN_OUTER_JOIN(_idle_freq_suspend_slice, _arm_l3_hit_rate);
 
 -- Combine system state so that it has idle, freq, L3 hit, and L3 miss info.
 CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice
@@ -160,7 +166,7 @@ SELECT
   policy_6,
   policy_7,
   IIF(
-    suspended,
+    suspended = 1,
     1,
     MIN(
       IFNULL(idle_0, 1),
@@ -169,14 +175,14 @@ SELECT
       IFNULL(idle_3, 1)
     )
   ) as no_static,
-  IIF(suspended, 0.0, cpu0_curve) as cpu0_curve,
-  IIF(suspended, 0.0, cpu1_curve) as cpu1_curve,
-  IIF(suspended, 0.0, cpu2_curve) as cpu2_curve,
-  IIF(suspended, 0.0, cpu3_curve) as cpu3_curve,
-  IIF(suspended, 0.0, cpu4_curve) as cpu4_curve,
-  IIF(suspended, 0.0, cpu5_curve) as cpu5_curve,
-  IIF(suspended, 0.0, cpu6_curve) as cpu6_curve,
-  IIF(suspended, 0.0, cpu7_curve) as cpu7_curve,
+  IIF(suspended = 1, 0.0, cpu0_curve) as cpu0_curve,
+  IIF(suspended = 1, 0.0, cpu1_curve) as cpu1_curve,
+  IIF(suspended = 1, 0.0, cpu2_curve) as cpu2_curve,
+  IIF(suspended = 1, 0.0, cpu3_curve) as cpu3_curve,
+  IIF(suspended = 1, 0.0, cpu4_curve) as cpu4_curve,
+  IIF(suspended = 1, 0.0, cpu5_curve) as cpu5_curve,
+  IIF(suspended = 1, 0.0, cpu6_curve) as cpu6_curve,
+  IIF(suspended = 1, 0.0, cpu7_curve) as cpu7_curve,
   -- If dependency CPUs are active, then that CPU could contribute static power
   IIF(idle_4 = -1, lut4.curve_value, -1) as static_4,
   IIF(idle_5 = -1, lut5.curve_value, -1) as static_5,
