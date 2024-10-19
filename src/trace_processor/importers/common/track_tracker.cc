@@ -391,7 +391,7 @@ TrackId TrackTracker::InternGlobalTrack(TrackClassification type) {
   if (it)
     return *it;
 
-  StringId name;
+  StringId name = kNullStringId;
   if (type == TrackClassification::kTrigger)
     name = context_->storage->InternString("Trace Triggers");
   if (type == TrackClassification::kInterconnect)
@@ -705,7 +705,7 @@ TrackId TrackTracker::LegacyInternFuchsiaAsyncTrack(StringId name,
                                                     uint32_t upid,
                                                     int64_t correlation_id) {
   return LegacyInternLegacyChromeAsyncTrack(name, upid, correlation_id, false,
-                                            StringId());
+                                            kNullStringId);
 }
 
 TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
