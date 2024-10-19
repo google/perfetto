@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE prelude.views;
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Given two slice ids, returns whether the first is an ancestor of the second.
 CREATE PERFETTO FUNCTION slice_is_ancestor(

@@ -124,8 +124,9 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
       if (!status.ok())
         return status;
     }
-    return processor_->NotifyEndOfFile();
+    return NotifyEndOfFile();
   }
+  base::Status NotifyEndOfFile() { return processor_->NotifyEndOfFile(); }
 
   Iterator Query(const std::string& query) {
     return processor_->ExecuteQuery(query);
@@ -289,6 +290,8 @@ TEST_F(TraceProcessorIntegrationTest, SerializeMetricDescriptors) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedExtension) {
+  ASSERT_OK(NotifyEndOfFile());
+
   std::string metric_output;
   base::Status status = Processor()->ComputeMetricText(
       std::vector<std::string>{"test_chrome_metric"},
@@ -302,11 +305,12 @@ TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedExtension) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedNoExtension) {
+  ASSERT_OK(NotifyEndOfFile());
+
   std::string metric_output;
-  base::Status status = Processor()->ComputeMetricText(
+  ASSERT_OK(Processor()->ComputeMetricText(
       std::vector<std::string>{"trace_metadata"},
-      TraceProcessor::MetricResultFormat::kProtoText, &metric_output);
-  ASSERT_TRUE(status.ok());
+      TraceProcessor::MetricResultFormat::kProtoText, &metric_output));
   // Check that metric result starts with trace_metadata field. Since this is
   // not an extension field, the field name is not fully qualified.
   ASSERT_TRUE(metric_output.rfind("trace_metadata {") == 0);
@@ -410,13 +414,13 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz28766) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesInvariant) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   uint64_t first_restore = RestoreInitialTables();
   ASSERT_EQ(RestoreInitialTables(), first_restore);
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -465,7 +469,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -491,7 +495,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -511,7 +515,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -550,7 +554,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesWithClause) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -567,7 +571,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesWithClause) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesIndex) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -605,7 +609,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesTraceBounds) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesDependents) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   {
     auto it = Query("create perfetto table foo as select 1 as x");
     ASSERT_FALSE(it.Next());
@@ -625,7 +629,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesDependents) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreDependentFunction) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   {
     auto it =
         Query("create perfetto function foo0() returns INT as select 1 as x");
@@ -645,7 +649,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreDependentFunction) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreDependentTableFunction) {
-  ASSERT_OK(Processor()->NotifyEndOfFile());
+  ASSERT_OK(NotifyEndOfFile());
   {
     auto it = Query(
         "create perfetto function foo0() returns TABLE(x INT) "
@@ -735,6 +739,7 @@ TEST_F(TraceProcessorIntegrationTest, TraceWithUuidReadInParts) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageExecuteQuery) {
+  ASSERT_OK(NotifyEndOfFile());
   auto it = Query("select t from slice");
   ASSERT_FALSE(it.Next());
   ASSERT_FALSE(it.Status().ok());
@@ -748,6 +753,7 @@ no such column: t)"));
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
+  ASSERT_OK(NotifyEndOfFile());
   ASSERT_TRUE(
       Processor()->RegisterMetric("foo/bar.sql", "select t from slice").ok());
 
@@ -767,6 +773,7 @@ no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
+  ASSERT_OK(NotifyEndOfFile());
   SqlPackage module;
   module.name = "foo";
   module.modules.push_back(std::make_pair("foo.bar", "select t from slice"));
@@ -819,7 +826,7 @@ TEST_F(TraceProcessorIntegrationTest, InvalidTrace) {
                    ->Parse(TraceBlobView(
                        TraceBlob::CopyFrom(kBadData, sizeof(kBadData))))
                    .ok());
-  Processor()->NotifyEndOfFile();
+  NotifyEndOfFile();
 }
 
 TEST_F(TraceProcessorIntegrationTest, NoNotifyEndOfFileCalled) {

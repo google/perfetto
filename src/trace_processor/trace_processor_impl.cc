@@ -485,8 +485,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterAdditionalModules(&context_);
   InitPerfettoSqlEngine();
 
-  sqlite_objects_post_constructor_initialization_ =
-      engine_->SqliteRegisteredObjectCount();
+  sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
   bool skip_all_sql = std::find(config_.skip_builtin_metric_paths.begin(),
                                 config_.skip_builtin_metric_paths.end(),
@@ -552,6 +551,9 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
                    GetTraceTimestampBoundsNs(*context_.storage));
 
   TraceProcessorStorageImpl::DestroyContext();
+
+  IncludeAfterEofPrelude();
+  sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
   return base::OkStatus();
 }
 
@@ -559,15 +561,13 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   // We should always have at least as many objects now as we did in the
   // constructor.
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
-  PERFETTO_CHECK(registered_count_before >=
-                 sqlite_objects_post_constructor_initialization_);
+  PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
   InitPerfettoSqlEngine();
 
   // The registered count should now be the same as it was in the constructor.
   uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
-  PERFETTO_CHECK(registered_count_after ==
-                 sqlite_objects_post_constructor_initialization_);
+  PERFETTO_CHECK(registered_count_after == sqlite_objects_post_prelude_);
   return static_cast<size_t>(registered_count_before - registered_count_after);
 }
 
@@ -1082,13 +1082,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   }
 
   // Import prelude package.
-  {
-    auto result = engine_->Execute(SqlSource::FromTraceProcessorImplementation(
-        "INCLUDE PERFETTO MODULE prelude.*"));
-    if (!result.status().ok()) {
-      PERFETTO_FATAL("Failed to import prelude: %s",
-                     result.status().c_message());
-    }
+  IncludeBeforeEofPrelude();
+  if (notify_eof_called_) {
+    IncludeAfterEofPrelude();
   }
 
   for (const auto& metric : sql_metrics_) {
@@ -1103,6 +1099,22 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Reregister manually added stdlib packages.
   for (const auto& package : manually_registered_sql_packages_) {
     RegisterSqlPackage(package);
+  }
+}
+
+void TraceProcessorImpl::IncludeBeforeEofPrelude() {
+  auto result = engine_->Execute(SqlSource::FromTraceProcessorImplementation(
+      "INCLUDE PERFETTO MODULE prelude.before_eof.*"));
+  if (!result.status().ok()) {
+    PERFETTO_FATAL("Failed to import prelude: %s", result.status().c_message());
+  }
+}
+
+void TraceProcessorImpl::IncludeAfterEofPrelude() {
+  auto result = engine_->Execute(SqlSource::FromTraceProcessorImplementation(
+      "INCLUDE PERFETTO MODULE prelude.after_eof.*"));
+  if (!result.status().ok()) {
+    PERFETTO_FATAL("Failed to import prelude: %s", result.status().c_message());
   }
 }
 
