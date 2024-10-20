@@ -752,8 +752,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
       auto& stats = stats_per_buffer[static_cast<int32_t>(w.buffer())];
       stats.packet_loss += s->previous_packet_dropped_count;
       stats.incremental_sequences_dropped +=
+          s->needs_incremental_state_skipped > 0 &&
           s->needs_incremental_state_skipped ==
-          s->needs_incremental_state_total;
+              s->needs_incremental_state_total;
     }
   }
 
