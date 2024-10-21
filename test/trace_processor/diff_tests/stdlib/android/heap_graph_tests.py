@@ -84,3 +84,20 @@ class HeapGraph(TestSuite):
           10,2,"B",0,1,1000,1,1000
           10,2,"java.lang.String",1,2,10666,2,10666
         """))
+
+  def test_heap_graph_class_summary_tree(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_aggregation.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.class_summary_tree;
+
+          SELECT name, self_count, self_size, cumulative_count, cumulative_size
+          FROM android_heap_graph_class_summary_tree
+          ORDER BY cumulative_size DESC;
+        """,
+        out=Csv("""
+          "name","self_count","self_size","cumulative_count","cumulative_size"
+          "A",2,200,4,11200
+          "java.lang.String",1,10000,1,10000
+          "B",1,1000,1,1000
+        """))
