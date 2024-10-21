@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
-#include "src/trace_processor/importers/common/track_classification.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -187,7 +187,7 @@ class TrackTracker {
   //
   // `name` is the display name of the track in trace processor and should
   // always be `AutoName()` unless approved by a trace processor maintainer.
-  TrackId InternTrack(TrackClassification,
+  TrackId InternTrack(tracks::TrackClassification,
                       std::optional<Dimensions>,
                       const TrackName& name = AutoName(),
                       const SetArgsCallback& callback = {});
@@ -195,7 +195,7 @@ class TrackTracker {
   // Interns a track with the given classification and one dimension into the
   // `track` table. This is useful when interning global tracks which have a
   // single uncommon dimension attached to them.
-  TrackId InternSingleDimensionTrack(TrackClassification classification,
+  TrackId InternSingleDimensionTrack(tracks::TrackClassification classification,
                                      StringId key,
                                      const Variadic& value,
                                      const TrackName& name = AutoName(),
@@ -206,12 +206,12 @@ class TrackTracker {
 
   // Interns counter track into TrackTable. If the track created with below
   // arguments already exists, returns the TrackTable::Id of the track.
-  TrackId InternCounterTrack(TrackClassification,
+  TrackId InternCounterTrack(tracks::TrackClassification,
                              std::optional<Dimensions>,
                              const TrackName& = AutoName());
 
   // Interns a unique track into the storage.
-  TrackId InternGlobalTrack(TrackClassification,
+  TrackId InternGlobalTrack(tracks::TrackClassification,
                             const TrackName& = AutoName(),
                             const SetArgsCallback& callback = {});
 
@@ -219,22 +219,22 @@ class TrackTracker {
   TrackId InternThreadTrack(UniqueTid, const TrackName& = AutoName());
 
   // Interns a process track into the storage.
-  TrackId InternProcessTrack(TrackClassification,
+  TrackId InternProcessTrack(tracks::TrackClassification,
                              UniquePid,
                              const TrackName& = AutoName());
 
   // Interns a global track keyed by track type + CPU into the storage.
-  TrackId InternCpuTrack(TrackClassification,
+  TrackId InternCpuTrack(tracks::TrackClassification,
                          uint32_t cpu,
                          const TrackName& = AutoName());
 
   // Interns a counter track associated with a cpu into the storage.
-  TrackId InternCpuCounterTrack(TrackClassification,
+  TrackId InternCpuCounterTrack(tracks::TrackClassification,
                                 uint32_t cpu,
                                 const TrackName& = AutoName());
 
   // Interns a counter track associated with a GPU into the storage.
-  TrackId InternGpuCounterTrack(TrackClassification,
+  TrackId InternGpuCounterTrack(tracks::TrackClassification,
                                 uint32_t gpu_id,
                                 const TrackName& = AutoName());
 
@@ -279,7 +279,7 @@ class TrackTracker {
   friend class TrackEventTracker;
 
   struct TrackMapKey {
-    TrackClassification classification;
+    tracks::TrackClassification classification;
     std::optional<Dimensions> dimensions;
 
     bool operator==(const TrackMapKey& k) const {
@@ -300,33 +300,35 @@ class TrackTracker {
   static constexpr size_t kGroupCount =
       static_cast<uint32_t>(Group::kSizeSentinel);
 
-  TrackId CreateTrack(TrackClassification,
+  TrackId CreateTrack(tracks::TrackClassification,
                       std::optional<Dimensions>,
                       const TrackName&);
 
-  TrackId CreateCounterTrack(TrackClassification,
+  TrackId CreateCounterTrack(tracks::TrackClassification,
                              std::optional<Dimensions>,
                              const TrackName&);
 
-  TrackId CreateThreadTrack(TrackClassification, UniqueTid, const TrackName&);
+  TrackId CreateThreadTrack(tracks::TrackClassification,
+                            UniqueTid,
+                            const TrackName&);
 
-  TrackId CreateThreadCounterTrack(TrackClassification,
+  TrackId CreateThreadCounterTrack(tracks::TrackClassification,
                                    UniqueTid,
                                    const TrackName&);
 
-  TrackId CreateProcessTrack(TrackClassification,
+  TrackId CreateProcessTrack(tracks::TrackClassification,
                              UniquePid,
                              std::optional<Dimensions>,
                              const TrackName&);
 
-  TrackId CreateProcessCounterTrack(TrackClassification,
+  TrackId CreateProcessCounterTrack(tracks::TrackClassification,
                                     UniquePid,
                                     std::optional<Dimensions>,
                                     const TrackName&);
 
   TrackId InternTrackForGroup(Group);
 
-  StringId StringIdFromTrackName(TrackClassification classification,
+  StringId StringIdFromTrackName(tracks::TrackClassification classification,
                                  const TrackTracker::TrackName& name);
 
   Dimensions SingleDimension(StringId key, const Variadic& val) {

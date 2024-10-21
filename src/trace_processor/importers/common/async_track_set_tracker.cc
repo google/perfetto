@@ -187,7 +187,7 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
           context_->track_tracker->CreateDimensionsBuilder();
       builder.AppendName(set.global_track_name);
       return context_->track_tracker->CreateTrack(
-          TrackClassification::kUnknown, std::move(builder).Build(),
+          tracks::unknown, std::move(builder).Build(),
           TrackTracker::LegacyStringIdName{set.global_track_name});
     }
     case TrackSetScope::kProcess:
@@ -208,7 +208,7 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
       TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
 
       TrackId id = context_->track_tracker->CreateProcessTrack(
-          TrackClassification::kUnknown, set.process_tuple.upid, dims_id,
+          tracks::unknown, set.process_tuple.upid, dims_id,
           TrackTracker::LegacyStringIdName{name});
 
       if (!source.is_null()) {

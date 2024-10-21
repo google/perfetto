@@ -112,7 +112,9 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           and classification not in (
             'linux_rpm',
             'irq_counter',
-            'softirq_counter'
+            'softirq_counter',
+            'android_energy_estimation_breakdown',
+            'android_energy_estimation_breakdown_per_uid'
           )
         group by parent_id, name
       ),
