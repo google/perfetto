@@ -43,8 +43,8 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -252,8 +252,8 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 }
 
 TEST_F(ExportJsonTest, SystemEventsIgnored) {
-  TrackId track = context_.track_tracker->InternProcessTrack(
-      TrackClassification::kUnknown, 0);
+  TrackId track =
+      context_.track_tracker->InternProcessTrack(tracks::unknown, 0);
   context_.args_tracker->Flush();  // Flush track args.
 
   // System events have no category.
@@ -770,7 +770,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global legacy track.
   TrackId track = context_.track_tracker->InternGlobalTrack(
-      TrackClassification::kChromeLegacyGlobalInstant, TrackTracker::AutoName(),
+      tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
       [this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(
             context_.storage->InternString("source"),
@@ -1814,8 +1814,8 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   const char* kModuleDebugPath = "debugpath";
 
   UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
-  TrackId track = context_.track_tracker->InternProcessTrack(
-      TrackClassification::kTrackEvent, upid);
+  TrackId track =
+      context_.track_tracker->InternProcessTrack(tracks::track_event, upid);
   StringId level_of_detail_id =
       context_.storage->InternString(base::StringView(kLevelOfDetail));
   auto snapshot_id = context_.storage->mutable_memory_snapshot_table()
@@ -1936,8 +1936,8 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
 
   UniquePid os_upid =
       context_.process_tracker->GetOrCreateProcess(kOsProcessID);
-  TrackId track = context_.track_tracker->InternProcessTrack(
-      TrackClassification::kTrackEvent, os_upid);
+  TrackId track =
+      context_.track_tracker->InternProcessTrack(tracks::track_event, os_upid);
   StringId level_of_detail_id =
       context_.storage->InternString(base::StringView(kLevelOfDetail));
   auto snapshot_id = context_.storage->mutable_memory_snapshot_table()

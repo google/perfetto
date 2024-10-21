@@ -43,8 +43,8 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
-#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -350,8 +350,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   uint32_t c = 0;
   for (auto it = sys_stats.cpufreq_khz(); it; ++it, ++c) {
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kCpuFrequency, c,
-        TrackTracker::LegacyCharArrayName{"cpufreq"});
+        tracks::cpu_frequency, c, TrackTracker::LegacyCharArrayName{"cpufreq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 
@@ -378,43 +377,43 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kUserTime, ct.cpu_id(),
+        tracks::cpu_user_time, ct.cpu_id(),
         TrackTracker::LegacyCharArrayName{"cpu.times.user_ns"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.user_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kNiceUserTime, ct.cpu_id(),
+        tracks::cpu_nice_user_time, ct.cpu_id(),
         TrackTracker::LegacyCharArrayName{"cpu.times.user_nice_ns"});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.user_nice_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kSystemModeTime, ct.cpu_id(),
+        tracks::cpu_system_mode_time, ct.cpu_id(),
         TrackTracker::LegacyCharArrayName{"cpu.times.system_mode_ns"});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.system_mode_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kCpuIdleTime, ct.cpu_id(),
+        tracks::cpu_idleTime, ct.cpu_id(),
         TrackTracker::LegacyCharArrayName{"cpu.times.idle_ns"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.idle_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kIoWaitTime, ct.cpu_id(),
+        tracks::cpu_io_wait_time, ct.cpu_id(),
         TrackTracker::LegacyCharArrayName{"cpu.times.io_wait_ns"});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.io_wait_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kIrqTime, ct.cpu_id(),
+        tracks::cpu_irq_time, ct.cpu_id(),
         TrackTracker::LegacyCharArrayName{"cpu.times.irq_ns"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.irq_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kSoftIrqTime, ct.cpu_id(),
+        tracks::cpu_softirq_time, ct.cpu_id(),
         TrackTracker::LegacyCharArrayName{"cpu.times.softirq_ns"});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.softirq_ns()), track);
@@ -423,7 +422,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   for (auto it = sys_stats.num_irq(); it; ++it) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternSingleDimensionTrack(
-        TrackClassification::kIrqCounter, irq_id_, Variadic::Integer(ic.irq()),
+        tracks::irq_counter, irq_id_, Variadic::Integer(ic.irq()),
         TrackTracker::LegacyCharArrayName{"num_irq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
@@ -432,8 +431,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   for (auto it = sys_stats.num_softirq(); it; ++it) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternSingleDimensionTrack(
-        TrackClassification::kSoftirqCounter, irq_id_,
-        Variadic::Integer(ic.irq()),
+        tracks::softirq_counter, irq_id_, Variadic::Integer(ic.irq()),
         TrackTracker::LegacyCharArrayName{"num_softirq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);

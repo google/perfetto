@@ -35,8 +35,8 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -213,8 +213,8 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
   auto ordinal = energy_consumer_specs->ordinal;
 
   TrackId energy_track = context_->track_tracker->InternSingleDimensionTrack(
-      TrackClassification::kAndroidEnergyEstimationBreakdown,
-      energy_consumer_id_, Variadic::Integer(consumer_id),
+      tracks::android_energy_estimation_breakdown, energy_consumer_id_,
+      Variadic::Integer(consumer_id),
       TrackTracker::LegacyStringIdName{consumer_name},
       [&](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(consumer_type_id_, Variadic::String(consumer_type));
@@ -238,7 +238,7 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
     builder.AppendDimension(energy_consumer_id_,
                             Variadic::Integer(consumer_id));
     TrackId energy_uid_track = context_->track_tracker->InternTrack(
-        TrackClassification::kAndroidEnergyEstimationBreakdownPerUid,
+        tracks::android_energy_estimation_breakdown_per_uid,
         std::move(builder).Build(),
         TrackTracker::LegacyStringIdName{consumer_name});
     context_->event_tracker->PushCounter(

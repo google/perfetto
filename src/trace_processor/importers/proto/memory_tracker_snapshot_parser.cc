@@ -171,7 +171,7 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
   // For now, we use the existing global instant event track for chrome events,
   // since memory dumps are global.
   TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      TrackClassification::kChromeLegacyGlobalInstant, TrackTracker::AutoName(),
+      tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
       [this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(
             context_->storage->InternString("source"),
