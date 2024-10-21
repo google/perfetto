@@ -1820,7 +1820,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   StringId peak_resident_set_size_id =
       context_.storage->InternString("chrome.peak_resident_set_kb");
   TrackId peak_resident_set_size_counter =
-      context_.track_tracker->InternProcessCounterTrack(
+      context_.track_tracker->LegacyInternProcessCounterTrack(
           peak_resident_set_size_id, upid);
   context_.event_tracker->PushCounter(kTimestamp, kPeakResidentSetSize,
                                       peak_resident_set_size_counter);
@@ -1828,7 +1828,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   StringId private_footprint_bytes_id =
       context_.storage->InternString("chrome.private_footprint_kb");
   TrackId private_footprint_bytes_counter =
-      context_.track_tracker->InternProcessCounterTrack(
+      context_.track_tracker->LegacyInternProcessCounterTrack(
           private_footprint_bytes_id, upid);
   context_.event_tracker->PushCounter(kTimestamp, kPrivateFootprintBytes,
                                       private_footprint_bytes_counter);

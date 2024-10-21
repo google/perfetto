@@ -1913,7 +1913,7 @@ void FtraceParser::ParseIonHeapGrowOrShrink(int64_t timestamp,
   }
 
   // Push the global counter.
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kMemory, global_name_id);
   context_->event_tracker->PushCounter(timestamp,
                                        static_cast<double>(total_bytes), track);
@@ -1921,8 +1921,8 @@ void FtraceParser::ParseIonHeapGrowOrShrink(int64_t timestamp,
   // Push the change counter.
   // TODO(b/121331269): these should really be instant events.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  track =
-      context_->track_tracker->InternThreadCounterTrack(change_name_id, utid);
+  track = context_->track_tracker->LegacyInternThreadCounterTrack(
+      change_name_id, utid);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(change_bytes), track);
 
@@ -1951,7 +1951,7 @@ void FtraceParser::ParseIonStat(int64_t timestamp,
                                 protozero::ConstBytes data) {
   protos::pbzero::IonStatFtraceEvent::Decoder ion(data.data, data.size);
   // Push the global counter.
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kMemory, ion_total_id_);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(ion.total_allocated()), track);
@@ -1959,8 +1959,8 @@ void FtraceParser::ParseIonStat(int64_t timestamp,
   // Push the change counter.
   // TODO(b/121331269): these should really be instant events.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  track =
-      context_->track_tracker->InternThreadCounterTrack(ion_change_id_, utid);
+  track = context_->track_tracker->LegacyInternThreadCounterTrack(
+      ion_change_id_, utid);
   context_->event_tracker->PushCounter(timestamp,
                                        static_cast<double>(ion.len()), track);
 
@@ -1985,44 +1985,44 @@ void FtraceParser::ParseBclIrq(int64_t ts, protozero::ConstBytes data) {
   protos::pbzero::BclIrqTriggerFtraceEvent::Decoder bcl(data.data, data.size);
   int throttle = bcl.throttle();
   // id
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_id_);
   context_->event_tracker->PushCounter(ts, throttle ? bcl.id() : -1, track);
   // throttle
-  track = context_->track_tracker->InternGlobalCounterTrack(
+  track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_throttle_);
   context_->event_tracker->PushCounter(ts, throttle, track);
   // cpu0_limit
-  track = context_->track_tracker->InternGlobalCounterTrack(
+  track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu0_);
   context_->event_tracker->PushCounter(ts, throttle ? bcl.cpu0_limit() : 0,
                                        track);
   // cpu1_limit
-  track = context_->track_tracker->InternGlobalCounterTrack(
+  track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu1_);
   context_->event_tracker->PushCounter(ts, throttle ? bcl.cpu1_limit() : 0,
                                        track);
   // cpu2_limit
-  track = context_->track_tracker->InternGlobalCounterTrack(
+  track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu2_);
   context_->event_tracker->PushCounter(ts, throttle ? bcl.cpu2_limit() : 0,
                                        track);
   // tpu_limit
-  track = context_->track_tracker->InternGlobalCounterTrack(
+  track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_tpu_);
   context_->event_tracker->PushCounter(ts, throttle ? bcl.tpu_limit() : 0,
                                        track);
   // gpu_limit
-  track = context_->track_tracker->InternGlobalCounterTrack(
+  track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_gpu_);
   context_->event_tracker->PushCounter(ts, throttle ? bcl.gpu_limit() : 0,
                                        track);
   // voltage
-  track = context_->track_tracker->InternGlobalCounterTrack(
+  track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_voltage_);
   context_->event_tracker->PushCounter(ts, bcl.voltage(), track);
   // capacity
-  track = context_->track_tracker->InternGlobalCounterTrack(
+  track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kBatteryMitigation, bcl_irq_capacity_);
   context_->event_tracker->PushCounter(ts, bcl.capacity(), track);
 }
@@ -2033,7 +2033,7 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
   protos::pbzero::DmaHeapStatFtraceEvent::Decoder dma_heap(data.data,
                                                            data.size);
   // Push the global counter.
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kMemory, dma_heap_total_id_);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(dma_heap.total_allocated()), track);
@@ -2041,8 +2041,8 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
   // Push the change counter.
   // TODO(b/121331269): these should really be instant events.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  track = context_->track_tracker->InternThreadCounterTrack(dma_heap_change_id_,
-                                                            utid);
+  track = context_->track_tracker->LegacyInternThreadCounterTrack(
+      dma_heap_change_id_, utid);
 
   auto opt_counter_id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(dma_heap.len()), track);
@@ -2373,7 +2373,7 @@ void FtraceParser::ClockRate(int64_t timestamp,
                                       clock_name.data(), int(subtitle.size()),
                                       subtitle.data());
   StringId name = context_->storage->InternString(counter_name.c_str());
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kClockFrequency, name);
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(rate),
                                        track);
@@ -2640,7 +2640,7 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
   const uint32_t pid = gpu_mem_total.pid();
   if (pid == 0) {
     // Pid 0 is used to indicate the global total
-    track = context_->track_tracker->InternGlobalCounterTrack(
+    track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kMemory, gpu_mem_total_name_id_, {},
         gpu_mem_total_unit_id_, gpu_mem_total_global_desc_id_);
   } else {
@@ -2664,7 +2664,7 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
     UniquePid upid = *context_->storage->thread_table()[*opt_utid].upid();
     PERFETTO_DCHECK(context_->storage->process_table()[upid].pid() == pid);
 
-    track = context_->track_tracker->InternProcessCounterTrack(
+    track = context_->track_tracker->LegacyInternProcessCounterTrack(
         gpu_mem_total_name_id_, upid, gpu_mem_total_unit_id_,
         gpu_mem_total_proc_desc_id_);
   }
@@ -2719,7 +2719,7 @@ void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,
   }
 
   // Push the global counter.
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kMemory, total_name);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(event.total_allocated()), track);
@@ -2727,7 +2727,7 @@ void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,
   // Push the change counter.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId delta_track =
-      context_->track_tracker->InternThreadCounterTrack(name, utid);
+      context_->track_tracker->LegacyInternThreadCounterTrack(name, utid);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(event.len()), delta_track);
 }
@@ -2753,7 +2753,7 @@ void FtraceParser::ParseNetifReceiveSkb(uint32_t cpu,
   nic_received_bytes_[name] += event.len();
 
   uint64_t nic_received_kilobytes = nic_received_bytes_[name] / 1024;
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kNetwork, name);
   std::optional<CounterId> id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(nic_received_kilobytes), track);
@@ -2785,7 +2785,7 @@ void FtraceParser::ParseNetDevXmit(uint32_t cpu,
   nic_transmitted_bytes_[name] += evt.len();
 
   uint64_t nic_transmitted_kilobytes = nic_transmitted_bytes_[name] / 1024;
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kNetwork, name);
   std::optional<CounterId> id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(nic_transmitted_kilobytes), track);
@@ -2933,7 +2933,7 @@ void FtraceParser::ParseKfreeSkb(int64_t timestamp,
   }
   num_of_kfree_skb_ip_prot += 1;
 
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kNetwork, kfree_skb_name_id_);
   std::optional<CounterId> id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(num_of_kfree_skb_ip_prot), track);
@@ -2953,7 +2953,7 @@ void FtraceParser::ParseCrosEcSensorhubData(int64_t timestamp,
                                                               blob.size);
 
   // Push the global counter.
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kDeviceState,
       context_->storage->InternString(
           base::StringView("cros_ec.cros_ec_sensorhub_data." +
@@ -2994,7 +2994,7 @@ void FtraceParser::ParseUfshcdClkGating(int64_t timestamp,
       clk_state = 2;
       break;
   }
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kNetwork, ufs_clkgating_id_);
   context_->event_tracker->PushCounter(timestamp,
                                        static_cast<double>(clk_state), track);
@@ -3316,7 +3316,7 @@ void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
   uint32_t num = evt.doorbell() > 0
                      ? static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell()))
                      : (evt.str_t() == 1 ? 0 : 1);
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kIo, ufs_command_count_id_);
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(num),
                                        track);

@@ -101,13 +101,13 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
         std::string("batt.").append(batt_name).append(".power_mw")));
   }
   if (evt.has_charge_counter_uah()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, batt_charge_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.charge_counter_uah()), track);
   } else if (evt.has_energy_counter_uwh() && evt.has_voltage_uv()) {
     // Calculate charge counter from energy counter and voltage.
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, batt_charge_id);
     auto energy = evt.energy_counter_uwh();
     auto voltage = evt.voltage_uv();
@@ -118,32 +118,32 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   }
 
   if (evt.has_capacity_percent()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, batt_capacity_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.capacity_percent()), track);
   }
   if (evt.has_current_ua()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, batt_current_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_ua()), track);
   }
   if (evt.has_current_avg_ua()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, batt_current_avg_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_avg_ua()), track);
   }
   if (evt.has_voltage_uv()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, batt_voltage_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.voltage_uv()), track);
   }
   if (evt.has_current_ua() && evt.has_voltage_uv()) {
     // Calculate power from current and voltage.
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, batt_power_id);
     auto current = evt.current_ua();
     auto voltage = evt.voltage_uv();
@@ -267,7 +267,7 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
       return;
     }
 
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, entity_state->overall_name);
     context_->event_tracker->PushCounter(
         ts, double(residency.total_time_in_state_ms()), track);
@@ -445,7 +445,7 @@ void AndroidProbesParser::ParseInitialDisplayState(int64_t ts,
                                                    ConstBytes blob) {
   protos::pbzero::InitialDisplayState::Decoder state(blob.data, blob.size);
 
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kDeviceState, screen_state_id_);
   context_->event_tracker->PushCounter(ts, state.display_state(), track);
 }
@@ -477,7 +477,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       std::optional<int32_t> state =
           base::StringToInt32(kv.value().ToStdString());
       if (state) {
-        TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
             TrackTracker::Group::kNetwork, name_id);
         context_->event_tracker->PushCounter(ts, *state, track);
       }
@@ -492,7 +492,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       std::optional<int32_t> state =
           base::StringToInt32(kv.value().ToStdString());
       if (state) {
-        TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
             TrackTracker::Group::kDeviceState, *mapped_name_id);
         context_->event_tracker->PushCounter(ts, *state, track);
       }

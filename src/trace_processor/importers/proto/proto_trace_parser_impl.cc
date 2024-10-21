@@ -355,7 +355,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       name_id = context_->storage->InternString(event.counter_name());
     }
     TrackId track =
-        context_->track_tracker->InternThreadCounterTrack(name_id, utid);
+        context_->track_tracker->LegacyInternThreadCounterTrack(name_id, utid);
     auto opt_id =
         context_->event_tracker->PushCounter(ts, event.counter_value(), track);
     if (opt_id) {
