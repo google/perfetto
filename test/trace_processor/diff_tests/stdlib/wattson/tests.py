@@ -378,7 +378,7 @@ class WattsonStdlib(TestSuite):
             """))
 
   # Tests that DSU devfreq calculations are merged correctly
-  def test_wattson_dsu_devfreq(self):
+  def test_wattson_dsu_devfreq_system_state(self):
     return DiffTestBlueprint(
         trace=DataPath('wattson_tk4_pcmark.pb'),
         query=("""

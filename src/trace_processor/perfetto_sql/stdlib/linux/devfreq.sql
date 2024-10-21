@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Gets devfreq frequency counter based on device queried. These counters will
 -- only be available if the "devfreq/devfreq_frequency" ftrace event is enabled.
-CREATE PERFETTO FUNCTION linux_get_devfreq_counters(
+CREATE PERFETTO FUNCTION _get_devfreq_counters(
   -- Devfreq name to query for.
   device_name STRING
 )
@@ -39,7 +39,9 @@ SELECT
 FROM counter_leading_intervals!((
   SELECT c.*
   FROM counter c
-  JOIN counter_track ct ON ct.id = c.track_id AND ct.name = $device_name
+  JOIN counter_track ct ON ct.id = c.track_id
+  WHERE ct.classification = 'linux_device_frequency'
+    AND EXTRACT_ARG(ct.dimension_arg_set_id, 'device_name') = $device_name
 )) AS count_w_dur
 JOIN counter_track AS ct ON track_id = ct.id;
 
@@ -58,5 +60,4 @@ CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
 ) AS
 SELECT
   id, ts, dur, freq as dsu_freq
-FROM linux_get_devfreq_counters("dsufreq");
-
+FROM _get_devfreq_counters("dsufreq");

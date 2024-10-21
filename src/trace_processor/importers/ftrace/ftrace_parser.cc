@@ -3761,28 +3761,29 @@ StringId FtraceParser::InternedKernelSymbolOrFallback(
 void FtraceParser::ParseDeviceFrequency(int64_t ts,
                                         protozero::ConstBytes blob) {
   protos::pbzero::DevfreqFrequencyFtraceEvent::Decoder event(blob);
-  constexpr char delimiter[] = "devfreq_";
   std::string dev_name = event.dev_name().ToStdString();
-  auto position = dev_name.find(delimiter);
 
-  if (position != std::string::npos) {
-    // Get device name by getting substring after delimiter and keep existing
-    // naming convention (e.g. cpufreq, gpufreq) consistent by adding a suffix
-    // to the devfreq name (e.g. dsufreq, bcifreq)
-    StringId device_name = context_->storage->InternString(
-        (dev_name.substr(position + sizeof(delimiter) - 1) + "freq").c_str());
-
-    TrackTracker::DimensionsBuilder dims_builder =
-        context_->track_tracker->CreateDimensionsBuilder();
-    dims_builder.AppendDimension(device_name_id_,
-                                 Variadic::String(device_name));
-    TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
-
-    TrackId track_id = context_->track_tracker->InternCounterTrack(
-        TrackClassification::kLinuxDeviceFrequency, dims_id, device_name);
-    context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
-                                         track_id);
+  constexpr char kDelimiter[] = "devfreq_";
+  auto position = dev_name.find(kDelimiter);
+  if (position == std::string::npos) {
+    return;
   }
+
+  // Get device name by getting substring after delimiter and keep existing
+  // naming convention (e.g. cpufreq, gpufreq) consistent by adding a suffix
+  // to the devfreq name (e.g. dsufreq, bcifreq)
+  StringId device_name = context_->storage->InternString(
+      (dev_name.substr(position + sizeof(kDelimiter) - 1) + "freq").c_str());
+
+  TrackTracker::DimensionsBuilder dims_builder =
+      context_->track_tracker->CreateDimensionsBuilder();
+  dims_builder.AppendDimension(device_name_id_, Variadic::String(device_name));
+  TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
+
+  TrackId track_id = context_->track_tracker->InternCounterTrack(
+      TrackClassification::kLinuxDeviceFrequency, dims_id);
+  context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
+                                       track_id);
 }
 
 }  // namespace perfetto::trace_processor

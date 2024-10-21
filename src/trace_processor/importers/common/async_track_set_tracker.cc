@@ -187,7 +187,6 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
       TrackTracker::DimensionsBuilder builder =
           context_->track_tracker->CreateDimensionsBuilder();
       builder.AppendName(set.global_track_name);
-
       return context_->track_tracker->CreateTrack(TrackClassification::kAsync,
                                                   std::move(builder).Build(),
                                                   set.global_track_name);
