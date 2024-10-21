@@ -516,8 +516,7 @@ class TrackEventParser::EventImporter {
             break;
           case LegacyEvent::SCOPE_GLOBAL:
             track_id_ = context_->track_tracker->InternGlobalTrack(
-                TrackClassification::kChromeLegacyGlobalInstant,
-                TrackTracker::AutoName(),
+                tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
                 [this](ArgsTracker::BoundInserter& inserter) {
                   inserter.AddArg(
                       context_->storage->InternString("source"),
@@ -534,7 +533,7 @@ class TrackEventParser::EventImporter {
             }
 
             track_id_ = context_->track_tracker->InternProcessTrack(
-                TrackClassification::kChromeProcessInstant, *upid_);
+                tracks::chrome_process_instant, *upid_);
             context_->args_tracker->AddArgsTo(track_id_).AddArg(
                 context_->storage->InternString("source"),
                 Variadic::String(context_->storage->InternString("chrome")));

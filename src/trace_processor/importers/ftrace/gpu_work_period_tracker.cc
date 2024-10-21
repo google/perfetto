@@ -25,8 +25,8 @@
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 
@@ -44,8 +44,7 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
   dims_builder.AppendGpu(evt.gpu_id());
   dims_builder.AppendUid(static_cast<int32_t>(evt.uid()));
   TrackId track_id = context_->track_tracker->InternTrack(
-      TrackClassification::kAndroidGpuWorkPeriod,
-      std::move(dims_builder).Build());
+      tracks::android_gpu_work_period, std::move(dims_builder).Build());
 
   const auto duration =
       static_cast<int64_t>(evt.end_time_ns() - evt.start_time_ns());

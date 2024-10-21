@@ -23,8 +23,8 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -272,7 +272,7 @@ void SystraceParser::ParseSystracePoint(
           UniquePid killed_upid =
               context_->process_tracker->GetOrCreateProcess(killed_pid);
           TrackId track = context_->track_tracker->InternProcessTrack(
-              TrackClassification::kAndroidLmk, killed_upid);
+              tracks::android_lmk, killed_upid);
           context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
         }
         // TODO(lalitm): we should not add LMK events to the counters table
@@ -335,7 +335,7 @@ void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
 
     // Add mem.lmk instant event for consistency with other methods.
     TrackId track = context_->track_tracker->InternProcessTrack(
-        TrackClassification::kAndroidLmk, killed_upid);
+        tracks::android_lmk, killed_upid);
     context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
   }
 }

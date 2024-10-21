@@ -155,7 +155,7 @@ void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
   // associated to a single process or thread. Add to a custom Mali Irq track
   // instead.
   TrackId track_id = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kMaliIrqCpu, cpu,
+      tracks::cpu_mali_irq, cpu,
       TrackTracker::LegacyCharArrayName{
           base::StackString<255>("Mali Irq Cpu %u", cpu)});
 
