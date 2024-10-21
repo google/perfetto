@@ -58,6 +58,8 @@ select * from data;
 CREATE PERFETTO TABLE _wattson_device AS
 WITH soc_model AS (
   SELECT COALESCE(
+    -- Get guest model from metadata, which takes precedence if set
+    (SELECT str_value FROM metadata WHERE name = 'android_guest_soc_model'),
     -- Get model from metadata
     (SELECT str_value FROM metadata WHERE name = 'android_soc_model'),
     -- Get device name from metadata and map it to model
