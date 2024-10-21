@@ -286,7 +286,6 @@ additional_args = {
         }),
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
-        ('export_shared_lib_headers', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
     ],
     'libperfetto_c': [
@@ -542,7 +541,6 @@ class Module(object):
     self.main: Optional[str] = None
     self.comment = 'GN: ' + gn_utils.label_without_toolchain(gn_target)
     self.shared_libs = set()
-    self.export_shared_lib_headers = set()
     self.static_libs = set()
     self.whole_static_libs = set()
     self.runtime_libs = set()
@@ -592,7 +590,6 @@ class Module(object):
     self._output_field(output, 'name')
     self._output_field(output, 'srcs')
     self._output_field(output, 'shared_libs')
-    self._output_field(output, 'export_shared_lib_headers')
     self._output_field(output, 'static_libs')
     self._output_field(output, 'whole_static_libs')
     self._output_field(output, 'runtime_libs')
