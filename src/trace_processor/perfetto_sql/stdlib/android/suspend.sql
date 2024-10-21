@@ -49,11 +49,11 @@ suspend_slice as (
     AND NOT EXISTS(SELECT * FROM suspend_slice_from_minimal)
 ),
 awake_slice AS (
-  -- If we don't have any rows, use the trace bounds.
+  -- If we don't have any rows, use the trace bounds if bounds are defined.
   SELECT
     trace_start() AS ts,
     trace_dur() AS dur
-  WHERE (SELECT COUNT(*) FROM suspend_slice) = 0
+  WHERE (SELECT COUNT(*) FROM suspend_slice) = 0 AND dur > 0
   UNION ALL
   -- If we do have rows, create one slice from the trace start to the first suspend.
   SELECT
