@@ -114,8 +114,6 @@ CounterTrackTable::~CounterTrackTable() = default;
 ThreadCounterTrackTable::~ThreadCounterTrackTable() = default;
 ProcessCounterTrackTable::~ProcessCounterTrackTable() = default;
 CpuCounterTrackTable::~CpuCounterTrackTable() = default;
-IrqCounterTrackTable::~IrqCounterTrackTable() = default;
-SoftirqCounterTrackTable::~SoftirqCounterTrackTable() = default;
 GpuCounterTrackTable::~GpuCounterTrackTable() = default;
 PerfCounterTrackTable::~PerfCounterTrackTable() = default;
 

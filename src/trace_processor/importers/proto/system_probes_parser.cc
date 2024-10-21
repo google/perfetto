@@ -16,23 +16,40 @@
 
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/public/compiler.h"
+#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
+#include "src/kernel_utils/syscall_table.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
+#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -40,6 +57,7 @@
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/system_info.pbzero.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace {
 
@@ -49,8 +67,7 @@ bool IsSupportedDiskStatDevice(const std::string& device_name) {
 
 }  // namespace
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -139,6 +156,7 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       bytes_unit_id_(context->storage->InternString("bytes")),
       available_chunks_unit_id_(
           context->storage->InternString("available chunks")),
+      irq_id_(context->storage->InternString("irq")),
       num_forks_name_id_(context->storage->InternString("num_forks")),
       num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
       num_softirq_total_name_id_(
@@ -396,18 +414,18 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 
   for (auto it = sys_stats.num_irq(); it; ++it) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
-
-    TrackId track = context_->track_tracker->LegacyInternIrqCounterTrack(
-        TrackClassification::kIrqCount, ic.irq());
+    TrackId track = context_->track_tracker->InternSingleDimensionTrack(
+        TrackClassification::kIrqCounter, irq_id_, Variadic::Integer(ic.irq()),
+        kNullStringId);
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
 
   for (auto it = sys_stats.num_softirq(); it; ++it) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
-
-    TrackId track = context_->track_tracker->LegacyInternSoftirqCounterTrack(
-        TrackClassification::kSoftirqCount, ic.irq());
+    TrackId track = context_->track_tracker->InternSingleDimensionTrack(
+        TrackClassification::kSoftirqCounter, irq_id_,
+        Variadic::Integer(ic.irq()), kNullStringId);
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
@@ -568,7 +586,7 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     // single cmdline element. This will be wrong for binaries that have spaces
     // in their path and are invoked without additional arguments, but those are
     // very rare. The full cmdline will still be correct either way.
-    if (bool(++proc.cmdline()) == false) {
+    if (!static_cast<bool>(++proc.cmdline())) {
       size_t delim_pos = argv0.find(' ');
       if (delim_pos != base::StringView::npos) {
         argv0 = argv0.substr(0, delim_pos);
@@ -872,13 +890,13 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
 
   // Capacities are defined as existing on all CPUs if present and so we set
   // them as invalid if any is missing
-  bool valid_capacities =
-      std::all_of(cpu_infos.begin(), cpu_infos.end(),
-                  [](CpuInfo info) { return info.capacity.has_value(); });
+  bool valid_capacities = std::all_of(
+      cpu_infos.begin(), cpu_infos.end(),
+      [](const CpuInfo& info) { return info.capacity.has_value(); });
 
-  bool valid_frequencies =
-      std::all_of(cpu_infos.begin(), cpu_infos.end(),
-                  [](CpuInfo info) { return !info.frequencies.empty(); });
+  bool valid_frequencies = std::all_of(
+      cpu_infos.begin(), cpu_infos.end(),
+      [](const CpuInfo& info) { return !info.frequencies.empty(); });
 
   std::vector<uint32_t> cluster_ids(cpu_infos.size());
   uint32_t cluster_id = 0;
@@ -945,5 +963,4 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

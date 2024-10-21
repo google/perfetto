@@ -110,7 +110,9 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           t.type in ('__intrinsic_track', 'gpu_track', '__intrinsic_cpu_track')
           and (name != '${suspendResumeLatencyTrackName}' or name is null)
           and classification not in (
-            'linux_rpm'
+            'linux_rpm',
+            'irq_counter',
+            'softirq_counter'
           )
         group by parent_id, name
       ),

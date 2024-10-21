@@ -54,6 +54,7 @@ class SystemProbesParser {
   const StringId ns_unit_id_;
   const StringId bytes_unit_id_;
   const StringId available_chunks_unit_id_;
+  const StringId irq_id_;
 
   const StringId num_forks_name_id_;
   const StringId num_irq_total_name_id_;

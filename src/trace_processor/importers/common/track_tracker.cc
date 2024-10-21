@@ -109,6 +109,10 @@ inline std::optional<std::string> GetCpuCounterTrackName(
     return "cpu.times.irq_ns";
   if (type == TrackClassification::kSoftIrqTime)
     return "cpu.times.softirq_ns";
+  if (type == TrackClassification::kIrqCounter)
+    return "num_irq";
+  if (type == TrackClassification::kSoftirqCounter)
+    return "num_softirq";
   if (type == TrackClassification::kCpuUtilization)
     return base::StackString<255>("Cpu %u Util", cpu).ToStdString();
   if (type == TrackClassification::kCpuCapacity)
@@ -538,58 +542,6 @@ TrackId TrackTracker::LegacyInternCpuIdleStateTrack(uint32_t cpu,
   TrackId track_id =
       context_->storage->mutable_cpu_counter_track_table()->Insert(row).id;
   tracks_[{classification, dims_id}] = track_id;
-  return track_id;
-}
-
-TrackId TrackTracker::LegacyInternIrqCounterTrack(TrackClassification type,
-                                                  int32_t irq) {
-  Dimensions dims_id = SingleDimension(context_->storage->InternString("irq"),
-                                       Variadic::Integer(irq));
-
-  auto* it = tracks_.Find({type, dims_id});
-  if (it) {
-    return *it;
-  }
-
-  tables::IrqCounterTrackTable::Row row;
-  row.irq = irq;
-  row.machine_id = context_->machine_id();
-  row.classification =
-      context_->storage->InternString(TrackClassificationToString(type));
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-
-  if (type == TrackClassification::kIrqCount)
-    row.name = context_->storage->InternString("num_irq");
-
-  TrackId track_id =
-      context_->storage->mutable_irq_counter_track_table()->Insert(row).id;
-  tracks_[{type, dims_id}] = track_id;
-  return track_id;
-}
-
-TrackId TrackTracker::LegacyInternSoftirqCounterTrack(TrackClassification type,
-                                                      int32_t softirq) {
-  Dimensions dims_id = SingleDimension(
-      context_->storage->InternString("softirq"), Variadic::Integer(softirq));
-  auto* it = tracks_.Find({type, dims_id});
-  if (it) {
-    return *it;
-  }
-
-  tables::SoftirqCounterTrackTable::Row row;
-  row.softirq = softirq;
-  row.machine_id = context_->machine_id();
-  row.classification =
-      context_->storage->InternString(TrackClassificationToString(type));
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-
-  if (type == TrackClassification::kSoftirqCount)
-    row.name = context_->storage->InternString("num_softirq");
-
-  TrackId track_id =
-      context_->storage->mutable_softirq_counter_track_table()->Insert(row).id;
-
-  tracks_[{type, dims_id}] = track_id;
   return track_id;
 }
 
