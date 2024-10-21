@@ -35,6 +35,12 @@ const SELECTION_SCHEMA = z.discriminatedUnion('kind', [
     trackKey: z.string(),
     eventId: z.string(),
   }),
+  z.object({
+    kind: z.literal('AREA'),
+    start: zTime,
+    end: zTime,
+    trackUris: z.array(z.string()),
+  }),
 ]);
 
 export type SerializedSelection = z.infer<typeof SELECTION_SCHEMA>;
