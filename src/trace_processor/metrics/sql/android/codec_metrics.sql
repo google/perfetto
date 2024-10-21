@@ -20,7 +20,7 @@ INCLUDE PERFETTO MODULE slices.with_context;
 INCLUDE PERFETTO MODULE slices.cpu_time;
 
 SELECT RUN_METRIC('android/android_cpu.sql');
-SELECT RUN_METRIC('android/power_drain_in_watts.sql');
+SELECT RUN_METRIC('android/android_powrails.sql');
 
 -- Attaching thread proto with media thread name
 DROP VIEW IF EXISTS core_type_proto_per_thread_name;
@@ -137,60 +137,15 @@ JOIN thread_slice_cpu_time ct ON(sid = ct.id)
 GROUP BY codec_slice_idx, cc.thread_name, cc.process_name;
 
 -- POWER consumed during codec use.
--- Create a map for the distinct power names.
-DROP TABLE IF EXISTS power_rail_name_mapping;
-CREATE PERFETTO TABLE power_rail_name_mapping AS
-SELECT DISTINCT name,
-  ROW_NUMBER() OVER() AS idx
-FROM drain_in_watts GROUP by name;
-
--- Extract power data for the codec running duration.
-DROP TABLE IF EXISTS mapped_drain_in_watts;
-CREATE PERFETTO TABLE mapped_drain_in_watts AS
-WITH
-  start_ts AS (
-    SELECT MIN(ts) AS ts
-    FROM codec_slice_cpu_running
-    WHERE codec_string glob "CCodecBufferChannel::queue" || '*'
-  ),
-  end_ts AS (
-    SELECT MAX(max_ts) as ts
-    FROM codec_slice_cpu_running
-    WHERE codec_string glob "CCodecBufferChannel::onWorkDone" || '*'
-  )
-SELECT d.name, d.ts, dur, drain_w, idx
-FROM drain_in_watts d
-JOIN power_rail_name_mapping p ON (d.name = p.name)
-JOIN start_ts
-JOIN end_ts
-WHERE d.ts >= start_ts.ts AND d.ts <= end_ts.ts;
-
--- Get the total energy for the time of run.
-CREATE OR REPLACE PERFETTO FUNCTION get_energy_duration()
-RETURNS DOUBLE AS
-SELECT  CAST(((MAx(ts + dur) - MIN(ts)) / 1e6) AS INT64) AS total_duration_ms
-FROM mapped_drain_in_watts;
-
--- Get the subssytem based power breakdown
-DROP TABLE IF EXISTS mapped_drain_in_watts_with_subsystem;
-CREATE PERFETTO TABLE mapped_drain_in_watts_with_subsystem AS
-WITH
-   total_duration_ms AS (
-     SELECT CAST(((MAx(ts + dur) - MIN(ts)) / 1e6) AS INT64) AS total_dur FROM mapped_drain_in_watts
-   ),
-   total_energy AS (
-     SELECT cast_double!(SUM((dur * drain_w) / 1e9)) AS total_joules FROM mapped_drain_in_watts
-   )
+DROP VIEW IF EXISTS codec_power_mw;
+CREATE PERFETTO VIEW codec_power_mw AS
 SELECT
-  SUM((dur * drain_w) / 1e9) AS joules_subsystem,
-  total_dur,
-  total_joules,
-  subsystem
-FROM mapped_drain_in_watts
-JOIN total_duration_ms
-JOIN total_energy
-JOIN power_counters USING(name)
-GROUP BY subsystem;
+  AndroidCodecMetrics_Rail_Info (
+    'energy', tot_used_power,
+    'power_mw', tot_used_power / (powrail_end_ts - powrail_start_ts)
+  ) AS proto,
+  name
+FROM avg_used_powers;
 
 -- Generate proto for the trace
 DROP VIEW IF EXISTS metrics_per_slice_type;
@@ -209,7 +164,7 @@ FROM codec_slice_cpu_running;
 -- Generating codec framework cpu metric
 DROP VIEW IF EXISTS codec_metrics_output;
 CREATE PERFETTO VIEW codec_metrics_output AS
-SELECT AndroidCodecMetrics(
+SELECT AndroidCodecMetrics (
   'cpu_usage', (
     SELECT RepeatedField(
       AndroidCodecMetrics_CpuUsage(
@@ -229,17 +184,19 @@ SELECT AndroidCodecMetrics(
       )
     ) FROM metrics_per_slice_type
   ),
-  'energy_usage',
-    AndroidCodecMetrics_EnergyUsage(
-      'total_energy', (SELECT total_joules FROM mapped_drain_in_watts_with_subsystem),
-      'duration', (SELECT total_dur FROM mapped_drain_in_watts_with_subsystem),
-      'subsystem', (
+  'energy', (
+    AndroidCodecMetrics_Energy(
+      'total_energy', (SELECT SUM(tot_used_power) FROM avg_used_powers),
+      'duration', (SELECT MAX(powrail_end_ts) - MIN(powrail_start_ts)  FROM avg_used_powers),
+      'power_mw', (SELECT SUM(tot_used_power) /  (MAX(powrail_end_ts) - MIN(powrail_start_ts)) FROM avg_used_powers),
+      'rail', (
         SELECT RepeatedField (
-          AndroidCodecMetrics_EnergyBreakdown (
-            'subsystem', subsystem,
-            'energy', CAST((joules_subsystem) AS DOUBLE)
+          AndroidCodecMetrics_Rail (
+            'name', name,
+            'info', codec_power_mw.proto
           )
-        ) FROM mapped_drain_in_watts_with_subsystem
-     )
+        ) FROM codec_power_mw
+      )
+    )
   )
 );
