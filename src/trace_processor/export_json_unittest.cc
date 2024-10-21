@@ -770,7 +770,12 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global legacy track.
   TrackId track = context_.track_tracker->InternGlobalTrack(
-      TrackClassification::kChromeLegacyGlobalInstant);
+      TrackClassification::kChromeLegacyGlobalInstant, TrackTracker::AutoName(),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(
+            context_.storage->InternString("source"),
+            Variadic::String(context_.storage->InternString("chrome")));
+      });
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));

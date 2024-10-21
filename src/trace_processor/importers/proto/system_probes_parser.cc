@@ -350,7 +350,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   uint32_t c = 0;
   for (auto it = sys_stats.cpufreq_khz(); it; ++it, ++c) {
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kCpuFrequency, c);
+        TrackClassification::kCpuFrequency, c,
+        TrackTracker::LegacyCharArrayName{"cpufreq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 
@@ -377,37 +378,44 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kUserTime, ct.cpu_id());
+        TrackClassification::kUserTime, ct.cpu_id(),
+        TrackTracker::LegacyCharArrayName{"cpu.times.user_ns"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.user_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kNiceUserTime, ct.cpu_id());
+        TrackClassification::kNiceUserTime, ct.cpu_id(),
+        TrackTracker::LegacyCharArrayName{"cpu.times.user_nice_ns"});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.user_nice_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kSystemModeTime, ct.cpu_id());
+        TrackClassification::kSystemModeTime, ct.cpu_id(),
+        TrackTracker::LegacyCharArrayName{"cpu.times.system_mode_ns"});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.system_mode_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kCpuIdleTime, ct.cpu_id());
+        TrackClassification::kCpuIdleTime, ct.cpu_id(),
+        TrackTracker::LegacyCharArrayName{"cpu.times.idle_ns"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.idle_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kIoWaitTime, ct.cpu_id());
+        TrackClassification::kIoWaitTime, ct.cpu_id(),
+        TrackTracker::LegacyCharArrayName{"cpu.times.io_wait_ns"});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.io_wait_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kIrqTime, ct.cpu_id());
+        TrackClassification::kIrqTime, ct.cpu_id(),
+        TrackTracker::LegacyCharArrayName{"cpu.times.irq_ns"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.irq_ns()),
                                          track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kSoftIrqTime, ct.cpu_id());
+        TrackClassification::kSoftIrqTime, ct.cpu_id(),
+        TrackTracker::LegacyCharArrayName{"cpu.times.softirq_ns"});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(ct.softirq_ns()), track);
   }
@@ -416,7 +424,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternSingleDimensionTrack(
         TrackClassification::kIrqCounter, irq_id_, Variadic::Integer(ic.irq()),
-        kNullStringId);
+        TrackTracker::LegacyCharArrayName{"num_irq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
@@ -425,7 +433,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternSingleDimensionTrack(
         TrackClassification::kSoftirqCounter, irq_id_,
-        Variadic::Integer(ic.irq()), kNullStringId);
+        Variadic::Integer(ic.irq()),
+        TrackTracker::LegacyCharArrayName{"num_softirq"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
