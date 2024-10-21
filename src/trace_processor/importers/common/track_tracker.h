@@ -224,14 +224,6 @@ class TrackTracker {
   // TODO(mayzner): Remove when all usages migrated to new track design.
   TrackId LegacyInternCpuIdleStateTrack(uint32_t cpu, StringId state);
 
-  // Interns a counter track associated with an irq into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
-  TrackId LegacyInternIrqCounterTrack(TrackClassification, int32_t irq);
-
-  // Interns a counter track associated with an softirq into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
-  TrackId LegacyInternSoftirqCounterTrack(TrackClassification, int32_t softirq);
-
   // Creates a counter track associated with a GPU into the storage.
   // TODO(mayzner): Remove when all usages migrated to new track design.
   TrackId LegacyCreateGpuCounterTrack(StringId name,

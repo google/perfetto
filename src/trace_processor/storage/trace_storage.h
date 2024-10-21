@@ -384,13 +384,6 @@ class TraceStorage {
     return &gpu_counter_track_table_;
   }
 
-  const tables::IrqCounterTrackTable& irq_counter_track_table() const {
-    return irq_counter_track_table_;
-  }
-  tables::IrqCounterTrackTable* mutable_irq_counter_track_table() {
-    return &irq_counter_track_table_;
-  }
-
   const tables::PerfCounterTrackTable& perf_counter_track_table() const {
     return perf_counter_track_table_;
   }
@@ -431,13 +424,6 @@ class TraceStorage {
   }
   tables::ThreadCounterTrackTable* mutable_thread_counter_track_table() {
     return &thread_counter_track_table_;
-  }
-
-  const tables::SoftirqCounterTrackTable& softirq_counter_track_table() const {
-    return softirq_counter_track_table_;
-  }
-  tables::SoftirqCounterTrackTable* mutable_softirq_counter_track_table() {
-    return &softirq_counter_track_table_;
   }
 
   const tables::SchedSliceTable& sched_slice_table() const {
@@ -1046,10 +1032,6 @@ class TraceStorage {
       &string_pool_, &counter_track_table_};
   tables::CpuCounterTrackTable cpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
-  tables::IrqCounterTrackTable irq_counter_track_table_{&string_pool_,
-                                                        &counter_track_table_};
-  tables::SoftirqCounterTrackTable softirq_counter_track_table_{
-      &string_pool_, &counter_track_table_};
   tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_};
