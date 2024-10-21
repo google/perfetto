@@ -19,7 +19,7 @@ import {
   NoteManager,
   SpanNote,
 } from '../public/note';
-import {randomColor} from './colorizer';
+import {randomColor} from '../public/lib/colorizer';
 import {raf} from './raf_scheduler';
 
 export class NoteManagerImpl implements NoteManager {

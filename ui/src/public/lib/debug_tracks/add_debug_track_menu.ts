@@ -117,7 +117,7 @@ export class AddDebugTrackMenu
           this.trackType = (e.target as HTMLSelectElement).value as
             | 'slice'
             | 'counter';
-          trace.scheduleRedraw();
+          trace.scheduleFullRedraw();
         },
       },
       options,

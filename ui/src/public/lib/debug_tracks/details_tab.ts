@@ -232,7 +232,7 @@ export class DebugSliceDetailsPanel implements TrackEventDetailsPanel {
       sqlValueToNumber(this.data.args['track_id']),
     );
 
-    this.trace.scheduleRedraw();
+    this.trace.scheduleFullRedraw();
   }
 
   render() {

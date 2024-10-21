@@ -15,7 +15,7 @@
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {AsyncSliceTrack} from '../../core_plugins/async_slices/async_slice_track';
+import {AsyncSliceTrack} from '../dev.perfetto.AsyncSlices/async_slice_track';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 

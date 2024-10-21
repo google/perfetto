@@ -357,14 +357,18 @@ export class TraceImpl implements Trace {
     return this.appImpl.rootUrl;
   }
 
-  scheduleRedraw(): void {
-    this.appImpl.scheduleRedraw();
+  scheduleFullRedraw(): void {
+    this.appImpl.scheduleFullRedraw();
   }
 
   [Symbol.dispose]() {
     if (this.pluginId === CORE_PLUGIN_ID) {
       this.traceCtx[Symbol.dispose]();
     }
+  }
+
+  navigate(newHash: string): void {
+    this.appImpl.navigate(newHash);
   }
 }
 
