@@ -41,7 +41,7 @@ namespace perfetto::trace_processor::tracks {
   F(cpu_funcgraph)                               \
   F(cpu_idle_state)                              \
   F(cpu_idle)                                    \
-  F(cpu_idleTime)                                \
+  F(cpu_idle_time)                               \
   F(cpu_io_wait_time)                            \
   F(cpu_irq_time)                                \
   F(cpu_irq)                                     \

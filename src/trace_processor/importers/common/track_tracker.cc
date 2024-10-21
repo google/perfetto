@@ -87,8 +87,9 @@ bool IsLegacyCharArrayNameAllowed(tracks::TrackClassification classification) {
          classification == tracks::cpu_frequency_throttle ||
          classification == tracks::cpu_idle ||
          classification == tracks::cpu_user_time ||
+         classification == tracks::cpu_nice_user_time ||
          classification == tracks::cpu_system_mode_time ||
-         classification == tracks::cpu_idleTime ||
+         classification == tracks::cpu_idle_time ||
          classification == tracks::cpu_io_wait_time ||
          classification == tracks::cpu_irq_time ||
          classification == tracks::cpu_softirq_time ||

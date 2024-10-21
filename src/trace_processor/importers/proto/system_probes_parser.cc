@@ -395,7 +395,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
         ts, static_cast<double>(ct.system_mode_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_idleTime, ct.cpu_id(),
+        tracks::cpu_idle_time, ct.cpu_id(),
         TrackTracker::LegacyCharArrayName{"cpu.times.idle_ns"});
     context_->event_tracker->PushCounter(ts, static_cast<double>(ct.idle_ns()),
                                          track);
