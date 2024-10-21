@@ -1252,23 +1252,48 @@ export const StateActions = {
     const areaId = selection.areaId;
     const index = state.areas[areaId].tracks.indexOf(args.id);
     if (index > -1) {
-      state.areas[areaId].tracks.splice(index, 1);
-      if (args.isTrackGroup) {  // Also remove all child tracks.
-        for (const childTrack of state.trackGroups[args.id].tracks) {
+      const removeTrackGroup = (id:string)=> {
+        const groupIndex = state.areas[areaId].tracks.indexOf(id);
+        // remove group
+        state.areas[areaId].tracks.splice(groupIndex, 1);
+        // Also remove all child tracks.
+        for (const childTrack of state.trackGroups[id].tracks) {
           const childIndex = state.areas[areaId].tracks.indexOf(childTrack);
           if (childIndex > -1) {
             state.areas[areaId].tracks.splice(childIndex, 1);
           }
         }
+        // Also remove all child track groups.
+        for (const childTrack of state.trackGroups[id].subgroups) {
+          removeTrackGroup(childTrack);
+        }
+      };
+      if (args.isTrackGroup) {
+        removeTrackGroup(args.id);
+      } else {
+        state.areas[areaId].tracks.splice(index, 1);
       }
     } else {
-      state.areas[areaId].tracks.push(args.id);
-      if (args.isTrackGroup) {  // Also add all child tracks.
-        for (const childTrack of state.trackGroups[args.id].tracks) {
+      const addTrackGroup = (id:string)=> {
+        // add group
+        state.areas[areaId].tracks.push(id);
+        // Also add all child tracks.
+        for (const childTrack of state.trackGroups[id].tracks) {
           if (!state.areas[areaId].tracks.includes(childTrack)) {
             state.areas[areaId].tracks.push(childTrack);
           }
         }
+        // Also add all child track groups.
+        for (const childTrack of state.trackGroups[id].subgroups) {
+          if (!state.areas[areaId].tracks.includes(childTrack)) {
+            addTrackGroup(childTrack);
+          }
+        }
+      };
+      if (args.isTrackGroup) {
+        addTrackGroup(args.id);
+      } else {
+        state.areas[areaId].tracks.push(args.id);
       }
     }
     // It's super unexpected that |toggleTrackSelection| does not cause

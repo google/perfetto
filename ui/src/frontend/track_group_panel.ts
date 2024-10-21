@@ -50,7 +50,6 @@ interface Attrs {
 export class TrackGroupPanel extends Panel<Attrs> {
   private readonly trackGroupId: string;
   private shellWidth = 0;
-  private backgroundColor = '#ffffff';  // Updated from CSS later.
   private summaryTrack: Track|undefined;
   private dragging = false;
   private dropping: 'before'|'after'|undefined = undefined;
@@ -338,12 +337,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   onupdate({dom}: m.CVnodeDOM<Attrs>) {
     const shell = assertExists(dom.querySelector('.shell'));
-    // const trackTitle = dom.querySelector('.track-title')!;
-    // this.overFlown =  trackTitle.scrollHeight >= trackTitle.clientHeight;
     this.shellWidth = shell.getBoundingClientRect().width;
-    // TODO(andrewbb): move this to css_constants
-    this.backgroundColor =
-          getComputedStyle(dom).getPropertyValue('--collapsed-background');
     if (this.summaryTrack !== undefined) {
       this.summaryTrack.onFullRedraw();
     }
@@ -424,7 +418,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     if (!selection || selection.kind !== 'AREA') return;
     const selectedArea = globals.state.areas[selection.areaId];
     const selectedAreaDuration = selectedArea.end - selectedArea.start;
-    if (selectedArea.tracks.includes(this.trackGroupId)) {
+    if (selectedArea.tracks.includes(this.trackGroupId) ||
+      selectedArea.tracks.includes(this.summaryTrackState.id)) {
       ctx.fillStyle = getCssStr('--selection-fill-color');
       ctx.fillRect(
           visibleTimeScale.tpTimeToPx(selectedArea.start) + this.shellWidth,
@@ -435,13 +430,6 @@ export class TrackGroupPanel extends Panel<Attrs> {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const collapsed = this.trackGroupState.collapsed;
-
-    ctx.fillStyle = this.backgroundColor;
-    ctx.fillRect(0, 0, size.width, size.height);
-
-    if (!collapsed) return;
-
     // If we have vsync data, render columns under the track group
     const vsync = getActiveVsyncData();
     if (vsync) {

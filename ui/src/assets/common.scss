@@ -723,17 +723,11 @@ button.query-ctrl {
     opacity: 1;
   }
   &[collapsed="true"] {
-    .shell {
-      border-right: 1px solid var(--main-foreground-color);
-      background-color: var(--collapsed-background);
-    }
     .track-button {
       color: rgb(60, 86, 136);
     }
   }
   &[collapsed="false"] {
-    background-color: var(--collapsed-background);
-    color: var(--main-foreground-color);
     font-weight: bold;
     span.chip {
       color: #121212;
@@ -746,8 +740,11 @@ button.query-ctrl {
     grid-template-columns: 28px 1fr auto;
     align-items: baseline;
     line-height: 1;
+    border-right: 1px solid var(--main-foreground-color);
     width: var(--track-shell-width);
     transition: background-color 0.4s;
+    background-color: var(--collapsed-background);
+    color: var(--main-foreground-color);
     overflow: hidden;
     &.selected {
       background-color: var(--track-highlight-background);
