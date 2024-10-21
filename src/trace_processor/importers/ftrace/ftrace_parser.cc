@@ -127,6 +127,8 @@ using protos::pbzero::perfetto_pbzero_enum_KprobeEvent::KprobeType;
 using protozero::ConstBytes;
 using protozero::ProtoDecoder;
 
+constexpr char kInternconnectTrackName[] = "Interconnect Events";
+
 struct FtraceEventAndFieldId {
   uint32_t event_id;
   uint32_t field_id;
@@ -1678,7 +1680,8 @@ void FtraceParser::ParseCpuFreq(int64_t timestamp, ConstBytes blob) {
   uint32_t cpu = freq.cpu_id();
   uint32_t new_freq_khz = freq.state();
   TrackId track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuFrequency, cpu);
+      TrackClassification::kCpuFrequency, cpu,
+      TrackTracker::LegacyCharArrayName{"cpufreq"});
   context_->event_tracker->PushCounter(timestamp, new_freq_khz, track);
 }
 
@@ -1687,7 +1690,8 @@ void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
   uint32_t cpu = static_cast<uint32_t>(freq.cpu());
   double new_freq_khz = static_cast<double>(freq.freq());
   TrackId track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuFrequencyThrottle, cpu);
+      TrackClassification::kCpuFrequencyThrottle, cpu,
+      TrackTracker::LegacyCharArrayName{"cpufreq_throttle"});
   context_->event_tracker->PushCounter(timestamp, new_freq_khz, track);
 }
 
@@ -1716,7 +1720,8 @@ void FtraceParser::ParseCpuIdle(int64_t timestamp, ConstBytes blob) {
   uint32_t cpu = idle.cpu_id();
   uint32_t new_state = idle.state();
   TrackId track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuIdle, cpu);
+      TrackClassification::kCpuIdle, cpu,
+      TrackTracker::LegacyCharArrayName{"cpuidle"});
   context_->event_tracker->PushCounter(timestamp, new_state, track);
 }
 
@@ -1871,7 +1876,8 @@ void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
 void FtraceParser::ParseGoogleIccEvent(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GoogleIccEventFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      TrackClassification::kInterconnect);
+      TrackClassification::kInterconnect,
+      TrackTracker::LegacyCharArrayName(kInternconnectTrackName));
   StringId slice_name_id =
       context_->storage->InternString(base::StringView(evt.event()));
   context_->slice_tracker->Scoped(timestamp, track_id, google_icc_event_id_,
@@ -1881,7 +1887,8 @@ void FtraceParser::ParseGoogleIccEvent(int64_t timestamp, ConstBytes blob) {
 void FtraceParser::ParseGoogleIrmEvent(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GoogleIrmEventFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      TrackClassification::kInterconnect);
+      TrackClassification::kInterconnect,
+      TrackTracker::LegacyCharArrayName{kInternconnectTrackName});
   StringId slice_name_id =
       context_->storage->InternString(base::StringView(evt.event()));
   context_->slice_tracker->Scoped(timestamp, track_id, google_irm_event_id_,
@@ -2582,7 +2589,9 @@ void FtraceParser::ParseIrqHandlerEntry(uint32_t cpu,
   StringId slice_name_id =
       context_->storage->InternString(slice_name.string_view());
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kIrqCpu, cpu);
+      TrackClassification::kIrqCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Irq Cpu %u", cpu)});
   context_->slice_tracker->Begin(timestamp, track, irq_id_, slice_name_id);
 }
 
@@ -2591,7 +2600,9 @@ void FtraceParser::ParseIrqHandlerExit(uint32_t cpu,
                                        protozero::ConstBytes blob) {
   protos::pbzero::IrqHandlerExitFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kIrqCpu, cpu);
+      TrackClassification::kIrqCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Irq Cpu %u", cpu)});
 
   base::StackString<255> status("%s", evt.ret() == 1 ? "handled" : "unhandled");
   StringId status_id = context_->storage->InternString(status.string_view());
@@ -2614,7 +2625,9 @@ void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
   base::StringView slice_name = kActionNames[evt.vec()];
   StringId slice_name_id = context_->storage->InternString(slice_name);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kSoftirqCpu, cpu);
+      TrackClassification::kSoftirqCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("SoftIrq Cpu %u", cpu)});
   context_->slice_tracker->Begin(timestamp, track, irq_id_, slice_name_id);
 }
 
@@ -2623,7 +2636,9 @@ void FtraceParser::ParseSoftIrqExit(uint32_t cpu,
                                     protozero::ConstBytes blob) {
   protos::pbzero::SoftirqExitFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kSoftirqCpu, cpu);
+      TrackClassification::kSoftirqCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("SoftIrq Cpu %u", cpu)});
   auto vec = evt.vec();
   auto args_inserter = [this, vec](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(vec_arg_id_, Variadic::Integer(vec));
@@ -2883,7 +2898,9 @@ void FtraceParser::ParseNapiGroReceiveEntry(uint32_t cpu,
   base::StringView net_device = evt.name();
   StringId slice_name_id = context_->storage->InternString(net_device);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kNapiGroCpu, cpu);
+      TrackClassification::kNapiGroCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Napi Gro Cpu %u", cpu)});
   auto len = evt.len();
   auto args_inserter = [this, len](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(len_arg_id_, Variadic::Integer(len));
@@ -2898,7 +2915,9 @@ void FtraceParser::ParseNapiGroReceiveExit(uint32_t cpu,
   protos::pbzero::NapiGroReceiveExitFtraceEvent::Decoder evt(blob.data,
                                                              blob.size);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kNapiGroCpu, cpu);
+      TrackClassification::kNapiGroCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Napi Gro Cpu %u", cpu)});
   auto ret = evt.ret();
   auto args_inserter = [this, ret](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(ret_arg_id_, Variadic::Integer(ret));
@@ -2913,12 +2932,16 @@ void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
                                                              blob.size);
 
   TrackId max_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuMaxFrequencyLimit, evt.cpu_id());
+      TrackClassification::kCpuMaxFrequencyLimit, evt.cpu_id(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Max Freq Limit", evt.cpu_id())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.max_freq()), max_track);
 
   TrackId min_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuMinFrequencyLimit, evt.cpu_id());
+      TrackClassification::kCpuMinFrequencyLimit, evt.cpu_id(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Min Freq Limit", evt.cpu_id())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.min_freq()), min_track);
 }
@@ -3482,17 +3505,23 @@ void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
                                         protozero::ConstBytes blob) {
   protos::pbzero::SchedCpuUtilCfsFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId util_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuUtilization, evt.cpu());
+      TrackClassification::kCpuUtilization, evt.cpu(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Util", evt.cpu())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.cpu_util()), util_track);
 
   TrackId cap_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuCapacity, evt.cpu());
+      TrackClassification::kCpuCapacity, evt.cpu(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Cap", evt.cpu())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.capacity()), cap_track);
 
   TrackId nrr_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuNumberRunning, evt.cpu());
+      TrackClassification::kCpuNumberRunning, evt.cpu(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Nr Running", evt.cpu())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.nr_running()), nrr_track);
 }
@@ -3517,7 +3546,9 @@ void FtraceParser::ParseFuncgraphEntry(
     // of swapper might be running concurrently. Fall back onto global tracks
     // (one per cpu).
     track = context_->track_tracker->InternCpuTrack(
-        TrackClassification::kFuncgraphCpu, cpu);
+        TrackClassification::kFuncgraphCpu, cpu,
+        TrackTracker::LegacyCharArrayName{
+            base::StackString<255>("swapper%u -funcgraph", cpu)});
   }
 
   context_->slice_tracker->Begin(timestamp, track, kNullStringId, name_id);
@@ -3540,7 +3571,9 @@ void FtraceParser::ParseFuncgraphExit(
   } else {
     // special case: see |ParseFuncgraphEntry|
     track = context_->track_tracker->InternCpuTrack(
-        TrackClassification::kFuncgraphCpu, cpu);
+        TrackClassification::kFuncgraphCpu, cpu,
+        TrackTracker::LegacyCharArrayName{
+            base::StackString<255>("swapper%u -funcgraph", cpu)});
   }
 
   context_->slice_tracker->End(timestamp, track, kNullStringId, name_id);
@@ -3629,7 +3662,8 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
   StringId device_name_string_id = context_->storage->InternString(device_name);
   TrackId track_id = context_->track_tracker->InternSingleDimensionTrack(
       TrackClassification::kLinuxRuntimePowerManagement, linux_device_name_id_,
-      Variadic::String(device_name_string_id), device_name_string_id);
+      Variadic::String(device_name_string_id),
+      TrackTracker::LegacyStringIdName{device_name_string_id});
 
   // A `runtime_status` event implies a potential change in state. Hence, if an
   // active slice exists for this device, end that slice.
@@ -3761,28 +3795,29 @@ StringId FtraceParser::InternedKernelSymbolOrFallback(
 void FtraceParser::ParseDeviceFrequency(int64_t ts,
                                         protozero::ConstBytes blob) {
   protos::pbzero::DevfreqFrequencyFtraceEvent::Decoder event(blob);
-  constexpr char delimiter[] = "devfreq_";
   std::string dev_name = event.dev_name().ToStdString();
-  auto position = dev_name.find(delimiter);
 
-  if (position != std::string::npos) {
-    // Get device name by getting substring after delimiter and keep existing
-    // naming convention (e.g. cpufreq, gpufreq) consistent by adding a suffix
-    // to the devfreq name (e.g. dsufreq, bcifreq)
-    StringId device_name = context_->storage->InternString(
-        (dev_name.substr(position + sizeof(delimiter) - 1) + "freq").c_str());
-
-    TrackTracker::DimensionsBuilder dims_builder =
-        context_->track_tracker->CreateDimensionsBuilder();
-    dims_builder.AppendDimension(device_name_id_,
-                                 Variadic::String(device_name));
-    TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
-
-    TrackId track_id = context_->track_tracker->InternCounterTrack(
-        TrackClassification::kLinuxDeviceFrequency, dims_id, device_name);
-    context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
-                                         track_id);
+  constexpr char kDelimiter[] = "devfreq_";
+  auto position = dev_name.find(kDelimiter);
+  if (position == std::string::npos) {
+    return;
   }
+
+  // Get device name by getting substring after delimiter and keep existing
+  // naming convention (e.g. cpufreq, gpufreq) consistent by adding a suffix
+  // to the devfreq name (e.g. dsufreq, bcifreq)
+  StringId device_name = context_->storage->InternString(
+      (dev_name.substr(position + sizeof(kDelimiter) - 1) + "freq").c_str());
+
+  TrackTracker::DimensionsBuilder dims_builder =
+      context_->track_tracker->CreateDimensionsBuilder();
+  dims_builder.AppendDimension(device_name_id_, Variadic::String(device_name));
+  TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
+
+  TrackId track_id = context_->track_tracker->InternCounterTrack(
+      TrackClassification::kLinuxDeviceFrequency, dims_id);
+  context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
+                                       track_id);
 }
 
 }  // namespace perfetto::trace_processor

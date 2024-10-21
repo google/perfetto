@@ -214,7 +214,8 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
 
   TrackId energy_track = context_->track_tracker->InternSingleDimensionTrack(
       TrackClassification::kAndroidEnergyEstimationBreakdown,
-      energy_consumer_id_, Variadic::Integer(consumer_id), consumer_name,
+      energy_consumer_id_, Variadic::Integer(consumer_id),
+      TrackTracker::LegacyStringIdName{consumer_name},
       [&](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(consumer_type_id_, Variadic::String(consumer_type));
         inserter.AddArg(ordinal_id_, Variadic::Integer(ordinal));
@@ -238,7 +239,8 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
                             Variadic::Integer(consumer_id));
     TrackId energy_uid_track = context_->track_tracker->InternTrack(
         TrackClassification::kAndroidEnergyEstimationBreakdownPerUid,
-        std::move(builder).Build(), consumer_name);
+        std::move(builder).Build(),
+        TrackTracker::LegacyStringIdName{consumer_name});
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(breakdown.energy_uws()), energy_uid_track);
   }
