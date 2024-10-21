@@ -26,24 +26,13 @@ export interface Color {
 }
 
 const MD_PALETTE: Color[] = [
-  {c: 'red', h: 4, s: 90, l: 58},
-  {c: 'pink', h: 340, s: 82, l: 52},
-  {c: 'purple', h: 291, s: 64, l: 42},
-  {c: 'deep purple', h: 262, s: 52, l: 47},
-  {c: 'indigo', h: 231, s: 48, l: 48},
-  {c: 'blue', h: 207, s: 90, l: 54},
-  {c: 'light blue', h: 199, s: 98, l: 48},
-  {c: 'cyan', h: 187, s: 100, l: 42},
-  {c: 'teal', h: 174, s: 100, l: 29},
-  {c: 'green', h: 122, s: 39, l: 49},
-  {c: 'light green', h: 88, s: 50, l: 53},
-  {c: 'lime', h: 66, s: 70, l: 54},
-  {c: 'amber', h: 45, s: 100, l: 51},
-  {c: 'orange', h: 36, s: 100, l: 50},
-  {c: 'deep orange', h: 14, s: 100, l: 57},
-  {c: 'brown', h: 16, s: 25, l: 38},
-  {c: 'blue gray', h: 200, s: 18, l: 46},
-  {c: 'yellow', h: 54, s: 100, l: 62},
+  {c: 'teal', h: 173, s: 43, l: 70},
+  {c: 'purple', h: 267, s: 72, l: 70},
+  {c: 'peach', h: 23, s: 79, l: 70},
+  {c: 'red', h: 4, s: 70, l: 70},
+  {c: 'yellow', h: 46, s: 88, l: 70},
+  {c: 'green', h: 125, s: 40, l: 70},
+  {c: 'blue', h: 220, s: 91, l: 70},
 ];
 
 export const GRAY_COLOR: Color = {

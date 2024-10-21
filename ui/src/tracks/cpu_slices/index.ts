@@ -22,7 +22,7 @@ import {
   drawDoubleHeadedArrow,
   drawIncompleteSlice,
 } from '../../common/canvas_utils';
-import {colorForThread} from '../../common/colorizer';
+import {GRAY_COLOR, colorForThread} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM, NUM_NULL} from '../../common/query_result';
 import {
@@ -37,6 +37,7 @@ import {
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {hash} from '../../common/hash';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
@@ -205,8 +206,8 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
   }
 }
 
-const MARGIN_TOP = 3;
-const RECT_HEIGHT = 24;
+const MARGIN_TOP = 1;
+const RECT_HEIGHT = 28;
 
 class CpuSliceTrack extends Track<Config, Data> {
   static readonly kind = CPU_SLICE_TRACK_KIND;
@@ -214,8 +215,7 @@ class CpuSliceTrack extends Track<Config, Data> {
     return new CpuSliceTrack(args);
   }
 
-  private mousePos?: {x: number, y: number};
-  private utidHoveredInThisTrack = -1;
+  private hoveredSlice: number | undefined;
 
   constructor(args: NewTrackArgs) {
     super(args);
@@ -293,31 +293,58 @@ class CpuSliceTrack extends Track<Config, Data> {
       const threadInfo = globals.threads.get(utid);
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
-      const isHovering = globals.state.hoveredUtid !== -1;
-      const isThreadHovered = globals.state.hoveredUtid === utid;
-      const isProcessHovered = globals.state.hoveredPid === pid;
+      const isThreadSelected = globals.state.selectedUtid === utid;
+      const isProcessSelected = globals.state.selectedPid === pid;
       const color = colorForThread(threadInfo);
-      if (isHovering && !isThreadHovered) {
-        if (!isProcessHovered) {
-          color.l = 90;
-          color.s = 0;
-        } else {
-          color.l = Math.min(color.l + 30, 80);
-          color.s -= 20;
-        }
-      } else {
-        color.l = Math.min(color.l + 10, 60);
-        color.s -= 20;
+      const greyIdx = hash(pid.toString(), 6)+1;
+      const greyl = 55 - (5 * greyIdx);
+      const isHovered = (index: number): boolean =>{
+        return index === this.hoveredSlice;
+      };
+      const isSelected = (): boolean=>{
+        const selection = globals.state.currentSelection;
+        return selection !== null && selection.kind === 'SLICE' &&
+          data.ids[i] ===selection.id;
+      };
+
+      ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+      ctx.fillStyle = `hsl(${GRAY_COLOR.h}, ${GRAY_COLOR.s}%, ${greyl}%)`;
+      if (isSelected()) {
+        color.l = 60;
+        ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+      } else if ((isProcessSelected || isThreadSelected) &&
+        globals.state.currentSelection !== null &&
+        globals.state.currentSelection.kind === 'SLICE'
+      ) {
+        // LikeCase
+        ctx.fillStyle = `hsl(${color.h}, ${color.s}%, 30%)`;
       }
-      ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+
+      const right = Math.min(visWindowEndPx, rectEnd);
+      const left = Math.max(rectStart, 0);
+      const visibleWidth = Math.max(right - left, 1);
+      // Draw the Rectangle
       if (data.isIncomplete[i]) {
-        drawIncompleteSlice(ctx, rectStart, MARGIN_TOP, rectWidth,
+        drawIncompleteSlice(ctx, left, MARGIN_TOP, visibleWidth,
           (RECT_HEIGHT * this.trackState.scaleFactor));
       } else {
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth,
+        ctx.fillRect(left, MARGIN_TOP, visibleWidth,
           (RECT_HEIGHT * this.trackState.scaleFactor));
       }
 
+      //  Extras
+      if (isHovered(i)) {
+        // Draw a rectangle around the slice that is currently selected.
+        ctx.beginPath();
+        ctx.lineWidth = 3;
+        ctx.strokeRect(left+1.5, MARGIN_TOP + 1.5, visibleWidth-3,
+          (RECT_HEIGHT * this.trackState.scaleFactor) -3);
+        ctx.closePath();
+      } else {
+        ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+        ctx.fillRect(left, MARGIN_TOP, visibleWidth,
+          (3));
+      }
       // Don't render text when we have less than 5px to play with.
       if (rectWidth < 5) continue;
 
@@ -337,9 +364,6 @@ class CpuSliceTrack extends Track<Config, Data> {
           title = `${threadInfo.threadName} [${threadInfo.tid}]`;
         }
       }
-      const right = Math.min(visWindowEndPx, rectEnd);
-      const left = Math.max(rectStart, 0);
-      const visibleWidth = Math.max(right - left, 1);
 
       const rectXCenter = left + visibleWidth / 2;
       ctx.fillStyle = '#fff';
@@ -366,20 +390,7 @@ class CpuSliceTrack extends Track<Config, Data> {
       const [startIndex, endIndex] = searchEq(data.ids, selection.id);
       if (startIndex !== endIndex) {
         const tStart = data.starts[startIndex];
-        const tEnd = data.ends[startIndex];
-        const utid = data.utids[startIndex];
-        const color = colorForThread(globals.threads.get(utid));
         const rectStart = visibleTimeScale.tpTimeToPx(tStart);
-        const rectEnd = visibleTimeScale.tpTimeToPx(tEnd);
-        const rectWidth = Math.max(1, rectEnd - rectStart);
-
-        // Draw a rectangle around the slice that is currently selected.
-        ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, 30%)`;
-        ctx.beginPath();
-        ctx.lineWidth = 3;
-        ctx.strokeRect(rectStart, MARGIN_TOP - 1.5, rectWidth,
-          (RECT_HEIGHT * this.trackState.scaleFactor) + 3);
-        ctx.closePath();
         // Draw arrow from wakeup time of current slice.
         if (details.wakeupTs) {
           const wakeupPos = visibleTimeScale.tpTimeToPx(details.wakeupTs);
@@ -434,63 +445,50 @@ class CpuSliceTrack extends Track<Config, Data> {
         ctx.closePath();
       }
     }
-
-    const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
-    if (hoveredThread !== undefined && this.mousePos !== undefined) {
-      const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
-      if (hoveredThread.pid) {
-        const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        this.drawTrackHoverTooltip(ctx, this.mousePos, pidText, tidText);
-      } else {
-        this.drawTrackHoverTooltip(ctx, this.mousePos, tidText);
-      }
-    }
   }
 
   onMouseMove(pos: {x: number, y: number}) {
     const data = this.data();
-    this.mousePos = pos;
     if (data === undefined) return;
     const {visibleTimeScale} = globals.frontendLocalState;
     if (pos.y < MARGIN_TOP ||
         pos.y > MARGIN_TOP + (RECT_HEIGHT * this.trackState.scaleFactor)) {
-      this.utidHoveredInThisTrack = -1;
-      globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
       return;
     }
     const t = visibleTimeScale.pxToHpTime(pos.x);
-    let hoveredUtid = -1;
-
+    this.hoveredSlice=undefined;
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
-      const utid = data.utids[i];
       if (t.gte(tStart) && t.lt(tEnd)) {
-        hoveredUtid = utid;
+        this.hoveredSlice =i;
         break;
       }
     }
-    this.utidHoveredInThisTrack = hoveredUtid;
-    const threadInfo = globals.threads.get(hoveredUtid);
-    const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
-    globals.dispatch(
-        Actions.setHoveredUtidAndPid({utid: hoveredUtid, pid: hoveredPid}));
   }
 
   onMouseOut() {
-    this.utidHoveredInThisTrack = -1;
-    globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
-    this.mousePos = undefined;
+    this.hoveredSlice = undefined;
   }
 
   onMouseClick({x}: {x: number}) {
     const data = this.data();
-    if (data === undefined) return false;
+    if (data === undefined) {
+      globals.dispatch(Actions.setSelectedUtidAndPid({utid: -1, pid: -1}));
+      return false;
+    }
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(x);
     const index = search(data.starts, time.toTPTime());
     const id = index === -1 ? undefined : data.ids[index];
-    if (!id || this.utidHoveredInThisTrack === -1) return false;
+    if (!id) {
+      globals.dispatch(Actions.setSelectedUtidAndPid({utid: -1, pid: -1}));
+      return false;
+    }
+    const utid = data.utids[index];
+    const threadInfo = globals.threads.get(utid);
+    const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
+    globals.dispatch(Actions.setSelectedUtidAndPid({utid, pid}));
     globals.makeSelection(
         Actions.selectSlice({id, trackId: this.trackState.id}));
     return true;

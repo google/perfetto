@@ -1337,6 +1337,11 @@ export const StateActions = {
     state.hoveredUtid = args.utid;
   },
 
+  setSelectedUtidAndPid(state: StateDraft, args: {utid: number, pid: number}) {
+    state.selectedPid = args.pid;
+    state.selectedUtid = args.utid;
+  },
+
   setHighlightedSliceId(state: StateDraft, args: {sliceId: number}) {
     state.highlightedSliceId = args.sliceId;
   },
