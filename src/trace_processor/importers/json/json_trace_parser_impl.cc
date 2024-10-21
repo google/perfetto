@@ -289,7 +289,13 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       TrackId track_id;
       if (scope == "g") {
         track_id = context_->track_tracker->InternGlobalTrack(
-            TrackClassification::kChromeLegacyGlobalInstant);
+            TrackClassification::kChromeLegacyGlobalInstant,
+            TrackTracker::AutoName(),
+            [this](ArgsTracker::BoundInserter& inserter) {
+              inserter.AddArg(
+                  context_->storage->InternString("source"),
+                  Variadic::String(context_->storage->InternString("chrome")));
+            });
       } else if (scope == "p") {
         if (!opt_pid) {
           context_->storage->IncrementStats(stats::json_parser_failure);

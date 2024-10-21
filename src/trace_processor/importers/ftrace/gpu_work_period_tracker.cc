@@ -45,7 +45,7 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
   dims_builder.AppendUid(static_cast<int32_t>(evt.uid()));
   TrackId track_id = context_->track_tracker->InternTrack(
       TrackClassification::kAndroidGpuWorkPeriod,
-      std::move(dims_builder).Build(), kNullStringId);
+      std::move(dims_builder).Build());
 
   const auto duration =
       static_cast<int64_t>(evt.end_time_ns() - evt.start_time_ns());
