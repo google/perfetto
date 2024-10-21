@@ -21,7 +21,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
+#include <tuple>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
@@ -30,6 +32,7 @@
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -47,6 +50,10 @@ class TrackTracker {
   // create.
   struct Dimensions {
     ArgSetId arg_set_id;
+
+    bool operator==(const Dimensions& o) const {
+      return arg_set_id == o.arg_set_id;
+    }
   };
 
   // Used to create `Dimensions` required to intern a new track.
@@ -55,8 +62,8 @@ class TrackTracker {
     explicit DimensionsBuilder(TrackTracker* tt) : tt_(tt) {}
 
     // Append CPU dimension of a track.
-    void AppendCpu(int64_t cpu_id) {
-      AppendDimension(tt_->ucpu_id_, Variadic::Integer(cpu_id));
+    void AppendUcpu(tables::CpuTable::Id ucpu) {
+      AppendDimension(tt_->ucpu_id_, Variadic::Integer(ucpu.value));
     }
 
     // Append Utid (unique tid) dimension of a track.
@@ -224,25 +231,10 @@ class TrackTracker {
   struct TrackMapKey {
     TrackClassification classification;
     std::optional<Dimensions> dimensions;
-    std::optional<StringId> name = std::nullopt;
-
-    // TODO(mayzner): Remove after cleaning Chrome legacy tracks.
-    std::optional<int64_t> cookie = std::nullopt;
 
     bool operator==(const TrackMapKey& k) const {
-      if (classification != k.classification)
-        return false;
-      if ((dimensions.has_value() && !k.dimensions.has_value()) ||
-          (k.dimensions.has_value() && !dimensions.has_value()))
-        return false;
-      if (dimensions.has_value() &&
-          (dimensions->arg_set_id != k.dimensions->arg_set_id))
-        return false;
-      if (name != k.name)
-        return false;
-      if (cookie != k.cookie)
-        return false;
-      return true;
+      return std::tie(classification, dimensions) ==
+             std::tie(k.classification, k.dimensions);
     }
   };
 
@@ -250,12 +242,7 @@ class TrackTracker {
     size_t operator()(const TrackMapKey& l) const {
       perfetto::base::Hasher hasher;
       hasher.Update(static_cast<uint32_t>(l.classification));
-      hasher.Update(l.dimensions.has_value());
-      if (l.dimensions.has_value()) {
-        hasher.Update(l.dimensions->arg_set_id);
-      }
-      hasher.Update(l.name.value_or(kNullStringId).raw_id());
-      hasher.Update(l.cookie.value_or(-1));
+      hasher.Update(l.dimensions ? l.dimensions->arg_set_id : -1ll);
       return hasher.digest();
     }
   };
@@ -298,14 +285,16 @@ class TrackTracker {
 
   base::FlatHashMap<TrackMapKey, TrackId, MapHasher> tracks_;
 
-  const StringId source_key_ = kNullStringId;
-  const StringId trace_id_key_ = kNullStringId;
-  const StringId trace_id_is_process_scoped_key_ = kNullStringId;
-  const StringId source_scope_key_ = kNullStringId;
-  const StringId category_key_ = kNullStringId;
+  const StringId source_key_;
+  const StringId trace_id_key_;
+  const StringId trace_id_is_process_scoped_key_;
+  const StringId source_scope_key_;
+  const StringId category_key_;
+  const StringId scope_id_;
+  const StringId cookie_id_;
 
-  const StringId fuchsia_source_ = kNullStringId;
-  const StringId chrome_source_ = kNullStringId;
+  const StringId fuchsia_source_;
+  const StringId chrome_source_;
 
   const StringId utid_id_;
   const StringId upid_id_;

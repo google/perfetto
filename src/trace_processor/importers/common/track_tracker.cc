@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
@@ -135,6 +136,8 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
           context->storage->InternString("trace_id_is_process_scoped")),
       source_scope_key_(context->storage->InternString("source_scope")),
       category_key_(context->storage->InternString("category")),
+      scope_id_(context->storage->InternString("scope")),
+      cookie_id_(context->storage->InternString("cookie")),
       fuchsia_source_(context->storage->InternString("fuchsia")),
       chrome_source_(context->storage->InternString("chrome")),
       utid_id_(context->storage->InternString("utid")),
@@ -296,8 +299,11 @@ TrackId TrackTracker::LegacyInternProcessCounterTrack(StringId raw_name,
 
   TrackMapKey key;
   key.classification = TrackClassification::kUnknown;
-  key.name = name;
-  key.dimensions = SingleDimension(upid_id_, Variadic::Integer(upid));
+
+  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
+  dims_builder.AppendUpid(upid);
+  dims_builder.AppendName(name);
+  key.dimensions = std::move(dims_builder).Build();
 
   auto* it = tracks_.Find(key);
   if (it) {
@@ -334,8 +340,11 @@ TrackId TrackTracker::LegacyInternThreadCounterTrack(StringId name,
                                                      UniqueTid utid) {
   TrackMapKey key;
   key.classification = TrackClassification::kUnknown;
-  key.name = name;
-  key.dimensions = SingleDimension(utid_id_, Variadic::Integer(utid));
+
+  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
+  dims_builder.AppendUtid(utid);
+  dims_builder.AppendName(name);
+  key.dimensions = std::move(dims_builder).Build();
 
   auto* it = tracks_.Find(key);
   if (it) {
@@ -400,15 +409,14 @@ TrackId TrackTracker::LegacyInternGpuTrack(
   DimensionsBuilder dims_builder = CreateDimensionsBuilder();
   dims_builder.AppendGpu(row.context_id.value_or(0));
   if (row.scope != kNullStringId) {
-    dims_builder.AppendDimension(context_->storage->InternString("scope"),
-                                 Variadic::String(row.scope));
+    dims_builder.AppendDimension(scope_id_, Variadic::String(row.scope));
   }
+  dims_builder.AppendName(row.name);
   Dimensions dims_id = std::move(dims_builder).Build();
 
   TrackMapKey key;
   key.classification = TrackClassification::kUnknown;
   key.dimensions = dims_id;
-  key.name = row.name;
 
   auto* it = tracks_.Find(key);
   if (it)
@@ -433,7 +441,7 @@ TrackId TrackTracker::LegacyInternGlobalCounterTrack(TrackTracker::Group group,
                                                      StringId description) {
   TrackMapKey key;
   key.classification = TrackClassification::kUnknown;
-  key.name = name;
+  key.dimensions = SingleDimension(name_id_, Variadic::String(name));
 
   auto* it = tracks_.Find(key);
   if (it) {
@@ -463,16 +471,17 @@ TrackId TrackTracker::LegacyInternGlobalCounterTrack(TrackTracker::Group group,
 TrackId TrackTracker::InternCpuCounterTrack(TrackClassification type,
                                             uint32_t cpu) {
   auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-  Dimensions dims_id = SingleDimension(ucpu_id_, Variadic::Integer(ucpu.value));
 
   TrackMapKey key;
   key.classification = type;
-  key.dimensions = dims_id;
-  if (std::optional<std::string> maybe_name =
-          GetCpuCounterTrackName(type, cpu)) {
-    key.name = std::make_optional(
-        context_->storage->InternString(maybe_name->c_str()));
+
+  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
+  dims_builder.AppendUcpu(ucpu);
+  std::optional<std::string> maybe_name = GetCpuCounterTrackName(type, cpu);
+  if (maybe_name) {
+    dims_builder.AppendName(context_->storage->InternString(*maybe_name));
   }
+  key.dimensions = std::move(dims_builder).Build();
 
   auto* it = tracks_.Find(key);
   if (it) {
@@ -484,9 +493,9 @@ TrackId TrackTracker::InternCpuCounterTrack(TrackClassification type,
   row.machine_id = context_->machine_id();
   row.classification =
       context_->storage->InternString(TrackClassificationToString(type));
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-  if (key.name) {
-    row.name = *key.name;
+  row.dimension_arg_set_id = key.dimensions->arg_set_id;
+  if (maybe_name) {
+    row.name = context_->storage->InternString(*maybe_name);
   }
 
   TrackId track_id =
@@ -502,7 +511,7 @@ TrackId TrackTracker::LegacyInternCpuIdleStateTrack(uint32_t cpu,
   dims_builder.AppendDimension(
       context_->storage->InternString("cpu_idle_state"),
       Variadic::String(state));
-  dims_builder.AppendCpu(ucpu.value);
+  dims_builder.AppendUcpu(ucpu);
   Dimensions dims_id = std::move(dims_builder).Build();
 
   TrackClassification classification = TrackClassification::kCpuIdleState;
@@ -576,8 +585,9 @@ TrackId TrackTracker::LegacyCreatePerfCounterTrack(
     tables::PerfSessionTable::Id perf_session_id,
     uint32_t cpu,
     bool is_timebase) {
+  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
   DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendCpu(cpu);
+  dims_builder.AppendUcpu(ucpu);
   dims_builder.AppendDimension(
       context_->storage->InternString("perf_session_id"),
       Variadic::Integer(perf_session_id.value));
@@ -615,20 +625,18 @@ TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
     bool trace_id_is_process_scoped,
     StringId source_scope) {
   DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendDimension(context_->storage->InternString("scope"),
-                               Variadic::String(source_scope));
+  dims_builder.AppendDimension(scope_id_, Variadic::String(source_scope));
   if (trace_id_is_process_scoped) {
     dims_builder.AppendUpid(upid);
   }
-  Dimensions dims_id = std::move(dims_builder).Build();
+  dims_builder.AppendDimension(cookie_id_, Variadic::Integer(trace_id));
 
   const StringId name =
       context_->process_track_translation_table->TranslateName(raw_name);
 
   TrackMapKey key;
   key.classification = TrackClassification::kUnknown;
-  key.cookie = trace_id;
-  key.dimensions = dims_id;
+  key.dimensions = std::move(dims_builder).Build();
 
   auto* it = tracks_.Find(key);
   if (it) {
@@ -650,7 +658,7 @@ TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
   track.upid = upid;
   track.classification = context_->storage->InternString(
       TrackClassificationToString(TrackClassification::kUnknown));
-  track.dimension_arg_set_id = dims_id.arg_set_id;
+  track.dimension_arg_set_id = key.dimensions->arg_set_id;
   track.machine_id = context_->machine_id();
 
   TrackId id =
