@@ -108,6 +108,7 @@ from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.parser.zip.tests import Zip
 from diff_tests.stdlib.android.cpu_cluster_tests import CpuClusters
+from diff_tests.stdlib.android.desktop_mode_tests import DesktopMode
 from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.android.gpu import AndroidGpu
 from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
@@ -295,6 +296,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *AndroidGpu(index_path, 'stdlib/android', 'AndroidGpu').fetch(),
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
       *CpuClusters(index_path, 'stdlib/android', 'CpuClusters').fetch(),
+      *DesktopMode(index_path, 'stdlib/android', 'DesktopMode').fetch(),
       *LinuxCpu(index_path, 'stdlib/linux/cpu', 'LinuxCpu').fetch(),
       *LinuxTests(index_path, 'stdlib/linux', 'LinuxTests').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
