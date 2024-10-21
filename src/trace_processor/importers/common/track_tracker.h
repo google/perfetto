@@ -185,11 +185,6 @@ class TrackTracker {
                              UniquePid,
                              StringId name = kNullStringId);
 
-  // Interns a process track into the storage.
-  TrackId InternProcessTrack(UniquePid);
-
-  TrackId InternProcessCounterTrack(UniquePid);
-
   // Interns a counter track associated with a process into the storage.
   // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
   // functions.
@@ -238,12 +233,6 @@ class TrackTracker {
                                        tables::PerfSessionTable::Id,
                                        uint32_t cpu,
                                        bool is_timebase);
-
-  // Interns a Fuchsia async track into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
-  TrackId LegacyInternFuchsiaAsyncTrack(StringId name,
-                                        uint32_t upid,
-                                        int64_t correlation_id);
 
  private:
   friend class AsyncTrackSetTracker;

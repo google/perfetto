@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
@@ -1808,7 +1809,8 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   const char* kModuleDebugPath = "debugpath";
 
   UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
-  TrackId track = context_.track_tracker->InternProcessTrack(upid);
+  TrackId track = context_.track_tracker->InternProcessTrack(
+      TrackClassification::kTrackEvent, upid);
   StringId level_of_detail_id =
       context_.storage->InternString(base::StringView(kLevelOfDetail));
   auto snapshot_id = context_.storage->mutable_memory_snapshot_table()
@@ -1929,7 +1931,8 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
 
   UniquePid os_upid =
       context_.process_tracker->GetOrCreateProcess(kOsProcessID);
-  TrackId track = context_.track_tracker->InternProcessTrack(os_upid);
+  TrackId track = context_.track_tracker->InternProcessTrack(
+      TrackClassification::kTrackEvent, os_upid);
   StringId level_of_detail_id =
       context_.storage->InternString(base::StringView(kLevelOfDetail));
   auto snapshot_id = context_.storage->mutable_memory_snapshot_table()
