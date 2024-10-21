@@ -37,7 +37,6 @@ enum class TrackClassification : size_t {
 
   // General tracks.
   kThread,
-  kProcess,
   kChromeProcessInstant,
   kAsync,
   kTrackEvent,
@@ -82,6 +81,8 @@ enum class TrackClassification : size_t {
   kAndroidEnergyEstimationBreakdownPerUid,
   // GPU Work period from Android kernels.
   kAndroidGpuWorkPeriod,
+  // Per-process LMK track.
+  kAndroidLmk,
   // Android end.
 
   // Linux begin.
@@ -111,8 +112,6 @@ static inline const char* TrackClassificationToString(
       return "legacy_chrome_global_instants";
     case TrackClassification::kThread:
       return "thread";
-    case TrackClassification::kProcess:
-      return "process";
     case TrackClassification::kChromeProcessInstant:
       return "chrome_process_instant";
     case TrackClassification::kLinuxRuntimePowerManagement:
@@ -183,6 +182,8 @@ static inline const char* TrackClassificationToString(
       return "android_energy_estimation_breakdown_per_uid";
     case TrackClassification::kAndroidGpuWorkPeriod:
       return "android_gpu_work_period";
+    case TrackClassification::kAndroidLmk:
+      return "android_lmk";
     case TrackClassification::kUnknown:
       return "N/A";
   }

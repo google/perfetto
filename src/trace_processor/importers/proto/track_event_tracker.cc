@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/track_classification.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -177,7 +178,8 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
         return context_->track_tracker->InternThreadTrack(track.utid());
       }
       case ResolvedDescriptorTrack::Scope::kProcess:
-        return context_->track_tracker->InternProcessTrack(track.upid());
+        return context_->track_tracker->InternProcessTrack(
+            TrackClassification::kTrackEvent, track.upid());
       case ResolvedDescriptorTrack::Scope::kGlobal:
         // Will be handled below.
         break;
