@@ -137,7 +137,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kCpuFrequency, event_cpu.value(),
+        tracks::cpu_frequency, event_cpu.value(),
         TrackTracker::LegacyCharArrayName{"cpufreq"});
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "cpu_idle") {
@@ -151,7 +151,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kCpuIdle, event_cpu.value());
+        tracks::cpu_idle, event_cpu.value());
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "binder_transaction") {
     auto id = base::StringToInt32(args["transaction"]);
