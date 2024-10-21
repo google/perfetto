@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {getColorForSlice} from '../core/colorizer';
+import {getColorForSlice} from '../public/lib/colorizer';
 import {TrackEventDetailsPanel} from '../public/details_panel';
 import {TrackEventSelection} from '../public/selection';
 import {Slice} from '../public/track';

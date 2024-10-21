@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
-import {AsyncSliceTrack} from '../../core_plugins/async_slices/async_slice_track';
+import {AsyncSliceTrack} from '../dev.perfetto.AsyncSlices/async_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {Trace} from '../../public/trace';
