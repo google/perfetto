@@ -40,6 +40,7 @@ import {
 } from '../../trace_processor/sql_utils/sched';
 import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
+import {exists} from '../../base/utils';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -60,7 +61,7 @@ const CPU_SLICE_FLAGS_REALTIME = 2;
 
 export class CpuSliceTrack implements Track {
   private mousePos?: Point2D;
-  private utidHoveredInThisTrack = -1;
+  private utidHoveredInThisTrack?: number;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private lastRowId = -1;
@@ -384,17 +385,21 @@ export class CpuSliceTrack implements Track {
         ctx.closePath();
       }
 
-      const hoveredThread = this.trace.threads.get(this.utidHoveredInThisTrack);
-      if (hoveredThread !== undefined && this.mousePos !== undefined) {
-        const tidText = `T: ${hoveredThread.threadName}
-      [${hoveredThread.tid}]`;
-        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-        if (hoveredThread.pid) {
-          const pidText = `P: ${hoveredThread.procName}
-        [${hoveredThread.pid}]`;
-          drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
-        } else {
-          drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
+      if (this.utidHoveredInThisTrack !== undefined) {
+        const hoveredThread = this.trace.threads.get(
+          this.utidHoveredInThisTrack,
+        );
+        if (hoveredThread && this.mousePos !== undefined) {
+          const tidText = `T: ${hoveredThread.threadName}
+          [${hoveredThread.tid}]`;
+          // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+          if (hoveredThread.pid) {
+            const pidText = `P: ${hoveredThread.procName}
+            [${hoveredThread.pid}]`;
+            drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
+          } else {
+            drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
+          }
         }
       }
     }
@@ -405,13 +410,13 @@ export class CpuSliceTrack implements Track {
     this.mousePos = {x, y};
     if (data === undefined) return;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
-      this.utidHoveredInThisTrack = -1;
+      this.utidHoveredInThisTrack = undefined;
       this.trace.timeline.hoveredUtid = undefined;
       this.trace.timeline.hoveredPid = undefined;
       return;
     }
     const t = timescale.pxToHpTime(x);
-    let hoveredUtid = -1;
+    let hoveredUtid = undefined;
 
     for (let i = 0; i < data.startQs.length; i++) {
       const tStart = Time.fromRaw(data.startQs[i]);
@@ -423,7 +428,8 @@ export class CpuSliceTrack implements Track {
       }
     }
     this.utidHoveredInThisTrack = hoveredUtid;
-    const threadInfo = this.trace.threads.get(hoveredUtid);
+    const threadInfo =
+      exists(hoveredUtid) && this.trace.threads.get(hoveredUtid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     this.trace.timeline.hoveredUtid = hoveredUtid;
