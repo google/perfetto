@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_BASE_SMALL_SET_H_
 
 #include <array>
+#include <cstdlib>
 
 namespace perfetto {
 

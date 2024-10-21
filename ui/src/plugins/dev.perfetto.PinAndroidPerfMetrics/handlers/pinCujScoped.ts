@@ -150,7 +150,7 @@ class PinCujScopedJank implements MetricHandler {
       slice_id: NUM,
       track_id: NUM,
     });
-    focusOnSlice(ctx, row.slice_id, row.track_id);
+    focusOnSlice(ctx, row.slice_id);
   }
 }
 

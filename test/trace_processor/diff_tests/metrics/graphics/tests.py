@@ -20,23 +20,6 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class GraphicsMetrics(TestSuite):
-  # Android SurfaceFlinger metrics
-  def test_frame_missed_event_frame_missed(self):
-    return DiffTestBlueprint(
-        trace=Path('frame_missed.py'),
-        query="""
-        SELECT RUN_METRIC('android/android_surfaceflinger.sql');
-
-        SELECT ts, dur
-        FROM android_surfaceflinger_event;
-        """,
-        out=Csv("""
-        "ts","dur"
-        100,1
-        102,1
-        103,1
-        """))
-
   def test_frame_missed_metrics(self):
     return DiffTestBlueprint(
         trace=Path('frame_missed.py'),

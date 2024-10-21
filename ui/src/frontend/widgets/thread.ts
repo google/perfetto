@@ -31,7 +31,7 @@ import {
 } from './sql/details/sql_ref_renderer_registry';
 import {asUtid} from '../../trace_processor/sql_utils/core_types';
 import {Utid} from '../../trace_processor/sql_utils/core_types';
-import {AppImpl} from '../../core/app_trace_impl';
+import {AppImpl} from '../../core/app_impl';
 
 export function showThreadDetailsMenuItem(
   utid: Utid,

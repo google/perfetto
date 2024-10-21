@@ -14,22 +14,29 @@
  * limitations under the License.
  */
 
-#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <chrono>
 #include <cinttypes>
-#include <functional>
-#include <iostream>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <google/protobuf/compiler/parser.h>
+#include <google/protobuf/descriptor.pb.h>
 #include <google/protobuf/dynamic_message.h>
+#include <google/protobuf/io/tokenizer.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/text_format.h>
 
@@ -38,23 +45,25 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
-
+#include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/profiling/deobfuscator.h"
+#include "src/profiling/symbolizer/local_symbolizer.h"
+#include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/stdiod.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -63,10 +72,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
 #endif
-#include "src/profiling/deobfuscator.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
-#include "src/profiling/symbolizer/symbolizer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
@@ -98,8 +103,7 @@
 #include <unistd.h>  // For getuid() in GetConfigPath().
 #endif
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 TraceProcessor* g_tp;
@@ -1151,10 +1155,9 @@ base::Status RunQueries(const std::string& queries, bool expect_output) {
 base::Status RunQueriesFromFile(const std::string& query_file_path,
                                 bool expect_output) {
   std::string queries;
-  if (!base::ReadFile(query_file_path.c_str(), &queries)) {
+  if (!base::ReadFile(query_file_path, &queries)) {
     return base::ErrStatus("Unable to read file %s", query_file_path.c_str());
   }
-
   return RunQueries(queries, expect_output);
 }
 
@@ -1232,7 +1235,7 @@ base::Status IncludeSqlModule(std::string root, bool allow_override) {
   // Get module name
   size_t last_slash = root.rfind('/');
   if ((last_slash == std::string::npos) ||
-      (root.find(".") != std::string::npos))
+      (root.find('.') != std::string::npos))
     return base::ErrStatus("Module path must point to the directory: %s",
                            root.c_str());
 
@@ -1240,7 +1243,7 @@ base::Status IncludeSqlModule(std::string root, bool allow_override) {
 
   std::vector<std::string> paths;
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
-  sql_modules::NameToModule modules;
+  sql_modules::NameToPackage modules;
   for (const auto& path : paths) {
     if (base::GetFileExtension(path) != ".sql")
       continue;
@@ -1256,8 +1259,9 @@ base::Status IncludeSqlModule(std::string root, bool allow_override) {
         .first->push_back({import_key, file_contents});
   }
   for (auto module_it = modules.GetIterator(); module_it; ++module_it) {
-    auto status = g_tp->RegisterSqlModule(
-        {module_it.key(), module_it.value(), allow_override});
+    auto status = g_tp->RegisterSqlPackage({/*name=*/module_it.key(),
+                                            /*files=*/module_it.value(),
+                                            /*allow_override=*/allow_override});
     if (!status.ok())
       return status;
   }
@@ -1272,27 +1276,30 @@ base::Status LoadOverridenStdlib(std::string root) {
   }
 
   if (!base::FileExists(root)) {
-    return base::ErrStatus("Directory %s does not exist.", root.c_str());
+    return base::ErrStatus("Directory '%s' does not exist.", root.c_str());
   }
 
   std::vector<std::string> paths;
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
-  sql_modules::NameToModule modules;
+  sql_modules::NameToPackage packages;
   for (const auto& path : paths) {
     if (base::GetFileExtension(path) != ".sql") {
       continue;
     }
     std::string filename = root + "/" + path;
-    std::string file_contents;
-    if (!base::ReadFile(filename, &file_contents)) {
-      return base::ErrStatus("Cannot read file %s", filename.c_str());
+    std::string module_file;
+    if (!base::ReadFile(filename, &module_file)) {
+      return base::ErrStatus("Cannot read file '%s'", filename.c_str());
     }
-    std::string import_key = sql_modules::GetIncludeKey(path);
-    std::string module = sql_modules::GetModuleName(import_key);
-    modules.Insert(module, {}).first->push_back({import_key, file_contents});
+    std::string module_name = sql_modules::GetIncludeKey(path);
+    std::string package_name = sql_modules::GetPackageName(module_name);
+    packages.Insert(package_name, {})
+        .first->push_back({module_name, module_file});
   }
-  for (auto module_it = modules.GetIterator(); module_it; ++module_it) {
-    g_tp->RegisterSqlModule({module_it.key(), module_it.value(), true});
+  for (auto package = packages.GetIterator(); package; ++package) {
+    g_tp->RegisterSqlPackage({/*name=*/package.key(),
+                              /*files=*/package.value(),
+                              /*allow_override=*/true});
   }
 
   return base::OkStatus();
@@ -1513,7 +1520,8 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
       sscanf(line.get() + 1, "%31s %1023s", command, arg);
       if (strcmp(command, "quit") == 0 || strcmp(command, "q") == 0) {
         break;
-      } else if (strcmp(command, "help") == 0) {
+      }
+      if (strcmp(command, "help") == 0) {
         PrintShellUsage();
       } else if (strcmp(command, "dump") == 0 && strlen(arg)) {
         if (!ExportTraceToDatabase(arg).ok())
@@ -1784,8 +1792,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
 }  // namespace
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 int main(int argc, char** argv) {
   auto status = perfetto::trace_processor::TraceProcessorMain(argc, argv);

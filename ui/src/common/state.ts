@@ -12,15 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
-import {
-  Aggregation,
-  PivotTree,
-  TableColumn,
-} from '../frontend/pivot_table_types';
-import {Area} from '../public/selection';
-import {TraceSource} from '../public/trace_info';
+import {TraceSource} from '../public/trace_source';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -109,15 +102,8 @@ export const STATE_VERSION = 61;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
-export type EngineMode = 'WASM' | 'HTTP_RPC';
-
-export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
-
 export interface EngineConfig {
   id: string;
-  mode?: EngineMode; // Is undefined until |ready| is true.
-  ready: boolean;
-  failed?: string; // If defined the engine has crashed with the given message.
   source: TraceSource;
 }
 
@@ -125,11 +111,6 @@ export interface QueryConfig {
   id: string;
   engineId?: string;
   query: string;
-}
-
-export interface Status {
-  msg: string;
-  timestamp: number; // Epoch in seconds (Date.now() / 1000).
 }
 
 export interface Pagination {
@@ -144,58 +125,6 @@ export interface RecordingTarget {
 
 export interface AdbRecordingTarget extends RecordingTarget {
   serial: string;
-}
-
-// Auxiliary metadata needed to parse the query result, as well as to render it
-// correctly. Generated together with the text of query and passed without the
-// change to the query response.
-export interface PivotTableQueryMetadata {
-  pivotColumns: TableColumn[];
-  aggregationColumns: Aggregation[];
-  countIndex: number;
-}
-
-// Everything that's necessary to run the query for pivot table
-export interface PivotTableQuery {
-  text: string;
-  metadata: PivotTableQueryMetadata;
-}
-
-// Pivot table query result
-export interface PivotTableResult {
-  // Hierarchical pivot structure on top of rows
-  tree: PivotTree;
-  // Copy of the query metadata from the request, bundled up with the query
-  // result to ensure the correct rendering.
-  metadata: PivotTableQueryMetadata;
-}
-
-// Input parameters to check whether the pivot table needs to be re-queried.
-export type PivotTableAreaState = Area;
-
-export interface PivotTableState {
-  // Currently selected area, if null, pivot table is not going to be visible.
-  selectionArea?: PivotTableAreaState;
-
-  // Query response
-  queryResult: PivotTableResult | null;
-
-  // Selected pivots for tables other than slice.
-  // Because of the query generation, pivoting happens first on non-slice
-  // pivots; therefore, those can't be put after slice pivots. In order to
-  // maintain the separation more clearly, slice and non-slice pivots are
-  // located in separate arrays.
-  selectedPivots: TableColumn[];
-
-  // Selected aggregation columns. Stored same way as pivots.
-  selectedAggregations: Aggregation[];
-
-  // Whether the pivot table results should be constrained to the selected area.
-  constrainToArea: boolean;
-
-  // Set to true by frontend to request controller to perform the query to
-  // acquire the necessary data from the engine.
-  queryRequested: boolean;
 }
 
 export interface LoadedConfigNone {
@@ -216,10 +145,6 @@ export type LoadedConfig =
   | LoadedConfigAutomatic
   | LoadedConfigNamed;
 
-export interface NonSerializableState {
-  pivotTable: PivotTableState;
-}
-
 export interface PendingDeeplinkState {
   ts?: string;
   dur?: string;
@@ -232,7 +157,6 @@ export interface PendingDeeplinkState {
 
 export interface State {
   version: number;
-  nextId: string;
 
   /**
    * State of the ConfigEditor.
@@ -244,15 +168,10 @@ export interface State {
   /**
    * Open traces.
    */
-  newEngineMode: NewEngineMode;
   engine?: EngineConfig;
-  traceUuid?: string;
 
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
-  queries: ObjectById<QueryConfig>;
-  status: Status;
-  traceConversionInProgress: boolean;
   flamegraphModalDismissed: boolean;
 
   // Show track perf debugging overlay
@@ -260,15 +179,6 @@ export interface State {
 
   // Show the sidebar extended
   sidebarVisible: boolean;
-
-  // Hovered and focused events
-  hoveredUtid: number;
-  hoveredPid: number;
-  hoverCursorTimestamp: time;
-  hoveredNoteTimestamp: time;
-  highlightedSliceId: number;
-  focusedFlowIdLeft: number;
-  focusedFlowIdRight: number;
 
   /**
    * Trace recording
@@ -283,15 +193,6 @@ export interface State {
 
   fetchChromeCategories: boolean;
   chromeCategories: string[] | undefined;
-
-  // Special key: this part of the state is not going to be serialized when
-  // using permalink. Can be used to store those parts of the state that can't
-  // be serialized at the moment, such as ES6 Set and Map.
-  nonSerializableState: NonSerializableState;
-
-  // Pending deeplink which will happen when we first finish opening a
-  // trace.
-  pendingDeeplink?: PendingDeeplinkState;
 
   trackFilterTerm: string | undefined;
 

@@ -1,16 +1,96 @@
 Unreleased:
   Tracing service and probes:
+    *
+  SQL Standard library:
+    * Removed the `linux_device_track` table. Linux RPM (runtime power
+      management) tracks formerly in this table now can be found in the `track`
+      table with `classification` `linux_rpm`.
+    * Removed the `energy_counter_track` table. Android energy estimate
+      breakdown tracks formerly in this table now can be found in the `track`
+      table with `classification` `android_energy_estimation_breakdown`.
+    * Removed the `android_energy_estimation_breakdown_per_uid` table. Android
+      energy estimate breakdown tracks formerly in this table now can be found
+      in the `track` table with `classification`
+      `android_energy_estimation_breakdown_per_uid`.
+    * Removed the `uid_counter_track` table. It was redundant as no data was
+      inserted directly into it.
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v48.1 - 2024-10-14:
+  SDK:
+    * Fix build with MSVC.
+
+
+v48.0 - 2024-10-11:
+  Tracing service and probes:
     * Improved accuracy of ftrace event cropping when there are multiple
       concurrent tracing sessions. See `previous_bundle_end_timestamp` in
       ftrace_event_bundle.proto.
     * Increased watchdog timeout to 180s from 30s to make watchdog crashes
       much less likely when system is under heavy load.
   SQL Standard library:
-    *
+    * Improved CPU cycles calculation in `linux.cpu.utilization` modules:
+     `process`, `system` and `thread` by fixing a bug responsible for too high
+      CPU cycles values.
+    * Introduces functions responsible for calculating CPU cycles with
+      breakdown by CPU, thread, process and slice for a given interval.
+    * Added `linux.perf.samples` module for easy querying of perf samples
+      in traces.
+    * Added `stacks.cpu_profiling` module for easy querying of all CPU
+      profiling data in traces.
   Trace Processor:
-    *
+    * Added (partial) support for the Gecko (Firefox) JSON profiler format.
+      Parsing is optimized for CPU profiling collected with `perf` and converted
+      to the Gecko format. Only parsing of samples is supported; parsing of
+      markers and any other features (e.g. colours) is *not* supported.
+    * Added (partial) suppoort for the perf script text format from both perf
+      and simpleperf. Only parsing files with the default formating or with pids
+      included (i.e. `-F +pid`) is supported. Any other formatting options are
+      *not* supported.
+    * Added support for parsing non-streaming ART method tracing format.
+    * Added support for parsing GZIP files with multiple gzip streams.
+    * Added support for parsing V8 CPU profling samples from proto traces.
+u    * Renamed Trace Processor's C++ method `RegisterSqlModule()` to
+     `RegisterSqlPackage()`, which better represents the module/package
+      relationship. Package is the top level grouping of modules, which are
+      objects being included with `INCLUDE PERFETTO MODULE`.
+      `RegisterSqlModule()` is still available and runs `RegisterSqlPackage()`.
+      `RegisterSqlModule()` will be deprecated in v50.0.
   UI:
-    *
+    * Scheduling wakeup information now reflects whether the wakeup came
+      from an interrupt context. The per-cpu scheduling tracks now show only
+      non-interrupt wakeups, while the per-thread thread state tracks either
+      link to an exact waker slice or state that the wakeup is from an
+      interrupt. Older traces that are recorded without interrupt context
+      information treat all wakeups as non-interrupt.
+    * Nest global/user async tracks according to their parent/child relationship
+      in the trace.
+    * Introduced new workspace API which allows nested tracks & multiple
+      workspace support.
+    * Introduced middle ellipsis in track titles when title text is longer than
+      the available space, while preserving the start and end of title text &
+      add popup of full title text on hover.
+    * Fixed spurious judder issue in popups with tall content.
+    * Fixed bug where marker durations were not rendered on selected markers.
+    * Removed ChromeScrollJank V1 track (V2 should be used from now on).
+    * Major internal changes (affecting pugin developers and core contributors):
+      * Removed legacy selection types, use track event selection types going
+        forward for all single event selections.
+      * Details panels are now attached to the track rather than registered
+        separately.
+      * Introduced `registerSqlSelectionResolver`, which allow plugins to add
+        handlers allowing other parts of the codebase to make selection on
+        tracks from other plugins based on a sql table name and id.
+      * Changed lifetime of track instances; they are now created on trace load
+        by plugins and survive the lifetime of the trace, rather than getting
+        created and destroyed as they appear/disappear on the timeline.
+      * Fix circular dependencies and turn future instances into errors.
   SDK:
     *
 

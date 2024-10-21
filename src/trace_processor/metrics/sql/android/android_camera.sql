@@ -101,15 +101,6 @@ SELECT
   SUM(rss_and_dma_val * dur / 1e3) / SUM(dur / 1e3) AS avg_value
 FROM rss_and_dma_all_camera_span;
 
-DROP VIEW IF EXISTS android_camera_event;
-CREATE PERFETTO VIEW android_camera_event AS
-SELECT
-  'counter' AS track_type,
-  'Camera Memory' AS track_name,
-  ts,
-  rss_and_dma_val AS value
-FROM rss_and_dma_all_camera_span;
-
 DROP VIEW IF EXISTS android_camera_output;
 CREATE PERFETTO VIEW android_camera_output AS
 SELECT

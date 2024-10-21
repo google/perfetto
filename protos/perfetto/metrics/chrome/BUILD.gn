@@ -48,6 +48,6 @@ perfetto_proto_library("descriptor") {
   proto_generators = [ "descriptor" ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   generate_descriptor = "all_chrome_metrics.descriptor"
-  deps = [ ":source_set" ]
+  link_deps = [ ":source_set" ]
   sources = [ "all_chrome_metrics.proto" ]
 }

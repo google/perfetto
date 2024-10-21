@@ -107,6 +107,15 @@ trace.add_atrace_end(ts=265, pid=APP_PID, tid=APP_TID)
 trace.add_atrace_begin(ts=270, pid=APP_PID, tid=APP_TID, buf='VerifyClass dl')
 trace.add_atrace_end(ts=275, pid=APP_PID, tid=APP_TID)
 
+# class init slices within the startup.
+# class init slices will start with an L and end with a semicolon,
+# e.g. Lkotlin/text/MatchResult;
+trace.add_atrace_begin(ts=276, pid=APP_PID, tid=APP_TID, buf='Landroid/dummy;')
+trace.add_atrace_end(ts=277, pid=APP_PID, tid=APP_TID)
+
+trace.add_atrace_begin(ts=278, pid=APP_PID, tid=APP_TID, buf='Lcom/dummy;')
+trace.add_atrace_end(ts=279, pid=APP_PID, tid=APP_TID)
+
 # VerifyClass slice outside the startup.
 trace.add_atrace_begin(ts=55, pid=APP_PID, tid=APP_TID, buf='VerifyClass xf')
 trace.add_atrace_end(ts=65, pid=APP_PID, tid=APP_TID)

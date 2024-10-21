@@ -125,7 +125,7 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   // a NAN must return false.
   double d_exp = exp;
   double d_arg = arg;
-  if (isnan(d_exp) || isnan(d_arg))
+  if (std::isnan(d_exp) || std::isnan(d_arg))
     return false;
   return fabs(d_arg - d_exp) < 1e-128;
 }
@@ -2465,31 +2465,31 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   const auto& cpu_table = storage_->cpu_table();
   EXPECT_EQ(cpu_table[ucpu.value].cpu(), 0u);
   EXPECT_EQ(raw_table[0].utid(), 1u);
-  EXPECT_EQ(raw_table[0].arg_set_id(), 1u);
+  EXPECT_EQ(raw_table[0].arg_set_id(), 2u);
 
   EXPECT_GE(storage_->arg_table().row_count(), 10u);
 
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.category"),
+  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.category"),
                      Variadic::String(cat_1)));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.name"),
+  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.name"),
                      Variadic::String(ev_1)));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.phase"),
+  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.phase"),
                      Variadic::String(question)));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.duration_ns"),
+  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.duration_ns"),
                      Variadic::Integer(23000)));
-  EXPECT_TRUE(HasArg(1u,
+  EXPECT_TRUE(HasArg(2u,
                      storage_->InternString("legacy_event.thread_timestamp_ns"),
                      Variadic::Integer(2005000)));
-  EXPECT_TRUE(HasArg(1u,
+  EXPECT_TRUE(HasArg(2u,
                      storage_->InternString("legacy_event.thread_duration_ns"),
                      Variadic::Integer(15000)));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.use_async_tts"),
+  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.use_async_tts"),
                      Variadic::Boolean(true)));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.global_id"),
+  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.global_id"),
                      Variadic::UnsignedInteger(99u)));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.id_scope"),
+  EXPECT_TRUE(HasArg(2u, storage_->InternString("legacy_event.id_scope"),
                      Variadic::String(scope_1)));
-  EXPECT_TRUE(HasArg(1u, debug_an_1, Variadic::UnsignedInteger(10u)));
+  EXPECT_TRUE(HasArg(2u, debug_an_1, Variadic::UnsignedInteger(10u)));
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {

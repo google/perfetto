@@ -18,7 +18,6 @@
 
 #include <memory>
 
-#include "src/base/test/gtest_test_suite.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

@@ -16,11 +16,11 @@ import {download} from '../base/clipboard';
 import {ErrorDetails} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 import {time} from '../base/time';
-import {Actions} from '../common/actions';
 import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
+import {AppImpl} from '../core/app_impl';
 import {maybeShowErrorDialog} from './error_dialog';
 import {globals} from './globals';
 
@@ -71,12 +71,7 @@ function makeWorkerAndPost(
   function handleOnMessage(msg: MessageEvent): void {
     const args: Args = msg.data;
     if (args.kind === 'updateStatus') {
-      globals.dispatch(
-        Actions.updateStatus({
-          msg: args.status,
-          timestamp: Date.now() / 1000,
-        }),
-      );
+      AppImpl.instance.omnibox.showStatusMessage(args.status);
     } else if (args.kind === 'updateJobStatus') {
       globals.setConversionJobStatus(args.name, args.status);
     } else if (args.kind === 'downloadFile') {

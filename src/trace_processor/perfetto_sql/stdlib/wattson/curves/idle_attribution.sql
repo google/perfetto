@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE intervals.intersect;
-INCLUDE PERFETTO MODULE wattson.curves.grouped;
+INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
 -- Get slice info of threads/processes
 CREATE PERFETTO TABLE _thread_process_slices AS

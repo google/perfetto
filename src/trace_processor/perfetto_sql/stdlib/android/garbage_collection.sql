@@ -124,7 +124,7 @@ GROUP BY gc_id;
 -- Span join GC events with thread states to breakdown the time spent.
 CREATE VIRTUAL TABLE _gc_slice_heap_thread_state_sp
 USING
-  SPAN_JOIN(thread_state PARTITIONED utid, _gc_slice_heap PARTITIONED utid);
+  SPAN_LEFT_JOIN(_gc_slice_heap PARTITIONED utid, thread_state PARTITIONED utid);
 
 -- All Garbage collection events with a breakdown of the time spent and heap reclaimed.
 CREATE PERFETTO TABLE android_garbage_collection_events (

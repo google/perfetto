@@ -109,10 +109,12 @@ class PerfSession : public RefCounted {
 
   PerfSession(TraceProcessorContext* context,
               tables::PerfSessionTable::Id perf_session_id,
+              RefPtr<PerfEventAttr> first_attr,
               base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
               bool has_single_perf_event_attr)
       : context_(context),
         perf_session_id_(perf_session_id),
+        first_attr_(std::move(first_attr)),
         attrs_by_id_(std::move(attrs_by_id)),
         has_single_perf_event_attr_(has_single_perf_event_attr) {}
 
@@ -122,7 +124,9 @@ class PerfSession : public RefCounted {
 
   TraceProcessorContext* const context_;
   tables::PerfSessionTable::Id perf_session_id_;
+  RefPtr<PerfEventAttr> first_attr_;
   base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id_;
+
   // Multiple ids can map to the same perf_event_attr. This member tells us
   // whether there was only one perf_event_attr (with potentially different ids
   // associated). This makes the attr lookup given a record trivial and not

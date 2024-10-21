@@ -60,7 +60,8 @@ enum TraceProcessorApiVersion {
   // 12. Changed UI to be more aggresive about version matching.
   //     Added version_code.
   // 13. Added TPM_REGISTER_SQL_MODULE method.
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 13;
+  // 14. Added parsing mode option to RESET method.
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 14;
 }
 
 // At lowest level, the wire-format of the RPC protocol is a linear sequence of
@@ -88,13 +89,15 @@ message TraceProcessorRpc {
   optional string fatal_error = 5;
 
   enum TraceProcessorMethod {
+    reserved 4, 12;
+    reserved "TPM_QUERY_RAW_DEPRECATED";
+    reserved "TPM_REGISTER_SQL_MODULE";
+
     TPM_UNSPECIFIED = 0;
     TPM_APPEND_TRACE_DATA = 1;
     TPM_FINALIZE_TRACE_DATA = 2;
     TPM_QUERY_STREAMING = 3;
     // Previously: TPM_QUERY_RAW_DEPRECATED
-    reserved 4;
-    reserved "TPM_QUERY_RAW_DEPRECATED";
     TPM_COMPUTE_METRIC = 5;
     TPM_GET_METRIC_DESCRIPTORS = 6;
     TPM_RESTORE_INITIAL_TABLES = 7;
@@ -102,7 +105,7 @@ message TraceProcessorRpc {
     TPM_DISABLE_AND_READ_METATRACE = 9;
     TPM_GET_STATUS = 10;
     TPM_RESET_TRACE_PROCESSOR = 11;
-    TPM_REGISTER_SQL_MODULE = 12;
+    TPM_REGISTER_SQL_PACKAGE = 13;
   }
 
   oneof type {
@@ -134,8 +137,8 @@ message TraceProcessorRpc {
     EnableMetatraceArgs enable_metatrace_args = 106;
     // For TPM_RESET_TRACE_PROCESSOR.
     ResetTraceProcessorArgs reset_trace_processor_args = 107;
-    // For TPM_REGISTER_SQL_MODULE.
-    RegisterSqlModuleArgs register_sql_module_args = 108;
+    // For TPM_REGISTER_SQL_PACKAGE.
+    RegisterSqlPackageArgs register_sql_package_args = 108;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -150,8 +153,8 @@ message TraceProcessorRpc {
     DisableAndReadMetatraceResult metatrace = 209;
     // For TPM_GET_STATUS.
     StatusResult status = 210;
-    // For TPM_REGISTER_SQL_MODULE.
-    RegisterSqlModuleResult register_sql_module_result = 211;
+    // For TPM_REGISTER_SQL_PACKAGE.
+    RegisterSqlPackageResult register_sql_package_result = 211;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -328,22 +331,29 @@ message ResetTraceProcessorArgs {
     NO_DROP = 0;
     TRACK_EVENT_RANGE_OF_INTEREST = 1;
   }
+  enum ParsingMode {
+    DEFAULT = 0;
+    TOKENIZE_ONLY = 1;
+    TOKENIZE_AND_SORT = 2;
+  }
   // Mirror of the corresponding perfetto::trace_processor::Config fields.
   optional DropTrackEventDataBefore drop_track_event_data_before = 1;
   optional bool ingest_ftrace_in_raw_table = 2;
   optional bool analyze_trace_proto_content = 3;
   optional bool ftrace_drop_until_all_cpus_valid = 4;
+  optional ParsingMode parsing_mode = 5;
 }
 
-message RegisterSqlModuleArgs {
+message RegisterSqlPackageArgs {
   message Module {
     optional string name = 1;
     optional string sql = 2;
   }
-  optional string top_level_package_name = 1;
+  optional string package_name = 1;
   repeated Module modules = 2;
-  optional bool allow_module_override = 3;
+  optional bool allow_override = 3;
 }
-message RegisterSqlModuleResult {
+
+message RegisterSqlPackageResult {
   optional string error = 1;
 }

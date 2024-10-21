@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {defer} from '../base/deferred';
-import {globals} from './globals';
 import {raf} from '../core/raf_scheduler';
+import {AppImpl} from '../core/app_impl';
 
 /**
  * This class is exposed by index.ts as window.waitForPerfettoIdle() and is used
@@ -68,8 +68,9 @@ export class IdleDetector {
   }
 
   private idleIndicators() {
+    const reqsPending = AppImpl.instance.trace?.engine.numRequestsPending ?? 0;
     return [
-      globals.numQueuedQueries == 0,
+      reqsPending === 0,
       !raf.hasPendingRedraws,
       !document.getAnimations().some((a) => a.playState === 'running'),
       document.querySelector('.progress.progress-anim') == null,

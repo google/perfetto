@@ -19,13 +19,10 @@ import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {globals, ThreadDesc} from '../../frontend/globals';
+import {globals} from '../../frontend/globals';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {scrollTo} from '../../public/scroll_helper';
-import {SchedSqlId} from '../../trace_processor/sql_utils/core_types';
-import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
+import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
 import {
   getSched,
   getSchedWakeupInfo,
@@ -35,12 +32,12 @@ import {
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
 import {translateState} from '../../trace_processor/sql_utils/thread_state';
+import {Trace} from '../../public/trace';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {TrackEventSelection} from '../../public/selection';
+import {ThreadDesc} from '../../public/threads';
 
 const MIN_NORMAL_SCHED_PRIORITY = 100;
-
-interface SchedDetailsTabConfig {
-  id: SchedSqlId;
-}
 
 function getDisplayName(
   name: string | undefined,
@@ -58,44 +55,26 @@ interface Data {
   wakeup?: SchedWakeupInfo;
 }
 
-export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
+export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
   private details?: Data;
 
-  static create(
-    args: NewBottomTabArgs<SchedDetailsTabConfig>,
-  ): SchedDetailsTab {
-    return new SchedDetailsTab(args);
-  }
+  constructor(private readonly trace: Trace) {}
 
-  constructor(args: NewBottomTabArgs<SchedDetailsTabConfig>) {
-    super(args);
-
-    this.load();
-  }
-
-  async load() {
-    const sched = await getSched(this.engine, this.config.id);
+  async load({eventId}: TrackEventSelection) {
+    const sched = await getSched(this.trace.engine, asSchedSqlId(eventId));
     if (sched === undefined) {
       return;
     }
-    const wakeup = await getSchedWakeupInfo(this.engine, sched);
+    const wakeup = await getSchedWakeupInfo(this.trace.engine, sched);
     this.details = {sched, wakeup};
     raf.scheduleRedraw();
   }
 
-  override isLoading() {
-    return this.details === undefined;
-  }
-
-  getTitle(): string {
-    return `Sched ${this.config.id}`;
-  }
-
-  viewTab() {
+  render() {
     if (this.details === undefined) {
       return m(DetailsShell, {title: 'Sched', description: 'Loading...'});
     }
-    const threadInfo = globals.threads.get(this.details.sched.thread.utid);
+    const threadInfo = this.trace.threads.get(this.details.sched.thread.utid);
 
     return m(
       DetailsShell,
@@ -112,7 +91,7 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
   }
 
   private renderTitle(data: Data) {
-    const threadInfo = globals.threads.get(data.sched.thread.utid);
+    const threadInfo = this.trace.threads.get(data.sched.thread.utid);
     if (!threadInfo) {
       return null;
     }
@@ -122,7 +101,7 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
   private renderSchedLatencyInfo(data: Data): m.Children {
     if (
       data.wakeup?.wakeupTs === undefined ||
-      data.wakeup?.wakerThread === undefined
+      data.wakeup?.wakerUtid === undefined
     ) {
       return null;
     }
@@ -142,12 +121,13 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
 
   private renderWakeupText(data: Data): m.Children {
     if (
-      data.wakeup?.wakerThread === undefined ||
-      data.wakeup?.wakeupTs === undefined
+      data.wakeup?.wakerUtid === undefined ||
+      data.wakeup?.wakeupTs === undefined ||
+      data.wakeup?.wakerCpu === undefined
     ) {
       return null;
     }
-    const threadInfo = globals.threads.get(data.wakeup.wakerThread.utid);
+    const threadInfo = this.trace.threads.get(data.wakeup.wakerUtid);
     if (!threadInfo) {
       return null;
     }
@@ -269,29 +249,12 @@ export class SchedDetailsTab extends BottomTab<SchedDetailsTabConfig> {
   }
 
   goToThread(data: Data) {
-    const threadInfo = globals.threads.get(data.sched.thread.utid);
-
-    if (threadInfo === undefined) {
-      return;
-    }
-
-    const trackDescriptor = globals.trackManager.findTrack(
-      (td) =>
-        td.tags?.kind === THREAD_STATE_TRACK_KIND &&
-        td.tags?.utid === threadInfo.utid,
-    );
-
-    if (trackDescriptor && data.sched.threadStateId) {
-      globals.selectionManager.setLegacy({
-        kind: 'THREAD_STATE',
-        id: data.sched.threadStateId,
-        trackUri: trackDescriptor.uri,
-      });
-
-      scrollTo({
-        track: {uri: trackDescriptor.uri, expandGroup: true},
-        time: {start: data.sched.ts},
-      });
+    if (data.sched.threadStateId) {
+      globals.selectionManager.selectSqlEvent(
+        'thread_state',
+        data.sched.threadStateId,
+        {scrollToSelection: true},
+      );
     }
   }
 

@@ -14,15 +14,15 @@
 
 import m from 'mithril';
 import {
-  CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../../frontend/tracks/custom_sql_table_slice_track';
 import {TrackContext} from '../../track';
-import {DebugSliceDetailsTab} from './details_tab';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Trace} from '../../trace';
+import {TrackEventSelection} from '../../selection';
+import {DebugSliceDetailsPanel} from './details_tab';
 
 export class DebugSliceTrack extends CustomSqlTableSliceTrack {
   private readonly sqlTableName: string;
@@ -41,16 +41,6 @@ export class DebugSliceTrack extends CustomSqlTableSliceTrack {
     };
   }
 
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: DebugSliceDetailsTab.kind,
-      config: {
-        sqlTableName: this.sqlTableName,
-        title: 'Debug Slice',
-      },
-    };
-  }
-
   getTrackShellButtons(): m.Children {
     return m(Button, {
       onclick: () => {
@@ -60,5 +50,9 @@ export class DebugSliceTrack extends CustomSqlTableSliceTrack {
       title: 'Close',
       compact: true,
     });
+  }
+
+  detailsPanel(sel: TrackEventSelection) {
+    return new DebugSliceDetailsPanel(this.trace, this.tableName, sel.eventId);
   }
 }

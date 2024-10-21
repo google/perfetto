@@ -21,6 +21,7 @@ import {
   SqlColumn,
   sqlColumnId,
   TableColumn,
+  tableColumnId,
 } from './column';
 import {buildSqlQuery} from './query_builder';
 import {raf} from '../../../../core/raf_scheduler';
@@ -76,7 +77,10 @@ export class SqlTableState {
   // Columns currently displayed to the user. All potential columns can be found `this.table.columns`.
   private columns: TableColumn[];
   private filters: Filter[];
-  private orderBy: ColumnOrderClause[];
+  private orderBy: {
+    column: TableColumn;
+    direction: SortDirection;
+  }[];
   private offset = 0;
   private request: Request;
   private data?: Data;
@@ -85,12 +89,15 @@ export class SqlTableState {
   constructor(
     readonly trace: Trace,
     readonly config: SqlTableDescription,
-    args?: {
+    private readonly args?: {
       initialColumns?: TableColumn[];
       additionalColumns?: TableColumn[];
       imports?: string[];
       filters?: Filter[];
-      orderBy?: ColumnOrderClause[];
+      orderBy?: {
+        column: TableColumn;
+        direction: SortDirection;
+      }[];
     },
   ) {
     this.additionalImports = args?.imports || [];
@@ -122,10 +129,19 @@ export class SqlTableState {
       }
     }
 
-    this.orderBy = [];
+    this.orderBy = args?.orderBy ?? [];
 
     this.request = this.buildRequest();
     this.reload();
+  }
+
+  clone(): SqlTableState {
+    return new SqlTableState(this.trace, this.config, {
+      initialColumns: this.columns,
+      imports: this.args?.imports,
+      filters: this.filters,
+      orderBy: this.orderBy,
+    });
   }
 
   private getSQLImports() {
@@ -149,7 +165,7 @@ export class SqlTableState {
       table: this.config.name,
       columns,
       filters: this.filters,
-      orderBy: this.orderBy,
+      orderBy: this.getOrderedBy(),
     });
   }
 
@@ -174,6 +190,7 @@ export class SqlTableState {
       if (!(name in columnNameCount)) {
         columnNameCount[name] = 0;
       }
+
       // Note: this can break if the user specifies a column which ends with `__<number>`.
       // We intentionally use two underscores to avoid collisions and will fix it down the line if it turns out to be a problem.
       const alias = `${name}__${++columnNameCount[name]}`;
@@ -364,10 +381,10 @@ export class SqlTableState {
     return this.filters;
   }
 
-  sortBy(clause: ColumnOrderClause) {
+  sortBy(clause: {column: TableColumn; direction: SortDirection}) {
     // Remove previous sort by the same column.
     this.orderBy = this.orderBy.filter(
-      (c) => !isSqlColumnEqual(c.column, clause.column),
+      (c) => tableColumnId(c.column) != tableColumnId(clause.column),
     );
     // Add the new sort clause to the front, so we effectively stable-sort the
     // data currently displayed to the user.
@@ -382,14 +399,23 @@ export class SqlTableState {
 
   isSortedBy(column: TableColumn): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
-    if (!isSqlColumnEqual(this.orderBy[0].column, column.primaryColumn())) {
+    if (tableColumnId(this.orderBy[0].column) !== tableColumnId(column)) {
       return undefined;
     }
     return this.orderBy[0].direction;
   }
 
   getOrderedBy(): ColumnOrderClause[] {
-    return this.orderBy;
+    const result: ColumnOrderClause[] = [];
+    for (const orderBy of this.orderBy) {
+      const sortColumns = orderBy.column.sortColumns?.() ?? [
+        orderBy.column.primaryColumn(),
+      ];
+      for (const column of sortColumns) {
+        result.push({column, direction: orderBy.direction});
+      }
+    }
+    return result;
   }
 
   addColumn(column: TableColumn, index: number) {
@@ -403,10 +429,22 @@ export class SqlTableState {
     // We can only filter by the visibile columns to avoid confusing the user,
     // so we remove order by clauses that refer to the hidden column.
     this.orderBy = this.orderBy.filter(
-      (c) => !isSqlColumnEqual(c.column, column.primaryColumn()),
+      (c) => tableColumnId(c.column) !== tableColumnId(column),
     );
     // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
     this.reload({offset: 'keep'});
+  }
+
+  moveColumn(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    const column = this.columns[fromIndex];
+    this.columns.splice(fromIndex, 1);
+    if (fromIndex < toIndex) {
+      // We have deleted a column, therefore we need to adjust the target index.
+      --toIndex;
+    }
+    this.columns.splice(toIndex, 0, column);
+    raf.scheduleFullRedraw();
   }
 
   getSelectedColumns(): TableColumn[] {

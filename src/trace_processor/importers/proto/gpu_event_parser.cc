@@ -182,7 +182,7 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
 
       auto name_id = context_->storage->InternString(name);
       auto desc_id = context_->storage->InternString(desc);
-      auto track_id = context_->track_tracker->CreateGpuCounterTrack(
+      auto track_id = context_->track_tracker->LegacyCreateGpuCounterTrack(
           name_id, 0 /* gpu_id */, desc_id, unit_id);
       gpu_counter_track_ids_.emplace(counter_id, track_id);
       if (spec.has_groups()) {

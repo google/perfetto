@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 import {Time} from '../base/time';
-import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
+import {PostedTrace} from '../public/trace_source';
 import {showModal} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
-import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {scrollTo} from '../public/scroll_helper';
+import {AppImpl} from '../core/app_impl';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -29,6 +29,12 @@ interface PostedTraceWrapped {
 
 interface PostedScrollToRangeWrapped {
   perfetto: PostedScrollToRange;
+}
+
+interface PostedScrollToRange {
+  timeStart: number;
+  timeEnd: number;
+  viewPercentage?: number;
 }
 
 // Returns whether incoming traces should be opened automatically or should
@@ -204,7 +210,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace.
     postedTrace.localOnly = true;
-    globals.dispatch(Actions.openTraceFromBuffer(postedTrace));
+    AppImpl.instance.openTraceFromBuffer(postedTrace);
   };
 
   const trustAndOpenTrace = () => {
@@ -260,16 +266,12 @@ function sanitizeString(str: string): string {
   return str.replace(/[^A-Za-z0-9.\-_#:/?=&;%+$ ]/g, ' ');
 }
 
-function isTraceViewerReady(): boolean {
-  return !!globals.getCurrentEngine()?.ready;
-}
-
 const _maxScrollToRangeAttempts = 20;
 async function scrollToTimeRange(
   postedScrollToRange: PostedScrollToRange,
   maxAttempts?: number,
 ) {
-  const ready = isTraceViewerReady();
+  const ready = AppImpl.instance.trace && !AppImpl.instance.isLoadingTrace;
   if (!ready) {
     if (maxAttempts === undefined) {
       maxAttempts = 0;

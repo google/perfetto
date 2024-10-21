@@ -17,12 +17,10 @@ import {classNames} from '../base/classnames';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Bounds2D, Point2D, Vector2D} from '../base/geom';
 import {Icons} from '../base/semantic_icons';
-import {Button, ButtonBar} from './button';
+import {ButtonBar} from './button';
 import {Chip, ChipBar} from './chip';
-import {Intent} from './common';
 import {Icon} from './icon';
 import {MiddleEllipsis} from './middle_ellipsis';
-import {Popup} from './popup';
 import {clamp} from '../base/math_utils';
 
 /**
@@ -41,40 +39,6 @@ import {clamp} from '../base/math_utils';
  * │└─────────────────────────────────────────┘└─────────────────────┘│
  * └──────────────────────────────────────────────────────────────────┘
  */
-
-export interface CrashButtonAttrs {
-  error: Error;
-}
-
-export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
-  view({attrs}: m.Vnode<CrashButtonAttrs>): m.Children {
-    return m(
-      Popup,
-      {
-        trigger: m(Button, {
-          icon: Icons.Crashed,
-          compact: true,
-        }),
-      },
-      this.renderErrorMessage(attrs.error),
-    );
-  }
-
-  private renderErrorMessage(error: Error): m.Children {
-    return m(
-      '',
-      'This track has crashed',
-      m(Button, {
-        label: 'Re-raise exception',
-        intent: Intent.Primary,
-        className: Popup.DISMISS_POPUP_GROUP_CLASS,
-        onclick: () => {
-          throw error;
-        },
-      }),
-    );
-  }
-}
 
 export interface TrackComponentAttrs {
   // The title of this track.
@@ -98,8 +62,8 @@ export interface TrackComponentAttrs {
   // Optional list of chips to display after the track title.
   readonly chips?: ReadonlyArray<string>;
 
-  // Optional error to display on this track.
-  readonly error?: Error | undefined;
+  // Render this track in error colours.
+  readonly error?: boolean;
 
   // The integer indentation level of this track. If omitted, defaults to 0.
   readonly indentationLevel?: number;
@@ -123,6 +87,10 @@ export interface TrackComponentAttrs {
   // Whether to highlight the track or not.
   readonly highlight?: boolean;
 
+  // Whether the shell should be draggable and emit drag/drop events.
+  readonly reorderable?: boolean;
+
+  // Mouse events.
   readonly onTrackContentMouseMove?: (
     pos: Point2D,
     contentSize: Bounds2D,
@@ -132,6 +100,11 @@ export interface TrackComponentAttrs {
     pos: Point2D,
     contentSize: Bounds2D,
   ) => boolean;
+
+  // If reorderable, these functions will be called when track shells are
+  // dragged and dropped.
+  readonly onMoveBefore?: (nodeId: string) => void;
+  readonly onMoveAfter?: (nodeId: string) => void;
 }
 
 const TRACK_HEIGHT_MIN_PX = 18;
@@ -212,10 +185,18 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
         ),
       );
 
-    const {topOffsetPx = 0, collapsible, collapsed} = attrs;
+    const {
+      id,
+      topOffsetPx = 0,
+      collapsible,
+      collapsed,
+      reorderable = false,
+      onMoveAfter = () => {},
+      onMoveBefore = () => {},
+    } = attrs;
 
     return m(
-      '.pf-track-shell',
+      `.pf-track-shell[data-track-node-id=${id}]`,
       {
         className: classNames(collapsible && 'pf-clickable'),
         onclick: (e: MouseEvent) => {
@@ -225,6 +206,52 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
           if (collapsible) {
             attrs.onToggleCollapsed?.();
           }
+        },
+        draggable: reorderable,
+        ondragstart: (e: DragEvent) => {
+          e.dataTransfer?.setData('text/plain', id);
+        },
+        ondragover: (e: DragEvent) => {
+          if (!reorderable) {
+            return;
+          }
+          const target = e.currentTarget as HTMLElement;
+          const threshold = target.offsetHeight / 2;
+          if (e.offsetY > threshold) {
+            target.classList.remove('pf-drag-before');
+            target.classList.add('pf-drag-after');
+          } else {
+            target.classList.remove('pf-drag-after');
+            target.classList.add('pf-drag-before');
+          }
+        },
+        ondragleave: (e: DragEvent) => {
+          if (!reorderable) {
+            return;
+          }
+          const target = e.currentTarget as HTMLElement;
+          const related = e.relatedTarget as HTMLElement | null;
+          if (related && !target.contains(related)) {
+            target.classList.remove('pf-drag-after');
+            target.classList.remove('pf-drag-before');
+          }
+        },
+        ondrop: (e: DragEvent) => {
+          if (!reorderable) {
+            return;
+          }
+          const id = e.dataTransfer?.getData('text/plain');
+          const target = e.currentTarget as HTMLElement;
+          const threshold = target.offsetHeight / 2;
+          if (id !== undefined) {
+            if (e.offsetY > threshold) {
+              onMoveAfter(id);
+            } else {
+              onMoveBefore(id);
+            }
+          }
+          target.classList.remove('pf-drag-after');
+          target.classList.remove('pf-drag-before');
         },
       },
       m(
@@ -257,7 +284,6 @@ export class TrackWidget implements m.ClassComponent<TrackComponentAttrs> {
             onclick: (e: MouseEvent) => e.stopPropagation(),
           },
           attrs.buttons,
-          attrs.error && m(CrashButton, {error: attrs.error}),
         ),
       ),
     );

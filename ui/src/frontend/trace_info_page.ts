@@ -15,10 +15,10 @@
 import m from 'mithril';
 import {raf} from '../core/raf_scheduler';
 import {Engine, EngineAttrs} from '../trace_processor/engine';
-import {globals} from './globals';
 import {PageWithTraceAttrs} from './pages';
 import {QueryResult, UNKNOWN} from '../trace_processor/query_result';
 import {assertExists} from '../base/logging';
+import {TraceImplAttrs} from '../core/trace_impl';
 
 /**
  * Extracts and copies fields from a source object based on the keys present in
@@ -140,14 +140,15 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
   }
 }
 
-class MetricErrors implements m.ClassComponent {
-  view() {
-    if (!globals.metricError) return;
+class LoadingErrors implements m.ClassComponent<TraceImplAttrs> {
+  view({attrs}: m.CVnode<TraceImplAttrs>) {
+    const errors = attrs.trace.loadingErrors;
+    if (errors.length === 0) return;
     return m(
       `section.errors`,
-      m('h2', `Metric Errors`),
-      m('h3', `One or more metrics were not computed successfully:`),
-      m('div.metric-error', globals.metricError),
+      m('h2', `Loading errors`),
+      m('h3', `The following errors were encountered while loading the trace:`),
+      m('pre.metric-error', errors.join('\n')),
     );
   }
 }
@@ -432,11 +433,11 @@ export class TraceInfoPage implements m.ClassComponent<PageWithTraceAttrs> {
     this.engine = attrs.trace.engine.getProxy('TraceInfoPage');
   }
 
-  view() {
+  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
     const engine = assertExists(this.engine);
     return m(
       '.trace-info-page',
-      m(MetricErrors),
+      m(LoadingErrors, {trace: attrs.trace}),
       m(StatsSection, {
         engine,
         queryId: 'info_errors',

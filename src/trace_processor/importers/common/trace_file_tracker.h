@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-#include "src/trace_processor/importers/common/scoped_active_trace_file.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -36,24 +36,18 @@ class TraceFileTracker {
   explicit TraceFileTracker(TraceProcessorContext* context)
       : context_(context) {}
 
-  // Notifies the start of a new file that we are about to parse. It returns a
-  // RAII like object that will notify the end of processing when it goes out of
-  // scope.
-  // NOTE: Files must be ended in reverse order of being started.
-  ScopedActiveTraceFile StartNewFile();
-
-  // Convenience version of the above that should be used when all the file
-  // properties are known upfront.
-  ScopedActiveTraceFile StartNewFile(const std::string& name,
-                                     TraceType type,
-                                     size_t size);
+  tables::TraceFileTable::Id AddFile(const std::string& name);
+  tables::TraceFileTable::Id AddFile() { return AddFileImpl(kNullStringId); }
+  void SetSize(tables::TraceFileTable::Id id, uint64_t size);
+  void StartParsing(tables::TraceFileTable::Id id, TraceType trace_type);
+  void DoneParsing(tables::TraceFileTable::Id id, size_t size);
 
  private:
-  void EndFile(const tables::TraceFileTable::ConstRowReference& row);
+  tables::TraceFileTable::Id AddFileImpl(StringId name);
 
-  friend class ScopedActiveTraceFile;
   TraceProcessorContext* const context_;
-  std::vector<tables::TraceFileTable::Id> ancestors_;
+  size_t processing_order_ = 0;
+  std::vector<tables::TraceFileTable::Id> parsing_stack_;
 };
 
 }  // namespace perfetto::trace_processor

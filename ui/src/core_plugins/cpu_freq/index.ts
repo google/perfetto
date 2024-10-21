@@ -82,7 +82,7 @@ class CpuFreq implements PerfettoPlugin {
             kind: CPU_FREQ_TRACK_KIND,
             cpu,
           },
-          track: new CpuFreqTrack(config, ctx.engine),
+          track: new CpuFreqTrack(config, ctx),
         });
         const trackNode = new TrackNode({uri, title, sortOrder: -40});
         ctx.workspace.addChildInOrder(trackNode);

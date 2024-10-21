@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createFakeTraceImpl} from '../../../../common/fake_trace_impl';
+import {createFakeTraceImpl} from '../../../../core/fake_trace_impl';
 import {tableColumnId} from './column';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
@@ -76,7 +76,7 @@ test('sqlTableState: sortedColumns', () => {
 
   // Sort by name column and verify that it is sorted by.
   state.sortBy({
-    column: nameColumn.primaryColumn(),
+    column: nameColumn,
     direction: 'ASC',
   });
   expect(state.isSortedBy(idColumn)).toBe(undefined);
@@ -84,7 +84,7 @@ test('sqlTableState: sortedColumns', () => {
 
   // Sort by the same column in the opposite direction.
   state.sortBy({
-    column: nameColumn.primaryColumn(),
+    column: nameColumn,
     direction: 'DESC',
   });
   expect(state.isSortedBy(idColumn)).toBe(undefined);
@@ -92,7 +92,7 @@ test('sqlTableState: sortedColumns', () => {
 
   // Sort by the id column.
   state.sortBy({
-    column: idColumn.primaryColumn(),
+    column: idColumn,
     direction: 'ASC',
   });
   expect(state.isSortedBy(idColumn)).toBe('ASC');

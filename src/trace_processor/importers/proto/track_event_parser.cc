@@ -38,8 +38,6 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -218,13 +216,6 @@ class TrackEventParser::EventImporter {
 
     RETURN_IF_ERROR(ParseTrackAssociation());
 
-    // Counter-type events don't support arguments (those are on the
-    // CounterDescriptor instead). All they have is a |{double_,}counter_value|.
-    if (event_.type() == TrackEvent::TYPE_COUNTER) {
-      ParseCounterEvent();
-      return base::OkStatus();
-    }
-
     // If we have legacy thread time / instruction count fields, also parse them
     // into the counters tables.
     ParseLegacyThreadTimeAndInstructionsAsCounters();
@@ -233,6 +224,12 @@ class TrackEventParser::EventImporter {
     // can update the slice's thread time / instruction count fields based on
     // these counter values and also parse them as slice attributes / arguments.
     ParseExtraCounterValues();
+
+    // Non-legacy counters are treated differently. Legacy counters do not have
+    // a track_id_ and should instead go through the switch below.
+    if (event_.type() == TrackEvent::TYPE_COUNTER) {
+      return ParseCounterEvent();
+    }
 
     // TODO(eseckler): Replace phase with type and remove handling of
     // legacy_event_.phase() once it is no longer used by producers.
@@ -374,9 +371,10 @@ class TrackEventParser::EventImporter {
           track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_,
                                                    packet_sequence_id_);
       if (!opt_track_id) {
-        track_event_tracker_->ReserveDescriptorChildTrack(track_uuid_,
-                                                          /*parent_uuid=*/0,
-                                                          name_id_);
+        TrackEventTracker::DescriptorTrackReservation r;
+        r.parent_uuid = 0;
+        r.name = name_id_;
+        track_event_tracker_->ReserveDescriptorTrack(track_uuid_, r);
         opt_track_id = track_event_tracker_->GetDescriptorTrack(
             track_uuid_, name_id_, packet_sequence_id_);
       }
@@ -497,7 +495,7 @@ class TrackEventParser::EventImporter {
           id_scope = storage_->InternString(base::StringView(concat));
         }
 
-        track_id_ = context_->track_tracker->InternLegacyChromeAsyncTrack(
+        track_id_ = context_->track_tracker->LegacyInternLegacyChromeAsyncTrack(
             name_id_, upid_.value_or(0), source_id, source_id_is_process_scoped,
             id_scope);
         legacy_passthrough_utid_ = utid_;
@@ -518,7 +516,7 @@ class TrackEventParser::EventImporter {
             break;
           case LegacyEvent::SCOPE_GLOBAL:
             track_id_ = context_->track_tracker->InternGlobalTrack(
-                TrackTracker::GlobalTrackType::kChromeLegacyGlobalInstant);
+                TrackClassification::kChromeLegacyGlobalInstant);
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;
@@ -528,9 +526,11 @@ class TrackEventParser::EventImporter {
                   "Process-scoped instant event without process association");
             }
 
-            track_id_ =
-                context_->track_tracker->InternLegacyChromeProcessInstantTrack(
-                    *upid_);
+            track_id_ = context_->track_tracker->InternProcessTrack(
+                TrackClassification::kChromeProcessInstant, *upid_);
+            context_->args_tracker->AddArgsTo(track_id_).AddArg(
+                context_->storage->InternString("source"),
+                Variadic::String(context_->storage->InternString("chrome")));
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;
@@ -561,7 +561,7 @@ class TrackEventParser::EventImporter {
     }
   }
 
-  void ParseCounterEvent() {
+  base::Status ParseCounterEvent() {
     // Tokenizer ensures that TYPE_COUNTER events are associated with counter
     // tracks and have values.
     PERFETTO_DCHECK(storage_->counter_track_table().FindById(track_id_));
@@ -569,7 +569,9 @@ class TrackEventParser::EventImporter {
                     event_.has_double_counter_value());
 
     context_->event_tracker->PushCounter(
-        ts_, static_cast<double>(event_data_->counter_value), track_id_);
+        ts_, static_cast<double>(event_data_->counter_value), track_id_,
+        [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    return base::OkStatus();
   }
 
   void ParseLegacyThreadTimeAndInstructionsAsCounters() {

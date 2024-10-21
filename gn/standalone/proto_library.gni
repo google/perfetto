@@ -299,6 +299,9 @@ template("proto_library") {
       if (defined(invoker.deps)) {
         deps += invoker.deps
       }
+      if (defined(invoker.link_deps)) {
+        deps += invoker.link_deps
+      }
     }  # source_set(source_set_name)
   }
 }  # template

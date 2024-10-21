@@ -23,6 +23,7 @@ import {
   asUtid,
   SchedSqlId,
   ThreadStateSqlId,
+  Utid,
 } from './core_types';
 import {getThreadInfo, ThreadInfo} from './thread';
 import {getThreadState, getThreadStateFromConstraints} from './thread_state';
@@ -46,7 +47,7 @@ export interface Sched {
 
 export interface SchedWakeupInfo {
   wakeupTs?: time;
-  wakerThread?: ThreadInfo;
+  wakerUtid?: Utid;
   wakerCpu?: number;
 }
 
@@ -116,30 +117,32 @@ export async function getSched(
   return result[0];
 }
 
+// Returns the thread and time of the wakeup that resulted in this running
+// sched slice. Omits wakeups that are known to be from interrupt context,
+// since we cannot always recover the correct waker cpu with the current
+// table layout.
 export async function getSchedWakeupInfo(
   engine: Engine,
   sched: Sched,
 ): Promise<SchedWakeupInfo | undefined> {
-  const running = await getThreadStateFromConstraints(engine, {
+  const prevRunnable = await getThreadStateFromConstraints(engine, {
     filters: [
-      'state="R"',
+      'state = "R"',
       `ts + dur = ${sched.ts}`,
       `utid = ${sched.thread.utid}`,
+      `(irq_context is null or irq_context = 0)`,
     ],
   });
-  if (running.length === 0) {
+  if (prevRunnable.length === 0 || prevRunnable[0].wakerId === undefined) {
     return undefined;
   }
-  if (running[0].wakerId === undefined) {
-    return undefined;
-  }
-  const waker = await getThreadState(engine, running[0].wakerId);
+  const waker = await getThreadState(engine, prevRunnable[0].wakerId);
   if (waker === undefined) {
     return undefined;
   }
   return {
     wakerCpu: waker?.cpu,
-    wakerThread: running[0].wakerThread,
-    wakeupTs: running[0].ts,
+    wakerUtid: prevRunnable[0].wakerUtid,
+    wakeupTs: prevRunnable[0].ts,
   };
 }

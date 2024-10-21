@@ -50,7 +50,7 @@ export class WattsonEstimateSelectionAggregator
   ): string {
     const duration = area.end - area.start;
     let query = `
-      INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+      INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
       CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT
@@ -93,14 +93,14 @@ export class WattsonEstimateSelectionAggregator
         columnId: 'name',
       },
       {
-        title: 'Average power (estimated mW)',
+        title: 'Power (estimated mW)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'power',
         sum: true,
       },
       {
-        title: 'Total energy (estimated mWs)',
+        title: 'Energy (estimated mWs)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'energy',

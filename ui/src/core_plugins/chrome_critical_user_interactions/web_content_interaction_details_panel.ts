@@ -28,8 +28,6 @@
 
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
-import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {asUpid, Upid} from '../../trace_processor/sql_utils/core_types';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
@@ -39,6 +37,8 @@ import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {dictToTreeNodes, Tree} from '../../widgets/tree';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {Trace} from '../../public/trace';
 
 interface Data {
   ts: time;
@@ -48,24 +48,16 @@ interface Data {
   upid: Upid;
 }
 
-export class WebContentInteractionPanel extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.WebContentInteractionPanel';
-  private loaded = false;
-  private data: Data | undefined;
+export class WebContentInteractionPanel implements TrackEventDetailsPanel {
+  private data?: Data;
 
-  static create(
-    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
-  ): WebContentInteractionPanel {
-    return new WebContentInteractionPanel(args);
-  }
+  constructor(
+    private readonly trace: Trace,
+    private readonly id: number,
+  ) {}
 
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-    this.loadData();
-  }
-
-  private async loadData() {
-    const queryResult = await this.engine.query(`
+  async load() {
+    const queryResult = await this.trace.engine.query(`
       SELECT
         ts,
         dur,
@@ -73,7 +65,7 @@ export class WebContentInteractionPanel extends BottomTab<GenericSliceDetailsTab
         total_duration_ms AS totalDurationMs,
         renderer_upid AS upid
       FROM chrome_web_content_interactions
-      WHERE id = ${this.config.id};
+      WHERE id = ${this.id};
     `);
 
     const iter = queryResult.firstRow({
@@ -91,8 +83,6 @@ export class WebContentInteractionPanel extends BottomTab<GenericSliceDetailsTab
       totalDurationMs: iter.totalDurationMs,
       upid: asUpid(iter.upid),
     };
-
-    this.loaded = true;
   }
 
   private getDetailsDictionary() {
@@ -107,20 +97,20 @@ export class WebContentInteractionPanel extends BottomTab<GenericSliceDetailsTab
     });
     details['SQL ID'] = m(SqlRef, {
       table: 'chrome_web_content_interactions',
-      id: this.config.id,
+      id: this.id,
     });
     return details;
   }
 
-  viewTab() {
-    if (this.isLoading()) {
+  render() {
+    if (!this.data) {
       return m('h2', 'Loading');
     }
 
     return m(
       DetailsShell,
       {
-        title: this.getTitle(),
+        title: 'Chrome Web Content Interaction',
       },
       m(
         GridLayout,
@@ -134,13 +124,5 @@ export class WebContentInteractionPanel extends BottomTab<GenericSliceDetailsTab
         ),
       ),
     );
-  }
-
-  getTitle(): string {
-    return this.config.title;
-  }
-
-  isLoading() {
-    return !this.loaded;
   }
 }

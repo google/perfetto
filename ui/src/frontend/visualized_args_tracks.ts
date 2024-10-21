@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {uuidv4} from '../base/uuid';
-// import {THREAD_SLICE_TRACK_KIND} from '../public';
 import {NUM} from '../trace_processor/query_result';
 import {globals} from './globals';
 import {VisualisedArgsTrack} from './visualized_args_track';

@@ -17,9 +17,9 @@
 #ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
 
-#include <assert.h>
-#include <math.h>
-#include <stdarg.h>
+#include <cassert>
+#include <cstdarg>
+#include <cstddef>
 #include <cstdint>
 
 #include <string>
@@ -30,16 +30,41 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // All metrics protos are in this directory. When loading metric extensions, the
 // protos are mounted onto a virtual path inside this directory.
 constexpr char kMetricProtoRoot[] = "protos/perfetto/metrics/";
 
+// Enum which encodes how trace processor should parse the ingested data.
+enum class ParsingMode {
+  // This option causes trace processor to tokenize the raw trace bytes, sort
+  // the events into timestamp order and parse the events into tables.
+  //
+  // This is the default mode.
+  kDefault = 0,
+
+  // This option causes trace processor to skip the sorting and parsing
+  // steps of ingesting a trace, only retaining any information which could be
+  // gathered during tokenization of the trace files.
+  //
+  // Note the exact information available with this option is left intentionally
+  // undefined as it relies heavily on implementation details of trace
+  // processor. It is mainly intended for use by the Perfetto UI which
+  // integrates very closely with trace processor. General users should use
+  // `kDefault` unless they know what they are doing.
+  kTokenizeOnly = 1,
+
+  // This option causes trace processor to skip the parsing step of ingesting
+  // a trace.
+  //
+  // Note this option does not offer any visible benefits over `kTokenizeOnly`
+  // but has the downside of being slower. It mainly exists for use by
+  // developers debugging performance of trace processor.
+  kTokenizeAndSort = 2,
+};
+
 // Enum which encodes how trace processor should try to sort the ingested data.
-// Note that these options are only applicable to proto traces; other trace
-// types (e.g. JSON, Fuchsia) use full sorts.
 enum class SortingMode {
   // This option allows trace processor to use built-in heuristics about how to
   // sort the data. Generally, this option is correct for most embedders as
@@ -51,26 +76,11 @@ enum class SortingMode {
   // This is the default mode.
   kDefaultHeuristics = 0,
 
-  // This option forces trace processor to wait for all trace packets to be
-  // passed to it before doing a full sort of all the packets. This causes any
+  // This option forces trace processor to wait for all events to be passed to
+  // it before doing a full sort of all the events. This causes any
   // heuristics trace processor would normally use to ingest partially sorted
   // data to be skipped.
   kForceFullSort = 1,
-
-  // This option is deprecated in v18; trace processor will ignore it and
-  // use |kDefaultHeuristics|.
-  //
-  // Rationale for deprecation:
-  // The new windowed sorting logic in trace processor uses a combination of
-  // flush and buffer-read lifecycle events inside the trace instead of
-  // using time-periods from the config.
-  //
-  // Recommended migration:
-  // Users of this option should switch to using |kDefaultHeuristics| which
-  // will act very similarly to the pre-v20 behaviour of this option.
-  //
-  // This option is scheduled to be removed in v21.
-  kForceFlushPeriodWindowedSort = 2
 };
 
 // Enum which encodes which event (if any) should be used to drop ftrace data
@@ -128,8 +138,13 @@ enum class DropTrackEventDataBefore {
 
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
 struct PERFETTO_EXPORT_COMPONENT Config {
-  // Indicates the sortinng mode that trace processor should use on the passed
-  // trace packets. See the enum documentation for more details.
+  // Indicates the parsing mode trace processor should use to extract
+  // information from the raw trace bytes. See the enum documentation for more
+  // details.
+  ParsingMode parsing_mode = ParsingMode::kDefault;
+
+  // Indicates the sortinng mode that trace processor should use on the
+  // passed trace packets. See the enum documentation for more details.
   SortingMode sorting_mode = SortingMode::kDefaultHeuristics;
 
   // When set to false, this option makes the trace processor not include ftrace
@@ -262,28 +277,38 @@ struct PERFETTO_EXPORT_COMPONENT SqlValue {
   Type type = kNull;
 };
 
-// Data used to register a new SQL module.
-struct SqlModule {
-  // Must be unique among modules, or can be used to override existing module if
-  // |allow_module_override| is set.
+// Data used to register a new SQL package.
+struct SqlPackage {
+  // Must be unique among package, or can be used to override existing package
+  // if |allow_override| is set.
   std::string name;
 
-  // Pairs of strings used for |IMPORT| with the contents of SQL files being
-  // run. Strings should only contain alphanumeric characters and '.', where
-  // string before the first dot has to be module name.
+  // Pairs of strings mapping from the name of the module used by `INCLUDE
+  // PERFETTO MODULE` statements to the contents of SQL files being executed.
+  // Module names should only contain alphanumeric characters and '.', where
+  // string before the first dot must be the package name.
   //
-  // It is encouraged that import key should be the path to the SQL file being
+  // It is encouraged that include key should be the path to the SQL file being
   // run, with slashes replaced by dots and without the SQL extension. For
-  // example, 'android/camera/jank.sql' would be imported by
-  // 'android.camera.jank'.
-  std::vector<std::pair<std::string, std::string>> files;
+  // example, 'android/camera/jank.sql' would be included by
+  // 'android.camera.jank'. This conforms to user expectations of how modules
+  // behave in other languages (e.g. Java, Python etc).
+  std::vector<std::pair<std::string, std::string>> modules;
 
-  // If true, SqlModule will override registered module with the same name. Can
-  // only be set if enable_dev_features is true, otherwise will throw an error.
+  // If true, will allow overriding a package which already exists with `name.
+  // Can only be set if enable_dev_features (in the TraceProcessorConfig object
+  // when creating TraceProcessor) is true. Otherwise, this option will throw an
+  // error.
+  bool allow_override = false;
+};
+
+// Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.
+struct SqlModule {
+  std::string name;
+  std::vector<std::pair<std::string, std::string>> files;
   bool allow_module_override = false;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_

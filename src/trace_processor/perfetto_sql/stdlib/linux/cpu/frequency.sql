@@ -29,6 +29,8 @@ CREATE PERFETTO TABLE cpu_frequency_counters(
   -- Frequency in kHz of the CPU that corresponds to this counter. NULL if not
   -- found or undefined.
   freq INT,
+  -- Unique CPU id.
+  ucpu INT,
   -- CPU that corresponds to this counter.
   cpu INT
 ) AS
@@ -38,6 +40,7 @@ SELECT
   count_w_dur.ts,
   count_w_dur.dur,
   cast_int!(count_w_dur.value) as freq,
+  cct.ucpu,
   cct.cpu
 FROM
 counter_leading_intervals!((

@@ -63,7 +63,6 @@ export class PerfettoTestHelper {
     assertExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
     await this.page.mouse.move(0, 0);
-    await this.page.mouse.click(0, 0);
   }
 
   waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
@@ -102,6 +101,23 @@ export class PerfettoTestHelper {
 
   pinTrackUsingShellBtn(track: Locator) {
     track.locator('button[title="Pin to top"]').click({force: true});
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async runCommand(cmdId: string, ...args: any[]) {
+    await this.page.evaluate(
+      (arg) => self.globals.commandManager.runCommand(arg.cmdId, ...arg.args),
+      {cmdId, args},
+    );
+  }
+
+  async searchSlice(name: string) {
+    const omnibox = this.page.locator('input[ref=omnibox]');
+    await omnibox.focus();
+    await omnibox.fill(name);
+    await this.waitForPerfettoIdle();
+    await omnibox.press('Enter');
+    await this.waitForPerfettoIdle();
   }
 
   getTestTracePath(fname: string): string {

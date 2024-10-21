@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Optional} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Track, TrackDescriptor, TrackManager} from '../public/track';
 import {AsyncLimiter} from '../base/async_limiter';
@@ -22,7 +21,7 @@ export interface TrackRenderer {
   readonly track: Track;
   desc: TrackDescriptor;
   render(ctx: TrackRenderContext): void;
-  getError(): Optional<Error>;
+  getError(): Error | undefined;
 }
 
 /**
@@ -172,7 +171,7 @@ class TrackFSM implements TrackRenderer {
     this.track.render(ctx);
   }
 
-  getError(): Optional<Error> {
+  getError(): Error | undefined {
     return this.error;
   }
 

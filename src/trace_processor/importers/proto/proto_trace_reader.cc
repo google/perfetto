@@ -23,6 +23,7 @@
 #include <map>
 #include <numeric>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -109,31 +110,25 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // Assert that the packet is parsed using the right instance of reader.
   PERFETTO_DCHECK(decoder.has_machine_id() == !!context_->machine_id());
 
-  const uint32_t seq_id = decoder.trusted_packet_sequence_id();
-  auto* state = GetIncrementalStateForPacketSequence(seq_id);
+  uint32_t seq_id = decoder.trusted_packet_sequence_id();
+  auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});
+  if (decoder.has_trusted_packet_sequence_id()) {
+    if (!inserted && decoder.previous_packet_dropped()) {
+      ++scoped_state->previous_packet_dropped_count;
+    }
+  }
 
   if (decoder.first_packet_on_sequence()) {
     HandleFirstPacketOnSequence(seq_id);
   }
 
   uint32_t sequence_flags = decoder.sequence_flags();
-
   if (decoder.incremental_state_cleared() ||
       sequence_flags &
           protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED) {
     HandleIncrementalStateCleared(decoder);
   } else if (decoder.previous_packet_dropped()) {
     HandlePreviousPacketDropped(decoder);
-  }
-
-  uint32_t sequence_id = decoder.trusted_packet_sequence_id();
-  if (sequence_id) {
-    auto [data_loss, inserted] =
-        packet_sequence_data_loss_.Insert(sequence_id, 0);
-
-    if (!inserted && decoder.previous_packet_dropped()) {
-      *data_loss += 1;
-    }
   }
 
   // It is important that we parse defaults before parsing other fields such as
@@ -149,7 +144,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_clock_snapshot()) {
-    return ParseClockSnapshot(decoder.clock_snapshot(), sequence_id);
+    return ParseClockSnapshot(decoder.clock_snapshot(), seq_id);
   }
 
   if (decoder.has_trace_stats()) {
@@ -171,6 +166,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     return ParseExtensionDescriptor(decoder.extension_descriptor());
   }
 
+  auto* state = GetIncrementalStateForPacketSequence(seq_id);
   if (decoder.sequence_flags() &
       protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE) {
     if (!seq_id) {
@@ -179,6 +175,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
           "TraceWriter's sequence_id is zero (the service is "
           "probably too old)");
     }
+    scoped_state->needs_incremental_state_total++;
 
     if (!state->IsIncrementalStateValid()) {
       if (context_->content_analyzer) {
@@ -189,6 +186,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
                                 invalid_incremental_state_key_id_);
         PacketAnalyzer::Get(context_)->ProcessPacket(packet, annotation);
       }
+      scoped_state->needs_incremental_state_skipped++;
       context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
       return base::OkStatus();
     }
@@ -286,13 +284,20 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
 }
 
 void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
-  protos::pbzero::TraceConfig::Decoder trace_config(blob);
-  if (trace_config.write_into_file() && !trace_config.flush_period_ms()) {
-    PERFETTO_ELOG(
-        "It is strongly recommended to have flush_period_ms set when "
-        "write_into_file is turned on. This trace will be loaded fully "
-        "into memory before sorting which increases the likelihood of "
-        "OOMs.");
+  using Config = protos::pbzero::TraceConfig;
+  Config::Decoder trace_config(blob);
+  if (trace_config.write_into_file()) {
+    if (!trace_config.flush_period_ms()) {
+      context_->storage->IncrementStats(stats::config_write_into_file_no_flush);
+    }
+    int i = 0;
+    for (auto it = trace_config.buffers(); it; ++it, ++i) {
+      Config::BufferConfig::Decoder buf(*it);
+      if (buf.fill_policy() == Config::BufferConfig::FillPolicy::DISCARD) {
+        context_->storage->IncrementIndexedStats(
+            stats::config_write_into_file_discard, i);
+      }
+    }
   }
 }
 
@@ -617,6 +622,20 @@ base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
   if (tse.read_tracing_buffers_completed()) {
     context_->sorter->NotifyReadBufferEvent();
   }
+  if (tse.has_slow_starting_data_sources()) {
+    protos::pbzero::TracingServiceEvent::DataSources::Decoder msg(
+        tse.slow_starting_data_sources());
+    for (auto it = msg.data_source(); it; it++) {
+      protos::pbzero::TracingServiceEvent::DataSources::DataSource::Decoder
+          data_source(*it);
+      std::string formatted = data_source.producer_name().ToStdString() + " " +
+                              data_source.data_source_name().ToStdString();
+      context_->metadata_tracker->AppendMetadata(
+          metadata::slow_start_data_source,
+          Variadic::String(
+              context_->storage->InternString(base::StringView(formatted))));
+    }
+  }
   return base::OkStatus();
 }
 
@@ -721,21 +740,30 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
   }
 
-  base::FlatHashMap<int32_t, int64_t> data_loss_per_buffer;
-
+  struct BufStats {
+    uint32_t packet_loss = 0;
+    uint32_t incremental_sequences_dropped = 0;
+  };
+  base::FlatHashMap<int32_t, BufStats> stats_per_buffer;
   for (auto it = evt.writer_stats(); it; ++it) {
-    protos::pbzero::TraceStats::WriterStats::Decoder writer(*it);
-    auto* data_loss = packet_sequence_data_loss_.Find(
-        static_cast<uint32_t>(writer.sequence_id()));
-    if (data_loss) {
-      data_loss_per_buffer[static_cast<int32_t>(writer.buffer())] +=
-          static_cast<int64_t>(*data_loss);
+    protos::pbzero::TraceStats::WriterStats::Decoder w(*it);
+    auto seq_id = static_cast<uint32_t>(w.sequence_id());
+    if (auto* s = sequence_state_.Find(seq_id)) {
+      auto& stats = stats_per_buffer[static_cast<int32_t>(w.buffer())];
+      stats.packet_loss += s->previous_packet_dropped_count;
+      stats.incremental_sequences_dropped +=
+          s->needs_incremental_state_skipped > 0 &&
+          s->needs_incremental_state_skipped ==
+              s->needs_incremental_state_total;
     }
   }
 
-  for (auto it = data_loss_per_buffer.GetIterator(); it; ++it) {
+  for (auto it = stats_per_buffer.GetIterator(); it; ++it) {
+    auto& v = it.value();
     storage->SetIndexedStats(stats::traced_buf_sequence_packet_loss, it.key(),
-                             it.value());
+                             v.packet_loss);
+    storage->SetIndexedStats(stats::traced_buf_incremental_sequences_dropped,
+                             it.key(), v.incremental_sequences_dropped);
   }
 }
 

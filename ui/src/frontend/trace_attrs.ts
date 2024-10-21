@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 import {assertExists} from '../base/logging';
-import {TraceUrlSource} from '../public/trace_info';
+import {TraceUrlSource} from '../public/trace_source';
 import {createPermalink} from './permalink';
 import {showModal} from '../widgets/modal';
 import {onClickCopy} from './clipboard';
 import {globals} from './globals';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
 
 export function isShareable() {
   return globals.isInternalUser && isDownloadable();

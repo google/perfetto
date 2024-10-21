@@ -24,6 +24,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.track_tables import TRACK_TABLE, COUNTER_TRACK_TABLE
 
@@ -236,6 +237,7 @@ PERF_SESSION_TABLE = Table(
     columns=[
         C('cmdline', CppOptional(CppString())),
     ],
+    wrapping_sql_view=WrappingSqlView('perf_session'),
     tabledoc=TableDoc(
         doc='''Perf sessions.''',
         group='Callstack profilers',

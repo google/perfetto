@@ -129,9 +129,9 @@ def cmd_upload(dir):
   if args.dry_run:
     return 0
   if not args.quiet:
-    print('About to upload %d files:' % len(files_to_upload))
     print('\n'.join(relpath(f.path) for f in files_to_upload))
     print('')
+    print('About to upload %d files' % len(files_to_upload))
     input('Press a key to continue or CTRL-C to abort')
 
   def upload_one_file(fs):
@@ -147,6 +147,27 @@ def cmd_upload(dir):
     return fs
 
   map_concurrently(upload_one_file, files_to_upload)
+  return 0
+
+
+def cmd_clean(dir):
+  all_files = list_files(dir, scan_new_files=True)
+  files_to_clean = []
+  for fs in ThreadPool(args.jobs).imap_unordered(get_file_status, all_files):
+    if fs.status in (FS_NEW_FILE, FS_MODIFIED):
+      files_to_clean.append(fs.path)
+  if len(files_to_clean) == 0:
+    if not args.quiet:
+      print('No modified or new files require cleaning')
+    return 0
+  if args.dry_run:
+    return 0
+  if not args.quiet:
+    print('\n'.join(relpath(f) for f in files_to_clean))
+    print('')
+    print('About to remove %d files' % len(files_to_clean))
+    input('Press a key to continue or CTRL-C to abort')
+  list(map(os.remove, files_to_clean))
   return 0
 
 
@@ -237,7 +258,7 @@ def main():
   parser.add_argument('--quiet', '-q', action='store_true')
   parser.add_argument('--verbose', '-v', action='store_true')
   parser.add_argument('--ignore-new', action='store_true')
-  parser.add_argument('cmd', choices=['status', 'download', 'upload'])
+  parser.add_argument('cmd', choices=['status', 'download', 'upload', 'clean'])
   global args
   args = parser.parse_args()
   logging.basicConfig(
@@ -250,6 +271,8 @@ def main():
     return cmd_download(args.dir, overwrite_locally_modified=args.overwrite)
   if args.cmd == 'upload':
     return cmd_upload(args.dir)
+  if args.cmd == 'clean':
+    return cmd_clean(args.dir)
   print('Unknown command: %s' % args.cmd)
 
 

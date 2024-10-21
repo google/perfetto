@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Optional} from '../base/utils';
 import {OmniboxManager, PromptOption} from '../public/omnibox';
 import {raf} from './raf_scheduler';
 
@@ -26,7 +25,7 @@ export enum OmniboxMode {
 interface Prompt {
   text: string;
   options?: PromptOption[];
-  resolve(result: Optional<string>): void;
+  resolve(result: string | undefined): void;
 }
 
 const defaultMode = OmniboxMode.Search;
@@ -39,6 +38,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
   private _omniboxSelectionIndex = 0;
   private _forceShortTextSearch = false;
   private _textForMode = new Map<OmniboxMode, string>();
+  private _statusMessageContainer: {msg?: string} = {};
 
   get mode(): OmniboxMode {
     return this._mode;
@@ -87,22 +87,38 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this._pendingCursorPlacement = undefined;
   }
 
-  setMode(mode: OmniboxMode): void {
+  setMode(mode: OmniboxMode, focus = true): void {
     this._mode = mode;
-    this._focusOmniboxNextRender = true;
+    this._focusOmniboxNextRender = focus;
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
     raf.scheduleFullRedraw();
   }
 
+  showStatusMessage(msg: string, durationMs = 2000) {
+    const statusMessageContainer: {msg?: string} = {msg};
+    if (durationMs > 0) {
+      setTimeout(() => {
+        statusMessageContainer.msg = undefined;
+        raf.scheduleFullRedraw();
+      }, durationMs);
+    }
+    this._statusMessageContainer = statusMessageContainer;
+    raf.scheduleFullRedraw();
+  }
+
+  get statusMessage(): string | undefined {
+    return this._statusMessageContainer.msg;
+  }
+
   // Start a prompt. If options are supplied, the user must pick one from the
   // list, otherwise the input is free-form text.
-  prompt(text: string, options?: PromptOption[]): Promise<Optional<string>> {
+  prompt(text: string, options?: PromptOption[]): Promise<string | undefined> {
     this._mode = OmniboxMode.Prompt;
     this._omniboxSelectionIndex = 0;
     this.rejectPendingPrompt();
 
-    const promise = new Promise<Optional<string>>((resolve) => {
+    const promise = new Promise<string | undefined>((resolve) => {
       this._pendingPrompt = {
         text,
         options,
@@ -133,9 +149,10 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this.setMode(OmniboxMode.Search);
   }
 
-  reset(): void {
-    this.setMode(defaultMode);
+  reset(focus = true): void {
+    this.setMode(defaultMode, focus);
     this._omniboxSelectionIndex = 0;
+    this._statusMessageContainer = {};
     raf.scheduleFullRedraw();
   }
 

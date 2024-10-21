@@ -527,13 +527,6 @@ message AndroidSysUINotificationsBlockingCallsMetric {
 
 // End of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
 
-// Begin of protos/perfetto/metrics/android/android_trusty_workqueues.proto
-
-// Metric used to generate a simplified view of the Trusty kworker events.
-message AndroidTrustyWorkqueues {}
-
-// End of protos/perfetto/metrics/android/android_trusty_workqueues.proto
-
 // Begin of protos/perfetto/metrics/android/anr_metric.proto
 
  message AndroidAnrMetric {
@@ -863,6 +856,8 @@ message AndroidCodecMetrics {
     optional int64 total_cpu_ns = 2;
     // CPU time ( time 'Running' on cpu)
     optional int64 running_cpu_ns = 3;
+    // CPU cycles
+    optional int64 cpu_cycles = 4;
   }
 
   // These are traces and could indicate framework queue latency
@@ -896,8 +891,27 @@ message AndroidCodecMetrics {
     repeated AndroidCpuMetric.CoreTypeData core_data = 5;
   }
 
+  // Shows energy breakdown base on subsystem
+  message EnergyBreakdown {
+    // name of subsystem
+    optional string subsystem = 1;
+    // energy consumed by this system
+    optional double energy = 2;
+  }
+
+  // have the energy usage for the codec running time
+  message EnergyUsage {
+    // total energy taken by the system during this time
+    optional double total_energy = 1;
+    // total time for this energy is calculated
+    optional int64 duration = 2;
+    // enery breakdown by subsystem
+    repeated EnergyBreakdown subsystem = 3;
+  }
+
   repeated CpuUsage cpu_usage = 1;
   repeated CodecFunction codec_function = 2;
+  optional EnergyUsage energy_usage = 3;
 
 }
 
@@ -2099,16 +2113,6 @@ message AndroidNetworkMetric {
 
 // End of protos/perfetto/metrics/android/network_metric.proto
 
-// Begin of protos/perfetto/metrics/android/other_traces.proto
-
-message AndroidOtherTracesMetric {
-  // Uuids of other traces being finalized while the current trace was being
-  // recorded.
-  repeated string finalized_traces_uuid = 1;
-}
-
-// End of protos/perfetto/metrics/android/other_traces.proto
-
 // Begin of protos/perfetto/metrics/android/package_list.proto
 
 message AndroidPackageList {
@@ -2271,7 +2275,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 36.
+  // Next id: 38
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -2320,6 +2324,8 @@ message AndroidStartupMetric {
 
     optional Slice time_post_fork = 16;
 
+    // Total time on class initialization during app startup.
+    optional Slice time_class_initialization = 36;
     // The total time spent on opening dex files.
     optional Slice time_dex_open = 24;
     // Total time spent verifying classes during app startup.
@@ -2327,6 +2333,9 @@ message AndroidStartupMetric {
 
     // Number of methods that were compiled by JIT during app startup.
     optional uint32 jit_compiled_methods = 27;
+
+    // Number of class initializations during app startup.
+    optional uint32 class_initialization_count = 37;
 
     // Time spent running CPU on jit thread pool.
     optional Slice time_jit_thread_pool_on_cpu = 28;
@@ -3131,11 +3140,13 @@ message TraceMetrics {
   // Metrics for IRQ runtime.
   optional AndroidIrqRuntimeMetric android_irq_runtime = 43;
 
-  // Metrics for the Trusty team.
-  optional AndroidTrustyWorkqueues android_trusty_workqueues = 44;
+  // Was metrics for the Trusty team.
+  reserved 44;
+  reserved 'android_trusty_workqueues';
 
-  // Summary of other concurrent trace recording.
-  optional AndroidOtherTracesMetric android_other_traces = 45;
+  // Was summary of concurrent trace recording.
+  reserved 45;
+  reserved 'android_other_traces';
 
   // Per-process Binder transaction metrics.
   optional AndroidBinderMetric android_binder = 46;

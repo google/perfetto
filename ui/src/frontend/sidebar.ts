@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
-import {Actions} from '../common/actions';
 import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
@@ -23,18 +22,16 @@ import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
   isMetatracingEnabled,
-} from '../common/metatracing';
-import {EngineMode} from '../common/state';
+} from '../core/metatracing';
+import {Engine, EngineMode} from '../trace_processor/engine';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
-import {EngineBase} from '../trace_processor/engine';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
 import {downloadData, downloadUrl} from './download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {Router} from './router';
 import {
   createTraceLink,
   isDownloadable,
@@ -48,7 +45,9 @@ import {
 import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
 import {formatHotkey} from '../base/hotkeys';
 import {SidebarMenuItem} from '../public/sidebar';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
+import {Trace} from '../public/trace';
+import {Router} from '../core/router';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';
@@ -95,6 +94,10 @@ const VIZ_PAGE_IN_NAV_FLAG = featureFlags.register({
   description: 'Show a link to the viz page in the side bar.',
   defaultValue: true,
 });
+
+export interface OptionalTraceAttrs {
+  trace?: Trace;
+}
 
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
@@ -150,7 +153,7 @@ function insertSidebarMenuitems(
     });
 }
 
-function getSections(): Section[] {
+function getSections(trace?: Trace): Section[] {
   return [
     {
       title: 'Navigation',
@@ -193,7 +196,7 @@ function getSections(): Section[] {
         },
         {
           t: 'Download',
-          a: downloadTrace,
+          a: (e: Event) => trace && downloadTrace(e, trace),
           i: 'file_download',
           checkDownloadDisabled: true,
         },
@@ -243,7 +246,7 @@ function getSections(): Section[] {
           t: 'Convert to .systrace',
           a: convertTraceToSystrace,
           i: 'file_download',
-          isVisible: () => globals.hasFtrace,
+          isVisible: () => Boolean(trace?.traceInfo.hasFtrace),
           isPending: () =>
             globals.getConversionJobStatus('convert_systrace') ===
             ConversionJobStatus.InProgress,
@@ -272,18 +275,22 @@ function getSections(): Section[] {
           a: getBugReportUrl(),
           i: 'bug_report',
         },
-        {
-          t: 'Record metatrace',
-          a: recordMetatrace,
-          i: 'fiber_smart_record',
-          checkMetatracingDisabled: true,
-        },
-        {
-          t: 'Finalise metatrace',
-          a: finaliseMetatrace,
-          i: 'file_download',
-          checkMetatracingEnabled: true,
-        },
+        ...(trace
+          ? [
+              {
+                t: 'Record metatrace',
+                a: (e: Event) => recordMetatrace(e, trace.engine),
+                i: 'fiber_smart_record',
+                checkMetatracingDisabled: true,
+              },
+              {
+                t: 'Finalise metatrace',
+                a: (e: Event) => finaliseMetatrace(e, trace.engine),
+                i: 'file_download',
+                checkMetatracingEnabled: true,
+              },
+            ]
+          : []),
       ],
     },
   ];
@@ -304,12 +311,8 @@ function downloadTraceFromUrl(url: string): Promise<File> {
       xhr.responseType = 'blob';
       xhr.onprogress = (progress) => {
         const percent = ((100 * progress.loaded) / progress.total).toFixed(1);
-        globals.dispatch(
-          Actions.updateStatus({
-            msg: `Downloading trace ${percent}%`,
-            timestamp: Date.now() / 1000,
-          }),
-        );
+        const msg = `Downloading trace ${percent}%`;
+        AppImpl.instance.omnibox.showStatusMessage(msg);
       };
     },
     extract: (xhr) => {
@@ -429,16 +432,14 @@ function handleShareTrace(e: Event) {
   shareTrace();
 }
 
-function downloadTrace(e: Event) {
+function downloadTrace(e: Event, trace: Trace) {
   e.preventDefault();
   if (!isDownloadable() || !isTraceLoaded()) return;
   globals.logging.logEvent('Trace Actions', 'Download trace');
 
-  const engine = globals.getCurrentEngine();
-  if (!engine) return;
   let url = '';
   let fileName = `trace${TRACE_SUFFIX}`;
-  const src = engine.source;
+  const src = trace.traceInfo.source;
   if (src.type === 'URL') {
     url = src.url;
     fileName = url.split('/').slice(-1)[0];
@@ -463,27 +464,18 @@ function downloadTrace(e: Event) {
   downloadUrl(fileName, url);
 }
 
-function getCurrentEngine(): EngineBase | undefined {
-  const engineId = globals.getCurrentEngine()?.id;
-  if (engineId === undefined) return undefined;
-  return globals.engines.get(engineId);
-}
-
 function highPrecisionTimersAvailable(): boolean {
   // High precision timers are available either when the page is cross-origin
   // isolated or when the trace processor is a standalone binary.
   return (
     window.crossOriginIsolated ||
-    globals.getCurrentEngine()?.mode === 'HTTP_RPC'
+    AppImpl.instance.trace?.engine.mode === 'HTTP_RPC'
   );
 }
 
-function recordMetatrace(e: Event) {
+function recordMetatrace(e: Event, engine: Engine) {
   e.preventDefault();
   globals.logging.logEvent('Trace Actions', 'Record metatrace');
-
-  const engine = getCurrentEngine();
-  if (!engine) return;
 
   if (!highPrecisionTimersAvailable()) {
     const PROMPT = `High-precision timers are not available to WASM trace processor yet.
@@ -519,14 +511,11 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
   }
 }
 
-async function finaliseMetatrace(e: Event) {
+async function finaliseMetatrace(e: Event, engine: Engine) {
   e.preventDefault();
   globals.logging.logEvent('Trace Actions', 'Finalise metatrace');
 
   const jsEvents = disableMetatracingAndGetTrace();
-
-  const engine = getCurrentEngine();
-  if (!engine) return;
 
   const result = await engine.stopAndGetMetatrace();
   if (result.error.length !== 0) {
@@ -536,15 +525,15 @@ async function finaliseMetatrace(e: Event) {
   downloadData('metatrace', result.metatrace, jsEvents);
 }
 
-const EngineRPCWidget: m.Component = {
-  view() {
+class EngineRPCWidget implements m.ClassComponent<OptionalTraceAttrs> {
+  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
     let cssClass = '';
     let title = 'Number of pending SQL queries';
     let label: string;
     let failed = false;
     let mode: EngineMode | undefined;
 
-    const engine = globals.state.engine;
+    const engine = attrs.trace?.engine;
     if (engine !== undefined) {
       mode = engine.mode;
       if (engine.failed !== undefined) {
@@ -562,7 +551,7 @@ const EngineRPCWidget: m.Component = {
     if (mode === undefined) {
       if (
         globals.httpRpcState.connected &&
-        globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
+        AppImpl.instance.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
       ) {
         mode = 'HTTP_RPC';
       } else {
@@ -579,14 +568,15 @@ const EngineRPCWidget: m.Component = {
       title += '\n(Query engine: built-in WASM)';
     }
 
+    const numReqs = attrs.trace?.engine.numRequestsPending ?? 0;
     return m(
       `.dbg-info-square${cssClass}`,
       {title},
       m('div', label),
-      m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`),
+      m('div', `${failed ? 'FAIL' : numReqs}`),
     );
-  },
-};
+  }
+}
 
 const ServiceWorkerWidget: m.Component = {
   view() {
@@ -668,11 +658,11 @@ const ServiceWorkerWidget: m.Component = {
   },
 };
 
-const SidebarFooter: m.Component = {
-  view() {
+class SidebarFooter implements m.ClassComponent<OptionalTraceAttrs> {
+  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
     return m(
       '.sidebar-footer',
-      m(EngineRPCWidget),
+      m(EngineRPCWidget, attrs),
       m(ServiceWorkerWidget),
       m(
         '.version',
@@ -687,8 +677,8 @@ const SidebarFooter: m.Component = {
         ),
       ),
     );
-  },
-};
+  }
+}
 
 class HiringBanner implements m.ClassComponent {
   view() {
@@ -706,12 +696,12 @@ class HiringBanner implements m.ClassComponent {
   }
 }
 
-export class Sidebar implements m.ClassComponent {
+export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
   private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
-  view() {
+  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
     if (globals.hideSidebar) return null;
     const vdomSections = [];
-    for (const section of getSections()) {
+    for (const section of getSections(attrs.trace)) {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
       const vdomItems = [];
       for (const item of section.items) {
@@ -840,7 +830,11 @@ export class Sidebar implements m.ClassComponent {
       ),
       m(
         '.sidebar-scroll',
-        m('.sidebar-scroll-container', ...vdomSections, m(SidebarFooter)),
+        m(
+          '.sidebar-scroll-container',
+          ...vdomSections,
+          m(SidebarFooter, attrs),
+        ),
       ),
     );
   }

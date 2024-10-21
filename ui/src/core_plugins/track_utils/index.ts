@@ -14,10 +14,10 @@
 
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
-import {PromptOption} from '../../public/omnibox';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {AppImpl} from '../../core/app_trace_impl';
+import {AppImpl} from '../../core/app_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
+import {exists} from '../../base/utils';
 
 class TrackUtilsPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -36,35 +36,50 @@ class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      // Selects & reveals the first track on the timeline with a given URI.
-      id: 'perfetto.FindTrack',
+      id: 'perfetto.FindTrackByName',
+      name: 'Find track by name',
+      callback: async () => {
+        const options = ctx.workspace.flatTracks
+          .map((node) => {
+            return exists(node.uri)
+              ? {key: node.uri, displayName: node.fullPath.join(' \u2023 ')}
+              : undefined;
+          })
+          .filter((pair) => pair !== undefined);
+        const uri = await ctx.omnibox.prompt('Choose a track...', options);
+        uri && ctx.selection.selectTrack(uri, {scrollToSelection: true});
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'perfetto.FindTrackByUri',
       name: 'Find track by URI',
       callback: async () => {
-        const tracks = ctx.tracks.getAllTracks();
-        const options = tracks.map(({uri}): PromptOption => {
-          return {key: uri, displayName: uri};
-        });
+        const options = ctx.workspace.flatTracks
+          .map((track) => track.uri)
+          .filter((uri) => uri !== undefined)
+          .map((uri) => {
+            return {key: uri, displayName: uri};
+          });
 
-        // Sort tracks in a natural sort order
-        const collator = new Intl.Collator('en', {
-          numeric: true,
-          sensitivity: 'base',
-        });
-        const sortedOptions = options.sort((a, b) => {
-          return collator.compare(a.displayName, b.displayName);
-        });
+        const uri = await ctx.omnibox.prompt('Choose a track...', options);
+        uri && ctx.selection.selectTrack(uri, {scrollToSelection: true});
+      },
+    });
 
-        const selectedUri = await ctx.omnibox.prompt(
-          'Choose a track...',
-          sortedOptions,
-        );
-        if (selectedUri === undefined) return; // Prompt cancelled.
-        ctx.scrollTo({track: {uri: selectedUri, expandGroup: true}});
-        ctx.selection.setArea({
-          start: ctx.traceInfo.start,
-          end: ctx.traceInfo.end,
-          trackUris: [selectedUri],
-        });
+    ctx.commands.registerCommand({
+      id: 'perfetto.PinTrackByName',
+      name: 'Pin track by name',
+      callback: async () => {
+        const options = ctx.workspace.flatTracks
+          .map((node) => {
+            return exists(node.uri)
+              ? {key: node.id, displayName: node.fullPath.join(' \u2023 ')}
+              : undefined;
+          })
+          .filter((option) => option !== undefined);
+        const id = await ctx.omnibox.prompt('Choose a track...', options);
+        id && ctx.workspace.getTrackById(id)?.pin();
       },
     });
   }

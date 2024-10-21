@@ -30,14 +30,17 @@ CREATE PERFETTO FUNCTION _get_frame_table_with_id(
     -- Utid.
     utid INT,
     -- Upid.
-    upid INT
+    upid INT,
+    -- Timestamp of the frame slice.
+    ts INT
 ) AS
 WITH all_found AS (
     SELECT
         id,
         cast_int!(STR_SPLIT(name, ' ', 1)) AS frame_id,
         utid,
-        upid
+        upid,
+        ts
     FROM thread_slice
     -- Mostly the frame slice is at depth 0. Though it could be pushed to depth 1 while users
     -- enable low layer trace e.g. atrace_app.
@@ -57,13 +60,16 @@ CREATE PERFETTO TABLE android_frames_choreographer_do_frame(
     -- Utid of the UI thread
     ui_thread_utid INT,
     -- Upid of application process
-    upid INT
+    upid INT,
+    -- Timestamp of the slice.
+    ts INT
 ) AS
 SELECT
     id,
     frame_id,
     utid AS ui_thread_utid,
-    upid
+    upid,
+    ts
 -- Some OEMs have customized `doFrame` to add more information, but we've only
 -- observed it added after the frame ID (b/303823815).
 FROM _get_frame_table_with_id('Choreographer#doFrame*');

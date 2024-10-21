@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4} from '../../base/uuid';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {asThreadStateSqlId} from '../../trace_processor/sql_utils/core_types';
-import {ThreadStateTab} from '../../frontend/thread_state_tab';
-import {BottomTabToSCSAdapter} from '../../public/utils';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
@@ -25,10 +21,14 @@ import {ThreadStateTrack} from './thread_state_track';
 import {removeFalsyValues} from '../../base/array_utils';
 import {getThreadStateTable} from './table';
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
-import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
+import {extensions} from '../../public/lib/extensions';
+
+function uriForThreadStateTrack(upid: number | null, utid: number): string {
+  return `${getThreadUriPrefix(upid, utid)}_state`;
+}
 
 class ThreadState implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -70,7 +70,7 @@ class ThreadState implements PerfettoPlugin {
         kind: THREAD_STATE_TRACK_KIND,
       });
 
-      const uri = `${getThreadUriPrefix(upid, utid)}_state`;
+      const uri = uriForThreadStateTrack(upid, utid);
       ctx.tracks.registerTrack({
         uri,
         title,
@@ -97,31 +97,39 @@ class ThreadState implements PerfettoPlugin {
       group.addChildInOrder(track);
     }
 
-    ctx.registerDetailsPanel(
-      new BottomTabToSCSAdapter({
-        tabFactory: (sel) => {
-          if (sel.kind !== 'THREAD_STATE') {
-            return undefined;
-          }
-          return new ThreadStateTab({
-            config: {
-              id: asThreadStateSqlId(sel.id),
-            },
-            trace: ctx,
-            uuid: uuidv4(),
-          });
-        },
-      }),
-    );
-
     sqlTableRegistry['thread_state'] = getThreadStateTable();
     ctx.commands.registerCommand({
       id: 'perfetto.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {
-        addSqlTableTab(ctx, {
+        extensions.addSqlTableTab(ctx, {
           table: getThreadStateTable(),
         });
+      },
+    });
+
+    ctx.selection.registerSqlSelectionResolver({
+      sqlTableName: 'thread_state',
+      callback: async (id: number) => {
+        const result = await ctx.engine.query(`
+          select
+            thread_state.utid,
+            thread.upid
+          from
+            thread_state
+            join thread on thread_state.utid = thread.id
+          where thread_state.id = ${id}
+        `);
+
+        const {upid, utid} = result.firstRow({
+          upid: NUM_NULL,
+          utid: NUM,
+        });
+
+        return {
+          eventId: id,
+          trackUri: uriForThreadStateTrack(upid, utid),
+        };
       },
     });
   }

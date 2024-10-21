@@ -14,15 +14,14 @@
 
 import m from 'mithril';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
-import {uuidv4} from '../../../base/uuid';
-import {addBottomTab} from '../../../common/add_ephemeral_tab';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {Spinner} from '../../../widgets/spinner';
 import {VegaView} from '../../../widgets/vega_view';
-import {BottomTab, NewBottomTabArgs} from '../../../public/lib/bottom_tab';
 import {Filter, filterTitle} from '../../widgets/sql/table/column';
 import {HistogramState} from './state';
 import {Trace} from '../../../public/trace';
+import {addEphemeralTab} from '../../../common/add_ephemeral_tab';
+import {Tab} from '../../../public/tab';
 
 interface HistogramTabConfig {
   columnTitle: string; // Human readable column name (ex: Duration)
@@ -37,36 +36,25 @@ export function addHistogramTab(
   config: HistogramTabConfig,
   trace: Trace,
 ): void {
-  const histogramTab = new HistogramTab({
-    config,
-    trace,
-    uuid: uuidv4(),
-  });
-
-  addBottomTab(histogramTab, 'histogramTab');
+  addEphemeralTab('histogramTab', new HistogramTab(trace, config));
 }
 
-export class HistogramTab extends BottomTab<HistogramTabConfig> {
-  static readonly kind = 'dev.perfetto.HistogramTab';
-
+export class HistogramTab implements Tab {
   private state: HistogramState;
 
-  constructor(args: NewBottomTabArgs<HistogramTabConfig>) {
-    super(args);
-
+  constructor(
+    trace: Trace,
+    private readonly config: HistogramTabConfig,
+  ) {
     this.state = new HistogramState(
-      this.engine,
-      this.config.query,
-      this.config.sqlColumn,
-      this.config.aggregationType,
+      trace.engine,
+      config.query,
+      config.sqlColumn,
+      config.aggregationType,
     );
   }
 
-  static create(args: NewBottomTabArgs<HistogramTabConfig>): HistogramTab {
-    return new HistogramTab(args);
-  }
-
-  viewTab() {
+  render() {
     const data = this.state.data;
     if (data === undefined) {
       return m(Spinner);

@@ -27,8 +27,8 @@ export class Anchor implements m.ClassComponent<AnchorAttrs> {
     return m(
       'a.pf-anchor',
       htmlAttrs,
-      icon && m('i.material-icons', icon),
       children,
+      icon && m('i.material-icons', icon),
     );
   }
 }

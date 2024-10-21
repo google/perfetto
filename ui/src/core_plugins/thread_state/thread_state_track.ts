@@ -13,13 +13,11 @@
 // limitations under the License.
 
 import {colorForState} from '../../core/colorizer';
-import {LegacySelection} from '../../public/selection';
 import {
   BASE_ROW,
   BaseSliceTrack,
   OnSliceClickArgs,
 } from '../../frontend/base_slice_track';
-import {globals} from '../../frontend/globals';
 import {
   SLICE_LAYOUT_FLAT_DEFAULTS,
   SliceLayout,
@@ -28,6 +26,8 @@ import {NewTrackArgs} from '../../frontend/track';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {translateState} from '../../trace_processor/sql_utils/thread_state';
+import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
+import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,
@@ -85,14 +85,18 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
   }
 
   onSliceClick(args: OnSliceClickArgs<Slice>) {
-    globals.selectionManager.setLegacy({
-      kind: 'THREAD_STATE',
-      id: args.slice.id,
-      trackUri: this.uri,
-    });
+    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 
-  protected isSelectionHandled(selection: LegacySelection): boolean {
-    return selection.kind === 'THREAD_STATE';
+  // Add utid to selection details
+  override async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const details = await super.getSelectionDetails(id);
+    return details && {...details, utid: this.utid};
+  }
+
+  detailsPanel({eventId}: TrackEventSelection) {
+    return new ThreadStateDetailsPanel(this.trace, eventId);
   }
 }

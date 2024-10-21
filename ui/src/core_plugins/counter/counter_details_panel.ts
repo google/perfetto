@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncLimiter} from '../../base/async_limiter';
 import {Time, duration, time} from '../../base/time';
-import {raf} from '../../core/raf_scheduler';
 import {Engine} from '../../trace_processor/engine';
+import {Trace} from '../../public/trace';
 import {
   LONG,
   LONG_NULL,
   NUM,
   NUM_NULL,
 } from '../../trace_processor/query_result';
-import {TrackSelectionDetailsPanel} from '../../public/details_panel';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
@@ -30,6 +29,10 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {DurationWidget} from '../../frontend/widgets/duration';
+import {TrackEventSelection} from '../../public/selection';
+import {hasArgs, renderArguments} from '../../frontend/slice_args';
+import {asArgSetId} from '../../trace_processor/sql_utils/core_types';
+import {Arg, getArgs} from '../../trace_processor/sql_utils/args';
 
 interface CounterDetails {
   // The "left" timestamp of the counter sample T(N)
@@ -43,49 +46,51 @@ interface CounterDetails {
 
   // The delta between this sample's value and the previous one F(N) - F(N-1)
   delta: number;
+
+  args?: Arg[];
 }
 
-export class CounterDetailsPanel implements TrackSelectionDetailsPanel {
-  private readonly queryLimiter = new AsyncLimiter();
+export class CounterDetailsPanel implements TrackEventDetailsPanel {
+  private readonly trace: Trace;
   private readonly engine: Engine;
   private readonly trackId: number;
   private readonly rootTable: string;
   private readonly trackName: string;
-  private id?: number;
   private counterDetails?: CounterDetails;
 
   constructor(
-    engine: Engine,
+    trace: Trace,
     trackId: number,
     trackName: string,
     rootTable = 'counter',
   ) {
-    this.engine = engine;
+    this.trace = trace;
+    this.engine = trace.engine;
     this.trackId = trackId;
     this.trackName = trackName;
     this.rootTable = rootTable;
   }
 
-  render(id: number): m.Children {
-    if (id !== this.id) {
-      this.id = id;
-      this.queryLimiter.schedule(async () => {
-        this.counterDetails = await loadCounterDetails(
-          this.engine,
-          this.trackId,
-          id,
-          this.rootTable,
-        );
-        raf.scheduleFullRedraw();
-      });
-    }
-
-    return this.renderView();
+  async load({eventId}: TrackEventSelection) {
+    this.counterDetails = await loadCounterDetails(
+      this.engine,
+      this.trackId,
+      eventId,
+      this.rootTable,
+    );
   }
 
-  private renderView() {
+  render() {
     const counterInfo = this.counterDetails;
     if (counterInfo) {
+      const args =
+        hasArgs(counterInfo.args) &&
+        m(
+          Section,
+          {title: 'Arguments'},
+          m(Tree, renderArguments(this.trace, counterInfo.args)),
+        );
+
       return m(
         DetailsShell,
         {title: 'Counter', description: `${this.trackName}`},
@@ -115,6 +120,7 @@ export class CounterDetailsPanel implements TrackSelectionDetailsPanel {
               }),
             ),
           ),
+          args,
         ),
       );
     } else {
@@ -140,7 +146,8 @@ async function loadCounterDetails(
         ts as leftTs,
         value,
         LAG(value) OVER (ORDER BY ts) AS prevValue,
-        LEAD(ts) OVER (ORDER BY ts) AS rightTs
+        LEAD(ts) OVER (ORDER BY ts) AS rightTs,
+        arg_set_id AS argSetId
       FROM ${rootTable}
       WHERE track_id = ${trackId}
     )
@@ -153,6 +160,7 @@ async function loadCounterDetails(
     prevValue: NUM_NULL,
     leftTs: LONG,
     rightTs: LONG_NULL,
+    argSetId: NUM_NULL,
   });
   const value = row.value;
   const leftTs = Time.fromRaw(row.leftTs);
@@ -161,5 +169,8 @@ async function loadCounterDetails(
 
   const delta = value - prevValue;
   const duration = rightTs - leftTs;
-  return {ts: leftTs, value, delta, duration};
+  const argSetId = row.argSetId;
+  const args =
+    argSetId == null ? undefined : await getArgs(engine, asArgSetId(argSetId));
+  return {ts: leftTs, value, delta, duration, args};
 }

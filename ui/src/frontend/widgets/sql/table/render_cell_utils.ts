@@ -23,6 +23,54 @@ import {copyToClipboard} from '../../../../base/clipboard';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 import {Anchor} from '../../../../widgets/anchor';
 
+interface FilterOp {
+  op: string;
+  requiresParam: boolean; // Denotes if the operator acts on an input value
+}
+
+export enum FilterOption {
+  GLOB = 'glob',
+  EQUALS_TO = 'equals to',
+  NOT_EQUALS_TO = 'not equals to',
+  GREATER_THAN = 'greater than',
+  GREATER_OR_EQUALS_THAN = 'greater or equals than',
+  LESS_THAN = 'less than',
+  LESS_OR_EQUALS_THAN = 'less or equals than',
+  IS_NULL = 'is null',
+  IS_NOT_NULL = 'is not null',
+}
+
+export const FILTER_OPTION_TO_OP: Record<FilterOption, FilterOp> = {
+  [FilterOption.GLOB]: {op: 'glob', requiresParam: true},
+  [FilterOption.EQUALS_TO]: {op: '=', requiresParam: true},
+  [FilterOption.NOT_EQUALS_TO]: {op: '!=', requiresParam: true},
+  [FilterOption.GREATER_THAN]: {op: '>', requiresParam: true},
+  [FilterOption.GREATER_OR_EQUALS_THAN]: {op: '>=', requiresParam: true},
+  [FilterOption.LESS_THAN]: {op: '<', requiresParam: true},
+  [FilterOption.LESS_OR_EQUALS_THAN]: {op: '<=', requiresParam: true},
+  [FilterOption.IS_NULL]: {op: 'IS NULL', requiresParam: false},
+  [FilterOption.IS_NOT_NULL]: {op: 'IS NOT NULL', requiresParam: false},
+};
+
+export const NUMERIC_FILTER_OPTIONS = [
+  FilterOption.EQUALS_TO,
+  FilterOption.NOT_EQUALS_TO,
+  FilterOption.GREATER_THAN,
+  FilterOption.GREATER_OR_EQUALS_THAN,
+  FilterOption.LESS_THAN,
+  FilterOption.LESS_OR_EQUALS_THAN,
+];
+
+export const STRING_FILTER_OPTIONS = [
+  FilterOption.EQUALS_TO,
+  FilterOption.NOT_EQUALS_TO,
+];
+
+export const NULL_FILTER_OPTIONS = [
+  FilterOption.IS_NULL,
+  FilterOption.IS_NOT_NULL,
+];
+
 function filterOptionMenuItem(
   label: string,
   column: SqlColumn,
@@ -44,76 +92,35 @@ export function getStandardFilters(
   tableManager: TableManager,
 ): m.Child[] {
   if (value === null) {
-    return [
+    return NULL_FILTER_OPTIONS.map((option) =>
       filterOptionMenuItem(
-        'is null',
+        option,
         c,
-        (cols) => `${cols[0]} is null`,
+        (cols) => `${cols[0]} ${FILTER_OPTION_TO_OP[option].op}`,
         tableManager,
       ),
-      filterOptionMenuItem(
-        'is not null',
-        c,
-        (cols) => `${cols[0]} is not null`,
-        tableManager,
-      ),
-    ];
+    );
   }
   if (isString(value)) {
-    return [
+    return STRING_FILTER_OPTIONS.map((option) =>
       filterOptionMenuItem(
-        'equals to',
+        option,
         c,
-        (cols) => `${cols[0]} = ${sqliteString(value)}`,
+        (cols) =>
+          `${cols[0]} ${FILTER_OPTION_TO_OP[option].op} ${sqliteString(value)}`,
         tableManager,
       ),
-      filterOptionMenuItem(
-        'not equals to',
-        c,
-        (cols) => `${cols[0]} != ${sqliteString(value)}`,
-        tableManager,
-      ),
-    ];
+    );
   }
   if (typeof value === 'bigint' || typeof value === 'number') {
-    return [
+    return NUMERIC_FILTER_OPTIONS.map((option) =>
       filterOptionMenuItem(
-        'equals to',
+        option,
         c,
-        (cols) => `${cols[0]} = ${value}`,
+        (cols) => `${cols[0]} ${FILTER_OPTION_TO_OP[option].op} ${value}`,
         tableManager,
       ),
-      filterOptionMenuItem(
-        'not equals to',
-        c,
-        (cols) => `${cols[0]} != ${value}`,
-        tableManager,
-      ),
-      filterOptionMenuItem(
-        'greater than',
-        c,
-        (cols) => `${cols[0]} > ${value}`,
-        tableManager,
-      ),
-      filterOptionMenuItem(
-        'greater or equals than',
-        c,
-        (cols) => `${cols[0]} >= ${value}`,
-        tableManager,
-      ),
-      filterOptionMenuItem(
-        'less than',
-        c,
-        (cols) => `${cols[0]} < ${value}`,
-        tableManager,
-      ),
-      filterOptionMenuItem(
-        'less or equals than',
-        c,
-        (cols) => `${cols[0]} <= ${value}`,
-        tableManager,
-      ),
-    ];
+    );
   }
   return [];
 }
@@ -150,7 +157,7 @@ export function getStandardContextMenuItems(
   return result;
 }
 
-function displayValue(value: SqlValue): m.Child {
+export function displayValue(value: SqlValue): m.Child {
   if (value === null) {
     return m('i', 'NULL');
   }

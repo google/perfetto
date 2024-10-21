@@ -15,8 +15,6 @@
 import m from 'mithril';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
-import {Time} from '../base/time';
-import {Actions} from '../common/actions';
 import {randomColor} from '../core/colorizer';
 import {SpanNote, Note} from '../public/note';
 import {raf} from '../core/raf_scheduler';
@@ -94,7 +92,7 @@ export class NotesPanel implements Panel {
         },
         onmouseout: () => {
           this.hoveredX = null;
-          globals.dispatch(Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
+          globals.timeline.hoveredNoteTimestamp = undefined;
         },
       },
       isTraceLoaded() &&
@@ -182,7 +180,7 @@ export class NotesPanel implements Panel {
 
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = globals.timestampOffset();
+      const offset = globals.trace.timeline.timestampOffset();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));
@@ -248,14 +246,14 @@ export class NotesPanel implements Panel {
     // A real note is hovered so we don't need to see the preview line.
     // TODO(hjd): Change cursor to pointer here.
     if (aNoteIsHovered) {
-      globals.dispatch(Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
+      globals.timeline.hoveredNoteTimestamp = undefined;
     }
 
     // View preview note flag when hovering on notes panel.
     if (!aNoteIsHovered && this.hoveredX !== null) {
       const timestamp = timescale.pxToHpTime(this.hoveredX).toTime();
       if (visibleWindow.contains(timestamp)) {
-        globals.dispatch(Actions.setHoveredNoteTimestamp({ts: timestamp}));
+        globals.timeline.hoveredNoteTimestamp = timestamp;
         const x = timescale.timeToPx(timestamp);
         const left = Math.floor(x);
         this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);
@@ -338,14 +336,14 @@ export class NotesPanel implements Panel {
     if (x < 0) return;
     for (const note of globals.noteManager.notes.values()) {
       if (this.hoveredX !== null && this.hitTestNote(this.hoveredX, note)) {
-        globals.selectionManager.setNote({id: note.id});
+        globals.selectionManager.selectNote({id: note.id});
         return;
       }
     }
     const timestamp = this.timescale.pxToHpTime(x).toTime();
     const color = randomColor();
     const noteId = globals.noteManager.addNote({timestamp, color});
-    globals.selectionManager.setNote({id: noteId});
+    globals.selectionManager.selectNote({id: noteId});
   }
 
   private hitTestNote(x: number, note: SpanNote | Note): boolean {
@@ -369,8 +367,6 @@ export class NotesPanel implements Panel {
 }
 
 export class NotesEditorTab implements DetailsPanel {
-  readonly panelType = 'DetailsPanel';
-
   constructor(private trace: Trace) {}
 
   render(selection: Selection) {

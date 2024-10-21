@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
+#include <unistd.h>
 #include "test/gtest_and_gmock.h"
 
 #include <fstream>
+#include <ostream>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -30,7 +35,7 @@ namespace {
 
 using testing::Contains;
 
-pprof::PprofProfileReader convert_trace_to_pprof(
+pprof::PprofProfileReader ConvertTraceToPprof(
     const std::string& input_file_name) {
   const std::string trace_file = base::GetTestDataPath(input_file_name);
   std::ifstream file_istream;
@@ -84,8 +89,7 @@ class TraceToPprofTest : public ::testing::Test {
 };
 
 TEST_F(TraceToPprofTest, SummaryValues) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/heap_graph/heap_graph.pb");
+  const auto pprof = ConvertTraceToPprof("test/data/heap_graph/heap_graph.pb");
 
   EXPECT_EQ(pprof.get_samples_value_sum("Foo", "Total allocation count"), 1);
   EXPECT_EQ(pprof.get_samples_value_sum("Foo", "Total allocation size"), 32);
@@ -100,7 +104,7 @@ TEST_F(TraceToPprofTest, SummaryValues) {
 
 TEST_F(TraceToPprofTest, TreeLocationFunctionNames) {
   const auto pprof =
-      convert_trace_to_pprof("test/data/heap_graph/heap_graph_branching.pb");
+      ConvertTraceToPprof("test/data/heap_graph/heap_graph_branching.pb");
 
   EXPECT_THAT(get_samples_function_names(pprof, "LeftChild0"),
               Contains(std::vector<std::string>{"LeftChild0",
@@ -118,7 +122,7 @@ TEST_F(TraceToPprofTest, TreeLocationFunctionNames) {
 
 TEST_F(TraceToPprofTest, HugeSizes) {
   const auto pprof =
-      convert_trace_to_pprof("test/data/heap_graph/heap_graph_huge_size.pb");
+      ConvertTraceToPprof("test/data/heap_graph/heap_graph_huge_size.pb");
   EXPECT_EQ(pprof.get_samples_value_sum("dev.perfetto.BigStuff",
                                         "Total allocation size"),
             3000000000);
@@ -138,7 +142,7 @@ class TraceToPprofRealTraceTest : public ::testing::Test {
 
 TEST_F(TraceToPprofRealTraceTest, AllocationCountForClass) {
   const auto pprof =
-      convert_trace_to_pprof("test/data/system-server-heap-graph-new.pftrace");
+      ConvertTraceToPprof("test/data/system-server-heap-graph-new.pftrace");
 
   EXPECT_EQ(pprof.get_samples_value_sum(
                 "android.content.pm.parsing.component.ParsedActivity",

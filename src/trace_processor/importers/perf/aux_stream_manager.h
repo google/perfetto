@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
 #include "src/trace_processor/importers/perf/time_conv_record.h"
+#include "src/trace_processor/storage/stats.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -58,6 +59,7 @@ class AuxStream {
   base::Status OnItraceStartRecord(ItraceStartRecord start) {
     return tokenizer_->OnItraceStartRecord(std::move(start));
   }
+  std::optional<uint64_t> ConvertTscToPerfTime(uint64_t cycles);
 
  private:
   class AuxtraceDataChunk {
@@ -109,6 +111,14 @@ class AuxStreamManager {
 
   TraceProcessorContext* context() const { return context_; }
 
+  std::optional<uint64_t> ConvertTscToPerfTime(uint64_t cycles) {
+    if (!time_conv_) {
+      context_->storage->IncrementStats(stats::perf_no_tsc_data);
+      return std::nullopt;
+    }
+    return time_conv_->ConvertTscToPerfTime(cycles);
+  }
+
  private:
   base::StatusOr<std::reference_wrapper<AuxStream>>
   GetOrCreateStreamForSampleId(const std::optional<SampleId>& sample_id);
@@ -121,6 +131,11 @@ class AuxStreamManager {
       auxdata_streams_by_cpu_;
   std::optional<TimeConvRecord> time_conv_;
 };
+
+inline std::optional<uint64_t> AuxStream::ConvertTscToPerfTime(
+    uint64_t cycles) {
+  return manager_.ConvertTscToPerfTime(cycles);
+}
 
 }  // namespace perf_importer
 }  // namespace trace_processor

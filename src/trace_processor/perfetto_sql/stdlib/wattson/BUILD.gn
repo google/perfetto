@@ -17,13 +17,16 @@ import("../../../../../gn/perfetto_sql.gni")
 perfetto_sql_source_set("wattson") {
   sources = [
     "arm_dsu.sql",
+    "cpu_freq.sql",
+    "cpu_freq_idle.sql",
     "cpu_idle.sql",
     "cpu_split.sql",
     "curves/device.sql",
-    "curves/grouped.sql",
+    "curves/estimates.sql",
     "curves/idle_attribution.sql",
-    "curves/ungrouped.sql",
     "curves/utils.sql",
+    "curves/w_cpu_dependence.sql",
+    "curves/w_dsu_dependence.sql",
     "device_infos.sql",
     "system_state.sql",
   ]

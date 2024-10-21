@@ -1,15 +1,14 @@
 # UI plugins
-The Perfetto UI can be extended with plugins. These plugins are shipped
-part of Perfetto.
+The Perfetto UI can be extended with plugins. These plugins are shipped part of
+Perfetto.
 
 ## Create a plugin
 The guide below explains how to create a plugin for the Perfetto UI.
 
 ### Prepare for UI development
-First we need to prepare the UI development environment.
-You will need to use a MacOS or Linux machine.
-Follow the steps below or see the
-[Getting Started](./getting-started) guide for more detail.
+First we need to prepare the UI development environment. You will need to use a
+MacOS or Linux machine. Follow the steps below or see the [Getting
+Started](./getting-started) guide for more detail.
 
 ```sh
 git clone https://android.googlesource.com/platform/external/perfetto/
@@ -21,21 +20,19 @@ cd perfetto
 ```sh
 cp -r ui/src/plugins/com.example.Skeleton ui/src/plugins/<your-plugin-name>
 ```
-Now edit `ui/src/plugins/<your-plugin-name>/index.ts`.
-Search for all instances of `SKELETON: <instruction>` in the file and
-follow the instructions.
+Now edit `ui/src/plugins/<your-plugin-name>/index.ts`. Search for all instances
+of `SKELETON: <instruction>` in the file and follow the instructions.
 
 Notes on naming:
 - Don't name the directory `XyzPlugin` just `Xyz`.
 - The `pluginId` and directory name must match.
-- Plugins should be prefixed with the reversed components of a domain
-  name you control. For example if `example.com` is your domain your
-  plugin should be named `com.example.Foo`.
-- Core plugins maintained by the Perfetto team should use
-  `dev.perfetto.Foo`.
+- Plugins should be prefixed with the reversed components of a domain name you
+  control. For example if `example.com` is your domain your plugin should be
+  named `com.example.Foo`.
+- Core plugins maintained by the Perfetto team should use `dev.perfetto.Foo`.
 - Commands should have ids with the pattern `example.com#DoSomething`
-- Command's ids should be prefixed with the id of the plugin which
-  provides them.
+- Command's ids should be prefixed with the id of the plugin which provides
+  them.
 - Command names should have the form "Verb something something", and should be
   in normal sentence case. I.e. don't capitalize the first letter of each word.
   - Good: "Pin janky frame timeline tracks"
@@ -48,32 +45,32 @@ Notes on naming:
 Now navigate to [localhost:10000](http://localhost:10000/)
 
 ### Enable your plugin
-- Navigate to the plugins page: [localhost:10000/#!/plugins](http://localhost:10000/#!/plugins).
+- Navigate to the plugins page:
+  [localhost:10000/#!/plugins](http://localhost:10000/#!/plugins).
 - Ctrl-F for your plugin name and enable it.
 
-Later you can request for your plugin to be enabled by default.
-Follow the [default plugins](#default-plugins) section for this.
+Later you can request for your plugin to be enabled by default. Follow the
+[default plugins](#default-plugins) section for this.
 
 ### Upload your plugin for review
 - Update `ui/src/plugins/<your-plugin-name>/OWNERS` to include your email.
-- Follow the [Contributing](./getting-started#contributing)
-  instructions to upload your CL to the codereview tool.
+- Follow the [Contributing](./getting-started#contributing) instructions to
+  upload your CL to the codereview tool.
 - Once uploaded add `stevegolton@google.com` as a reviewer for your CL.
 
 ## Plugin extension points
-Plugins can extend a handful of specific places in the UI. The sections
-below show these extension points and give examples of how they can be
-used.
+Plugins can extend a handful of specific places in the UI. The sections below
+show these extension points and give examples of how they can be used.
 
 ### Commands
-Commands are user issuable shortcuts for actions in the UI.
-They can be accessed via the omnibox.
+Commands are user issuable shortcuts for actions in the UI. They can be accessed
+via the omnibox.
 
-Follow the [create a plugin](#create-a-plugin) to get an initial
-skeleton for your plugin.
+Follow the [create a plugin](#create-a-plugin) to get an initial skeleton for
+your plugin.
 
-To add your first command, add a call to `ctx.registerCommand()` in either
-your `onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
+To add your first command, add a call to `ctx.registerCommand()` in either your
+`onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
 commands in `onActivate()` by default unless they require something from
 `PluginContextTrace` which is not available on `PluginContext`.
 
@@ -105,13 +102,11 @@ class MyPlugin implements PerfettoPlugin {
 }
 ```
 
-Here `id` is a unique string which identifies this command.
-The `id` should be prefixed with the plugin id followed by a `#`. All command
-`id`s must be unique system-wide.
-`name` is a human readable name for the command, which is shown in the command
-palette.
-Finally `callback()` is the callback which actually performs the
-action.
+Here `id` is a unique string which identifies this command. The `id` should be
+prefixed with the plugin id followed by a `#`. All command `id`s must be unique
+system-wide. `name` is a human readable name for the command, which is shown in
+the command palette. Finally `callback()` is the callback which actually
+performs the action.
 
 Commands are removed automatically when their context disappears. Commands
 registered with the `PluginContext` are removed when the plugin is deactivated,
@@ -136,18 +131,20 @@ ctx.registerCommand({
 });
 ```
 
-Even though the hotkey is a string, it's format checked at compile time using 
-typescript's [template literal types](https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html).
+Even though the hotkey is a string, it's format checked at compile time using
+typescript's [template literal
+types](https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html).
 
-See [hotkey.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/base/hotkeys.ts)
+See
+[hotkey.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/base/hotkeys.ts)
 for more details on how the hotkey syntax works, and for the available keys and
 modifiers.
 
 ### Tracks
 #### Defining Tracks
 Tracks describe how to render a track and how to respond to mouse interaction.
-However, the interface is a WIP and should be considered unstable.
-This documentation will be added to over the next few months after the design is
+However, the interface is a WIP and should be considered unstable. This
+documentation will be added to over the next few months after the design is
 finalised.
 
 #### Reusing Existing Tracks
@@ -208,12 +205,12 @@ class MyPlugin implements PerfettoPlugin {
 
 #### Default Tracks
 The "default" tracks are a list of tracks that are added to the timeline when a
-fresh trace is loaded (i.e. **not** when loading a trace from a permalink).
-This list is copied into the timeline after the trace has finished loading, at
-which point control is handed over to the user, allowing them add, remove and
-reorder tracks as they please.
-Thus it only makes sense to add default tracks in your plugin's `onTraceLoad`
-function, as adding a default track later will have no effect.
+fresh trace is loaded (i.e. **not** when loading a trace from a permalink). This
+list is copied into the timeline after the trace has finished loading, at which
+point control is handed over to the user, allowing them add, remove and reorder
+tracks as they please. Thus it only makes sense to add default tracks in your
+plugin's `onTraceLoad` function, as adding a default track later will have no
+effect.
 
 ```ts
 class MyPlugin implements PerfettoPlugin {
@@ -252,8 +249,8 @@ class MyPlugin implements PerfettoPlugin {
 
 #### Adding Tracks Directly
 Sometimes plugins might want to add a track to the timeline immediately, usually
-as a result of a command or on some other user action such as a button click.
-We can do this using `PluginContext.timeline.addTrack()`.
+as a result of a command or on some other user action such as a button click. We
+can do this using `PluginContext.timeline.addTrack()`.
 
 ```ts
 class MyPlugin implements PerfettoPlugin {
@@ -463,15 +460,13 @@ Examples:
 ### State
 NOTE: It is important to consider version skew when using persistent state.
 
-Plugins can persist information into permalinks. This allows plugins
-to gracefully handle permalinking and is an opt-in - not automatic -
-mechanism.
+Plugins can persist information into permalinks. This allows plugins to
+gracefully handle permalinking and is an opt-in - not automatic - mechanism.
 
 Persistent plugin state works using a `Store<T>` where `T` is some JSON
-serializable object.
-`Store` is implemented [here](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/base/store.ts).
-`Store` allows for reading and writing `T`.
-Reading:
+serializable object. `Store` is implemented
+[here](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/base/store.ts).
+`Store` allows for reading and writing `T`. Reading:
 ```typescript
 interface Foo {
   bar: string;
@@ -581,20 +576,21 @@ Examples:
 - [dev.perfetto.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleState/index.ts).
 
 ## Guide to the plugin API
-The plugin interfaces are defined in [ui/src/public/](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public).
+The plugin interfaces are defined in
+[ui/src/public/](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public).
 
 ## Default plugins
-Some plugins are enabled by default.
-These plugins are held to a higher quality than non-default plugins since changes to those plugins effect all users of the UI.
-The list of default plugins is specified at [ui/src/core/default_plugins.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/common/default_plugins.ts).
+Some plugins are enabled by default. These plugins are held to a higher quality
+than non-default plugins since changes to those plugins effect all users of the
+UI. The list of default plugins is specified at
+[ui/src/core/default_plugins.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/core/default_plugins.ts).
 
 ## Misc notes
 - Plugins must be licensed under
-  [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html)
-  the same as all other code in the repository.
-- Plugins are the responsibility of the OWNERS of that plugin to
-  maintain, not the responsibility of the Perfetto team. All
-  efforts will be made to keep the plugin API stable and existing
-  plugins working however plugins that remain unmaintained for long
-  periods of time will be disabled and ultimately deleted.
+  [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) the same as all other
+  code in the repository.
+- Plugins are the responsibility of the OWNERS of that plugin to maintain, not
+  the responsibility of the Perfetto team. All efforts will be made to keep the
+  plugin API stable and existing plugins working however plugins that remain
+  unmaintained for long periods of time will be disabled and ultimately deleted.
 

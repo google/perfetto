@@ -14,12 +14,12 @@
 
 import {Utid} from '../../trace_processor/sql_utils/core_types';
 import {
-  CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {ChromeTasksDetailsTab} from './details';
 import {Trace} from '../../public/trace';
+import {TrackEventSelection} from '../../public/selection';
+import {ChromeTasksDetailsPanel} from './details';
 
 export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
   constructor(
@@ -38,13 +38,7 @@ export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
     };
   }
 
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: ChromeTasksDetailsTab.kind,
-      config: {
-        sqlTableName: 'chrome_tasks',
-        title: 'Chrome Tasks',
-      },
-    };
+  override detailsPanel(sel: TrackEventSelection) {
+    return new ChromeTasksDetailsPanel(this.trace, sel.eventId);
   }
 }

@@ -12,20 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../frontend/globals';
 import {NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {CHROME_EVENT_LATENCY_TRACK_KIND} from '../../public/track_kinds';
 import {Slice} from '../../public/track';
 import {
-  CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {JANK_COLOR} from './jank_colors';
-import {ScrollJankPluginState} from './common';
-import {exists} from '../../base/utils';
+import {TrackEventSelection} from '../../public/selection';
+import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
@@ -35,30 +31,10 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack {
     private baseTable: string,
   ) {
     super(args);
-    ScrollJankPluginState.getInstance().registerTrack({
-      kind: CHROME_EVENT_LATENCY_TRACK_KIND,
-      trackUri: this.uri,
-      tableName: this.tableName,
-      detailsPanelConfig: this.getDetailsPanel(),
-    });
-  }
-
-  async onDestroy(): Promise<void> {
-    await super.onDestroy();
-    ScrollJankPluginState.getInstance().unregisterTrack(
-      CHROME_EVENT_LATENCY_TRACK_KIND,
-    );
   }
 
   getSqlSource(): string {
     return `SELECT * FROM ${this.baseTable}`;
-  }
-
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: EventLatencySliceDetailsPanel.kind,
-      config: {title: '', sqlTableName: this.tableName},
-    };
   }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
@@ -76,22 +52,7 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack {
     }
   }
 
-  onUpdatedSlices(slices: Slice[]) {
-    for (const slice of slices) {
-      const currentSelection = this.trace.selection.legacySelection;
-      const isSelected =
-        exists(currentSelection) &&
-        currentSelection.kind === 'GENERIC_SLICE' &&
-        currentSelection.id !== undefined &&
-        currentSelection.id === slice.id;
-
-      const highlighted = globals.state.highlightedSliceId === slice.id;
-      const hasFocus = highlighted || isSelected;
-      slice.isHighlighted = !!hasFocus;
-    }
-    super.onUpdatedSlices(slices);
+  override detailsPanel(sel: TrackEventSelection) {
+    return new EventLatencySliceDetailsPanel(this.trace, sel.eventId);
   }
-
-  // At the moment we will just display the slice details. However, on select,
-  // this behavior should be customized to show jank-related data.
 }

@@ -52,7 +52,7 @@ SELECT *
 FROM android_startups;
 ```
 
-Prelude is a special module is automatically imported. It contains key helper
+Prelude is a special module is automatically included. It contains key helper
 tables, views and functions which are universally useful.
 
 More information on importing modules is available in the
@@ -60,211 +60,187 @@ More information on importing modules is available in the
 for the `INCLUDE PERFETTO MODULE` statement.
 
 <!-- TODO(b/290185551): talk about experimental module and contributions. -->
-
-## Summary
 '''
 
 
-def _escape_in_table(desc: str):
+def _escape(desc: str) -> str:
   """Escapes special characters in a markdown table."""
   return desc.replace('|', '\\|')
 
 
-def _md_table(cols: List[str]):
+def _md_table_header(cols: List[str]) -> str:
   col_str = ' | '.join(cols) + '\n'
   lines = ['-' * len(col) for col in cols]
   underlines = ' | '.join(lines)
   return col_str + underlines
 
 
-def _write_summary(sql_type: str, table_cols: List[str],
-                   summary_objs: List[str]) -> str:
-  table_data = '\n'.join(s.strip() for s in summary_objs if s)
-  return f"""
-### {sql_type}
+def _md_rolldown(summary: str, content: str) -> str:
+  return f"""<details>
+  <summary style="cursor: pointer;">{summary}</summary>
 
-{_md_table(table_cols)}
-{table_data}
+  {content}
 
-"""
+  </details>
+  """
 
 
-class FileMd:
-  """Responsible for file level markdown generation."""
-
-  def __init__(self, module_name, file_dict):
-    self.import_key = file_dict['import_key']
-    import_key_name = self.import_key if module_name != 'prelude' else 'N/A'
-    self.objs, self.funs, self.view_funs, self.macros = [], [], [], []
-    summary_objs_list, summary_funs_list, summary_view_funs_list, summary_macros_list = [], [], [], []
-
-    # Add imports if in file.
-    for data in file_dict['imports']:
-      # Anchor
-      anchor = f'''obj/{module_name}/{data['name']}'''
-
-      # Add summary of imported view/table
-      summary_objs_list.append(f'''[{data['name']}](#{anchor})|'''
-                               f'''{import_key_name}|'''
-                               f'''{_escape_in_table(data['summary_desc'])}''')
-
-      self.objs.append(f'''\n\n<a name="{anchor}"></a>'''
-                       f'''**{data['name']}**, {data['type']}\n\n'''
-                       f'''{_escape_in_table(data['desc'])}\n''')
-
-      self.objs.append(_md_table(['Column', 'Type', 'Description']))
-      for name, info in data['cols'].items():
-        self.objs.append(
-            f'{name} | {info["type"]} | {_escape_in_table(info["desc"])}')
-
-      self.objs.append('\n\n')
-
-    # Add functions if in file
-    for data in file_dict['functions']:
-      # Anchor
-      anchor = f'''fun/{module_name}/{data['name']}'''
-
-      # Add summary of imported function
-      summary_funs_list.append(f'''[{data['name']}](#{anchor})|'''
-                               f'''{import_key_name}|'''
-                               f'''{data['return_type']}|'''
-                               f'''{_escape_in_table(data['summary_desc'])}''')
-      self.funs.append(
-          f'''\n\n<a name="{anchor}"></a>'''
-          f'''**{data['name']}**\n\n'''
-          f'''{data['desc']}\n\n'''
-          f'''Returns: {data['return_type']}, {data['return_desc']}\n\n''')
-      if data['args']:
-        self.funs.append(_md_table(['Argument', 'Type', 'Description']))
-        for name, arg_dict in data['args'].items():
-          self.funs.append(
-              f'''{name} | {arg_dict['type']} | {_escape_in_table(arg_dict['desc'])}'''
-          )
-
-        self.funs.append('\n\n')
-
-    # Add table functions if in file
-    for data in file_dict['table_functions']:
-      # Anchor
-      anchor = rf'''view_fun/{module_name}/{data['name']}'''
-      # Add summary of imported view function
-      summary_view_funs_list.append(
-          f'''[{data['name']}](#{anchor})|'''
-          f'''{import_key_name}|'''
-          f'''{_escape_in_table(data['summary_desc'])}''')
-
-      self.view_funs.append(f'''\n\n<a name="{anchor}"></a>'''
-                            f'''**{data['name']}**\n'''
-                            f'''{data['desc']}\n\n''')
-      if data['args']:
-        self.funs.append(_md_table(['Argument', 'Type', 'Description']))
-        for name, arg_dict in data['args'].items():
-          self.view_funs.append(
-              f'''{name} | {arg_dict['type']} | {_escape_in_table(arg_dict['desc'])}'''
-          )
-        self.view_funs.append('\n')
-        self.view_funs.append(_md_table(['Column', 'Type', 'Description']))
-      for name, column in data['cols'].items():
-        self.view_funs.append(f'{name} | {column["type"]} | {column["desc"]}')
-
-      self.view_funs.append('\n\n')
-
-    # Add macros if in file
-    for data in file_dict['macros']:
-      # Anchor
-      anchor = rf'''macro/{module_name}/{data['name']}'''
-      # Add summary of imported view function
-      summary_macros_list.append(
-          f'''[{data['name']}](#{anchor})|'''
-          f'''{import_key_name}|'''
-          f'''{_escape_in_table(data['summary_desc'])}''')
-
-      self.macros.append(
-          f'''\n\n<a name="{anchor}"></a>'''
-          f'''**{data['name']}**\n'''
-          f'''{data['desc']}\n\n'''
-          f'''Returns: {data['return_type']}, {data['return_desc']}\n\n''')
-      if data['args']:
-        self.macros.append(_md_table(['Argument', 'Type', 'Description']))
-        for name, arg_dict in data['args'].items():
-          self.macros.append(
-              f'''{name} | {arg_dict['type']} | {_escape_in_table(arg_dict['desc'])}'''
-          )
-        self.macros.append('\n')
-      self.macros.append('\n\n')
-
-    self.summary_objs = '\n'.join(summary_objs_list)
-    self.summary_funs = '\n'.join(summary_funs_list)
-    self.summary_view_funs = '\n'.join(summary_view_funs_list)
-    self.summary_macros = '\n'.join(summary_macros_list)
+def _bold(s: str) -> str:
+  return f"<strong>{s}</strong>"
 
 
 class ModuleMd:
   """Responsible for module level markdown generation."""
 
-  def __init__(self, module_name: str, module_files: List[Dict[str,
-                                                               Any]]) -> None:
-    self.module_name = module_name
-    self.files_md = sorted(
-        [FileMd(module_name, file_dict) for file_dict in module_files],
-        key=lambda x: x.import_key)
-    self.summary_objs = '\n'.join(
-        file.summary_objs for file in self.files_md if file.summary_objs)
-    self.summary_funs = '\n'.join(
-        file.summary_funs for file in self.files_md if file.summary_funs)
-    self.summary_view_funs = '\n'.join(file.summary_view_funs
-                                       for file in self.files_md
-                                       if file.summary_view_funs)
-    self.summary_macros = '\n'.join(
-        file.summary_macros for file in self.files_md if file.summary_macros)
+  def __init__(self, package_name: str, module_dict: Dict):
+    self.module_name = module_dict['module_name']
+    self.include_str = self.module_name if package_name != 'prelude' else 'N/A'
+    self.objs, self.funs, self.view_funs, self.macros = [], [], [], []
+
+    # Views/tables
+    for data in module_dict['tables/views']:
+      if not data['cols'].items():
+        continue
+
+      obj_summary = (
+          f'''{_bold(data['name'])}. {data['summary_desc']}\n'''
+      )
+      content = [f"{data['type']}"]
+      if (data['summary_desc'] != data['desc']):
+        content.append(data['desc'])
+
+      table = [_md_table_header(['Column', 'Type', 'Description'])]
+      for name, info in data['cols'].items():
+        table.append(
+            f'{name} | {info["type"]} | {_escape(info["desc"])}')
+      content.append('\n\n')
+      content.append('\n'.join(table))
+
+      self.objs.append(_md_rolldown(obj_summary, '\n'.join(content)))
+
+      self.objs.append('\n\n')
+
+    # Functions
+    for data in module_dict['functions']:
+      obj_summary = f'''{_bold(data['name'])} -> {data['return_type']}. {data['summary_desc']}\n\n'''
+      content = []
+      if (data['summary_desc'] != data['desc']):
+        content.append(data['desc'])
+
+      content.append(
+          f"Returns {data['return_type']}: {data['return_desc']}\n\n")
+      if data['args']:
+        content.append(_md_table_header(['Argument', 'Type', 'Description']))
+        for name, arg_dict in data['args'].items():
+          content.append(
+              f'''{name} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
+          )
+
+      self.funs.append(_md_rolldown(obj_summary, '\n'.join(content)))
+      self.funs.append('\n\n')
+
+    # Table functions
+    for data in module_dict['table_functions']:
+      obj_summary = f'''{_bold(data['name'])}. {data['summary_desc']}\n\n'''
+      content = []
+      if (data['summary_desc'] != data['desc']):
+        content.append(data['desc'])
+
+      if data['args']:
+        args_table = [_md_table_header(['Argument', 'Type', 'Description'])]
+        for name, arg_dict in data['args'].items():
+          args_table.append(
+              f'''{name} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
+          )
+        content.append('\n'.join(args_table))
+        content.append('\n\n')
+
+      content.append(_md_table_header(['Column', 'Type', 'Description']))
+      for name, column in data['cols'].items():
+        content.append(f'{name} | {column["type"]} | {column["desc"]}')
+
+      self.view_funs.append(_md_rolldown(obj_summary, '\n'.join(content)))
+      self.view_funs.append('\n\n')
+
+    # Macros
+    for data in module_dict['macros']:
+      obj_summary = f'''{_bold(data['name'])}. {data['summary_desc']}\n\n'''
+      content = []
+      if (data['summary_desc'] != data['desc']):
+        content.append(data['desc'])
+
+      content.append(
+          f'''Returns: {data['return_type']}, {data['return_desc']}\n\n''')
+      if data['args']:
+        table = [_md_table_header(['Argument', 'Type', 'Description'])]
+        for name, arg_dict in data['args'].items():
+          table.append(
+              f'''{name} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
+          )
+        content.append('\n'.join(table))
+
+      self.macros.append(_md_rolldown(obj_summary, '\n'.join(content)))
+      self.macros.append('\n\n')
+
+
+class PackageMd:
+  """Responsible for package level markdown generation."""
+
+  def __init__(self, package_name: str, module_files: List[Dict[str,
+                                                                Any]]) -> None:
+    self.package_name = package_name
+    self.modules_md = sorted(
+        [ModuleMd(package_name, file_dict) for file_dict in module_files],
+        key=lambda x: x.module_name)
 
   def get_prelude_description(self) -> str:
-    if not self.module_name == 'prelude':
+    if not self.package_name == 'prelude':
       raise ValueError("Only callable on prelude module")
 
     lines = []
-    lines.append(f'## Module: {self.module_name}')
+    lines.append(f'## Package: {self.package_name}')
 
     # Prelude is a special module which is automatically imported and doesn't
     # have any include keys.
-    objs = '\n'.join(obj for file in self.files_md for obj in file.objs)
+    objs = '\n'.join(obj for module in self.modules_md for obj in module.objs)
     if objs:
       lines.append('#### Views/Tables')
       lines.append(objs)
 
-    funs = '\n'.join(fun for file in self.files_md for fun in file.funs)
+    funs = '\n'.join(fun for module in self.modules_md for fun in module.funs)
     if funs:
       lines.append('#### Functions')
       lines.append(funs)
 
     table_funs = '\n'.join(
-        view_fun for file in self.files_md for view_fun in file.view_funs)
+        view_fun for module in self.modules_md for view_fun in module.view_funs)
     if table_funs:
       lines.append('#### Table Functions')
       lines.append(table_funs)
 
-    macros = '\n'.join(macro for file in self.files_md for macro in file.macros)
+    macros = '\n'.join(
+        macro for module in self.modules_md for macro in module.macros)
     if macros:
       lines.append('#### Macros')
       lines.append(macros)
 
     return '\n'.join(lines)
 
-  def get_description(self) -> str:
-    if not self.files_md:
+  def get_md(self) -> str:
+    if not self.modules_md:
       return ''
 
-    if self.module_name == 'prelude':
+    if self.package_name == 'prelude':
       raise ValueError("Can't be called with prelude module")
 
     lines = []
-    lines.append(f'## Module: {self.module_name}')
+    lines.append(f'## Package: {self.package_name}')
 
-    for file in self.files_md:
+    for file in self.modules_md:
       if not any((file.objs, file.funs, file.view_funs, file.macros)):
         continue
 
-      lines.append(f'### {file.import_key}')
+      lines.append(f'### {file.module_name}')
       if file.objs:
         lines.append('#### Views/Tables')
         lines.append('\n'.join(file.objs))
@@ -280,6 +256,12 @@ class ModuleMd:
 
     return '\n'.join(lines)
 
+  def is_empty(self) -> bool:
+    for file in self.modules_md:
+      if any((file.objs, file.funs, file.view_funs, file.macros)):
+        return False
+    return True
+
 
 def main():
   parser = argparse.ArgumentParser()
@@ -288,68 +270,24 @@ def main():
   args = parser.parse_args()
 
   with open(args.input) as f:
-    modules_json_dict = json.load(f)
+    stdlib_json = json.load(f)
 
   # Fetch the modules from json documentation.
-  modules_dict: Dict[str, ModuleMd] = {}
-  for module_name, module_files in modules_json_dict.items():
+  packages: Dict[str, PackageMd] = {}
+  for package_name, modules in stdlib_json.items():
     # Remove 'common' when it has been removed from the code.
-    if module_name not in ['deprecated', 'common']:
-      modules_dict[module_name] = ModuleMd(module_name, module_files)
+    if package_name not in ['deprecated', 'common']:
+      package = PackageMd(package_name, modules)
+      if (not package.is_empty()):
+        packages[package_name] = package
 
-  prelude_module = modules_dict.pop('prelude')
+  prelude = packages.pop('prelude')
 
   with open(args.output, 'w') as f:
     f.write(INTRODUCTION)
-
-    summary_objs = [prelude_module.summary_objs
-                   ] if prelude_module.summary_objs else []
-    summary_objs += [
-        module.summary_objs
-        for module in modules_dict.values()
-        if (module.summary_objs)
-    ]
-
-    summary_funs = [prelude_module.summary_funs
-                   ] if prelude_module.summary_funs else []
-    summary_funs += [module.summary_funs for module in modules_dict.values()]
-    summary_view_funs = [prelude_module.summary_view_funs
-                        ] if prelude_module.summary_view_funs else []
-    summary_view_funs += [
-        module.summary_view_funs for module in modules_dict.values()
-    ]
-    summary_macros = [prelude_module.summary_macros
-                     ] if prelude_module.summary_macros else []
-    summary_macros += [
-        module.summary_macros for module in modules_dict.values()
-    ]
-
-    if summary_objs:
-      f.write(
-          _write_summary('Views/tables', ['Name', 'Import', 'Description'],
-                         summary_objs))
-
-    if summary_funs:
-      f.write(
-          _write_summary('Functions',
-                         ['Name', 'Import', 'Return type', 'Description'],
-                         summary_funs))
-
-    if summary_view_funs:
-      f.write(
-          _write_summary('Table functions', ['Name', 'Import', 'Description'],
-                         summary_view_funs))
-
-    if summary_macros:
-      f.write(
-          _write_summary('Macros', ['Name', 'Import', 'Description'],
-                         summary_macros))
-
-    f.write('\n\n')
-    f.write(prelude_module.get_prelude_description())
+    f.write(prelude.get_prelude_description())
     f.write('\n')
-    f.write('\n'.join(
-        module.get_description() for module in modules_dict.values()))
+    f.write('\n'.join(module.get_md() for module in packages.values()))
 
   return 0
 

@@ -18,27 +18,30 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 TraceSorter::SortingMode ConvertSortingMode(SortingMode sorting_mode) {
   switch (sorting_mode) {
     case SortingMode::kDefaultHeuristics:
-    case SortingMode::kForceFlushPeriodWindowedSort:
       return TraceSorter::SortingMode::kDefault;
     case SortingMode::kForceFullSort:
       return TraceSorter::SortingMode::kFullSort;
@@ -64,7 +67,11 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kJsonTraceType:
     case kFuchsiaTraceType:
     case kZipFile:
+    case kTarTraceType:
     case kAndroidLogcatTraceType:
+    case kGeckoTraceType:
+    case kArtMethodTraceType:
+    case kPerfTextTraceType:
       return TraceSorter::SortingMode::kFullSort;
 
     case kProtoTraceType:
@@ -81,10 +88,11 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
 
 }  // namespace
 
-ForwardingTraceParser::ForwardingTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+ForwardingTraceParser::ForwardingTraceParser(TraceProcessorContext* context,
+                                             tables::TraceFileTable::Id id)
+    : context_(context), file_id_(id) {}
 
-ForwardingTraceParser::~ForwardingTraceParser() {}
+ForwardingTraceParser::~ForwardingTraceParser() = default;
 
 base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   PERFETTO_CHECK(!reader_);
@@ -99,13 +107,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     // The UI's error_dialog.ts uses it to make the dialog more graceful.
     return base::ErrStatus("Unknown trace type provided (ERR:fmt)");
   }
-
-  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> reader_or =
-      context_->reader_registry->CreateTraceReader(trace_type_);
-  if (!reader_or.ok()) {
-    return reader_or.status();
-  }
-  reader_ = std::move(*reader_or);
+  context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
+  ASSIGN_OR_RETURN(reader_,
+                   context_->reader_registry->CreateTraceReader(trace_type_));
 
   PERFETTO_DLOG("%s trace detected", TraceTypeToString(trace_type_));
   UpdateSorterForTraceType(trace_type_);
@@ -116,7 +120,6 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
     context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
   }
-
   return base::OkStatus();
 }
 
@@ -128,7 +131,26 @@ void ForwardingTraceParser::UpdateSorterForTraceType(TraceType trace_type) {
   }
 
   if (!context_->sorter) {
-    context_->sorter.reset(new TraceSorter(context_, *minimum_sorting_mode));
+    TraceSorter::EventHandling event_handling;
+    switch (context_->config.parsing_mode) {
+      case ParsingMode::kDefault:
+        event_handling = TraceSorter::EventHandling::kSortAndPush;
+        break;
+      case ParsingMode::kTokenizeOnly:
+        event_handling = TraceSorter::EventHandling::kDrop;
+        break;
+      case ParsingMode::kTokenizeAndSort:
+        event_handling = TraceSorter::EventHandling::kSortAndDrop;
+        break;
+    }
+    if (context_->config.enable_dev_features) {
+      auto it = context_->config.dev_flags.find("drop-after-sort");
+      if (it != context_->config.dev_flags.end() && it->second == "true") {
+        event_handling = TraceSorter::EventHandling::kSortAndDrop;
+      }
+    }
+    context_->sorter = std::make_shared<TraceSorter>(
+        context_, *minimum_sorting_mode, event_handling);
   }
 
   switch (context_->sorter->sorting_mode()) {
@@ -147,12 +169,18 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
   if (!reader_) {
     RETURN_IF_ERROR(Init(blob));
   }
+  trace_size_ += blob.size();
   return reader_->Parse(std::move(blob));
 }
 
 base::Status ForwardingTraceParser::NotifyEndOfFile() {
-  return reader_ ? reader_->NotifyEndOfFile() : base::OkStatus();
+  if (reader_) {
+    RETURN_IF_ERROR(reader_->NotifyEndOfFile());
+  }
+  if (trace_type_ != kUnknownTraceType) {
+    context_->trace_file_tracker->DoneParsing(file_id_, trace_size_);
+  }
+  return base::OkStatus();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

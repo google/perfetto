@@ -76,6 +76,13 @@ class ProtoTraceReader : public ChunkedTraceReader {
   std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id);
 
  private:
+  struct SequenceScopedState {
+    std::optional<PacketSequenceStateBuilder> sequence_state_builder;
+    uint32_t previous_packet_dropped_count = 0;
+    uint32_t needs_incremental_state_total = 0;
+    uint32_t needs_incremental_state_skipped = 0;
+  };
+
   using ConstBytes = protozero::ConstBytes;
   base::Status ParsePacket(TraceBlobView);
   base::Status ParseServiceEvent(int64_t ts, ConstBytes);
@@ -89,7 +96,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
                                 TraceBlobView trace_packet_defaults);
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
                          TraceBlobView interned_data);
-  static void ParseTraceConfig(ConstBytes);
+  void ParseTraceConfig(ConstBytes);
   void ParseTraceStats(ConstBytes);
 
   static base::FlatHashMap<int64_t /*Clock Id*/, int64_t /*Offset*/>
@@ -97,13 +104,11 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   PacketSequenceStateBuilder* GetIncrementalStateForPacketSequence(
       uint32_t sequence_id) {
-    auto* builder = packet_sequence_state_builders_.Find(sequence_id);
-    if (builder == nullptr) {
-      builder = packet_sequence_state_builders_
-                    .Insert(sequence_id, PacketSequenceStateBuilder(context_))
-                    .first;
+    auto& builder = sequence_state_.Find(sequence_id)->sequence_state_builder;
+    if (!builder) {
+      builder = PacketSequenceStateBuilder(context_);
     }
-    return builder;
+    return &*builder;
   }
   base::Status ParseExtensionDescriptor(ConstBytes descriptor);
 
@@ -115,11 +120,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   // timestamp given is latest_timestamp_.
   int64_t latest_timestamp_ = 0;
 
-  base::FlatHashMap<uint32_t, PacketSequenceStateBuilder>
-      packet_sequence_state_builders_;
-
-  base::FlatHashMap<uint32_t, size_t> packet_sequence_data_loss_;
-
+  base::FlatHashMap<uint32_t, SequenceScopedState> sequence_state_;
   StringId skipped_packet_key_id_;
   StringId invalid_incremental_state_key_id_;
 };

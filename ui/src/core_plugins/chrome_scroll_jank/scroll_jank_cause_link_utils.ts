@@ -211,7 +211,7 @@ export function getCauseLink(
                 viewPercentage: 0.3,
               },
             });
-            trace.selection.setArea({
+            trace.selection.selectArea({
               start: ts,
               end: Time.fromRaw(ts + dur),
               trackUris,

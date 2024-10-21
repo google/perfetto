@@ -14,21 +14,19 @@
 
 import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
-import {Time, time} from '../base/time';
-import {exists, Optional} from '../base/utils';
-import {Actions} from '../common/actions';
+import {Duration, Time, time} from '../base/time';
+import {exists} from '../base/utils';
 import {drawIncompleteSlice, drawTrackHoverTooltip} from '../base/canvas_utils';
 import {cropText} from '../base/string_utils';
 import {colorCompare} from '../public/color';
 import {UNEXPECTED_PINK} from '../core/colorizer';
-import {LegacySelection, SelectionKind} from '../public/selection';
+import {TrackEventDetails} from '../public/selection';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {Track} from '../public/track';
 import {Slice} from '../public/track';
 import {LONG, NUM} from '../trace_processor/query_result';
 import {checkerboardExcept} from './checkerboard';
-import {globals} from './globals';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {NewTrackArgs} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey} from '../core/timeline_cache';
@@ -232,7 +230,7 @@ export abstract class BaseSliceTrack<
   //  - This is NOT guaranteed to be called on every frame. For instance you
   //    cannot use this to do some colour-based animation.
   onUpdatedSlices(slices: Array<SliceT>): void {
-    this.highlightHovererdAndSameTitle(slices);
+    this.highlightHoveredAndSameTitle(slices);
   }
 
   // TODO(hjd): Remove.
@@ -275,16 +273,6 @@ export abstract class BaseSliceTrack<
     if (this.selectedSlice !== undefined) {
       this.onUpdatedSlices([this.selectedSlice]);
     }
-  }
-
-  protected isSelectionHandled(selection: LegacySelection): boolean {
-    // TODO(hjd): Remove when updating selection.
-    // We shouldn't know here about THREAD_SLICE. Maybe should be set by
-    // whatever deals with that. Dunno the namespace of selection is weird. For
-    // most cases in non-ambiguous (because most things are a 'slice'). But some
-    // others (e.g. THREAD_SLICE) have their own ID namespace so we need this.
-    const supportedSelectionKinds: SelectionKind[] = ['SCHED_SLICE', 'SLICE'];
-    return supportedSelectionKinds.includes(selection.kind);
   }
 
   private getTitleFont(): string {
@@ -403,11 +391,12 @@ export abstract class BaseSliceTrack<
       visibleWindow.end.toTime('ceil'),
     );
 
-    let selection = globals.selectionManager.legacySelection;
-    if (!selection || !this.isSelectionHandled(selection)) {
-      selection = null;
-    }
-    const selectedId = selection ? (selection as {id: number}).id : undefined;
+    const selection = this.trace.selection.selection;
+    const selectedId =
+      selection.kind === 'track_event' && selection.trackUri === this.uri
+        ? selection.eventId
+        : undefined;
+
     if (selectedId === undefined) {
       this.selectedSlice = undefined;
     }
@@ -663,7 +652,7 @@ export abstract class BaseSliceTrack<
       );
     }
 
-    const resolution = rawSlicesKey.bucketSize;
+    const resolution = slicesKey.bucketSize;
     const extraCols = this.extraSqlColumns.join(',');
     const queryRes = await this.engine.query(`
       SELECT
@@ -677,7 +666,7 @@ export abstract class BaseSliceTrack<
       FROM ${this.getTableName()}(
         ${slicesKey.start},
         ${slicesKey.end},
-        ${slicesKey.bucketSize}
+        ${resolution}
       ) z
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
@@ -822,15 +811,13 @@ export abstract class BaseSliceTrack<
     if (slice === lastHoveredSlice) return;
 
     if (this.hoveredSlice === undefined) {
-      globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1}));
+      this.trace.timeline.highlightedSliceId = undefined;
       this.onSliceOut({slice: assertExists(lastHoveredSlice)});
       this.hoverTooltip = [];
       this.hoverPos = undefined;
     } else {
       const args: OnSliceOverArgs<SliceT> = {slice: this.hoveredSlice};
-      globals.dispatch(
-        Actions.setHighlightedSliceId({sliceId: this.hoveredSlice.id}),
-      );
+      this.trace.timeline.highlightedSliceId = this.hoveredSlice.id;
       this.onSliceOver(args);
       this.hoverTooltip = args.tooltip || [];
     }
@@ -934,10 +921,10 @@ export abstract class BaseSliceTrack<
   // onUpdatedSlices() calls this. However, if the XxxSliceTrack impl overrides
   // onUpdatedSlices() this gives them a chance to call the highlighting without
   // having to reimplement it.
-  protected highlightHovererdAndSameTitle(slices: Slice[]) {
+  protected highlightHoveredAndSameTitle(slices: Slice[]) {
     for (const slice of slices) {
       const isHovering =
-        globals.state.highlightedSliceId === slice.id ||
+        this.trace.timeline.highlightedSliceId === slice.id ||
         (this.hoveredSlice && this.hoveredSlice.title === slice.title);
       slice.isHighlighted = !!isHovering;
     }
@@ -948,7 +935,7 @@ export abstract class BaseSliceTrack<
     return this.computedTrackHeight;
   }
 
-  getSliceVerticalBounds(depth: number): Optional<VerticalBounds> {
+  getSliceVerticalBounds(depth: number): VerticalBounds | undefined {
     this.updateSliceAndTrackHeight();
 
     const totalSliceHeight = this.computedRowSpacing + this.computedSliceHeight;
@@ -962,6 +949,28 @@ export abstract class BaseSliceTrack<
 
   protected get engine() {
     return this.trace.engine;
+  }
+
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const query = `
+      SELECT
+        ts,
+        dur
+      FROM (${this.getSqlSource()})
+      WHERE id = ${id}
+    `;
+
+    const result = await this.engine.query(query);
+    if (result.numRows() === 0) {
+      return undefined;
+    }
+    const row = result.iter({
+      ts: LONG,
+      dur: LONG,
+    });
+    return {ts: Time.fromRaw(row.ts), dur: Duration.fromRaw(row.dur)};
   }
 }
 

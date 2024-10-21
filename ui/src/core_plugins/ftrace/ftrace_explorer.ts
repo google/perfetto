@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {time, Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {colorForFtrace} from '../../core/colorizer';
 import {DetailsShell} from '../../widgets/details_shell';
 import {
@@ -23,7 +22,6 @@ import {
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
-import {globals} from '../../frontend/globals';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {FtraceFilter, FtraceStat} from './common';
 import {Engine} from '../../trace_processor/engine';
@@ -156,8 +154,15 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
           this.pagination = {offset, count};
           this.reloadData(attrs);
         },
-        onRowHover: this.onRowOver.bind(this),
-        onRowOut: this.onRowOut.bind(this),
+        onRowHover: (id) => {
+          const event = this.data?.events.find((event) => event.id === id);
+          if (event) {
+            attrs.trace.timeline.hoverCursorTimestamp = event.ts;
+          }
+        },
+        onRowOut: () => {
+          attrs.trace.timeline.hoverCursorTimestamp = undefined;
+        },
       }),
     );
   }
@@ -200,17 +205,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
         ],
       };
     });
-  }
-
-  private onRowOver(id: number) {
-    const event = this.data?.events.find((event) => event.id === id);
-    if (event) {
-      globals.dispatch(Actions.setHoverCursorTimestamp({ts: event.ts}));
-    }
-  }
-
-  private onRowOut() {
-    globals.dispatch(Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
   }
 
   private renderTitle() {

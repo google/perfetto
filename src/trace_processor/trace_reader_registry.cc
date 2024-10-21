@@ -15,7 +15,13 @@
  */
 
 #include "src/trace_processor/trace_reader_registry.h"
+
+#include <memory>
+#include <utility>
+
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/gzip_utils.h"
@@ -45,6 +51,10 @@ bool RequiresZlibSupport(TraceType type) {
     case kSymbolsTraceType:
     case kAndroidLogcatTraceType:
     case kAndroidDumpstateTraceType:
+    case kGeckoTraceType:
+    case kArtMethodTraceType:
+    case kPerfTextTraceType:
+    case kTarTraceType:
       return false;
   }
   PERFETTO_FATAL("For GCC");
@@ -58,7 +68,7 @@ void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
 
 base::StatusOr<std::unique_ptr<ChunkedTraceReader>>
 TraceReaderRegistry::CreateTraceReader(TraceType type) {
-  if (auto it = factories_.Find(type); it) {
+  if (auto* it = factories_.Find(type); it) {
     return (*it)(context_);
   }
 

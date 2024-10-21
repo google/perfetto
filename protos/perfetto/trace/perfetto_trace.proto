@@ -927,10 +927,26 @@ message EtwConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 30
+// Next id: 31
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
+
+  message KprobeEvent {
+    enum KprobeType {
+      KPROBE_TYPE_UNKNOWN = 0;
+      KPROBE_TYPE_KPROBE = 1;
+      KPROBE_TYPE_KRETPROBE = 2;
+      KPROBE_TYPE_BOTH = 3;
+    }
+    // Kernel function name to attach to, for example "fuse_file_write_iter"
+    optional string probe = 1;
+    optional KprobeType type = 2;
+  }
+
+  // Ftrace events to record, specific for kprobes and kretprobes
+  repeated KprobeEvent kprobe_events = 30;
+
   // Android-specific event categories:
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
@@ -3943,11 +3959,8 @@ message TraceConfig {
   }
   optional IncrementalStateConfig incremental_state_config = 21;
 
-  // Additional guardrail used by the Perfetto command line client.
-  // On user builds when --dropbox is set perfetto will refuse to trace unless
-  // this is also set.
-  // Added in Q.
-  optional bool allow_user_build_tracing = 19;
+  // No longer needed as we unconditionally allow tracing on user builds.
+  optional bool allow_user_build_tracing = 19 [deprecated = true];
 
   // If set the tracing service will ensure there is at most one tracing session
   // with this key.
@@ -7351,6 +7364,18 @@ message DcvshFreqFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/dcvsh.proto
 
+// Begin of protos/perfetto/trace/ftrace/devfreq.proto
+
+message DevfreqFrequencyFtraceEvent {
+  optional string dev_name = 1;
+  optional uint64 freq = 2;
+  optional uint64 prev_freq = 3;
+  optional uint64 busy_time = 4;
+  optional uint64 total_time = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/devfreq.proto
+
 // Begin of protos/perfetto/trace/ftrace/dma_fence.proto
 
 message DmaFenceInitFtraceEvent {
@@ -8586,6 +8611,17 @@ message GenericFtraceEvent {
 
   optional string event_name = 1;
   repeated Field field = 2;
+}
+
+message KprobeEvent {
+  enum KprobeType {
+    KPROBE_TYPE_UNKNOWN = 0;
+    KPROBE_TYPE_BEGIN = 1;
+    KPROBE_TYPE_END = 2;
+    KPROBE_TYPE_INSTANT = 3;
+  }
+  optional string name = 1;
+  optional KprobeType type = 2;
 }
 
 // End of protos/perfetto/trace/ftrace/generic.proto
@@ -11144,6 +11180,8 @@ message FtraceEvent {
     PixelMmKswapdWakeFtraceEvent pixel_mm_kswapd_wake = 538;
     PixelMmKswapdDoneFtraceEvent pixel_mm_kswapd_done = 539;
     SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
+    DevfreqFrequencyFtraceEvent devfreq_frequency = 541;
+    KprobeEvent kprobe_event = 542;
   }
 }
 
@@ -13403,6 +13441,13 @@ message PerfettoMetatrace {
 
 // Events emitted by the tracing service.
 message TracingServiceEvent {
+  message DataSources {
+    message DataSource {
+      optional string producer_name = 1;
+      optional string data_source_name = 2;
+    }
+    repeated DataSource data_source = 1;
+  }
   oneof event_type {
     // When each of the following booleans are set to true, they report the
     // point in time (through TracePacket's timestamp) where the condition
@@ -13421,6 +13466,9 @@ message TracingServiceEvent {
     // This identifies the point in time when it's safe to assume that all data
     // sources have been recording events.
     bool all_data_sources_started = 1;
+
+    // Emitted when a flush is started.
+    bool flush_started = 9;
 
     // Emitted when all data sources have been flushed successfully or with an
     // error (including timeouts). This can generally happen many times over the
@@ -13446,6 +13494,14 @@ message TracingServiceEvent {
     // Deprecated since Android U, where --save-for-bugreport uses
     // non-destructive cloning.
     bool seized_for_bugreport = 6;
+
+    // Emitted when not all data sources in all producers reply to a start
+    // request after some time.
+    DataSources slow_starting_data_sources = 7;
+
+    // Emitted when the last flush request has failed. Lists data sources that
+    // did not reply on time.
+    DataSources last_flush_slow_data_sources = 8;
   }
 }
 
@@ -13747,6 +13803,16 @@ message HeapGraphObject {
   //
   // N.B. This is not the native size of this object.
   optional int64 native_allocation_registry_size_field = 8;
+
+  enum HeapType {
+    HEAP_TYPE_UNKNOWN = 0;
+    HEAP_TYPE_APP = 1;
+    HEAP_TYPE_ZYGOTE = 2;
+    HEAP_TYPE_BOOT_IMAGE = 3;
+  }
+  // To reduce the space required we only emit the heap type if it has changed
+  // from the previous object we recorded.
+  optional HeapType heap_type_delta = 9;
 }
 
 message HeapGraph {

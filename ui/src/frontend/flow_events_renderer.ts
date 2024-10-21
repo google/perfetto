@@ -14,12 +14,12 @@
 
 import {ArrowHeadStyle, drawBezierArrow} from '../base/canvas/bezier_arrow';
 import {Size2D, Point2D, HorizontalBounds} from '../base/geom';
-import {Optional} from '../base/utils';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
-import {Flow, globals} from './globals';
+import {Flow} from '../core/flow_types';
 import {RenderedPanelInfo} from './panel_container';
 import {TimeScale} from '../base/time_scale';
 import {TrackNode} from '../public/workspace';
+import {TraceImpl} from '../core/trace_impl';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
@@ -44,19 +44,21 @@ type VerticalEdgeOrPoint =
  * Renders the flows overlay on top of the timeline, given the set of panels and
  * a canvas to draw on.
  *
- * Note: the actual flow data is retrieved from globals, which are produced by
- * the flow events controller.
+ * Note: the actual flow data is retrieved from trace.flows, which are produced
+ * by FlowManager.
  *
+ * @param trace - The Trace instance, which holds onto the FlowManager.
  * @param ctx - The canvas to draw on.
  * @param size - The size of the canvas.
  * @param panels - A list of panels and their locations on the canvas.
  */
 export function renderFlows(
+  trace: TraceImpl,
   ctx: CanvasRenderingContext2D,
   size: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
 ): void {
-  const timescale = new TimeScale(globals.timeline.visibleWindow, {
+  const timescale = new TimeScale(trace.timeline.visibleWindow, {
     left: 0,
     right: size.width,
   });
@@ -72,9 +74,9 @@ export function renderFlows(
   // the tree to find containing groups.
 
   const sqlTrackIdToTrack = new Map<number, TrackNode>();
-  globals.workspace.flatTracks.forEach((track) =>
+  trace.workspace.flatTracks.forEach((track) =>
     track.uri
-      ? globals.trackManager
+      ? trace.tracks
           .getTrack(track.uri)
           ?.tags?.trackIds?.forEach((trackId) =>
             sqlTrackIdToTrack.set(trackId, track),
@@ -103,11 +105,11 @@ export function renderFlows(
     }
 
     const highlighted =
-      flow.end.sliceId === globals.state.highlightedSliceId ||
-      flow.begin.sliceId === globals.state.highlightedSliceId;
+      flow.end.sliceId === trace.timeline.highlightedSliceId ||
+      flow.begin.sliceId === trace.timeline.highlightedSliceId;
     const focused =
-      flow.id === globals.state.focusedFlowIdLeft ||
-      flow.id === globals.state.focusedFlowIdRight;
+      flow.id === trace.flows.focusedFlowIdLeft ||
+      flow.id === trace.flows.focusedFlowIdRight;
 
     let intensity = DEFAULT_FLOW_INTENSITY;
     let width = DEFAULT_FLOW_WIDTH;
@@ -135,7 +137,7 @@ export function renderFlows(
     trackId: number,
     depth: number,
     x: number,
-  ): Optional<VerticalEdgeOrPoint> => {
+  ): VerticalEdgeOrPoint | undefined => {
     const track = sqlTrackIdToTrack.get(trackId);
     if (!track) {
       return undefined;
@@ -181,17 +183,17 @@ export function renderFlows(
   };
 
   // Render the connected flows
-  globals.connectedFlows.forEach((flow) => {
+  trace.flows.connectedFlows.forEach((flow) => {
     drawFlow(flow, CONNECTED_FLOW_HUE);
   });
 
   // Render the selected flows
-  globals.selectedFlows.forEach((flow) => {
+  trace.flows.selectedFlows.forEach((flow) => {
     const categories = getFlowCategories(flow);
     for (const cat of categories) {
       if (
-        globals.visibleFlowCategories.get(cat) ||
-        globals.visibleFlowCategories.get(ALL_CATEGORIES)
+        trace.flows.visibleCategories.get(cat) ||
+        trace.flows.visibleCategories.get(ALL_CATEGORIES)
       ) {
         drawFlow(flow, SELECTED_FLOW_HUE);
         break;

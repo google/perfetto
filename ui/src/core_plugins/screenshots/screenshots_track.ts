@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import {
-  CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {ScreenshotTab} from './screenshot_panel';
+import {TrackEventSelection} from '../../public/selection';
+import {ScreenshotDetailsPanel} from './screenshot_panel';
 
 export class ScreenshotsTrack extends CustomSqlTableSliceTrack {
   static readonly kind = 'dev.perfetto.ScreenshotsTrack';
@@ -29,13 +29,7 @@ export class ScreenshotsTrack extends CustomSqlTableSliceTrack {
     };
   }
 
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: ScreenshotTab.kind,
-      config: {
-        sqlTableName: this.tableName,
-        title: 'Screenshots',
-      },
-    };
+  override detailsPanel(_sel: TrackEventSelection) {
+    return new ScreenshotDetailsPanel(this.trace.engine);
   }
 }

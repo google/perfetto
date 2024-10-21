@@ -122,7 +122,7 @@ class ProcessSummaryPlugin implements PerfettoPlugin {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
           chips,
-          track: new ProcessSchedulingTrack(ctx.engine, config, cpuCount),
+          track: new ProcessSchedulingTrack(ctx, config, cpuCount),
           subtitle,
         });
       } else {

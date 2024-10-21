@@ -16,20 +16,18 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {drawTrackHoverTooltip} from '../../base/canvas_utils';
 import {Color} from '../../public/color';
 import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {globals} from '../../frontend/globals';
-import {Engine} from '../../trace_processor/engine';
 import {Track} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D} from '../../base/geom';
+import {Trace} from '../../public/trace';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -59,19 +57,19 @@ export class ProcessSchedulingTrack implements Track {
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private cpuCount: number;
-  private engine: Engine;
+  private trace: Trace;
   private trackUuid = uuidv4Sql();
   private config: Config;
 
-  constructor(engine: Engine, config: Config, cpuCount: number) {
-    this.engine = engine;
+  constructor(trace: Trace, config: Config, cpuCount: number) {
+    this.trace = trace;
     this.config = config;
     this.cpuCount = cpuCount;
   }
 
   async onCreate(): Promise<void> {
     if (this.config.upid !== null) {
-      await this.engine.query(`
+      await this.trace.engine.query(`
         create virtual table process_scheduling_${this.trackUuid}
         using __intrinsic_slice_mipmap((
           select
@@ -91,7 +89,7 @@ export class ProcessSchedulingTrack implements Track {
       `);
     } else {
       assertExists(this.config.utid);
-      await this.engine.query(`
+      await this.trace.engine.query(`
         create virtual table process_scheduling_${this.trackUuid}
         using __intrinsic_slice_mipmap((
           select
@@ -119,7 +117,7 @@ export class ProcessSchedulingTrack implements Track {
 
   async onDestroy(): Promise<void> {
     this.fetcher[Symbol.dispose]();
-    await this.engine.tryQuery(`
+    await this.trace.engine.tryQuery(`
       drop table process_scheduling_${this.trackUuid}
     `);
   }
@@ -173,7 +171,7 @@ export class ProcessSchedulingTrack implements Track {
     end: time,
     bucketSize: duration,
   ): Promise<QueryResult> {
-    return this.engine.query(`
+    return this.trace.engine.query(`
       select
         (z.ts / ${bucketSize}) * ${bucketSize} as ts,
         iif(s.dur = -1, s.dur, max(z.dur, ${bucketSize})) as dur,
@@ -227,13 +225,13 @@ export class ProcessSchedulingTrack implements Track {
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
-      const threadInfo = globals.threads.get(utid);
+      const threadInfo = this.trace.threads.get(utid);
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
-      const isHovering = globals.state.hoveredUtid !== -1;
-      const isThreadHovered = globals.state.hoveredUtid === utid;
-      const isProcessHovered = globals.state.hoveredPid === pid;
+      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
+      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
+      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
       const colorScheme = colorForThread(threadInfo);
       let color: Color;
       if (isHovering && !isThreadHovered) {
@@ -250,7 +248,7 @@ export class ProcessSchedulingTrack implements Track {
       ctx.fillRect(rectStart, y, rectWidth, cpuTrackHeight);
     }
 
-    const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
+    const hoveredThread = this.trace.threads.get(this.utidHoveredInThisTrack);
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
@@ -269,7 +267,8 @@ export class ProcessSchedulingTrack implements Track {
     if (data === undefined) return;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
-      globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
+      this.trace.timeline.hoveredUtid = undefined;
+      this.trace.timeline.hoveredPid = undefined;
       return;
     }
 
@@ -280,21 +279,24 @@ export class ProcessSchedulingTrack implements Track {
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {
       this.utidHoveredInThisTrack = -1;
-      globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
+      this.trace.timeline.hoveredUtid = undefined;
+      this.trace.timeline.hoveredPid = undefined;
       return;
     }
 
     const utid = data.utids[i];
     this.utidHoveredInThisTrack = utid;
-    const threadInfo = globals.threads.get(utid);
+    const threadInfo = this.trace.threads.get(utid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
-    globals.dispatch(Actions.setHoveredUtidAndPid({utid, pid}));
+    this.trace.timeline.hoveredUtid = utid;
+    this.trace.timeline.hoveredPid = pid;
   }
 
   onMouseOut() {
     this.utidHoveredInThisTrack = -1;
-    globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
+    this.trace.timeline.hoveredUtid = undefined;
+    this.trace.timeline.hoveredPid = undefined;
     this.mousePos = undefined;
   }
 }

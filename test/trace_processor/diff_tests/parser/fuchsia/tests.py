@@ -238,20 +238,28 @@ class Fuchsia(TestSuite):
         query="""
         SELECT key,int_value,string_value,real_value,value_type,display_value
         FROM args
-        LIMIT 12;
+        GROUP BY key
+        ORDER BY key
         """,
         out=Csv("""
         "key","int_value","string_value","real_value","value_type","display_value"
         "SomeNullArg","[NULL]","null","[NULL]","string","null"
-        "Someuint32",2145,"[NULL]","[NULL]","int","2145"
-        "Someuint64",423621626134123415,"[NULL]","[NULL]","int","423621626134123415"
+        "Somedouble","[NULL]","[NULL]",3.141500,"real","3.1415"
         "Someint32",-7,"[NULL]","[NULL]","int","-7"
         "Someint64",-234516543631231,"[NULL]","[NULL]","int","-234516543631231"
-        "Somedouble","[NULL]","[NULL]",3.141500,"real","3.1415"
+        "Someuint32",2145,"[NULL]","[NULL]","int","2145"
+        "Someuint64",423621626134123415,"[NULL]","[NULL]","int","423621626134123415"
         "ping","[NULL]","pong","[NULL]","string","pong"
-        "somepointer",3285933758964,"[NULL]","[NULL]","pointer","0x2fd10ea19f4"
-        "someotherpointer",43981,"[NULL]","[NULL]","pointer","0xabcd"
-        "somekoid",18,"[NULL]","[NULL]","int","18"
+        "scope","[NULL]","[NULL]","[NULL]","string","[NULL]"
         "somebool",1,"[NULL]","[NULL]","bool","true"
+        "somekoid",18,"[NULL]","[NULL]","int","18"
         "someotherbool",0,"[NULL]","[NULL]","bool","false"
+        "someotherpointer",43981,"[NULL]","[NULL]","pointer","0xabcd"
+        "somepointer",3285933758964,"[NULL]","[NULL]","pointer","0x2fd10ea19f4"
+        "source","[NULL]","chrome","[NULL]","string","chrome"
+        "source_scope","[NULL]","[NULL]","[NULL]","string","[NULL]"
+        "trace_id",658,"[NULL]","[NULL]","int","658"
+        "trace_id_is_process_scoped",0,"[NULL]","[NULL]","bool","false"
+        "upid",1,"[NULL]","[NULL]","int","1"
+        "utid",1,"[NULL]","[NULL]","int","1"
         """))

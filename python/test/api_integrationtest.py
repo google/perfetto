@@ -134,6 +134,17 @@ class TestApi(unittest.TestCase):
     with self.assertRaises(TraceProcessorException):
       _ = create_tp(trace=f)
 
+  def test_runtime_error(self):
+    # We emulate a situation when TP returns an error by passing the --version
+    # flag. This makes TP output version information and exit, instead of
+    # starting an http server.
+    config = TraceProcessorConfig(
+        bin_path=os.environ["SHELL_PATH"], extra_flags=["--version"])
+    with self.assertRaisesRegex(
+        TraceProcessorException,
+        expected_regex='.*Trace Processor RPC API version:.*'):
+      TraceProcessor(trace=io.BytesIO(b''), config=config)
+
   def test_trace_path(self):
     # Get path to trace_processor_shell and construct TraceProcessor
     tp = create_tp(trace=example_android_trace_path())

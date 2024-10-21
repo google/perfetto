@@ -18,18 +18,14 @@ import {
   LONG_NULL,
   NUM,
   STR,
-  LONG,
 } from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
-import {Engine} from '../../trace_processor/engine';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {CounterOptions} from '../../frontend/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
-import {CounterDetailsPanel} from './counter_details_panel';
-import {Time, duration, time} from '../../base/time';
-import {exists, Optional} from '../../base/utils';
+import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {
   getOrCreateGroupForProcess,
@@ -114,34 +110,6 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
   return options;
 }
 
-async function getCounterEventBounds(
-  engine: Engine,
-  trackId: number,
-  id: number,
-): Promise<Optional<{ts: time; dur: duration}>> {
-  const query = `
-    WITH CTE AS (
-      SELECT
-        id,
-        ts as leftTs,
-        LEAD(ts) OVER (ORDER BY ts) AS rightTs
-      FROM counter
-      WHERE track_id = ${trackId}
-    )
-    SELECT * FROM CTE WHERE id = ${id}
-  `;
-
-  const counter = await engine.query(query);
-  const row = counter.iter({
-    leftTs: LONG,
-    rightTs: LONG_NULL,
-  });
-  const leftTs = Time.fromRaw(row.leftTs);
-  const rightTs = row.rightTs !== null ? Time.fromRaw(row.rightTs) : leftTs;
-  const duration = rightTs - leftTs;
-  return {ts: leftTs, dur: duration};
-}
-
 class CounterPlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCounterTracks(ctx);
@@ -165,6 +133,10 @@ class CounterPlugin implements PerfettoPlugin {
         from counter_track
         join _counter_track_summary using (id)
         where type = 'counter_track'
+          and classification not in (
+            'android_energy_estimation_breakdown',
+            'android_energy_estimation_breakdown_per_uid'
+          )
         union
         select name, id, unit
         from gpu_counter_track
@@ -198,15 +170,12 @@ class CounterPlugin implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackId,
+          trackName: title,
           options: {
             ...getDefaultCounterOptions(title),
             unit,
           },
         }),
-        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, title),
-        getEventBounds: async (id) => {
-          return await getCounterEventBounds(ctx.engine, trackId, id);
-        },
       });
       const track = new TrackNode({uri, title});
       ctx.workspace.addChildInOrder(track);
@@ -280,12 +249,9 @@ class CounterPlugin implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackId: trackId,
+          trackName: name,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
-        getEventBounds: async (id) => {
-          return await getCounterEventBounds(ctx.engine, trackId, id);
-        },
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -20});
       ctx.workspace.addChildInOrder(trackNode);
@@ -350,12 +316,9 @@ class CounterPlugin implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackId: trackId,
+          trackName: name,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
-        getEventBounds: async (id) => {
-          return await getCounterEventBounds(ctx.engine, trackId, id);
-        },
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title: name, sortOrder: 30});
@@ -411,12 +374,9 @@ class CounterPlugin implements PerfettoPlugin {
           trace: ctx,
           uri,
           trackId: trackId,
+          trackName: name,
           options: getDefaultCounterOptions(name),
         }),
-        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
-        getEventBounds: async (id) => {
-          return await getCounterEventBounds(ctx.engine, trackId, id);
-        },
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title: name, sortOrder: 20});
@@ -426,44 +386,35 @@ class CounterPlugin implements PerfettoPlugin {
 
   private async addGpuFrequencyTracks(ctx: Trace) {
     const engine = ctx.engine;
-    const numGpus = ctx.traceInfo.gpuCount;
 
-    for (let gpu = 0; gpu < numGpus; gpu++) {
-      // Only add a gpu freq track if we have
-      // gpu freq data.
-      const freqExistsResult = await engine.query(`
-        select id
-        from gpu_counter_track
-        join _counter_track_summary using (id)
-        where name = 'gpufreq' and gpu_id = ${gpu}
-        limit 1;
-      `);
-      if (freqExistsResult.numRows() > 0) {
-        const trackId = freqExistsResult.firstRow({id: NUM}).id;
-        const uri = `/gpu_frequency_${gpu}`;
-        const name = `Gpu ${gpu} Frequency`;
-        ctx.tracks.registerTrack({
+    const result = await engine.query(`
+      select id, gpu_id as gpuId
+      from gpu_counter_track
+      join _counter_track_summary using (id)
+      where name = 'gpufreq'
+    `);
+    const it = result.iter({id: NUM, gpuId: NUM});
+    for (; it.valid(); it.next()) {
+      const uri = `/gpu_frequency_${it.gpuId}`;
+      const name = `Gpu ${it.gpuId} Frequency`;
+      ctx.tracks.registerTrack({
+        uri,
+        title: name,
+        tags: {
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [it.id],
+          scope: 'gpuFreq',
+        },
+        track: new TraceProcessorCounterTrack({
+          trace: ctx,
           uri,
-          title: name,
-          tags: {
-            kind: COUNTER_TRACK_KIND,
-            trackIds: [trackId],
-            scope: 'gpuFreq',
-          },
-          track: new TraceProcessorCounterTrack({
-            trace: ctx,
-            uri,
-            trackId: trackId,
-            options: getDefaultCounterOptions(name),
-          }),
-          detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
-          getEventBounds: async (id) => {
-            return await getCounterEventBounds(ctx.engine, trackId, id);
-          },
-        });
-        const track = new TrackNode({uri, title: name, sortOrder: -20});
-        ctx.workspace.addChildInOrder(track);
-      }
+          trackId: it.id,
+          trackName: name,
+          options: getDefaultCounterOptions(name),
+        }),
+      });
+      const track = new TrackNode({uri, title: name, sortOrder: -20});
+      ctx.workspace.addChildInOrder(track);
     }
   }
 }

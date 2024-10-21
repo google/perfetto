@@ -36,73 +36,56 @@ namespace perfetto::trace_processor {
 // Tracks and stores tracks based on track types, ids and scopes.
 class TrackEventTracker {
  public:
+  // Data from TrackDescriptor proto used to reserve a track before interning it
+  // with |TrackTracker|.
+  struct DescriptorTrackReservation {
+    struct CounterDetails {
+      StringId category = kNullStringId;
+      int64_t unit_multiplier = 1;
+      bool is_incremental = false;
+      uint32_t packet_sequence_id = 0;
+      double latest_value = 0;
+
+      bool operator==(const CounterDetails& o) const {
+        return std::tie(category, unit_multiplier, is_incremental,
+                        packet_sequence_id, latest_value) ==
+               std::tie(o.category, o.unit_multiplier, o.is_incremental,
+                        o.packet_sequence_id, o.latest_value);
+      }
+    };
+
+    uint64_t parent_uuid = 0;
+    std::optional<uint32_t> pid;
+    std::optional<uint32_t> tid;
+    int64_t min_timestamp = 0;  // only set if |pid| and/or |tid| is set.
+    StringId name = kNullStringId;
+    bool use_separate_track = false;
+    bool is_counter = false;
+
+    // For counter tracks.
+    std::optional<CounterDetails> counter_details;
+
+    // Whether |other| is a valid descriptor for this track reservation. A track
+    // should always remain nested underneath its original parent.
+    bool IsForSameTrack(const DescriptorTrackReservation& other) {
+      // Note that |min_timestamp|, |latest_value|, and |name| are ignored for
+      // this comparison.
+      return std::tie(parent_uuid, pid, tid, is_counter, counter_details) ==
+             std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
+                      other.counter_details);
+    }
+  };
   explicit TrackEventTracker(TraceProcessorContext*);
 
   // Associate a TrackDescriptor track identified by the given |uuid| with a
-  // process's |pid|. This is called during tokenization. If a reservation for
-  // the same |uuid| already exists, verifies that the present reservation
-  // matches the new one.
-  //
-  // The track will be resolved to the process track (see InternProcessTrack())
-  // upon the first call to GetDescriptorTrack() with the same |uuid|. At this
-  // time, |pid| will also be resolved to a |upid|.
-  void ReserveDescriptorProcessTrack(uint64_t uuid,
-                                     StringId name,
-                                     uint32_t pid,
-                                     int64_t timestamp);
-
-  // Associate a TrackDescriptor track identified by the given |uuid| with a
-  // thread's |pid| and |tid|. This is called during tokenization. If a
+  // given track description. This is called during tokenization. If a
   // reservation for the same |uuid| already exists, verifies that the present
   // reservation matches the new one.
   //
-  // The track will be resolved to the thread track (see InternThreadTrack())
+  // The track will be resolved to the track (see TrackTracker::InternTrack())
   // upon the first call to GetDescriptorTrack() with the same |uuid|. At this
-  // time, |pid| will also be resolved to a |upid|.
-  void ReserveDescriptorThreadTrack(uint64_t uuid,
-                                    uint64_t parent_uuid,
-                                    StringId name,
-                                    uint32_t pid,
-                                    uint32_t tid,
-                                    int64_t timestamp,
-                                    bool use_separate_track);
-
-  // Associate a TrackDescriptor track identified by the given |uuid| with a
-  // parent track (usually a process- or thread-associated track). This is
-  // called during tokenization. If a reservation for the same |uuid| already
-  // exists, will attempt to update it.
-  //
-  // The track will be created upon the first call to GetDescriptorTrack() with
-  // the same |uuid|. If |parent_uuid| is 0, the track will become a global
-  // track. Otherwise, it will become a new track of the same type as its parent
-  // track.
-  void ReserveDescriptorChildTrack(uint64_t uuid,
-                                   uint64_t parent_uuid,
-                                   StringId name);
-
-  // Associate a counter-type TrackDescriptor track identified by the given
-  // |uuid| with a parent track (usually a process or thread track). This is
-  // called during tokenization. If a reservation for the same |uuid| already
-  // exists, will attempt to update it. The provided |category| will be stored
-  // into the track's args.
-  //
-  // If |is_incremental| is true, the counter will only be valid on the packet
-  // sequence identified by |packet_sequence_id|. |unit_multiplier| is an
-  // optional multiplication factor applied to counter values. Values for the
-  // counter will be translated during tokenization via
-  // ConvertToAbsoluteCounterValue().
-  //
-  // The track will be created upon the first call to GetDescriptorTrack() with
-  // the same |uuid|. If |parent_uuid| is 0, the track will become a global
-  // track. Otherwise, it will become a new counter track for the same
-  // process/thread as its parent track.
-  void ReserveDescriptorCounterTrack(uint64_t uuid,
-                                     uint64_t parent_uuid,
-                                     StringId name,
-                                     StringId category,
-                                     int64_t unit_multiplier,
-                                     bool is_incremental,
-                                     uint32_t packet_sequence_id);
+  // time, |pid| will be resolved to a |upid| and |tid| to |utid|.
+  void ReserveDescriptorTrack(uint64_t uuid, const DescriptorTrackReservation&);
 
   // Returns the ID of the track for the TrackDescriptor with the given |uuid|.
   // This is called during parsing. The first call to GetDescriptorTrack() for
@@ -133,13 +116,6 @@ class TrackEventTracker {
   // GetDescriptorTrack is moved back.
   TrackId GetOrCreateDefaultDescriptorTrack();
 
-  // Track events timestamps in Chrome have microsecond resolution, while
-  // system events use nanoseconds. It results in broken event nesting when
-  // track events and system events share a track.
-  // So TrackEventTracker needs to support its own tracks, separate from the
-  // ones in the TrackTracker.
-  TrackId InternThreadTrack(UniqueTid utid);
-
   // Called by ProtoTraceReader whenever incremental state is cleared on a
   // packet sequence. Resets counter values for any incremental counters of
   // the sequence identified by |packet_sequence_id|.
@@ -156,34 +132,6 @@ class TrackEventTracker {
   }
 
  private:
-  struct DescriptorTrackReservation {
-    uint64_t parent_uuid = 0;
-    std::optional<uint32_t> pid;
-    std::optional<uint32_t> tid;
-    int64_t min_timestamp = 0;  // only set if |pid| and/or |tid| is set.
-    StringId name = kNullStringId;
-    bool use_separate_track = false;
-
-    // For counter tracks.
-    bool is_counter = false;
-    StringId category = kNullStringId;
-    int64_t unit_multiplier = 1;
-    bool is_incremental = false;
-    uint32_t packet_sequence_id = 0;
-    double latest_value = 0;
-
-    // Whether |other| is a valid descriptor for this track reservation. A track
-    // should always remain nested underneath its original parent.
-    bool IsForSameTrack(const DescriptorTrackReservation& other) {
-      // Note that |min_timestamp|, |latest_value|, and |name| are ignored for
-      // this comparison.
-      return std::tie(parent_uuid, pid, tid, is_counter, category,
-                      unit_multiplier, is_incremental, packet_sequence_id) ==
-             std::tie(other.parent_uuid, pid, tid, is_counter, category,
-                      unit_multiplier, is_incremental, packet_sequence_id);
-    }
-  };
-
   class ResolvedDescriptorTrack {
    public:
     enum class Scope {
@@ -238,7 +186,6 @@ class TrackEventTracker {
       uint64_t uuid,
       const DescriptorTrackReservation&,
       std::vector<uint64_t>* descendent_uuids);
-  TrackId InsertThreadTrack(UniqueTid utid);
 
   static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 

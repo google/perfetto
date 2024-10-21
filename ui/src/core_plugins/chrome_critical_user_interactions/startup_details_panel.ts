@@ -14,8 +14,6 @@
 
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
-import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
@@ -25,6 +23,8 @@ import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {dictToTreeNodes, Tree} from '../../widgets/tree';
 import {asUpid, Upid} from '../../trace_processor/sql_utils/core_types';
+import {Trace} from '../../public/trace';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 
 interface Data {
   startupId: number;
@@ -35,24 +35,16 @@ interface Data {
   upid: Upid;
 }
 
-export class StartupDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.StartupDetailsPanel';
-  private loaded = false;
-  private data: Data | undefined;
+export class StartupDetailsPanel implements TrackEventDetailsPanel {
+  private data?: Data;
 
-  static create(
-    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
-  ): StartupDetailsPanel {
-    return new StartupDetailsPanel(args);
-  }
+  constructor(
+    private readonly trace: Trace,
+    private readonly id: number,
+  ) {}
 
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-    this.loadData();
-  }
-
-  private async loadData() {
-    const queryResult = await this.engine.query(`
+  async load() {
+    const queryResult = await this.trace.engine.query(`
       SELECT
         activity_id AS startupId,
         name,
@@ -64,7 +56,7 @@ export class StartupDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig>
         launch_cause AS launchCause,
         browser_upid AS upid
       FROM chrome_startups
-      WHERE id = ${this.config.id};
+      WHERE id = ${this.id};
     `);
 
     const iter = queryResult.firstRow({
@@ -87,8 +79,6 @@ export class StartupDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig>
     if (iter.launchCause) {
       this.data.launchCause = iter.launchCause;
     }
-
-    this.loaded = true;
   }
 
   private getDetailsDictionary() {
@@ -106,20 +96,20 @@ export class StartupDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig>
     }
     details['SQL ID'] = m(SqlRef, {
       table: 'chrome_startups',
-      id: this.config.id,
+      id: this.id,
     });
     return details;
   }
 
-  viewTab() {
-    if (this.isLoading()) {
+  render() {
+    if (!this.data) {
       return m('h2', 'Loading');
     }
 
     return m(
       DetailsShell,
       {
-        title: this.getTitle(),
+        title: 'Chrome Startup',
       },
       m(
         GridLayout,
@@ -133,13 +123,5 @@ export class StartupDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig>
         ),
       ),
     );
-  }
-
-  getTitle(): string {
-    return this.config.title;
-  }
-
-  isLoading() {
-    return !this.loaded;
   }
 }

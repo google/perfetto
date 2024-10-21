@@ -20,10 +20,10 @@ import {TabManager} from './tab';
 import {TrackManager} from './track';
 import {Timeline} from './timeline';
 import {Workspace, WorkspaceManager} from './workspace';
-import {DetailsPanel, LegacyDetailsPanel} from './details_panel';
 import {SelectionManager} from './selection';
 import {ScrollToArgs} from './scroll_helper';
 import {NoteManager} from './note';
+import {ThreadMap} from './threads';
 
 /**
  * The main API endpoint to interact programmaticaly with the UI and alter its
@@ -44,15 +44,14 @@ export interface Trace extends App {
   readonly workspaces: WorkspaceManager;
   readonly traceInfo: TraceInfo;
 
+  // TODO(primiano): move this to a lib/ extension (or core_plugins/thread/)
+  // once we have an intra-plugin dep system. The thread concept doesn't belong
+  // to core and should be an extension instead.
+  readonly threads: ThreadMap;
+
   // Scrolls to the given track and/or time. Does NOT change the current
   // selection.
   scrollTo(args: ScrollToArgs): void;
-
-  // TODO(primiano): remove this once the Legacy vs non-Legacy details panel is
-  // gone. This method is particularly problematic because the method called
-  // registerDetailsPanel in TabManagerImpl takes a non-Legacy DetailsPanel, but
-  // all plugins use a Legacy one. Keeping this as a bridge for now.
-  registerDetailsPanel(detailsPanel: DetailsPanel | LegacyDetailsPanel): void;
 
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;

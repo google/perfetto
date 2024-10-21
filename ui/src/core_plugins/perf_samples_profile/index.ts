@@ -12,24 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {TrackData} from '../../common/track_data';
-import {Engine} from '../../trace_processor/engine';
-import {LegacyDetailsPanel} from '../../public/details_panel';
 import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {LegacySelection, PerfSamplesSelection} from '../../public/selection';
-import {
-  QueryFlamegraph,
-  QueryFlamegraphAttrs,
-  metricsFromTableOrSubquery,
-} from '../../core/query_flamegraph';
-import {Monitor} from '../../base/monitor';
-import {DetailsShell} from '../../widgets/details_shell';
 import {assertExists} from '../../base/logging';
-import {Timestamp} from '../../frontend/widgets/timestamp';
 import {
   ProcessPerfSamplesProfileTrack,
   ThreadPerfSamplesProfileTrack,
@@ -45,6 +33,10 @@ export interface Data extends TrackData {
   tsStarts: BigInt64Array;
 }
 
+function makeUriForProc(upid: number) {
+  return `/process_${upid}/perf_samples_profile`;
+}
+
 class PerfSamplesProfilePlugin implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const pResult = await ctx.engine.query(`
@@ -55,7 +47,7 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
     `);
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
-      const uri = `/process_${upid}/perf_samples_profile`;
+      const uri = makeUriForProc(upid);
       const title = `Process Callstacks`;
       ctx.tracks.registerTrack({
         uri,
@@ -122,123 +114,32 @@ class PerfSamplesProfilePlugin implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: -50});
       group.addChildInOrder(track);
     }
-    ctx.registerDetailsPanel(new PerfSamplesFlamegraphDetailsPanel(ctx.engine));
+  }
+
+  async onTraceReady(ctx: Trace): Promise<void> {
+    await selectPerfSample(ctx);
   }
 }
 
-class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
-  readonly panelType = 'LegacyDetailsPanel';
-  private sel?: PerfSamplesSelection;
-  private selMonitor = new Monitor([
-    () => this.sel?.leftTs,
-    () => this.sel?.rightTs,
-    () => this.sel?.upid,
-    () => this.sel?.utid,
-    () => this.sel?.type,
-  ]);
-  private flamegraphAttrs?: QueryFlamegraphAttrs;
+async function selectPerfSample(ctx: Trace) {
+  const profile = await assertExists(ctx.engine).query(`
+    select upid
+    from perf_sample
+    join thread using (utid)
+    where callsite_id is not null
+    order by ts desc
+    limit 1
+  `);
+  if (profile.numRows() !== 1) return;
+  const row = profile.firstRow({upid: NUM});
+  const upid = row.upid;
 
-  constructor(private engine: Engine) {}
-
-  render(sel: LegacySelection) {
-    if (sel.kind !== 'PERF_SAMPLES') {
-      this.sel = undefined;
-      return undefined;
-    }
-
-    const {leftTs, rightTs, upid, utid} = sel;
-    this.sel = sel;
-    if (this.selMonitor.ifStateChanged()) {
-      this.flamegraphAttrs = {
-        engine: this.engine,
-        metrics: [
-          ...metricsFromTableOrSubquery(
-            utid !== undefined
-              ? `
-                (
-                  select
-                    id,
-                    parent_id as parentId,
-                    name,
-                    mapping_name,
-                    source_file,
-                    cast(line_number AS text) as line_number,
-                    self_count
-                  from _linux_perf_callstacks_for_samples!((
-                    select p.callsite_id
-                    from perf_sample p
-                    where p.ts >= ${leftTs}
-                      and p.ts <= ${rightTs}
-                      and p.utid = ${utid}
-                  ))
-                )
-              `
-              : `
-                  (
-                    select
-                      id,
-                      parent_id as parentId,
-                      name,
-                      mapping_name,
-                      source_file,
-                      cast(line_number AS text) as line_number,
-                      self_count
-                    from _linux_perf_callstacks_for_samples!((
-                      select p.callsite_id
-                      from perf_sample p
-                      join thread t using (utid)
-                      where p.ts >= ${leftTs}
-                        and p.ts <= ${rightTs}
-                        and t.upid = ${assertExists(upid)}
-                    ))
-                  )
-                `,
-            [
-              {
-                name: 'Perf Samples',
-                unit: '',
-                columnName: 'self_count',
-              },
-            ],
-            'include perfetto module linux.perf.samples',
-            [{name: 'mapping_name', displayName: 'Mapping'}],
-            [
-              {name: 'source_file', displayName: 'Source File'},
-              {name: 'line_number', displayName: 'Line Number'},
-            ],
-          ),
-        ],
-      };
-    }
-    return m(
-      '.flamegraph-profile',
-      m(
-        DetailsShell,
-        {
-          fillParent: true,
-          title: m('.title', 'Perf Samples'),
-          description: [],
-          buttons: [
-            m(
-              'div.time',
-              `First timestamp: `,
-              m(Timestamp, {
-                ts: this.sel.leftTs,
-              }),
-            ),
-            m(
-              'div.time',
-              `Last timestamp: `,
-              m(Timestamp, {
-                ts: this.sel.rightTs,
-              }),
-            ),
-          ],
-        },
-        m(QueryFlamegraph, assertExists(this.flamegraphAttrs)),
-      ),
-    );
-  }
+  // Create an area selection over the first process with a perf samples track
+  ctx.selection.selectArea({
+    start: ctx.traceInfo.start,
+    end: ctx.traceInfo.end,
+    trackUris: [makeUriForProc(upid)],
+  });
 }
 
 export const plugin: PluginDescriptor = {

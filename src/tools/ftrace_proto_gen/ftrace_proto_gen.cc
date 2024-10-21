@@ -169,6 +169,10 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_eventlist,
       *fout << "    GenericFtraceEvent generic = " << i << ";\n";
       ++i;
     }
+    if (i == 542) {
+      *fout << "    KprobeEvent kprobe_event = " << i << ";\n";
+      ++i;
+    }
   }
   *fout << "  }\n";
   *fout << "}\n";

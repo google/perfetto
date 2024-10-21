@@ -24,6 +24,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 
@@ -186,6 +187,7 @@ ANDROID_KEY_EVENTS_TABLE = Table(
     python_module=__file__,
     class_name='AndroidKeyEventsTable',
     sql_name='__intrinsic_android_key_events',
+    wrapping_sql_view=WrappingSqlView('android_key_events'),
     columns=[
         C('event_id', CppUint32()),
         C('ts', CppInt64()),
@@ -212,6 +214,7 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
     python_module=__file__,
     class_name='AndroidInputEventDispatchTable',
     sql_name='__intrinsic_android_input_event_dispatch',
+    wrapping_sql_view=WrappingSqlView('android_input_event_dispath'),
     columns=[
         C('event_id', CppUint32()),
         C('arg_set_id', CppUint32()),
@@ -219,8 +222,7 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
         C('window_id', CppInt32()),
     ],
     tabledoc=TableDoc(
-        doc=
-            '''
+        doc='''
                 Contains records of Android input events being dispatched to input windows
                 by the Android Framework.
             ''',

@@ -138,47 +138,6 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
   3. Run the newly added test with `tools/diff_test_trace_processor.py <path to trace processor shell binary>`.
 4. Upload and land your change as normal.
 
-## Adding new derived events
-
-As derived events depend on metrics, the initial steps are same as that of developing a metric (see above).
-
-NOTE: the metric can be just an empty proto message during prototyping or if no summarization is necessary. However, generally if an event is important enough to display in the UI, it should also be tracked in benchmarks as a metric.
-
-To extend a metric with annotations:
-
-1. Create a new table or view with the name `<metric name>_event`.
-  * For example, for the [`android_startup`]() metric, we create a view named `android_startup_event`.
-  * Note that the trailing `_event` suffix in the table name is important.
-  * The schema required for this table is given below.
-2. List your metric in the `initialiseHelperViews` method of `trace_controller.ts`.
-3. Upload and land your change as normal.
-
-The schema of the `<metric name>_event` table/view is as follows:
-
-| Name         | Type     | Presence                              | Meaning                                                                                                                                                                                                                                     |
-| :----------- | -------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `track_type` | `string` | Mandatory                             | 'slice' for slices, 'counter' for counters                                                                                                                                                                                                  |
-| `track_name` | `string` | Mandatory                             | Name of the track to display in the UI. Also the track identifier i.e. all events with same `track_name` appear on the same track.                                                                                                          |
-| `ts`         | `int64`  | Mandatory                             | The timestamp of the event (slice or counter)                                                                                                                                                                                               |
-| `dur`        | `int64`  | Mandatory for slice, NULL for counter | The duration of the slice                                                                                                                                                                                                                   |
-| `slice_name` | `string` | Mandatory for slice, NULL for counter | The name of the slice                                                                                                                                                                                                                       |
-| `value`      | `double` | Mandatory for counter, NULL for slice | The value of the counter                                                                                                                                                                                                                    |
-| `group_name` | `string` | Optional                              | Name of the track group under which the track appears. All tracks with the same `group_name` are placed under the same group by that name. Tracks that lack this field or have NULL value in this field are displayed without any grouping. |
-
-#### Known issues:
-
-* Nested slices within the same track are not supported. We plan to support this
-  once we have a concrete usecase.
-* Tracks are always created in the global scope. We plan to extend this to
-  threads and processes in the near future with additional contexts added as
-  necessary.
-* Instant events are currently not supported in the UI but this will be
-  implemented in the near future. In trace processor, instants are always `0`
-  duration slices with special rendering on the UI side.
-* There is no way to tie newly added events back to the source events in the
-  trace which were used to generate them. This is not currently a priority but
-  something we may add in the future.
-
 
 ## Update `TRACE_PROCESSOR_CURRENT_API_VERSION`
 

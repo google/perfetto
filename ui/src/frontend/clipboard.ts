@@ -13,18 +13,14 @@
 // limitations under the License.
 
 import {copyToClipboard} from '../base/clipboard';
-import {Actions} from '../common/actions';
-import {globals} from './globals';
+import {AppImpl} from '../core/app_impl';
 
 export function onClickCopy(url: string) {
   return (e: Event) => {
     e.preventDefault();
     copyToClipboard(url);
-    globals.dispatch(
-      Actions.updateStatus({
-        msg: 'Link copied into the clipboard',
-        timestamp: Date.now() / 1000,
-      }),
+    AppImpl.instance.omnibox.showStatusMessage(
+      'Link copied into the clipboard',
     );
   };
 }

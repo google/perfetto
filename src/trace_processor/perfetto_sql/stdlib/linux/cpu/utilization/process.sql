@@ -14,7 +14,9 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE linux.cpu.utilization.general;
+
 INCLUDE PERFETTO MODULE time.conversion;
+INCLUDE PERFETTO MODULE intervals.intersect;
 
 -- Returns a table of process utilization per given period.
 -- Utilization is calculated as sum of average utilization of each CPU in each
@@ -88,17 +90,55 @@ CREATE PERFETTO TABLE cpu_cycles_per_process(
   -- Average CPU frequency in kHz
   avg_freq INT
 ) AS
-WITH threads AS (
-  SELECT upid, utid FROM thread
-)
 SELECT
   upid,
-  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
-  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
+  cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+  cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
   SUM(dur) AS runtime,
   MIN(freq) AS min_freq,
   MAX(freq) AS max_freq,
-  cast_int!(SUM((dur * freq) / 1000) / SUM(dur / 1000)) AS avg_freq
+  cast_int!(SUM((dur * freq / 1000)) / SUM(dur / 1000)) AS avg_freq
 FROM _cpu_freq_per_thread
-JOIN threads USING (utid)
+JOIN thread USING (utid)
+WHERE upid IS NOT NULL
+GROUP BY upid;
+
+-- Aggregated CPU statistics for each process in a provided interval.
+CREATE PERFETTO FUNCTION cpu_cycles_per_process_in_interval(
+    -- Start of the interval.
+    ts INT,
+    -- Duration of the interval.
+    dur INT
+)
+RETURNS TABLE(
+  -- Unique process id. Joinable with `process.id`.
+  upid INT,
+  -- Sum of CPU millicycles
+  millicycles INT,
+  -- Sum of CPU megacycles
+  megacycles INT,
+  -- Total runtime duration
+  runtime INT,
+  -- Minimum CPU frequency in kHz
+  min_freq INT,
+  -- Maximum CPU frequency in kHz
+  max_freq INT,
+  -- Average CPU frequency in kHz
+  avg_freq INT
+) AS
+WITH threads_counters AS (
+  SELECT c.id, c.ts, c.dur, c.freq, upid
+  FROM _cpu_freq_per_thread c
+  JOIN thread USING (utid)
+)
+SELECT
+  upid,
+  cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
+  cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
+  SUM(ii.dur) AS runtime,
+  MIN(freq) AS min_freq,
+  MAX(freq) AS max_freq,
+  cast_int!(SUM((ii.dur * freq / 1000)) / SUM(ii.dur / 1000)) AS avg_freq
+FROM _interval_intersect_single!($ts, $dur, threads_counters) ii
+JOIN threads_counters USING (id)
 GROUP BY upid;

@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
-import {LegacySelection} from '../../public/selection';
-import {OnSliceClickArgs} from '../base_slice_track';
-import {GenericSliceDetailsTabConfigBase} from '../generic_slice_details_tab';
-import {globals} from '../globals';
+import {generateSqlWithInternalLayout} from '../../trace_processor/sql_utils/layout';
 import {NAMED_ROW, NamedRow, NamedSliceTrack} from '../named_slice_track';
 import {NewTrackArgs} from '../track';
 import {createView} from '../../trace_processor/sql_utils';
@@ -35,13 +31,6 @@ export interface CustomSqlTableDefConfig {
   columns?: string[];
   whereClause?: string;
   disposable?: AsyncDisposable;
-}
-
-export interface CustomSqlDetailsPanelConfig {
-  // Type of details panel to create
-  kind: string;
-  // Config for the details panel
-  config: GenericSliceDetailsTabConfigBase;
 }
 
 export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
@@ -68,11 +57,6 @@ export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
   abstract getSqlDataSource():
     | CustomSqlTableDefConfig
     | Promise<CustomSqlTableDefConfig>;
-
-  // Override by subclasses.
-  abstract getDetailsPanel(
-    args: OnSliceClickArgs<Slice>,
-  ): CustomSqlDetailsPanelConfig;
 
   getSqlImports(): CustomSqlImportConfig {
     return {
@@ -107,32 +91,6 @@ export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
 
   getSqlSource(): string {
     return `SELECT * FROM ${this.tableName}`;
-  }
-
-  isSelectionHandled(selection: LegacySelection) {
-    if (selection.kind !== 'GENERIC_SLICE') {
-      return false;
-    }
-    return selection.trackUri === this.uri;
-  }
-
-  onSliceClick(args: OnSliceClickArgs<Slice>) {
-    if (this.getDetailsPanel(args) === undefined) {
-      return;
-    }
-
-    const detailsPanelConfig = this.getDetailsPanel(args);
-    globals.selectionManager.setGenericSlice({
-      id: args.slice.id,
-      sqlTableName: this.tableName,
-      start: args.slice.ts,
-      duration: args.slice.dur,
-      trackUri: this.uri,
-      detailsPanelConfig: {
-        kind: detailsPanelConfig.kind,
-        config: detailsPanelConfig.config,
-      },
-    });
   }
 
   async loadImports() {

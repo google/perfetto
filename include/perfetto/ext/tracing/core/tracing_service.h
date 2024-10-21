@@ -24,13 +24,13 @@
 #include <vector>
 
 #include "perfetto/base/export.h"
+#include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
-#include "perfetto/tracing/core/clock_snapshots.h"
 #include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 
@@ -298,14 +298,14 @@ class PERFETTO_EXPORT_COMPONENT RelayEndpoint {
 
   // A snapshot of client and host clocks.
   struct SyncClockSnapshot {
-    ClockSnapshotVector client_clock_snapshots;
-    ClockSnapshotVector host_clock_snapshots;
+    base::ClockSnapshotVector client_clock_snapshots;
+    base::ClockSnapshotVector host_clock_snapshots;
   };
 
   enum class SyncMode : uint32_t { PING = 1, UPDATE = 2 };
   virtual void SyncClocks(SyncMode sync_mode,
-                          ClockSnapshotVector client_clocks,
-                          ClockSnapshotVector host_clocks) = 0;
+                          base::ClockSnapshotVector client_clocks,
+                          base::ClockSnapshotVector host_clocks) = 0;
   virtual void Disconnect() = 0;
 };
 

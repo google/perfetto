@@ -27,6 +27,7 @@
 namespace perfetto::trace_processor::perf_importer {
 // static
 base::Status AuxRecord::Parse(const Record& record) {
+  attr = record.attr;
   Reader reader(record.payload.copy());
   if (!reader.Read(offset) || !reader.Read(size) || !reader.Read(flags)) {
     return base::ErrStatus("Failed to parse AUX record");

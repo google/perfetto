@@ -121,7 +121,7 @@ perfetto_proto_library("descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "trace.descriptor"
   sources = [ "trace.proto" ]
-  deps = [ ":non_minimal_source_set" ]
+  link_deps = [ ":non_minimal_source_set" ]
 }
 
 # This target exports perfetto trace protos allowing both host and device
@@ -135,7 +135,7 @@ perfetto_proto_library("test_extensions_descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "test_extensions.descriptor"
   sources = [ "test_extensions.proto" ]
-  deps = [ "track_event:source_set" ]
+  link_deps = [ "track_event:source_set" ]
 }
 
 if (enable_perfetto_merged_protos_check) {

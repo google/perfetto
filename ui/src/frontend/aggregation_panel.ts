@@ -20,13 +20,12 @@ import {
   isEmptyData,
 } from '../public/aggregation';
 import {colorForState} from '../core/colorizer';
-import {globals} from './globals';
 import {DurationWidget} from './widgets/duration';
 import {EmptyState} from '../widgets/empty_state';
 import {Anchor} from '../widgets/anchor';
 import {Icons} from '../base/semantic_icons';
 import {translateState} from '../trace_processor/sql_utils/thread_state';
-import {TraceImpl} from '../core/app_trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 
 export interface AggregationPanelAttrs {
   data?: AggregateData;
@@ -37,6 +36,12 @@ export interface AggregationPanelAttrs {
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
+  private trace: TraceImpl;
+
+  constructor({attrs}: m.CVnode<AggregationPanelAttrs>) {
+    this.trace = attrs.trace;
+  }
+
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     if (!attrs.data || isEmptyData(attrs.data)) {
       return m(
@@ -50,7 +55,7 @@ export class AggregationPanel
           {
             icon: Icons.ChangeTab,
             onclick: () => {
-              globals.tabManager.showCurrentSelectionTab();
+              this.trace.tabs.showCurrentSelectionTab();
             },
           },
           'Go to current selection tab',
@@ -144,7 +149,7 @@ export class AggregationPanel
   }
 
   showTimeRange() {
-    const selection = globals.selectionManager.selection;
+    const selection = this.trace.selection.selection;
     if (selection.kind !== 'area') return undefined;
     const duration = selection.end - selection.start;
     return m(

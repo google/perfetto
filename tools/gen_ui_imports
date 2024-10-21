@@ -23,13 +23,13 @@ We want to avoid manually editing core/ for every plugin.
 
 This generates code like:
 
-import {pluginRegistry} from '../common/plugins';
-
 import {plugin as fooPlugin} from '../plugins/foo_plugin';
 import {plugin as barPlugin} from '../plugins/bar_plugin';
 
-pluginRegistry.register(fooPlugin);
-pluginRegistry.register(barPlugin);
+export default [
+  fooPlugin,
+  barPlugin,
+];
 """
 
 from __future__ import print_function
@@ -64,13 +64,15 @@ def gen_imports(input_dir, output_path):
     snake_name = os.path.basename(path)
     camel_name = to_camel_case(snake_name)
     imports.append(f"import {{plugin as {camel_name}}} from '{rel_path}';")
-    registrations.append(f"pluginRegistry.register({camel_name});")
+    registrations.append(camel_name)
 
-  header = f"import {{pluginRegistry}} from '{rel_plugins_path}';"
   import_text = '\n'.join(imports)
-  registration_text = '\n'.join(registrations)
+  registration_text = 'export default [\n'
+  for camel_name in registrations:
+    registration_text += f"  {camel_name},\n"
+  registration_text += '];\n'
 
-  expected = f"{header}\n\n{import_text}\n\n{registration_text}\n"
+  expected = f"{import_text}\n\n{registration_text}"
 
   with open(output_path, 'w') as f:
     f.write(expected)

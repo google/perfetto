@@ -45,6 +45,7 @@ import {
 import {Controller} from './controller';
 import {RecordConfig} from './record_config_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
+import {AppImpl} from '../core/app_impl';
 
 type RPCImplMethod = Method | rpc.ServiceMethod<Message<{}>, Message<{}>>;
 
@@ -328,13 +329,11 @@ export class RecordController extends Controller<'main'> implements Consumer {
       return;
     }
     const trace = this.generateTrace();
-    globals.dispatch(
-      Actions.openTraceFromBuffer({
-        title: 'Recorded trace',
-        buffer: trace.buffer,
-        fileName: `recorded_trace${this.recordedTraceSuffix}`,
-      }),
-    );
+    AppImpl.instance.openTraceFromBuffer({
+      title: 'Recorded trace',
+      buffer: trace.buffer,
+      fileName: `recorded_trace${this.recordedTraceSuffix}`,
+    });
     this.traceBuffer = [];
   }
 

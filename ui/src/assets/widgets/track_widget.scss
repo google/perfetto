@@ -13,11 +13,16 @@
 // limitations under the License.
 
 @use "sass:math";
+@import "theme";
 
 .pf-track {
   --text-color-dark: hsl(213, 22%, 30%);
   --text-color-light: white;
   --indent-size: 8px;
+  --drag-highlight-color: rgb(29, 85, 189);
+  --default-background: white;
+  --collapsed-background: hsla(190, 49%, 97%, 1);
+  --expanded-background: hsl(215, 22%, 19%);
 
   // Layout
   display: grid;
@@ -33,22 +38,7 @@
   font-weight: 300;
   font-size: 14px;
   color: var(--text-color-dark);
-
-  &.pf-is-summary {
-    background-color: var(--collapsed-background);
-
-    &.pf-expanded {
-      background-color: var(--expanded-background);
-      color: var(--text-color-light);
-    }
-  }
-
-  &.pf-highlight {
-    .pf-track-shell {
-      background-color: #ffe263;
-      color: var(--text-color-dark);
-    }
-  }
+  background-color: var(--default-background);
 
   &::before {
     content: "";
@@ -60,7 +50,16 @@
 
   .pf-track-shell {
     grid-area: shell;
+    background-color: inherit;
     box-shadow: inset 0px -1px 0px 0px var(--track-border-color);
+
+    &.pf-drag-after {
+      box-shadow: inset 0 -6px 3px -3px var(--drag-highlight-color);
+    }
+
+    &.pf-drag-before {
+      box-shadow: inset 0 6px 3px -3px var(--drag-highlight-color);
+    }
 
     &.pf-clickable {
       cursor: pointer;
@@ -126,6 +125,22 @@
         // click
         font-size: 16px;
       }
+    }
+  }
+
+  &.pf-is-summary {
+    background-color: var(--collapsed-background);
+
+    &.pf-expanded {
+      background-color: var(--expanded-background);
+      color: var(--text-color-light);
+    }
+  }
+
+  &.pf-highlight {
+    .pf-track-shell {
+      background-color: #ffe263;
+      color: var(--text-color-dark);
     }
   }
 

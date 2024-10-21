@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DetailsPanel, LegacyDetailsPanel} from '../public/details_panel';
+import {DetailsPanel} from '../public/details_panel';
 import {TabDescriptor, TabManager} from '../public/tab';
 import {raf} from './raf_scheduler';
 
@@ -28,7 +28,6 @@ export interface ResolvedTab {
 export class TabManagerImpl implements TabManager, Disposable {
   private _registry = new Map<string, TabDescriptor>();
   private _defaultTabs = new Set<string>();
-  private _legacyDetailsPanelRegistry = new Set<LegacyDetailsPanel>();
   private _detailsPanelRegistry = new Set<DetailsPanel>();
   private _instantiatedTabs = new Map<string, TabDescriptor>();
   private _openTabs: string[] = []; // URIs of the tabs open.
@@ -53,13 +52,6 @@ export class TabManagerImpl implements TabManager, Disposable {
     this._defaultTabs.add(uri);
     return {
       [Symbol.dispose]: () => this._defaultTabs.delete(uri),
-    };
-  }
-
-  registerLegacyDetailsPanel(section: LegacyDetailsPanel): Disposable {
-    this._legacyDetailsPanelRegistry.add(section);
-    return {
-      [Symbol.dispose]: () => this._legacyDetailsPanelRegistry.delete(section),
     };
   }
 
@@ -144,10 +136,6 @@ export class TabManagerImpl implements TabManager, Disposable {
 
   get defaultTabs(): string[] {
     return Array.from(this._defaultTabs);
-  }
-
-  get legacyDetailsPanels(): LegacyDetailsPanel[] {
-    return Array.from(this._legacyDetailsPanelRegistry);
   }
 
   get detailsPanels(): DetailsPanel[] {

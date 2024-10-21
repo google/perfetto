@@ -15,44 +15,25 @@
 import m from 'mithril';
 import {assertTrue} from '../../base/logging';
 import {exists} from '../../base/utils';
-import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
 import {asSliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {TrackEventSelection} from '../../public/selection';
 
-async function getSliceDetails(
-  engine: Engine,
-  id: number,
-): Promise<SliceDetails | undefined> {
-  return getSlice(engine, asSliceSqlId(id));
-}
-
-export class ScreenshotTab extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'dev.perfetto.ScreenshotDetailsPanel';
-
+export class ScreenshotDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
 
-  static create(
-    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
-  ): ScreenshotTab {
-    return new ScreenshotTab(args);
-  }
+  constructor(private readonly engine: Engine) {}
 
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-    getSliceDetails(this.engine, this.config.id).then(
-      (sliceDetails) => (this.sliceDetails = sliceDetails),
+  async load(selection: TrackEventSelection) {
+    this.sliceDetails = await getSlice(
+      this.engine,
+      asSliceSqlId(selection.eventId),
     );
   }
 
-  renderTabCanvas() {}
-
-  getTitle() {
-    return this.config.title;
-  }
-
-  viewTab() {
+  render() {
     if (
       !exists(this.sliceDetails) ||
       !exists(this.sliceDetails.args) ||

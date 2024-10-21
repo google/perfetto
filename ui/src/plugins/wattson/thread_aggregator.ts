@@ -40,7 +40,7 @@ export class WattsonThreadSelectionAggregator
     engine.query(`
       INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
       INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
-      INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+      INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
       CREATE OR REPLACE PERFETTO TABLE _ui_selection_window AS
       SELECT
@@ -129,8 +129,8 @@ export class WattsonThreadSelectionAggregator
       -- Grouped again by UTID, but this time to make it CPU agnostic
       CREATE VIEW ${this.id} AS
       SELECT
-        ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
-        ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
+        ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
+        ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
         COALESCE(idle_cost_mws, 0) as idle_cost_mws,
         thread_name,
         utid,
@@ -167,17 +167,17 @@ export class WattsonThreadSelectionAggregator
         columnId: 'pid',
       },
       {
-        title: 'Average power (estimated mW)',
+        title: 'Active power (estimated mW)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'avg_mw',
+        columnId: 'active_mw',
         sum: true,
       },
       {
-        title: 'Total energy (estimated mWs)',
+        title: 'Active energy (estimated mWs)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'total_mws',
+        columnId: 'active_mws',
         sum: true,
       },
       {
@@ -197,6 +197,6 @@ export class WattsonThreadSelectionAggregator
   }
 
   getDefaultSorting(): Sorting {
-    return {column: 'total_mws', direction: 'DESC'};
+    return {column: 'active_mws', direction: 'DESC'};
   }
 }

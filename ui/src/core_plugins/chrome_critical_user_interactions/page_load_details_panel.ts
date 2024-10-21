@@ -13,29 +13,24 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
   Details,
   DetailsSchema,
 } from '../../frontend/widgets/sql/details/details';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {Trace} from '../../public/trace';
 import d = DetailsSchema;
 
-export class PageLoadDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.PageLoadDetailsPanel';
+export class PageLoadDetailsPanel implements TrackEventDetailsPanel {
   private data: Details;
 
-  static create(
-    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
-  ): PageLoadDetailsPanel {
-    return new PageLoadDetailsPanel(args);
-  }
-
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-    this.data = new Details(this.trace, 'chrome_page_loads', this.config.id, {
+  constructor(
+    private readonly trace: Trace,
+    id: number,
+  ) {
+    this.data = new Details(this.trace, 'chrome_page_loads', id, {
       'Navigation start': d.Timestamp('navigation_start_ts'),
       'FCP event': d.Timestamp('fcp_ts'),
       'FCP': d.Interval('navigation_start_ts', 'fcp'),
@@ -65,21 +60,13 @@ export class PageLoadDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig
     });
   }
 
-  viewTab() {
+  render() {
     return m(
       DetailsShell,
       {
-        title: this.getTitle(),
+        title: 'Chrome Page Load',
       },
       m(GridLayout, m(GridLayoutColumn, this.data.render())),
     );
-  }
-
-  getTitle(): string {
-    return this.config.title;
-  }
-
-  isLoading() {
-    return this.data.isLoading();
   }
 }

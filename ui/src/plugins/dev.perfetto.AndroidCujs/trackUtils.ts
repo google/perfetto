@@ -61,25 +61,8 @@ export function addAndPinSliceTrack(
  * Takes and adds desired slice to current selection
  * Retrieves the track key and scrolls to the desired slice
  */
-export function focusOnSlice(
-  ctx: Trace,
-  sqlSliceId: number,
-  sqlTrackId: number,
-) {
-  // TODO(primiano): there should be probably a public API to select slices
-  // given their SQL details. We need to rationalize selection first.
-  const trackUri = ctx.tracks.findTrack((trackDescriptor) => {
-    return trackDescriptor?.tags?.trackIds?.includes(sqlTrackId);
-  })?.uri;
-  ctx.selection.setLegacy(
-    {
-      kind: 'SLICE',
-      id: sqlSliceId,
-      trackUri,
-      table: 'slice',
-    },
-    {
-      pendingScrollId: sqlSliceId,
-    },
-  );
+export function focusOnSlice(ctx: Trace, sqlSliceId: number) {
+  ctx.selection.selectSqlEvent('slice', sqlSliceId, {
+    scrollToSelection: true,
+  });
 }

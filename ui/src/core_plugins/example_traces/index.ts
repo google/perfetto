@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
+import {AppImpl} from '../../core/app_impl';
 import {globals} from '../../frontend/globals';
 import {App} from '../../public/app';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
@@ -25,7 +25,7 @@ const EXAMPLE_CHROME_TRACE_URL =
 
 function openTraceUrl(url: string): void {
   globals.logging.logEvent('Trace Actions', 'Open example trace');
-  globals.dispatch(Actions.openTraceFromUrl({url}));
+  AppImpl.instance.openTraceFromUrl(url);
 }
 
 class ExampleTracesPlugin implements PerfettoPlugin {

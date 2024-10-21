@@ -22,7 +22,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <random>
 #include <set>
 #include <utility>
 #include <vector>
@@ -31,6 +30,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/uuid.h"
@@ -48,6 +48,9 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/tracing/core/id_allocator.h"
+#include "src/tracing/service/clock.h"
+#include "src/tracing/service/dependencies.h"
+#include "src/tracing/service/random.h"
 
 namespace protozero {
 class MessageFilter;
@@ -159,8 +162,6 @@ class TracingServiceImpl : public TracingService {
 
    private:
     friend class TracingServiceImpl;
-    friend class TracingServiceImplTest;
-    friend class TracingIntegrationTest;
     ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
     ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
@@ -274,22 +275,22 @@ class TracingServiceImpl : public TracingService {
 
     struct SyncedClockSnapshots {
       SyncedClockSnapshots(SyncMode _sync_mode,
-                           ClockSnapshotVector _client_clocks,
-                           ClockSnapshotVector _host_clocks)
+                           base::ClockSnapshotVector _client_clocks,
+                           base::ClockSnapshotVector _host_clocks)
           : sync_mode(_sync_mode),
             client_clocks(std::move(_client_clocks)),
             host_clocks(std::move(_host_clocks)) {}
       SyncMode sync_mode;
-      ClockSnapshotVector client_clocks;
-      ClockSnapshotVector host_clocks;
+      base::ClockSnapshotVector client_clocks;
+      base::ClockSnapshotVector host_clocks;
     };
 
     explicit RelayEndpointImpl(RelayClientID relay_client_id,
                                TracingServiceImpl* service);
     ~RelayEndpointImpl() override;
     void SyncClocks(SyncMode sync_mode,
-                    ClockSnapshotVector client_clocks,
-                    ClockSnapshotVector host_clocks) override;
+                    base::ClockSnapshotVector client_clocks,
+                    base::ClockSnapshotVector host_clocks) override;
     void Disconnect() override;
 
     MachineID machine_id() const { return relay_client_id_.first; }
@@ -311,6 +312,7 @@ class TracingServiceImpl : public TracingService {
 
   explicit TracingServiceImpl(std::unique_ptr<SharedMemory::Factory>,
                               base::TaskRunner*,
+                              tracing_service::Dependencies,
                               InitOpts = {});
   ~TracingServiceImpl() override;
 
@@ -415,11 +417,6 @@ class TracingServiceImpl : public TracingService {
   ProducerEndpointImpl* GetProducer(ProducerID) const;
 
  private:
-  friend class TracingServiceImplTest;
-  friend class TracingIntegrationTest;
-
-  static constexpr int64_t kOneDayInNs = 24ll * 60 * 60 * 1000 * 1000 * 1000;
-
   struct TriggerHistory {
     int64_t timestamp_ns;
     uint64_t name_hash;
@@ -509,13 +506,6 @@ class TracingServiceImpl : public TracingService {
     TracingSession& operator=(TracingSession&&) = delete;
 
     size_t num_buffers() const { return buffers_index.size(); }
-
-    uint32_t delay_to_next_write_period_ms() const {
-      PERFETTO_DCHECK(write_period_ms > 0);
-      return write_period_ms -
-             static_cast<uint32_t>(base::GetWallTimeMs().count() %
-                                   write_period_ms);
-    }
 
     uint32_t flush_timeout_ms() {
       uint32_t timeout_ms = config.flush_timeout_ms();
@@ -663,8 +653,8 @@ class TracingServiceImpl : public TracingService {
     // Set to true on the first call to MaybeNotifyAllDataSourcesStarted().
     bool did_notify_all_data_source_started = false;
 
-    // Stores all lifecycle events of a particular type (i.e. associated with a
-    // single field id in the TracingServiceEvent proto).
+    // Stores simple lifecycle events of a particular type (i.e. associated with
+    // a single field id in the TracingServiceEvent proto).
     struct LifecycleEvent {
       LifecycleEvent(uint32_t f_id, uint32_t m_size = 1)
           : field_id(f_id), max_size(m_size), timestamps(m_size) {}
@@ -684,7 +674,18 @@ class TracingServiceImpl : public TracingService {
     };
     std::vector<LifecycleEvent> lifecycle_events;
 
-    using ClockSnapshotData = ClockSnapshotVector;
+    // Stores arbitrary lifecycle events that don't fit in lifecycle_events as
+    // serialized TracePacket protos.
+    struct ArbitraryLifecycleEvent {
+      int64_t timestamp;
+      std::vector<uint8_t> data;
+    };
+
+    std::optional<ArbitraryLifecycleEvent> slow_start_event;
+
+    std::vector<ArbitraryLifecycleEvent> last_flush_events;
+
+    using ClockSnapshotData = base::ClockSnapshotVector;
 
     // Initial clock snapshot, captured at trace start time (when state goes to
     // TracingSession::STARTED). Emitted into the trace when the consumer first
@@ -771,6 +772,7 @@ class TracingServiceImpl : public TracingService {
   // shared memory and trace buffers.
   void UpdateMemoryGuardrail();
 
+  uint32_t DelayToNextWritePeriodMs(const TracingSession&);
   void StartDataSourceInstance(ProducerEndpointImpl*,
                                TracingSession*,
                                DataSourceInstance*);
@@ -797,8 +799,9 @@ class TracingServiceImpl : public TracingService {
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
-  void OnFlushTimeout(TracingSessionID, FlushRequestID);
+  void OnFlushTimeout(TracingSessionID, FlushRequestID, FlushFlags);
   void OnDisableTracingTimeout(TracingSessionID);
+  void OnAllDataSourceStartedTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
   void PeriodicFlushTask(TracingSessionID, bool post_next_only);
   void CompleteFlush(TracingSessionID tsid,
@@ -874,6 +877,8 @@ class TracingServiceImpl : public TracingService {
                                      TracingSessionID);
 
   base::TaskRunner* const task_runner_;
+  std::unique_ptr<tracing_service::Clock> clock_;
+  std::unique_ptr<tracing_service::Random> random_;
   const InitOpts init_opts_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;
@@ -895,18 +900,12 @@ class TracingServiceImpl : public TracingService {
   std::map<std::string, int64_t> session_to_last_trace_s_;
 
   // Contains timestamps of triggers.
-  // The queue is sorted by timestamp and invocations older than
-  // |trigger_window_ns_| are purged when a trigger happens.
+  // The queue is sorted by timestamp and invocations older than 24 hours are
+  // purged when a trigger happens.
   base::CircularQueue<TriggerHistory> trigger_history_;
 
   bool smb_scraping_enabled_ = false;
   bool lockdown_mode_ = false;
-  uint32_t min_write_period_ms_ = 100;       // Overridable for testing.
-  int64_t trigger_window_ns_ = kOneDayInNs;  // Overridable for testing.
-
-  std::minstd_rand trigger_probability_rand_;
-  std::uniform_real_distribution<> trigger_probability_dist_;
-  double trigger_rnd_override_for_testing_ = 0;  // Overridable for testing.
 
   uint8_t sync_marker_packet_[32];  // Lazily initialized.
   size_t sync_marker_packet_size_ = 0;

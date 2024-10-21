@@ -17,11 +17,14 @@
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
-#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -29,46 +32,49 @@
 
 namespace perfetto::trace_processor {
 
-ScopedActiveTraceFile TraceFileTracker::StartNewFile() {
-  tables::TraceFileTable::Row row;
-  if (!ancestors_.empty()) {
-    row.parent_id = ancestors_.back();
-  }
-
-  row.size = 0;
-  row.trace_type =
-      context_->storage->InternString(TraceTypeToString(kUnknownTraceType));
-
-  auto ref =
-      context_->storage->mutable_trace_file_table()->Insert(row).row_reference;
-
-  ancestors_.push_back(ref.id());
-  return ScopedActiveTraceFile(context_, std::move(ref));
+tables::TraceFileTable::Id TraceFileTracker::AddFile(const std::string& name) {
+  return AddFileImpl(context_->storage->InternString(base::StringView(name)));
 }
 
-ScopedActiveTraceFile TraceFileTracker::StartNewFile(const std::string& name,
-                                                     TraceType type,
-                                                     size_t size) {
-  auto file = StartNewFile();
-  file.SetName(name);
-  file.SetTraceType(type);
-  file.SetSize(size);
-  return file;
+tables::TraceFileTable::Id TraceFileTracker::AddFileImpl(StringId name) {
+  std::optional<tables::TraceFileTable::Id> parent =
+      parsing_stack_.empty() ? std::nullopt
+                             : std::make_optional(parsing_stack_.back());
+  return context_->storage->mutable_trace_file_table()
+      ->Insert({parent, name, 0,
+                context_->storage->InternString(
+                    TraceTypeToString(kUnknownTraceType)),
+                std::nullopt})
+      .id;
 }
 
-void TraceFileTracker::EndFile(
-    const tables::TraceFileTable::ConstRowReference& row) {
-  PERFETTO_CHECK(!ancestors_.empty());
-  PERFETTO_CHECK(ancestors_.back() == row.id());
+void TraceFileTracker::SetSize(tables::TraceFileTable::Id id, uint64_t size) {
+  auto row = *context_->storage->mutable_trace_file_table()->FindById(id);
+  row.set_size(static_cast<int64_t>(size));
+}
+
+void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
+                                    TraceType trace_type) {
+  parsing_stack_.push_back(id);
+  auto row = *context_->storage->mutable_trace_file_table()->FindById(id);
+  row.set_trace_type(
+      context_->storage->InternString(TraceTypeToString(trace_type)));
+  row.set_processing_order(static_cast<int64_t>(processing_order_++));
+}
+
+void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
+  PERFETTO_CHECK(!parsing_stack_.empty() && parsing_stack_.back() == id);
+  parsing_stack_.pop_back();
+  auto row = *context_->storage->mutable_trace_file_table()->FindById(id);
+  row.set_size(static_cast<int64_t>(size));
 
   // First file (root)
-  if (row.id().value == 0) {
+  if (id.value == 0) {
     context_->metadata_tracker->SetMetadata(metadata::trace_size_bytes,
                                             Variadic::Integer(row.size()));
     context_->metadata_tracker->SetMetadata(metadata::trace_type,
                                             Variadic::String(row.trace_type()));
   }
-  ancestors_.pop_back();
 }
 
 }  // namespace perfetto::trace_processor

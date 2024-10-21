@@ -25,6 +25,7 @@ import {
   asUtid,
   SchedSqlId,
   ThreadStateSqlId,
+  Utid,
 } from './core_types';
 import {getThreadInfo, ThreadInfo} from './thread';
 
@@ -81,8 +82,7 @@ export function translateState(
   return result;
 }
 
-// Representation of a single thread state object, corresponding to
-// a row for the |thread_slice| table.
+// Single thread state slice, corresponding to a row of |thread_slice| table.
 export interface ThreadState {
   // Id into |thread_state| table.
   threadStateSqlId: ThreadStateSqlId;
@@ -96,11 +96,18 @@ export interface ThreadState {
   cpu?: number;
   // Human-readable name of this thread state.
   state: string;
+  // Kernel function where the thread has suspended.
   blockedFunction?: string;
-
+  // Description of the thread itself.
   thread?: ThreadInfo;
-  wakerThread?: ThreadInfo;
+  // Thread that was running when this thread was woken up.
+  wakerUtid?: Utid;
+  // Active thread state at the time of the wakeup.
   wakerId?: ThreadStateSqlId;
+  // Was the wakeup from an interrupt context? It is possible for this to be
+  // unset even for runnable states, if the trace was recorded without
+  // interrupt information.
+  wakerInterruptCtx?: boolean;
 }
 
 // Gets a list of thread state objects from Trace Processor with given
@@ -125,7 +132,8 @@ export async function getThreadStateFromConstraints(
       io_wait as ioWait,
       thread_state.utid as utid,
       waker_utid as wakerUtid,
-      waker_id as wakerId
+      waker_id as wakerId,
+      irq_context as wakerInterruptCtx
     FROM thread_state
     ${constraintsToQuerySuffix(constraints)}`);
   const it = query.iter({
@@ -140,13 +148,13 @@ export async function getThreadStateFromConstraints(
     utid: NUM,
     wakerUtid: NUM_NULL,
     wakerId: NUM_NULL,
+    wakerInterruptCtx: NUM_NULL,
   });
 
   const result: ThreadState[] = [];
 
   for (; it.valid(); it.next()) {
     const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
-    const wakerUtid = asUtid(it.wakerUtid ?? undefined);
 
     // TODO(altimin): Consider fetcing thread / process info using a single
     // query instead of one per row.
@@ -159,10 +167,11 @@ export async function getThreadStateFromConstraints(
       state: translateState(it.state ?? undefined, ioWait),
       blockedFunction: it.blockedFunction ?? undefined,
       thread: await getThreadInfo(engine, asUtid(it.utid)),
-      wakerThread: wakerUtid
-        ? await getThreadInfo(engine, wakerUtid)
-        : undefined,
+      wakerUtid: asUtid(it.wakerUtid ?? undefined),
       wakerId: asThreadStateSqlId(it.wakerId ?? undefined),
+      wakerInterruptCtx: fromNumNull(it.wakerInterruptCtx) as
+        | boolean
+        | undefined,
     });
   }
   return result;

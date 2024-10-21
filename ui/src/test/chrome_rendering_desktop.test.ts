@@ -39,14 +39,7 @@ test('expand browser', async () => {
 });
 
 test('slice with flows', async () => {
-  const omnibox = page.locator('input[ref=omnibox]');
-  await omnibox.focus();
-  await omnibox.fill('GenerateRenderPass');
-  await pth.waitForPerfettoIdle();
-
-  await omnibox.press('Enter');
-  await pth.waitForPerfettoIdle();
-
+  await pth.searchSlice('GenerateRenderPass');
   await pth.resetFocus();
   await page.keyboard.press('f');
   await pth.waitForPerfettoIdle();

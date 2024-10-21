@@ -23,7 +23,7 @@
 #include <string>
 #include <utility>
 
-#include "perfetto/base/compiler.h"
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -132,11 +132,17 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       TokenizeThreadDescriptor(*state, thread);
     }
 
-    track_event_tracker_->ReserveDescriptorThreadTrack(
-        track.uuid(), track.parent_uuid(), name_id,
-        static_cast<uint32_t>(thread.pid()),
-        static_cast<uint32_t>(thread.tid()), packet_timestamp,
-        track.disallow_merging_with_system_tracks());
+    TrackEventTracker::DescriptorTrackReservation reservation;
+    reservation.min_timestamp = packet_timestamp;
+    reservation.parent_uuid = track.parent_uuid();
+    reservation.pid = static_cast<uint32_t>(thread.pid());
+    reservation.tid = static_cast<uint32_t>(thread.tid());
+    reservation.name = name_id;
+    reservation.use_separate_track =
+        track.disallow_merging_with_system_tracks();
+
+    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+
   } else if (track.has_process()) {
     protos::pbzero::ProcessDescriptor::Decoder process(track.process());
 
@@ -147,9 +153,12 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       return ModuleResult::Handled();
     }
 
-    track_event_tracker_->ReserveDescriptorProcessTrack(
-        track.uuid(), name_id, static_cast<uint32_t>(process.pid()),
-        packet_timestamp);
+    TrackEventTracker::DescriptorTrackReservation reservation;
+    reservation.name = name_id;
+    reservation.pid = static_cast<uint32_t>(process.pid());
+    reservation.min_timestamp = packet_timestamp;
+    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+
   } else if (track.has_counter()) {
     protos::pbzero::CounterDescriptor::Decoder counter(track.counter());
 
@@ -187,13 +196,29 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       }
     }
 
-    track_event_tracker_->ReserveDescriptorCounterTrack(
-        track.uuid(), track.parent_uuid(), name_id, category_id,
-        counter.unit_multiplier(), counter.is_incremental(),
-        packet.trusted_packet_sequence_id());
+    TrackEventTracker::DescriptorTrackReservation reservation;
+    reservation.parent_uuid = track.parent_uuid();
+    reservation.name = name_id;
+    reservation.is_counter = true;
+
+    TrackEventTracker::DescriptorTrackReservation::CounterDetails
+        counter_details;
+    counter_details.category = category_id;
+    counter_details.is_incremental = counter.is_incremental();
+    counter_details.unit_multiplier = counter.unit_multiplier();
+
+    // Incrementally encoded counters are only valid on a single sequence.
+    if (counter.is_incremental())
+      counter_details.packet_sequence_id = packet.trusted_packet_sequence_id();
+
+    reservation.counter_details = std::move(counter_details);
+    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+
   } else {
-    track_event_tracker_->ReserveDescriptorChildTrack(
-        track.uuid(), track.parent_uuid(), name_id);
+    TrackEventTracker::DescriptorTrackReservation r;
+    r.name = name_id;
+    r.parent_uuid = track.parent_uuid();
+    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), r);
   }
 
   // Let ProtoTraceReader forward the packet to the parser.
@@ -454,6 +479,9 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     PacketSequenceStateGeneration& state) {
   // We are just trying to parse out the V8 profiling events into the cpu
   // sampling tables: if we don't have JSON enabled, just don't do this.
+  if (!context_->json_trace_parser) {
+    return base::OkStatus();
+  }
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   for (auto it = event.debug_annotations(); it; ++it) {
     protos::pbzero::DebugAnnotation::Decoder da(*it);

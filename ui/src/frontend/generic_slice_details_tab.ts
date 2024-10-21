@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {GenericSliceDetailsTabConfig} from '../public/details_panel';
-import {raf} from '../core/raf_scheduler';
+import {TrackEventDetailsPanel} from '../public/details_panel';
 import {ColumnType} from '../trace_processor/query_result';
 import {sqlValueToReadableString} from '../trace_processor/sql_utils';
 import {DetailsShell} from '../widgets/details_shell';
@@ -22,53 +21,49 @@ import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {dictToTree, Tree, TreeNode} from '../widgets/tree';
-import {BottomTab, NewBottomTabArgs} from '../public/lib/bottom_tab';
+import {Trace} from '../public/trace';
 
-export {
-  ColumnConfig,
-  Columns,
-  GenericSliceDetailsTabConfig,
-  GenericSliceDetailsTabConfigBase,
-} from '../public/details_panel';
+export interface ColumnConfig {
+  readonly displayName?: string;
+}
+
+export type Columns = {
+  readonly [columnName: string]: ColumnConfig;
+};
 
 // A details tab, which fetches slice-like object from a given SQL table by id
 // and renders it according to the provided config, specifying which columns
 // need to be rendered and how.
-export class GenericSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'dev.perfetto.GenericSliceDetailsTab';
+export class GenericSliceDetailsTab implements TrackEventDetailsPanel {
+  private data?: {[key: string]: ColumnType};
 
-  data: {[key: string]: ColumnType} | undefined;
+  constructor(
+    private readonly trace: Trace,
+    private readonly sqlTableName: string,
+    private readonly id: number,
+    private readonly title: string,
+    private readonly columns?: Columns,
+  ) {}
 
-  static create(
-    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
-  ): GenericSliceDetailsTab {
-    return new GenericSliceDetailsTab(args);
+  async load() {
+    const result = await this.trace.engine.query(
+      `select * from ${this.sqlTableName} where id = ${this.id}`,
+    );
+
+    this.data = result.firstRow({});
   }
 
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-
-    this.engine
-      .query(
-        `select * from ${this.config.sqlTableName} where id = ${this.config.id}`,
-      )
-      .then((queryResult) => {
-        this.data = queryResult.firstRow({});
-        raf.scheduleFullRedraw();
-      });
-  }
-
-  viewTab() {
-    if (this.data === undefined) {
+  render() {
+    if (!this.data) {
       return m('h2', 'Loading');
     }
 
     const args: {[key: string]: m.Child} = {};
-    if (this.config.columns !== undefined) {
-      for (const key of Object.keys(this.config.columns)) {
+    if (this.columns !== undefined) {
+      for (const key of Object.keys(this.columns)) {
         let argKey = key;
-        if (this.config.columns[key].displayName !== undefined) {
-          argKey = this.config.columns[key].displayName!;
+        if (this.columns[key].displayName !== undefined) {
+          argKey = this.columns[key].displayName!;
         }
         args[argKey] = sqlValueToReadableString(this.data[key]);
       }
@@ -83,7 +78,7 @@ export class GenericSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConf
     return m(
       DetailsShell,
       {
-        title: this.config.title,
+        title: this.title,
       },
       m(
         GridLayout,
@@ -95,21 +90,13 @@ export class GenericSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConf
             m(TreeNode, {
               left: 'SQL ID',
               right: m(SqlRef, {
-                table: this.config.sqlTableName,
-                id: this.config.id,
+                table: this.sqlTableName,
+                id: this.id,
               }),
             }),
           ]),
         ),
       ),
     );
-  }
-
-  getTitle(): string {
-    return this.config.title;
-  }
-
-  isLoading() {
-    return this.data === undefined;
   }
 }

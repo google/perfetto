@@ -638,7 +638,7 @@ RETURNS PROTO AS
               launch.startup_id, 'Lock contention on*') * 100 / launch.dur,
             'dur', android_sum_dur_on_main_thread_for_startup_and_slice(
               launch.startup_id, 'Lock contention on*')) as actual_val,
-          get_dur_on_main_thread_for_startup_and_slice(launch.startup_id, 'lock contention on*', 3)
+          get_dur_on_main_thread_for_startup_and_slice(launch.startup_id, 'Lock contention on*', 3)
             as trace_slices,
           NULL as trace_threads,
           NULL as extra
@@ -664,7 +664,7 @@ RETURNS PROTO AS
             'dur', android_sum_dur_on_main_thread_for_startup_and_slice(
               launch.startup_id, 'Lock contention on a monitor*')) as actual_val,
           get_dur_on_main_thread_for_startup_and_slice(
-            launch.startup_id, 'lock contention on a monitor*', 3) as trace_slices,
+            launch.startup_id, 'Lock contention on a monitor*', 3) as trace_slices,
           NULL as trace_threads,
           NULL as extra
         FROM android_startups launch

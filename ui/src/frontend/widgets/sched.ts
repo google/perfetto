@@ -14,20 +14,16 @@
 
 import m from 'mithril';
 import {SchedSqlId} from '../../trace_processor/sql_utils/core_types';
-import {duration, time} from '../../base/time';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {globals} from '../globals';
-import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {scrollTo} from '../../public/scroll_helper';
 
 interface SchedRefAttrs {
-  id: SchedSqlId;
-  ts: time;
-  dur: duration;
-  cpu: number;
+  // The id of the referenced sched slice in the sched_slice table.
+  readonly id: SchedSqlId;
+
   // If not present, a placeholder name will be used.
-  name?: string;
+  readonly name?: string;
 
   // Whether clicking on the reference should change the current tab
   // to "current selection" tab in addition to updating the selection
@@ -35,25 +31,9 @@ interface SchedRefAttrs {
   readonly switchToCurrentSelectionTab?: boolean;
 }
 
-export function findSchedTrack(cpu: number): string | undefined {
-  return globals.trackManager.findTrack((t) => {
-    return t.tags?.kind === CPU_SLICE_TRACK_KIND && t.tags.cpu === cpu;
-  })?.uri;
-}
-
-export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
-  const trackUri = findSchedTrack(cpu);
-  if (trackUri === undefined) {
-    return;
-  }
-  globals.selectionManager.setLegacy({
-    kind: 'SCHED_SLICE',
-    id,
-    trackUri,
-  });
-  scrollTo({
-    track: {uri: trackUri, expandGroup: true},
-    time: {start: ts},
+export function goToSchedSlice(id: SchedSqlId) {
+  globals.selectionManager.selectSqlEvent('sched_slice', id, {
+    scrollToSelection: true,
   });
 }
 
@@ -64,24 +44,15 @@ export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          const trackUri = findSchedTrack(vnode.attrs.cpu);
-          if (trackUri === undefined) return;
-
-          globals.selectionManager.setLegacy(
-            {
-              kind: 'SCHED_SLICE',
-              id: vnode.attrs.id,
-              trackUri,
-            },
+          globals.selectionManager.selectSqlEvent(
+            'sched_slice',
+            vnode.attrs.id,
             {
               switchToCurrentSelectionTab:
                 vnode.attrs.switchToCurrentSelectionTab ?? true,
+              scrollToSelection: true,
             },
           );
-          scrollTo({
-            track: {uri: trackUri, expandGroup: true},
-            time: {start: vnode.attrs.ts},
-          });
         },
       },
       vnode.attrs.name ?? `Sched ${vnode.attrs.id}`,

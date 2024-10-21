@@ -13,25 +13,21 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BottomTab, NewBottomTabArgs} from '../../public/lib/bottom_tab';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
   Details,
   DetailsSchema,
 } from '../../frontend/widgets/sql/details/details';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {Trace} from '../../public/trace';
 import d = DetailsSchema;
 
-export class ChromeTasksDetailsTab extends BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'org.chromium.ChromeTasks.TaskDetailsTab';
+export class ChromeTasksDetailsPanel implements TrackEventDetailsPanel {
+  private readonly data: Details;
 
-  private data: Details;
-
-  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
-    super(args);
-
-    this.data = new Details(this.trace, 'chrome_tasks', this.config.id, {
+  constructor(trace: Trace, eventId: number) {
+    this.data = new Details(trace, 'chrome_tasks', eventId, {
       'Task name': 'name',
       'Start time': d.Timestamp('ts'),
       'Duration': d.Interval('ts', 'dur'),
@@ -41,21 +37,13 @@ export class ChromeTasksDetailsTab extends BottomTab<GenericSliceDetailsTabConfi
     });
   }
 
-  viewTab() {
+  render() {
     return m(
       DetailsShell,
       {
-        title: this.getTitle(),
+        title: 'Chrome Tasks',
       },
       m(GridLayout, m(GridLayoutColumn, this.data.render())),
     );
-  }
-
-  getTitle(): string {
-    return this.config.title;
-  }
-
-  isLoading() {
-    return this.data.isLoading();
   }
 }

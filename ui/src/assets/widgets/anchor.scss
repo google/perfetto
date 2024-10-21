@@ -28,9 +28,7 @@
     background $pf-anim-timing;
 
   & > .material-icons {
-    // For some reason, floating this icon results in the most pleasing vertical
-    // alignment.
-    float: right;
+    vertical-align: bottom;
     margin: 0 0 0 0px;
     font-size: inherit;
     line-height: inherit;

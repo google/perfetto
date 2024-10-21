@@ -43,7 +43,7 @@ import {TextInput} from '../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
 import {VegaView} from '../widgets/vega_view';
-import {PageAttrs} from './pages';
+import {PageAttrs} from '../core/router';
 import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
 import {TreeTable, TreeTableAttrs} from './widgets/treetable';
@@ -775,7 +775,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
               href: 'https://perfetto.dev/docs/',
               target: '_blank',
             },
-            'Docs',
+            'This is some really long text and it will probably overflow the container',
           ),
         initialOpts: {
           icon: true,
@@ -1345,7 +1345,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         label: 'Track',
         description: `A track`,
         renderWidget: (opts) => {
-          const {error, buttons, chips, multipleTracks, ...rest} = opts;
+          const {buttons, chips, multipleTracks, ...rest} = opts;
           const dummyButtons = () => [
             m(Button, {icon: 'info', compact: true}),
             m(Button, {icon: 'settings', compact: true}),
@@ -1354,9 +1354,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
 
           const renderTrack = () =>
             m(TrackWidget, {
-              error: Boolean(error)
-                ? new Error('Something went wrong')
-                : undefined,
               buttons: Boolean(buttons) ? dummyButtons() : undefined,
               chips: Boolean(chips) ? dummyChips() : undefined,
               ...rest,
@@ -1384,6 +1381,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           highlight: false,
           error: false,
           multipleTracks: false,
+          reorderable: false,
         },
       }),
     );

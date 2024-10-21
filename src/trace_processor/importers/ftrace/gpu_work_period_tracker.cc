@@ -41,7 +41,8 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
   track.uid = static_cast<int32_t>(evt.uid());
   track.gpu_id = evt.gpu_id();
   track.machine_id = context_->machine_id();
-  TrackId track_id = context_->track_tracker->InternGpuWorkPeriodTrack(track);
+  TrackId track_id =
+      context_->track_tracker->LegacyInternGpuWorkPeriodTrack(track);
 
   const int64_t duration =
       static_cast<int64_t>(evt.end_time_ns() - evt.start_time_ns());

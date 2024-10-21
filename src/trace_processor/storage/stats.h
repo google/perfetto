@@ -159,7 +159,17 @@ namespace perfetto::trace_processor::stats {
       "the RING_BUFFER start or after the DISCARD buffer end."),               \
   F(traced_buf_sequence_packet_loss,      kIndexed, kDataLoss, kAnalysis,      \
       "The number of groups of consecutive packets lost in each sequence for " \
-      "this buffer"), \
+      "this buffer"),                                                          \
+  F(traced_buf_incremental_sequences_dropped, kIndexed, kDataLoss, kAnalysis,  \
+      "For a given buffer, indicates the number of sequences where all the "   \
+      "packets on that sequence were dropped due to lack of a valid "          \
+      "incremental state (i.e. interned data). This is usually a strong sign " \
+      "that either: "                                                          \
+      "1) incremental state invalidation is disabled. "                        \
+      "2) the incremental state invalidation interval is too low. "            \
+      "In either case, see "                                                   \
+      "https://perfetto.dev/docs/concepts/buffers"                             \
+      "#incremental-state-in-trace-packets"),                                  \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace,    ""), \
   F(traced_chunks_discarded,              kSingle,  kInfo,     kTrace,    ""), \
   F(traced_data_sources_registered,       kSingle,  kInfo,     kTrace,    ""), \
@@ -306,6 +316,13 @@ namespace perfetto::trace_processor::stats {
       "PREF_RECORD_AUXTRACE messages."),                                       \
   F(perf_unknown_aux_data,                kIndexed, kDataLoss, kTrace,         \
       "AUX data type encountered for which there is no known parser."),        \
+  F(perf_no_tsc_data,                     kSingle,  kInfo,     kTrace,         \
+      "TSC data unavailable. Will be unable to translate HW clocks."),         \
+  F(spe_no_timestamp,                     kSingle,  kInfo,     kTrace,         \
+      "SPE record with no timestamp. Will try our best to assign a "           \
+      "timestamp."),                                                           \
+  F(spe_record_droped,                    kSingle,  kDataLoss, kTrace,         \
+      "SPE record dropped. E.g. Unable to assign it a timestamp."),            \
   F(memory_snapshot_parser_failure,       kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_out_of_order,    kSingle,  kError,    kAnalysis, ""), \
   F(thread_time_in_state_unknown_cpu_freq,                                     \
@@ -421,7 +438,17 @@ namespace perfetto::trace_processor::stats {
       "Indicates a callsite in legacy v8 CPU profiling is invalid."),          \
   F(legacy_v8_cpu_profile_invalid_sample, kSingle,  kError,  kAnalysis,        \
       "Indicates a sample in legacy v8 CPU profile is invalid. This will "     \
-      "cause CPU samples to be missing in the UI.")
+      "cause CPU samples to be missing in the UI."),                           \
+  F(config_write_into_file_no_flush,      kSingle,  kError,  kTrace,           \
+      "The trace was collected with the `write_into_file` option set but "     \
+      "*without* `flush_period_ms` being set. This will cause the trace to "   \
+      "be fully loaded into memory and use significantly more memory than "    \
+      "necessary."),                                                           \
+  F(config_write_into_file_discard,        kIndexed,  kDataLoss,  kTrace,      \
+      "The trace was collected with the `write_into_file` option set but "     \
+      "uses a `DISCARD` buffer. This configuration is strongly discouraged "   \
+      "and can cause mysterious data loss in the trace. Please use "           \
+      "`RING_BUFFER` buffers instead.")
 // clang-format on
 
 enum Type {

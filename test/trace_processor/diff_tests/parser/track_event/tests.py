@@ -196,7 +196,15 @@ class TrackEvent(TestSuite):
   def test_track_event_typed_args_args(self):
     return DiffTestBlueprint(
         trace=Path('track_event_typed_args.textproto'),
-        query=Path('track_event_args_test.sql'),
+        query="""
+        SELECT
+          flat_key,
+          key,
+          int_value,
+          string_value
+        FROM args
+        ORDER BY key, display_value, arg_set_id, key ASC;
+        """,
         out=Path('track_event_typed_args_args.out'))
 
   # Track handling
@@ -222,7 +230,23 @@ class TrackEvent(TestSuite):
         LEFT JOIN process thread_process ON thread.upid = thread_process.upid
         ORDER BY ts ASC;
         """,
-        out=Path('track_event_tracks_slices.out'))
+        out=Csv("""
+      "track","process","thread","thread_process","ts","dur","category","name"
+      "[NULL]","[NULL]","t1","p1",1000,0,"cat","event1_on_t1"
+      "[NULL]","[NULL]","t2","p1",2000,0,"cat","event1_on_t2"
+      "[NULL]","[NULL]","t2","p1",3000,0,"cat","event2_on_t2"
+      "[NULL]","p1","[NULL]","[NULL]",4000,0,"cat","event1_on_p1"
+      "async","p1","[NULL]","[NULL]",5000,0,"cat","event1_on_async"
+      "async2","p1","[NULL]","[NULL]",5100,100,"cat","event1_on_async2"
+      "[NULL]","[NULL]","t1","p1",6000,0,"cat","event3_on_t1"
+      "[NULL]","[NULL]","t3","p1",11000,0,"cat","event1_on_t3"
+      "[NULL]","p2","[NULL]","[NULL]",21000,0,"cat","event1_on_p2"
+      "[NULL]","[NULL]","t4","p2",22000,0,"cat","event1_on_t4"
+      "Default Track","[NULL]","[NULL]","[NULL]",30000,0,"cat","event1_on_t1"
+      "[NULL]","p2","[NULL]","[NULL]",31000,0,"cat","event2_on_p2"
+      "[NULL]","[NULL]","t4","p2",32000,0,"cat","event2_on_t4"
+      "event_and_track_async3","p1","[NULL]","[NULL]",40000,0,"cat","event_and_track_async3"
+        """))
 
   def test_track_event_tracks_processes(self):
     return DiffTestBlueprint(
@@ -393,7 +417,23 @@ class TrackEvent(TestSuite):
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
         ORDER BY slice.ts, args.id;
         """,
-        out=Path('legacy_async_event.out'))
+        out=Csv("""
+        "track","process","thread","thread_process","ts","dur","category","name","key","string_value","int_value"
+        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg1","value1","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.phase","S","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg2","value2","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
+        "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.phase","S","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.arg3","value3","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.step","Step1","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.phase","T","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.arg4","value4","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.step","Step2","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
+        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.phase","p","[NULL]"
+        """))
 
   # Legacy atrace
   def test_track_event_with_atrace(self):
@@ -458,7 +498,15 @@ class TrackEvent(TestSuite):
   def test_track_event_merged_debug_annotations_args(self):
     return DiffTestBlueprint(
         trace=Path('track_event_merged_debug_annotations.textproto'),
-        query=Path('track_event_args_test.sql'),
+        query="""
+        SELECT
+          flat_key,
+          key,
+          int_value,
+          string_value
+        FROM args
+        ORDER BY key, display_value, arg_set_id, key ASC;
+        """,
         out=Path('track_event_merged_debug_annotations_args.out'))
 
   # Counters
@@ -516,7 +564,27 @@ class TrackEvent(TestSuite):
         LEFT JOIN process thread_process ON thread.upid = thread_process.upid
         ORDER BY ts ASC;
         """,
-        out=Path('track_event_counters_counters.out'))
+        out=Csv("""
+        "counter_name","process","thread","thread_process","unit","ts","value"
+        "thread_time","[NULL]","t1","Browser","ns",1000,1000000.000000
+        "thread_time","[NULL]","t1","Browser","ns",1100,1010000.000000
+        "thread_time","[NULL]","t1","Browser","ns",2000,2000000.000000
+        "thread_time","[NULL]","t1","Browser","ns",2000,2010000.000000
+        "thread_time","[NULL]","t1","Browser","ns",2200,2020000.000000
+        "thread_time","[NULL]","t1","Browser","ns",2200,2030000.000000
+        "MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",3000,1024.000000
+        "MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",3100,2048.000000
+        "thread_time","[NULL]","t1","Browser","ns",4000,2040000.000000
+        "MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",4000,1024.000000
+        "thread_time","[NULL]","t4","Browser","[NULL]",4000,10000.000000
+        "thread_instruction_count","[NULL]","t4","Browser","[NULL]",4000,20.000000
+        "thread_time","[NULL]","t4","Browser","[NULL]",4100,15000.000000
+        "thread_instruction_count","[NULL]","t4","Browser","[NULL]",4100,25.000000
+        "MyDoubleCounter","[NULL]","[NULL]","[NULL]","[NULL]",4200,3.141593
+        "MyDoubleCounter","[NULL]","[NULL]","[NULL]","[NULL]",4300,0.500000
+        "MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",4500,4096.000000
+        "MyDoubleCounter","[NULL]","[NULL]","[NULL]","[NULL]",4500,2.718280
+        """))
 
   # Clock handling
   def test_track_event_monotonic_trace_clock_slices(self):
@@ -589,7 +657,15 @@ class TrackEvent(TestSuite):
   def test_track_event_chrome_histogram_sample_args(self):
     return DiffTestBlueprint(
         trace=Path('track_event_chrome_histogram_sample.textproto'),
-        query=Path('track_event_args_test.sql'),
+        query="""
+        SELECT
+          flat_key,
+          key,
+          int_value,
+          string_value
+        FROM args
+        ORDER BY key, display_value, arg_set_id, key ASC;
+        """,
         out=Path('track_event_chrome_histogram_sample_args.out'))
 
   # Flow events importing from proto

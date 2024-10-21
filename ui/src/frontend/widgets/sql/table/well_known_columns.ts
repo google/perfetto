@@ -46,6 +46,7 @@ import {
   TableManager,
 } from './column';
 import {
+  displayValue,
   getStandardContextMenuItems,
   getStandardFilters,
   renderStandardCell,
@@ -240,9 +241,6 @@ export class SliceIdColumn extends TableColumn {
     return m(SliceRef, {
       id: asSliceSqlId(Number(id)),
       name: `${id}`,
-      ts: Time.fromRaw(ts),
-      dur: dur,
-      sqlTrackId: Number(trackId),
       switchToCurrentSelectionTab: false,
     });
   }
@@ -384,9 +382,6 @@ export class SchedIdColumn extends TableColumn {
 
     return m(SchedRef, {
       id: asSchedSqlId(Number(id)),
-      ts: Time.fromRaw(ts),
-      dur: dur,
-      cpu: Number(cpu),
       name: `${id}`,
       switchToCurrentSelectionTab: false,
     });
@@ -470,9 +465,6 @@ export class ThreadStateIdColumn extends TableColumn {
 
     return m(ThreadStateRef, {
       id: asThreadStateSqlId(Number(id)),
-      ts: Time.fromRaw(ts),
-      dur: dur,
-      utid: asUtid(Number(utid)),
       name: `${id}`,
       switchToCurrentSelectionTab: false,
     });
@@ -596,7 +588,9 @@ export class ThreadColumn extends TableColumn {
   }
 
   aggregation(): AggregationConfig {
-    return {dataType: 'nominal'};
+    return {
+      dataType: 'nominal',
+    };
   }
 }
 
@@ -855,9 +849,12 @@ export class ProcessColumn extends TableColumn {
   }
 
   aggregation(): AggregationConfig {
-    return {dataType: 'nominal'};
+    return {
+      dataType: 'nominal',
+    };
   }
 }
+
 // ProcessIdColumn is a column type for displaying primary key of the `process` table.
 // All other references (foreign keys) should use `ProcessColumn` instead.
 export class ProcessIdColumn extends TableColumn {
@@ -1013,6 +1010,109 @@ export class ProcessColumnSet extends TableColumnSet {
   }
 }
 
+class ArgColumn extends TableColumn {
+  private displayValue: SqlColumn;
+  private stringValue: SqlColumn;
+  private intValue: SqlColumn;
+  private realValue: SqlColumn;
+
+  constructor(
+    private argSetId: SqlColumn,
+    private key: string,
+  ) {
+    super();
+
+    const argTable: SourceTable = {
+      table: 'args',
+      joinOn: {
+        arg_set_id: argSetId,
+        key: sqliteString(key),
+      },
+    };
+
+    this.displayValue = {
+      column: 'display_value',
+      source: argTable,
+    };
+    this.stringValue = {
+      column: 'string_value',
+      source: argTable,
+    };
+    this.intValue = {
+      column: 'int_value',
+      source: argTable,
+    };
+    this.realValue = {
+      column: 'real_value',
+      source: argTable,
+    };
+  }
+
+  override primaryColumn(): SqlColumn {
+    return this.displayValue;
+  }
+
+  override sortColumns(): SqlColumn[] {
+    return [this.stringValue, this.intValue, this.realValue];
+  }
+
+  override dependentColumns() {
+    return {
+      stringValue: this.stringValue,
+      intValue: this.intValue,
+      realValue: this.realValue,
+    };
+  }
+
+  getTitle() {
+    return `${sqlColumnId(this.argSetId)}[${this.key}]`;
+  }
+
+  renderCell(
+    value: SqlValue,
+    tableManager: TableManager,
+    dependentColumns: {[key: string]: SqlValue},
+  ): m.Children {
+    const strValue = dependentColumns['stringValue'];
+    const intValue = dependentColumns['intValue'];
+    const realValue = dependentColumns['realValue'];
+
+    let contextMenuItems: m.Child[] = [];
+    if (strValue !== null) {
+      contextMenuItems = getStandardContextMenuItems(
+        strValue,
+        this.stringValue,
+        tableManager,
+      );
+    } else if (intValue !== null) {
+      contextMenuItems = getStandardContextMenuItems(
+        intValue,
+        this.intValue,
+        tableManager,
+      );
+    } else if (realValue !== null) {
+      contextMenuItems = getStandardContextMenuItems(
+        realValue,
+        this.realValue,
+        tableManager,
+      );
+    } else {
+      contextMenuItems = getStandardContextMenuItems(
+        value,
+        this.displayValue,
+        tableManager,
+      );
+    }
+    return m(
+      PopupMenu2,
+      {
+        trigger: m(Anchor, displayValue(value)),
+      },
+      ...contextMenuItems,
+    );
+  }
+}
+
 export class ArgSetColumnSet extends TableColumnSet {
   constructor(
     private column: SqlColumn,
@@ -1062,8 +1162,5 @@ export function argSqlColumn(argSetId: SqlColumn, key: string): SqlColumn {
 }
 
 export function argTableColumn(argSetId: SqlColumn, key: string) {
-  return new StandardColumn(argSqlColumn(argSetId, key), {
-    title: `${sqlColumnId(argSetId)}[${key}]`,
-    alias: `arg_${key.replace(/[^a-zA-Z0-9_]/g, '__')}`,
-  });
+  return new ArgColumn(argSetId, key);
 }

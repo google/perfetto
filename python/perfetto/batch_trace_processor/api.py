@@ -42,6 +42,7 @@ PLATFORM_DELEGATE = PlatformDelegate
 TraceListReference = registry.TraceListReference
 Metadata = Dict[str, str]
 
+MAX_LOAD_WORKERS = 32
 
 # Enum encoding how errors while loading/querying traces in BatchTraceProcessor
 # should be handled.
@@ -180,12 +181,14 @@ class BatchTraceProcessor:
     query_executor = self.platform_delegate.create_query_executor(
         len(resolved)) or cf.ThreadPoolExecutor(
             max_workers=multiprocessing.cpu_count())
-    load_exectuor = self.platform_delegate.create_load_executor(
-        len(resolved)) or query_executor
+    # Loading trace involves FS access, so it makes sense to limit parallelism
+    max_load_workers = min(multiprocessing.cpu_count(), MAX_LOAD_WORKERS)
+    load_executor = self.platform_delegate.create_load_executor(
+        len(resolved)) or cf.ThreadPoolExecutor(max_workers=max_load_workers)
 
     self.query_executor = query_executor
     self.tps_and_metadata = [
-        x for x in load_exectuor.map(self._create_tp, resolved) if x is not None
+        x for x in load_executor.map(self._create_tp, resolved) if x is not None
     ]
 
   def metric(self, metrics: List[str]):
@@ -368,7 +371,7 @@ class BatchTraceProcessor:
     try:
       return TraceProcessor(
           trace=trace.generator, config=self.config.tp_config), trace.metadata
-    except PerfettoException as ex:
+    except Exception as ex:
       if self.config.load_failure_handling == FailureHandling.RAISE_EXCEPTION:
         raise ex
       self._stats.load_failures += 1

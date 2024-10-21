@@ -17,17 +17,13 @@ import {v4 as uuidv4} from 'uuid';
 import {assertExists} from '../../../base/logging';
 import {QueryResponse, runQuery} from './queries';
 import {QueryError} from '../../../trace_processor/query_result';
-import {
-  AddDebugTrackMenu,
-  uuidToViewName,
-} from '../debug_tracks/add_debug_track_menu';
+import {AddDebugTrackMenu} from '../debug_tracks/add_debug_track_menu';
 import {Button} from '../../../widgets/button';
 import {PopupMenu2} from '../../../widgets/menu';
 import {PopupPosition} from '../../../widgets/popup';
-import {BottomTab, NewBottomTabArgs} from '../bottom_tab';
 import {QueryTable} from './query_table';
-import {BottomTabToTabAdapter} from '../../../public/utils';
 import {Trace} from '../../../public/trace';
+import {Tab} from '../../tab';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -44,58 +40,44 @@ export function addQueryResultsTab(
   config: QueryResultTabConfig,
   tag?: string,
 ): void {
-  const queryResultsTab = new QueryResultTab({
-    trace,
-    config,
-    uuid: uuidv4(),
-  });
+  const queryResultsTab = new QueryResultTab(trace, config);
 
   const uri = 'queryResults#' + (tag ?? uuidv4());
 
   trace.tabs.registerTab({
     uri,
-    content: new BottomTabToTabAdapter(queryResultsTab),
+    content: queryResultsTab,
     isEphemeral: true,
   });
   trace.tabs.showTab(uri);
 }
 
-export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
-  static readonly kind = 'dev.perfetto.QueryResultTab';
+export class QueryResultTab implements Tab {
+  private queryResponse?: QueryResponse;
+  private sqlViewName?: string;
 
-  queryResponse?: QueryResponse;
-  sqlViewName?: string;
-
-  static create(args: NewBottomTabArgs<QueryResultTabConfig>): QueryResultTab {
-    return new QueryResultTab(args);
+  constructor(
+    private readonly trace: Trace,
+    private readonly args: QueryResultTabConfig,
+  ) {
+    this.initTrack();
   }
 
-  constructor(args: NewBottomTabArgs<QueryResultTabConfig>) {
-    super(args);
-
-    this.initTrack(args);
-  }
-
-  async initTrack(args: NewBottomTabArgs<QueryResultTabConfig>) {
-    let uuid = '';
-    if (this.config.prefetchedResponse !== undefined) {
-      this.queryResponse = this.config.prefetchedResponse;
-      uuid = args.uuid;
+  private async initTrack() {
+    if (this.args.prefetchedResponse !== undefined) {
+      this.queryResponse = this.args.prefetchedResponse;
     } else {
-      const result = await runQuery(this.config.query, this.engine);
+      const result = await runQuery(this.args.query, this.trace.engine);
       this.queryResponse = result;
       if (result.error !== undefined) {
         return;
       }
-
-      uuid = uuidv4();
     }
 
-    if (uuid !== '') {
-      this.sqlViewName = await this.createViewForDebugTrack(uuid);
-      if (this.sqlViewName) {
-        this.trace.scheduleRedraw();
-      }
+    // TODO(stevegolton): Do we really need to create this view upfront?
+    this.sqlViewName = await this.createViewForDebugTrack(uuidv4());
+    if (this.sqlViewName) {
+      this.trace.scheduleRedraw();
     }
   }
 
@@ -103,12 +85,12 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     const suffix = this.queryResponse
       ? ` (${this.queryResponse.rows.length})`
       : '';
-    return `${this.config.title}${suffix}`;
+    return `${this.args.title}${suffix}`;
   }
 
-  viewTab(): m.Child {
+  render(): m.Children {
     return m(QueryTable, {
-      query: this.config.query,
+      query: this.args.query,
       resp: this.queryResponse,
       fillParent: true,
       contextButtons: [
@@ -144,9 +126,9 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
       this.queryResponse && this.queryResponse.error === undefined;
     const sqlQuery = hasValidQueryResponse
       ? this.queryResponse!.lastStatementSql
-      : this.config.query;
+      : this.args.query;
     try {
-      const createViewResult = await this.engine.query(
+      const createViewResult = await this.trace.engine.query(
         `create view ${viewId} as ${sqlQuery}`,
       );
       if (createViewResult.error()) {
@@ -162,4 +144,8 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     }
     return viewId;
   }
+}
+
+export function uuidToViewName(uuid: string): string {
+  return `view_${uuid.split('-').join('_')}`;
 }

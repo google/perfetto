@@ -67,22 +67,22 @@ perfetto_proto_library("winscope_extensions_@TYPE@") {
   public_deps = [ ":winscope_common_@TYPE@" ]
   sources = [
     "android_input_event.proto",
-    "graphics/pixelformat.proto",
-    "inputmethodeditor.proto",
-    "inputmethodservice/inputmethodservice.proto",
-    "inputmethodservice/softinputwindow.proto",
-    "server/inputmethod/inputmethodmanagerservice.proto",
-    "typedef.proto",
     "app/statusbarmanager.proto",
     "app/window_configuration.proto",
     "content/activityinfo.proto",
     "content/configuration.proto",
     "content/locale.proto",
+    "graphics/pixelformat.proto",
+    "inputmethodeditor.proto",
+    "inputmethodservice/inputmethodservice.proto",
+    "inputmethodservice/softinputwindow.proto",
     "privacy.proto",
     "server/animationadapter.proto",
+    "server/inputmethod/inputmethodmanagerservice.proto",
     "server/surfaceanimator.proto",
     "server/windowcontainerthumbnail.proto",
     "server/windowmanagerservice.proto",
+    "typedef.proto",
     "view/display.proto",
     "view/displaycutout.proto",
     "view/displayinfo.proto",
@@ -118,7 +118,7 @@ static_library("perfetto_winscope_extensions_zero") {
 perfetto_proto_library("winscope_descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "winscope.descriptor"
-  deps = [
+  link_deps = [
     ":winscope_extensions_source_set",
     ":winscope_regular_source_set",
   ]
@@ -137,7 +137,8 @@ perfetto_proto_library("android_track_event_@TYPE@") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "android_track_event.descriptor"
   sources = [ "android_track_event.proto" ]
-  deps = [ ":android_track_event_source_set" ]
+  deps = [ "../track_event:@TYPE@" ]
+  link_deps = [ ":android_track_event_source_set" ]
 
   # This is the descriptor for an extension. It shouldn't include the descriptor
   # for the base message as well.

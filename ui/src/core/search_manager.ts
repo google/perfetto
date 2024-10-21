@@ -17,7 +17,7 @@ import {searchSegment} from '../base/binary_search';
 import {assertExists, assertTrue} from '../base/logging';
 import {sqliteString} from '../base/string_utils';
 import {Time} from '../base/time';
-import {exists, Optional} from '../base/utils';
+import {exists} from '../base/utils';
 import {ResultStepEventHandler} from '../public/search';
 import {
   ANDROID_LOGS_TRACK_KIND,
@@ -316,7 +316,7 @@ export class SearchManagerImpl {
       utid: NUM,
     });
     for (; it.valid(); it.next()) {
-      let track: Optional<string> = undefined;
+      let track: string | undefined = undefined;
 
       if (it.source === 'cpu') {
         track = trackUrisByCpu.get(it.sourceId);

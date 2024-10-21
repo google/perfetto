@@ -18,7 +18,7 @@ import {classNames} from '../base/classnames';
 import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {Icons} from '../base/semantic_icons';
 import {TimeScale} from '../base/time_scale';
-import {Optional, RequiredField} from '../base/utils';
+import {RequiredField} from '../base/utils';
 import {calculateResolution} from '../common/resolution';
 import {featureFlags} from '../core/feature_flags';
 import {TrackRenderer} from '../core/track_manager';
@@ -28,9 +28,11 @@ import {Button} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {Tree, TreeNode} from '../widgets/tree';
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
-import {globals} from './globals';
 import {Panel} from './panel_container';
 import {TrackWidget} from '../widgets/track_widget';
+import {raf} from '../core/raf_scheduler';
+import {Intent} from '../widgets/common';
+import {TraceImpl} from '../core/trace_impl';
 
 const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
   id: 'showTrackDetailsButton',
@@ -44,11 +46,13 @@ const SHOW_TRACK_DETAILS_BUTTON = featureFlags.register({
 export const DEFAULT_TRACK_HEIGHT_PX = 30;
 
 interface TrackPanelAttrs {
+  readonly trace: TraceImpl;
   readonly node: TrackNode;
   readonly indentationLevel: number;
   readonly trackRenderer?: TrackRenderer;
   readonly revealOnCreate?: boolean;
   readonly topOffsetPx: number;
+  readonly reorderable?: boolean;
 }
 
 export class TrackPanel implements Panel {
@@ -75,8 +79,16 @@ export class TrackPanel implements Panel {
   }
 
   render(): m.Children {
-    const {node, indentationLevel, trackRenderer, revealOnCreate, topOffsetPx} =
-      this.attrs;
+    const {
+      node,
+      indentationLevel,
+      trackRenderer,
+      revealOnCreate,
+      topOffsetPx,
+      reorderable = false,
+    } = this.attrs;
+
+    const error = trackRenderer?.getError();
 
     const buttons = [
       SHOW_TRACK_DETAILS_BUTTON.get() &&
@@ -84,12 +96,14 @@ export class TrackPanel implements Panel {
       trackRenderer?.track.getTrackShellButtons?.(),
       // Can't pin groups.. yet!
       !node.hasChildren && renderPinButton(node),
-      renderAreaSelectionCheckbox(node),
+      this.renderAreaSelectionCheckbox(node),
+      error && renderCrashButton(error, trackRenderer?.desc.pluginId),
     ];
 
     let scrollIntoView = false;
-    if (globals.trackManager.scrollToTrackNodeId === node.id) {
-      globals.trackManager.scrollToTrackNodeId = undefined;
+    const tracks = this.attrs.trace.tracks;
+    if (tracks.scrollToTrackNodeId === node.id) {
+      tracks.scrollToTrackNodeId = undefined;
       scrollIntoView = true;
     }
 
@@ -98,7 +112,7 @@ export class TrackPanel implements Panel {
       title: node.title,
       path: node.fullPath.join('/'),
       heightPx: this.heightPx,
-      error: trackRenderer?.getError(),
+      error: Boolean(trackRenderer?.getError()),
       chips: trackRenderer?.desc.chips,
       indentationLevel,
       topOffsetPx,
@@ -106,23 +120,27 @@ export class TrackPanel implements Panel {
       revealOnCreate: revealOnCreate || scrollIntoView,
       collapsible: node.hasChildren,
       collapsed: node.collapsed,
-      highlight: isHighlighted(node),
+      highlight: this.isHighlighted(node),
       isSummary: node.isSummary,
+      reorderable,
       onToggleCollapsed: () => {
         node.hasChildren && node.toggleCollapsed();
       },
       onTrackContentMouseMove: (pos, bounds) => {
-        const timescale = getTimescaleForBounds(bounds);
+        const timescale = this.getTimescaleForBounds(bounds);
         trackRenderer?.track.onMouseMove?.({
           ...pos,
           timescale,
         });
+        raf.scheduleRedraw();
       },
       onTrackContentMouseOut: () => {
         trackRenderer?.track.onMouseOut?.();
+        raf.scheduleRedraw();
       },
       onTrackContentClick: (pos, bounds) => {
-        const timescale = getTimescaleForBounds(bounds);
+        const timescale = this.getTimescaleForBounds(bounds);
+        raf.scheduleRedraw();
         return (
           trackRenderer?.track.onMouseClick?.({
             ...pos,
@@ -132,6 +150,20 @@ export class TrackPanel implements Panel {
       },
       onupdate: () => {
         trackRenderer?.track.onFullRedraw?.();
+      },
+      onMoveBefore: (nodeId: string) => {
+        const targetNode = node.workspace?.getTrackById(nodeId);
+        if (targetNode !== undefined) {
+          // Insert the target node before this one
+          targetNode.parent?.addChildBefore(targetNode, node);
+        }
+      },
+      onMoveAfter: (nodeId: string) => {
+        const targetNode = node.workspace?.getTrackById(nodeId);
+        if (targetNode !== undefined) {
+          // Insert the target node after this one
+          targetNode.parent?.addChildAfter(targetNode, node);
+        }
       },
     });
   }
@@ -153,7 +185,7 @@ export class TrackPanel implements Panel {
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
 
-    const visibleWindow = globals.timeline.visibleWindow;
+    const visibleWindow = this.attrs.trace.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
       right: trackSize.width,
@@ -173,39 +205,182 @@ export class TrackPanel implements Panel {
       }
     }
 
-    highlightIfTrackInAreaSelection(ctx, timescale, node, trackSize);
+    this.highlightIfTrackInAreaSelection(ctx, timescale, node, trackSize);
   }
 
-  getSliceVerticalBounds(depth: number): Optional<VerticalBounds> {
+  getSliceVerticalBounds(depth: number): VerticalBounds | undefined {
     if (this.attrs.trackRenderer === undefined) {
       return undefined;
     }
     return this.attrs.trackRenderer.track.getSliceVerticalBounds?.(depth);
   }
-}
 
-function getTimescaleForBounds(bounds: Bounds2D) {
-  const timeWindow = globals.timeline.visibleWindow;
-  return new TimeScale(timeWindow, {
-    left: 0,
-    right: bounds.right - bounds.left,
-  });
-}
+  private getTimescaleForBounds(bounds: Bounds2D) {
+    const timeWindow = this.attrs.trace.timeline.visibleWindow;
+    return new TimeScale(timeWindow, {
+      left: 0,
+      right: bounds.right - bounds.left,
+    });
+  }
 
-function isHighlighted(node: TrackNode) {
-  // The track should be highlighted if the current search result matches this
-  // track or one of its children.
-  const searchIndex = globals.searchManager.resultIndex;
-  const searchResults = globals.searchManager.searchResults;
+  private isHighlighted(node: TrackNode) {
+    // The track should be highlighted if the current search result matches this
+    // track or one of its children.
+    const searchIndex = this.attrs.trace.search.resultIndex;
+    const searchResults = this.attrs.trace.search.searchResults;
 
-  if (searchIndex !== -1 && searchResults !== undefined) {
-    const uri = searchResults.trackUris[searchIndex];
-    // Highlight if this or any children match the search results
-    if (uri === node.uri || node.flatTracks.find((t) => t.uri === uri)) {
+    if (searchIndex !== -1 && searchResults !== undefined) {
+      const uri = searchResults.trackUris[searchIndex];
+      // Highlight if this or any children match the search results
+      if (uri === node.uri || node.flatTracks.find((t) => t.uri === uri)) {
+        return true;
+      }
+    }
+
+    const curSelection = this.attrs.trace.selection;
+    if (
+      curSelection.selection.kind === 'track' &&
+      curSelection.selection.trackUri === node.uri
+    ) {
       return true;
     }
+
+    return false;
   }
-  return false;
+
+  private highlightIfTrackInAreaSelection(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    node: TrackNode,
+    size: Size2D,
+  ) {
+    const selection = this.attrs.trace.selection.selection;
+    if (selection.kind !== 'area') {
+      return;
+    }
+
+    const tracksWithUris = node.flatTracks.filter(
+      (t) => t.uri !== undefined,
+    ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
+
+    let selected = false;
+    if (node.hasChildren) {
+      selected = tracksWithUris.some((track) =>
+        selection.trackUris.includes(track.uri),
+      );
+    } else {
+      if (node.uri) {
+        selected = selection.trackUris.includes(node.uri);
+      }
+    }
+
+    if (selected) {
+      const selectedAreaDuration = selection.end - selection.start;
+      ctx.fillStyle = SELECTION_FILL_COLOR;
+      ctx.fillRect(
+        timescale.timeToPx(selection.start),
+        0,
+        timescale.durationToPx(selectedAreaDuration),
+        size.height,
+      );
+    }
+  }
+
+  private renderAreaSelectionCheckbox(node: TrackNode): m.Children {
+    const selectionManager = this.attrs.trace.selection;
+    const selection = selectionManager.selection;
+    if (selection.kind === 'area') {
+      if (node.hasChildren) {
+        const tracksWithUris = node.flatTracks.filter(
+          (t) => t.uri !== undefined,
+        ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
+        // Check if any nodes within are selected
+        const childTracksInSelection = tracksWithUris.map((t) =>
+          selection.trackUris.includes(t.uri),
+        );
+        if (childTracksInSelection.every((b) => b)) {
+          return m(Button, {
+            onclick: (e: MouseEvent) => {
+              const uris = tracksWithUris.map((t) => t.uri);
+              selectionManager.toggleGroupAreaSelection(uris);
+              e.stopPropagation();
+            },
+            compact: true,
+            icon: Icons.Checkbox,
+            title: 'Remove child tracks from selection',
+          });
+        } else if (childTracksInSelection.some((b) => b)) {
+          return m(Button, {
+            onclick: (e: MouseEvent) => {
+              const uris = tracksWithUris.map((t) => t.uri);
+              selectionManager.toggleGroupAreaSelection(uris);
+              e.stopPropagation();
+            },
+            compact: true,
+            icon: Icons.IndeterminateCheckbox,
+            title: 'Add remaining child tracks to selection',
+          });
+        } else {
+          return m(Button, {
+            onclick: (e: MouseEvent) => {
+              const uris = tracksWithUris.map((t) => t.uri);
+              selectionManager.toggleGroupAreaSelection(uris);
+              e.stopPropagation();
+            },
+            compact: true,
+            icon: Icons.BlankCheckbox,
+            title: 'Add child tracks to selection',
+          });
+        }
+      } else {
+        const nodeUri = node.uri;
+        if (nodeUri) {
+          return (
+            selection.kind === 'area' &&
+            m(Button, {
+              onclick: (e: MouseEvent) => {
+                selectionManager.toggleTrackAreaSelection(nodeUri);
+                e.stopPropagation();
+              },
+              compact: true,
+              ...(selection.trackUris.includes(nodeUri)
+                ? {icon: Icons.Checkbox, title: 'Remove track'}
+                : {icon: Icons.BlankCheckbox, title: 'Add track to selection'}),
+            })
+          );
+        }
+      }
+    }
+    return undefined;
+  }
+}
+
+function renderCrashButton(error: Error, pluginId?: string) {
+  return m(
+    Popup,
+    {
+      trigger: m(Button, {
+        icon: Icons.Crashed,
+        compact: true,
+      }),
+    },
+    m(
+      '.pf-track-crash-popup',
+      m('span', 'This track has crashed.'),
+      pluginId && m('span', `Owning plugin: ${pluginId}`),
+      m(Button, {
+        label: 'View & Report Crash',
+        intent: Intent.Primary,
+        className: Popup.DISMISS_POPUP_GROUP_CLASS,
+        onclick: () => {
+          throw error;
+        },
+      }),
+      // TODO(stevegolton): In the future we should provide a quick way to
+      // disable the plugin, or provide a link to the plugin page, but this
+      // relies on the plugin page being fully functional.
+    ),
+  );
 }
 
 function renderPinButton(node: TrackNode): m.Children {
@@ -221,111 +396,6 @@ function renderPinButton(node: TrackNode): m.Children {
     title: isPinned ? 'Unpin' : 'Pin to top',
     compact: true,
   });
-}
-
-function highlightIfTrackInAreaSelection(
-  ctx: CanvasRenderingContext2D,
-  timescale: TimeScale,
-  node: TrackNode,
-  size: Size2D,
-) {
-  const selection = globals.selectionManager.selection;
-  if (selection.kind !== 'area') {
-    return;
-  }
-
-  const tracksWithUris = node.flatTracks.filter(
-    (t) => t.uri !== undefined,
-  ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
-
-  let selected = false;
-  if (node.hasChildren) {
-    selected = tracksWithUris.some((track) =>
-      selection.trackUris.includes(track.uri),
-    );
-  } else {
-    if (node.uri) {
-      selected = selection.trackUris.includes(node.uri);
-    }
-  }
-
-  if (selected) {
-    const selectedAreaDuration = selection.end - selection.start;
-    ctx.fillStyle = SELECTION_FILL_COLOR;
-    ctx.fillRect(
-      timescale.timeToPx(selection.start),
-      0,
-      timescale.durationToPx(selectedAreaDuration),
-      size.height,
-    );
-  }
-}
-
-function renderAreaSelectionCheckbox(node: TrackNode): m.Children {
-  const selection = globals.selectionManager.selection;
-  if (selection.kind === 'area') {
-    if (node.hasChildren) {
-      const tracksWithUris = node.flatTracks.filter(
-        (t) => t.uri !== undefined,
-      ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
-      // Check if any nodes within are selected
-      const childTracksInSelection = tracksWithUris.map((t) =>
-        selection.trackUris.includes(t.uri),
-      );
-      if (childTracksInSelection.every((b) => b)) {
-        return m(Button, {
-          onclick: (e: MouseEvent) => {
-            const uris = tracksWithUris.map((t) => t.uri);
-            globals.selectionManager.toggleGroupAreaSelection(uris);
-            e.stopPropagation();
-          },
-          compact: true,
-          icon: Icons.Checkbox,
-          title: 'Remove child tracks from selection',
-        });
-      } else if (childTracksInSelection.some((b) => b)) {
-        return m(Button, {
-          onclick: (e: MouseEvent) => {
-            const uris = tracksWithUris.map((t) => t.uri);
-            globals.selectionManager.toggleGroupAreaSelection(uris);
-            e.stopPropagation();
-          },
-          compact: true,
-          icon: Icons.IndeterminateCheckbox,
-          title: 'Add remaining child tracks to selection',
-        });
-      } else {
-        return m(Button, {
-          onclick: (e: MouseEvent) => {
-            const uris = tracksWithUris.map((t) => t.uri);
-            globals.selectionManager.toggleGroupAreaSelection(uris);
-            e.stopPropagation();
-          },
-          compact: true,
-          icon: Icons.BlankCheckbox,
-          title: 'Add child tracks to selection',
-        });
-      }
-    } else {
-      const nodeUri = node.uri;
-      if (nodeUri) {
-        return (
-          selection.kind === 'area' &&
-          m(Button, {
-            onclick: (e: MouseEvent) => {
-              globals.selectionManager.toggleTrackAreaSelection(nodeUri);
-              e.stopPropagation();
-            },
-            compact: true,
-            ...(selection.trackUris.includes(nodeUri)
-              ? {icon: Icons.Checkbox, title: 'Remove track'}
-              : {icon: Icons.BlankCheckbox, title: 'Add track to selection'}),
-          })
-        );
-      }
-    }
-  }
-  return undefined;
 }
 
 function renderTrackDetailsButton(
@@ -363,6 +433,10 @@ function renderTrackDetailsButton(
         }),
         m(TreeNode, {left: 'Path', right: fullPath}),
         m(TreeNode, {left: 'Title', right: node.title}),
+        m(TreeNode, {
+          left: 'Workspace',
+          right: node.workspace?.title ?? '[no workspace]',
+        }),
         td && m(TreeNode, {left: 'Plugin ID', right: td.pluginId}),
         td &&
           m(

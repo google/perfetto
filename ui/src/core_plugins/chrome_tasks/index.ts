@@ -12,18 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4} from '../../base/uuid';
-import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {addSqlTableTab} from '../../frontend/sql_table_tab_command';
 import {asUtid} from '../../trace_processor/sql_utils/core_types';
-import {BottomTabToSCSAdapter} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {ChromeTasksDetailsTab} from './details';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 import {TrackNode} from '../../public/workspace';
+import {extensions} from '../../public/lib/extensions';
 
 class ChromeTasksPlugin implements PerfettoPlugin {
   onActivate() {}
@@ -35,7 +31,7 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       id: 'org.chromium.ChromeTasks.ShowChromeTasksTable',
       name: 'Show chrome_tasks table',
       callback: () =>
-        addSqlTableTab(ctx, {
+        extensions.addSqlTableTab(ctx, {
           table: chromeTasksTable,
         }),
     });
@@ -108,25 +104,6 @@ class ChromeTasksPlugin implements PerfettoPlugin {
       group.addChildInOrder(track);
       ctx.workspace.addChildInOrder(group);
     }
-
-    ctx.registerDetailsPanel(
-      new BottomTabToSCSAdapter({
-        tabFactory: (selection) => {
-          if (
-            selection.kind === 'GENERIC_SLICE' &&
-            selection.detailsPanelConfig.kind === ChromeTasksDetailsTab.kind
-          ) {
-            const config = selection.detailsPanelConfig.config;
-            return new ChromeTasksDetailsTab({
-              config: config as GenericSliceDetailsTabConfig,
-              trace: ctx,
-              uuid: uuidv4(),
-            });
-          }
-          return undefined;
-        },
-      }),
-    );
   }
 }
 

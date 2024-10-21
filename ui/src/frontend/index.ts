@@ -15,16 +15,15 @@
 // Keep this import first.
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
-import '../gen/all_plugins';
-import '../gen/all_core_plugins';
+import NON_CORE_PLUGINS from '../gen/all_plugins';
+import CORE_PLUGINS from '../gen/all_core_plugins';
 import {Draft} from 'immer';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {Store} from '../base/store';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
-import {traceEvent} from '../common/metatracing';
-import {pluginManager} from '../common/plugins';
+import {traceEvent} from '../core/metatracing';
 import {State} from '../common/state';
 import {initController, runControllers} from '../controller';
 import {isGetCategoriesResponse} from '../controller/chrome_proxy_record_controller';
@@ -48,7 +47,7 @@ import {postMessageHandler} from './post_message_handler';
 import {QueryPage} from './query_page';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
-import {Route, Router} from './router';
+import {Route, Router} from '../core/router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
@@ -61,7 +60,16 @@ import {initAnalytics} from './analytics';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {pageWithTrace} from './pages';
-import {AppImpl} from '../core/app_trace_impl';
+import {AppImpl} from '../core/app_impl';
+import {addSqlTableTab} from './sql_table_tab';
+import {getServingRoot} from '../base/http_utils';
+import {configureExtensions} from '../public/lib/extensions';
+import {
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+} from '../public/lib/debug_tracks/debug_tracks';
+import {addVisualisedArgTracks} from './visualized_args_tracks';
+import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -203,10 +211,17 @@ function setupExtentionPort(extensionLocalChannel: MessageChannel) {
 }
 
 function main() {
+  // Setup content security policy before anything else.
+  setupContentSecurityPolicy();
+
+  AppImpl.initialize({
+    rootUrl: getServingRoot(),
+    initialRouteArgs: Router.parseUrl(window.location.href).args,
+    clearState: () => globals.dispatch(Actions.clearState({})),
+  });
+
   // Wire up raf for widgets.
   setScheduleFullRedraw(() => raf.scheduleFullRedraw());
-
-  setupContentSecurityPolicy();
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
   // appendChild returns.
@@ -340,18 +355,6 @@ function onCssLoaded() {
   maybeChangeRpcPortFromFragment();
   CheckHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
-    globals.dispatch(
-      Actions.maybeSetPendingDeeplink({
-        ts: route.args.ts,
-        tid: route.args.tid,
-        dur: route.args.dur,
-        pid: route.args.pid,
-        query: route.args.query,
-        visStart: route.args.visStart,
-        visEnd: route.args.visEnd,
-      }),
-    );
-
     if (!globals.embeddedMode) {
       installFileDropHandler();
     }
@@ -374,9 +377,11 @@ function onCssLoaded() {
   // Force one initial render to get everything in place
   m.render(document.body, m(UiMain, router.resolve()));
 
-  // Initialize plugins, now that we are ready to go
+  // Initialize plugins, now that we are ready to go.
+  const pluginManager = AppImpl.instance.plugins;
+  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
+  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
   pluginManager.initialize();
-
   const route = Router.parseUrl(window.location.href);
   for (const pluginId of (route.args.enablePlugins ?? '').split(',')) {
     if (pluginManager.hasPlugin(pluginId)) {
@@ -440,5 +445,16 @@ function scheduleRafAndRunControllersOnStateChange(
   // Run in a separate task to avoid avoid reentry.
   setTimeout(runControllers, 0);
 }
+
+// TODO(primiano): this injection is to break a cirular dependency. See
+// comment in sql_table_tab_interface.ts. Remove once we add an extension
+// point for context menus.
+configureExtensions({
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+  addVisualisedArgTracks,
+  addSqlTableTab,
+  addQueryResultsTab,
+});
 
 main();

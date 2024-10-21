@@ -23,9 +23,9 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
@@ -38,17 +38,23 @@
 
 namespace perfetto::trace_processor {
 namespace {
-const util::ZipFile* FindBugReportFile(
-    const std::vector<util::ZipFile>& zip_file_entries) {
-  for (const auto& zf : zip_file_entries) {
-    if (base::StartsWith(zf.name(), "bugreport-") &&
-        base::EndsWith(zf.name(), ".txt")) {
-      return &zf;
-    }
-  }
-  return nullptr;
+
+using ZipFileVector = std::vector<util::ZipFile>;
+
+bool IsBugReportFile(const util::ZipFile& zip) {
+  return base::StartsWith(zip.name(), "bugreport-") &&
+         base::EndsWith(zip.name(), ".txt");
 }
 
+bool IsLogFile(const util::ZipFile& file) {
+  return base::StartsWith(file.name(), "FS/data/misc/logd/logcat") &&
+         !base::EndsWith(file.name(), "logcat.id");
+}
+
+// Extracts the year field from the bugreport-xxx.txt file name.
+// This is because logcat events have only the month and day.
+// This is obviously bugged for cases of bugreports collected across new year
+// but we'll live with that.
 std::optional<int32_t> ExtractYearFromBugReportFilename(
     const std::string& filename) {
   // Typical name: "bugreport-product-TP1A.220623.001-2022-06-24-16-24-37.txt".
@@ -57,34 +63,76 @@ std::optional<int32_t> ExtractYearFromBugReportFilename(
   return base::StringToInt32(year_str);
 }
 
+struct FindBugReportFileResult {
+  size_t file_index;
+  int32_t year;
+};
+
+std::optional<FindBugReportFileResult> FindBugReportFile(
+    const ZipFileVector& files) {
+  for (size_t i = 0; i < files.size(); ++i) {
+    if (!IsBugReportFile(files[i])) {
+      continue;
+    }
+    std::optional<int32_t> year =
+        ExtractYearFromBugReportFilename(files[i].name());
+    if (!year.has_value()) {
+      continue;
+    }
+
+    return FindBugReportFileResult{i, *year};
+  }
+
+  return std::nullopt;
+}
+
 }  // namespace
 
 // static
 bool AndroidBugreportReader::IsAndroidBugReport(
-    const std::vector<util::ZipFile>& zip_file_entries) {
-  if (const util::ZipFile* file = FindBugReportFile(zip_file_entries);
-      file != nullptr) {
-    return ExtractYearFromBugReportFilename(file->name()).has_value();
-  }
-
-  return false;
+    const std::vector<util::ZipFile>& files) {
+  return FindBugReportFile(files).has_value();
 }
 
 // static
-util::Status AndroidBugreportReader::Parse(
-    TraceProcessorContext* context,
-    std::vector<util::ZipFile> zip_file_entries) {
-  if (!IsAndroidBugReport(zip_file_entries)) {
+util::Status AndroidBugreportReader::Parse(TraceProcessorContext* context,
+                                           std::vector<util::ZipFile> files) {
+  auto res = FindBugReportFile(files);
+  if (!res.has_value()) {
     return base::ErrStatus("Not a bug report");
   }
-  return AndroidBugreportReader(context, std::move(zip_file_entries))
+
+  // Move the file to the end move it out of the list and pop the back.
+  std::swap(files[res->file_index], files.back());
+  auto id = context->trace_file_tracker->AddFile(files.back().name());
+  BugReportFile bug_report{id, res->year, std::move(files.back())};
+  files.pop_back();
+
+  std::set<LogFile> ordered_log_files;
+  for (size_t i = 0; i < files.size(); ++i) {
+    id = context->trace_file_tracker->AddFile(files[i].name());
+    // Set size in case we end up not parsing this file.
+    context->trace_file_tracker->SetSize(id, files[i].compressed_size());
+    if (!IsLogFile(files[i])) {
+      continue;
+    }
+
+    int64_t timestamp = files[i].GetDatetime();
+    ordered_log_files.insert(LogFile{id, timestamp, std::move(files[i])});
+  }
+
+  return AndroidBugreportReader(context, std::move(bug_report),
+                                std::move(ordered_log_files))
       .ParseImpl();
 }
 
 AndroidBugreportReader::AndroidBugreportReader(
     TraceProcessorContext* context,
-    std::vector<util::ZipFile> zip_file_entries)
-    : context_(context), zip_file_entries_(std::move(zip_file_entries)) {}
+    BugReportFile bug_report,
+    std::set<LogFile> ordered_log_files)
+    : context_(context),
+      bug_report_(std::move(bug_report)),
+      ordered_log_files_(std::move(ordered_log_files)) {}
 
 AndroidBugreportReader::~AndroidBugreportReader() = default;
 
@@ -94,10 +142,6 @@ util::Status AndroidBugreportReader::ParseImpl() {
   // 1970), but that is the state of affairs.
   context_->clock_tracker->SetTraceTimeClock(
       protos::pbzero::BUILTIN_CLOCK_REALTIME);
-  if (!DetectYearAndBrFilename()) {
-    context_->storage->IncrementStats(stats::android_br_parse_errors);
-    return base::ErrStatus("Zip file does not contain bugreport file.");
-  }
 
   ASSIGN_OR_RETURN(std::vector<TimestampedAndroidLogEvent> logcat_events,
                    ParsePersistentLogcat());
@@ -106,74 +150,41 @@ util::Status AndroidBugreportReader::ParseImpl() {
 
 base::Status AndroidBugreportReader::ParseDumpstateTxt(
     std::vector<TimestampedAndroidLogEvent> logcat_events) {
-  PERFETTO_CHECK(dumpstate_file_);
-  ScopedActiveTraceFile trace_file = context_->trace_file_tracker->StartNewFile(
-      dumpstate_file_->name(), kAndroidDumpstateTraceType,
-      dumpstate_file_->uncompressed_size());
-  AndroidDumpstateReader reader(context_, br_year_, std::move(logcat_events));
-  return dumpstate_file_->DecompressLines(
+  context_->trace_file_tracker->StartParsing(bug_report_.id,
+                                             kAndroidDumpstateTraceType);
+  AndroidDumpstateReader reader(context_, bug_report_.year,
+                                std::move(logcat_events));
+  base::Status status = bug_report_.file.DecompressLines(
       [&](const std::vector<base::StringView>& lines) {
         for (const base::StringView& line : lines) {
           reader.ParseLine(line);
         }
       });
+  context_->trace_file_tracker->DoneParsing(
+      bug_report_.id, bug_report_.file.uncompressed_size());
+  return status;
 }
 
 base::StatusOr<std::vector<TimestampedAndroidLogEvent>>
 AndroidBugreportReader::ParsePersistentLogcat() {
-  BufferingAndroidLogReader log_reader(context_, br_year_);
-
-  // Sort files to ease the job of the subsequent line-based sort. Unfortunately
-  // lines within each file are not 100% timestamp-ordered, due to things like
-  // kernel messages where log time != event time.
-  std::vector<std::pair<uint64_t, const util::ZipFile*>> log_files;
-  for (const util::ZipFile& zf : zip_file_entries_) {
-    if (base::StartsWith(zf.name(), "FS/data/misc/logd/logcat") &&
-        !base::EndsWith(zf.name(), "logcat.id")) {
-      log_files.push_back(std::make_pair(zf.GetDatetime(), &zf));
-    }
-  }
-
-  std::sort(log_files.begin(), log_files.end());
+  BufferingAndroidLogReader log_reader(context_, bug_report_.year);
 
   // Push all events into the AndroidLogParser. It will take care of string
   // interning into the pool. Appends entries into `log_events`.
-  for (const auto& log_file : log_files) {
-    ScopedActiveTraceFile trace_file =
-        context_->trace_file_tracker->StartNewFile(
-            log_file.second->name(), kAndroidLogcatTraceType,
-            log_file.second->uncompressed_size());
-    RETURN_IF_ERROR(log_file.second->DecompressLines(
+  for (const auto& log_file : ordered_log_files_) {
+    context_->trace_file_tracker->StartParsing(log_file.id,
+                                               kAndroidLogcatTraceType);
+    RETURN_IF_ERROR(log_file.file.DecompressLines(
         [&](const std::vector<base::StringView>& lines) {
           for (const auto& line : lines) {
             log_reader.ParseLine(line);
           }
         }));
+    context_->trace_file_tracker->DoneParsing(
+        log_file.id, log_file.file.uncompressed_size());
   }
 
   return std::move(log_reader).ConsumeBufferedEvents();
-}
-
-// Populates the `year_` field from the bugreport-xxx.txt file name.
-// This is because logcat events have only the month and day.
-// This is obviously bugged for cases of bugreports collected across new year
-// but we'll live with that.
-bool AndroidBugreportReader::DetectYearAndBrFilename() {
-  const util::ZipFile* br_file = FindBugReportFile(zip_file_entries_);
-  if (!br_file) {
-    PERFETTO_ELOG("Could not find bugreport-*.txt in the zip file");
-    return false;
-  }
-
-  std::optional<int32_t> year =
-      ExtractYearFromBugReportFilename(br_file->name());
-  if (!year.has_value()) {
-    PERFETTO_ELOG("Could not parse the year from %s", br_file->name().c_str());
-    return false;
-  }
-  br_year_ = *year;
-  dumpstate_file_ = br_file;
-  return true;
 }
 
 }  // namespace perfetto::trace_processor
