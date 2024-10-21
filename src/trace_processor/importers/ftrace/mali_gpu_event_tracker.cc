@@ -175,7 +175,7 @@ void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
 void MaliGpuEventTracker::ParseMaliGpuMcuStateEvent(int64_t timestamp,
                                                     uint32_t field_id) {
   tables::GpuTrackTable::Row track_info(mcu_state_track_name_);
-  TrackId track_id = context_->track_tracker->InternGpuTrack(track_info);
+  TrackId track_id = context_->track_tracker->LegacyInternGpuTrack(track_info);
 
   if (field_id < kFirstMcuStateId || field_id > kLastMcuStateId) {
     PERFETTO_FATAL("Mali MCU state ID out of range");

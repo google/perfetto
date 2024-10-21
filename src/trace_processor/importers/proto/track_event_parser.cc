@@ -584,14 +584,16 @@ class TrackEventParser::EventImporter {
     // EventTracker expects counters to be pushed in order of their timestamps.
     // One more reason to switch to split begin/end events.
     if (thread_timestamp_) {
-      TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
-          parser_->counter_name_thread_time_id_, *utid_);
+      TrackId track_id =
+          context_->track_tracker->LegacyInternThreadCounterTrack(
+              parser_->counter_name_thread_time_id_, *utid_);
       context_->event_tracker->PushCounter(
           ts_, static_cast<double>(*thread_timestamp_), track_id);
     }
     if (thread_instruction_count_) {
-      TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
-          parser_->counter_name_thread_instruction_count_id_, *utid_);
+      TrackId track_id =
+          context_->track_tracker->LegacyInternThreadCounterTrack(
+              parser_->counter_name_thread_instruction_count_id_, *utid_);
       context_->event_tracker->PushCounter(
           ts_, static_cast<double>(*thread_instruction_count_), track_id);
     }

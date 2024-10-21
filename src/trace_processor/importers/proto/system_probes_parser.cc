@@ -249,7 +249,7 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
     base::StackString<512> track_name("%s.%s", tag_prefix.c_str(),
                                       counter_name);
     StringId string_id = context_->storage->InternString(track_name.c_str());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kIo, string_id);
     context_->event_tracker->PushCounter(ts, value, track);
   };
@@ -324,7 +324,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       continue;
     }
     // /proc/meminfo counters are in kB, convert to bytes
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kMemory, meminfo_strs_id_[key], {},
         bytes_unit_id_);
     context_->event_tracker->PushCounter(
@@ -341,7 +341,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
         "%.*s %.*s", int(key.size()), key.data(), int(devfreq_subtitle.size()),
         devfreq_subtitle.data());
     StringId name = context_->storage->InternString(counter_name.string_view());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kClockFrequency, name);
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
@@ -362,7 +362,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       context_->storage->IncrementStats(stats::vmstat_unknown_keys);
       continue;
     }
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kMemory, vmstat_strs_id_[key]);
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
@@ -431,21 +431,21 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 
   if (sys_stats.has_num_forks()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState, num_forks_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_forks()), track);
   }
 
   if (sys_stats.has_num_irq_total()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState, num_irq_total_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_irq_total()), track);
   }
 
   if (sys_stats.has_num_softirq_total()) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState, num_softirq_total_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_softirq_total()), track);
@@ -466,7 +466,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                           chunk_size_kb);
       StringId name =
           context_->storage->InternString(counter_name.string_view());
-      TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
           TrackTracker::Group::kMemory, name, {}, available_chunks_unit_id_);
       context_->event_tracker->PushCounter(ts, static_cast<double>(*order_it),
                                            track);
@@ -493,7 +493,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     // Unit = total blocked time on this resource in nanoseconds.
     // TODO(b/315152880): Consider moving psi entries for cpu/io/memory into
     // groups specific to that resource (e.g., `Group::kMemory`).
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState,
         sys_stats_psi_resource_names_[resource], {}, ns_unit_id_);
     context_->event_tracker->PushCounter(
@@ -503,7 +503,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   for (auto it = sys_stats.thermal_zone(); it; ++it) {
     protos::pbzero::SysStats::ThermalZone::Decoder thermal(*it);
     StringId track_name = context_->storage->InternString(thermal.type());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kThermals, track_name, {}, thermal_unit_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(thermal.temp()), track);
@@ -514,7 +514,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = sys_stats.gpufreq_mhz(); it; ++it, ++c) {
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, gpufreq_id, {}, gpufreq_unit_id);
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
@@ -708,7 +708,7 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       const StringId& name = proc_stats_process_names_[field_id];
       UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
       TrackId track =
-          context_->track_tracker->InternProcessCounterTrack(name, upid);
+          context_->track_tracker->LegacyInternProcessCounterTrack(name, upid);
       int64_t value = counter_values[field_id];
       context_->event_tracker->PushCounter(ts, static_cast<double>(value),
                                            track);

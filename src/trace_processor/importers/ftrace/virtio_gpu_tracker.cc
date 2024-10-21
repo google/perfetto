@@ -160,7 +160,7 @@ VirtioGpuTracker::VirtioGpuQueue::VirtioGpuQueue(TraceProcessorContext* context,
 
 void VirtioGpuTracker::VirtioGpuQueue::HandleNumFree(int64_t timestamp,
                                                      uint32_t num_free) {
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kVirtio, num_free_id_);
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(num_free),
                                        track);
@@ -201,7 +201,7 @@ void VirtioGpuTracker::VirtioGpuQueue::HandleCmdResponse(int64_t timestamp,
 
   int64_t duration = timestamp - *start_timestamp;
 
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kVirtio, latency_id_);
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(duration),
                                        track);

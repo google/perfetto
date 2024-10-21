@@ -104,7 +104,7 @@ void ThermalTracker::ParseThermalExynosAcpmHighOverhead(
 void ThermalTracker::PushCounter(int64_t timestamp,
                                  StringId counter_id,
                                  double value) {
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+  TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
       TrackTracker::Group::kThermals, counter_id);
   context_->event_tracker->PushCounter(timestamp, value, track);
 }

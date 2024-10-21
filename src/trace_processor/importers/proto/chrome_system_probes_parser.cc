@@ -74,7 +74,7 @@ void ChromeSystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
         continue;
       UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
       TrackId track =
-          context_->track_tracker->InternProcessCounterTrack(name, upid);
+          context_->track_tracker->LegacyInternProcessCounterTrack(name, upid);
       int64_t value = fld.as_int64() * 1024;
       context_->event_tracker->PushCounter(ts, static_cast<double>(value),
                                            track);
