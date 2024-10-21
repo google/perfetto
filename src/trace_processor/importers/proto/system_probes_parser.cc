@@ -415,8 +415,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   for (auto it = sys_stats.num_irq(); it; ++it) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternSingleDimensionTrack(
-        TrackClassification::kIrqCounter, irq_id_, Variadic::Integer(ic.irq()),
-        kNullStringId);
+        TrackClassification::kIrqCounter, irq_id_, Variadic::Integer(ic.irq()));
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }
@@ -425,7 +424,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternSingleDimensionTrack(
         TrackClassification::kSoftirqCounter, irq_id_,
-        Variadic::Integer(ic.irq()), kNullStringId);
+        Variadic::Integer(ic.irq()));
     context_->event_tracker->PushCounter(ts, static_cast<double>(ic.count()),
                                          track);
   }

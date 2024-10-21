@@ -171,9 +171,11 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
           if (it != thread_tracks_.end()) {
             return it->second;
           }
-          return thread_tracks_[track.utid()] =
-                     context_->track_tracker->CreateThreadTrack(
-                         TrackClassification::kTrackEvent, track.utid());
+          TrackId id = context_->track_tracker->CreateThreadTrack(
+              TrackClassification::kTrackEvent, track.utid(),
+              TrackTracker::AutoName());
+          thread_tracks_[track.utid()] = id;
+          return id;
         }
         return context_->track_tracker->InternThreadTrack(track.utid());
       }
@@ -190,28 +192,34 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
     switch (track.scope()) {
       case ResolvedDescriptorTrack::Scope::kThread:
         return context_->track_tracker->CreateThreadCounterTrack(
-            TrackClassification::kTrackEvent, kNullStringId, track.utid());
+            TrackClassification::kTrackEvent, track.utid(),
+            TrackTracker::AutoName());
       case ResolvedDescriptorTrack::Scope::kProcess:
         return context_->track_tracker->CreateProcessCounterTrack(
-            TrackClassification::kTrackEvent, track.upid());
+            TrackClassification::kTrackEvent, track.upid(), std::nullopt,
+            TrackTracker::AutoName());
       case ResolvedDescriptorTrack::Scope::kGlobal:
         return context_->track_tracker->CreateCounterTrack(
-            TrackClassification::kTrackEvent, std::nullopt, kNullStringId);
+            TrackClassification::kTrackEvent, std::nullopt,
+            TrackTracker::AutoName());
     }
   }
 
   switch (track.scope()) {
     case ResolvedDescriptorTrack::Scope::kThread: {
       return context_->track_tracker->CreateThreadTrack(
-          TrackClassification::kTrackEvent, track.utid());
+          TrackClassification::kTrackEvent, track.utid(),
+          TrackTracker::AutoName());
     }
     case ResolvedDescriptorTrack::Scope::kProcess: {
       return context_->track_tracker->CreateProcessTrack(
-          TrackClassification::kTrackEvent, track.upid());
+          TrackClassification::kTrackEvent, track.upid(), std::nullopt,
+          TrackTracker::AutoName());
     }
     case ResolvedDescriptorTrack::Scope::kGlobal: {
       return context_->track_tracker->CreateTrack(
-          TrackClassification::kTrackEvent, std::nullopt, kNullStringId);
+          TrackClassification::kTrackEvent, std::nullopt,
+          TrackTracker::AutoName());
     }
   }
   PERFETTO_FATAL("For GCC");

@@ -38,7 +38,6 @@ enum class TrackClassification : size_t {
   // General tracks.
   kThread,
   kChromeProcessInstant,
-  kAsync,
   kTrackEvent,
 
   // Gpu tracks.
@@ -118,8 +117,6 @@ static inline const char* TrackClassificationToString(
       return "linux_rpm";
     case TrackClassification::kLinuxDeviceFrequency:
       return "linux_device_frequency";
-    case TrackClassification::kAsync:
-      return "async";
     case TrackClassification::kTrackEvent:
       return "track_event";
     case TrackClassification::kIrqCounter:

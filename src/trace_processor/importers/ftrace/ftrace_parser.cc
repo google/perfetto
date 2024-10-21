@@ -127,6 +127,8 @@ using protos::pbzero::perfetto_pbzero_enum_KprobeEvent::KprobeType;
 using protozero::ConstBytes;
 using protozero::ProtoDecoder;
 
+constexpr char kInternconnectTrackName[] = "Interconnect Events";
+
 struct FtraceEventAndFieldId {
   uint32_t event_id;
   uint32_t field_id;
@@ -1871,7 +1873,8 @@ void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
 void FtraceParser::ParseGoogleIccEvent(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GoogleIccEventFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      TrackClassification::kInterconnect);
+      TrackClassification::kInterconnect,
+      TrackTracker::LegacyCharArrayName(kInternconnectTrackName));
   StringId slice_name_id =
       context_->storage->InternString(base::StringView(evt.event()));
   context_->slice_tracker->Scoped(timestamp, track_id, google_icc_event_id_,
@@ -1881,7 +1884,8 @@ void FtraceParser::ParseGoogleIccEvent(int64_t timestamp, ConstBytes blob) {
 void FtraceParser::ParseGoogleIrmEvent(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GoogleIrmEventFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      TrackClassification::kInterconnect);
+      TrackClassification::kInterconnect,
+      TrackTracker::LegacyCharArrayName{kInternconnectTrackName});
   StringId slice_name_id =
       context_->storage->InternString(base::StringView(evt.event()));
   context_->slice_tracker->Scoped(timestamp, track_id, google_irm_event_id_,
@@ -3629,7 +3633,8 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
   StringId device_name_string_id = context_->storage->InternString(device_name);
   TrackId track_id = context_->track_tracker->InternSingleDimensionTrack(
       TrackClassification::kLinuxRuntimePowerManagement, linux_device_name_id_,
-      Variadic::String(device_name_string_id), device_name_string_id);
+      Variadic::String(device_name_string_id),
+      TrackTracker::LegacyStringIdName{device_name_string_id});
 
   // A `runtime_status` event implies a potential change in state. Hence, if an
   // active slice exists for this device, end that slice.
