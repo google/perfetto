@@ -66,28 +66,6 @@ const char* GetNameForGroup(TrackTracker::Group group) {
 }
 
 // This function is added to keep backward compatibility. Don't add new names.
-inline std::optional<std::string> GetCpuTrackName(TrackClassification type,
-                                                  uint32_t cpu) {
-  if (type == TrackClassification::kIrqCpu)
-    return base::StackString<255>("Irq Cpu %u", cpu).ToStdString();
-  if (type == TrackClassification::kSoftirqCpu)
-    return base::StackString<255>("SoftIrq Cpu %u", cpu).ToStdString();
-  if (type == TrackClassification::kNapiGroCpu)
-    return base::StackString<255>("Napi Gro Cpu %u", cpu).ToStdString();
-  if (type == TrackClassification::kMaxFreqCpu)
-    return base::StackString<255>("Cpu %u Max Freq Limit", cpu).ToStdString();
-  if (type == TrackClassification::kMinFreqCpu)
-    return base::StackString<255>("Cpu %u Min Freq Limit", cpu).ToStdString();
-  if (type == TrackClassification::kFuncgraphCpu)
-    return base::StackString<255>("swapper%u -funcgraph", cpu).ToStdString();
-  if (type == TrackClassification::kMaliIrqCpu)
-    return base::StackString<255>("Mali Irq Cpu %u", cpu).ToStdString();
-  if (type == TrackClassification::kPkvmHypervisor)
-    return base::StackString<255>("pkVM Hypervisor CPU %u", cpu).ToStdString();
-  return std::nullopt;
-}
-
-// This function is added to keep backward compatibility. Don't add new names.
 inline std::optional<std::string> GetCpuCounterTrackName(
     TrackClassification type,
     uint32_t cpu) {
@@ -141,7 +119,13 @@ bool IsLegacyCharArrayNameAllowed(TrackClassification classification) {
   // **DO NOT** add new values here. Use TrackTracker::AutoName instead.
   return classification == TrackClassification::kTrigger ||
          classification == TrackClassification::kInterconnect ||
-         classification == TrackClassification::kLinuxRuntimePowerManagement;
+         classification == TrackClassification::kLinuxRuntimePowerManagement ||
+         classification == TrackClassification::kIrqCpu ||
+         classification == TrackClassification::kSoftirqCpu ||
+         classification == TrackClassification::kNapiGroCpu ||
+         classification == TrackClassification::kFuncgraphCpu ||
+         classification == TrackClassification::kMaliIrqCpu ||
+         classification == TrackClassification::kPkvmHypervisor;
 }
 
 }  // namespace
@@ -397,10 +381,6 @@ TrackId TrackTracker::InternCpuTrack(TrackClassification classification,
   row.classification = context_->storage->InternString(
       TrackClassificationToString(classification));
   row.dimension_arg_set_id = dims_id.arg_set_id;
-  if (std::optional<std::string> track_name =
-          GetCpuTrackName(classification, cpu)) {
-    row.name = context_->storage->InternString(track_name.value().c_str());
-  }
 
   TrackId track_id =
       context_->storage->mutable_cpu_track_table()->Insert(row).id;

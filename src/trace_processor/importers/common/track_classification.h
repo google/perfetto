@@ -48,8 +48,6 @@ enum class TrackClassification : size_t {
   kSoftirqCpu,
   kNapiGroCpu,
   kMaliIrqCpu,
-  kMinFreqCpu,
-  kMaxFreqCpu,
   kFuncgraphCpu,
   kPkvmHypervisor,
 
@@ -141,10 +139,6 @@ static inline const char* TrackClassificationToString(
       return "cpu_softirq_time";
     case TrackClassification::kPkvmHypervisor:
       return "pkvm_hypervisor";
-    case TrackClassification::kMaxFreqCpu:
-      return "cpu_max_frequency";
-    case TrackClassification::kMinFreqCpu:
-      return "cpu_min_frequency";
     case TrackClassification::kCpuFrequency:
       return "cpu_frequency";
     case TrackClassification::kCpuFrequencyThrottle:

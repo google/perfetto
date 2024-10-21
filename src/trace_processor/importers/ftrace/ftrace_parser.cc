@@ -2586,7 +2586,9 @@ void FtraceParser::ParseIrqHandlerEntry(uint32_t cpu,
   StringId slice_name_id =
       context_->storage->InternString(slice_name.string_view());
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kIrqCpu, cpu);
+      TrackClassification::kIrqCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Irq Cpu %u", cpu)});
   context_->slice_tracker->Begin(timestamp, track, irq_id_, slice_name_id);
 }
 
@@ -2595,7 +2597,9 @@ void FtraceParser::ParseIrqHandlerExit(uint32_t cpu,
                                        protozero::ConstBytes blob) {
   protos::pbzero::IrqHandlerExitFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kIrqCpu, cpu);
+      TrackClassification::kIrqCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Irq Cpu %u", cpu)});
 
   base::StackString<255> status("%s", evt.ret() == 1 ? "handled" : "unhandled");
   StringId status_id = context_->storage->InternString(status.string_view());
@@ -2618,7 +2622,9 @@ void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
   base::StringView slice_name = kActionNames[evt.vec()];
   StringId slice_name_id = context_->storage->InternString(slice_name);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kSoftirqCpu, cpu);
+      TrackClassification::kSoftirqCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("SoftIrq Cpu %u", cpu)});
   context_->slice_tracker->Begin(timestamp, track, irq_id_, slice_name_id);
 }
 
@@ -2627,7 +2633,9 @@ void FtraceParser::ParseSoftIrqExit(uint32_t cpu,
                                     protozero::ConstBytes blob) {
   protos::pbzero::SoftirqExitFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kSoftirqCpu, cpu);
+      TrackClassification::kSoftirqCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("SoftIrq Cpu %u", cpu)});
   auto vec = evt.vec();
   auto args_inserter = [this, vec](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(vec_arg_id_, Variadic::Integer(vec));
@@ -2887,7 +2895,9 @@ void FtraceParser::ParseNapiGroReceiveEntry(uint32_t cpu,
   base::StringView net_device = evt.name();
   StringId slice_name_id = context_->storage->InternString(net_device);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kNapiGroCpu, cpu);
+      TrackClassification::kNapiGroCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Napi Gro Cpu %u", cpu)});
   auto len = evt.len();
   auto args_inserter = [this, len](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(len_arg_id_, Variadic::Integer(len));
@@ -2902,7 +2912,9 @@ void FtraceParser::ParseNapiGroReceiveExit(uint32_t cpu,
   protos::pbzero::NapiGroReceiveExitFtraceEvent::Decoder evt(blob.data,
                                                              blob.size);
   TrackId track = context_->track_tracker->InternCpuTrack(
-      TrackClassification::kNapiGroCpu, cpu);
+      TrackClassification::kNapiGroCpu, cpu,
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Napi Gro Cpu %u", cpu)});
   auto ret = evt.ret();
   auto args_inserter = [this, ret](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(ret_arg_id_, Variadic::Integer(ret));
@@ -3521,7 +3533,9 @@ void FtraceParser::ParseFuncgraphEntry(
     // of swapper might be running concurrently. Fall back onto global tracks
     // (one per cpu).
     track = context_->track_tracker->InternCpuTrack(
-        TrackClassification::kFuncgraphCpu, cpu);
+        TrackClassification::kFuncgraphCpu, cpu,
+        TrackTracker::LegacyCharArrayName{
+            base::StackString<255>("swapper%u -funcgraph", cpu)});
   }
 
   context_->slice_tracker->Begin(timestamp, track, kNullStringId, name_id);
@@ -3544,7 +3558,9 @@ void FtraceParser::ParseFuncgraphExit(
   } else {
     // special case: see |ParseFuncgraphEntry|
     track = context_->track_tracker->InternCpuTrack(
-        TrackClassification::kFuncgraphCpu, cpu);
+        TrackClassification::kFuncgraphCpu, cpu,
+        TrackTracker::LegacyCharArrayName{
+            base::StackString<255>("swapper%u -funcgraph", cpu)});
   }
 
   context_->slice_tracker->End(timestamp, track, kNullStringId, name_id);
