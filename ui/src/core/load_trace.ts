@@ -257,6 +257,8 @@ async function loadTraceIntoEngine(
     }
   }
 
+  await trace.plugins.onTraceReady();
+
   if (serializedAppState !== undefined) {
     // Wait that plugins have completed their actions and then proceed with
     // the final phase of app state restore.
@@ -264,8 +266,6 @@ async function loadTraceIntoEngine(
     // to be URI based and can deal with non-existing URIs.
     deserializeAppStatePhase2(serializedAppState, trace);
   }
-
-  await trace.plugins.onTraceReady();
 
   return trace;
 }
