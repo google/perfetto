@@ -287,10 +287,10 @@ TrackId TrackTracker::InternProcessTrack(TrackClassification classification,
   return track_id;
 }
 
-TrackId TrackTracker::InternProcessCounterTrack(StringId raw_name,
-                                                UniquePid upid,
-                                                StringId unit,
-                                                StringId description) {
+TrackId TrackTracker::LegacyInternProcessCounterTrack(StringId raw_name,
+                                                      UniquePid upid,
+                                                      StringId unit,
+                                                      StringId description) {
   const StringId name =
       context_->process_track_translation_table->TranslateName(raw_name);
 
@@ -330,7 +330,8 @@ TrackId TrackTracker::InternThreadTrack(UniqueTid utid) {
   return track_id;
 }
 
-TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
+TrackId TrackTracker::LegacyInternThreadCounterTrack(StringId name,
+                                                     UniqueTid utid) {
   TrackMapKey key;
   key.classification = TrackClassification::kUnknown;
   key.name = name;
@@ -394,7 +395,8 @@ TrackId TrackTracker::InternGlobalTrack(TrackClassification type) {
   return track_id;
 }
 
-TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
+TrackId TrackTracker::LegacyInternGpuTrack(
+    const tables::GpuTrackTable::Row& row) {
   DimensionsBuilder dims_builder = CreateDimensionsBuilder();
   dims_builder.AppendGpu(row.context_id.value_or(0));
   if (row.scope != kNullStringId) {
@@ -424,11 +426,11 @@ TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
   return track_id;
 }
 
-TrackId TrackTracker::InternGlobalCounterTrack(TrackTracker::Group group,
-                                               StringId name,
-                                               SetArgsCallback callback,
-                                               StringId unit,
-                                               StringId description) {
+TrackId TrackTracker::LegacyInternGlobalCounterTrack(TrackTracker::Group group,
+                                                     StringId name,
+                                                     SetArgsCallback callback,
+                                                     StringId unit,
+                                                     StringId description) {
   TrackMapKey key;
   key.classification = TrackClassification::kUnknown;
   key.name = name;

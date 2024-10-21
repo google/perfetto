@@ -332,7 +332,7 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
               StringId counter_name_id = context_->storage->InternString(
                   base::StringView(counter_name_str));
               TrackId track =
-                  context_->track_tracker->InternProcessCounterTrack(
+                  context_->track_tracker->LegacyInternProcessCounterTrack(
                       counter_name_id, upid);
               context_->event_tracker->PushCounter(ts, counter_value, track);
             }

@@ -88,13 +88,13 @@ void EventTracker::FlushPendingEvents() {
 
     TrackId track_id = kInvalidTrackId;
     if (upid.has_value()) {
-      track_id = context_->track_tracker->InternProcessCounterTrack(
+      track_id = context_->track_tracker->LegacyInternProcessCounterTrack(
           pending_counter.name_id, *upid);
     } else {
       // If we still don't know which process this thread belongs to, fall back
       // onto creating a thread counter track. It's too late to drop data
       // because the counter values have already been inserted.
-      track_id = context_->track_tracker->InternThreadCounterTrack(
+      track_id = context_->track_tracker->LegacyInternThreadCounterTrack(
           pending_counter.name_id, utid);
     }
     auto& counter = *context_->storage->mutable_counter_table();

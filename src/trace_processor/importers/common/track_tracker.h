@@ -137,7 +137,7 @@ class TrackTracker {
   // already exists, returns the TrackTable::Id of the track.
   TrackId InternTrack(TrackClassification,
                       std::optional<Dimensions>,
-                      StringId name,
+                      StringId name = kNullStringId,
                       const SetArgsCallback& callback = {});
 
   // Interns a track with the given classification and one dimension into the
@@ -149,7 +149,7 @@ class TrackTracker {
   TrackId InternSingleDimensionTrack(TrackClassification classification,
                                      StringId key,
                                      const Variadic& value,
-                                     StringId name,
+                                     StringId name = kNullStringId,
                                      const SetArgsCallback& callback = {}) {
     return InternTrack(classification, SingleDimension(key, value), name,
                        callback);
@@ -159,39 +159,18 @@ class TrackTracker {
   // arguments already exists, returns the TrackTable::Id of the track.
   TrackId InternCounterTrack(TrackClassification,
                              std::optional<Dimensions>,
-                             StringId name);
+                             StringId name = kNullStringId);
 
   // Interns a unique track into the storage.
   TrackId InternGlobalTrack(TrackClassification);
 
-  // Interns a global counter track into the storage.
-  // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
-  // functions.
-  TrackId InternGlobalCounterTrack(Group,
-                                   StringId name,
-                                   SetArgsCallback = {},
-                                   StringId unit = kNullStringId,
-                                   StringId description = kNullStringId);
-
   // Interns a thread track into the storage.
   TrackId InternThreadTrack(UniqueTid);
 
-  // Interns a counter track associated with a thread into the storage.
-  // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
-  // functions.
-  TrackId InternThreadCounterTrack(StringId name, UniqueTid);
-
+  // Interns a process track into the storage.
   TrackId InternProcessTrack(TrackClassification,
                              UniquePid,
                              StringId name = kNullStringId);
-
-  // Interns a counter track associated with a process into the storage.
-  // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
-  // functions.
-  TrackId InternProcessCounterTrack(StringId name,
-                                    UniquePid,
-                                    StringId unit = kNullStringId,
-                                    StringId description = kNullStringId);
 
   // Interns a global track keyed by track type + CPU into the storage.
   TrackId InternCpuTrack(TrackClassification, uint32_t cpu);
@@ -199,40 +178,44 @@ class TrackTracker {
   // Interns a counter track associated with a cpu into the storage.
   TrackId InternCpuCounterTrack(TrackClassification, uint32_t cpu);
 
-  // Interns a given GPU track into the storage.
-  // TODO(mayzner): Cleanup the arguments to be consistent with other Intern
-  // functions.
-  TrackId InternGpuTrack(const tables::GpuTrackTable::Row&);
-
   // Interns a counter track associated with a GPU into the storage.
   TrackId InternGpuCounterTrack(TrackClassification, uint32_t gpu_id);
 
-  // Interns a legacy Chrome async event track into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
+  // Everything below this point are legacy functions and should no longer be
+  // used.
+
   TrackId LegacyInternLegacyChromeAsyncTrack(StringId name,
                                              uint32_t upid,
                                              int64_t trace_id,
                                              bool trace_id_is_process_scoped,
                                              StringId source_scope);
 
-  // Interns a counter track associated with a cpu into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
   TrackId LegacyInternCpuIdleStateTrack(uint32_t cpu, StringId state);
 
-  // Creates a counter track associated with a GPU into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
   TrackId LegacyCreateGpuCounterTrack(StringId name,
                                       uint32_t gpu_id,
                                       StringId description = StringId::Null(),
                                       StringId unit = StringId::Null());
 
-  // Creates a counter track for values within perf samples.
-  // The tracks themselves are managed by PerfSampleTracker.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
   TrackId LegacyCreatePerfCounterTrack(StringId name,
                                        tables::PerfSessionTable::Id,
                                        uint32_t cpu,
                                        bool is_timebase);
+
+  TrackId LegacyInternThreadCounterTrack(StringId name, UniqueTid);
+
+  TrackId LegacyInternGpuTrack(const tables::GpuTrackTable::Row&);
+
+  TrackId LegacyInternProcessCounterTrack(StringId name,
+                                          UniquePid,
+                                          StringId unit = kNullStringId,
+                                          StringId description = kNullStringId);
+
+  TrackId LegacyInternGlobalCounterTrack(Group,
+                                         StringId name,
+                                         SetArgsCallback = {},
+                                         StringId unit = kNullStringId,
+                                         StringId description = kNullStringId);
 
  private:
   friend class AsyncTrackSetTracker;
