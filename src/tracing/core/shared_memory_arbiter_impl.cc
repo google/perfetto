@@ -861,6 +861,7 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
 
 void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
   base::TaskRunner* task_runner = nullptr;
+  base::WeakPtr<SharedMemoryArbiterImpl> weak_this;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
     active_writer_ids_.Free(id);
@@ -879,12 +880,15 @@ void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
     if (!task_runner_)
       return;
 
+    // If `active_writer_ids_` is empty, `TryShutdown()` can return true
+    // and `*this` can be deleted. Let's grab everything we need from `*this`
+    // before releasing the lock.
+    weak_this = weak_ptr_factory_.GetWeakPtr();
     task_runner = task_runner_;
   }  // scoped_lock
 
   // We shouldn't post tasks while locked. |task_runner| remains valid after
   // unlocking, because |task_runner_| is never reset.
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner->PostTask([weak_this, id] {
     if (weak_this)
       weak_this->producer_endpoint_->UnregisterTraceWriter(id);
