@@ -171,37 +171,6 @@ GPU_TRACK_TABLE = Table(
                 'The context id for the GPU this track is associated to.'
         }))
 
-UID_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='UidTrackTable',
-    sql_name='uid_track',
-    columns=[
-        C('uid', CppInt32()),
-    ],
-    parent=TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='Tracks associated to a UID.',
-        group='Tracks',
-        columns={
-            'uid': 'The uid associated with this track.',
-        }))
-
-GPU_WORK_PERIOD_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='GpuWorkPeriodTrackTable',
-    sql_name='gpu_work_period_track',
-    columns=[
-        C('gpu_id', CppUint32()),
-    ],
-    parent=UID_TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='Tracks containing gpu_work_period events.',
-        group='Tracks',
-        columns={
-            'uid': 'The uid associated with this track.',
-            'gpu_id': 'The identifier for the GPU.',
-        }))
-
 COUNTER_TRACK_TABLE = Table(
     python_module=__file__,
     class_name='CounterTrackTable',
@@ -327,7 +296,6 @@ ALL_TABLES = [
     CPU_TRACK_TABLE,
     GPU_COUNTER_TRACK_TABLE,
     GPU_TRACK_TABLE,
-    GPU_WORK_PERIOD_TRACK_TABLE,
     IRQ_COUNTER_TRACK_TABLE,
     PROCESS_COUNTER_TRACK_TABLE,
     PROCESS_TRACK_TABLE,
@@ -335,5 +303,4 @@ ALL_TABLES = [
     THREAD_COUNTER_TRACK_TABLE,
     THREAD_TRACK_TABLE,
     TRACK_TABLE,
-    UID_TRACK_TABLE,
 ]

@@ -18,5 +18,6 @@ perfetto_sql_source_set("gpu") {
   sources = [
     "frequency.sql",
     "memory.sql",
+    "work_period.sql",
   ]
 }
