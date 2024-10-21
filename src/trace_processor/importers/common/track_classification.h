@@ -42,12 +42,6 @@ enum class TrackClassification : size_t {
   kAsync,
   kTrackEvent,
 
-  // Irq tracks.
-  kIrqCount,
-
-  // Softirq tracks.
-  kSoftirqCount,
-
   // Gpu tracks.
   kGpuFrequency,
 
@@ -91,6 +85,8 @@ enum class TrackClassification : size_t {
   // Android end.
 
   // Linux begin.
+  kIrqCounter,
+  kSoftirqCounter,
   kLinuxRuntimePowerManagement,
   kLinuxDeviceFrequency,
   // Linux end.
@@ -127,10 +123,10 @@ static inline const char* TrackClassificationToString(
       return "async";
     case TrackClassification::kTrackEvent:
       return "track_event";
-    case TrackClassification::kIrqCount:
-      return "irq_count_num";
-    case TrackClassification::kSoftirqCount:
-      return "softirq_count_num";
+    case TrackClassification::kIrqCounter:
+      return "irq_counter";
+    case TrackClassification::kSoftirqCounter:
+      return "softirq_counter";
     case TrackClassification::kGpuFrequency:
       return "gpu_frequency";
     case TrackClassification::kFuncgraphCpu:

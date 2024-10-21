@@ -249,32 +249,6 @@ CPU_COUNTER_TRACK_TABLE = Table(
             'ucpu': 'The unique CPU identifier associated with this track.'
         }))
 
-IRQ_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='IrqCounterTrackTable',
-    sql_name='irq_counter_track',
-    columns=[
-        C('irq', CppInt32()),
-    ],
-    parent=COUNTER_TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='Tracks containing counter-like events associated to an hardirq',
-        group='Counter Tracks',
-        columns={'irq': 'The identifier for the hardirq.'}))
-
-SOFTIRQ_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='SoftirqCounterTrackTable',
-    sql_name='softirq_counter_track',
-    columns=[
-        C('softirq', CppInt32()),
-    ],
-    parent=COUNTER_TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='Tracks containing counter-like events associated to a softirq',
-        group='Counter Tracks',
-        columns={'softirq': 'The identifier for the softirq.'}))
-
 GPU_COUNTER_TRACK_TABLE = Table(
     python_module=__file__,
     class_name='GpuCounterTrackTable',
@@ -296,10 +270,8 @@ ALL_TABLES = [
     CPU_TRACK_TABLE,
     GPU_COUNTER_TRACK_TABLE,
     GPU_TRACK_TABLE,
-    IRQ_COUNTER_TRACK_TABLE,
     PROCESS_COUNTER_TRACK_TABLE,
     PROCESS_TRACK_TABLE,
-    SOFTIRQ_COUNTER_TRACK_TABLE,
     THREAD_COUNTER_TRACK_TABLE,
     THREAD_TRACK_TABLE,
     TRACK_TABLE,
