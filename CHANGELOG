@@ -8,11 +8,14 @@ Unreleased:
     * Removed the `energy_counter_track` table. Android energy estimate
       breakdown tracks formerly in this table now can be found in the `track`
       table with `classification` `android_energy_estimation_breakdown`.
-    * Removed the `android_energy_estimation_breakdown_per_uid` table. Android
-      energy estimate breakdown tracks formerly in this table now can be found
-      in the `track` table with `classification`
-      `android_energy_estimation_breakdown_per_uid`.
+    * Removed the `energy_per_uid_counter_track` table. Android energy estimate
+      breakdown tracks formerly in this table now can be found in the `track`
+      table with `classification` `android_energy_estimation_breakdown_per_uid`.
+    * Moved the `gpu_work_period_track` table into the `android.gpu.work_period`
+      standard library module and renamed it to `android_gpu_work_period_track`.
     * Removed the `uid_counter_track` table. It was redundant as no data was
+      inserted directly into it.
+    * Removed the `uid_track` table. It was redundant as no data was
       inserted directly into it.
   Trace Processor:
     *

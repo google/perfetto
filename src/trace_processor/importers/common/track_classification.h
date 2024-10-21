@@ -86,6 +86,8 @@ enum class TrackClassification : size_t {
   // Energy estimation.
   kAndroidEnergyEstimationBreakdown,
   kAndroidEnergyEstimationBreakdownPerUid,
+  // GPU Work period from Android kernels.
+  kAndroidGpuWorkPeriod,
   // Android end.
 
   // Linux begin.
@@ -183,6 +185,8 @@ static inline const char* TrackClassificationToString(
       return "android_energy_estimation_breakdown";
     case TrackClassification::kAndroidEnergyEstimationBreakdownPerUid:
       return "android_energy_estimation_breakdown_per_uid";
+    case TrackClassification::kAndroidGpuWorkPeriod:
+      return "android_gpu_work_period";
     case TrackClassification::kUnknown:
       return "N/A";
   }

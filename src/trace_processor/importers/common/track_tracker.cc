@@ -672,35 +672,6 @@ TrackId TrackTracker::InternTrackForGroup(TrackTracker::Group group) {
   return track_id;
 }
 
-TrackId TrackTracker::LegacyInternGpuWorkPeriodTrack(
-    const tables::GpuWorkPeriodTrackTable::Row& row) {
-  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendGpu(row.gpu_id);
-  dims_builder.AppendUid(row.uid);
-  Dimensions dims_id = std::move(dims_builder).Build();
-
-  TrackMapKey key;
-  key.classification = TrackClassification::kUnknown;
-  key.dimensions = dims_id;
-  key.name = row.name;
-
-  auto* it = tracks_.Find(key);
-  if (it)
-    return *it;
-
-  tables::GpuWorkPeriodTrackTable::Row row_copy = row;
-  row_copy.classification = context_->storage->InternString(
-      TrackClassificationToString(TrackClassification::kUnknown));
-  row_copy.dimension_arg_set_id = dims_id.arg_set_id;
-  row_copy.machine_id = context_->machine_id();
-
-  TrackId track_id = context_->storage->mutable_gpu_work_period_track_table()
-                         ->Insert(row_copy)
-                         .id;
-  tracks_[key] = track_id;
-  return track_id;
-}
-
 TrackId TrackTracker::LegacyInternFuchsiaAsyncTrack(StringId name,
                                                     uint32_t upid,
                                                     int64_t correlation_id) {
