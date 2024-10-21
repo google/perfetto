@@ -65,47 +65,6 @@ const char* GetNameForGroup(TrackTracker::Group group) {
   PERFETTO_FATAL("For GCC");
 }
 
-// This function is added to keep backward compatibility. Don't add new names.
-inline std::optional<std::string> GetCpuCounterTrackName(
-    TrackClassification type,
-    uint32_t cpu) {
-  if (type == TrackClassification::kCpuFrequency)
-    return "cpufreq";
-  if (type == TrackClassification::kCpuFrequencyThrottle)
-    return "cpufreq_throttle";
-  if (type == TrackClassification::kCpuIdle)
-    return "cpuidle";
-  if (type == TrackClassification::kUserTime)
-    return "cpu.times.user_ns";
-  if (type == TrackClassification::kNiceUserTime)
-    return "cpu.times.user_nice_ns";
-  if (type == TrackClassification::kSystemModeTime)
-    return "cpu.times.system_mode_ns";
-  if (type == TrackClassification::kCpuIdleTime)
-    return "cpu.times.idle_ns";
-  if (type == TrackClassification::kIoWaitTime)
-    return "cpu.times.io_wait_ns";
-  if (type == TrackClassification::kIrqTime)
-    return "cpu.times.irq_ns";
-  if (type == TrackClassification::kSoftIrqTime)
-    return "cpu.times.softirq_ns";
-  if (type == TrackClassification::kIrqCounter)
-    return "num_irq";
-  if (type == TrackClassification::kSoftirqCounter)
-    return "num_softirq";
-  if (type == TrackClassification::kCpuUtilization)
-    return base::StackString<255>("Cpu %u Util", cpu).ToStdString();
-  if (type == TrackClassification::kCpuCapacity)
-    return base::StackString<255>("Cpu %u Cap", cpu).ToStdString();
-  if (type == TrackClassification::kCpuNumberRunning)
-    return base::StackString<255>("Cpu %u Nr Running", cpu).ToStdString();
-  if (type == TrackClassification::kCpuMaxFrequencyLimit)
-    return base::StackString<255>("Cpu %u Max Freq Limit", cpu).ToStdString();
-  if (type == TrackClassification::kCpuMinFrequencyLimit)
-    return base::StackString<255>("Cpu %u Min Freq Limit", cpu).ToStdString();
-  return std::nullopt;
-}
-
 bool IsLegacyStringIdNameAllowed(TrackClassification classification) {
   // **DO NOT** add new values here. Use TrackTracker::AutoName instead.
   return classification ==
@@ -125,7 +84,23 @@ bool IsLegacyCharArrayNameAllowed(TrackClassification classification) {
          classification == TrackClassification::kNapiGroCpu ||
          classification == TrackClassification::kFuncgraphCpu ||
          classification == TrackClassification::kMaliIrqCpu ||
-         classification == TrackClassification::kPkvmHypervisor;
+         classification == TrackClassification::kPkvmHypervisor ||
+         classification == TrackClassification::kCpuFrequency ||
+         classification == TrackClassification::kCpuFrequencyThrottle ||
+         classification == TrackClassification::kCpuIdle ||
+         classification == TrackClassification::kUserTime ||
+         classification == TrackClassification::kSystemModeTime ||
+         classification == TrackClassification::kCpuIdleTime ||
+         classification == TrackClassification::kIoWaitTime ||
+         classification == TrackClassification::kIrqTime ||
+         classification == TrackClassification::kSoftIrqTime ||
+         classification == TrackClassification::kIrqCounter ||
+         classification == TrackClassification::kSoftirqCounter ||
+         classification == TrackClassification::kCpuUtilization ||
+         classification == TrackClassification::kCpuCapacity ||
+         classification == TrackClassification::kCpuNumberRunning ||
+         classification == TrackClassification::kCpuMaxFrequencyLimit ||
+         classification == TrackClassification::kCpuMinFrequencyLimit;
 }
 
 }  // namespace
@@ -458,20 +433,18 @@ TrackId TrackTracker::LegacyInternGlobalCounterTrack(TrackTracker::Group group,
   return track;
 }
 
-TrackId TrackTracker::InternCpuCounterTrack(TrackClassification type,
+TrackId TrackTracker::InternCpuCounterTrack(TrackClassification classification,
                                             uint32_t cpu,
-                                            const TrackName&) {
+                                            const TrackName& name) {
   auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+  StringId name_id = StringIdFromTrackName(classification, name);
 
   TrackMapKey key;
-  key.classification = type;
+  key.classification = classification;
 
   DimensionsBuilder dims_builder = CreateDimensionsBuilder();
   dims_builder.AppendUcpu(ucpu);
-  std::optional<std::string> maybe_name = GetCpuCounterTrackName(type, cpu);
-  if (maybe_name) {
-    dims_builder.AppendName(context_->storage->InternString(*maybe_name));
-  }
+  dims_builder.AppendName(name_id);
   key.dimensions = std::move(dims_builder).Build();
 
   auto* it = tracks_.Find(key);
@@ -479,15 +452,12 @@ TrackId TrackTracker::InternCpuCounterTrack(TrackClassification type,
     return *it;
   }
 
-  tables::CpuCounterTrackTable::Row row;
+  tables::CpuCounterTrackTable::Row row(name_id);
   row.ucpu = ucpu;
   row.machine_id = context_->machine_id();
-  row.classification =
-      context_->storage->InternString(TrackClassificationToString(type));
+  row.classification = context_->storage->InternString(
+      TrackClassificationToString(classification));
   row.dimension_arg_set_id = key.dimensions->arg_set_id;
-  if (maybe_name) {
-    row.name = context_->storage->InternString(*maybe_name);
-  }
 
   TrackId track_id =
       context_->storage->mutable_cpu_counter_track_table()->Insert(row).id;

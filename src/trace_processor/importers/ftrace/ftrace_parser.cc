@@ -1680,7 +1680,8 @@ void FtraceParser::ParseCpuFreq(int64_t timestamp, ConstBytes blob) {
   uint32_t cpu = freq.cpu_id();
   uint32_t new_freq_khz = freq.state();
   TrackId track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuFrequency, cpu);
+      TrackClassification::kCpuFrequency, cpu,
+      TrackTracker::LegacyCharArrayName{"cpufreq"});
   context_->event_tracker->PushCounter(timestamp, new_freq_khz, track);
 }
 
@@ -1689,7 +1690,8 @@ void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
   uint32_t cpu = static_cast<uint32_t>(freq.cpu());
   double new_freq_khz = static_cast<double>(freq.freq());
   TrackId track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuFrequencyThrottle, cpu);
+      TrackClassification::kCpuFrequencyThrottle, cpu,
+      TrackTracker::LegacyCharArrayName{"cpufreq_throttle"});
   context_->event_tracker->PushCounter(timestamp, new_freq_khz, track);
 }
 
@@ -1718,7 +1720,8 @@ void FtraceParser::ParseCpuIdle(int64_t timestamp, ConstBytes blob) {
   uint32_t cpu = idle.cpu_id();
   uint32_t new_state = idle.state();
   TrackId track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuIdle, cpu);
+      TrackClassification::kCpuIdle, cpu,
+      TrackTracker::LegacyCharArrayName{"cpuidle"});
   context_->event_tracker->PushCounter(timestamp, new_state, track);
 }
 
@@ -2929,12 +2932,16 @@ void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
                                                              blob.size);
 
   TrackId max_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuMaxFrequencyLimit, evt.cpu_id());
+      TrackClassification::kCpuMaxFrequencyLimit, evt.cpu_id(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Max Freq Limit", evt.cpu_id())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.max_freq()), max_track);
 
   TrackId min_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuMinFrequencyLimit, evt.cpu_id());
+      TrackClassification::kCpuMinFrequencyLimit, evt.cpu_id(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Min Freq Limit", evt.cpu_id())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.min_freq()), min_track);
 }
@@ -3498,17 +3505,23 @@ void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
                                         protozero::ConstBytes blob) {
   protos::pbzero::SchedCpuUtilCfsFtraceEvent::Decoder evt(blob.data, blob.size);
   TrackId util_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuUtilization, evt.cpu());
+      TrackClassification::kCpuUtilization, evt.cpu(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Util", evt.cpu())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.cpu_util()), util_track);
 
   TrackId cap_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuCapacity, evt.cpu());
+      TrackClassification::kCpuCapacity, evt.cpu(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Cap", evt.cpu())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.capacity()), cap_track);
 
   TrackId nrr_track = context_->track_tracker->InternCpuCounterTrack(
-      TrackClassification::kCpuNumberRunning, evt.cpu());
+      TrackClassification::kCpuNumberRunning, evt.cpu(),
+      TrackTracker::LegacyCharArrayName{
+          base::StackString<255>("Cpu %u Nr Running", evt.cpu())});
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.nr_running()), nrr_track);
 }

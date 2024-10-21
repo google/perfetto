@@ -137,7 +137,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        TrackClassification::kCpuFrequency, event_cpu.value());
+        TrackClassification::kCpuFrequency, event_cpu.value(),
+        TrackTracker::LegacyCharArrayName{"cpufreq"});
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "cpu_idle") {
     std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
