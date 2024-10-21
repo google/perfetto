@@ -40,7 +40,6 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     await this.addGlobalAsyncTracks(ctx);
     await this.addProcessAsyncSliceTracks(ctx);
     await this.addThreadAsyncSliceTracks(ctx);
-    await this.addUserAsyncSliceTracks(ctx);
 
     ctx.selection.registerSqlSelectionResolver({
       sqlTableName: 'slice',
@@ -386,85 +385,6 @@ class AsyncSlicePlugin implements PerfettoPlugin {
       } else {
         const group = getOrCreateGroupForThread(ctx.workspace, t.utid);
         group.addChildInOrder(t.trackNode);
-      }
-    });
-  }
-
-  async addUserAsyncSliceTracks(ctx: Trace): Promise<void> {
-    const {engine} = ctx;
-    const result = await engine.query(`
-      with grouped_packages as materialized (
-        select
-          uid,
-          group_concat(package_name, ',') as package_name,
-          count() as cnt
-        from package_list
-        group by uid
-      )
-      select
-        t.name as name,
-        t.uid as uid,
-        t.parent_id as parentId,
-        t.track_ids as trackIds,
-        __max_layout_depth(t.track_count, t.track_ids) as maxDepth,
-        iif(g.cnt = 1, g.package_name, 'UID ' || g.uid) as packageName
-      from _uid_track_track_summary_by_uid_and_name t
-      left join grouped_packages g using (uid)
-    `);
-
-    const it = result.iter({
-      name: STR_NULL,
-      uid: NUM_NULL,
-      packageName: STR_NULL,
-      trackIds: STR,
-      maxDepth: NUM,
-      parentId: NUM_NULL,
-    });
-
-    const trackMap = new Map<
-      number,
-      {parentId: number | null; trackNode: TrackNode}
-    >();
-
-    for (; it.valid(); it.next()) {
-      const {name, uid, maxDepth, parentId} = it;
-      const kind = SLICE_TRACK_KIND;
-      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
-      const trackIds = it.trackIds.split(',').map((v) => Number(v));
-
-      const title = getTrackName({
-        name,
-        uid,
-        userName,
-        kind,
-        uidTrack: true,
-      });
-
-      const uri = `/async_slices_${name}_${uid}`;
-      ctx.tracks.registerTrack({
-        uri,
-        title,
-        tags: {
-          trackIds: trackIds,
-          kind: SLICE_TRACK_KIND,
-        },
-        track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
-      });
-
-      const track = new TrackNode({uri, title});
-      trackIds.forEach((id) => {
-        trackMap.set(id, {trackNode: track, parentId});
-        this.trackIdsToUris.set(id, uri);
-      });
-    }
-
-    // Attach track nodes to parents / or the workspace if they have no parent
-    trackMap.forEach((t) => {
-      const parent = exists(t.parentId) && trackMap.get(t.parentId);
-      if (parent !== false && parent !== undefined) {
-        parent.trackNode.addChildInOrder(t.trackNode);
-      } else {
-        ctx.workspace.addChildInOrder(t.trackNode);
       }
     });
   }

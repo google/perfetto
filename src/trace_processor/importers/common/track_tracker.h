@@ -212,11 +212,6 @@ class TrackTracker {
   // Interns a counter track associated with a GPU into the storage.
   TrackId InternGpuCounterTrack(TrackClassification, uint32_t gpu_id);
 
-  // Interns a GPU work period track into the storage.
-  // TODO(mayzner): Remove when all usages migrated to new track design.
-  TrackId LegacyInternGpuWorkPeriodTrack(
-      const tables::GpuWorkPeriodTrackTable::Row& row);
-
   // Interns a legacy Chrome async event track into the storage.
   // TODO(mayzner): Remove when all usages migrated to new track design.
   TrackId LegacyInternLegacyChromeAsyncTrack(StringId name,
