@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {Duration, duration, Time, time} from '../../base/time';
-import {raf} from '../../core/raf_scheduler';
 import {hasArgs, renderArguments} from '../../frontend/slice_args';
 import {renderDetails} from '../../frontend/slice_details';
 import {
@@ -166,7 +165,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
       this.trace.engine,
       asSliceSqlId(this.id),
     );
-    raf.scheduleRedraw();
+    this.trace.scheduleFullRedraw();
   }
 
   async loadJankSlice() {

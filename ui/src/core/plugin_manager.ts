@@ -73,6 +73,12 @@ export class PluginManager {
 
   // Must only be called once on startup
   async initialize(): Promise<void> {
+    // Check if any plugins in defaultPlugins are not registered
+    const badDefaults = defaultPlugins.filter((id) => !this.registry.has(id));
+    if (badDefaults.length > 0) {
+      throw new Error(`Missing defaults: ${badDefaults}`);
+    }
+
     for (const {pluginId} of this.registry.values()) {
       const flagId = `plugin_${pluginId}`;
       const name = `Plugin: ${pluginId}`;
