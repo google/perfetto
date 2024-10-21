@@ -117,16 +117,13 @@ class GlobalArgsTracker {
 
   // Assumes that the interval [begin, end) of |args| has args with the same key
   // grouped together.
-  ArgSetId AddArgSet(const CompactArg* start,
-                     const CompactArg* end,
-                     uint32_t stride) {
+  ArgSetId AddArgSet(const void* start, const void* end, uint32_t stride) {
     base::SmallVector<const CompactArg*, 64> valid;
 
     // TODO(eseckler): Also detect "invalid" key combinations in args sets (e.g.
     // "foo" and "foo.bar" in the same arg set)?
-    for (const auto* ptr = start; ptr != end;
-         ptr = reinterpret_cast<const CompactArg*>(
-             reinterpret_cast<const uint8_t*>(ptr) + stride)) {
+    for (const void* ptr = start; ptr != end;
+         ptr = reinterpret_cast<const uint8_t*>(ptr) + stride) {
       const auto& arg = *reinterpret_cast<const CompactArg*>(ptr);
       if (!valid.empty() && valid.back()->key == arg.key) {
         // Last arg had the same key as this one. In case of kSkipIfExists, skip
@@ -138,7 +135,7 @@ class GlobalArgsTracker {
         PERFETTO_DCHECK(arg.update_policy == UpdatePolicy::kAddOrUpdate);
         valid.pop_back();
       }
-      valid.emplace_back(ptr);
+      valid.emplace_back(&arg);
     }
 
     base::Hasher hash;
