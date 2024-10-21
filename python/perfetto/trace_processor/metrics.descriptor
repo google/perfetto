@@ -360,12 +360,12 @@ avgFreqKhze
 threads (2(.perfetto.protos.AndroidCpuMetric.ThreadRthreads>
 core (2*.perfetto.protos.AndroidCpuMetric.CoreDataRcoreK
 	core_type (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreTypeJ
-ë	
-3protos/perfetto/metrics/android/codec_metrics.protoperfetto.protos0protos/perfetto/metrics/android/cpu_metric.proto"ñ
+’	
+3protos/perfetto/metrics/android/codec_metrics.protoperfetto.protos0protos/perfetto/metrics/android/cpu_metric.proto"⁄
 AndroidCodecMetricsJ
 	cpu_usage (2-.perfetto.protos.AndroidCodecMetrics.CpuUsageRcpuUsageY
-codec_function (22.perfetto.protos.AndroidCodecMetrics.CodecFunctionRcodecFunctionS
-energy_usage (20.perfetto.protos.AndroidCodecMetrics.EnergyUsageRenergyUsageê
+codec_function (22.perfetto.protos.AndroidCodecMetrics.CodecFunctionRcodecFunctionC
+energy (2+.perfetto.protos.AndroidCodecMetrics.EnergyRenergyê
 Detail
 thread_name (	R
 threadName 
@@ -385,14 +385,18 @@ threadName"
 thread_cpu_ns (RthreadCpuNs
 num_threads (R
 numThreadsK
-	core_data (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreDataJG
-EnergyBreakdown
-	subsystem (	R	subsystem
-energy (Renergy†
-EnergyUsage!
+	core_data (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreDataJô
+Rail
+name (	RnameB
+info (2..perfetto.protos.AndroidCodecMetrics.Rail.InfoRinfo9
+Info
+energy (Renergy
+power_mw (RpowerMw°
+Energy!
 total_energy (RtotalEnergy
-duration (RdurationR
-	subsystem (24.perfetto.protos.AndroidCodecMetrics.EnergyBreakdownR	subsystem
+duration (Rduration
+power_mw (RpowerMw=
+rail (2).perfetto.protos.AndroidCodecMetrics.RailRrail
 Ú
 3protos/perfetto/metrics/android/camera_metric.protoperfetto.protos"©
 AndroidCameraMetricQ
