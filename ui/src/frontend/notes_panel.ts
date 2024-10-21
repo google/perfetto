@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
-import {randomColor} from '../core/colorizer';
+import {randomColor} from '../public/lib/colorizer';
 import {SpanNote, Note} from '../public/note';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';

@@ -41,5 +41,10 @@ export interface App {
 
   // TODO(primiano): this should be needed in extremely rare cases. We should
   // probably switch to mithril auto-redraw at some point.
-  scheduleRedraw(): void;
+  scheduleFullRedraw(): void;
+
+  /**
+   * Navigate to a new page.
+   */
+  navigate(newHash: string): void;
 }

@@ -13,6 +13,6 @@
 // limitations under the License.
 
 import {HSLColor} from '../../public/color';
-import {makeColorScheme} from '../../core/colorizer';
+import {makeColorScheme} from '../../public/lib/colorizer';
 
 export const JANK_COLOR = makeColorScheme(new HSLColor([343, 100, 43]));
