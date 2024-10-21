@@ -249,6 +249,8 @@ class Fuchsia(TestSuite):
         "Someint64",-234516543631231,"[NULL]","[NULL]","int","-234516543631231"
         "Someuint32",2145,"[NULL]","[NULL]","int","2145"
         "Someuint64",423621626134123415,"[NULL]","[NULL]","int","423621626134123415"
+        "cookie",658,"[NULL]","[NULL]","int","658"
+        "name","[NULL]","example_counter:somedataseries:0","[NULL]","string","example_counter:somedataseries:0"
         "ping","[NULL]","pong","[NULL]","string","pong"
         "scope","[NULL]","[NULL]","[NULL]","string","[NULL]"
         "somebool",1,"[NULL]","[NULL]","bool","true"
