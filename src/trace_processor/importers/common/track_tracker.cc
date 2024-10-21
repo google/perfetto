@@ -287,24 +287,6 @@ TrackId TrackTracker::InternProcessTrack(TrackClassification classification,
   return track_id;
 }
 
-TrackId TrackTracker::InternProcessTrack(UniquePid upid) {
-  return InternProcessTrack(TrackClassification::kProcess, upid);
-}
-
-TrackId TrackTracker::InternProcessCounterTrack(UniquePid upid) {
-  Dimensions dims_id = SingleDimension(upid_id_, Variadic::Integer(upid));
-
-  auto* it = tracks_.Find({TrackClassification::kUnknown, dims_id});
-  if (it) {
-    return *it;
-  }
-
-  TrackId track_id =
-      CreateProcessCounterTrack(TrackClassification::kUnknown, upid, dims_id);
-  tracks_[{TrackClassification::kUnknown, dims_id}] = track_id;
-  return track_id;
-}
-
 TrackId TrackTracker::InternProcessCounterTrack(StringId raw_name,
                                                 UniquePid upid,
                                                 StringId unit,
@@ -622,13 +604,6 @@ TrackId TrackTracker::InternTrackForGroup(TrackTracker::Group group) {
       InternTrack(TrackClassification::kUnknown, std::nullopt, name_id);
   group_track_ids_[group_idx] = track_id;
   return track_id;
-}
-
-TrackId TrackTracker::LegacyInternFuchsiaAsyncTrack(StringId name,
-                                                    uint32_t upid,
-                                                    int64_t correlation_id) {
-  return LegacyInternLegacyChromeAsyncTrack(name, upid, correlation_id, false,
-                                            kNullStringId);
 }
 
 TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
