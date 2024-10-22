@@ -744,7 +744,7 @@ export class UiMainPerTrace implements m.ClassComponent {
     if (
       !isJsonTrace ||
       window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) === 'true' ||
-      globals.embeddedMode
+      AppImpl.instance.embeddedMode
     ) {
       // When in embedded mode, the host app will control which trace format
       // it passes to Perfetto, so we don't need to show this warning.

@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
-import {getCurrentChannel} from '../common/channels';
+import {getCurrentChannel} from '../core/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
 import {
@@ -338,7 +338,10 @@ export async function getCurrentTrace(): Promise<Blob> {
 function openCurrentTraceWithOldUI(e: Event) {
   e.preventDefault();
   assertTrue(isTraceLoaded());
-  globals.logging.logEvent('Trace Actions', 'Open current trace in legacy UI');
+  AppImpl.instance.analytics.logEvent(
+    'Trace Actions',
+    'Open current trace in legacy UI',
+  );
   if (!isTraceLoaded()) return;
   getCurrentTrace()
     .then((file) => {
@@ -352,7 +355,7 @@ function openCurrentTraceWithOldUI(e: Event) {
 function convertTraceToSystrace(e: Event) {
   e.preventDefault();
   assertTrue(isTraceLoaded());
-  globals.logging.logEvent('Trace Actions', 'Convert to .systrace');
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .systrace');
   if (!isTraceLoaded()) return;
   getCurrentTrace()
     .then((file) => {
@@ -366,7 +369,7 @@ function convertTraceToSystrace(e: Event) {
 function convertTraceToJson(e: Event) {
   e.preventDefault();
   assertTrue(isTraceLoaded());
-  globals.logging.logEvent('Trace Actions', 'Convert to .json');
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .json');
   if (!isTraceLoaded()) return;
   getCurrentTrace()
     .then((file) => {
@@ -435,7 +438,7 @@ function handleShareTrace(e: Event) {
 function downloadTrace(e: Event, trace: Trace) {
   e.preventDefault();
   if (!isDownloadable() || !isTraceLoaded()) return;
-  globals.logging.logEvent('Trace Actions', 'Download trace');
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
 
   let url = '';
   let fileName = `trace${TRACE_SUFFIX}`;
@@ -475,7 +478,7 @@ function highPrecisionTimersAvailable(): boolean {
 
 function recordMetatrace(e: Event, engine: Engine) {
   e.preventDefault();
-  globals.logging.logEvent('Trace Actions', 'Record metatrace');
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Record metatrace');
 
   if (!highPrecisionTimersAvailable()) {
     const PROMPT = `High-precision timers are not available to WASM trace processor yet.
@@ -513,7 +516,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
 
 async function finaliseMetatrace(e: Event, engine: Engine) {
   e.preventDefault();
-  globals.logging.logEvent('Trace Actions', 'Finalise metatrace');
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Finalise metatrace');
 
   const jsEvents = disableMetatracingAndGetTrace();
 
@@ -699,7 +702,7 @@ class HiringBanner implements m.ClassComponent {
 export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
   private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
   view({attrs}: m.CVnode<OptionalTraceAttrs>) {
-    if (globals.hideSidebar) return null;
+    if (AppImpl.instance.sidebar.sidebarHidden) return null;
     const vdomSections = [];
     for (const section of getSections(attrs.trace)) {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {channelChanged, getNextChannel, setChannel} from '../common/channels';
+import {channelChanged, getNextChannel, setChannel} from '../core/channels';
 import {Anchor} from '../widgets/anchor';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {globals} from './globals';

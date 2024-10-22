@@ -16,6 +16,7 @@ import {RouteArgs} from './route_schema';
 import {CommandManager} from './command';
 import {OmniboxManager} from './omnibox';
 import {SidebarManager} from './sidebar';
+import {Analytics} from './analytics';
 
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has
@@ -30,6 +31,7 @@ export interface App {
   readonly commands: CommandManager;
   readonly sidebar: SidebarManager;
   readonly omnibox: OmniboxManager;
+  readonly analytics: Analytics;
 
   /**
    * The parsed querystring passed when starting the app, before any navigation
