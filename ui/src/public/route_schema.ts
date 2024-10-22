@@ -58,6 +58,7 @@ export const ROUTE_SCHEMA = z
     enablePlugins: z.string().optional().catch(undefined),
 
     // Deep link support
+    table: z.string().optional().catch(undefined),
     ts: z.string().optional().catch(undefined),
     dur: z.string().optional().catch(undefined),
     tid: z.string().optional().catch(undefined),
