@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {AppImpl} from '../../core/app_impl';
-import {globals} from '../../frontend/globals';
 import {App} from '../../public/app';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 
@@ -23,8 +22,8 @@ const EXAMPLE_ANDROID_TRACE_URL =
 const EXAMPLE_CHROME_TRACE_URL =
   'https://storage.googleapis.com/perfetto-misc/chrome_example_wikipedia.perfetto_trace.gz';
 
-function openTraceUrl(url: string): void {
-  globals.logging.logEvent('Trace Actions', 'Open example trace');
+function openTraceUrl(app: App, url: string): void {
+  app.analytics.logEvent('Trace Actions', 'Open example trace');
   AppImpl.instance.openTraceFromUrl(url);
 }
 
@@ -36,7 +35,7 @@ class ExampleTracesPlugin implements PerfettoPlugin {
       id: OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID,
       name: 'Open Android example',
       callback: () => {
-        openTraceUrl(EXAMPLE_ANDROID_TRACE_URL);
+        openTraceUrl(ctx, EXAMPLE_ANDROID_TRACE_URL);
       },
     });
     ctx.sidebar.addMenuItem({
@@ -51,7 +50,7 @@ class ExampleTracesPlugin implements PerfettoPlugin {
       id: OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID,
       name: 'Open Chrome example',
       callback: () => {
-        openTraceUrl(EXAMPLE_CHROME_TRACE_URL);
+        openTraceUrl(ctx, EXAMPLE_CHROME_TRACE_URL);
       },
     });
     ctx.sidebar.addMenuItem({

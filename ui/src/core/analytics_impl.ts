@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import {ErrorDetails} from '../base/logging';
-import {getCurrentChannel} from '../common/channels';
+import {getCurrentChannel} from './channels';
 import {VERSION} from '../gen/perfetto_version';
-import {globals} from './globals';
-import {Router} from '../core/router';
+import {Router} from './router';
+import {Analytics, TraceCategories} from '../public/analytics';
 
-type TraceCategories = 'Trace Actions' | 'Record Trace' | 'User Actions';
 const ANALYTICS_ID = 'G-BD89KT2P3C';
 const PAGE_TITLE = 'no-page-title';
 
@@ -61,7 +60,15 @@ function getReferrer(): string {
   }
 }
 
-export function initAnalytics() {
+// Interface exposed only to core (for the initialize method).
+export interface AnalyticsInternal extends Analytics {
+  initialize(isInternalUser: boolean): void;
+}
+
+export function initAnalytics(
+  testingMode: boolean,
+  embeddedMode: boolean,
+): AnalyticsInternal {
   // Only initialize logging on the official site and on localhost (to catch
   // analytics bugs when testing locally).
   // Skip analytics is the fragment has "testing=1", this is used by UI tests.
@@ -70,8 +77,8 @@ export function initAnalytics() {
   if (
     (window.location.origin.startsWith('http://localhost:') ||
       window.location.origin.endsWith('.perfetto.dev')) &&
-    !globals.testing &&
-    !globals.embeddedMode
+    !testingMode &&
+    !embeddedMode
   ) {
     return new AnalyticsImpl();
   }
@@ -84,17 +91,8 @@ const gtagGlobals = window as {} as {
   gtag: (command: string, event: string | Date, args?: {}) => void;
 };
 
-export interface Analytics {
-  initialize(): void;
-  updatePath(_: string): void;
-  logEvent(category: TraceCategories | null, event: string): void;
-  logError(err: ErrorDetails): void;
-  isEnabled(): boolean;
-}
-
-class NullAnalytics implements Analytics {
-  initialize() {}
-  updatePath(_: string) {}
+class NullAnalytics implements AnalyticsInternal {
+  initialize(_: boolean) {}
   logEvent(_category: TraceCategories | null, _event: string) {}
   logError(_err: ErrorDetails) {}
   isEnabled(): boolean {
@@ -102,7 +100,7 @@ class NullAnalytics implements Analytics {
   }
 }
 
-class AnalyticsImpl implements Analytics {
+class AnalyticsImpl implements AnalyticsInternal {
   private initialized_ = false;
 
   constructor() {
@@ -128,7 +126,7 @@ class AnalyticsImpl implements Analytics {
   // This is callled only after the script that sets isInternalUser loads.
   // It is fine to call updatePath() and log*() functions before initialize().
   // The gtag() function internally enqueues all requests into |dataLayer|.
-  initialize() {
+  initialize(isInternalUser: boolean) {
     if (this.initialized_) return;
     this.initialized_ = true;
     const script = document.createElement('script');
@@ -138,7 +136,7 @@ class AnalyticsImpl implements Analytics {
     const route = window.location.href;
     console.log(
       `GA initialized. route=${route}`,
-      `isInternalUser=${globals.isInternalUser}`,
+      `isInternalUser=${isInternalUser}`,
     );
     // GA's recommendation for SPAs is to disable automatic page views and
     // manually send page_view events. See:
@@ -151,19 +149,16 @@ class AnalyticsImpl implements Analytics {
       page_referrer: getReferrer(),
       send_page_view: false,
       page_title: PAGE_TITLE,
-      perfetto_is_internal_user: globals.isInternalUser ? '1' : '0',
+      perfetto_is_internal_user: isInternalUser ? '1' : '0',
       perfetto_version: VERSION,
       // Release channel (canary, stable, autopush)
       perfetto_channel: getCurrentChannel(),
       // Referrer *if overridden* via the query string else empty string.
       perfetto_referrer_override: getReferrerOverride() ?? '',
     });
-    this.updatePath(route);
-  }
 
-  updatePath(path: string) {
     gtagGlobals.gtag('event', 'page_view', {
-      page_path: path,
+      page_path: route,
       page_title: PAGE_TITLE,
     });
   }

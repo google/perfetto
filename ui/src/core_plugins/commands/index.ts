@@ -336,13 +336,16 @@ function onInputElementFileSelectionChanged(e: Event) {
     return;
   }
 
-  globals.logging.logEvent('Trace Actions', 'Open trace from file');
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Open trace from file');
   AppImpl.instance.openTraceFromFile(file);
 }
 
 async function openWithLegacyUi(file: File) {
   // Switch back to the old catapult UI.
-  globals.logging.logEvent('Trace Actions', 'Open trace in Legacy UI');
+  AppImpl.instance.analytics.logEvent(
+    'Trace Actions',
+    'Open trace in Legacy UI',
+  );
   if (await isLegacyTrace(file)) {
     openFileWithLegacyTraceViewer(file);
     return;

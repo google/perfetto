@@ -426,7 +426,7 @@ export class RecordingPageController {
 
     const target = this.getTarget();
     const targetInfo = target.getInfo();
-    globals.logging.logEvent(
+    AppImpl.instance.analytics.logEvent(
       'Record Trace',
       `Record trace (${targetInfo.targetType})`,
     );
