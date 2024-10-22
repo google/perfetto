@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../frontend/globals';
 import {
   SimpleCounterTrack,
   SimpleCounterTrackConfig,
@@ -65,7 +64,7 @@ class AndroidDmabuf implements PerfettoPlugin {
           columns: {ts: 'ts', value: 'value'},
         };
         registerAllocsTrack(ctx, uri, config);
-        getOrCreateGroupForProcess(globals.workspace, it.upid).addChildInOrder(
+        getOrCreateGroupForProcess(ctx.workspace, it.upid).addChildInOrder(
           new TrackNode({uri, title: 'dmabuf allocs'}),
         );
       } else if (it.utid != null) {
@@ -79,7 +78,7 @@ class AndroidDmabuf implements PerfettoPlugin {
           columns: {ts: 'ts', value: 'value'},
         };
         registerAllocsTrack(ctx, uri, config);
-        getOrCreateGroupForThread(globals.workspace, it.utid).addChildInOrder(
+        getOrCreateGroupForThread(ctx.workspace, it.utid).addChildInOrder(
           new TrackNode({uri, title: 'dmabuf allocs'}),
         );
       }

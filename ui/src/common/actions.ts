@@ -127,10 +127,6 @@ export const StateActions = {
     state.sidebarVisible = args.visible;
   },
 
-  dismissFlamegraphModal(state: StateDraft, _: {}) {
-    state.flamegraphModalDismissed = true;
-  },
-
   setTrackFilterTerm(
     state: StateDraft,
     args: {filterTerm: string | undefined},

@@ -15,13 +15,11 @@
 import m from 'mithril';
 import {assertExists, assertFalse} from '../../base/logging';
 import {time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {
   QueryFlamegraph,
   QueryFlamegraphAttrs,
   metricsFromTableOrSubquery,
 } from '../../public/lib/query_flamegraph';
-import {globals} from '../../frontend/globals';
 import {getCurrentTrace} from '../../frontend/sidebar';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
 import {Timestamp} from '../../frontend/widgets/timestamp';
@@ -47,6 +45,7 @@ export class HeapProfileFlamegraphDetailsPanel
 {
   private flamegraphAttrs?: QueryFlamegraphAttrs;
   private props?: Props;
+  private flamegraphModalDismissed = false;
 
   constructor(
     private trace: Trace,
@@ -76,7 +75,7 @@ export class HeapProfileFlamegraphDetailsPanel
 
     return m(
       '.flamegraph-profile',
-      maybeShowModal(this.trace, type, this.heapGraphIncomplete),
+      this.maybeShowModal(this.trace, type, this.heapGraphIncomplete),
       m(
         DetailsShell,
         {
@@ -115,6 +114,41 @@ export class HeapProfileFlamegraphDetailsPanel
         m(QueryFlamegraph, assertExists(this.flamegraphAttrs)),
       ),
     );
+  }
+
+  private maybeShowModal(
+    trace: Trace,
+    type: ProfileType,
+    heapGraphIncomplete: boolean,
+  ) {
+    if (type !== ProfileType.JAVA_HEAP_GRAPH || !heapGraphIncomplete) {
+      return undefined;
+    }
+    if (this.flamegraphModalDismissed) {
+      return undefined;
+    }
+    return m(Modal, {
+      title: 'The flamegraph is incomplete',
+      vAlign: 'TOP',
+      content: m(
+        'div',
+        'The current trace does not have a fully formed flamegraph',
+      ),
+      buttons: [
+        {
+          text: 'Show the errors',
+          primary: true,
+          action: () => trace.navigate('#!/info'),
+        },
+        {
+          text: 'Skip',
+          action: () => {
+            this.flamegraphModalDismissed = true;
+            trace.scheduleFullRedraw();
+          },
+        },
+      ],
+    });
   }
 }
 
@@ -401,39 +435,4 @@ async function downloadPprof(
   } catch (error) {
     throw new Error(`Failed to get current trace ${error}`);
   }
-}
-
-function maybeShowModal(
-  trace: Trace,
-  type: ProfileType,
-  heapGraphIncomplete: boolean,
-) {
-  if (type !== ProfileType.JAVA_HEAP_GRAPH || !heapGraphIncomplete) {
-    return undefined;
-  }
-  if (globals.state.flamegraphModalDismissed) {
-    return undefined;
-  }
-  return m(Modal, {
-    title: 'The flamegraph is incomplete',
-    vAlign: 'TOP',
-    content: m(
-      'div',
-      'The current trace does not have a fully formed flamegraph',
-    ),
-    buttons: [
-      {
-        text: 'Show the errors',
-        primary: true,
-        action: () => trace.navigate('#!/info'),
-      },
-      {
-        text: 'Skip',
-        action: () => {
-          globals.dispatch(Actions.dismissFlamegraphModal({}));
-          trace.scheduleFullRedraw();
-        },
-      },
-    ],
-  });
 }
