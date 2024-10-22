@@ -4334,8 +4334,8 @@ TracingServiceImpl::ConsumerEndpointImpl::~ConsumerEndpointImpl() {
 void TracingServiceImpl::ConsumerEndpointImpl::NotifyOnTracingDisabled(
     const std::string& error) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, error /* deliberate copy */] {
+  task_runner_->PostTask([weak_this = weak_ptr_factory_.GetWeakPtr(),
+                          error /* deliberate copy */] {
     if (weak_this)
       weak_this->consumer_->OnTracingDisabled(error);
   });
@@ -4416,7 +4416,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::Detach(const std::string& key) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   bool success = service_->DetachConsumer(this, key);
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, success] {
+  task_runner_->PostTask([weak_this = std::move(weak_this), success] {
     if (weak_this)
       weak_this->consumer_->OnDetach(success);
   });
@@ -4425,8 +4425,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::Detach(const std::string& key) {
 void TracingServiceImpl::ConsumerEndpointImpl::Attach(const std::string& key) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   bool success = service_->AttachConsumer(this, key);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, success] {
+  task_runner_->PostTask([weak_this = weak_ptr_factory_.GetWeakPtr(), success] {
     if (!weak_this)
       return;
     Consumer* consumer = weak_this->consumer_;
@@ -4450,10 +4449,11 @@ void TracingServiceImpl::ConsumerEndpointImpl::GetTraceStats() {
     stats = service_->GetTraceStats(session);
   }
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, success, stats] {
-    if (weak_this)
-      weak_this->consumer_->OnTraceStats(success, stats);
-  });
+  task_runner_->PostTask(
+      [weak_this = std::move(weak_this), success, stats = std::move(stats)] {
+        if (weak_this)
+          weak_this->consumer_->OnTraceStats(success, stats);
+      });
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::ObserveEvents(
@@ -4534,8 +4534,7 @@ TracingServiceImpl::ConsumerEndpointImpl::AddObservableEvents() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!observable_events_) {
     observable_events_.reset(new ObservableEvents());
-    auto weak_this = weak_ptr_factory_.GetWeakPtr();
-    task_runner_->PostTask([weak_this] {
+    task_runner_->PostTask([weak_this = weak_ptr_factory_.GetWeakPtr()] {
       if (!weak_this)
         return;
 
