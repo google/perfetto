@@ -73,7 +73,7 @@ export function shareTrace() {
       `The trace will be accessible by anybody with the permalink.`,
   );
   if (result) {
-    globals.logging.logEvent('Trace Actions', 'Create permalink');
+    AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
     createPermalink({mode: 'APP_STATE'});
   }
 }

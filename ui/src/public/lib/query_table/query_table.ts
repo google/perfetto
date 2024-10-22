@@ -27,6 +27,7 @@ import {downloadData} from '../../../frontend/download_utils';
 import {globals} from '../../../frontend/globals';
 import {Router} from '../../../core/router';
 import {scrollTo} from '../../scroll_helper';
+import {AppImpl} from '../../../core/app_impl';
 
 interface QueryTableRowAttrs {
   row: Row;
@@ -232,7 +233,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       return 'Query - running';
     }
     const result = resp.error ? 'error' : `${resp.rows.length} rows`;
-    if (globals.testing) {
+    if (AppImpl.instance.testingMode) {
       // Omit the duration in tests, they cause screenshot diff failures.
       return `Query result (${result})`;
     }

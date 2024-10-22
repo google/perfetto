@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {raf} from '../core/raf_scheduler';
+import {raf} from './raf_scheduler';
 
 export const DEFAULT_CHANNEL = 'stable';
 const CHANNEL_KEY = 'perfettoUiChannel';

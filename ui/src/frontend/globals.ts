@@ -26,7 +26,6 @@ import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-import type {Analytics} from './analytics';
 import {getServingRoot} from '../base/http_utils';
 import {Workspace} from '../public/workspace';
 import {TraceImpl} from '../core/trace_impl';
@@ -41,11 +40,9 @@ type TrackDataStore = Map<string, {}>;
  */
 class Globals {
   private _initialFakeTrace?: TraceImpl;
-  private _testing = false;
   private _dispatchMultiple?: DispatchMultiple = undefined;
   private _store = createStore<State>(createEmptyState());
   private _serviceWorkerController?: ServiceWorkerController = undefined;
-  private _logging?: Analytics = undefined;
   private _isInternalUser: boolean | undefined = undefined;
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
@@ -53,8 +50,6 @@ class Globals {
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
-  private _embeddedMode?: boolean = undefined;
-  private _hideSidebar?: boolean = undefined;
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
   permalinkHash?: string;
@@ -62,10 +57,7 @@ class Globals {
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
 
-  initialize(
-    dispatchMultiple: DispatchMultiple,
-    initAnalytics: () => Analytics,
-  ) {
+  initialize(dispatchMultiple: DispatchMultiple) {
     this._dispatchMultiple = dispatchMultiple;
 
     // TODO(primiano): we do this to avoid making all our members possibly
@@ -82,17 +74,6 @@ class Globals {
     this._serviceWorkerController = new ServiceWorkerController(
       getServingRoot(),
     );
-    this._testing =
-      /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-      self.location && self.location.search.indexOf('testing=1') >= 0;
-    /* eslint-enable */
-
-    // TODO(stevegolton): This is a mess. We should just inject this object in,
-    // instead of passing in a function. The only reason this is done like this
-    // is because the current implementation of initAnalytics depends on the
-    // state of globals.testing, so this needs to be set before we run the
-    // function.
-    this._logging = initAnalytics();
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
     // TODO(primiano): for posterity: these assignments below are completely
@@ -141,10 +122,6 @@ class Globals {
 
   get searchManager() {
     return this.trace.search;
-  }
-
-  get logging() {
-    return assertExists(this._logging);
   }
 
   get serviceWorkerController() {
@@ -196,22 +173,6 @@ class Globals {
     return this._jobStatus;
   }
 
-  get embeddedMode(): boolean {
-    return !!this._embeddedMode;
-  }
-
-  set embeddedMode(value: boolean) {
-    this._embeddedMode = value;
-  }
-
-  get hideSidebar(): boolean {
-    return !!this._hideSidebar;
-  }
-
-  set hideSidebar(value: boolean) {
-    this._hideSidebar = value;
-  }
-
   setBufferUsage(bufferUsage: number) {
     this._bufferUsage = bufferUsage;
   }
@@ -245,10 +206,6 @@ class Globals {
     localStorage.setItem('isInternalUser', value ? '1' : '0');
     this._isInternalUser = value;
     raf.scheduleFullRedraw();
-  }
-
-  get testing() {
-    return this._testing;
   }
 
   // Used when switching to the legacy TraceViewer UI.

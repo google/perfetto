@@ -14,11 +14,26 @@
 
 import {Registry} from '../base/registry';
 import {SidebarManager, SidebarMenuItem} from '../public/sidebar';
+import {raf} from './raf_scheduler';
 
 export class SidebarManagerImpl implements SidebarManager {
+  private _sidebarHidden = false;
   readonly menuItems = new Registry<SidebarMenuItem>((m) => m.commandId);
+
+  constructor(sidebarHidden?: boolean) {
+    this._sidebarHidden = sidebarHidden ?? false;
+  }
 
   addMenuItem(menuItem: SidebarMenuItem): Disposable {
     return this.menuItems.register(menuItem);
+  }
+
+  get sidebarHidden() {
+    return this._sidebarHidden;
+  }
+
+  set sidebarHidden(value: boolean) {
+    this._sidebarHidden = value;
+    raf.scheduleFullRedraw();
   }
 }

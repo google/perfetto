@@ -44,7 +44,7 @@ class HelpPanningNotification implements m.ClassComponent {
     // does not persist for iFrames. The host is responsible for communicating
     // to users that they can press '?' for help.
     if (
-      globals.embeddedMode ||
+      AppImpl.instance.embeddedMode ||
       dismissed === 'true' ||
       !globals.showPanningHint
     ) {
@@ -77,7 +77,7 @@ class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
 
   view({attrs}: m.CVnode<TraceImplAttrs>) {
     const trace = attrs.trace;
-    if (globals.embeddedMode) return;
+    if (AppImpl.instance.embeddedMode) return;
 
     const mode = AppImpl.instance.omnibox.mode;
     const totErrors = trace.traceInfo.importErrors + trace.loadingErrors.length;

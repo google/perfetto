@@ -25,9 +25,10 @@ import {
 import {KeyMapping} from './pan_and_zoom_handler';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {assertExists} from '../base/logging';
+import {AppImpl} from '../core/app_impl';
 
 export function toggleHelp() {
-  globals.logging.logEvent('User Actions', 'Show help');
+  AppImpl.instance.analytics.logEvent('User Actions', 'Show help');
   showHelp();
 }
 
@@ -76,31 +77,6 @@ class KeyMappingsHelp implements m.ClassComponent {
   }
 
   view(_: m.Vnode): m.Children {
-    const queryPageInstructions = globals.hideSidebar
-      ? []
-      : [
-          m('h2', 'Making SQL queries from the query page'),
-          m(
-            'table',
-            m(
-              'tr',
-              m('td', keycap('Ctrl'), ' + ', keycap('Enter')),
-              m('td', 'Execute query'),
-            ),
-            m(
-              'tr',
-              m(
-                'td',
-                keycap('Ctrl'),
-                ' + ',
-                keycap('Enter'),
-                ' (with selection)',
-              ),
-              m('td', 'Execute selection'),
-            ),
-          ),
-        ];
-
     return m(
       '.help',
       m('h2', 'Navigation'),
@@ -163,7 +139,20 @@ class KeyMappingsHelp implements m.ClassComponent {
           ),
         ),
       ),
-      ...queryPageInstructions,
+      m('h2', 'Making SQL queries from the query page'),
+      m(
+        'table',
+        m(
+          'tr',
+          m('td', keycap('Ctrl'), ' + ', keycap('Enter')),
+          m('td', 'Execute query'),
+        ),
+        m(
+          'tr',
+          m('td', keycap('Ctrl'), ' + ', keycap('Enter'), ' (with selection)'),
+          m('td', 'Execute selection'),
+        ),
+      ),
       m('h2', 'Command Hotkeys'),
       m(
         'table',
