@@ -19,7 +19,6 @@ import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {globals} from '../../frontend/globals';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
@@ -110,7 +109,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
       m(
         '.slice-details-latency-panel',
         m('img.slice-details-image', {
-          src: `${globals.root}assets/scheduling_latency.png`,
+          src: `${this.trace.rootUrl}assets/scheduling_latency.png`,
         }),
         this.renderWakeupText(data),
         this.renderDisplayLatencyText(data),
@@ -249,7 +248,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
 
   goToThread(data: Data) {
     if (data.sched.threadStateId) {
-      globals.selectionManager.selectSqlEvent(
+      this.trace.selection.selectSqlEvent(
         'thread_state',
         data.sched.threadStateId,
         {scrollToSelection: true},

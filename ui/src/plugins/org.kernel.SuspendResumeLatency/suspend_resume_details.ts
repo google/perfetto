@@ -22,7 +22,6 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Anchor} from '../../widgets/anchor';
-import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
@@ -124,7 +123,7 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
   }
 
   goToThread(threadStateId: number) {
-    globals.selectionManager.selectSqlEvent('thread_state', threadStateId, {
+    this.trace.selection.selectSqlEvent('thread_state', threadStateId, {
       scrollToSelection: true,
     });
   }

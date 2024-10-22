@@ -29,7 +29,6 @@ import {
 } from '../../trace_processor/sql_utils/thread_state';
 import {DurationWidget, renderDuration} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {globals} from '../../frontend/globals';
 import {getProcessName} from '../../trace_processor/sql_utils/process';
 import {
   getFullThreadName,
@@ -288,23 +287,23 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
         renderWaker(this.relatedStates),
         renderWakees(this.relatedStates),
       ),
-      globals.commandManager.hasCommand(CRITICAL_PATH_LITE_CMD) &&
+      this.trace.commands.hasCommand(CRITICAL_PATH_LITE_CMD) &&
         m(Button, {
           label: 'Critical path lite',
           intent: Intent.Primary,
           onclick: () => {
-            globals.commandManager.runCommand(
+            this.trace.commands.runCommand(
               CRITICAL_PATH_LITE_CMD,
               this.state?.thread?.utid,
             );
           },
         }),
-      globals.commandManager.hasCommand(CRITICAL_PATH_CMD) &&
+      this.trace.commands.hasCommand(CRITICAL_PATH_CMD) &&
         m(Button, {
           label: 'Critical path',
           intent: Intent.Primary,
           onclick: () => {
-            globals.commandManager.runCommand(
+            this.trace.commands.runCommand(
               CRITICAL_PATH_CMD,
               this.state?.thread?.utid,
             );
