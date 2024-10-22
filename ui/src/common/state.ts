@@ -172,7 +172,6 @@ export interface State {
 
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
-  flamegraphModalDismissed: boolean;
 
   // Show track perf debugging overlay
   perfDebug: boolean;
