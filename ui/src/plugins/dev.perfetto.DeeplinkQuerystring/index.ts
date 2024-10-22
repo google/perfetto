@@ -19,12 +19,25 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {NUM, STR} from '../../trace_processor/query_result';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 import {Time} from '../../base/time';
 import {RouteArgs} from '../../public/route_schema';
 import {App} from '../../public/app';
+import {exists} from '../../base/utils';
+import {NUM} from '../../trace_processor/query_result';
 
+/**
+ * Uses URL args (table, ts, dur) to select events on trace load.
+ *
+ * E.g. ?table=thread_state&ts=39978672284068&dur=18995809
+ *
+ * Note: `ts` and `dur` are used rather than id as id is not stable over TP
+ * versions.
+ *
+ * The table passed must have `ts`, `dur` (if a dur value is supplied) and `id`
+ * columns, and SQL resolvers must be available for those tables (usually from
+ * plugins).
+ */
 class DeeplinkQuerystring implements PerfettoPlugin {
   private routeArgsForFirstTrace?: RouteArgs;
 
@@ -73,50 +86,38 @@ function zoomPendingDeeplink(trace: Trace, visStart: string, visEnd: string) {
 }
 
 async function selectInitialRouteArgs(trace: Trace, args: RouteArgs) {
-  const conditions = [];
-  const {ts, dur} = args;
+  const {table = 'slice', ts, dur} = args;
 
-  if (ts !== undefined) {
-    conditions.push(`ts = ${ts}`);
-  }
-  if (dur !== undefined) {
-    conditions.push(`dur = ${dur}`);
-  }
-
-  if (conditions.length === 0) {
+  // We need at least a ts
+  if (!exists(ts)) {
     return;
   }
 
-  const query = `
-      select
-        id,
-        track_id as traceProcessorTrackId,
-        type
-      from slice
-      where ${conditions.join(' and ')}
-    ;`;
+  const conditions = [];
+  conditions.push(`ts = ${ts}`);
+  exists(dur) && conditions.push(`dur = ${dur}`);
 
-  const result = await trace.engine.query(query);
-  if (result.numRows() > 0) {
-    const row = result.firstRow({
-      id: NUM,
-      traceProcessorTrackId: NUM,
-      type: STR,
-    });
+  // Find the id of the slice with this ts & dur in the given table
+  const result = await trace.engine.query(`
+    select
+      id
+    from
+      ${table}
+    where ${conditions.join(' AND ')}
+  `);
 
-    const id = row.traceProcessorTrackId;
-    const track = trace.workspace.flatTracks.find(
-      (t) =>
-        t.uri && trace.tracks.getTrack(t.uri)?.tags?.trackIds?.includes(id),
-    );
-    if (track === undefined) {
-      return;
-    }
-    trace.selection.selectSqlEvent('slice', row.id, {
-      scrollToSelection: true,
-      switchToCurrentSelectionTab: false,
-    });
+  if (result.numRows() === 0) {
+    return;
   }
+
+  const {id} = result.firstRow({
+    id: NUM,
+  });
+
+  trace.selection.selectSqlEvent(table, id, {
+    scrollToSelection: true,
+    switchToCurrentSelectionTab: false,
+  });
 }
 
 export const plugin: PluginDescriptor = {
