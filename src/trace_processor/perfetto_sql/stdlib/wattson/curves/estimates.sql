@@ -156,3 +156,28 @@ SELECT
   ) + static_curve as dsu_scu_mw
 FROM _system_state_curves;
 
+-- API to get power from each system state in an arbitrary time window
+CREATE PERFETTO FUNCTION _windowed_system_state_mw(ts LONG, dur LONG)
+RETURNS TABLE(
+  cpu0_mw FLOAT,
+  cpu1_mw FLOAT,
+  cpu2_mw FLOAT,
+  cpu3_mw FLOAT,
+  cpu4_mw FLOAT,
+  cpu5_mw FLOAT,
+  cpu6_mw FLOAT,
+  cpu7_mw FLOAT,
+  dsu_scu_mw FLOAT
+) AS
+SELECT
+  SUM(ss.cpu0_mw * ss.dur) / SUM(ss.dur) AS cpu0_mw,
+  SUM(ss.cpu1_mw * ss.dur) / SUM(ss.dur) AS cpu1_mw,
+  SUM(ss.cpu2_mw * ss.dur) / SUM(ss.dur) AS cpu2_mw,
+  SUM(ss.cpu3_mw * ss.dur) / SUM(ss.dur) AS cpu3_mw,
+  SUM(ss.cpu4_mw * ss.dur) / SUM(ss.dur) AS cpu4_mw,
+  SUM(ss.cpu5_mw * ss.dur) / SUM(ss.dur) AS cpu5_mw,
+  SUM(ss.cpu6_mw * ss.dur) / SUM(ss.dur) AS cpu6_mw,
+  SUM(ss.cpu7_mw * ss.dur) / SUM(ss.dur) AS cpu7_mw,
+  SUM(ss.dsu_scu_mw * ss.dur) / SUM(ss.dur) AS dsu_scu_mw
+FROM _interval_intersect_single!($ts, $dur, _ii_subquery!(_system_state_mw)) ii
+JOIN _system_state_mw AS ss ON ss._auto_id = id;
