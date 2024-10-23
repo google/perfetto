@@ -36,6 +36,7 @@ import {UiMain} from './ui_main';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
+import {ExplorePage} from './explore_page';
 import {installFileDropHandler} from './file_drop_handler';
 import {FlagsPage} from './flags_page';
 import {globals} from './globals';
@@ -304,6 +305,7 @@ function onCssLoaded() {
 
   const router = new Router({
     '/': HomePage,
+    '/explore': ExplorePage,
     '/flags': FlagsPage,
     '/info': pageWithTrace(TraceInfoPage),
     '/insights': pageWithTrace(InsightsPage),
