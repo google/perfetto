@@ -150,4 +150,19 @@ CREATE PERFETTO TABLE android_startup_opinionated_breakdown(
 AS
 SELECT b.ts, b.dur, startup.startup_id, b.slice_id, b.thread_state_id, _startup_breakdown_reason(name, state, io_wait, irq_context) AS reason
 FROM _startup_thread_states_and_slices_breakdown_sp b
-JOIN _startup_root_slices startup ON startup.id = b.root_id;
+JOIN _startup_root_slices startup ON startup.id = b.root_id
+UNION ALL
+-- Augment the existing startup breakdown with an artificial slice accounting for
+-- any launch delays before the app starts handling startup on its main thread
+SELECT
+  _startup_root_slices.ts,
+  MIN(_startup_thread_states_breakdown.ts) - _startup_root_slices.ts AS dur,
+  startup_id,
+  NULL AS slice_id,
+  NULL AS thread_state_id,
+  'launch_delay' AS reason
+FROM _startup_thread_states_breakdown
+JOIN _startup_root_slices
+  ON _startup_root_slices.id = root_id
+GROUP BY root_id
+HAVING MIN(_startup_thread_states_breakdown.ts) - _startup_root_slices.ts > 0;
