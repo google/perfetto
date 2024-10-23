@@ -304,4 +304,5 @@ template("proto_library") {
       }
     }  # source_set(source_set_name)
   }
+  not_needed(invoker, ["proto_deps"])
 }  # template

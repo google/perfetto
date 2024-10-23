@@ -7,10 +7,44 @@ perfetto_proto_library("@TYPE@") {
   public_deps = [ "../../perfetto/trace/track_event:@TYPE@" ]
 }
 
+config("descriptor_inputs_config") {
+  inputs = [
+    "../../perfetto/trace/track_event/track_event.proto",
+    "../../perfetto/trace/track_event/debug_annotation.proto",
+    "../../perfetto/trace/track_event/source_location.proto",
+    "../../perfetto/trace/track_event/log_message.proto",
+    "../../perfetto/trace/track_event/task_execution.proto",
+    "../../perfetto/trace/track_event/chrome_active_processes.proto",
+    "../../perfetto/trace/track_event/chrome_application_state_info.proto",
+    "../../perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "../../perfetto/trace/track_event/chrome_content_settings_event_info.proto",
+    "../../perfetto/trace/track_event/chrome_frame_reporter.proto",
+    "../../perfetto/trace/track_event/chrome_histogram_sample.proto",
+    "../../perfetto/trace/track_event/chrome_keyed_service.proto",
+    "../../perfetto/trace/track_event/chrome_latency_info.proto",
+    "../../perfetto/trace/track_event/chrome_legacy_ipc.proto",
+    "../../perfetto/trace/track_event/chrome_message_pump.proto",
+    "../../perfetto/trace/track_event/chrome_mojo_event_info.proto",
+    "../../perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
+    "../../perfetto/trace/track_event/chrome_user_event.proto",
+    "../../perfetto/trace/track_event/chrome_window_handle_event_info.proto",
+    "../../perfetto/trace/track_event/screenshot.proto",
+  ]
+}
+
+group("descriptor_inputs") {
+  public_configs = [ ":descriptor_inputs_config" ]
+}
+
 perfetto_proto_library("@TYPE@") {
   proto_generators = [ "descriptor" ]
   sources = chrome_track_event_sources
   generate_descriptor = "chrome_track_event.descriptor"
+
+  # TODO(lalitm): remove this target when we found better way to propagate
+  # indirect input deps.
+  proto_deps = [ ":descriptor_inputs" ]
+
   link_deps = [ ":source_set" ]
 
   # When rolled into Chrome, extension descriptor is going to be linked into
