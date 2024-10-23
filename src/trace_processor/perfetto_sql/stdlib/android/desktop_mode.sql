@@ -35,21 +35,21 @@ WITH
   atoms AS (
     SELECT
       ts,
-      extract_arg(arg_set_id, 'field_1') AS type,
-      extract_arg(arg_set_id, 'field_2') AS instance_id,
-      extract_arg(arg_set_id, 'field_3') AS uid
+      extract_arg(arg_set_id, 'desktop_mode_session_task_update.task_event') AS type,
+      extract_arg(arg_set_id, 'desktop_mode_session_task_update.instance_id') AS instance_id,
+      extract_arg(arg_set_id, 'desktop_mode_session_task_update.uid') AS uid
     FROM android_statsd_atoms
-    WHERE name = 'atom_819'),
+    WHERE name = 'desktop_mode_session_task_update'),
   dw_statsd_events_add AS (
     SELECT *
     FROM atoms
-    WHERE type = 1),
+    WHERE type = 'TASK_ADDED'),
   dw_statsd_events_remove AS (
     SELECT * FROM atoms
-    WHERE type = 2),
+    WHERE type = 'TASK_REMOVED'),
   dw_statsd_events_update_by_instance AS (
     SELECT instance_id, min(uid) AS uid FROM atoms
-    WHERE type = 3 GROUP BY instance_id),
+    WHERE type = 'TASK_INFO_CHANGED' GROUP BY instance_id),
   dw_windows AS (
     SELECT
       a.ts AS raw_add_ts,
