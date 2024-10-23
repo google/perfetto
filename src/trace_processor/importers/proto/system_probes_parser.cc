@@ -824,6 +824,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             context_->storage->InternString(packet.android_soc_model())));
   }
 
+  if (packet.has_android_guest_soc_model()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_guest_soc_model,
+        Variadic::String(
+            context_->storage->InternString(packet.android_guest_soc_model())));
+  }
+
   if (packet.has_android_hardware_revision()) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_hardware_revision,
