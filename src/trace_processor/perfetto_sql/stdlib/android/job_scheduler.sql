@@ -15,6 +15,18 @@
 --
 
 -- All scheduled jobs and their latencies.
+--
+-- The table is populated by ATrace using the system server ATrace category
+-- (`atrace_categories: "ss"`). You can also set the `atrace_apps` of interest.
+--
+-- This differs from the `android_job_scheduler_states` table
+-- in the `android.job_scheduler_states` module which is populated
+-- by the `ScheduledJobStateChanged` atom.
+--
+-- Using `android_job_scheduler_states` is preferred when the
+-- `ATOM_SCHEDULED_JOB_STATE_CHANGED` is available in the trace since
+-- it includes the constraint, screen, or charging state changes for
+-- each job in a trace.
 CREATE PERFETTO TABLE android_job_scheduler_events (
   -- Id of the scheduled job assigned by the app developer.
   job_id INT,
