@@ -184,6 +184,7 @@ class Startups(TestSuite):
         "dur","reason"
         28663023,"choreographer_do_frame"
         22564487,"binder"
+        22011252,"launch_delay"
         16351925,"Running"
         13212137,"activity_start"
         10264635,"io"
