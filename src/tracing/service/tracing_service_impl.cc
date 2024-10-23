@@ -3751,6 +3751,13 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
     PERFETTO_ELOG("Unable to read ro.soc.model");
   }
 
+  // guest_soc model is not always present
+  std::string guest_soc_model_value =
+      base::GetAndroidProp("ro.guest_soc.model");
+  if (!guest_soc_model_value.empty()) {
+    info->set_android_guest_soc_model(guest_soc_model_value);
+  }
+
   std::string hw_rev_value = base::GetAndroidProp("ro.boot.hardware.revision");
   if (!hw_rev_value.empty()) {
     info->set_android_hardware_revision(hw_rev_value);

@@ -32,6 +32,9 @@ message SystemInfo {
   // The SoC model from which trace is collected
   optional string android_soc_model = 9;
 
+  // The guest SoC model from which trace is collected in case of VMs
+  optional string android_guest_soc_model = 13;
+
   // The hardware reversion from android device
   optional string android_hardware_revision = 10;
 
