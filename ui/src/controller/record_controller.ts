@@ -134,6 +134,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
       value.startsWith('STAT_') ||
       value.startsWith('LID_') ||
       value.startsWith('BATTERY_COUNTER_') ||
+      value.startsWith('ATOM_') ||
       value === 'DISCARD' ||
       value === 'RING_BUFFER' ||
       value === 'BACKGROUND' ||
