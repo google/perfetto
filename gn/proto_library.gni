@@ -369,7 +369,7 @@ template("perfetto_proto_library") {
             rebase_path(invoker.generate_descriptor, proto_path)
         deps = deps_
         import_dirs = import_dirs_
-        forward_variables_from(invoker, vars_to_forward)
+        forward_variables_from(invoker, vars_to_forward + [ "proto_deps" ])
       }
 
       # Not needed for descriptor proto_library target.
