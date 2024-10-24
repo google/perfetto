@@ -96,9 +96,13 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     RefPtr<PacketSequenceStateGeneration> state,
     const protos::pbzero::TracePacket::Decoder& packet,
     int64_t packet_timestamp) {
+  using TrackDescriptorProto = protos::pbzero::TrackDescriptor;
+  using Reservation = TrackEventTracker::DescriptorTrackReservation;
   auto track_descriptor_field = packet.track_descriptor();
-  protos::pbzero::TrackDescriptor::Decoder track(track_descriptor_field.data,
-                                                 track_descriptor_field.size);
+  TrackDescriptorProto::Decoder track(track_descriptor_field.data,
+                                      track_descriptor_field.size);
+
+  Reservation reservation;
 
   if (!track.has_uuid()) {
     PERFETTO_ELOG("TrackDescriptor packet without uuid");
@@ -106,11 +110,37 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     return ModuleResult::Handled();
   }
 
-  StringId name_id = kNullStringId;
+  if (track.has_parent_uuid()) {
+    reservation.parent_uuid = track.parent_uuid();
+  }
+
+  if (track.has_child_ordering()) {
+    switch (track.child_ordering()) {
+      case TrackDescriptorProto::ChildTracksOrdering::UNKNOWN:
+        reservation.ordering = Reservation::ChildTracksOrdering::kUnknown;
+        break;
+      case TrackDescriptorProto::ChildTracksOrdering::CHRONOLOGICAL:
+        reservation.ordering = Reservation::ChildTracksOrdering::kChronological;
+        break;
+      case TrackDescriptorProto::ChildTracksOrdering::LEXICOGRAPHIC:
+        reservation.ordering = Reservation::ChildTracksOrdering::kLexicographic;
+        break;
+      case TrackDescriptorProto::ChildTracksOrdering::EXPLICIT:
+        reservation.ordering = Reservation::ChildTracksOrdering::kExplicit;
+        break;
+      default:
+        PERFETTO_FATAL("Unsupported ChildTracksOrdering");
+    }
+  }
+
+  if (track.has_sibling_order_z_index()) {
+    reservation.sibling_order_z_index = track.sibling_order_z_index();
+  }
+
   if (track.has_name())
-    name_id = context_->storage->InternString(track.name());
+    reservation.name = context_->storage->InternString(track.name());
   else if (track.has_static_name())
-    name_id = context_->storage->InternString(track.static_name());
+    reservation.name = context_->storage->InternString(track.static_name());
 
   if (packet.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
@@ -132,18 +162,18 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       TokenizeThreadDescriptor(*state, thread);
     }
 
-    TrackEventTracker::DescriptorTrackReservation reservation;
     reservation.min_timestamp = packet_timestamp;
-    reservation.parent_uuid = track.parent_uuid();
     reservation.pid = static_cast<uint32_t>(thread.pid());
     reservation.tid = static_cast<uint32_t>(thread.tid());
-    reservation.name = name_id;
     reservation.use_separate_track =
         track.disallow_merging_with_system_tracks();
 
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
-  } else if (track.has_process()) {
+    return ModuleResult::Ignored();
+  }
+
+  if (track.has_process()) {
     protos::pbzero::ProcessDescriptor::Decoder process(track.process());
 
     if (!process.has_pid()) {
@@ -153,13 +183,13 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       return ModuleResult::Handled();
     }
 
-    TrackEventTracker::DescriptorTrackReservation reservation;
-    reservation.name = name_id;
     reservation.pid = static_cast<uint32_t>(process.pid());
     reservation.min_timestamp = packet_timestamp;
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
-  } else if (track.has_counter()) {
+    return ModuleResult::Ignored();
+  }
+  if (track.has_counter()) {
     protos::pbzero::CounterDescriptor::Decoder counter(track.counter());
 
     StringId category_id = kNullStringId;
@@ -183,22 +213,19 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     // threads, in which case it has to use absolute values on a different
     // track_uuid. Right now these absolute values are imported onto a separate
     // counter track than the other thread's regular thread time values.)
-    if (name_id.is_null()) {
+    if (reservation.name.is_null()) {
       switch (counter.type()) {
         case CounterDescriptor::COUNTER_UNSPECIFIED:
           break;
         case CounterDescriptor::COUNTER_THREAD_TIME_NS:
-          name_id = counter_name_thread_time_id_;
+          reservation.name = counter_name_thread_time_id_;
           break;
         case CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT:
-          name_id = counter_name_thread_instruction_count_id_;
+          reservation.name = counter_name_thread_instruction_count_id_;
           break;
       }
     }
 
-    TrackEventTracker::DescriptorTrackReservation reservation;
-    reservation.parent_uuid = track.parent_uuid();
-    reservation.name = name_id;
     reservation.is_counter = true;
 
     TrackEventTracker::DescriptorTrackReservation::CounterDetails
@@ -214,16 +241,14 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.counter_details = std::move(counter_details);
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
-  } else {
-    TrackEventTracker::DescriptorTrackReservation r;
-    r.name = name_id;
-    r.parent_uuid = track.parent_uuid();
-    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), r);
+    return ModuleResult::Ignored();
   }
+
+  track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
-}
+}  // namespace perfetto::trace_processor
 
 ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     RefPtr<PacketSequenceStateGeneration> state,

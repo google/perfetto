@@ -805,6 +805,34 @@ class TrackEvent(TestSuite):
         13000,"slice4"
         """))
 
+  def test_track_event_tracks_ordering(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_tracks_ordering.textproto'),
+        query="""
+        SELECT
+          id,
+          parent_id,
+          EXTRACT_ARG(source_arg_set_id, 'child_ordering') AS ordering,
+          EXTRACT_ARG(source_arg_set_id, 'sibling_order_z_index') AS z_index
+        FROM track
+        """,
+        out=Csv("""
+        "id","parent_id","ordering","z_index"
+        0,"[NULL]","explicit","[NULL]"
+        1,0,"[NULL]",-10
+        2,0,"[NULL]",-2
+        3,0,"[NULL]",1
+        4,0,"[NULL]",2
+        5,2,"[NULL]","[NULL]"
+        6,0,"[NULL]","[NULL]"
+        7,"[NULL]","[NULL]","[NULL]"
+        8,7,"[NULL]","[NULL]"
+        9,"[NULL]","[NULL]","[NULL]"
+        10,"[NULL]","[NULL]","[NULL]"
+        11,"[NULL]","[NULL]","[NULL]"
+        12,0,"[NULL]","[NULL]"
+        """))
+
   def test_track_event_tracks_machine_id(self):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks.textproto'),
