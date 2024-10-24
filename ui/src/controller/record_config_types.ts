@@ -47,6 +47,13 @@ export const RECORD_CONFIG_SCHEMA = z
     androidGameInterventionList: z.boolean().default(false),
     androidNetworkTracing: z.boolean().default(false),
     androidNetworkTracingPollMs: z.number().default(250),
+    androidStatsd: z.boolean().default(false),
+    androidStatsdRawPushedAtoms: z.string().default(''),
+    androidStatsdRawPulledAtoms: z.string().default(''),
+    androidStatsdPushedAtoms: z.array(z.string()).default([]),
+    androidStatsdPulledAtoms: z.array(z.string()).default([]),
+    androidStatsdPulledAtomPackages: z.string().default(''),
+    androidStatsdPulledAtomPullFrequencyMs: z.number().default(5000),
 
     cpuCoarse: z.boolean().default(false),
     cpuCoarsePollMs: z.number().default(1000),
