@@ -37,7 +37,7 @@ package perfetto.protos;
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 11.
+// Next id: 13.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -96,4 +96,31 @@ message TrackDescriptor {
   // system events use nanoseconds. It results in broken event nesting when
   // track events and system events share a track.
   optional bool disallow_merging_with_system_tracks = 9;
+
+  // How the UI should organise the nested (child) tracks, i.e. tracks where
+  // `parent_uuid` is specified to this track `uuid`.
+  enum ChildTracksOrdering {
+    // The default ordering, with no bearing on how the UI will visualise the
+    // tracks.
+    UNKNOWN = 0;
+
+    // Order tracks by `name` or `static_name` depending on which one has been
+    // specified.
+    LEXICOGRAPHIC = 1;
+
+    // Order tracks by the first `ts` event in a track.
+    CHRONOLOGICAL = 2;
+
+    // Order tracks by `sibling_order_z_index` of children tracks. The
+    // lowest value will be shown before highest values, with tracks without
+    // `sibling_order_z_index` being shown at the end.
+    EXPLICIT = 3;
+  }
+
+  // If set the ordering will be accessible to the UI via the `track` table.
+  optional ChildTracksOrdering child_ordering = 11;
+
+  // Only makes sense if the parent tracks has `child_ordering` set to
+  // `EXPLICIT`. Lowest value has the highest priority.
+  optional int32 sibling_order_z_index = 12;
 }
