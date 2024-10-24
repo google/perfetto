@@ -16,7 +16,7 @@ import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
-import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
+import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {
@@ -98,9 +98,9 @@ export class UiMainPerTrace implements m.ClassComponent {
   private trace?: TraceImpl;
 
   // This function is invoked once per trace.
-  async oncreate(vnode: m.VnodeDOM) {
-    this.updateOmniboxInputRef(vnode.dom);
-    this.maybeFocusOmnibar();
+  constructor() {
+    const trace = AppImpl.instance.trace;
+    this.trace = trace;
 
     // Register global commands (commands that are useful even without a trace
     // loaded).
@@ -125,10 +125,7 @@ export class UiMainPerTrace implements m.ClassComponent {
 
     // When the UI loads there is no trace. There is no point registering
     // commands or anything in this state as they will be useless.
-    const trace = AppImpl.instance.trace as TraceImpl;
     if (trace === undefined) return;
-    assertTrue(trace instanceof TraceImpl);
-    this.trace = trace;
     document.title = `${trace.traceInfo.traceTitle || 'Trace'} - Perfetto UI`;
     this.maybeShowJsonWarning();
 
@@ -655,6 +652,11 @@ export class UiMainPerTrace implements m.ClassComponent {
       );
     }
     return m('.stepthrough', children);
+  }
+
+  oncreate(vnode: m.VnodeDOM) {
+    this.updateOmniboxInputRef(vnode.dom);
+    this.maybeFocusOmnibar();
   }
 
   view({children}: m.Vnode): m.Children {
