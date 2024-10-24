@@ -15447,8 +15447,9 @@ message TrackDescriptor {
   // If set the ordering will be accessible to the UI via the `track` table.
   optional ChildTracksOrdering child_ordering = 11;
 
-  // Only makes sense if the parent tracks has `child_ordering` set to
-  // `EXPLICIT`. Lowest value has the highest priority.
+  // As tracks with the same name under the same `parent_uuid` are grouped
+  // together in the UI, the `sibling_order_z_index` of the grouped track
+  // would be the minimum `sibling_order_z_index` of grouped tracks.
   optional int32 sibling_order_z_index = 12;
 }
 
