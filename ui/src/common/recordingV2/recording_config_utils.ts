@@ -20,6 +20,7 @@ import {
   AndroidLogConfig,
   AndroidLogId,
   AndroidPowerConfig,
+  AtomId,
   BufferConfig,
   ChromeConfig,
   DataSourceConfig,
@@ -34,6 +35,8 @@ import {
   PerfEventConfig,
   PerfEvents,
   ProcessStatsConfig,
+  StatsdTracingConfig,
+  StatsdPullAtomConfig,
   SysStatsConfig,
   TraceConfig,
   TrackEventConfig,
@@ -440,6 +443,57 @@ export function genTraceConfig(
       pkg.config = new DataSourceConfig();
       pkg.config.name = 'android.packages_list';
       protoCfg.dataSources.push(pkg);
+    }
+  }
+
+  if (uiCfg.androidStatsd) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.name = 'android.statsd';
+    ds.config.statsdTracingConfig = new StatsdTracingConfig();
+
+    if (uiCfg.androidStatsdRawPushedAtoms.length > 0) {
+      ds.config.statsdTracingConfig.rawPushAtomId = [];
+      for (const line of uiCfg.androidStatsdRawPushedAtoms.split('\n')) {
+        if (line.trim().length > 0) {
+          ds.config.statsdTracingConfig.rawPushAtomId.push(parseInt(line));
+        }
+      }
+    }
+
+    if (uiCfg.androidStatsdPushedAtoms.length > 0) {
+      ds.config.statsdTracingConfig.pushAtomId =
+        uiCfg.androidStatsdPushedAtoms.map((atom) => atom as any as AtomId);
+    }
+
+    const needPulledAtomConfig =
+      uiCfg.androidStatsdRawPulledAtoms.length > 0 ||
+      uiCfg.androidStatsdPulledAtoms.length > 0;
+
+    if (needPulledAtomConfig) {
+      let pullAtomConfig = new StatsdPullAtomConfig();
+      if (uiCfg.androidStatsdRawPulledAtoms.length > 0) {
+        for (const line of uiCfg.androidStatsdRawPulledAtoms.split('\n')) {
+          if (line.trim().length > 0) {
+            pullAtomConfig.rawPullAtomId.push(parseInt(line));
+          }
+        }
+      }
+      pullAtomConfig.pullAtomId =
+        uiCfg.androidStatsdPulledAtoms.map((atom) => atom as any as AtomId);
+      pullAtomConfig.pullFrequencyMs =
+        uiCfg.androidStatsdPulledAtomPullFrequencyMs;
+      if (uiCfg.androidStatsdPulledAtomPackages.length > 0) {
+        for (const line of uiCfg.androidStatsdPulledAtomPackages.split('\n')) {
+          if (line.trim().length > 0) {
+            pullAtomConfig.packages.push(line);
+          }
+        }
+      }
+      ds.config.statsdTracingConfig.pullConfig = [pullAtomConfig];
+    }
+    if (targetInfo.targetType !== 'CHROME') {
+      protoCfg.dataSources.push(ds);
     }
   }
 
