@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DataSourceDescriptor} from '../../protos';
+import {AtomId, DataSourceDescriptor} from '../../protos';
 import {globals} from '../globals';
 import {
   Dropdown,
@@ -28,6 +28,19 @@ import {
   ToggleAttrs,
 } from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
+
+const PUSH_ATOM_IDS = new Map<string, string>();
+const PULL_ATOM_IDS = new Map<string, string>();
+for (const key in AtomId) {
+  const value = Number(AtomId[key]);
+  if (!isNaN(value)) {
+    if (value > 2 && value < 9999) {
+      PUSH_ATOM_IDS.set(String(value), key);
+    } else if (value >= 10000 && value < 99999) {
+      PULL_ATOM_IDS.set(String(value), key);
+    }
+  }
+}
 
 const LOG_BUFFERS = new Map<string, string>();
 LOG_BUFFERS.set('LID_CRASH', 'Crash');
@@ -200,6 +213,64 @@ export class AndroidSettings
           set: (cfg, val) => (cfg.androidNetworkTracingPollMs = val),
           get: (cfg) => cfg.androidNetworkTracingPollMs,
         } as SliderAttrs),
+      ),
+      m(
+        Probe,
+        {
+          title: 'Statsd Atoms',
+          img: '',
+          descr: 'Record instances of statsd atoms to the \'Statsd Atoms\' track.',
+          setEnabled: (cfg, val) => cfg.androidStatsd = val,
+          isEnabled: (cfg) => cfg.androidStatsd,
+        } as ProbeAttrs,
+        m(Dropdown, {
+          title: 'Pushed Atoms',
+          cssClass: '.singlecolumn',
+          options: PUSH_ATOM_IDS,
+          set: (cfg, val) => (cfg.androidStatsdPushedAtoms = val),
+          get: (cfg) => cfg.androidStatsdPushedAtoms,
+        } as DropdownAttrs),
+        m(Textarea, {
+          placeholder:
+            'Add raw pushed atoms IDs, one per line, e.g.:\n' +
+            '818\n' +
+            '819',
+          set: (cfg, val) => (cfg.androidStatsdRawPushedAtoms = val),
+          get: (cfg) => cfg.androidStatsdRawPushedAtoms,
+        } as TextareaAttrs),
+        m(Dropdown, {
+          title: 'Pulled Atoms',
+          cssClass: '.singlecolumn',
+          options: PULL_ATOM_IDS,
+          set: (cfg, val) => (cfg.androidStatsdPulledAtoms = val),
+          get: (cfg) => cfg.androidStatsdPulledAtoms,
+        } as DropdownAttrs),
+        m(Textarea, {
+          placeholder:
+            'Add raw pulled atom IDs, one per line, e.g.:\n' +
+            '10063\n' +
+            '10064\n',
+          set: (cfg, val) => (cfg.androidStatsdRawPulledAtoms = val),
+          get: (cfg) => cfg.androidStatsdRawPulledAtoms,
+        } as TextareaAttrs),
+        m(Slider, {
+          title: 'Pulled atom pull frequency (ms)',
+          cssClass: '.thin',
+          values: [500, 1000, 5000, 30000, 60000],
+          unit: 'ms',
+          set: (cfg, val) => (cfg.androidStatsdPulledAtomPullFrequencyMs = val),
+          get: (cfg) => cfg.androidStatsdPulledAtomPullFrequencyMs,
+        } as SliderAttrs),
+          m(Textarea, {
+          placeholder:
+            'Add pulled atom packages, one per line, e.g.:\n' +
+            'com.android.providers.telephony',
+          set: (cfg, val) => (cfg.androidStatsdPulledAtomPackages = val),
+          get: (cfg) => cfg.androidStatsdPulledAtomPackages,
+        } as TextareaAttrs),
+
+
+
       ),
     );
   }
