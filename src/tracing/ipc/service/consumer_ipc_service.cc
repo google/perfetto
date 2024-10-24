@@ -333,8 +333,13 @@ void ConsumerIPCService::CloneSession(
   ConsumerEndpoint::CloneSessionArgs args;
   args.skip_trace_filter = req.skip_trace_filter();
   args.for_bugreport = req.for_bugreport();
-  remote_consumer->service_endpoint->CloneSession(req.session_id(),
-                                                  std::move(args));
+  if (req.has_session_id()) {
+    args.tsid = req.session_id();
+  }
+  if (req.has_unique_session_name()) {
+    args.unique_session_name = req.unique_session_name();
+  }
+  remote_consumer->service_endpoint->CloneSession(std::move(args));
 }
 
 // Called by the service in response to

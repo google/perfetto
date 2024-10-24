@@ -5244,6 +5244,117 @@ TEST_F(TracingServiceImplTest, CloneTransferFlush) {
   consumer->WaitForTracingDisabled();
 }
 
+TEST_F(TracingServiceImplTest, CloneSessionByName) {
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // The consumer that clones it and reads back the data.
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  trace_config.set_unique_session_name("my_unique_session_name");
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+
+  static constexpr size_t kNumTestPackets = 20;
+  for (size_t i = 0; i < kNumTestPackets; i++) {
+    auto tp = writer->NewTracePacket();
+    std::string payload("payload" + std::to_string(i));
+    tp->set_for_testing()->set_str(payload.c_str(), payload.size());
+    tp->set_timestamp(static_cast<uint64_t>(i));
+  }
+
+  {
+    auto clone_done = task_runner.CreateCheckpoint("clone_done");
+    EXPECT_CALL(*consumer2, OnSessionCloned(_))
+        .WillOnce(
+            Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
+              ASSERT_TRUE(args.success);
+              ASSERT_TRUE(args.error.empty());
+              clone_done();
+            }));
+    ConsumerEndpoint::CloneSessionArgs args;
+    args.unique_session_name = "my_unique_session_name";
+    consumer2->endpoint()->CloneSession(args);
+    // CloneSession() will implicitly issue a flush. Linearize with that.
+    producer->ExpectFlush(writer.get());
+    task_runner.RunUntilCheckpoint("clone_done");
+  }
+
+  // Disable the initial tracing session.
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+
+  // Read back the cloned trace and the original trace.
+  auto packets = consumer->ReadBuffers();
+  auto cloned_packets = consumer2->ReadBuffers();
+  for (size_t i = 0; i < kNumTestPackets; i++) {
+    std::string payload = "payload" + std::to_string(i);
+    EXPECT_THAT(packets,
+                Contains(Property(
+                    &protos::gen::TracePacket::for_testing,
+                    Property(&protos::gen::TestEvent::str, Eq(payload)))));
+    EXPECT_THAT(cloned_packets,
+                Contains(Property(
+                    &protos::gen::TracePacket::for_testing,
+                    Property(&protos::gen::TestEvent::str, Eq(payload)))));
+  }
+
+  // Delete the original tracing session.
+  consumer->FreeBuffers();
+
+  {
+    std::unique_ptr<MockConsumer> consumer3 = CreateMockConsumer();
+    consumer3->Connect(svc.get());
+
+    // The original session is gone. The cloned session is still there. It
+    // should not be possible to clone that by name.
+
+    auto clone_failed = task_runner.CreateCheckpoint("clone_failed");
+    EXPECT_CALL(*consumer3, OnSessionCloned(_))
+        .WillOnce(
+            Invoke([clone_failed](const Consumer::OnSessionClonedArgs& args) {
+              EXPECT_FALSE(args.success);
+              EXPECT_THAT(args.error, HasSubstr("Tracing session not found"));
+              clone_failed();
+            }));
+    ConsumerEndpoint::CloneSessionArgs args_f;
+    args_f.unique_session_name = "my_unique_session_name";
+    consumer3->endpoint()->CloneSession(args_f);
+    task_runner.RunUntilCheckpoint("clone_failed");
+
+    // But it should be possible to clone that by id.
+    auto clone_success = task_runner.CreateCheckpoint("clone_success");
+    EXPECT_CALL(*consumer3, OnSessionCloned(_))
+        .WillOnce(
+            Invoke([clone_success](const Consumer::OnSessionClonedArgs& args) {
+              EXPECT_TRUE(args.success);
+              clone_success();
+            }));
+    ConsumerEndpoint::CloneSessionArgs args_s;
+    args_s.tsid = GetLastTracingSessionId(consumer3.get());
+    consumer3->endpoint()->CloneSession(args_s);
+    task_runner.RunUntilCheckpoint("clone_success");
+  }
+}
+
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());

@@ -1056,7 +1056,8 @@ void PerfettoCmd::OnConnect() {
     ConsumerEndpoint::CloneSessionArgs args;
     args.skip_trace_filter = clone_for_bugreport_;
     args.for_bugreport = clone_for_bugreport_;
-    consumer_endpoint_->CloneSession(*clone_tsid_, std::move(args));
+    args.tsid = *clone_tsid_;
+    consumer_endpoint_->CloneSession(std::move(args));
     return;
   }
 
