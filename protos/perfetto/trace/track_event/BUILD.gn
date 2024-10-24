@@ -46,9 +46,42 @@ perfetto_proto_library("@TYPE@") {
   ]
 }
 
+config("descriptor_inputs_config") {
+  inputs = [
+    "debug_annotation.proto",
+    "log_message.proto",
+    "task_execution.proto",
+    "chrome_active_processes.proto",
+    "chrome_application_state_info.proto",
+    "chrome_compositor_scheduler_state.proto",
+    "chrome_content_settings_event_info.proto",
+    "chrome_frame_reporter.proto",
+    "chrome_histogram_sample.proto",
+    "chrome_keyed_service.proto",
+    "chrome_latency_info.proto",
+    "chrome_legacy_ipc.proto",
+    "chrome_message_pump.proto",
+    "chrome_mojo_event_info.proto",
+    "chrome_renderer_scheduler_state.proto",
+    "chrome_user_event.proto",
+    "chrome_window_handle_event_info.proto",
+    "screenshot.proto",
+    "source_location.proto",
+  ]
+}
+
+group("descriptor_inputs") {
+  public_configs = [ ":descriptor_inputs_config" ]
+}
+
 perfetto_proto_library("descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "track_event.descriptor"
   sources = [ "track_event.proto" ]
+
+  # TODO(lalitm): remove this target when we found better way to propagate
+  # indirect input deps.
+  proto_deps = [ ":descriptor_inputs" ]
+
   link_deps = [ ":source_set" ]
 }
