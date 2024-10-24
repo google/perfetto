@@ -97,15 +97,18 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     const suspendResumeLatencyTrackName = 'Suspend/Resume Latency';
     const rawGlobalAsyncTracks = await engine.query(`
       include perfetto module graphs.search;
+      include perfetto module viz.summary.tracks;
 
       with global_tracks_grouped as (
         select
-          parent_id,
-          name,
+          t.parent_id,
+          t.name,
           group_concat(id) as trackIds,
-          count() as trackCount
+          count() as trackCount,
+          min(a.order_id) as order_id
         from track t
         join _slice_track_summary using (id)
+        left join _track_event_tracks_ordered a USING (id)
         where
           t.type in ('__intrinsic_track', 'gpu_track', '__intrinsic_cpu_track')
           and (name != '${suspendResumeLatencyTrackName}' or name is null)
@@ -117,6 +120,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
             'android_energy_estimation_breakdown_per_uid'
           )
         group by parent_id, name
+        order by parent_id, order_id
       ),
       intermediate_groups as (
         select
@@ -227,7 +231,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
         t.parent_id as parentId,
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth
       from _process_track_summary_by_upid_and_parent_id_and_name t
-      join process using(upid)
+      join process using (upid)
       where t.name is null or t.name not glob "* Timeline"
     `);
 
