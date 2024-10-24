@@ -144,6 +144,7 @@ from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
+from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
 from diff_tests.syntax.function_tests import PerfettoFunction
@@ -340,6 +341,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                           'StdlibIntervalsIntersect').fetch(),
       *Startups(index_path, 'stdlib/android', 'Startups').fetch(),
       *Timestamps(index_path, 'stdlib/timestamps', 'Timestamps').fetch(),
+      *Viz(index_path, 'stdlib/viz', 'Viz').fetch(),
       *WattsonStdlib(index_path, 'stdlib/wattson', 'WattsonStdlib').fetch(),
   ] + chrome_stdlib_tests
 
