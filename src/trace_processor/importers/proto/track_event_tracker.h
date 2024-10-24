@@ -39,8 +39,15 @@ class TrackEventTracker {
   // Data from TrackDescriptor proto used to reserve a track before interning it
   // with |TrackTracker|.
   struct DescriptorTrackReservation {
+    // Maps to TrackDescriptor::ChildTracksOrdering proto values
+    enum class ChildTracksOrdering {
+      kUnknown = 0,
+      kLexicographic = 1,
+      kChronological = 2,
+      kExplicit = 3,
+    };
     struct CounterDetails {
-      StringId category = kNullStringId;
+      StringId category;
       int64_t unit_multiplier = 1;
       bool is_incremental = false;
       uint32_t packet_sequence_id = 0;
@@ -64,6 +71,10 @@ class TrackEventTracker {
 
     // For counter tracks.
     std::optional<CounterDetails> counter_details;
+
+    // For UI visualisation
+    ChildTracksOrdering ordering = ChildTracksOrdering::kUnknown;
+    std::optional<int32_t> sibling_order_z_index;
 
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
@@ -205,15 +216,20 @@ class TrackEventTracker {
 
   std::unordered_set<uint32_t> sequences_with_first_packet_;
 
-  const StringId source_key_ = kNullStringId;
-  const StringId source_id_key_ = kNullStringId;
-  const StringId is_root_in_scope_key_ = kNullStringId;
-  const StringId category_key_ = kNullStringId;
-  const StringId has_first_packet_on_sequence_key_id_ = kNullStringId;
+  const StringId source_key_;
+  const StringId source_id_key_;
+  const StringId is_root_in_scope_key_;
+  const StringId category_key_;
+  const StringId has_first_packet_on_sequence_key_id_;
+  const StringId child_ordering_key_;
+  const StringId explicit_id_;
+  const StringId lexicographic_id_;
+  const StringId chronological_id_;
+  const StringId sibling_order_z_index_key_;
 
-  const StringId descriptor_source_ = kNullStringId;
+  const StringId descriptor_source_;
 
-  const StringId default_descriptor_track_name_ = kNullStringId;
+  const StringId default_descriptor_track_name_;
 
   std::optional<int64_t> range_of_interest_start_us_;
 

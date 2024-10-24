@@ -47,6 +47,12 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       category_key_(context->storage->InternString("category")),
       has_first_packet_on_sequence_key_id_(
           context->storage->InternString("has_first_packet_on_sequence")),
+      child_ordering_key_(context->storage->InternString("child_ordering")),
+      explicit_id_(context->storage->InternString("explicit")),
+      lexicographic_id_(context->storage->InternString("lexicographic")),
+      chronological_id_(context->storage->InternString("chronological")),
+      sibling_order_z_index_key_(
+          context->storage->InternString("sibling_order_z_index")),
       descriptor_source_(context->storage->InternString("descriptor")),
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
@@ -145,6 +151,25 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
       sequences_with_first_packet_.find(*packet_sequence_id) !=
           sequences_with_first_packet_.end()) {
     args.AddArg(has_first_packet_on_sequence_key_id_, Variadic::Boolean(true));
+  }
+
+  switch (reservation.ordering) {
+    case DescriptorTrackReservation::ChildTracksOrdering::kLexicographic:
+      args.AddArg(child_ordering_key_, Variadic::String(lexicographic_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kChronological:
+      args.AddArg(child_ordering_key_, Variadic::String(chronological_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kExplicit:
+      args.AddArg(child_ordering_key_, Variadic::String(explicit_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kUnknown:
+      break;
+  }
+
+  if (reservation.sibling_order_z_index) {
+    args.AddArg(sibling_order_z_index_key_,
+                Variadic::Integer(*reservation.sibling_order_z_index));
   }
 
   auto row_ref = *context_->storage->mutable_track_table()->FindById(track_id);
