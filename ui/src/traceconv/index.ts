@@ -20,10 +20,6 @@ import {
   reportError,
 } from '../base/logging';
 import {time} from '../base/time';
-import {
-  ConversionJobName,
-  ConversionJobStatus,
-} from '../common/conversion_jobs';
 import traceconv from '../gen/traceconv';
 
 const selfWorker = self as {} as Worker;
@@ -44,12 +40,8 @@ function updateStatus(status: string) {
   });
 }
 
-function updateJobStatus(name: ConversionJobName, status: ConversionJobStatus) {
-  selfWorker.postMessage({
-    kind: 'updateJobStatus',
-    name,
-    status,
-  });
+function notifyJobCompleted() {
+  selfWorker.postMessage({kind: 'jobCompleted'});
 }
 
 function downloadFile(buffer: Uint8Array, name: string) {
@@ -131,8 +123,6 @@ async function ConvertTraceAndDownload(
   format: Format,
   truncate?: 'start' | 'end',
 ): Promise<void> {
-  const jobName = format === 'json' ? 'convert_json' : 'convert_systrace';
-  updateJobStatus(jobName, ConversionJobStatus.InProgress);
   const outPath = '/trace.json';
   const args: string[] = [format];
   if (truncate !== undefined) {
@@ -145,7 +135,7 @@ async function ConvertTraceAndDownload(
     downloadFile(fsNodeToBuffer(fsNode), `trace.${format}`);
     module.FS.unlink(outPath);
   } finally {
-    updateJobStatus(jobName, ConversionJobStatus.NotRunning);
+    notifyJobCompleted();
   }
 }
 
@@ -168,8 +158,6 @@ async function ConvertTraceAndOpenInLegacy(
   trace: Blob,
   truncate?: 'start' | 'end',
 ) {
-  const jobName = 'open_in_legacy';
-  updateJobStatus(jobName, ConversionJobStatus.InProgress);
   const outPath = '/trace.json';
   const args: string[] = ['json'];
   if (truncate !== undefined) {
@@ -185,7 +173,7 @@ async function ConvertTraceAndOpenInLegacy(
     openTraceInLegacy(buffer);
     module.FS.unlink(outPath);
   } finally {
-    updateJobStatus(jobName, ConversionJobStatus.NotRunning);
+    notifyJobCompleted();
   }
 }
 
@@ -204,8 +192,6 @@ function isConvertTraceToPprof(msg: Args): msg is ConvertTraceToPprofArgs {
 }
 
 async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
-  const jobName = 'convert_pprof';
-  updateJobStatus(jobName, ConversionJobStatus.InProgress);
   const args = [
     'profile',
     `--pid`,
@@ -232,7 +218,7 @@ async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
       downloadFile(fsNodeToBuffer(fileNode), fileName);
     }
   } finally {
-    updateJobStatus(jobName, ConversionJobStatus.NotRunning);
+    notifyJobCompleted();
   }
 }
 

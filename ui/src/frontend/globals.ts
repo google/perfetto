@@ -16,10 +16,6 @@ import {assertExists} from '../base/logging';
 import {createStore, Store} from '../base/store';
 import {Actions, DeferredAction} from '../common/actions';
 import {CommandManagerImpl} from '../core/command_manager';
-import {
-  ConversionJobName,
-  ConversionJobStatus,
-} from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
 import {State} from '../common/state';
 import {setPerfHooks} from '../core/perf';
@@ -49,7 +45,6 @@ class Globals {
   private _trackDataStore?: TrackDataStore = undefined;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
-  private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
   permalinkHash?: string;
@@ -151,26 +146,6 @@ class Globals {
 
   get recordingLog() {
     return this._recordingLog;
-  }
-
-  getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
-    return this.getJobStatusMap().get(name) ?? ConversionJobStatus.NotRunning;
-  }
-
-  setConversionJobStatus(name: ConversionJobName, status: ConversionJobStatus) {
-    const map = this.getJobStatusMap();
-    if (status === ConversionJobStatus.NotRunning) {
-      map.delete(name);
-    } else {
-      map.set(name, status);
-    }
-  }
-
-  private getJobStatusMap(): Map<ConversionJobName, ConversionJobStatus> {
-    if (!this._jobStatus) {
-      this._jobStatus = new Map();
-    }
-    return this._jobStatus;
   }
 
   setBufferUsage(bufferUsage: number) {
