@@ -47,7 +47,6 @@ class Globals {
   private _recordingLog?: string = undefined;
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
-  permalinkHash?: string;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
