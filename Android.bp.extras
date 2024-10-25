@@ -249,3 +249,10 @@ phony {
         "trigger_perfetto",
     ],
 }
+
+filegroup {
+    name: "heap_profile",
+    srcs: [
+        "tools/heap_profile",
+    ],
+}
