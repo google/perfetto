@@ -155,24 +155,6 @@ button.close {
   grid-area: page;
 }
 
-.alerts {
-  grid-area: alerts;
-  background-color: #f2f2f2;
-  > div {
-    font-family: "Roboto", sans-serif;
-    font-weight: 400;
-    letter-spacing: 0.25px;
-    padding: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    button {
-      width: 24px;
-      height: 24px;
-    }
-  }
-}
-
 @mixin table-font-size {
   font-size: 14px;
   line-height: 18px;
