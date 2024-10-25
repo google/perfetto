@@ -40,8 +40,3 @@ export function publishShowPanningHint() {
   globals.showPanningHint = true;
   globals.publishRedraw();
 }
-
-export function publishPermalinkHash(hash: string | undefined): void {
-  globals.permalinkHash = hash;
-  globals.publishRedraw();
-}
