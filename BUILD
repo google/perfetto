@@ -2651,6 +2651,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h",
     ],
 )
 

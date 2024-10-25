@@ -41,6 +41,8 @@ source_set("table_functions") {
     "experimental_slice_layout.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
+    "winscope_proto_to_args_with_defaults.cc",
+    "winscope_proto_to_args_with_defaults.h",
     "table_info.cc",
     "table_info.h",
   ]
@@ -62,6 +64,9 @@ source_set("table_functions") {
     "../../../tables",
     "../../../types",
     "../../../util",
+    "../../../util:descriptors",
+    "../../../util:proto_to_args_parser",
+    "../../../util:winscope_proto_mapping",
     "../../engine",
   ]
   public_deps = [ ":interface" ]
