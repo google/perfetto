@@ -39,7 +39,7 @@ export function isDownloadable() {
   return true;
 }
 
-export function shareTrace() {
+export async function shareTrace() {
   const traceSource = assertExists(AppImpl.instance.trace?.traceInfo.source);
   const traceUrl = (traceSource as TraceUrlSource).url ?? '';
 
@@ -74,7 +74,7 @@ export function shareTrace() {
   );
   if (result) {
     AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
-    createPermalink({mode: 'APP_STATE'});
+    return await createPermalink({mode: 'APP_STATE'});
   }
 }
 
