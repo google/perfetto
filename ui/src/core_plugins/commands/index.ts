@@ -347,10 +347,9 @@ async function openWithLegacyUi(file: File) {
     'Open trace in Legacy UI',
   );
   if (await isLegacyTrace(file)) {
-    openFileWithLegacyTraceViewer(file);
-    return;
+    return await openFileWithLegacyTraceViewer(file);
   }
-  openInOldUIWithSizeCheck(file);
+  return await openInOldUIWithSizeCheck(file);
 }
 
 export const plugin: PluginDescriptor = {
