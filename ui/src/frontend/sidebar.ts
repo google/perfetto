@@ -627,56 +627,11 @@ class HiringBanner implements m.ClassComponent {
 export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
   private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
   private _asyncJobPending = new Set<string>();
-  private _onClickHandlers = new Map<string, Function>();
 
   view({attrs}: m.CVnode<OptionalTraceAttrs>) {
     if (AppImpl.instance.sidebar.sidebarHidden) return null;
-
-    // The code below iterates through the sections and SectionActions provided
-    // by getSections() and creates the onClick handlers for the items where
-    // a (async)function is provided.
-    // We do it in view() and not in the constructor because new sidebar items
-    // can be added later by plugins.
-    // What we want to achieve here is the following:
-    // - We want to allow plugins that contribute to the sidebar to just specify
-    //   either string URLs or (async) functions as actions for a sidebar menu.
-    // - When they specify an async function, we want to render a spinner, next
-    //   to the menu item, until the promise is resolved.
-    // - [Minor] we want to call e.preventDefault() to override the behaviour of
-    //   the <a href='#'> which gets rendered for accessibility reasons.
-    const sections = getSections(attrs.trace);
-    for (const section of sections) {
-      for (const item of section.items) {
-        const itemId = item.t;
-        // We call this on every render pass. Don't re-create wrappers on each
-        // render cycle if we did it already as that is wasteful.
-        if (this._onClickHandlers.has(itemId)) continue;
-
-        const itemAction = item.a;
-
-        // item.a can be either a function or a URL. In the latter case, we
-        // don't need to generate any onclick handler.
-        if (typeof itemAction !== 'function') continue;
-        const onClickHandler = (e: Event) => {
-          e.preventDefault(); // Make the <a href="#"> a no-op.
-          const res = itemAction();
-          if (!(res instanceof Promise)) return;
-          if (this._asyncJobPending.has(itemId)) {
-            return; // Don't queue up another action if not yet finished.
-          }
-          this._asyncJobPending.add(itemId);
-          raf.scheduleFullRedraw();
-          res.finally(() => {
-            this._asyncJobPending.delete(itemId);
-            raf.scheduleFullRedraw();
-          });
-        };
-        this._onClickHandlers.set(itemId, onClickHandler);
-      }
-    }
-
     const vdomSections = [];
-    for (const section of sections) {
+    for (const section of getSections(attrs.trace)) {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
       const vdomItems = [];
       for (const item of section.items) {
@@ -685,7 +640,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
         }
         let css = '';
         let attrs = {
-          onclick: this._onClickHandlers.get(item.t),
+          onclick: this.wrapClickHandler(item),
           href: isString(item.a) ? item.a : '#',
           target: isString(item.a) && !item.a.startsWith('#') ? '_blank' : null,
           disabled: false,
@@ -812,5 +767,40 @@ export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
         ),
       ),
     );
+  }
+
+  // creates the onClick handlers for the items which provided an
+  // (async)function in the `a`. If `a` is a url, instead, just return null.
+  // We repeate this in view() passes and not in the constructor because new
+  // sidebar items can be added by plugins at any time.
+  // What we want to achieve here is the following:
+  // - We want to allow plugins that contribute to the sidebar to just specify
+  //   either string URLs or (async) functions as actions for a sidebar menu.
+  // - When they specify an async function, we want to render a spinner, next
+  //   to the menu item, until the promise is resolved.
+  // - [Minor] we want to call e.preventDefault() to override the behaviour of
+  //   the <a href='#'> which gets rendered for accessibility reasons.
+  private wrapClickHandler(item: SectionItem) {
+    // item.a can be either a function or a URL. In the latter case, we
+    // don't need to generate any onclick handler.
+    const itemAction = item.a;
+    if (typeof itemAction !== 'function') {
+      return null;
+    }
+    const itemId = item.t;
+    return (e: Event) => {
+      e.preventDefault(); // Make the <a href="#"> a no-op.
+      const res = itemAction();
+      if (!(res instanceof Promise)) return;
+      if (this._asyncJobPending.has(itemId)) {
+        return; // Don't queue up another action if not yet finished.
+      }
+      this._asyncJobPending.add(itemId);
+      raf.scheduleFullRedraw();
+      res.finally(() => {
+        this._asyncJobPending.delete(itemId);
+        raf.scheduleFullRedraw();
+      });
+    };
   }
 }
