@@ -48,12 +48,14 @@ CREATE OR REPLACE PERFETTO FUNCTION get_main_thread_time_for_launch_in_runnable_
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceThreadSection(
     'start_timestamp', ts, 'end_timestamp', ts + dur,
+    'thread_tid', tid, 'process_pid', pid,
     'thread_name', thread_name))
   FROM (
-    SELECT ts, dur, utid, thread_name
-    FROM launch_threads_by_thread_state l
+    SELECT p.pid, ts, dur, thread.tid, thread_name
+    FROM launch_threads_by_thread_state l, android_startup_processes p
     JOIN thread USING (utid)
     WHERE l.startup_id = $startup_id AND (state GLOB "R" OR state GLOB "R+") AND l.is_main_thread
+      AND p.startup_id = $startup_id
     ORDER BY dur DESC
     LIMIT $num_threads);
 
@@ -62,12 +64,14 @@ CREATE OR REPLACE PERFETTO FUNCTION get_main_thread_time_for_launch_and_state(
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceThreadSection(
     'start_timestamp', ts, 'end_timestamp', ts + dur,
+    'thread_tid', tid, 'process_pid', pid,
     'thread_name', thread_name))
   FROM (
-    SELECT ts, dur, utid, thread_name
-    FROM launch_threads_by_thread_state l
+    SELECT p.pid, ts, dur, thread.tid, thread_name
+    FROM launch_threads_by_thread_state l, android_startup_processes p
     JOIN thread USING (utid)
     WHERE l.startup_id = $startup_id AND state GLOB $state AND l.is_main_thread
+      AND p.startup_id = $startup_id
     ORDER BY dur DESC
     LIMIT $num_threads);
 
@@ -76,13 +80,15 @@ CREATE OR REPLACE PERFETTO FUNCTION get_main_thread_time_for_launch_state_and_io
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceThreadSection(
     'start_timestamp', ts, 'end_timestamp', ts + dur,
+    'thread_tid', tid, 'process_pid', pid,
     'thread_name', thread_name))
   FROM (
-    SELECT ts, dur, utid, thread_name
-    FROM launch_threads_by_thread_state l
+    SELECT p.pid, ts, dur, thread.tid, thread_name
+    FROM launch_threads_by_thread_state l, android_startup_processes p
     JOIN thread USING (utid)
     WHERE l.startup_id = $startup_id AND state GLOB $state
       AND l.is_main_thread AND l.io_wait = $io_wait
+      AND p.startup_id = $startup_id
     ORDER BY dur DESC
     LIMIT $num_threads);
 
@@ -91,12 +97,14 @@ CREATE OR REPLACE PERFETTO FUNCTION get_thread_time_for_launch_state_and_thread(
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceThreadSection(
     'start_timestamp', ts, 'end_timestamp', ts + dur,
+    'thread_tid', tid, 'process_pid', pid,
     'thread_name', thread_name))
   FROM (
-    SELECT ts, dur, utid, thread_name
-    FROM launch_threads_by_thread_state l
+    SELECT p.pid, ts, dur, thread.tid, thread_name
+    FROM launch_threads_by_thread_state l, android_startup_processes p
     JOIN thread USING (utid)
     WHERE l.startup_id = $startup_id AND state GLOB $state AND thread_name = $thread_name
+      AND p.startup_id = $startup_id
     ORDER BY dur DESC
     LIMIT $num_threads);
 
@@ -104,14 +112,16 @@ CREATE OR REPLACE PERFETTO FUNCTION get_missing_baseline_profile_for_launch(
   startup_id LONG, pkg_name STRING)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
+    'thread_tid', tid,
+    'process_pid', pid,
     'start_timestamp', slice_ts,
     'end_timestamp', slice_ts + slice_dur,
     'slice_id', slice_id,
     'slice_name', slice_name))
   FROM (
-    SELECT slice_ts, slice_dur, slice_id, slice_name
+    SELECT p.pid, tid, slice_ts, slice_dur, slice_id, slice_name
     FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME($startup_id,
-      "location=* status=* filter=* reason=*")
+      "location=* status=* filter=* reason=*"), android_startup_processes p
     WHERE
       -- when location is the package odex file and the reason is "install" or "install-dm",
       -- if the compilation filter is not "speed-profile", baseline/cloud profile is missing.
@@ -119,36 +129,43 @@ RETURNS PROTO AS
         GLOB ("*" || $pkg_name || "*odex")
       AND (STR_SPLIT(slice_name, " reason=", 1) = "install"
       OR STR_SPLIT(slice_name, " reason=", 1) = "install-dm")
+      AND p.startup_id = $startup_id
     ORDER BY slice_dur DESC
     LIMIT 1);
 
 CREATE OR REPLACE PERFETTO FUNCTION get_run_from_apk(startup_id LONG)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
+    'thread_tid', tid,
+    'process_pid', pid,
     'start_timestamp', slice_ts,
     'end_timestamp', slice_ts + slice_dur,
     'slice_id', slice_id,
     'slice_name', slice_name))
   FROM (
-    SELECT slice_ts, slice_dur, slice_id, slice_name
-    FROM android_thread_slices_for_all_startups
+    SELECT p.pid, tid, slice_ts, slice_dur, slice_id, slice_name
+    FROM android_thread_slices_for_all_startups l, android_startup_processes p
     WHERE
-      startup_id = $startup_id AND is_main_thread AND
+      l.startup_id = $startup_id AND is_main_thread AND
       slice_name GLOB "location=* status=* filter=* reason=*" AND
       STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0)
         GLOB ("*" || "run-from-apk" || "*")
+      AND p.startup_id = $startup_id
     ORDER BY slice_dur DESC
     LIMIT 1);
 
-CREATE OR REPLACE PERFETTO FUNCTION get_unlock_running_during_launch_slice(startup_id LONG)
+CREATE OR REPLACE PERFETTO FUNCTION get_unlock_running_during_launch_slice(startup_id LONG,
+  pid INT)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
+    'thread_tid', tid,
+    'process_pid', $pid,
     'start_timestamp', slice_ts,
     'end_timestamp', slice_ts + slice_dur,
     'slice_id', slice_id,
     'slice_name', slice_name))
   FROM (
-    SELECT slice.ts as slice_ts, slice.dur as slice_dur,
+    SELECT tid, slice.ts as slice_ts, slice.dur as slice_dur,
       slice.id as slice_id, slice.name as slice_name
     FROM slice, android_startups launches
     JOIN thread_track ON slice.track_id = thread_track.id
@@ -164,14 +181,17 @@ RETURNS PROTO AS
 CREATE OR REPLACE PERFETTO FUNCTION get_gc_activity(startup_id LONG, num_slices INT)
 RETURNS PROTO  AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
+    'thread_tid', tid,
+    'process_pid', pid,
     'start_timestamp', slice_ts,
     'end_timestamp', slice_ts + slice_dur,
     'slice_id', slice_id,
     'slice_name', slice_name))
   FROM (
-    SELECT slice_ts, slice_dur, slice_id, slice_name
-    FROM android_thread_slices_for_all_startups slice
+    SELECT p.pid, tid, slice_ts, slice_dur, slice_id, slice_name
+    FROM android_thread_slices_for_all_startups slice, android_startup_processes p
     WHERE
+      p.startup_id = $startup_id AND
       slice.startup_id = $startup_id AND
       (
         slice_name GLOB "*semispace GC" OR
@@ -185,14 +205,17 @@ CREATE OR REPLACE PERFETTO FUNCTION get_dur_on_main_thread_for_startup_and_slice
   startup_id LONG, slice_name STRING, num_slices INT)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
+    'thread_tid', tid,
+    'process_pid', pid,
     'start_timestamp', slice_ts,
     'end_timestamp', slice_ts + slice_dur,
     'slice_id', slice_id,
     'slice_name', slice_name))
   FROM (
-    SELECT slice_ts, slice_dur, slice_id, slice_name
-    FROM android_thread_slices_for_all_startups l
-    WHERE startup_id = $startup_id
+    SELECT p.pid, tid, slice_ts, slice_dur, slice_id, slice_name
+    FROM android_thread_slices_for_all_startups l,
+      android_startup_processes p
+    WHERE l.startup_id = $startup_id AND p.startup_id == $startup_id
       AND slice_name GLOB $slice_name
     ORDER BY slice_dur DESC
     LIMIT $num_slices);
@@ -201,21 +224,24 @@ CREATE OR REPLACE PERFETTO FUNCTION get_main_thread_binder_transactions_blocked(
   startup_id LONG, threshold DOUBLE, num_slices INT)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
+    'thread_tid', tid,
+    'process_pid', pid,
     'start_timestamp', slice_ts, 'end_timestamp', slice_ts + slice_dur,
     'slice_id', slice_id, 'slice_name', slice_name))
   FROM (
-    SELECT request.slice_ts as slice_ts, request.slice_dur as slice_dur,
+    SELECT pid, request.tid as tid, request.slice_ts as slice_ts, request.slice_dur as slice_dur,
       request.id as slice_id, request.slice_name as slice_name
     FROM (
-      SELECT slice_id as id, slice_dur, thread_name, process.name as process,
+      SELECT p.pid, tid, slice_id as id, slice_dur, thread_name, process.name as process,
         s.arg_set_id, is_main_thread,
         slice_ts, s.utid, slice_name
-      FROM android_thread_slices_for_all_startups s
+      FROM android_thread_slices_for_all_startups s,
+        android_startup_processes p
       JOIN process ON (
         EXTRACT_ARG(s.arg_set_id, "destination process") = process.pid
       )
-      WHERE startup_id = $startup_id AND slice_name GLOB "binder transaction"
-        AND slice_dur > $threshold
+      WHERE s.startup_id = $startup_id AND slice_name GLOB "binder transaction"
+        AND slice_dur > $threshold AND p.startup_id = $startup_id
     ) request
     JOIN following_flow(request.id) arrow
     JOIN slice reply ON reply.id = arrow.slice_in
@@ -225,13 +251,17 @@ RETURNS PROTO AS
     LIMIT $num_slices);
 
 CREATE OR REPLACE PERFETTO FUNCTION get_slices_concurrent_to_launch(
-  startup_id INT, slice_glob STRING, num_slices INT)
+  startup_id INT, slice_glob STRING, num_slices INT, pid INT)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
+    'thread_tid', tid,
+    'process_pid', $pid,
     'start_timestamp', ts, 'end_timestamp', ts + dur,
     'slice_id', id, 'slice_name', name))
   FROM (
-    SELECT s.ts as ts, dur, id, name FROM slice s
+    SELECT thread.tid, s.ts as ts, dur, s.id, s.name FROM slice s
+    JOIN thread_track t ON s.track_id = t.id
+    JOIN thread USING(utid)
     JOIN (
       SELECT ts, ts_end
       FROM android_startups
@@ -243,13 +273,15 @@ RETURNS PROTO AS
     ORDER BY dur DESC LIMIT $num_slices);
 
 CREATE OR REPLACE PERFETTO FUNCTION get_slices_for_startup_and_slice_name(
-  startup_id INT, slice_name STRING, num_slices INT)
+  startup_id INT, slice_name STRING, num_slices INT, pid int)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
+    'thread_tid', tid,
+    'process_pid', $pid,
     'start_timestamp', slice_ts, 'end_timestamp', slice_ts + slice_dur,
     'slice_id', slice_id, 'slice_name', slice_name))
   FROM (
-    SELECT slice_ts, slice_dur, slice_id, slice_name
+    SELECT tid, slice_ts, slice_dur, slice_id, slice_name
     FROM android_thread_slices_for_all_startups
     WHERE startup_id = $startup_id AND slice_name GLOB $slice_name
     ORDER BY slice_dur DESC
@@ -313,7 +345,8 @@ RETURNS PROTO AS
             'unit', 'TRUE_OR_FALSE') as expected_val,
           AndroidStartupMetric_ActualValue(
             'value', TRUE) as actual_val,
-          get_run_from_apk(launch.startup_id) as trace_slices,
+          get_run_from_apk(launch.startup_id)
+            as trace_slices,
           NULL as trace_threads,
           NULL as extra
         FROM android_startups launch
@@ -330,7 +363,9 @@ RETURNS PROTO AS
             'unit', 'TRUE_OR_FALSE') as expected_val,
           AndroidStartupMetric_ActualValue(
             'value', TRUE) as actual_val,
-          get_unlock_running_during_launch_slice(launch.startup_id) as trace_slices,
+          get_unlock_running_during_launch_slice(launch.startup_id,
+            (SELECT pid FROM android_startup_processes WHERE launch.startup_id = startup_id))
+            as trace_slices,
           NULL as trace_threads,
           NULL as extra
         FROM android_startups launch
@@ -364,7 +399,8 @@ RETURNS PROTO AS
             'unit', 'TRUE_OR_FALSE') as expected_val,
           AndroidStartupMetric_ActualValue(
             'value', TRUE) as actual_val,
-          get_gc_activity(launch.startup_id, 1) as trace_slices,
+          get_gc_activity(launch.startup_id, 1)
+            as trace_slices,
           NULL as trace_threads,
           NULL as extra
         FROM android_startups launch
@@ -421,7 +457,8 @@ RETURNS PROTO AS
               main_thread_time_for_launch_in_runnable_state(launch.startup_id) * 100 / launch.dur,
             'dur', main_thread_time_for_launch_in_runnable_state(launch.startup_id)) as actual_val,
           NULL as trace_slices,
-          get_main_thread_time_for_launch_in_runnable_state(launch.startup_id, 3) as trace_threads,
+          get_main_thread_time_for_launch_in_runnable_state(launch.startup_id, 3)
+            as trace_threads,
           NULL as extra
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
@@ -440,7 +477,8 @@ RETURNS PROTO AS
           AndroidStartupMetric_ActualValue(
             'value', main_thread_time_for_launch_and_state(launch.startup_id, 'S')) as actual_val,
           NULL as trace_slices,
-          get_main_thread_time_for_launch_and_state(launch.startup_id, 'S', 3) as trace_threads,
+          get_main_thread_time_for_launch_and_state(launch.startup_id, 'S', 3)
+            as trace_threads,
           NULL as extra
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
@@ -461,7 +499,8 @@ RETURNS PROTO AS
               launch.startup_id, 'D*', TRUE)) as actual_val,
           NULL as trace_slices,
           get_main_thread_time_for_launch_state_and_io_wait(
-            launch.startup_id, 'D*', TRUE, 3) as trace_threads,
+            launch.startup_id, 'D*', TRUE, 3)
+            as trace_threads,
           NULL as extra
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
@@ -547,7 +586,8 @@ RETURNS PROTO AS
             'value', android_sum_dur_for_startup_and_slice(
               launch.startup_id, 'ResourcesManager#getResources')) as actual_val,
           get_dur_on_main_thread_for_startup_and_slice(
-            launch.startup_id, 'ResourcesManager#getResources', 3) as trace_slices,
+            launch.startup_id, 'ResourcesManager#getResources', 3)
+            as trace_slices,
           NULL as trace_threads,
           NULL as extra
         FROM android_startups launch
@@ -592,7 +632,8 @@ RETURNS PROTO AS
             'value',
               main_thread_time_for_launch_in_runnable_state(launch.startup_id)) as actual_val,
           NULL as trace_slices,
-          get_main_thread_time_for_launch_in_runnable_state(launch.startup_id, 3) as trace_threads,
+          get_main_thread_time_for_launch_in_runnable_state(launch.startup_id, 3)
+            as trace_threads,
           NULL as extra
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
@@ -614,7 +655,8 @@ RETURNS PROTO AS
               launch.startup_id, 'Running', 'Jit thread pool')) as actual_val,
           NULL as trace_slices,
           get_thread_time_for_launch_state_and_thread(
-            launch.startup_id, 'Running', 'Jit thread pool', 3) as trace_threads,
+            launch.startup_id, 'Running', 'Jit thread pool', 3)
+            as trace_threads,
           NULL as extra
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
@@ -664,7 +706,8 @@ RETURNS PROTO AS
             'dur', android_sum_dur_on_main_thread_for_startup_and_slice(
               launch.startup_id, 'Lock contention on a monitor*')) as actual_val,
           get_dur_on_main_thread_for_startup_and_slice(
-            launch.startup_id, 'Lock contention on a monitor*', 3) as trace_slices,
+            launch.startup_id, 'Lock contention on a monitor*', 3)
+            as trace_slices,
           NULL as trace_threads,
           NULL as extra
         FROM android_startups launch
@@ -687,7 +730,8 @@ RETURNS PROTO AS
             'value', (SELECT COUNT(1)
               FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launch.startup_id, 'JIT compiling*')
               WHERE thread_name = 'Jit thread pool')) as actual_val,
-          get_slices_for_startup_and_slice_name(launch.startup_id, 'JIT compiling*', 3)
+          get_slices_for_startup_and_slice_name(launch.startup_id, 'JIT compiling*', 3,
+            (SELECT pid FROM android_startup_processes WHERE launch.startup_id = startup_id))
             as trace_slices,
           NULL as traced_threads,
           NULL as extra
@@ -710,7 +754,8 @@ RETURNS PROTO AS
           AndroidStartupMetric_ActualValue(
             'value', count_slices_concurrent_to_launch(launch.startup_id,
               'Broadcast dispatched*')) as actual_val,
-          get_slices_concurrent_to_launch(launch.startup_id, 'Broadcast dispatched*', 3)
+          get_slices_concurrent_to_launch(launch.startup_id, 'Broadcast dispatched*', 3,
+            (SELECT pid FROM android_startup_processes WHERE launch.startup_id = startup_id))
             as trace_slices,
           NULL as trace_threads,
           NULL as extra
@@ -732,7 +777,8 @@ RETURNS PROTO AS
           AndroidStartupMetric_ActualValue(
             'value', count_slices_concurrent_to_launch(launch.startup_id,
               'broadcastReceiveReg*')) as actual_val,
-          get_slices_concurrent_to_launch(launch.startup_id, 'broadcastReceiveReg*', 3)
+          get_slices_concurrent_to_launch(launch.startup_id, 'broadcastReceiveReg*', 3,
+            (SELECT pid FROM android_startup_processes WHERE launch.startup_id = startup_id))
             as trace_slices,
           NULL as trace_threads,
           NULL as extra
@@ -778,7 +824,8 @@ RETURNS PROTO AS
             'unit', 'TRUE_OR_FALSE') as expected_val,
           AndroidStartupMetric_ActualValue(
             'value', TRUE) as actual_val,
-          get_main_thread_binder_transactions_blocked(launch.startup_id, 2e7, 3) as trace_slices,
+          get_main_thread_binder_transactions_blocked(launch.startup_id, 2e7, 3)
+            as trace_slices,
           NULL as trace_threads,
           NULL as extra
         FROM android_startups launch

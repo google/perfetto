@@ -152,6 +152,8 @@ android_startup {
         end_timestamp: 390
         slice_id: 20
         slice_name: "CollectorTransition mark sweep GC"
+        process_pid: 3
+        thread_tid: 5
       }
     }
     slow_start_reason_with_details {
@@ -173,12 +175,16 @@ android_startup {
         end_timestamp: 500000000
         slice_id: 9
         slice_name: "OpenDexFilesFromOat(something else)"
+        process_pid: 3
+        thread_tid: 3
       }
       trace_slice_sections {
         start_timestamp: 150
         end_timestamp: 165
         slice_id: 5
         slice_name: "OpenDexFilesFromOat(something)"
+        process_pid: 3
+        thread_tid: 3
       }
     }
     slow_start_reason_with_details {
@@ -198,6 +204,8 @@ android_startup {
         end_timestamp: 50000000
         slice_id: 21
         slice_name: "binder transaction"
+        process_pid: 3
+        thread_tid: 3
       }
     }
   }

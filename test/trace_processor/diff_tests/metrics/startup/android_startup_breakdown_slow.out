@@ -131,6 +131,8 @@ android_startup {
         end_timestamp: 202000000000
         slice_id: 12
         slice_name: "location=error status=io-error-no-oat filter=run-from-apk reason=unknown"
+        process_pid: 3
+        thread_tid: 3
       }
     }
     slow_start_reason_with_details {
@@ -151,6 +153,8 @@ android_startup {
         end_timestamp: 195000000000
         slice_id: 4
         slice_name: "bindApplication"
+        process_pid: 3
+        thread_tid: 3
       }
     }
     slow_start_reason_with_details {
@@ -171,12 +175,16 @@ android_startup {
         end_timestamp: 192000000000
         slice_id: 8
         slice_name: "inflate"
+        process_pid: 3
+        thread_tid: 3
       }
       trace_slice_sections {
         start_timestamp: 188000000000
         end_timestamp: 189000000000
         slice_id: 7
         slice_name: "inflate"
+        process_pid: 3
+        thread_tid: 3
       }
     }
     slow_start_reason_with_details {
@@ -197,6 +205,8 @@ android_startup {
         end_timestamp: 192000000000
         slice_id: 5
         slice_name: "ResourcesManager#getResources"
+        thread_tid: 3
+        process_pid: 3
       }
     }
     slow_start_reason_with_details {
@@ -216,6 +226,8 @@ android_startup {
         start_timestamp: 205000000000
         end_timestamp: 210000000000
         thread_name: "com.google.android.calendar"
+        thread_tid: 3
+        process_pid: 3
       }
     }
     startup_type: "cold"

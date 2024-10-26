@@ -2585,6 +2585,10 @@ message AndroidStartupMetric {
     optional uint32 slice_id = 3;
 
     optional string slice_name = 4;
+
+    optional uint32 process_pid = 5;
+
+    optional uint32 thread_tid = 6;
   }
 
   // Contains information for a section of a thread.
@@ -2597,6 +2601,10 @@ message AndroidStartupMetric {
     optional uint32 thread_utid = 3;
 
     optional string thread_name = 4;
+
+    optional uint32 process_pid = 5;
+
+    optional uint32 thread_tid = 6;
   }
 
   // Next id: 26
