@@ -23,15 +23,6 @@ import {TrackNode} from '../../public/workspace';
 import {getOrCreateUserInteractionGroup} from '../../public/standard_groups';
 
 class InputEvents implements PerfettoPlugin {
-  private readonly SQL_SOURCE = `
-    SELECT
-      read_time as ts,
-      end_to_end_latency_dur as dur,
-      CONCAT(event_type, ' ', event_action, ': ', process_name, ' (', input_event_id, ')') as name
-    FROM android_input_events
-    WHERE end_to_end_latency_dur IS NOT NULL
-    `;
-
   async onTraceLoad(ctx: Trace): Promise<void> {
     const cnt = await ctx.engine.query(`
       SELECT
@@ -43,9 +34,18 @@ class InputEvents implements PerfettoPlugin {
       return;
     }
 
+    const SQL_SOURCE = `
+      SELECT
+        read_time as ts,
+        end_to_end_latency_dur as dur,
+        CONCAT(event_type, ' ', event_action, ': ', process_name, ' (', input_event_id, ')') as name
+      FROM android_input_events
+      WHERE end_to_end_latency_dur IS NOT NULL
+      `;
+
     const config: SimpleSliceTrackConfig = {
       data: {
-        sqlSource: this.SQL_SOURCE,
+        sqlSource: SQL_SOURCE,
         columns: ['ts', 'dur', 'name'],
       },
       columns: {ts: 'ts', dur: 'dur', name: 'name'},

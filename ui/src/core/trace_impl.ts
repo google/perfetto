@@ -17,7 +17,7 @@ import {assertTrue} from '../base/logging';
 import {createStore, Migrate, Store} from '../base/store';
 import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
-import {Trace} from '../public/trace';
+import {EventListeners, Trace} from '../public/trace';
 import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
 import {TraceInfo} from '../public/trace_info';
 import {TrackDescriptor} from '../public/track';
@@ -43,6 +43,7 @@ import {ThreadDesc, ThreadMap} from '../public/threads';
 import {RouteArgs} from '../public/route_schema';
 import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Analytics} from '../public/analytics';
+import {getOrCreate} from '../base/utils';
 
 /**
  * Handles the per-trace state of the UI
@@ -70,6 +71,7 @@ class TraceContext implements Disposable {
   readonly pivotTableMgr;
   readonly threads = new Map<number, ThreadDesc>();
   readonly trash = new DisposableStack();
+  readonly eventListeners = new Map<keyof EventListeners, Array<unknown>>();
 
   // List of errors that were encountered while loading the trace by the TS
   // code. These are on top of traceInfo.importErrors, which is a summary of
@@ -374,6 +376,29 @@ export class TraceImpl implements Trace {
 
   navigate(newHash: string): void {
     this.appImpl.navigate(newHash);
+  }
+
+  addEventListener<T extends keyof EventListeners>(
+    event: T,
+    callback: EventListeners[T],
+  ): void {
+    const listeners = getOrCreate(
+      this.traceCtx.eventListeners,
+      event,
+      () => [],
+    );
+    listeners.push(callback);
+  }
+
+  getEventListeners<T extends keyof EventListeners>(
+    event: T,
+  ): ReadonlyArray<EventListeners[T]> {
+    const listeners = this.traceCtx.eventListeners.get(event);
+    if (listeners) {
+      return listeners as ReadonlyArray<EventListeners[T]>;
+    } else {
+      return [];
+    }
   }
 
   get trash(): DisposableStack {

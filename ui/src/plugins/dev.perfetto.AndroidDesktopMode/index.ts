@@ -37,16 +37,15 @@ const TRACK_NAME = 'Desktop Mode Windows';
 const TRACK_URI = '/desktop_windows';
 
 class AndroidDesktopMode implements PerfettoPlugin {
-  async onTraceReady(_ctx: Trace): Promise<void> {
-    await _ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);
-    this.registerTrack(
-      _ctx,
-      QUERY,
-    );
-    _ctx.commands.registerCommand({
-      id: 'dev.perfetto.DesktopMode#AddTrackDesktopWindowss',
-      name: 'Add Track: ' + TRACK_NAME,
-      callback: () => this.addSimpleTrack(_ctx),
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.addEventListener('traceready', async () => {
+      await ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);
+      this.registerTrack(ctx, QUERY);
+      ctx.commands.registerCommand({
+        id: 'dev.perfetto.DesktopMode#AddTrackDesktopWindowss',
+        name: 'Add Track: ' + TRACK_NAME,
+        callback: () => this.addSimpleTrack(ctx),
+      });
     });
   }
 
@@ -78,4 +77,3 @@ export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.AndroidDesktopMode',
   plugin: AndroidDesktopMode,
 };
-
