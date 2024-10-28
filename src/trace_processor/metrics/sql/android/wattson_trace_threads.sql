@@ -17,17 +17,16 @@ INCLUDE PERFETTO MODULE wattson.curves.estimates;
 INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
 -- This metric is defined to be for entire trace duration
-DROP VIEW IF EXISTS _wattson_period_windows;
-CREATE PERFETTO VIEW _wattson_period_windows AS
+DROP VIEW IF EXISTS _wattson_period_window;
+CREATE PERFETTO VIEW _wattson_period_window AS
 SELECT
   trace_start() as ts,
-  trace_dur() as dur,
-  1 as period_id;
+  trace_dur() as dur;
 
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',
   'window_table',
-  '_wattson_period_windows'
+  '_wattson_period_window'
 );
 
 -- Group by unique thread ID and disregard CPUs, summing of power over all CPUs
