@@ -99,7 +99,8 @@ bool IsLegacyCharArrayNameAllowed(tracks::TrackClassification classification) {
          classification == tracks::cpu_capacity ||
          classification == tracks::cpu_nr_running ||
          classification == tracks::cpu_max_frequency_limit ||
-         classification == tracks::cpu_min_frequency_limit;
+         classification == tracks::cpu_min_frequency_limit ||
+         classification == tracks::gpu_frequency;
 }
 
 }  // namespace
@@ -522,8 +523,6 @@ TrackId TrackTracker::InternGpuCounterTrack(
   row.dimension_arg_set_id = dims_id.arg_set_id;
   row.classification =
       context_->storage->InternString(tracks::ToString(classification));
-  if (classification == tracks::gpu_frequency)
-    row.name = context_->storage->InternString("gpufreq");
 
   TrackId track_id =
       context_->storage->mutable_gpu_counter_track_table()->Insert(row).id;
