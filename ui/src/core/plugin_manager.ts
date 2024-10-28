@@ -156,18 +156,6 @@ export class PluginManager {
     }
   }
 
-  async onTraceReady(): Promise<void> {
-    for (const plugin of this.registry.values()) {
-      const activePlugin = plugin.activatedContext;
-      if (activePlugin) {
-        const traceContext = activePlugin.traceContext;
-        if (traceContext) {
-          await activePlugin.pluginInstance?.onTraceReady?.(traceContext.trace);
-        }
-      }
-    }
-  }
-
   metricVisualisations(): MetricVisualisation[] {
     return this.registry.valuesAsArray().flatMap((plugin) => {
       const activePlugin = plugin.activatedContext;

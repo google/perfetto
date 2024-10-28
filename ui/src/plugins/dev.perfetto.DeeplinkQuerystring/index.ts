@@ -45,28 +45,30 @@ class DeeplinkQuerystring implements PerfettoPlugin {
     this.routeArgsForFirstTrace = app.initialRouteArgs;
   }
 
-  async onTraceReady(trace: Trace): Promise<void> {
-    const initialRouteArgs = this.routeArgsForFirstTrace;
-    this.routeArgsForFirstTrace = undefined;
-    if (initialRouteArgs === undefined) return;
+  async onTraceLoad(trace: Trace) {
+    trace.addEventListener('traceready', async () => {
+      const initialRouteArgs = this.routeArgsForFirstTrace;
+      this.routeArgsForFirstTrace = undefined;
+      if (initialRouteArgs === undefined) return;
 
-    await selectInitialRouteArgs(trace, initialRouteArgs);
-    if (
-      initialRouteArgs.visStart !== undefined &&
-      initialRouteArgs.visEnd !== undefined
-    ) {
-      zoomPendingDeeplink(
-        trace,
-        initialRouteArgs.visStart,
-        initialRouteArgs.visEnd,
-      );
-    }
-    if (initialRouteArgs.query !== undefined) {
-      addQueryResultsTab(trace, {
-        query: initialRouteArgs.query,
-        title: 'Deeplink Query',
-      });
-    }
+      await selectInitialRouteArgs(trace, initialRouteArgs);
+      if (
+        initialRouteArgs.visStart !== undefined &&
+        initialRouteArgs.visEnd !== undefined
+      ) {
+        zoomPendingDeeplink(
+          trace,
+          initialRouteArgs.visStart,
+          initialRouteArgs.visEnd,
+        );
+      }
+      if (initialRouteArgs.query !== undefined) {
+        addQueryResultsTab(trace, {
+          query: initialRouteArgs.query,
+          title: 'Deeplink Query',
+        });
+      }
+    });
   }
 }
 

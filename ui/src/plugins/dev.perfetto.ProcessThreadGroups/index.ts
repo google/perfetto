@@ -65,6 +65,18 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
     // Will populate this.addTrackGroupActions
     await this.addProcessGroups(ctx);
     await this.addThreadGroups(ctx);
+
+    ctx.addEventListener('traceready', () => {
+      // If, by the time the trace has finished loading, some of the process or
+      // thread group tracks nodes have no children, just remove them.
+      const removeIfEmpty = (g: TrackNode) => {
+        if (!g.hasChildren) {
+          g.remove();
+        }
+      };
+      this.processGroups.forEach(removeIfEmpty);
+      this.threadGroups.forEach(removeIfEmpty);
+    });
   }
 
   private async addKernelThreadGrouping(ctx: Trace): Promise<void> {
@@ -322,18 +334,6 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
       group.headless = true;
       this.processGroups.get(upid)?.addChildInOrder(group);
     }
-  }
-
-  async onTraceReady(_: Trace): Promise<void> {
-    // If, by the time the trace has finished loading, some of the process or
-    // thread group tracks nodes have no children, just remove them.
-    const removeIfEmpty = (g: TrackNode) => {
-      if (!g.hasChildren) {
-        g.remove();
-      }
-    };
-    this.processGroups.forEach(removeIfEmpty);
-    this.threadGroups.forEach(removeIfEmpty);
   }
 }
 
