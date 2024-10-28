@@ -212,6 +212,7 @@ java_library {
     static_libs: [
         "libprotobuf-java-lite",
     ],
+    sdk_version: "current",
 }
 
 java_library {
