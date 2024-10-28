@@ -42,6 +42,7 @@ class ExampleState implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.store = ctx.mountStore((init: unknown) => this.migrate(init));
+    ctx.trash.use(this.store);
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.ExampleState#ShowCounter',
@@ -57,10 +58,6 @@ class ExampleState implements PerfettoPlugin {
         });
       },
     });
-  }
-
-  async onTraceUnload(_: Trace): Promise<void> {
-    this.store[Symbol.dispose]();
   }
 }
 
