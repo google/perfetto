@@ -66,8 +66,6 @@ class Chaos implements PerfettoPlugin {
       },
     });
   }
-
-  async onTraceUnload(_: Trace): Promise<void> {}
 }
 
 export const plugin: PluginDescriptor = {

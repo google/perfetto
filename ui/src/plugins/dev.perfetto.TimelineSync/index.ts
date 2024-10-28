@@ -107,11 +107,10 @@ class TimelineSync implements PerfettoPlugin {
     if (this._sessionidFromUrl !== 0) {
       this.enableTimelineSync(this._sessionidFromUrl);
     }
-  }
-
-  async onTraceUnload(_: Trace) {
-    this.disableTimelineSync(this._sessionId);
-    this._ctx = undefined;
+    ctx.trash.defer(() => {
+      this.disableTimelineSync(this._sessionId);
+      this._ctx = undefined;
+    });
   }
 
   private advertise() {

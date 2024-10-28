@@ -33,7 +33,6 @@ export interface PerfettoPlugin {
   onActivate?(ctx: App): void;
   onTraceLoad?(ctx: Trace): Promise<void>;
   onTraceReady?(ctx: Trace): Promise<void>;
-  onTraceUnload?(ctx: Trace): Promise<void>;
 
   // Extension points.
   metricVisualisations?(ctx: App): MetricVisualisation[];

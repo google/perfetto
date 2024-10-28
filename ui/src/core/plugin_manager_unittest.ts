@@ -24,7 +24,6 @@ function makeMockPlugin(): PerfettoPlugin {
   return {
     onActivate: jest.fn(),
     onTraceLoad: jest.fn(),
-    onTraceUnload: jest.fn(),
   };
 }
 

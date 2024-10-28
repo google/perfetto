@@ -24,6 +24,7 @@ import {SelectionManager} from './selection';
 import {ScrollToArgs} from './scroll_helper';
 import {NoteManager} from './note';
 import {ThreadMap} from './threads';
+import {DisposableStack} from '../base/disposable_stack';
 
 /**
  * The main API endpoint to interact programmaticaly with the UI and alter its
@@ -60,6 +61,9 @@ export interface Trace extends App {
   // of postMessageData.pluginArgs[pluginId] for the current plugin. If not
   // present returns undefined.
   readonly openerPluginArgs?: {[key: string]: unknown};
+
+  // Trace scoped disposables. Will be destroyed when the trace is unloaded.
+  readonly trash: DisposableStack;
 }
 
 /**

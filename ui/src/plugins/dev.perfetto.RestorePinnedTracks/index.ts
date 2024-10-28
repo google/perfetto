@@ -14,7 +14,6 @@
 
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
 import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import {TrackDescriptor} from '../../public/track';
 
@@ -29,8 +28,6 @@ const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
  * without numbers.
  */
 class RestorePinnedTrack implements PerfettoPlugin {
-  onActivate(_ctx: App): void {}
-
   private ctx!: Trace;
 
   async onTraceLoad(ctx: Trace): Promise<void> {

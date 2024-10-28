@@ -104,14 +104,6 @@ export async function addDebugSliceTrack(
   // the backing data source for our track and its details panel.
   const tableName = `__debug_slice_${cnt}`;
 
-  // TODO(stevegolton): Right now we ignore the AsyncDisposable that this
-  // function returns, and so never clean up this table. The problem is we have
-  // no where sensible to do this cleanup.
-  // - If we did it in the track's onDestroy function, we could drop the table
-  //   while the details panel still needs access to it.
-  // - If we did it in the plugin's onTraceUnload function, we could risk
-  //   dropping it n the middle of a track update cycle as track lifecycles are
-  //   not synchronized with plugin lifecycles.
   await createPerfettoTable(
     trace.engine,
     tableName,
@@ -187,14 +179,6 @@ export async function addDebugCounterTrack(
   // the backing data source for our track and its details panel.
   const tableName = `__debug_counter_${cnt}`;
 
-  // TODO(stevegolton): Right now we ignore the AsyncDisposable that this
-  // function returns, and so never clean up this table. The problem is we have
-  // no where sensible to do this cleanup.
-  // - If we did it in the track's onDestroy function, we could drop the table
-  //   while the details panel still needs access to it.
-  // - If we did it in the plugin's onTraceUnload function, we could risk
-  //   dropping it n the middle of a track update cycle as track lifecycles are
-  //   not synchronized with plugin lifecycles.
   await createPerfettoTable(
     trace.engine,
     tableName,
