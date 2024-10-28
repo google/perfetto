@@ -375,6 +375,10 @@ export class TraceImpl implements Trace {
   navigate(newHash: string): void {
     this.appImpl.navigate(newHash);
   }
+
+  get trash(): DisposableStack {
+    return this.traceCtx.trash;
+  }
 }
 
 // A convenience interface to inject the App in Mithril components.
