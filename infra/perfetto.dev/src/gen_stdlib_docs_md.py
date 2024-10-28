@@ -98,8 +98,8 @@ class ModuleMd:
     self.objs, self.funs, self.view_funs, self.macros = [], [], [], []
 
     # Views/tables
-    for data in module_dict['tables/views']:
-      if not data['cols'].items():
+    for data in module_dict['data_objects']:
+      if not data['cols']:
         continue
 
       obj_summary = (
@@ -110,7 +110,8 @@ class ModuleMd:
         content.append(data['desc'])
 
       table = [_md_table_header(['Column', 'Type', 'Description'])]
-      for name, info in data['cols'].items():
+      for info in data['cols']:
+        name = info["name"]
         table.append(
             f'{name} | {info["type"]} | {_escape(info["desc"])}')
       content.append('\n\n')
@@ -121,22 +122,22 @@ class ModuleMd:
       self.objs.append('\n\n')
 
     # Functions
-    for data in module_dict['functions']:
-      obj_summary = f'''{_bold(data['name'])} -> {data['return_type']}. {data['summary_desc']}\n\n'''
+    for d in module_dict['functions']:
+      summary = f'''{_bold(d['name'])} -> {d['return_type']}. {d['summary_desc']}\n\n'''
       content = []
-      if (data['summary_desc'] != data['desc']):
-        content.append(data['desc'])
+      if (d['summary_desc'] != d['desc']):
+        content.append(d['desc'])
 
       content.append(
-          f"Returns {data['return_type']}: {data['return_desc']}\n\n")
-      if data['args']:
+          f"Returns {d['return_type']}: {d['return_desc']}\n\n")
+      if d['args']:
         content.append(_md_table_header(['Argument', 'Type', 'Description']))
-        for name, arg_dict in data['args'].items():
+        for arg_dict in d['args']:
           content.append(
-              f'''{name} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
+              f'''{arg_dict['name']} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
           )
 
-      self.funs.append(_md_rolldown(obj_summary, '\n'.join(content)))
+      self.funs.append(_md_rolldown(summary, '\n'.join(content)))
       self.funs.append('\n\n')
 
     # Table functions
@@ -148,16 +149,17 @@ class ModuleMd:
 
       if data['args']:
         args_table = [_md_table_header(['Argument', 'Type', 'Description'])]
-        for name, arg_dict in data['args'].items():
+        for arg_dict in data['args']:
           args_table.append(
-              f'''{name} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
+              f'''{arg_dict['name']} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
           )
         content.append('\n'.join(args_table))
         content.append('\n\n')
 
       content.append(_md_table_header(['Column', 'Type', 'Description']))
-      for name, column in data['cols'].items():
-        content.append(f'{name} | {column["type"]} | {column["desc"]}')
+      for column in data['cols']:
+        content.append(
+            f'{column["name"]} | {column["type"]} | {column["desc"]}')
 
       self.view_funs.append(_md_rolldown(obj_summary, '\n'.join(content)))
       self.view_funs.append('\n\n')
@@ -173,9 +175,9 @@ class ModuleMd:
           f'''Returns: {data['return_type']}, {data['return_desc']}\n\n''')
       if data['args']:
         table = [_md_table_header(['Argument', 'Type', 'Description'])]
-        for name, arg_dict in data['args'].items():
+        for arg_dict in data['args']:
           table.append(
-              f'''{name} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
+              f'''{arg_dict['name']} | {arg_dict['type']} | {_escape(arg_dict['desc'])}'''
           )
         content.append('\n'.join(table))
 
@@ -274,7 +276,9 @@ def main():
 
   # Fetch the modules from json documentation.
   packages: Dict[str, PackageMd] = {}
-  for package_name, modules in stdlib_json.items():
+  for package in stdlib_json:
+    package_name = package["name"]
+    modules = package["modules"]
     # Remove 'common' when it has been removed from the code.
     if package_name not in ['deprecated', 'common']:
       package = PackageMd(package_name, modules)
