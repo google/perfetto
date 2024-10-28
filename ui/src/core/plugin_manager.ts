@@ -219,12 +219,6 @@ export class PluginManager {
     }
   }
 
-  onTraceClose() {
-    for (const pluginDetails of this._plugins.values()) {
-      doPluginTraceUnload(pluginDetails);
-    }
-  }
-
   metricVisualisations(): MetricVisualisation[] {
     return Array.from(this._plugins.values()).flatMap((ctx) => {
       const tracePlugin = ctx.plugin;
@@ -261,19 +255,10 @@ async function doPluginTraceLoad(
   const loadTime = performance.now() - startTime;
   pluginDetails.previousOnTraceLoadTimeMillis = loadTime;
 
-  raf.scheduleFullRedraw();
-}
-
-async function doPluginTraceUnload(
-  pluginDetails: PluginDetails,
-): Promise<void> {
-  const {trace, plugin} = pluginDetails;
-
-  if (trace) {
-    plugin.onTraceUnload && (await plugin.onTraceUnload(trace));
+  traceCore.trash.defer(() => {
     pluginDetails.trace = undefined;
-    // All the disposable resources created by plugins are appeneded to the
-    // per-trace (not per-plugin) trash. There is no need of per-plugin dispose
-    // call.
-  }
+    pluginDetails.previousOnTraceLoadTimeMillis = undefined;
+  });
+
+  raf.scheduleFullRedraw();
 }

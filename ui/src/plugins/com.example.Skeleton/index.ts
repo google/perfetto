@@ -94,14 +94,6 @@ class Skeleton implements PerfettoPlugin {
    */
   async onTraceReady(_ctx: Trace): Promise<void> {}
 
-  /**
-   * This hook is called as the trace is being unloaded, such as when switching
-   * traces. It should be used to clean up any trace related resources.
-   */
-  async onTraceUnload(_: Trace): Promise<void> {
-    this.store[Symbol.dispose]();
-  }
-
   metricVisualisations(_: Trace): MetricVisualisation[] {
     return [];
   }

@@ -233,7 +233,6 @@ export class AppImpl implements App {
     this.omnibox.reset(/* focus= */ false);
 
     if (this.currentTrace !== undefined) {
-      this.appCtx.pluginMgr.onTraceClose();
       // This will trigger the unregistration of trace-scoped commands and
       // sidebar menuitems (and few similar things).
       this.currentTrace[Symbol.dispose]();

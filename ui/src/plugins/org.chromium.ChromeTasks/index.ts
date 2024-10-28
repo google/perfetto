@@ -22,8 +22,6 @@ import {TrackNode} from '../../public/workspace';
 import {extensions} from '../../public/lib/extensions';
 
 class ChromeTasksPlugin implements PerfettoPlugin {
-  onActivate() {}
-
   async onTraceLoad(ctx: Trace) {
     await this.createTracks(ctx);
 

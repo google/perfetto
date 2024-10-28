@@ -91,8 +91,6 @@ class GpuByProcess implements PerfettoPlugin {
       ctx.workspace.addChildInOrder(track);
     }
   }
-
-  async onTraceUnload(_: Trace): Promise<void> {}
 }
 
 export const plugin: PluginDescriptor = {
