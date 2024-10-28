@@ -39,11 +39,10 @@ SELECT
 FROM counter_leading_intervals!((
   SELECT c.*
   FROM counter c
-  JOIN counter_track ct ON ct.id = c.track_id
-  WHERE ct.classification = 'linux_device_frequency'
-    AND EXTRACT_ARG(ct.dimension_arg_set_id, 'device_name') = $device_name
-)) AS count_w_dur
-JOIN counter_track AS ct ON track_id = ct.id;
+  JOIN track t ON t.id = c.track_id
+  WHERE t.classification = 'linux_device_frequency'
+    AND EXTRACT_ARG(t.dimension_arg_set_id, 'device_name') = $device_name
+)) AS count_w_dur;
 
 -- ARM DSU device frequency counters. This table will only be populated on
 -- traces collected with "devfreq/devfreq_frequency" ftrace event enabled,
