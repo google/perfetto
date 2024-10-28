@@ -13,23 +13,28 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 import {exists} from '../base/utils';
-import {PluginDescriptor} from '../public/plugin';
 import {defaultPlugins} from '../core/default_plugins';
 import {Intent} from '../widgets/common';
 import {PageAttrs} from '../core/router';
 import {AppImpl} from '../core/app_impl';
+import {PluginWrapper} from '../core/plugin_manager';
+import {raf} from '../core/raf_scheduler';
+
+// This flag indicated whether we need to restart the UI to apply plugin
+// changes. It is purposely a global as we want it to outlive the Mithril
+// component, and it'll be reset we restart anyway.
+let needsRestart = false;
 
 export class PluginsPage implements m.ClassComponent<PageAttrs> {
   view() {
     const pluginManager = AppImpl.instance.plugins;
-    const registeredPlugins = pluginManager.getRegisteredPlugins();
+    const registeredPlugins = pluginManager.getAllPlugins();
     return m(
       '.pf-plugins-page',
       m('h1', 'Plugins'),
-      pluginManager.needsRestart &&
+      needsRestart &&
         m(
           'h3.restart_needed',
           'Some plugins have been disabled. ' +
@@ -42,9 +47,10 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
           label: 'Disable All',
           onclick: async () => {
             for (const plugin of registeredPlugins) {
-              await pluginManager.disablePlugin(plugin.pluginId);
-              raf.scheduleFullRedraw();
+              plugin.enableFlag.set(false);
             }
+            needsRestart = true;
+            raf.scheduleFullRedraw();
           },
         }),
         m(Button, {
@@ -52,65 +58,68 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
           label: 'Enable All',
           onclick: async () => {
             for (const plugin of registeredPlugins) {
-              await pluginManager.enablePlugin(plugin.pluginId);
-              raf.scheduleFullRedraw();
+              plugin.enableFlag.set(true);
             }
+            needsRestart = true;
+            raf.scheduleFullRedraw();
           },
         }),
         m(Button, {
           intent: Intent.Primary,
           label: 'Restore Defaults',
           onclick: async () => {
-            await pluginManager.restoreDefaults();
+            for (const plugin of registeredPlugins) {
+              plugin.enableFlag.reset();
+            }
+            needsRestart = true;
             raf.scheduleFullRedraw();
           },
         }),
       ),
       m(
         '.pf-plugins-grid',
-        [
-          m('span', 'Plugin'),
-          m('span', 'Default?'),
-          m('span', 'Enabled?'),
-          m('span', 'Active?'),
-          m('span', 'Control'),
-          m('span', 'Load Time'),
-        ],
-        registeredPlugins.map((plugin) => renderPluginRow(plugin)),
+        m('span', 'Plugin'),
+        m('span', 'Default?'),
+        m('span', 'Enabled?'),
+        m('span', 'Active?'),
+        m('span', 'Control'),
+        m('span', 'Load Time'),
+        registeredPlugins.map((plugin) => this.renderPluginRow(plugin)),
       ),
     );
   }
-}
 
-function renderPluginRow(plugin: PluginDescriptor): m.Children {
-  const pluginManager = AppImpl.instance.plugins;
-  const pluginId = plugin.pluginId;
-  const isDefault = defaultPlugins.includes(pluginId);
-  const pluginDetails = pluginManager.plugins.get(pluginId);
-  const isActive = pluginManager.isActive(pluginId);
-  const isEnabled = pluginManager.isEnabled(pluginId);
-  const loadTime = pluginDetails?.previousOnTraceLoadTimeMillis;
-  return [
-    m('span', pluginId),
-    m('span', isDefault ? 'Yes' : 'No'),
-    isEnabled
-      ? m('.pf-tag.pf-active', 'Enabled')
-      : m('.pf-tag.pf-inactive', 'Disabled'),
-    isActive
-      ? m('.pf-tag.pf-active', 'Active')
-      : m('.pf-tag.pf-inactive', 'Inactive'),
-    m(Button, {
-      label: isEnabled ? 'Disable' : 'Enable',
-      intent: Intent.Primary,
-      onclick: async () => {
-        if (isEnabled) {
-          await pluginManager.disablePlugin(pluginId);
-        } else {
-          await pluginManager.enablePlugin(pluginId);
-        }
-        raf.scheduleFullRedraw();
-      },
-    }),
-    exists(loadTime) ? m('span', `${loadTime.toFixed(1)} ms`) : m('span', `-`),
-  ];
+  private renderPluginRow(plugin: PluginWrapper): m.Children {
+    const pluginId = plugin.desc.pluginId;
+    const isDefault = defaultPlugins.includes(pluginId);
+    const isActive = plugin.activatedContext;
+    const isEnabled = plugin.enableFlag.get();
+    const loadTime = plugin.activatedContext?.traceContext?.loadTimeMs;
+    return [
+      m('span', pluginId),
+      m('span', isDefault ? 'Yes' : 'No'),
+      isEnabled
+        ? m('.pf-tag.pf-active', 'Enabled')
+        : m('.pf-tag.pf-inactive', 'Disabled'),
+      isActive
+        ? m('.pf-tag.pf-active', 'Active')
+        : m('.pf-tag.pf-inactive', 'Inactive'),
+      m(Button, {
+        label: isEnabled ? 'Disable' : 'Enable',
+        intent: Intent.Primary,
+        onclick: () => {
+          if (isEnabled) {
+            plugin.enableFlag.set(false);
+          } else {
+            plugin.enableFlag.set(true);
+          }
+          needsRestart = true;
+          raf.scheduleFullRedraw();
+        },
+      }),
+      exists(loadTime)
+        ? m('span', `${loadTime.toFixed(1)} ms`)
+        : m('span', `-`),
+    ];
+  }
 }
