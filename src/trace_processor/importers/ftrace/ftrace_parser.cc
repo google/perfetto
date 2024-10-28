@@ -3807,13 +3807,9 @@ void FtraceParser::ParseDeviceFrequency(int64_t ts,
   StringId device_name = context_->storage->InternString(
       (dev_name.substr(position + sizeof(kDelimiter) - 1) + "freq").c_str());
 
-  TrackTracker::DimensionsBuilder dims_builder =
-      context_->track_tracker->CreateDimensionsBuilder();
-  dims_builder.AppendDimension(device_name_id_, Variadic::String(device_name));
-  TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
-
-  TrackId track_id = context_->track_tracker->InternCounterTrack(
-      tracks::linux_device_frequency, dims_id);
+  TrackId track_id = context_->track_tracker->InternSingleDimensionTrack(
+      tracks::linux_device_frequency, device_name_id_,
+      Variadic::String(device_name));
   context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
                                        track_id);
 }

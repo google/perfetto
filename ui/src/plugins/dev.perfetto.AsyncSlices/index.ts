@@ -115,6 +115,7 @@ class AsyncSlicePlugin implements PerfettoPlugin {
           and (name != '${suspendResumeLatencyTrackName}' or name is null)
           and classification not in (
             'linux_rpm',
+            'linux_device_frequency',
             'irq_counter',
             'softirq_counter',
             'android_energy_estimation_breakdown',
