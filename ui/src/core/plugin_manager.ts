@@ -13,32 +13,19 @@
 // limitations under the License.
 
 import {Registry} from '../base/registry';
-import {Trace} from '../public/trace';
 import {App} from '../public/app';
-import {MetricVisualisation} from '../public/plugin';
-import {PerfettoPlugin, PluginDescriptor} from '../public/plugin';
-import {Flag, featureFlags} from './feature_flags';
-import {assertExists} from '../base/logging';
-import {raf} from './raf_scheduler';
+import {
+  MetricVisualisation,
+  PerfettoPlugin,
+  PluginDescriptor,
+} from '../public/plugin';
+import {Trace} from '../public/trace';
 import {defaultPlugins} from './default_plugins';
+import {featureFlags, Flag} from './feature_flags';
 import {TraceImpl} from './trace_impl';
 
 // The pseudo plugin id used for the core instance of AppImpl.
 export const CORE_PLUGIN_ID = '__core__';
-
-// 'Static' registry of all known plugins.
-export class PluginRegistry extends Registry<PluginDescriptor> {
-  constructor() {
-    super((info) => info.pluginId);
-  }
-}
-
-export interface PluginDetails {
-  plugin: PerfettoPlugin;
-  app: App;
-  trace?: Trace;
-  previousOnTraceLoadTimeMillis?: number;
-}
 
 function makePlugin(info: PluginDescriptor): PerfettoPlugin {
   const {plugin} = info;
@@ -59,141 +46,88 @@ export interface PluginAppInterface {
   get trace(): TraceImpl | undefined;
 }
 
+// Contains all the information about a plugin.
+export interface PluginWrapper {
+  // A reference to the plugin descriptor
+  readonly desc: PluginDescriptor;
+
+  // The feature flag used to allow users to change whether this plugin should
+  // be enabled or not.
+  readonly enableFlag: Flag;
+
+  // If a plugin has been activated, the relevant context is stored here.
+  activatedContext?: ActivePluginContext;
+}
+
+// Contains an active plugin's contextual information, only created at plugin
+// activation time.
+interface ActivePluginContext {
+  // The plugin instance, which is only created at plugin activation time.
+  readonly pluginInstance: PerfettoPlugin;
+
+  // The app interface for this plugin.
+  readonly app: App;
+
+  // If a plugin has had its trace loaded, the relevant context is stored here.
+  traceContext?: TracePluginContext;
+}
+
+// Contains the contextual information required by a plugin which has had a
+// trace loaded.
+interface TracePluginContext {
+  // The trace interface for this plugin.
+  readonly trace: Trace;
+
+  // The time taken in milliseconds to execute this onTraceLoad() function.
+  readonly loadTimeMs: number;
+}
+
 export class PluginManager {
-  private registry = new PluginRegistry();
-  private _plugins = new Map<string, PluginDetails>();
-  private flags = new Map<string, Flag>();
-  private _needsRestart = false;
+  private readonly registry = new Registry<PluginWrapper>(
+    (x) => x.desc.pluginId,
+  );
 
-  constructor(private app: PluginAppInterface) {}
+  constructor(private readonly app: PluginAppInterface) {}
 
-  get plugins(): Map<string, PluginDetails> {
-    return this._plugins;
+  registerPlugin(desc: PluginDescriptor) {
+    const flagId = `plugin_${desc.pluginId}`;
+    const name = `Plugin: ${desc.pluginId}`;
+    const flag = featureFlags.register({
+      id: flagId,
+      name,
+      description: `Overrides '${desc.pluginId}' plugin.`,
+      defaultValue: defaultPlugins.includes(desc.pluginId),
+    });
+    this.registry.register({
+      desc,
+      enableFlag: flag,
+    });
   }
 
-  // Must only be called once on startup
-  async initialize(): Promise<void> {
-    // Check if any plugins in defaultPlugins are not registered
-    const badDefaults = defaultPlugins.filter((id) => !this.registry.has(id));
-    if (badDefaults.length > 0) {
-      throw new Error(`Missing defaults: ${badDefaults}`);
-    }
-
-    for (const {pluginId} of this.registry.values()) {
-      const flagId = `plugin_${pluginId}`;
-      const name = `Plugin: ${pluginId}`;
-      const flag = featureFlags.register({
-        id: flagId,
-        name,
-        description: `Overrides '${pluginId}' plugin.`,
-        defaultValue: defaultPlugins.includes(pluginId),
+  /**
+   * Activates all registered plugins that have not already been registered.
+   *
+   * @param enableOverrides - The list of plugins that are enabled regardless of
+   * the current flag setting.
+   */
+  activatePlugins(enableOverrides: ReadonlyArray<string> = []) {
+    this.registry
+      .valuesAsArray()
+      .filter(
+        (p) => p.enableFlag.get() || enableOverrides.includes(p.desc.pluginId),
+      )
+      .forEach((p) => {
+        if (p.activatedContext) return;
+        const pluginInstance = makePlugin(p.desc);
+        const app = this.app.forkForPlugin(p.desc.pluginId);
+        pluginInstance.onActivate?.(app);
+        p.activatedContext = {
+          pluginInstance,
+          app,
+        };
       });
-      this.flags.set(pluginId, flag);
-      if (flag.get()) {
-        await this.activatePlugin(pluginId);
-      }
-    }
   }
 
-  registerPlugin(descriptor: PluginDescriptor) {
-    this.registry.register(descriptor);
-  }
-
-  /**
-   * Enable plugin flag - i.e. configure a plugin to start on boot.
-   * @param id The ID of the plugin.
-   */
-  async enablePlugin(id: string): Promise<void> {
-    const flag = this.flags.get(id);
-    if (flag) {
-      flag.set(true);
-    }
-    await this.activatePlugin(id);
-  }
-
-  /**
-   * Disable plugin flag - i.e. configure a plugin not to start on boot.
-   * @param id The ID of the plugin.
-   */
-  async disablePlugin(id: string): Promise<void> {
-    const flag = this.flags.get(id);
-    if (flag) {
-      flag.set(false);
-    }
-    this._needsRestart = true;
-  }
-
-  /**
-   * Start a plugin just for this session. This setting is not persisted.
-   * @param id The ID of the plugin to start.
-   */
-  async activatePlugin(id: string): Promise<void> {
-    if (this.isActive(id)) {
-      return;
-    }
-
-    const pluginInfo = this.registry.get(id);
-    const plugin = makePlugin(pluginInfo);
-
-    const app = this.app.forkForPlugin(id);
-
-    plugin.onActivate?.(app);
-
-    const pluginDetails: PluginDetails = {plugin, app};
-
-    // If a trace is already loaded when plugin is activated, make sure to
-    // call onTraceLoad().
-    const maybeTrace = this.app.trace;
-    if (maybeTrace !== undefined) {
-      await doPluginTraceLoad(pluginDetails, maybeTrace);
-      await doPluginTraceReady(pluginDetails);
-    }
-
-    this._plugins.set(id, pluginDetails);
-
-    raf.scheduleFullRedraw();
-  }
-
-  /**
-   * Restore all plugins enable/disabled flags to their default values.
-   * Also activates new plugins to match flag settings.
-   */
-  async restoreDefaults(): Promise<void> {
-    for (const plugin of this.registry.values()) {
-      const pluginId = plugin.pluginId;
-      const flag = assertExists(this.flags.get(pluginId));
-      flag.reset();
-      if (flag.get()) {
-        await this.activatePlugin(plugin.pluginId);
-      } else {
-        this._needsRestart = true;
-      }
-    }
-  }
-
-  getRegisteredPlugins(): ReadonlyArray<PluginDescriptor> {
-    return this.registry.valuesAsArray();
-  }
-
-  hasPlugin(pluginId: string): boolean {
-    return this.registry.has(pluginId);
-  }
-
-  isActive(pluginId: string): boolean {
-    return this.getPluginContext(pluginId) !== undefined;
-  }
-
-  isEnabled(pluginId: string): boolean {
-    return Boolean(this.flags.get(pluginId)?.get());
-  }
-
-  getPluginContext(pluginId: string): PluginDetails | undefined {
-    return this._plugins.get(pluginId);
-  }
-
-  // NOTE: here we take as argument the TraceImpl for the core. This is because
-  // we pass it to doPluginTraceLoad() which uses to call forkForPlugin(id) and
-  // derive a per-plugin instance.
   async onTraceLoad(
     traceCore: TraceImpl,
     beforeEach?: (id: string) => void,
@@ -203,62 +137,61 @@ export class PluginManager {
     // Running in parallel will have very little performance benefit assuming
     // most plugins use the same engine, which can only process one query at a
     // time.
-    for (const [id, plugin] of this._plugins.entries()) {
-      beforeEach?.(id);
-      await doPluginTraceLoad(plugin, traceCore);
+    for (const p of this.registry.values()) {
+      const activePlugin = p.activatedContext;
+      if (activePlugin) {
+        beforeEach?.(p.desc.pluginId);
+        const trace = traceCore.forkForPlugin(p.desc.pluginId);
+        const before = performance.now();
+        await activePlugin.pluginInstance.onTraceLoad?.(trace);
+        const loadTimeMs = performance.now() - before;
+        activePlugin.traceContext = {
+          trace,
+          loadTimeMs: loadTimeMs,
+        };
+        traceCore.trash.defer(() => {
+          activePlugin.traceContext = undefined;
+        });
+      }
     }
   }
 
   async onTraceReady(): Promise<void> {
-    const pluginsShuffled = Array.from(this._plugins.values())
-      .map((plugin) => ({plugin, sort: Math.random()}))
-      .sort((a, b) => a.sort - b.sort);
-
-    for (const {plugin} of pluginsShuffled) {
-      await doPluginTraceReady(plugin);
+    for (const plugin of this.registry.values()) {
+      const activePlugin = plugin.activatedContext;
+      if (activePlugin) {
+        const traceContext = activePlugin.traceContext;
+        if (traceContext) {
+          await activePlugin.pluginInstance?.onTraceReady?.(traceContext.trace);
+        }
+      }
     }
   }
 
   metricVisualisations(): MetricVisualisation[] {
-    return Array.from(this._plugins.values()).flatMap((ctx) => {
-      const tracePlugin = ctx.plugin;
-      if (tracePlugin.metricVisualisations) {
-        return tracePlugin.metricVisualisations(ctx.app);
+    return this.registry.valuesAsArray().flatMap((plugin) => {
+      const activePlugin = plugin.activatedContext;
+      if (activePlugin) {
+        return (
+          activePlugin.pluginInstance.metricVisualisations?.(
+            activePlugin.app,
+          ) ?? []
+        );
       } else {
         return [];
       }
     });
   }
 
-  get needsRestart() {
-    return this._needsRestart;
+  getAllPlugins() {
+    return this.registry.valuesAsArray();
   }
-}
 
-async function doPluginTraceReady(pluginDetails: PluginDetails): Promise<void> {
-  const {plugin, trace: traceContext} = pluginDetails;
-  await Promise.resolve(plugin.onTraceReady?.(assertExists(traceContext)));
-  raf.scheduleFullRedraw();
-}
+  getPluginContainer(id: string): PluginWrapper | undefined {
+    return this.registry.tryGet(id);
+  }
 
-async function doPluginTraceLoad(
-  pluginDetails: PluginDetails,
-  traceCore: TraceImpl,
-): Promise<void> {
-  const {plugin} = pluginDetails;
-  const trace = traceCore.forkForPlugin(pluginDetails.app.pluginId);
-
-  pluginDetails.trace = trace;
-
-  const startTime = performance.now();
-  await Promise.resolve(plugin.onTraceLoad?.(trace));
-  const loadTime = performance.now() - startTime;
-  pluginDetails.previousOnTraceLoadTimeMillis = loadTime;
-
-  traceCore.trash.defer(() => {
-    pluginDetails.trace = undefined;
-    pluginDetails.previousOnTraceLoadTimeMillis = undefined;
-  });
-
-  raf.scheduleFullRedraw();
+  getPlugin(id: string): PerfettoPlugin | undefined {
+    return this.registry.tryGet(id)?.activatedContext?.pluginInstance;
+  }
 }
