@@ -257,7 +257,9 @@ async function loadTraceIntoEngine(
     }
   }
 
-  await trace.plugins.onTraceReady();
+  for (const callback of trace.getEventListeners('traceready')) {
+    await callback();
+  }
 
   if (serializedAppState !== undefined) {
     // Wait that plugins have completed their actions and then proceed with

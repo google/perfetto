@@ -17,16 +17,12 @@ import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
 import * as cameraConstants from './googleCameraConstants';
 
 class GoogleCamera implements PerfettoPlugin {
-  private ctx!: Trace;
-
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.ctx = ctx;
-
     ctx.commands.registerCommand({
       id: 'com.google.android.GoogleCamera#LoadGoogleCameraStartupView',
       name: 'Load google camera startup view',
       callback: () => {
-        this.loadGCAStartupView();
+        this.loadGCAStartupView(ctx);
       },
     });
 
@@ -43,18 +39,18 @@ class GoogleCamera implements PerfettoPlugin {
         ) {
           return item.trim();
         });
-        this.pinTracks(trackNameList);
+        this.pinTracks(ctx, trackNameList);
       },
     });
   }
 
-  private loadGCAStartupView() {
-    this.pinTracks(cameraConstants.MAIN_THREAD_TRACK);
-    this.pinTracks(cameraConstants.STARTUP_RELATED_TRACKS);
+  private loadGCAStartupView(ctx: Trace) {
+    this.pinTracks(ctx, cameraConstants.MAIN_THREAD_TRACK);
+    this.pinTracks(ctx, cameraConstants.STARTUP_RELATED_TRACKS);
   }
 
-  private pinTracks(trackNames: ReadonlyArray<string>) {
-    this.ctx.workspace.flatTracks.forEach((track) => {
+  private pinTracks(ctx: Trace, trackNames: ReadonlyArray<string>) {
+    ctx.workspace.flatTracks.forEach((track) => {
       trackNames.forEach((trackName) => {
         if (track.title.match(trackName)) {
           track.pin();

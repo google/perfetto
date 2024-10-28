@@ -26,6 +26,12 @@ import {NoteManager} from './note';
 import {ThreadMap} from './threads';
 import {DisposableStack} from '../base/disposable_stack';
 
+// Lists all the possible event listeners using the key as the event name and
+// the type as the type of the callback.
+export interface EventListeners {
+  traceready: () => Promise<void> | void;
+}
+
 /**
  * The main API endpoint to interact programmaticaly with the UI and alter its
  * state once a trace is loaded. There are N+1 instances of this interface,
@@ -64,6 +70,12 @@ export interface Trace extends App {
 
   // Trace scoped disposables. Will be destroyed when the trace is unloaded.
   readonly trash: DisposableStack;
+
+  // Register event listeners for trace-level events, e.g. trace ready
+  addEventListener<T extends keyof EventListeners>(
+    event: T,
+    callback: EventListeners[T],
+  ): void;
 }
 
 /**
