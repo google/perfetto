@@ -49,6 +49,8 @@
   backdrop-filter: blur(2px);
   animation: modalFadeIn 0.25s var(--anim-easing);
   animation-fill-mode: both;
+  width: 100%;
+  height: 100%;
 
   &.modal-fadeout {
     animation: modalFadeOut 0.25s var(--anim-easing);
@@ -62,11 +64,11 @@
   background-color: var(--main-background-color);
   color: var(--main-foreground-color);
   margin: auto;
-  min-width: 25vw;
-  min-height: 10vh;
+  min-width: 25%;
+  min-height: 10%;
   padding: 30px;
-  max-width: 90vw;
-  max-height: 90vh;
+  max-width: 90%;
+  max-height: 90%;
   border-radius: $pf-border-radius;
   overflow-y: auto;
   top: 50%;
