@@ -20,11 +20,9 @@ import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
 import {TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
-import {
-  createSearchOverviewTrack,
-  SearchOverviewTrack,
-} from './search_overview_track';
+import {SearchOverviewTrack} from './search_overview_track';
 import {TraceImpl} from '../core/trace_impl';
+import {getOrCreate} from '../base/utils';
 
 // We want to create the overview track only once per trace, but this
 // class can be delete and re-instantiated when switching between pages via
@@ -36,16 +34,14 @@ const trackTraceMap = new WeakMap<TraceImpl, SearchOverviewTrack>();
 export class TickmarkPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = false;
-  private searchOverviewTrack?: SearchOverviewTrack;
+  private searchOverviewTrack: SearchOverviewTrack;
 
   constructor(trace: TraceImpl) {
-    this.searchOverviewTrack = trackTraceMap.get(trace);
-    if (this.searchOverviewTrack === undefined) {
-      createSearchOverviewTrack(trace).then((track) => {
-        trackTraceMap.set(trace, track);
-        this.searchOverviewTrack = track;
-      });
-    }
+    this.searchOverviewTrack = getOrCreate(
+      trackTraceMap,
+      trace,
+      () => new SearchOverviewTrack(trace),
+    );
   }
 
   render(): m.Children {
@@ -85,8 +81,6 @@ export class TickmarkPanel implements Panel {
       }
     }
 
-    if (this.searchOverviewTrack) {
-      this.searchOverviewTrack.render(ctx, size);
-    }
+    this.searchOverviewTrack.render(ctx, size);
   }
 }
