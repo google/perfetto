@@ -431,26 +431,26 @@ class AndroidMetrics(TestSuite):
           metric_version: 3
           period_info {
             period_id: 1
-            period_dur: 61792616758
+            period_dur: 61792677852
             cpu_subsystem {
-              estimated_mw: 42.12355
+              estimated_mw: 42.123608
               policy0 {
-                estimated_mw: 34.71888
+                estimated_mw: 34.71892
                 cpu0 {
-                  estimated_mw: 10.7050705
+                  estimated_mw: 10.705099
                 }
                 cpu1 {
-                  estimated_mw: 8.315672
+                  estimated_mw: 8.315703
                 }
                 cpu2 {
-                  estimated_mw: 7.7776303
+                  estimated_mw: 7.7776227
                 }
                 cpu3 {
-                  estimated_mw: 7.920505
+                  estimated_mw: 7.9204974
                 }
               }
               dsu_scu {
-                estimated_mw: 7.404673
+                estimated_mw: 7.404684
               }
             }
           }
