@@ -18,12 +18,6 @@
 
 INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
--- Take only the Wattson estimations that are in the window of interest
-DROP TABLE IF EXISTS _windowed_wattson;
-CREATE VIRTUAL TABLE _windowed_wattson
-USING
-  SPAN_JOIN({{window_table}}, _system_state_mw);
-
 -- The most basic rail components that form the "building blocks" from which all
 -- other rails and components are derived. Average power over the entire trace
 -- for each of these rail components.
@@ -39,19 +33,27 @@ SELECT
   (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 6) as cpu6_poli,
   (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 7) as cpu7_poli,
   -- Converts all mW of all slices into average mW of total trace
-  SUM(dur * cpu0_mw) / SUM(dur) as cpu0_mw,
-  SUM(dur * cpu1_mw) / SUM(dur) as cpu1_mw,
-  SUM(dur * cpu2_mw) / SUM(dur) as cpu2_mw,
-  SUM(dur * cpu3_mw) / SUM(dur) as cpu3_mw,
-  SUM(dur * cpu4_mw) / SUM(dur) as cpu4_mw,
-  SUM(dur * cpu5_mw) / SUM(dur) as cpu5_mw,
-  SUM(dur * cpu6_mw) / SUM(dur) as cpu6_mw,
-  SUM(dur * cpu7_mw) / SUM(dur) as cpu7_mw,
-  SUM(dur * dsu_scu_mw) / SUM(dur) as dsu_scu_mw,
-  SUM(dur) as period_dur,
-  period_id
-FROM _windowed_wattson
-GROUP BY period_id;
+  SUM(ii.dur * ss.cpu0_mw) / SUM(ii.dur) as cpu0_mw,
+  SUM(ii.dur * ss.cpu1_mw) / SUM(ii.dur) as cpu1_mw,
+  SUM(ii.dur * ss.cpu2_mw) / SUM(ii.dur) as cpu2_mw,
+  SUM(ii.dur * ss.cpu3_mw) / SUM(ii.dur) as cpu3_mw,
+  SUM(ii.dur * ss.cpu4_mw) / SUM(ii.dur) as cpu4_mw,
+  SUM(ii.dur * ss.cpu5_mw) / SUM(ii.dur) as cpu5_mw,
+  SUM(ii.dur * ss.cpu6_mw) / SUM(ii.dur) as cpu6_mw,
+  SUM(ii.dur * ss.cpu7_mw) / SUM(ii.dur) as cpu7_mw,
+  SUM(ii.dur * ss.dsu_scu_mw) / SUM(ii.dur) as dsu_scu_mw,
+  SUM(ii.dur) as period_dur,
+  w.period_id
+FROM _interval_intersect!(
+  (
+    (SELECT period_id AS id, * FROM {{window_table}}),
+    _ii_subquery!(_system_state_mw)
+  ),
+  ()
+) ii
+JOIN {{window_table}} AS w ON w.period_id = id_0
+JOIN _system_state_mw AS ss ON ss._auto_id = id_1
+GROUP BY w.period_id;
 
 -- Macro that filters out CPUs that are unrelated to the policy of the table
 -- passed in, and does some bookkeeping to put data in expected format
