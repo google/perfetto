@@ -15,7 +15,7 @@
 import {type addDebugSliceTrack} from '../debug_tracks';
 import {type addDebugCounterTrack} from './debug_tracks/debug_tracks';
 import {type addSqlTableTab} from '../../frontend/sql_table_tab';
-import {type addVisualisedArgTracks} from '../../frontend/visualized_args_tracks';
+import {type addVisualizedArgTracks} from '../../frontend/visualized_args_tracks';
 import {type addQueryResultsTab} from './query_table/query_result_tab';
 
 // TODO(primiano & stevegolton): This injection is to break the circular
@@ -32,7 +32,7 @@ export interface ExtensionApi {
   addDebugSliceTrack: typeof addDebugSliceTrack;
   addDebugCounterTrack: typeof addDebugCounterTrack;
   addSqlTableTab: typeof addSqlTableTab;
-  addVisualisedArgTracks: typeof addVisualisedArgTracks;
+  addVisualizedArgTracks: typeof addVisualizedArgTracks;
   addQueryResultsTab: typeof addQueryResultsTab;
 }
 

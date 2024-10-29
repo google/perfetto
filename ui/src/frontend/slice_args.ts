@@ -106,10 +106,10 @@ function renderArgKey(trace: Trace, key: string, value?: Arg): m.Children {
         },
       }),
       m(MenuItem, {
-        label: 'Visualise argument values',
+        label: 'Visualize argument values',
         icon: 'query_stats',
         onclick: () => {
-          extensions.addVisualisedArgTracks(trace, fullKey);
+          extensions.addVisualizedArgTracks(trace, fullKey);
         },
       }),
     );
