@@ -21,6 +21,7 @@ import {CpuSliceTrack} from './cpu_slice_track';
 import {TrackNode} from '../../public/workspace';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
 import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
+import ThreadPlugin from '../dev.perfetto.Thread';
 
 function uriForSchedTrack(cpu: number): string {
   return `/sched_cpu${cpu}`;
@@ -28,6 +29,8 @@ function uriForSchedTrack(cpu: number): string {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuSlices';
+  static readonly dependencies = [ThreadPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionAggreagtor(
       new CpuSliceSelectionAggregator(),
@@ -43,6 +46,8 @@ export default class implements PerfettoPlugin {
       const size = cpuToClusterType.get(cpu);
       const uri = uriForSchedTrack(cpu);
 
+      const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
+
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       ctx.tracks.registerTrack({
         uri,
@@ -51,7 +56,7 @@ export default class implements PerfettoPlugin {
           kind: CPU_SLICE_TRACK_KIND,
           cpu,
         },
-        track: new CpuSliceTrack(ctx, uri, cpu),
+        track: new CpuSliceTrack(ctx, uri, cpu, threads),
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -50});
       ctx.workspace.addChildInOrder(trackNode);

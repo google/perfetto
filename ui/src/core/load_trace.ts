@@ -28,7 +28,6 @@ import {
   NUM,
   NUM_NULL,
   STR,
-  STR_NULL,
 } from '../trace_processor/query_result';
 import {WasmEngineProxy} from '../trace_processor/wasm_engine_proxy';
 import {
@@ -47,7 +46,6 @@ import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
 import {SerializedAppState} from '../public/state_serialization_schema';
 import {TraceSource} from '../public/trace_source';
-import {ThreadDesc} from '../public/threads';
 import {Router} from '../core/router';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
@@ -239,8 +237,6 @@ async function loadTraceIntoEngine(
 
   decideTabs(trace);
 
-  await listThreads(trace);
-
   // Trace Processor doesn't support the reliable range feature for JSON
   // traces.
   if (
@@ -277,42 +273,6 @@ function decideTabs(trace: TraceImpl) {
   for (const tabUri of trace.tabs.defaultTabs) {
     trace.tabs.showTab(tabUri);
   }
-}
-
-async function listThreads(trace: TraceImpl) {
-  updateStatus(trace, 'Reading thread list');
-  const query = `select
-        utid,
-        tid,
-        pid,
-        ifnull(thread.name, '') as threadName,
-        ifnull(
-          case when length(process.name) > 0 then process.name else null end,
-          thread.name) as procName,
-        process.cmdline as cmdline
-        from (select * from thread order by upid) as thread
-        left join (select * from process order by upid) as process
-        using(upid)`;
-  const result = await trace.engine.query(query);
-  const threads = new Map<number, ThreadDesc>();
-  const it = result.iter({
-    utid: NUM,
-    tid: NUM,
-    pid: NUM_NULL,
-    threadName: STR,
-    procName: STR_NULL,
-    cmdline: STR_NULL,
-  });
-  for (; it.valid(); it.next()) {
-    const utid = it.utid;
-    const tid = it.tid;
-    const pid = it.pid === null ? undefined : it.pid;
-    const threadName = it.threadName;
-    const procName = it.procName === null ? undefined : it.procName;
-    const cmdline = it.cmdline === null ? undefined : it.cmdline;
-    threads.set(utid, {utid, tid, threadName, pid, procName, cmdline});
-  }
-  trace.setThreads(threads);
 }
 
 async function includeSummaryTables(trace: TraceImpl) {

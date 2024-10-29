@@ -26,6 +26,7 @@ import {App} from './app';
  */
 export interface PluginDescriptorStatic<T extends PerfettoPlugin> {
   readonly id: string;
+  readonly dependencies?: ReadonlyArray<PluginDescriptorStatic<PerfettoPlugin>>;
   onActivate?(app: App): void;
   metricVisualisations?(): MetricVisualisation[];
   new (trace: Trace): T;
@@ -70,4 +71,8 @@ export interface MetricVisualisation {
   // [ {"name": "a"}, {"name": "b"}, {"name": "c"} ]
   // And pass that to the vega(-lite) visualisation.
   path: string[];
+}
+
+export interface PluginManager {
+  getPlugin<T extends PerfettoPlugin>(plugin: PluginDescriptorStatic<T>): T;
 }
