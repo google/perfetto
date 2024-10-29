@@ -24,9 +24,9 @@ import {App} from './app';
  * On trace load, the core will create a new class instance by calling new on
  * this constructor and then call its onTraceLoad() function.
  */
-export interface PluginDescriptorStatic<T extends PerfettoPlugin> {
+export interface PerfettoPluginStatic<T extends PerfettoPlugin> {
   readonly id: string;
-  readonly dependencies?: ReadonlyArray<PluginDescriptorStatic<PerfettoPlugin>>;
+  readonly dependencies?: ReadonlyArray<PerfettoPluginStatic<PerfettoPlugin>>;
   onActivate?(app: App): void;
   metricVisualisations?(): MetricVisualisation[];
   new (trace: Trace): T;
@@ -74,5 +74,5 @@ export interface MetricVisualisation {
 }
 
 export interface PluginManager {
-  getPlugin<T extends PerfettoPlugin>(plugin: PluginDescriptorStatic<T>): T;
+  getPlugin<T extends PerfettoPlugin>(plugin: PerfettoPluginStatic<T>): T;
 }
