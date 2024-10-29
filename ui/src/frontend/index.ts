@@ -68,7 +68,7 @@ import {
   addDebugCounterTrack,
   addDebugSliceTrack,
 } from '../public/lib/debug_tracks/debug_tracks';
-import {addVisualisedArgTracks} from './visualized_args_tracks';
+import {addVisualizedArgTracks} from './visualized_args_tracks';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
@@ -448,7 +448,7 @@ function scheduleRafAndRunControllersOnStateChange(
 configureExtensions({
   addDebugCounterTrack,
   addDebugSliceTrack,
-  addVisualisedArgTracks,
+  addVisualizedArgTracks,
   addSqlTableTab,
   addQueryResultsTab,
 });
