@@ -23,7 +23,6 @@ import {Workspace, WorkspaceManager} from './workspace';
 import {SelectionManager} from './selection';
 import {ScrollToArgs} from './scroll_helper';
 import {NoteManager} from './note';
-import {ThreadMap} from './threads';
 import {DisposableStack} from '../base/disposable_stack';
 
 // Lists all the possible event listeners using the key as the event name and
@@ -50,11 +49,6 @@ export interface Trace extends App {
   readonly workspace: Workspace;
   readonly workspaces: WorkspaceManager;
   readonly traceInfo: TraceInfo;
-
-  // TODO(primiano): move this to a lib/ extension (or core_plugins/thread/)
-  // once we have an intra-plugin dep system. The thread concept doesn't belong
-  // to core and should be an extension instead.
-  readonly threads: ThreadMap;
 
   // Scrolls to the given track and/or time. Does NOT change the current
   // selection.

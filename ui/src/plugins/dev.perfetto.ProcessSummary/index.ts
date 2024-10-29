@@ -26,17 +26,22 @@ import {
   PROCESS_SUMMARY_TRACK,
   ProcessSummaryTrack,
 } from './process_summary_track';
+import ThreadPlugin from '../dev.perfetto.Thread';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ProcessSummary';
+  static readonly dependencies = [ThreadPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
     await this.addKernelThreadSummary(ctx);
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
+    const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
+
     const cpuCount = Math.max(...ctx.traceInfo.cpus, -1) + 1;
 
     const result = await ctx.engine.query(`
@@ -123,7 +128,7 @@ export default class implements PerfettoPlugin {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
           chips,
-          track: new ProcessSchedulingTrack(ctx, config, cpuCount),
+          track: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
           subtitle,
         });
       } else {
