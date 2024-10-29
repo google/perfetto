@@ -22,7 +22,7 @@ WITH extracted AS (
     t.parent_id,
     t.name,
     EXTRACT_ARG(t.source_arg_set_id, 'child_ordering') AS ordering,
-    EXTRACT_ARG(t.source_arg_set_id, 'sibling_order_z_index') AS z_index
+    EXTRACT_ARG(t.source_arg_set_id, 'sibling_order_rank') AS rank
   FROM track t
 )
 SELECT
@@ -31,8 +31,8 @@ SELECT
   t.name,
   t.ordering,
   p.ordering AS parent_ordering,
-  t.z_index,
-  t.z_index IS NULL AS no_z_index
+  t.rank,
+  t.rank IS NULL AS no_rank
 FROM extracted t
 LEFT JOIN extracted p ON t.parent_id = p.id
 WHERE p.ordering IS NOT NULL;
@@ -48,7 +48,7 @@ WITH lexicographic_and_none AS (
 explicit AS (
 SELECT
   id, parent_id, name,
-  ROW_NUMBER() OVER (ORDER BY parent_id, no_z_index, z_index) AS order_id
+  ROW_NUMBER() OVER (ORDER BY parent_id, no_rank, rank) AS order_id
 FROM _track_event_tracks_unordered
 WHERE parent_ordering = "explicit"
 ),
