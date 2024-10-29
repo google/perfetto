@@ -38,7 +38,7 @@ import {SearchResult} from '../public/search';
 import {PivotTableManager} from './pivot_table_manager';
 import {FlowManager} from './flow_manager';
 import {AppContext, AppImpl} from './app_impl';
-import {PluginManager} from './plugin_manager';
+import {PluginManagerImpl} from './plugin_manager';
 import {ThreadDesc, ThreadMap} from '../public/threads';
 import {RouteArgs} from '../public/route_schema';
 import {CORE_PLUGIN_ID} from './plugin_manager';
@@ -348,7 +348,7 @@ export class TraceImpl implements Trace {
     return this.appImpl.omnibox;
   }
 
-  get plugins(): PluginManager {
+  get plugins(): PluginManagerImpl {
     return this.appImpl.plugins;
   }
 

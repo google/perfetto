@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertExists} from '../base/logging';
 import {Registry} from '../base/registry';
 import {App} from '../public/app';
 import {
@@ -65,8 +66,9 @@ export interface PluginWrapper {
   };
 }
 
-export class PluginManager {
+export class PluginManagerImpl {
   private readonly registry = new Registry<PluginWrapper>((x) => x.desc.id);
+  private orderedPlugins: Array<PluginWrapper> = [];
 
   constructor(private readonly app: PluginAppInterface) {}
 
@@ -92,15 +94,18 @@ export class PluginManager {
    * the current flag setting.
    */
   activatePlugins(enableOverrides: ReadonlyArray<string> = []) {
-    this.registry
+    const enabledPlugins = this.registry
       .valuesAsArray()
-      .filter((p) => p.enableFlag.get() || enableOverrides.includes(p.desc.id))
-      .forEach((p) => {
-        if (p.active) return;
-        const app = this.app.forkForPlugin(p.desc.id);
-        p.desc.onActivate?.(app);
-        p.active = true;
-      });
+      .filter((p) => p.enableFlag.get() || enableOverrides.includes(p.desc.id));
+
+    this.orderedPlugins = this.sortPluginsTopologically(enabledPlugins);
+
+    this.orderedPlugins.forEach((p) => {
+      if (p.active) return;
+      const app = this.app.forkForPlugin(p.desc.id);
+      p.desc.onActivate?.(app);
+      p.active = true;
+    });
   }
 
   async onTraceLoad(
@@ -112,7 +117,7 @@ export class PluginManager {
     // Running in parallel will have very little performance benefit assuming
     // most plugins use the same engine, which can only process one query at a
     // time.
-    for (const p of this.registry.values()) {
+    for (const p of this.orderedPlugins) {
       if (p.active) {
         beforeEach?.(p.desc.id);
         const trace = traceCore.forkForPlugin(p.desc.id);
@@ -146,7 +151,55 @@ export class PluginManager {
     return this.registry.tryGet(id);
   }
 
-  getPlugin(id: string): PerfettoPlugin | undefined {
-    return this.registry.tryGet(id)?.traceContext?.instance;
+  getPlugin<T extends PerfettoPlugin>(
+    pluginDescriptor: PluginDescriptorStatic<T>,
+  ): T {
+    const plugin = this.registry.get(pluginDescriptor.id);
+    return assertExists(plugin.traceContext).instance as T;
+  }
+
+  /**
+   * Sort plugins in dependency order, ensuring that if a plugin depends on
+   * other plugins, those plugins will appear fist in the list.
+   */
+  private sortPluginsTopologically(
+    plugins: ReadonlyArray<PluginWrapper>,
+  ): Array<PluginWrapper> {
+    const orderedPlugins = new Array<PluginWrapper>();
+    const visiting = new Set<string>();
+
+    const visit = (p: PluginWrapper) => {
+      // Continue if we've already added this plugin, there's no need to add it
+      // again
+      if (orderedPlugins.includes(p)) {
+        return;
+      }
+
+      // Detect circular dependencies
+      if (visiting.has(p.desc.id)) {
+        const cycle = Array.from(visiting).concat(p.desc.id);
+        throw new Error(
+          `Cyclic plugin dependency detected: ${cycle.join(' -> ')}`,
+        );
+      }
+
+      // Temporarily push this plugin onto the visiting stack while visiting
+      // dependencies, to allow circular dependencies to be detected
+      visiting.add(p.desc.id);
+
+      // Recursively visit dependencies
+      p.desc.dependencies?.forEach((d) => {
+        visit(this.registry.get(d.id));
+      });
+
+      visiting.delete(p.desc.id);
+
+      // Finally add this plugin to the ordered list
+      orderedPlugins.push(p);
+    };
+
+    plugins.forEach((p) => visit(p));
+
+    return orderedPlugins;
   }
 }
