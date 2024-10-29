@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Fzf} from 'fzf';
+import {SyncOptionsTuple} from 'fzf/dist/types/finders';
+
 export interface FuzzySegment {
   matching: boolean;
   value: string;
@@ -26,36 +29,32 @@ export type KeyLookup<T> = (x: T) => string;
 
 // Finds approx matching in arbitrary lists of items.
 export class FuzzyFinder<T> {
-  private readonly items: ReadonlyArray<T>;
-  private readonly keyLookup: KeyLookup<T>;
-
+  private readonly fzf: Fzf<ReadonlyArray<T>>;
   // Because we operate on arbitrary lists, a key lookup function is required to
   // so we know which part of the list is to be be searched. It should return
   // the relevant search string for each item.
-  constructor(items: ReadonlyArray<T>, keyLookup: KeyLookup<T>) {
-    this.items = items;
-    this.keyLookup = keyLookup;
+  constructor(
+    items: ReadonlyArray<T>,
+    private readonly keyLookup: KeyLookup<T>,
+  ) {
+    // NOTE(stevegolton): This type assertion because FZF appears to be very
+    // fussy about its input types.
+    const options = [{selector: keyLookup}] as SyncOptionsTuple<T>;
+    this.fzf = new Fzf<ReadonlyArray<T>>(items, ...options);
   }
 
   // Return a list of items that match any of the search terms.
-  find(...searchTerms: string[]): FuzzyResult<T>[] {
-    const result: FuzzyResult<T>[] = [];
-
-    for (const item of this.items) {
-      const key = this.keyLookup(item);
-      for (const searchTerm of searchTerms) {
-        const indicies: number[] = new Array(searchTerm.length);
-        if (match(searchTerm, key, indicies)) {
-          const segments = indiciesToSegments(indicies, key);
-          result.push({item, segments});
-
-          // Don't try to match any more...
-          break;
-        }
-      }
-    }
-
-    return result;
+  find(searchTerm: string): FuzzyResult<T>[] {
+    return this.fzf.find(searchTerm).map((m) => {
+      const normalisedTerm = this.keyLookup(m.item);
+      return {
+        item: m.item,
+        segments: indiciesToSegments(
+          Array.from(m.positions).sort((a, b) => a - b),
+          normalisedTerm,
+        ),
+      };
+    });
   }
 }
 
