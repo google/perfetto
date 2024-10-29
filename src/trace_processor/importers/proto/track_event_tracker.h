@@ -74,7 +74,7 @@ class TrackEventTracker {
 
     // For UI visualisation
     ChildTracksOrdering ordering = ChildTracksOrdering::kUnknown;
-    std::optional<int32_t> sibling_order_z_index;
+    std::optional<int32_t> sibling_order_rank;
 
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
@@ -225,7 +225,7 @@ class TrackEventTracker {
   const StringId explicit_id_;
   const StringId lexicographic_id_;
   const StringId chronological_id_;
-  const StringId sibling_order_z_index_key_;
+  const StringId sibling_order_rank_key_;
 
   const StringId descriptor_source_;
 

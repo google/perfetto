@@ -51,8 +51,8 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       explicit_id_(context->storage->InternString("explicit")),
       lexicographic_id_(context->storage->InternString("lexicographic")),
       chronological_id_(context->storage->InternString("chronological")),
-      sibling_order_z_index_key_(
-          context->storage->InternString("sibling_order_z_index")),
+      sibling_order_rank_key_(
+          context->storage->InternString("sibling_order_rank")),
       descriptor_source_(context->storage->InternString("descriptor")),
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
@@ -167,9 +167,9 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
       break;
   }
 
-  if (reservation.sibling_order_z_index) {
-    args.AddArg(sibling_order_z_index_key_,
-                Variadic::Integer(*reservation.sibling_order_z_index));
+  if (reservation.sibling_order_rank) {
+    args.AddArg(sibling_order_rank_key_,
+                Variadic::Integer(*reservation.sibling_order_rank));
   }
 
   auto row_ref = *context_->storage->mutable_track_table()->FindById(track_id);
