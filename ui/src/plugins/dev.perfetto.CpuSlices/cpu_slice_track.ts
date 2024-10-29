@@ -41,6 +41,7 @@ import {
 import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';
+import {ThreadMap} from '../dev.perfetto.Thread/threads';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -65,16 +66,14 @@ export class CpuSliceTrack implements Track {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private lastRowId = -1;
-  private trace: Trace;
-  private cpu: number;
-  private uri: string;
   private trackUuid = uuidv4Sql();
 
-  constructor(trace: Trace, uri: string, cpu: number) {
-    this.trace = trace;
-    this.uri = uri;
-    this.cpu = cpu;
-  }
+  constructor(
+    private readonly trace: Trace,
+    private readonly uri: string,
+    private readonly cpu: number,
+    private readonly threads: ThreadMap,
+  ) {}
 
   async onCreate() {
     await this.trace.engine.query(`
@@ -237,7 +236,7 @@ export class CpuSliceTrack implements Track {
       const rectEnd = timescale.timeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
-      const threadInfo = this.trace.threads.get(utid);
+      const threadInfo = this.threads.get(utid);
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
@@ -321,7 +320,7 @@ export class CpuSliceTrack implements Track {
           const tStart = Time.fromRaw(data.startQs[startIndex]);
           const tEnd = Time.fromRaw(data.endQs[startIndex]);
           const utid = data.utids[startIndex];
-          const color = colorForThread(this.trace.threads.get(utid));
+          const color = colorForThread(this.threads.get(utid));
           const rectStart = timescale.timeToPx(tStart);
           const rectEnd = timescale.timeToPx(tEnd);
           const rectWidth = Math.max(1, rectEnd - rectStart);
@@ -386,9 +385,7 @@ export class CpuSliceTrack implements Track {
       }
 
       if (this.utidHoveredInThisTrack !== undefined) {
-        const hoveredThread = this.trace.threads.get(
-          this.utidHoveredInThisTrack,
-        );
+        const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
         if (hoveredThread && this.mousePos !== undefined) {
           const tidText = `T: ${hoveredThread.threadName}
           [${hoveredThread.tid}]`;
@@ -428,8 +425,7 @@ export class CpuSliceTrack implements Track {
       }
     }
     this.utidHoveredInThisTrack = hoveredUtid;
-    const threadInfo =
-      exists(hoveredUtid) && this.trace.threads.get(hoveredUtid);
+    const threadInfo = exists(hoveredUtid) && this.threads.get(hoveredUtid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     this.trace.timeline.hoveredUtid = hoveredUtid;
@@ -473,7 +469,7 @@ export class CpuSliceTrack implements Track {
   }
 
   detailsPanel() {
-    return new SchedSliceDetailsPanel(this.trace);
+    return new SchedSliceDetailsPanel(this.trace, this.threads);
   }
 }
 

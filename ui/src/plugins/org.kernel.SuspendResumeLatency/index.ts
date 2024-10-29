@@ -22,12 +22,19 @@ import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SuspendResumeDetailsPanel} from './suspend_resume_details';
 import {Slice} from '../../public/track';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
+import {ThreadMap} from '../dev.perfetto.Thread/threads';
+import ThreadPlugin from '../dev.perfetto.Thread';
 
 // SuspendResumeSliceTrack exists so as to override the `onSliceClick` function
 // in AsyncSliceTrack.
 // TODO(stevegolton): Remove this?
 class SuspendResumeSliceTrack extends AsyncSliceTrack {
-  constructor(args: NewTrackArgs, maxDepth: number, trackIds: number[]) {
+  constructor(
+    args: NewTrackArgs,
+    maxDepth: number,
+    trackIds: number[],
+    private readonly threads: ThreadMap,
+  ) {
     super(args, maxDepth, trackIds);
   }
 
@@ -36,13 +43,16 @@ class SuspendResumeSliceTrack extends AsyncSliceTrack {
   }
 
   override detailsPanel() {
-    return new SuspendResumeDetailsPanel(this.trace);
+    return new SuspendResumeDetailsPanel(this.trace, this.threads);
   }
 }
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.kernel.SuspendResumeLatency';
+  static readonly dependencies = [ThreadPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
     const {engine} = ctx;
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks_grouped as (
@@ -85,7 +95,12 @@ export default class implements PerfettoPlugin {
         trackIds,
         kind: SLICE_TRACK_KIND,
       },
-      track: new SuspendResumeSliceTrack({uri, trace: ctx}, maxDepth, trackIds),
+      track: new SuspendResumeSliceTrack(
+        {uri, trace: ctx},
+        maxDepth,
+        trackIds,
+        threads,
+      ),
     });
 
     // Display the track in the UI.
