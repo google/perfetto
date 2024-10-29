@@ -14,13 +14,14 @@
 
 import {LONG} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {
   SimpleSliceTrack,
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
-class AndroidStartup implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidStartup';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`
@@ -86,8 +87,3 @@ class AndroidStartup implements PerfettoPlugin {
     return new TrackNode({title, uri, sortOrder: -6});
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidStartup',
-  plugin: AndroidStartup,
-};

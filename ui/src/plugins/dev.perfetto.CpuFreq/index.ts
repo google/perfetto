@@ -15,11 +15,12 @@
 import {TrackNode} from '../../public/workspace';
 import {CPU_FREQ_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
 
-class CpuFreq implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.CpuFreq';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
@@ -90,8 +91,3 @@ class CpuFreq implements PerfettoPlugin {
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.CpuFreq',
-  plugin: CpuFreq,
-};

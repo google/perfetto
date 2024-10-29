@@ -17,10 +17,11 @@ import {
   addDebugSliceTrack,
 } from '../../public/lib/debug_tracks/debug_tracks';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {exists} from '../../base/utils';
 
-class DebugTracksPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.DebugTracks';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'perfetto.DebugTracks#addDebugSliceTrack',
@@ -77,8 +78,3 @@ async function getStringFromArgOrPrompt(
     return await ctx.omnibox.prompt('Enter a query...');
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.DebugTracks',
-  plugin: DebugTracksPlugin,
-};

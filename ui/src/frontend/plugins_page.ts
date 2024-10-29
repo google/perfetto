@@ -90,11 +90,11 @@ export class PluginsPage implements m.ClassComponent<PageAttrs> {
   }
 
   private renderPluginRow(plugin: PluginWrapper): m.Children {
-    const pluginId = plugin.desc.pluginId;
+    const pluginId = plugin.desc.id;
     const isDefault = defaultPlugins.includes(pluginId);
-    const isActive = plugin.activatedContext;
+    const isActive = plugin.active;
     const isEnabled = plugin.enableFlag.get();
-    const loadTime = plugin.activatedContext?.traceContext?.loadTimeMs;
+    const loadTime = plugin.traceContext?.loadTimeMs;
     return [
       m('span', pluginId),
       m('span', isDefault ? 'Yes' : 'No'),

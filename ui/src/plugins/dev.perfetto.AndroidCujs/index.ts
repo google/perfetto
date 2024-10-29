@@ -15,7 +15,7 @@
 import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {addAndPinSliceTrack} from './trackUtils';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
@@ -215,7 +215,8 @@ const BLOCKING_CALLS_DURING_CUJS_COLUMNS = [
   'table_name',
 ];
 
-class AndroidCujs implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidCujs';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidCujs#PinJankCUJs',
@@ -287,8 +288,3 @@ class AndroidCujs implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidCujs',
-  plugin: AndroidCujs,
-};

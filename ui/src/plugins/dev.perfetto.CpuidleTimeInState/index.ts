@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {CounterOptions} from '../../frontend/base_counter_track';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -21,7 +21,8 @@ import {
   SimpleCounterTrackConfig,
 } from '../../frontend/simple_counter_track';
 
-class CpuidleTimeInState implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.CpuidleTimeInState';
   private addCounterTrack(
     ctx: Trace,
     name: string,
@@ -81,8 +82,3 @@ class CpuidleTimeInState implements PerfettoPlugin {
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.CpuidleTimeInState',
-  plugin: CpuidleTimeInState,
-};

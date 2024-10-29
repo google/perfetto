@@ -16,7 +16,7 @@ import {removeFalsyValues} from '../../base/array_utils';
 import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {AsyncSliceTrack} from './async_slice_track';
@@ -31,7 +31,8 @@ import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_regis
 import {getSliceTable} from './table';
 import {extensions} from '../../public/lib/extensions';
 
-class AsyncSlicePlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AsyncSlices';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const trackIdsToUris = new Map<number, string>();
 
@@ -405,8 +406,3 @@ class AsyncSlicePlugin implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AsyncSlices',
-  plugin: AsyncSlicePlugin,
-};

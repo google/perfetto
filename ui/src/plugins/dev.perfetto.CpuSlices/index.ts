@@ -15,7 +15,7 @@
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {CpuSliceTrack} from './cpu_slice_track';
 import {TrackNode} from '../../public/workspace';
@@ -26,7 +26,8 @@ function uriForSchedTrack(cpu: number): string {
   return `/sched_cpu${cpu}`;
 }
 
-class CpuSlices implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.CpuSlices';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionAggreagtor(
       new CpuSliceSelectionAggregator(),
@@ -105,8 +106,3 @@ class CpuSlices implements PerfettoPlugin {
     return cpuToClusterType;
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.CpuSlices',
-  plugin: CpuSlices,
-};
