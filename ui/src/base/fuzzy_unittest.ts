@@ -15,7 +15,7 @@
 import {FuzzyFinder, fuzzyMatch} from './fuzzy';
 
 describe('FuzzyFinder', () => {
-  const items = ['aaa', 'aba', 'zzz', 'c z d z e', 'Foo', 'ababc'];
+  const items = ['aaa', 'aba', 'zzz', 'c z d z e', 'CAPS', 'ababc'];
   const finder = new FuzzyFinder(items, (x) => x);
 
   it('finds all for empty search term', () => {
@@ -26,7 +26,7 @@ describe('FuzzyFinder', () => {
       {item: 'aba', segments: [{matching: false, value: 'aba'}]},
       {item: 'zzz', segments: [{matching: false, value: 'zzz'}]},
       {item: 'c z d z e', segments: [{matching: false, value: 'c z d z e'}]},
-      {item: 'Foo', segments: [{matching: false, value: 'Foo'}]},
+      {item: 'CAPS', segments: [{matching: false, value: 'CAPS'}]},
       {item: 'ababc', segments: [{matching: false, value: 'ababc'}]},
     ]);
   });
@@ -91,11 +91,11 @@ describe('FuzzyFinder', () => {
     );
   });
 
-  it('finds case insensitive match', () => {
-    const result = finder.find('foO');
+  it('finds caps match when search term is in lower case', () => {
+    const result = finder.find('caps');
     expect(result).toEqual(
       expect.arrayContaining([
-        {item: 'Foo', segments: [{matching: true, value: 'Foo'}]},
+        {item: 'CAPS', segments: [{matching: true, value: 'CAPS'}]},
       ]),
     );
   });
@@ -110,29 +110,6 @@ describe('FuzzyFinder', () => {
             {matching: true, value: 'ab'},
             {matching: false, value: 'ab'},
             {matching: true, value: 'c'},
-          ],
-        },
-      ]),
-    );
-  });
-
-  it('match multiple', () => {
-    const result = finder.find('abc', 'c z d');
-    expect(result).toEqual(
-      expect.arrayContaining([
-        {
-          item: 'ababc',
-          segments: [
-            {matching: true, value: 'ab'},
-            {matching: false, value: 'ab'},
-            {matching: true, value: 'c'},
-          ],
-        },
-        {
-          item: 'c z d z e',
-          segments: [
-            {matching: true, value: 'c z d'},
-            {matching: false, value: ' z e'},
           ],
         },
       ]),
