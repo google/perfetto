@@ -15438,9 +15438,9 @@ message TrackDescriptor {
     // Order tracks by the first `ts` event in a track.
     CHRONOLOGICAL = 2;
 
-    // Order tracks by `sibling_order_z_index` of children tracks. The
+    // Order tracks by `sibling_order_rank` of children tracks. The
     // lowest value will be shown before highest values, with tracks without
-    // `sibling_order_z_index` being shown at the end.
+    // `sibling_order_rank` being shown at the end.
     EXPLICIT = 3;
   }
 
@@ -15448,9 +15448,9 @@ message TrackDescriptor {
   optional ChildTracksOrdering child_ordering = 11;
 
   // As tracks with the same name under the same `parent_uuid` are grouped
-  // together in the UI, the `sibling_order_z_index` of the grouped track
-  // would be the minimum `sibling_order_z_index` of grouped tracks.
-  optional int32 sibling_order_z_index = 12;
+  // together in the UI, the `sibling_order_rank` of the grouped track
+  // would be the minimum `sibling_order_rank` of grouped tracks.
+  optional int32 sibling_order_rank = 12;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

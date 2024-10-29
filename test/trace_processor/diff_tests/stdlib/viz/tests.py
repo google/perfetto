@@ -29,11 +29,11 @@ class Viz(TestSuite):
           id,
           parent_id,
           EXTRACT_ARG(source_arg_set_id, 'child_ordering') AS ordering,
-          EXTRACT_ARG(source_arg_set_id, 'sibling_order_z_index') AS z_index
+          EXTRACT_ARG(source_arg_set_id, 'sibling_order_rank') AS rank
         FROM track;
         """,
         out=Csv("""
-        "id","parent_id","ordering","z_index"
+        "id","parent_id","ordering","rank"
         0,"[NULL]","explicit",-10
         1,0,"[NULL]","[NULL]"
         2,0,"[NULL]",5

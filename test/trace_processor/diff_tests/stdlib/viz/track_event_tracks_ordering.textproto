@@ -10,7 +10,7 @@ packet {
     uuid: 100
     child_ordering: 3
     name: "explicit_parent"
-    sibling_order_z_index: -10
+    sibling_order_rank: -10
   }
   trace_packet_defaults {
     track_event_defaults {
@@ -43,7 +43,7 @@ packet {
     uuid: 3
     parent_uuid: 100
     name: "explicit_child:5 z-index"
-    sibling_order_z_index: 5
+    sibling_order_rank: 5
   }
 }
 packet {
@@ -53,7 +53,7 @@ packet {
     uuid: 4
     parent_uuid: 100
     name: "explicit_child:-5 z-index"
-    sibling_order_z_index: -5
+    sibling_order_rank: -5
   }
 }
 packet {
@@ -63,7 +63,7 @@ packet {
     uuid: 5
     parent_uuid: 100
     name: "explicit_child:-5 z-index"
-    sibling_order_z_index: -5
+    sibling_order_rank: -5
   }
 }
 

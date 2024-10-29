@@ -133,8 +133,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
   }
 
-  if (track.has_sibling_order_z_index()) {
-    reservation.sibling_order_z_index = track.sibling_order_z_index();
+  if (track.has_sibling_order_rank()) {
+    reservation.sibling_order_rank = track.sibling_order_rank();
   }
 
   if (track.has_name())
