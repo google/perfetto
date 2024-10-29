@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {
   getOrCreateGroupForProcess,
   getOrCreateGroupForThread,
@@ -39,7 +39,8 @@ function getThreadDisplayName(threadName: string | undefined, tid: number) {
 
 // This plugin is responsible for organizing all process and thread groups
 // including the kernel groups, sorting, and adding summary tracks.
-class ProcessThreadGroupsPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.ProcessThreadGroups';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const processGroups = new Map<number, TrackNode>();
     const threadGroups = new Map<number, TrackNode>();
@@ -340,8 +341,3 @@ class ProcessThreadGroupsPlugin implements PerfettoPlugin {
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.ProcessThreadGroups',
-  plugin: ProcessThreadGroupsPlugin,
-};

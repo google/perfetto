@@ -14,11 +14,12 @@
 
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
-class AndroidPerf implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidPerf';
   async addAppProcessStartsDebugTrack(
     ctx: Trace,
     reason: string,
@@ -218,8 +219,3 @@ class AndroidPerf implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidPerf',
-  plugin: AndroidPerf,
-};

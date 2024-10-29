@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {CriticalUserInteractionTrack} from './critical_user_interaction_track';
 import {TrackNode} from '../../public/workspace';
 
-class CriticalUserInteractionPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'org.chromium.CriticalUserInteraction';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
@@ -45,8 +46,3 @@ class CriticalUserInteractionPlugin implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'org.chromium.CriticalUserInteraction',
-  plugin: CriticalUserInteractionPlugin,
-};

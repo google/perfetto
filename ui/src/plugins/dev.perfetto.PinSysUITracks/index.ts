@@ -14,7 +14,7 @@
 
 import {NUM} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 
 // List of tracks to pin
 const TRACKS_TO_PIN: string[] = [
@@ -29,7 +29,8 @@ const TRACKS_TO_PIN: string[] = [
 const SYSTEM_UI_PROCESS: string = 'com.android.systemui';
 
 // Plugin that pins the tracks relevant to System UI
-class PinSysUITracks implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.PinSysUITracks';
   async onTraceLoad(ctx: Trace): Promise<void> {
     // Find the upid for the sysui process
     const result = await ctx.engine.query(`
@@ -75,8 +76,3 @@ class PinSysUITracks implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.PinSysUITracks',
-  plugin: PinSysUITracks,
-};

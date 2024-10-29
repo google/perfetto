@@ -70,7 +70,7 @@ def gen_imports(input_dir, output_path):
     rel_path = os.path.relpath(path, output_dir)
     snake_name = os.path.basename(path)
     camel_name = to_camel_case(snake_name)
-    imports.append(f"import {{plugin as {camel_name}}} from '{rel_path}';")
+    imports.append(f"import {camel_name} from '{rel_path}';")
     registrations.append(camel_name)
 
   import_text = '\n'.join(imports)

@@ -19,7 +19,7 @@ import {
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {Trace} from '../../public/trace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {asUtid, Utid} from '../../trace_processor/sql_utils/core_types';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 import {showModal} from '../../widgets/modal';
@@ -125,7 +125,8 @@ async function getThreadInfoForUtidOrSelection(
   return getThreadInfo(trace.engine, utid);
 }
 
-class CriticalPath implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.CriticalPath';
   async onTraceLoad(ctx: Trace): Promise<void> {
     // The 3 commands below are used in two contextes:
     // 1. By clicking a slice and using the command palette. In this case the
@@ -311,8 +312,3 @@ class CriticalPath implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.CriticalPath',
-  plugin: CriticalPath,
-};

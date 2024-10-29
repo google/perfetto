@@ -13,9 +13,10 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 
-class LargeScreensPerf implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.LargeScreensPerf';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.LargeScreensPerf#PinUnfoldLatencyTracks',
@@ -41,8 +42,3 @@ class LargeScreensPerf implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.LargeScreensPerf',
-  plugin: LargeScreensPerf,
-};

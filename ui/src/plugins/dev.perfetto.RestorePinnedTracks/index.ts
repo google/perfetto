@@ -14,7 +14,7 @@
 
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {TrackDescriptor} from '../../public/track';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
@@ -27,7 +27,8 @@ const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
  * and group name. When no match is found for a saved track, it tries again
  * without numbers.
  */
-class RestorePinnedTrack implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = PLUGIN_ID;
   private ctx!: Trace;
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -264,8 +265,3 @@ interface LocalTrack {
   savedTrack: SavedPinnedTrack;
   track: TrackNode;
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: PLUGIN_ID,
-  plugin: RestorePinnedTrack,
-};

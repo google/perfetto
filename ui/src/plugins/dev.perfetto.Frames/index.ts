@@ -17,7 +17,7 @@ import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -26,7 +26,8 @@ import {ActualFramesTrack} from './actual_frames_track';
 import {ExpectedFramesTrack} from './expected_frames_track';
 import {FrameSelectionAggregator} from './frame_selection_aggregator';
 
-class FramesPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.Frames';
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
@@ -156,8 +157,3 @@ class FramesPlugin implements PerfettoPlugin {
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.Frames',
-  plugin: FramesPlugin,
-};

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
@@ -26,7 +26,8 @@ const PERF_TRACE_COUNTERS_PRECONDITION = `
     AND str_value GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*'
 `;
 
-class AndroidPerfTraceCounters implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidPerfTraceCounters';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const resp = await ctx.engine.query(PERF_TRACE_COUNTERS_PRECONDITION);
     if (resp.numRows() === 0) return;
@@ -114,8 +115,3 @@ class AndroidPerfTraceCounters implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidPerfTraceCounters',
-  plugin: AndroidPerfTraceCounters,
-};
