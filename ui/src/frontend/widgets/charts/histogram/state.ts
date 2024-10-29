@@ -11,11 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {raf} from '../../../core/raf_scheduler';
-import {Engine} from '../../../trace_processor/engine';
-import {Row} from '../../../trace_processor/query_result';
+import {raf} from '../../../../core/raf_scheduler';
+import {Engine} from '../../../../trace_processor/engine';
+import {Row} from '../../../../trace_processor/query_result';
 
-interface ChartConfig {
+export interface HistogramChartConfig {
   binAxisType: 'nominal' | 'quantitative';
   binAxis: 'x' | 'y';
   countAxis: 'x' | 'y';
@@ -27,12 +27,12 @@ interface ChartConfig {
 interface HistogramData {
   readonly rows: Row[];
   readonly error?: string;
-  readonly chartConfig: ChartConfig;
+  readonly chartConfig: HistogramChartConfig;
 }
 
-function getHistogramConfig(
+function getVegaConfig(
   aggregationType: 'nominal' | 'quantitative',
-): ChartConfig {
+): HistogramChartConfig {
   const labelLimit = 500;
   if (aggregationType === 'nominal') {
     return {
@@ -102,7 +102,7 @@ export class HistogramState {
 
     this.data = {
       rows,
-      chartConfig: getHistogramConfig(aggregationType),
+      chartConfig: getVegaConfig(aggregationType),
     };
 
     raf.scheduleFullRedraw();
