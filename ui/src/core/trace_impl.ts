@@ -39,7 +39,6 @@ import {PivotTableManager} from './pivot_table_manager';
 import {FlowManager} from './flow_manager';
 import {AppContext, AppImpl} from './app_impl';
 import {PluginManagerImpl} from './plugin_manager';
-import {ThreadDesc, ThreadMap} from '../public/threads';
 import {RouteArgs} from '../public/route_schema';
 import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Analytics} from '../public/analytics';
@@ -69,7 +68,6 @@ class TraceContext implements Disposable {
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
   readonly scrollHelper: ScrollHelper;
   readonly pivotTableMgr;
-  readonly threads = new Map<number, ThreadDesc>();
   readonly trash = new DisposableStack();
   readonly eventListeners = new Map<keyof EventListeners, Array<unknown>>();
 
@@ -319,15 +317,6 @@ export class TraceImpl implements Trace {
 
   addLoadingError(err: string) {
     this.traceCtx.loadingErrors.push(err);
-  }
-
-  get threads(): ThreadMap {
-    return this.traceCtx.threads;
-  }
-
-  setThreads(threadMap: ThreadMap) {
-    this.traceCtx.threads.clear();
-    threadMap.forEach((v, k) => this.traceCtx.threads.set(k, v));
   }
 
   // App interface implementation.

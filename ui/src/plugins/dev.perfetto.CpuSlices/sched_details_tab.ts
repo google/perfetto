@@ -33,7 +33,7 @@ import {translateState} from '../../trace_processor/sql_utils/thread_state';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
-import {ThreadDesc} from '../../public/threads';
+import {ThreadDesc, ThreadMap} from '../dev.perfetto.Thread/threads';
 
 const MIN_NORMAL_SCHED_PRIORITY = 100;
 
@@ -56,7 +56,10 @@ interface Data {
 export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
   private details?: Data;
 
-  constructor(private readonly trace: Trace) {}
+  constructor(
+    private readonly trace: Trace,
+    private readonly threads: ThreadMap,
+  ) {}
 
   async load({eventId}: TrackEventSelection) {
     const sched = await getSched(this.trace.engine, asSchedSqlId(eventId));
@@ -72,7 +75,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
     if (this.details === undefined) {
       return m(DetailsShell, {title: 'Sched', description: 'Loading...'});
     }
-    const threadInfo = this.trace.threads.get(this.details.sched.thread.utid);
+    const threadInfo = this.threads.get(this.details.sched.thread.utid);
 
     return m(
       DetailsShell,
@@ -89,7 +92,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderTitle(data: Data) {
-    const threadInfo = this.trace.threads.get(data.sched.thread.utid);
+    const threadInfo = this.threads.get(data.sched.thread.utid);
     if (!threadInfo) {
       return null;
     }
@@ -125,7 +128,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
     ) {
       return null;
     }
-    const threadInfo = this.trace.threads.get(data.wakeup.wakerUtid);
+    const threadInfo = this.threads.get(data.wakeup.wakerUtid);
     if (!threadInfo) {
       return null;
     }

@@ -28,6 +28,7 @@ import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {Point2D} from '../../base/geom';
 import {Trace} from '../../public/trace';
+import {ThreadMap} from '../dev.perfetto.Thread/threads';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -56,16 +57,14 @@ export class ProcessSchedulingTrack implements Track {
   private mousePos?: Point2D;
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private cpuCount: number;
-  private trace: Trace;
   private trackUuid = uuidv4Sql();
-  private config: Config;
 
-  constructor(trace: Trace, config: Config, cpuCount: number) {
-    this.trace = trace;
-    this.config = config;
-    this.cpuCount = cpuCount;
-  }
+  constructor(
+    private readonly trace: Trace,
+    private readonly config: Config,
+    private readonly cpuCount: number,
+    private readonly threads: ThreadMap,
+  ) {}
 
   async onCreate(): Promise<void> {
     if (this.config.upid !== null) {
@@ -225,7 +224,7 @@ export class ProcessSchedulingTrack implements Track {
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
-      const threadInfo = this.trace.threads.get(utid);
+      const threadInfo = this.threads.get(utid);
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
@@ -248,7 +247,7 @@ export class ProcessSchedulingTrack implements Track {
       ctx.fillRect(rectStart, y, rectWidth, cpuTrackHeight);
     }
 
-    const hoveredThread = this.trace.threads.get(this.utidHoveredInThisTrack);
+    const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
@@ -286,7 +285,7 @@ export class ProcessSchedulingTrack implements Track {
 
     const utid = data.utids[i];
     this.utidHoveredInThisTrack = utid;
-    const threadInfo = this.trace.threads.get(utid);
+    const threadInfo = this.threads.get(utid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     this.trace.timeline.hoveredUtid = utid;
