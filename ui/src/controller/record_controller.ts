@@ -278,6 +278,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
 
   stopRecordTrace() {
     if (this.bufferUpdateInterval) clearInterval(this.bufferUpdateInterval);
+    this.consumerPort.flush({});
     this.consumerPort.disableTracing({});
   }
 
