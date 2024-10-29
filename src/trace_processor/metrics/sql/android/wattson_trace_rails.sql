@@ -15,15 +15,13 @@
 
 INCLUDE PERFETTO MODULE wattson.curves.estimates;
 
--- The power calculations need to use the same time period in which energy
--- calculations were made for consistency
+-- This metric is defined to be for entire trace duration
 DROP VIEW IF EXISTS _wattson_period_windows;
 CREATE PERFETTO VIEW _wattson_period_windows AS
 SELECT
-  MIN(ts) as ts,
-  MAX(ts) - MIN(ts) as dur,
-  1 as period_id
-FROM _system_state_mw;
+  trace_start() as ts,
+  trace_dur() as dur,
+  1 as period_id;
 
 SELECT RUN_METRIC(
   'android/wattson_rail_relations.sql',

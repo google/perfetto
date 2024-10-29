@@ -16,19 +16,18 @@
 INCLUDE PERFETTO MODULE wattson.curves.estimates;
 INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
-DROP VIEW IF EXISTS _wattson_period_windows;
-CREATE PERFETTO VIEW _wattson_period_windows AS
+DROP VIEW IF EXISTS _wattson_period_window;
+CREATE PERFETTO VIEW _wattson_period_window AS
 SELECT
   -- Requirement is there is exactly one pair of start/stop
   (SELECT ts FROM slice WHERE name == 'wattson_start') as ts,
   (SELECT ts FROM slice WHERE name == 'wattson_stop')
-  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur,
-  1 as period_id;
+  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur;
 
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',
   'window_table',
-  '_wattson_period_windows'
+  '_wattson_period_window'
 );
 
 -- Group by unique thread ID and disregard CPUs, summing of power over all CPUs
