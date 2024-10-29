@@ -29,7 +29,7 @@ export interface VisualizedArgsTrackAttrs {
   readonly argName: string;
 }
 
-export class VisualisedArgsTrack extends ThreadSliceTrack {
+export class VisualizedArgsTrack extends ThreadSliceTrack {
   private readonly viewName: string;
   private readonly argName: string;
 
