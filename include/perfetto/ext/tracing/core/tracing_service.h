@@ -193,9 +193,17 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   // Clones an existing tracing session and attaches to it. The session is
   // cloned in read-only mode and can only be used to read a snapshot of an
   // existing tracing session. Will invoke Consumer::OnSessionCloned().
-  // If TracingSessionID == kBugreportSessionId (0xff...ff) the session with the
-  // highest bugreport score is cloned (if any exists).
   struct CloneSessionArgs {
+    // Exactly one between tsid and unique_session_name should be set.
+
+    // The id of the tracing session that should be cloned. If
+    // kBugreportSessionId (0xff...ff) the session with the highest bugreport
+    // score is cloned (if any exists).
+    TracingSessionID tsid = 0;
+
+    // The unique_session_name of the session that should be cloned.
+    std::string unique_session_name;
+
     // If set, the trace filter will not have effect on the cloned session.
     // Used for bugreports.
     bool skip_trace_filter = false;
@@ -204,7 +212,7 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
     // to kBugreport when requesting the flush to the producers.
     bool for_bugreport = false;
   };
-  virtual void CloneSession(TracingSessionID, CloneSessionArgs) = 0;
+  virtual void CloneSession(CloneSessionArgs) = 0;
 
   // Requests all data sources to flush their data immediately and invokes the
   // passed callback once all of them have acked the flush (in which case

@@ -32,7 +32,6 @@
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/periodic_task.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -231,7 +230,7 @@ class TracingServiceImpl : public TracingService {
                            QueryServiceStateCallback) override;
     void QueryCapabilities(QueryCapabilitiesCallback) override;
     void SaveTraceForBugreport(SaveTraceForBugreportCallback) override;
-    void CloneSession(TracingSessionID, CloneSessionArgs) override;
+    void CloneSession(CloneSessionArgs) override;
 
     // Will queue a task to notify the consumer about the state change.
     void OnDataSourceInstanceStateChange(const ProducerEndpointImpl&,
@@ -355,9 +354,7 @@ class TracingServiceImpl : public TracingService {
              FlushFlags);
   void FlushAndDisableTracing(TracingSessionID);
   base::Status FlushAndCloneSession(ConsumerEndpointImpl*,
-                                    TracingSessionID,
-                                    bool skip_filter,
-                                    bool for_bugreport);
+                                    ConsumerEndpoint::CloneSessionArgs);
 
   // Starts reading the internal tracing buffers from the tracing session `tsid`
   // and sends them to `*consumer` (which must be != nullptr).
@@ -759,6 +756,12 @@ class TracingServiceImpl : public TracingService {
   // Returns a pointer to the |tracing_sessions_| entry or nullptr if the
   // session doesn't exists.
   TracingSession* GetTracingSession(TracingSessionID);
+
+  // Returns a pointer to the |tracing_sessions_| entry with
+  // |unique_session_name| in the config (or nullptr if the
+  // session doesn't exists). CLONED_READ_ONLY sessions are ignored.
+  TracingSession* GetTracingSessionByUniqueName(
+      const std::string& unique_session_name);
 
   // Returns a pointer to the tracing session that has the highest
   // TraceConfig.bugreport_score, if any, or nullptr.

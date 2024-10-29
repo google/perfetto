@@ -34,7 +34,7 @@ class NullConsumerEndpointForTesting : public ConsumerEndpoint {
   void ChangeTraceConfig(const perfetto::TraceConfig&) override {}
   void StartTracing() override {}
   void DisableTracing() override {}
-  void CloneSession(TracingSessionID, CloneSessionArgs) override {}
+  void CloneSession(CloneSessionArgs) override {}
   void Flush(uint32_t, FlushCallback, FlushFlags) override {}
   void ReadBuffers() override {}
   void FreeBuffers() override {}

@@ -91,6 +91,9 @@ class PerfettoCmd : public Consumer {
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
+  bool is_clone() const {
+    return clone_tsid_.has_value() || !clone_name_.empty();
+  }
 
   // Once we call ReadBuffers we expect one or more calls to OnTraceData
   // with the last call having |has_more| set to false. However we should
@@ -174,6 +177,7 @@ class PerfettoCmd : public Consumer {
   bool connected_ = false;
   std::string uuid_;
   std::optional<TracingSessionID> clone_tsid_{};
+  std::string clone_name_;
   bool clone_for_bugreport_ = false;
   std::function<void()> on_session_cloned_;
 

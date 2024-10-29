@@ -79,7 +79,9 @@ void MockConsumer::FreeBuffers() {
 }
 
 void MockConsumer::CloneSession(TracingSessionID tsid) {
-  service_endpoint_->CloneSession(tsid, {});
+  ConsumerEndpoint::CloneSessionArgs args;
+  args.tsid = tsid;
+  service_endpoint_->CloneSession(args);
 }
 
 void MockConsumer::WaitForTracingDisabledWithError(
