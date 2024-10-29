@@ -960,6 +960,94 @@ TEST_F(PerfettoCmdlineTest, Clone) {
                    /*use_explicit_clone=*/true);
 }
 
+TEST_F(PerfettoCmdlineTest, CloneByName) {
+  constexpr size_t kMessageCount = 2;
+  protos::gen::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_unique_session_name("my_unique_session_name");
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(kMessageCount);
+  ds_config->mutable_for_testing()->set_message_size(2);
+
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
+  const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  const std::string path_cloned = RandomTraceFileName();
+  ScopedFileRemove path_cloned_remove(path_cloned);
+  auto perfetto_proc_clone = ExecPerfetto({
+      "-o",
+      path_cloned,
+      "--clone-by-name",
+      "my_unique_session_name",
+  });
+
+  const std::string path_cloned_2 = RandomTraceFileName();
+  ScopedFileRemove path_cloned_2_remove(path_cloned_2);
+  auto perfetto_proc_clone_2 = ExecPerfetto({
+      "-o",
+      path_cloned_2,
+      "--clone-by-name",
+      "non_existing_session_name",
+  });
+
+  // Start the service and connect a simple fake producer.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+  });
+
+  test_helper().WaitForProducerEnabled();
+
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written_1");
+
+  EXPECT_EQ(0, perfetto_proc_clone.Run(&stderr_)) << "stderr: " << stderr_;
+  EXPECT_TRUE(base::FileExists(path_cloned));
+
+  // The command still returns 0, but doesn't create a file.
+  EXPECT_EQ(0, perfetto_proc_clone_2.Run(&stderr_)) << "stderr: " << stderr_;
+  EXPECT_FALSE(base::FileExists(path_cloned_2));
+
+  std::string cloned_trace_str;
+  base::ReadFile(path_cloned, &cloned_trace_str);
+  protos::gen::Trace cloned_trace;
+  ASSERT_TRUE(cloned_trace.ParseFromString(cloned_trace_str));
+  ssize_t cloned_num_test_packets = std::count_if(
+      cloned_trace.packet().begin(), cloned_trace.packet().end(),
+      [](const protos::gen::TracePacket& tp) { return tp.has_for_testing(); });
+  EXPECT_EQ(cloned_num_test_packets, static_cast<ssize_t>(kMessageCount));
+
+  perfetto_proc.SendSigterm();
+  background_trace.join();
+
+  std::string trace_str;
+  base::ReadFile(path, &trace_str);
+  protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(cloned_trace_str));
+  ssize_t num_test_packets = std::count_if(
+      trace.packet().begin(), trace.packet().end(),
+      [](const protos::gen::TracePacket& tp) { return tp.has_for_testing(); });
+  EXPECT_EQ(num_test_packets, static_cast<ssize_t>(kMessageCount));
+}
+
 // Regression test for b/279753347: --save-for-bugreport would create an empty
 // file if no session with bugreport_score was active.
 TEST_F(PerfettoCmdlineTest, UnavailableBugreportLeavesNoEmptyFiles) {

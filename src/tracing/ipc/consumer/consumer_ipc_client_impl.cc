@@ -464,15 +464,19 @@ void ConsumerIPCClientImpl::SaveTraceForBugreport(
   consumer_port_.SaveTraceForBugreport(req, std::move(async_response));
 }
 
-void ConsumerIPCClientImpl::CloneSession(TracingSessionID tsid,
-                                         CloneSessionArgs args) {
+void ConsumerIPCClientImpl::CloneSession(CloneSessionArgs args) {
   if (!connected_) {
     PERFETTO_DLOG("Cannot CloneSession(), not connected to tracing service");
     return;
   }
 
   protos::gen::CloneSessionRequest req;
-  req.set_session_id(tsid);
+  if (args.tsid) {
+    req.set_session_id(args.tsid);
+  }
+  if (!args.unique_session_name.empty()) {
+    req.set_unique_session_name(args.unique_session_name);
+  }
   req.set_skip_trace_filter(args.skip_trace_filter);
   req.set_for_bugreport(args.for_bugreport);
   ipc::Deferred<protos::gen::CloneSessionResponse> async_response;
