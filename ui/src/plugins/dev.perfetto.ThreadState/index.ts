@@ -14,7 +14,7 @@
 
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadStateTrack} from './thread_state_track';
@@ -30,7 +30,8 @@ function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
 }
 
-class ThreadState implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.ThreadState';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
 
@@ -134,8 +135,3 @@ class ThreadState implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.ThreadState',
-  plugin: ThreadState,
-};

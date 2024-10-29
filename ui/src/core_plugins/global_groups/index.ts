@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 
@@ -49,7 +49,8 @@ const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
 
 // This plugin is responsible for organizing all the global tracks.
-class GlobalGroupsPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'perfetto.GlobalGroups';
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.addEventListener('traceready', () => {
       groupGlobalIonTracks(trace);
@@ -248,8 +249,3 @@ function groupTracksByRegex(
     trace.workspace.addChildInOrder(group);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.GlobalGroups',
-  plugin: GlobalGroupsPlugin,
-};

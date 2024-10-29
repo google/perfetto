@@ -15,7 +15,7 @@
 import {createStore, Store} from '../../base/store';
 import {exists} from '../../base/utils';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
 interface State {
@@ -24,7 +24,8 @@ interface State {
 
 // This example plugin shows using state that is persisted in the
 // permalink.
-class ExampleState implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.ExampleState';
   private store: Store<State> = createStore({counter: 0});
 
   private migrate(initialState: unknown): State {
@@ -60,8 +61,3 @@ class ExampleState implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.ExampleState',
-  plugin: ExampleState,
-};

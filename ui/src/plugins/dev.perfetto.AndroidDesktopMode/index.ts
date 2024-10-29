@@ -16,7 +16,7 @@ import {
   SimpleSliceTrack,
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 
@@ -36,7 +36,9 @@ const COLUMNS = ['id', 'ts', 'dur', 'name'];
 const TRACK_NAME = 'Desktop Mode Windows';
 const TRACK_URI = '/desktop_windows';
 
-class AndroidDesktopMode implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidDesktopMode';
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.addEventListener('traceready', async () => {
       await ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);
@@ -49,7 +51,7 @@ class AndroidDesktopMode implements PerfettoPlugin {
     });
   }
 
-  registerTrack(_ctx: Trace, sql: string) {
+  private registerTrack(_ctx: Trace, sql: string) {
     const config: SimpleSliceTrackConfig = {
       data: {
         sqlSource: sql,
@@ -66,14 +68,9 @@ class AndroidDesktopMode implements PerfettoPlugin {
     });
   }
 
-  addSimpleTrack(_ctx: Trace) {
+  private addSimpleTrack(_ctx: Trace) {
     const trackNode = new TrackNode({uri: TRACK_URI, title: TRACK_NAME});
     _ctx.workspace.addChildInOrder(trackNode);
     trackNode.pin();
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidDesktopMode',
-  plugin: AndroidDesktopMode,
-};

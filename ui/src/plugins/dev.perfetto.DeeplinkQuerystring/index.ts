@@ -18,13 +18,15 @@
 // once the trace has loaded.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 import {Time} from '../../base/time';
 import {RouteArgs} from '../../public/route_schema';
 import {App} from '../../public/app';
 import {exists} from '../../base/utils';
 import {NUM} from '../../trace_processor/query_result';
+
+let routeArgsForFirstTrace: RouteArgs | undefined;
 
 /**
  * Uses URL args (table, ts, dur) to select events on trace load.
@@ -38,17 +40,17 @@ import {NUM} from '../../trace_processor/query_result';
  * columns, and SQL resolvers must be available for those tables (usually from
  * plugins).
  */
-class DeeplinkQuerystring implements PerfettoPlugin {
-  private routeArgsForFirstTrace?: RouteArgs;
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.DeeplinkQuerystring';
 
-  onActivate(app: App): void {
-    this.routeArgsForFirstTrace = app.initialRouteArgs;
+  static onActivate(app: App): void {
+    routeArgsForFirstTrace = app.initialRouteArgs;
   }
 
   async onTraceLoad(trace: Trace) {
     trace.addEventListener('traceready', async () => {
-      const initialRouteArgs = this.routeArgsForFirstTrace;
-      this.routeArgsForFirstTrace = undefined;
+      const initialRouteArgs = routeArgsForFirstTrace;
+      routeArgsForFirstTrace = undefined;
       if (initialRouteArgs === undefined) return;
 
       await selectInitialRouteArgs(trace, initialRouteArgs);
@@ -121,8 +123,3 @@ async function selectInitialRouteArgs(trace: Trace, args: RouteArgs) {
     switchToCurrentSelectionTab: false,
   });
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.DeeplinkQuerystring',
-  plugin: DeeplinkQuerystring,
-};

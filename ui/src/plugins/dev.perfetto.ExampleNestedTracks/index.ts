@@ -13,14 +13,15 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {
   SimpleSliceTrack,
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
 
-class Plugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.ExampleNestedTracks';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const traceStartTime = ctx.traceInfo.start;
     const traceDur = ctx.traceInfo.end - ctx.traceInfo.start;
@@ -77,8 +78,3 @@ class Plugin implements PerfettoPlugin {
     track2.addChildLast(track21);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.ExampleNestedTracks',
-  plugin: Plugin,
-};

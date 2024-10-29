@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NUM, STR} from '../../trace_processor/query_result';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -22,7 +22,9 @@ import {
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
 
-class GpuWorkPeriodPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'com.android.GpuWorkPeriod';
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
@@ -92,8 +94,3 @@ class GpuWorkPeriodPlugin implements PerfettoPlugin {
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'com.android.GpuWorkPeriod',
-  plugin: GpuWorkPeriodPlugin,
-};

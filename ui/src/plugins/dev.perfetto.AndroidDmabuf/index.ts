@@ -16,7 +16,7 @@ import {
   SimpleCounterTrack,
   SimpleCounterTrackConfig,
 } from '../../frontend/simple_counter_track';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {
   getOrCreateGroupForProcess,
   getOrCreateGroupForThread,
@@ -37,7 +37,8 @@ function registerAllocsTrack(
   });
 }
 
-class AndroidDmabuf implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidDmabuf';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.memory.dmabuf`);
@@ -85,8 +86,3 @@ class AndroidDmabuf implements PerfettoPlugin {
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidDmabuf',
-  plugin: AndroidDmabuf,
-};
