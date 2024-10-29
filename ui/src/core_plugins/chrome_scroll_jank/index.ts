@@ -15,7 +15,7 @@
 import {uuidv4Sql} from '../../base/uuid';
 import {generateSqlWithInternalLayout} from '../../trace_processor/sql_utils/layout';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {EventLatencyTrack, JANKY_LATENCY_NAME} from './event_latency_track';
 import {ScrollJankV3Track} from './scroll_jank_v3_track';
 import {TopLevelScrollTrack} from './scroll_track';
@@ -62,7 +62,8 @@ function patchChromeScrollJankFlag() {
 
 patchChromeScrollJankFlag();
 
-class ChromeScrollJankPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'perfetto.ChromeScrollJank';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
       title: 'Chrome Scroll Jank',
@@ -239,8 +240,3 @@ class ChromeScrollJankPlugin implements PerfettoPlugin {
     group.addChildInOrder(track);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.ChromeScrollJank',
-  plugin: ChromeScrollJankPlugin,
-};

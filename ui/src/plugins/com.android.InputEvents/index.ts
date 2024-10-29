@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {LONG} from '../../trace_processor/query_result';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {
   SimpleSliceTrack,
@@ -22,7 +22,9 @@ import {
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateUserInteractionGroup} from '../../public/standard_groups';
 
-class InputEvents implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'com.android.InputEvents';
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const cnt = await ctx.engine.query(`
       SELECT
@@ -65,8 +67,3 @@ class InputEvents implements PerfettoPlugin {
     group.addChildInOrder(node);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'com.android.InputEvents',
-  plugin: InputEvents,
-};

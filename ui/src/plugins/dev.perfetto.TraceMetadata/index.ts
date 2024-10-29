@@ -14,11 +14,12 @@
 
 import {NUM} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {SimpleSliceTrack} from '../../frontend/simple_slice_track';
 import {TrackNode} from '../../public/workspace';
 
-class TraceMetadata implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.TraceMetadata';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
       select count() as cnt from (select 1 from clock_snapshot limit 1)
@@ -53,8 +54,3 @@ class TraceMetadata implements PerfettoPlugin {
     ctx.workspace.addChildInOrder(trackNode);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.TraceMetadata',
-  plugin: TraceMetadata,
-};

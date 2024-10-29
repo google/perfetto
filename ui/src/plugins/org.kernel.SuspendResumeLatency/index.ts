@@ -15,7 +15,7 @@
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {AsyncSliceTrack} from '../dev.perfetto.AsyncSlices/async_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -40,7 +40,8 @@ class SuspendResumeSliceTrack extends AsyncSliceTrack {
   }
 }
 
-class SuspendResumeLatency implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'org.kernel.SuspendResumeLatency';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const rawGlobalAsyncTracks = await engine.query(`
@@ -92,8 +93,3 @@ class SuspendResumeLatency implements PerfettoPlugin {
     ctx.workspace.addChildInOrder(track);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'org.kernel.SuspendResumeLatency',
-  plugin: SuspendResumeLatency,
-};

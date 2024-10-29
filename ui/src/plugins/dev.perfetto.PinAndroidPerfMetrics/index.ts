@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
 import {PLUGIN_ID} from './pluginId';
@@ -21,6 +21,25 @@ import {PLUGIN_ID} from './pluginId';
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
 `;
+
+function getMetricsFromHash(): string[] {
+  const metricVal = location.hash;
+  const regex = new RegExp(`${PLUGIN_ID}:metrics=(.*)`);
+  const match = metricVal.match(regex);
+  if (match === null) {
+    return [];
+  }
+  const capturedString = match[1];
+  let metricList: string[] = [];
+  if (capturedString.includes('--')) {
+    metricList = capturedString.split('--');
+  } else {
+    metricList = [capturedString];
+  }
+  return metricList.map((metric) => decodeURIComponent(metric));
+}
+
+let metrics: string[];
 
 /**
  * Plugin that adds and pins the debug track for the metric passed
@@ -32,11 +51,11 @@ const JANK_CUJ_QUERY_PRECONDITIONS = `
  * the regression, the user will not have to manually search for the
  * slices related to the regressed metric
  */
-class PinAndroidPerfMetrics implements PerfettoPlugin {
-  private metrics: string[] = [];
+export default class implements PerfettoPlugin {
+  static readonly id = PLUGIN_ID;
 
-  onActivate(): void {
-    this.metrics = this.getMetricsFromHash();
+  static onActivate(): void {
+    metrics = getMetricsFromHash();
   }
 
   async onTraceLoad(ctx: Trace) {
@@ -51,8 +70,8 @@ class PinAndroidPerfMetrics implements PerfettoPlugin {
           this.callHandlers(metricList, ctx);
         },
       });
-      if (this.metrics.length !== 0) {
-        this.callHandlers(this.metrics, ctx);
+      if (metrics.length !== 0) {
+        this.callHandlers(metrics, ctx);
       }
     });
   }
@@ -70,23 +89,6 @@ class PinAndroidPerfMetrics implements PerfettoPlugin {
     for (const {metricData, metricHandler} of metricsToShow) {
       metricHandler.addMetricTrack(metricData, ctx);
     }
-  }
-
-  private getMetricsFromHash(): string[] {
-    const metricVal = location.hash;
-    const regex = new RegExp(`${PLUGIN_ID}:metrics=(.*)`);
-    const match = metricVal.match(regex);
-    if (match === null) {
-      return [];
-    }
-    const capturedString = match[1];
-    let metricList: string[] = [];
-    if (capturedString.includes('--')) {
-      metricList = capturedString.split('--');
-    } else {
-      metricList = [capturedString];
-    }
-    return metricList.map((metric) => decodeURIComponent(metric));
   }
 
   private getMetricsToShow(metricList: string[]): MetricHandlerMatch[] {
@@ -115,8 +117,3 @@ class PinAndroidPerfMetrics implements PerfettoPlugin {
     return JSON.stringify(metricData, Object.keys(metricData).sort());
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: PLUGIN_ID,
-  plugin: PinAndroidPerfMetrics,
-};

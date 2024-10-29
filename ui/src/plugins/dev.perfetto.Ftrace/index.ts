@@ -16,7 +16,7 @@ import m from 'mithril';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {Engine} from '../../trace_processor/engine';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {NUM} from '../../trace_processor/query_result';
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceRawTrack} from './ftrace_track';
@@ -31,7 +31,8 @@ const DEFAULT_STATE: FtracePluginState = {
   },
 };
 
-class FtraceRawPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.Ftrace';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const store = ctx.mountStore<FtracePluginState>((init: unknown) => {
       if (
@@ -127,8 +128,3 @@ class FtraceRawPlugin implements PerfettoPlugin {
     return cpuCores;
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.Ftrace',
-  plugin: FtraceRawPlugin,
-};

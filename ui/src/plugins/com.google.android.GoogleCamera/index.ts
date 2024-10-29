@@ -13,10 +13,11 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import * as cameraConstants from './googleCameraConstants';
 
-class GoogleCamera implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'com.google.android.GoogleCamera';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'com.google.android.GoogleCamera#LoadGoogleCameraStartupView',
@@ -59,8 +60,3 @@ class GoogleCamera implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'com.google.android.GoogleCamera',
-  plugin: GoogleCamera,
-};

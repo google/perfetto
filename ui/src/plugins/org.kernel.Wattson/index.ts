@@ -17,7 +17,7 @@ import {
   CounterOptions,
 } from '../../frontend/base_counter_track';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
@@ -27,7 +27,9 @@ import {WattsonThreadSelectionAggregator} from './thread_aggregator';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 
-class Wattson implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = `org.kernel.Wattson`;
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     // Short circuit if Wattson is not supported for this Perfetto trace
     if (!(await hasWattsonSupport(ctx.engine))) return;
@@ -122,11 +124,6 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: `org.kernel.Wattson`,
-  plugin: Wattson,
-};
 
 async function hasWattsonSupport(engine: Engine): Promise<boolean> {
   // These tables are hard requirements and are the bare minimum needed for

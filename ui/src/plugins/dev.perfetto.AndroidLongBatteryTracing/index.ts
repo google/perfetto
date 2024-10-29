@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {
   SimpleSliceTrack,
@@ -1100,7 +1100,8 @@ const BT_ACTIVITY = `
   from step2
 `;
 
-class AndroidLongBatteryTracing implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidLongBatteryTracing';
   private readonly groups = new Map<string, TrackNode>();
 
   private addTrack(ctx: Trace, track: TrackNode, groupName?: string): void {
@@ -1910,8 +1911,3 @@ class AndroidLongBatteryTracing implements PerfettoPlugin {
     await this.addTracks(ctx);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidLongBatteryTracing',
-  plugin: AndroidLongBatteryTracing,
-};

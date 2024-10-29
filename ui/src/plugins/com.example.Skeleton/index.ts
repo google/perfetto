@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {MetricVisualisation} from '../../public/plugin';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {createStore, Store} from '../../base/store';
 
 interface State {
@@ -23,7 +23,10 @@ interface State {
 }
 
 // SKELETON: Rename this class to match your plugin.
-class Skeleton implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  // SKELETON: Update pluginId to match the directory of the plugin.
+  static readonly id = 'com.example.Skeleton';
+
   private store: Store<State> = createStore({foo: 'foo'});
 
   /**
@@ -35,7 +38,7 @@ class Skeleton implements PerfettoPlugin {
    * This hook should be used for adding commands that don't depend on the
    * trace.
    */
-  onActivate(_: App): void {
+  static onActivate(_: App): void {
     //
   }
 
@@ -96,13 +99,7 @@ class Skeleton implements PerfettoPlugin {
     });
   }
 
-  metricVisualisations(_: Trace): MetricVisualisation[] {
+  static metricVisualisations(): MetricVisualisation[] {
     return [];
   }
 }
-
-export const plugin: PluginDescriptor = {
-  // SKELETON: Update pluginId to match the directory of the plugin.
-  pluginId: 'com.example.Skeleton',
-  plugin: Skeleton,
-};

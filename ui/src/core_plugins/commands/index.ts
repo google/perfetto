@@ -19,7 +19,7 @@ import {globals} from '../../frontend/globals';
 import {openInOldUIWithSizeCheck} from '../../frontend/legacy_trace_viewer';
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
@@ -93,8 +93,9 @@ group by
 order by total_self_size desc
 limit 100;`;
 
-class CoreCommandsPlugin implements PerfettoPlugin {
-  onActivate(ctx: App) {
+export default class implements PerfettoPlugin {
+  static readonly id = 'perfetto.CoreCommands';
+  static onActivate(ctx: App) {
     ctx.commands.registerCommand({
       id: 'perfetto.CoreCommands#ToggleLeftSidebar',
       name: 'Toggle left sidebar',
@@ -351,8 +352,3 @@ async function openWithLegacyUi(file: File) {
   }
   return await openInOldUIWithSizeCheck(file);
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.CoreCommands',
-  plugin: CoreCommandsPlugin,
-};

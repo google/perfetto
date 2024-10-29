@@ -14,11 +14,12 @@
 
 import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {getThreadTable} from './table';
 import {extensions} from '../../public/lib/extensions';
 
-class ThreadPlugin implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.Thread';
   async onTraceLoad(ctx: Trace) {
     sqlTableRegistry['thread'] = getThreadTable();
     ctx.commands.registerCommand({
@@ -32,8 +33,3 @@ class ThreadPlugin implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.Thread',
-  plugin: ThreadPlugin,
-};
