@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Add `--clone-by-name` to the perfetto command line. This allows cloning a
+      tracing session by its unique_session_name.
   SQL Standard library:
     * Removed the `linux_device_track` table. Linux RPM (runtime power
       management) tracks formerly in this table now can be found in the `track`
