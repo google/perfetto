@@ -18,7 +18,7 @@ import {App} from '../public/app';
 import {
   MetricVisualisation,
   PerfettoPlugin,
-  PluginDescriptorStatic,
+  PerfettoPluginStatic,
 } from '../public/plugin';
 import {Trace} from '../public/trace';
 import {defaultPlugins} from './default_plugins';
@@ -29,7 +29,7 @@ import {TraceImpl} from './trace_impl';
 export const CORE_PLUGIN_ID = '__core__';
 
 function makePlugin(
-  desc: PluginDescriptorStatic<PerfettoPlugin>,
+  desc: PerfettoPluginStatic<PerfettoPlugin>,
   trace: Trace,
 ): PerfettoPlugin {
   const PluginClass = desc;
@@ -46,7 +46,7 @@ export interface PluginAppInterface {
 // Contains information about a plugin.
 export interface PluginWrapper {
   // A reference to the plugin descriptor
-  readonly desc: PluginDescriptorStatic<PerfettoPlugin>;
+  readonly desc: PerfettoPluginStatic<PerfettoPlugin>;
 
   // The feature flag used to allow users to change whether this plugin should
   // be enabled or not.
@@ -72,7 +72,7 @@ export class PluginManagerImpl {
 
   constructor(private readonly app: PluginAppInterface) {}
 
-  registerPlugin(desc: PluginDescriptorStatic<PerfettoPlugin>) {
+  registerPlugin(desc: PerfettoPluginStatic<PerfettoPlugin>) {
     const flagId = `plugin_${desc.id}`;
     const name = `Plugin: ${desc.id}`;
     const flag = featureFlags.register({
@@ -152,7 +152,7 @@ export class PluginManagerImpl {
   }
 
   getPlugin<T extends PerfettoPlugin>(
-    pluginDescriptor: PluginDescriptorStatic<T>,
+    pluginDescriptor: PerfettoPluginStatic<T>,
   ): T {
     const plugin = this.registry.get(pluginDescriptor.id);
     return assertExists(plugin.traceContext).instance as T;
