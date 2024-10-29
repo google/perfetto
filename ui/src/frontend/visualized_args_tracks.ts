@@ -59,6 +59,7 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
         group by track_id;
     `);
 
+  const addedTracks: TrackNode[] = [];
   const it = result.iter({trackId: NUM, maxDepth: NUM});
   for (; it.valid(); it.next()) {
     const trackId = it.trackId;
@@ -68,13 +69,17 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
     trace.tracks.registerTrack({
       uri,
       title: argName,
-      chips: ['metric'],
+      chips: ['arg'],
       track: new VisualizedArgsTrack({
         trace,
         uri,
         trackId,
         maxDepth,
         argName,
+        onClose: () => {
+          // Remove all added for this argument
+          addedTracks.forEach((t) => t.parent?.removeChild(t));
+        },
       }),
     });
 
@@ -94,6 +99,7 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
     if (parentGroup) {
       const newTrack = new TrackNode({uri, title: argName});
       parentGroup.addChildBefore(newTrack, threadSliceTrack);
+      addedTracks.push(newTrack);
     }
   }
 }
