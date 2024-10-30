@@ -306,6 +306,28 @@ class AndroidStdlib(TestSuite):
         13934,"D",11950576,1
       """))
 
+  def test_android_monitor_contention_chain_thread_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      INCLUDE PERFETTO MODULE android.monitor_contention;
+      SELECT
+        *
+      FROM android_monitor_contention_chain_thread_state
+      WHERE id = 13934;
+      """,
+        out=Csv("""
+        "id","ts","dur","blocking_utid","blocked_function","state"
+        13934,1739927671503,141874,557,"[NULL]","R"
+        13934,1739927813377,69101,557,"[NULL]","Running"
+        13934,1739927882478,7649,557,"[NULL]","R+"
+        13934,1739927890127,3306,557,"[NULL]","Running"
+        13934,1739927893433,11950576,557,"blkdev_issue_flush","D"
+        13934,1739939844009,76306,557,"[NULL]","R"
+        13934,1739939920315,577554,557,"[NULL]","Running"
+        13934,1739940497869,82426,557,"[NULL]","R"
+      """))
+
   def test_monitor_contention_chain_extraction(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
