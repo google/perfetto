@@ -37,6 +37,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/backend_type.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
@@ -169,6 +170,9 @@ class TracingMuxerImpl : public TracingMuxer {
                            const std::shared_ptr<TraceConfig>&,
                            base::ScopedFile trace_fd = base::ScopedFile());
   void StartTracingSession(TracingSessionGlobalID);
+  void CloneTracingSession(TracingSessionGlobalID,
+                           TracingSession::CloneTraceArgs,
+                           TracingSession::CloneTraceCallback);
   void ChangeTracingSessionConfig(TracingSessionGlobalID, const TraceConfig&);
   void StopTracingSession(TracingSessionGlobalID);
   void DestroyTracingSession(TracingSessionGlobalID);
@@ -334,6 +338,10 @@ class TracingMuxerImpl : public TracingMuxer {
     // consumer wasn't connected yet.
     bool get_trace_stats_pending_ = false;
 
+    // Similarly we need to buffer a session cloning args if the session is
+    // cloning another sesison before the consumer was connected.
+    std::optional<ConsumerEndpoint::CloneSessionArgs> session_to_clone_;
+
     // Whether this session was already stopped. This will happen in response to
     // Stop{,Blocking}, but also if the service stops the session for us
     // automatically (e.g., when there are no data sources).
@@ -361,6 +369,9 @@ class TracingMuxerImpl : public TracingMuxer {
 
     // An internal callback used to implement StopBlocking().
     std::function<void()> blocking_stop_complete_callback_;
+
+    // Callback for a pending call to CloneTrace().
+    TracingSession::CloneTraceCallback clone_trace_callback_;
 
     // Callback passed to ReadTrace().
     std::function<void(TracingSession::ReadTraceCallbackArgs)>
@@ -390,6 +401,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void Setup(const TraceConfig&, int fd) override;
     void Start() override;
     void StartBlocking() override;
+    void CloneTrace(CloneTraceArgs args, CloneTraceCallback) override;
     void SetOnStartCallback(std::function<void()>) override;
     void SetOnErrorCallback(std::function<void(TracingError)>) override;
     void Stop() override;
