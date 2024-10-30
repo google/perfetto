@@ -134,10 +134,7 @@ source_set("trigger_producer") {
 }
 
 perfetto_proto_library("protos_@TYPE@") {
-  proto_generators = [
-    "cpp",
-    "source_set",
-  ]
+  proto_generators = [ "cpp" ]
   sources = [ "perfetto_cmd_state.proto" ]
   proto_path = perfetto_root_path
 }

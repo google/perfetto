@@ -20,7 +20,6 @@ perfetto_proto_library("@TYPE@") {
     "cpp",
     "lite",
     "zero",
-    "source_set",
   ]
   deps = [ "../common:@TYPE@" ]  # needed for descriptor.proto.
   sources = []
@@ -29,16 +28,14 @@ perfetto_proto_library("@TYPE@") {
   }
 }
 
-perfetto_proto_library("stack_descriptor") {
-  proto_generators = [ "descriptor" ]
-  generate_descriptor = "stack.descriptor"
+perfetto_proto_library("stack_@TYPE@") {
+  proto_generators = []
   sources = [ "stack.proto" ]
+  generate_descriptor = "stack.descriptor"
+  descriptor_root_source = "stack.proto"
 }
 
 perfetto_proto_library("metrics_impl_@TYPE@") {
-  proto_generators = [
-    "zero",
-    "source_set",
-  ]
+  proto_generators = [ "zero" ]
   sources = [ "metrics_impl.proto" ]
 }

@@ -79,13 +79,12 @@ template("protozero_library") {
       component_build_force_source_set = true
     }
 
-    if (defined(invoker.deps)) {
-      deps = invoker.deps
-    } else {
-      deps = []
-    }
-
+    # Convert deps to link_deps: the proto_library rule requires that C++ files
+    # are passed in as link_deps wheras in Perfetto, we always works with deps.
     link_deps = []
+    if (defined(invoker.deps)) {
+      link_deps += invoker.deps
+    }
 
     # omit_protozero_dep is intended to be used when protozero_library
     # is used in Chrome (for generation of code for proto extensions)
@@ -143,16 +142,12 @@ template("protozero_cpp_library") {
       "$perfetto_root_path/include/perfetto/base",
       "$perfetto_root_path/src/protozero",
     ]
-    if (defined(invoker.link_deps)) {
-      link_deps += invoker.link_deps
-    }
 
-    deps = []
-
+    # Convert deps to link_deps: the proto_library rule requires that C++ files
+    # are passed in as link_deps wheras in Perfetto, we always works with deps.
     if (defined(invoker.deps)) {
-      deps += invoker.deps
+      link_deps += invoker.deps
     }
-
     forward_variables_from(invoker,
                            [
                              "defines",
@@ -179,7 +174,6 @@ template("ipc_library") {
     generator_plugin_label =
         "$perfetto_root_path/src/ipc/protoc_plugin:ipc_plugin"
     generator_plugin_suffix = ".ipc"
-    deps = []
     link_deps = [ "$perfetto_root_path/gn:default_deps" ]
     if (perfetto_component_type == "static_library") {
       link_deps += [ "$perfetto_root_path/src/ipc:perfetto_ipc" ]
@@ -201,15 +195,16 @@ template("ipc_library") {
       }
     }
 
+    # Convert deps to link_deps: the proto_library rule requires that C++ files
+    # are passed in as link_deps wheras in Perfetto, we always works with deps.
     if (defined(invoker.deps)) {
-      deps += invoker.deps
+      link_deps += invoker.deps
     }
     forward_variables_from(invoker,
                            [
                              "defines",
                              "extra_configs",
                              "include_dirs",
-                             "link_deps",
                              "proto_in_dir",
                              "proto_out_dir",
                              "generator_plugin_options",
@@ -238,10 +233,14 @@ if (enable_perfetto_grpc) {
       generator_plugin_label =
           "$perfetto_root_path/buildtools/grpc:grpc_cpp_plugin"
       generator_plugin_suffix = ".grpc.pb"
-      deps = [ "$perfetto_root_path/buildtools/grpc:grpc++" ]
+      link_deps = [ "$perfetto_root_path/buildtools/grpc:grpc++" ]
       public_configs = [ "$perfetto_root_path/buildtools:grpc_gen_config" ]
+
+      # Convert deps to link_deps: the proto_library rule requires that C++
+      # files are passed in as link_deps wheras in Perfetto, we always works
+      # with deps.
       if (defined(invoker.deps)) {
-        deps += invoker.deps
+        link_deps += invoker.deps
       }
       forward_variables_from(invoker,
                              [
@@ -265,7 +264,6 @@ template("perfetto_proto_library") {
       "zero",
       "lite",
       "cpp",
-      "source_set",
     ]
   }
 
@@ -282,47 +280,104 @@ template("perfetto_proto_library") {
     import_dirs_ = []
   }
 
-  vars_to_forward = [
-    "sources",
-    "visibility",
-    "testonly",
-    "exclude_imports",
-    "link_deps",
-  ]
   expansion_token = "@TYPE@"
 
-  # gn:public_config propagates the gen dir as include directory. We
-  # disable the proto_library's public_config to avoid duplicate include
-  # directory command line flags (crbug.com/1043279, crbug.com/gn/142).
-  propagate_imports_configs_ = false
+  # The source set target should always be generated as it is used by the
+  # build generators and for generating descriptors.
+  source_set_target_name =
+      string_replace(target_name, expansion_token, "source_set")
+  group(source_set_target_name) {
+    public_deps_ = []
+    if (defined(invoker.public_deps)) {
+      foreach(dep, invoker.public_deps) {
+        # Get the absolute target path
+        mapped_dep = string_replace(dep, expansion_token, "source_set")
+        public_deps_ += [ mapped_dep ]
+      }
+    }
+
+    deps = []
+    if (defined(invoker.deps)) {
+      foreach(dep, invoker.deps) {
+        mapped_dep = string_replace(dep, expansion_token, "source_set")
+        deps += [ mapped_dep ]
+      }
+    }
+    deps += public_deps_
+
+    sources = []
+    foreach(source, invoker.sources) {
+      sources += [ get_path_info(source, "abspath") ]
+    }
+
+    metadata = {
+      proto_library_sources = sources
+      proto_import_dirs = import_dirs_
+      exports = []
+      foreach(dep, public_deps_) {
+        exports +=
+            [ get_label_info(dep, "dir") + ":" + get_label_info(dep, "name") ]
+      }
+    }
+  }
+
+  # Generate the descriptor if the option is set.
+  if (defined(invoker.generate_descriptor)) {
+    target_name_ = string_replace(target_name, expansion_token, "descriptor")
+    proto_library(target_name_) {
+      proto_in_dir = proto_path
+      proto_out_dir = proto_path
+      generate_python = false
+      generate_cc = false
+      generate_descriptor = rebase_path(invoker.generate_descriptor, proto_path)
+      sources = [ invoker.descriptor_root_source ]
+      import_dirs = import_dirs_
+      deps = [ ":${source_set_target_name}" ]
+      forward_variables_from(invoker,
+                             [
+                               "visibility",
+                               "testonly",
+                               "exclude_imports",
+                             ])
+    }
+  }
 
   foreach(gen_type, proto_generators) {
     target_name_ = string_replace(target_name, expansion_token, gen_type)
 
     # Translate deps from xxx:@TYPE@ to xxx:lite/zero.
-    deps_ = []
+    all_deps_ = []
     if (defined(invoker.deps)) {
       foreach(dep, invoker.deps) {
-        deps_ += [ string_replace(dep, expansion_token, gen_type) ]
+        all_deps_ += [ string_replace(dep, expansion_token, gen_type) ]
       }
     }
 
     # The distinction between deps and public_deps does not matter for GN
     # but Bazel cares about the difference so we distinguish between the two.
-    public_deps_ = []
     if (defined(invoker.public_deps)) {
       foreach(dep, invoker.public_deps) {
-        public_deps_ = [ string_replace(dep, expansion_token, gen_type) ]
+        all_deps_ += [ string_replace(dep, expansion_token, gen_type) ]
       }
     }
-    deps_ += public_deps_
+
+    # gn:public_config propagates the gen dir as include directory. We
+    # disable the proto_library's public_config to avoid duplicate include
+    # directory command line flags (crbug.com/1043279, crbug.com/gn/142).
+    propagate_imports_configs_ = false
+    vars_to_forward = []
+    vars_to_forward += [
+      "sources",
+      "visibility",
+      "testonly",
+    ]
 
     if (gen_type == "zero") {
       protozero_library(target_name_) {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=pbzero"
-        deps = deps_
+        deps = all_deps_
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
@@ -332,7 +387,7 @@ template("perfetto_proto_library") {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=gen"
-        deps = deps_
+        deps = all_deps_
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
@@ -343,7 +398,7 @@ template("perfetto_proto_library") {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=gen"
-        deps = deps_ + [ ":$cpp_target_name_" ]
+        deps = all_deps_ + [ ":$cpp_target_name_" ]
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
@@ -353,59 +408,12 @@ template("perfetto_proto_library") {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
         generate_python = false
-        deps = deps_
+        link_deps = all_deps_
         cc_generator_options = "lite=true:"
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
       }
-    } else if (gen_type == "descriptor") {
-      proto_library(target_name_) {
-        proto_in_dir = proto_path
-        proto_out_dir = proto_path
-        generate_python = false
-        generate_cc = false
-        generate_descriptor =
-            rebase_path(invoker.generate_descriptor, proto_path)
-        deps = deps_
-        import_dirs = import_dirs_
-        forward_variables_from(invoker, vars_to_forward + [ "proto_deps" ])
-      }
-
-      # Not needed for descriptor proto_library target.
-      not_needed([ "propagate_imports_configs_" ])
-    } else if (gen_type == "source_set") {
-      action(target_name_) {
-        out_path = "$target_gen_dir/" + target_name_
-        rebased_out_path =
-            rebase_path(target_gen_dir, root_build_dir) + "/" + target_name_
-
-        script = "$perfetto_root_path/tools/touch_file.py"
-        args = [
-          "--output",
-          rebased_out_path,
-        ]
-        outputs = [ out_path ]
-        deps = deps_
-
-        metadata = {
-          proto_library_sources = invoker.sources
-          proto_import_dirs = import_dirs_
-          exports = []
-          foreach(i, public_deps_) {
-            # Get the absolute target path
-            exports +=
-                [ get_label_info(i, "dir") + ":" + get_label_info(i, "name") ]
-          }
-        }
-        forward_variables_from(invoker, vars_to_forward)
-      }
-
-      # Not needed for source_set proto_library target.
-      not_needed([
-                   "propagate_imports_configs_",
-                   "proto_path",
-                 ])
     } else {
       assert(false, "Invalid 'proto_generators' value.")
     }
