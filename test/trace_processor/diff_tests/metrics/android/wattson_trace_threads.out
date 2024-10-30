@@ -1,5 +1,6 @@
 wattson_trace_threads {
-  metric_version: 2
+  metric_version: 3
+  power_model_version: 1
   task_info {
     estimated_mws: 34.416729
     estimated_mw: 3.979098
