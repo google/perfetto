@@ -137,37 +137,42 @@ class TrackFSM implements TrackRenderer {
   tick(): void {
     if (this.tickSinceLastUsed++ === DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT) {
       // Schedule an onDestroy
-      this.limiter
-        .schedule(async () => {
+      this.limiter.schedule(async () => {
+        // Don't enter the track again once an error is has occurred
+        if (this.error !== undefined) {
+          return;
+        }
+
+        try {
           if (this.created) {
             await Promise.resolve(this.track.onDestroy?.());
             this.created = false;
           }
-        })
-        .catch((e) => {
-          // Errors thrown inside lifecycle hooks will bubble up through the
-          // AsyncLimiter to here, where we can swallow and capture the error.
+        } catch (e) {
           this.error = e;
-        });
+        }
+      });
     }
   }
 
   render(ctx: TrackRenderContext): void {
-    this.limiter
-      .schedule(async () => {
-        // Call onCreate() if we have been destroyed or were never created in
-        // the first place.
+    this.limiter.schedule(async () => {
+      // Don't enter the track again once an error has occurred
+      if (this.error !== undefined) {
+        return;
+      }
+
+      try {
+        // Call onCreate() if this is our first call
         if (!this.created) {
-          await Promise.resolve(this.track.onCreate?.(ctx));
+          await this.track.onCreate?.(ctx);
           this.created = true;
         }
         await Promise.resolve(this.track.onUpdate?.(ctx));
-      })
-      .catch((e) => {
-        // Errors thrown inside lifecycle hooks will bubble up through the
-        // AsyncLimiter to here, where we can swallow and capture the error.
+      } catch (e) {
         this.error = e;
-      });
+      }
+    });
     this.track.render(ctx);
   }
 
