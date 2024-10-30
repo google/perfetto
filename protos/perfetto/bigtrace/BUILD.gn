@@ -18,7 +18,6 @@ perfetto_proto_library("worker_@TYPE@") {
   proto_generators = [
     "lite",
     "zero",
-    "source_set",
   ]
   deps = [ "../trace_processor:@TYPE@" ]
   sources = [ "worker.proto" ]
@@ -28,7 +27,6 @@ perfetto_proto_library("orchestrator_@TYPE@") {
   proto_generators = [
     "lite",
     "zero",
-    "source_set",
   ]
   deps = [ "../trace_processor:@TYPE@" ]
   sources = [ "orchestrator.proto" ]

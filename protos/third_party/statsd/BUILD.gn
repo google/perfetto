@@ -15,10 +15,7 @@
 import("../../../gn/proto_library.gni")
 
 perfetto_proto_library("config_@TYPE@") {
-  proto_generators = [
-    "zero",
-    "source_set",
-  ]
+  proto_generators = [ "zero" ]
   sources = [
     "shell_config.proto",
     "shell_data.proto",

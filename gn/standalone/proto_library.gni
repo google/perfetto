@@ -222,13 +222,6 @@ template("proto_library") {
       deps = []
     }
 
-    # TODO(hjd): Avoid adding to deps here this.
-    # When we generate BUILD files we need find the transitive proto,
-    # dependencies, so also add link_deps to actual deps so they show up
-    # in gn desc.
-    if (defined(invoker.link_deps)) {
-      deps += invoker.link_deps
-    }
     if (generate_with_plugin) {
       inputs += [ plugin_path ]
       if (defined(plugin_host_label)) {
@@ -237,8 +230,11 @@ template("proto_library") {
       }
     }
 
-    if (defined(invoker.deps)) {
+    if (generate_descriptor != "") {
       deps += invoker.deps
+    }
+    if (defined(invoker.link_deps)) {
+      deps += invoker.link_deps
     }
   }  # action(action_name)
 
@@ -304,5 +300,4 @@ template("proto_library") {
       }
     }  # source_set(source_set_name)
   }
-  not_needed(invoker, ["proto_deps"])
 }  # template

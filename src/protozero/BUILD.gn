@@ -104,6 +104,8 @@ perfetto_proto_library("testing_messages_@TYPE@") {
     "test/example_proto/test_messages.proto",
     "test/example_proto/upper_import.proto",
   ]
+  generate_descriptor = "test_messages.descriptor"
+  descriptor_root_source = "test/example_proto/test_messages.proto"
   proto_path = perfetto_root_path
 }
 
@@ -115,13 +117,6 @@ perfetto_proto_library("testing_messages_other_package_@TYPE@") {
 perfetto_proto_library("testing_messages_subpackage_@TYPE@") {
   sources = [ "test/example_proto/subpackage/test_messages.proto" ]
   proto_path = perfetto_root_path
-}
-
-perfetto_proto_library("test_messages_descriptor") {
-  proto_generators = [ "descriptor" ]
-  generate_descriptor = "test_messages.descriptor"
-  sources = [ "test/example_proto/test_messages.proto" ]
-  link_deps = [ ":testing_messages_source_set" ]
 }
 
 perfetto_fuzzer_test("protozero_decoder_fuzzer") {
