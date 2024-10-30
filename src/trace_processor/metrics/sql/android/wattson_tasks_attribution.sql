@@ -17,10 +17,15 @@ INCLUDE PERFETTO MODULE wattson.curves.estimates;
 INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
 -- Take only the Wattson estimations that are in the window of interest
-DROP TABLE IF EXISTS _windowed_wattson;
-CREATE VIRTUAL TABLE _windowed_wattson
-USING
-  SPAN_JOIN({{window_table}}, _system_state_mw);
+DROP VIEW IF EXISTS _windowed_wattson;
+CREATE PERFETTO VIEW _windowed_wattson AS
+SELECT ii.*, ss.*
+FROM _interval_intersect_single!(
+  (SELECT ts FROM {{window_table}}),
+  (SELECT dur FROM {{window_table}}),
+  _ii_subquery!(_system_state_mw)
+) ii
+JOIN _system_state_mw AS ss ON ss._auto_id = id;
 
 -- "Unpivot" the table so that table can by PARTITIONED BY cpu
 DROP TABLE IF EXISTS _unioned_windowed_wattson;
@@ -61,10 +66,24 @@ CREATE PERFETTO TABLE _unioned_windowed_wattson AS
   FROM _windowed_wattson;
 
 DROP TABLE IF EXISTS _windowed_threads_system_state;
-CREATE VIRTUAL TABLE _windowed_threads_system_state
-USING
-  SPAN_JOIN(
-    _unioned_windowed_wattson partitioned cpu,
-    _sched_w_thread_process_package_summary partitioned cpu
-  );
+CREATE PERFETTO TABLE _windowed_threads_system_state AS
+SELECT
+  ii.ts,
+  ii.dur,
+  ii.cpu,
+  uw.estimated_mw,
+  s.thread_name,
+  s.process_name,
+  s.tid,
+  s.pid,
+  s.utid
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_unioned_windowed_wattson),
+    _ii_subquery!(_sched_w_thread_process_package_summary)
+  ),
+  (cpu)
+) ii
+JOIN _unioned_windowed_wattson AS uw ON uw._auto_id = id_0
+JOIN _sched_w_thread_process_package_summary AS s ON s._auto_id = id_1;
 
