@@ -15,18 +15,13 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [ "source_set" ]
-  deps = [ "..:@TYPE@" ]
+  proto_generators = []
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   sources = [
     "all_webview_metrics.proto",
     "webview_jank_approximation.proto",
   ]
-}
-
-perfetto_proto_library("descriptor") {
-  proto_generators = [ "descriptor" ]
-  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  deps = [ "..:@TYPE@" ]
   generate_descriptor = "all_webview_metrics.descriptor"
-  link_deps = [ ":source_set" ]
-  sources = [ "all_webview_metrics.proto" ]
+  descriptor_root_source = "all_webview_metrics.proto"
 }
