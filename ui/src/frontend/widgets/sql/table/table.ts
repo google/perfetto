@@ -45,7 +45,7 @@ import {FILTER_OPTION_TO_OP, FilterOption} from './render_cell_utils';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {Intent} from '../../../../widgets/common';
-import {addHistogramTab} from '../../../charts/histogram/tab';
+import {addHistogramTab} from '../../charts/histogram/tab';
 import {Form} from '../../../../widgets/form';
 import {TextInput} from '../../../../widgets/text_input';
 
@@ -316,19 +316,17 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
             this.state.getCurrentRequest().columns[
               sqlColumnId(column.primaryColumn())
             ];
-          addHistogramTab(
-            {
-              sqlColumn: columnAlias,
-              columnTitle: columnTitle(column),
-              filters: this.state.getFilters(),
-              tableDisplay: this.table.displayName ?? this.table.name,
-              query: this.state.getSqlQuery(
-                Object.fromEntries([[columnAlias, column.primaryColumn()]]),
-              ),
-              aggregationType: column.aggregation?.().dataType,
-            },
-            this.state.trace,
-          );
+          addHistogramTab({
+            engine: this.state.trace.engine,
+            sqlColumn: columnAlias,
+            columnTitle: columnTitle(column),
+            filters: this.state.getFilters(),
+            tableDisplay: this.table.displayName ?? this.table.name,
+            query: this.state.getSqlQuery(
+              Object.fromEntries([[columnAlias, column.primaryColumn()]]),
+            ),
+            aggregationType: column.aggregation?.().dataType,
+          });
         },
       }),
       // Menu items before divider apply to selected column
