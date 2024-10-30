@@ -152,14 +152,14 @@ SELECT
     SELECT
       surface_flinger_ts + surface_flinger_dur
     FROM _app_frame_to_surface_flinger_frame sf_frames
-    WHERE sf_frames.app_ts > _input_event_id_to_android_frame.ts
+    WHERE sf_frames.app_ts >= _input_event_id_to_android_frame.ts
     LIMIT 1
   ) AS present_time,
   (
     SELECT
       app_surface_frame_token
     FROM _app_frame_to_surface_flinger_frame sf_frames
-    WHERE sf_frames.app_ts > _input_event_id_to_android_frame.ts
+    WHERE sf_frames.app_ts >= _input_event_id_to_android_frame.ts
     LIMIT 1
   ) as frame_id,
   event_seq,
