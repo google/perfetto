@@ -6372,6 +6372,41 @@ TEST_P(PerfettoApiTest, SystemDisconnectWhileStopping) {
   data_source->handle_stop_asynchronously = false;
 }
 
+TEST_P(PerfettoApiTest, CloneSession) {
+  perfetto::TraceConfig cfg;
+  cfg.set_unique_session_name("test_session");
+  auto* tracing_session = NewTraceWithCategories({"test"}, {}, cfg);
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "TestEvent");
+  TRACE_EVENT_END("test");
+
+  sessions_.emplace_back();
+  TestTracingSessionHandle* other_tracing_session = &sessions_.back();
+  other_tracing_session->session =
+      perfetto::Tracing::NewTrace(/*backend_type=*/GetParam());
+
+  WaitableTestEvent session_cloned;
+  other_tracing_session->get()->CloneTrace(
+      {"test_session"}, [&](perfetto::TracingSession::CloneTraceCallbackArgs) {
+        session_cloned.Notify();
+      });
+  session_cloned.Wait();
+
+  {
+    std::vector<char> raw_trace =
+        other_tracing_session->get()->ReadTraceBlocking();
+    std::string trace(raw_trace.data(), raw_trace.size());
+    EXPECT_THAT(trace, HasSubstr("TestEvent"));
+  }
+
+  {
+    std::vector<char> raw_trace = StopSessionAndReturnBytes(tracing_session);
+    std::string trace(raw_trace.data(), raw_trace.size());
+    EXPECT_THAT(trace, HasSubstr("TestEvent"));
+  }
+}
+
 class PerfettoStartupTracingApiTest : public PerfettoApiTest {
  public:
   using SetupStartupTracingOpts = perfetto::Tracing::SetupStartupTracingOpts;
