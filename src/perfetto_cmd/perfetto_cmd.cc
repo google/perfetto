@@ -1367,8 +1367,7 @@ void PerfettoCmd::OnSessionCloned(const OnSessionClonedArgs& args) {
     } else {
       name = "\"" + clone_name_ + "\"";
     }
-    full_error = "Failed to clone tracing session " + name;
-    +": " + args.error;
+    full_error = "Failed to clone tracing session " + name + ": " + args.error;
   }
 
   // This is used with --save-all-for-bugreport, to pause all cloning threads
