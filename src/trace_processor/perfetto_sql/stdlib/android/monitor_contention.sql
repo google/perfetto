@@ -353,43 +353,39 @@ AS
 SELECT utid AS blocking_utid, ts, dur, state, blocked_function
 FROM thread_state;
 
--- Contains the span join of the first waiters in the |android_monitor_contention_chain| with their
--- blocking_thread thread state.
-
--- Note that we only span join the duration where the lock was actually held and contended.
--- This can be less than the duration the lock was 'waited on' when a different waiter acquired the
--- lock earlier than the first waiter.
---
--- @column parent_id Id of slice blocking the blocking_thread.
--- @column blocking_method Name of the method holding the lock.
--- @column blocked_methhod Name of the method trying to acquire the lock.
--- @column short_blocking_method Blocking_method without arguments and return types.
--- @column short_blocked_method Blocked_method without arguments and return types.
--- @column blocking_src File location of blocking_method in form <filename:linenumber>.
--- @column blocked_src File location of blocked_method in form <filename:linenumber>.
--- @column waiter_count Zero indexed number of threads trying to acquire the lock.
--- @column blocking_utid Utid of thread holding the lock.
--- @column blocking_thread_name Thread name of thread holding the lock.
--- @column upid Upid of process experiencing lock contention.
--- @column process_name Process name of process experiencing lock contention.
--- @column id Slice id of lock contention.
--- @column ts Timestamp of lock contention start.
--- @column dur Wall clock duration of lock contention.
--- @column monotonic_dur Monotonic clock duration of lock contention.
--- @column track_id Thread track id of blocked thread.
--- @column is_blocked_main_thread Whether the blocked thread is the main thread.
--- @column is_blocking_main_thread Whether the blocking thread is the main thread.
--- @column binder_reply_id Slice id of binder reply slice if lock contention was part of a binder txn.
--- @column binder_reply_ts Timestamp of binder reply slice if lock contention was part of a binder txn.
--- @column binder_reply_tid Tid of binder reply slice if lock contention was part of a binder txn.
--- @column blocking_utid Utid of the blocking |thread_state|.
--- @column ts Timestamp of the blocking |thread_state|.
--- @column state Thread state of the blocking thread.
--- @column blocked_function Blocked kernel function of the blocking thread.
-CREATE VIRTUAL TABLE android_monitor_contention_chain_thread_state
+CREATE VIRTUAL TABLE _android_monitor_contention_chain_thread_state
 USING
   SPAN_JOIN(_first_blocked_contention PARTITIONED blocking_utid,
             _blocking_thread_state PARTITIONED blocking_utid);
+
+-- Contains the span join of the first waiters in the |android_monitor_contention_chain| with their
+-- blocking_thread thread state.
+--
+-- Note that we only span join the duration where the lock was actually held and contended.
+-- This can be less than the duration the lock was 'waited on' when a different waiter acquired the
+-- lock earlier than the first waiter.
+CREATE PERFETTO TABLE android_monitor_contention_chain_thread_state(
+-- Slice id of lock contention.
+id INT,
+-- Timestamp of lock contention start.
+ts INT,
+-- Wall clock duration of lock contention.
+dur INT,
+-- Utid of the blocking |thread_state|.
+blocking_utid INT,
+-- Blocked kernel function of the blocking thread.
+blocked_function STRING,
+-- Thread state of the blocking thread.
+state STRING
+) AS
+SELECT
+  id,
+  ts,
+  dur,
+  blocking_utid,
+  blocked_function,
+  state
+FROM _android_monitor_contention_chain_thread_state;
 
 -- Aggregated thread_states on the 'blocking thread', the thread holding the lock.
 -- This builds on the data from |android_monitor_contention_chain| and
