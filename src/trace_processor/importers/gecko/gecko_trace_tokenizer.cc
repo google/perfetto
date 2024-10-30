@@ -76,8 +76,12 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
   for (const auto& t : value["threads"]) {
-    const auto& strings = t["stringTable"];
+    // The trace uses per-thread indices, we reuse the vector for perf reasons
+    // to prevent reallocs on every thread.
+    frame_ids.clear();
+    callsites.clear();
 
+    const auto& strings = t["stringTable"];
     const auto& frames = t["frameTable"];
     const auto& frames_schema = frames["schema"];
     uint32_t location_idx = frames_schema["location"].asUInt();
