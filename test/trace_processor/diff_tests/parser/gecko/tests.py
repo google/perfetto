@@ -58,14 +58,14 @@ class GeckoParser(TestSuite):
         """,
         out=Csv('''
           "id","parent_id","name","mapping_name","self_count","cumulative_count"
-          0,"[NULL]","__libc_init","/apex/com.android.runtime/lib64/bionic/libc.so",6,7284
-          1,0,"main","/system/bin/app_process64",5,7278
-          2,1,"android::AndroidRuntime::start(char const*, android::Vector<android::String8> const&, bool)","/system/lib64/libandroid_runtime.so",7,7273
-          3,2,"_JNIEnv::CallStaticVoidMethod(_jclass*, _jmethodID*, ...)","/system/lib64/libandroid_runtime.so",31,7266
-          4,3,"art::JNI<true>::CallStaticVoidMethodV(_JNIEnv*, _jclass*, _jmethodID*, std::__va_list)","/apex/com.android.art/lib64/libart.so",5,7235
-          5,4,"art::JValue art::InvokeWithVarArgs<_jmethodID*>(art::ScopedObjectAccessAlreadyRunnable const&, _jobject*, _jmethodID*, std::__va_list)","/apex/com.android.art/lib64/libart.so",9,7230
-          6,5,"art_quick_invoke_static_stub","/apex/com.android.art/lib64/libart.so",14,7221
-          7,6,"com.android.internal.os.ZygoteInit.main","/system/framework/arm64/boot-framework.oat",8,7207
-          8,7,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run","/system/framework/arm64/boot-framework.oat",9,7199
-          9,8,"art_jni_trampoline","/system/framework/arm64/boot.oat",11,7190
+          13260,"[NULL]","__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,5551
+          13261,13260,"__pthread_start(void*)","/apex/com.android.runtime/lib64/bionic/libc.so",0,5551
+          13262,13261,"art::Thread::CreateCallbackWithUffdGc(void*)","/apex/com.android.art/lib64/libart.so",0,3043
+          13263,13262,"art::Thread::CreateCallback(void*)","/apex/com.android.art/lib64/libart.so",2,3043
+          13266,13263,"art::ArtMethod::Invoke(art::Thread*, unsigned int*, unsigned int, art::JValue*, char const*)","/apex/com.android.art/lib64/libart.so",0,3036
+          13267,13266,"art_quick_invoke_stub","/apex/com.android.art/lib64/libart.so",0,3036
+          13268,13267,"java.lang.Thread.run","/system/framework/arm64/boot.oat",0,2159
+          0,"[NULL]","__libc_init","/apex/com.android.runtime/lib64/bionic/libc.so",0,1714
+          1,0,"main","/system/bin/app_process64",0,1714
+          2,1,"android::AndroidRuntime::start(char const*, android::Vector<android::String8> const&, bool)","/system/lib64/libandroid_runtime.so",0,1714
         '''))
