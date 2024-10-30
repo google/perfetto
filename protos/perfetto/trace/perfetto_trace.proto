@@ -15364,7 +15364,7 @@ message CounterDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 13.
+// Next id: 14.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -15389,6 +15389,9 @@ message TrackDescriptor {
     // This field is only set by the SDK when perfetto::StaticString is
     // provided.
     string static_name = 10;
+    // Equivalent to name, used just to mark that the data is coming from
+    // android.os.Trace.
+    string atrace_name = 13;
   }
 
   // Associate the track with a process, making it the process-global track.
