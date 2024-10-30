@@ -39,11 +39,13 @@ SELECT
   (
     SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
   ) as estimated_mw,
+  idle_cost_mws,
   thread_name,
   process_name,
   tid,
   pid
 FROM _windowed_threads_system_state
+LEFT JOIN _per_thread_idle_attribution USING (utid)
 GROUP BY utid
 ORDER BY estimated_mw DESC;
 
@@ -57,6 +59,7 @@ SELECT AndroidWattsonTasksAttributionMetric(
       AndroidWattsonTaskInfo(
         'estimated_mws', ROUND(estimated_mws, 6),
         'estimated_mw', ROUND(estimated_mw, 6),
+        'idle_transitions_mws', ROUND(idle_cost_mws, 6),
         'thread_name', thread_name,
         'process_name', process_name,
         'thread_id', tid,

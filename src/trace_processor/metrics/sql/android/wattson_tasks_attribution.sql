@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
 INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
 -- Take only the Wattson estimations that are in the window of interest
@@ -87,3 +88,14 @@ FROM _interval_intersect!(
 JOIN _unioned_windowed_wattson AS uw ON uw._auto_id = id_0
 JOIN _sched_w_thread_process_package_summary AS s ON s._auto_id = id_1;
 
+-- Get idle overhead attribution per thread
+DROP VIEW IF EXISTS _per_thread_idle_attribution;
+CREATE PERFETTO VIEW _per_thread_idle_attribution AS
+SELECT
+  SUM(idle_cost_mws) as idle_cost_mws,
+  utid
+FROM _filter_idle_attribution(
+   (SELECT ts FROM {{window_table}}),
+   (SELECT dur FROM {{window_table}})
+)
+GROUP BY utid;
