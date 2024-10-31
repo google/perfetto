@@ -53,7 +53,6 @@ export function createEmptyState(): State {
     lastLoadedConfig: {type: 'NONE'},
 
     perfDebug: false,
-    sidebarVisible: true,
 
     recordingInProgress: false,
     recordingCancelled: false,
