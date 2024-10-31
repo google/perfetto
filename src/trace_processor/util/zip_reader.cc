@@ -60,7 +60,9 @@ enum GeneralPurposeBitFlag : uint32_t {
   k8kSlidingDictionary = 1u << 1,
   kShannonFaro = 1u << 2,
   kDataDescriptor = 1u << 3,
-  kUnknown = ~((1u << 4) - 1),
+  kLangageEncoding = 1u << 11,
+  kUnknown = ~(kEncrypted | k8kSlidingDictionary | kShannonFaro |
+               kDataDescriptor | kLangageEncoding),
 };
 
 // Compression flags.
