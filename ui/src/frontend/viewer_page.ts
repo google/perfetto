@@ -94,13 +94,14 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
   private overviewTimelinePanel: OverviewTimelinePanel;
   private timeAxisPanel = new TimeAxisPanel();
   private timeSelectionPanel = new TimeSelectionPanel();
-  private notesPanel = new NotesPanel();
+  private notesPanel: NotesPanel;
   private tickmarkPanel: TickmarkPanel;
   private timelineWidthPx?: number;
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
   constructor(vnode: m.CVnode<PageWithTraceAttrs>) {
+    this.notesPanel = new NotesPanel(vnode.attrs.trace);
     this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
     this.overviewTimelinePanel = new OverviewTimelinePanel(vnode.attrs.trace);
   }
