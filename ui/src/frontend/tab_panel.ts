@@ -21,9 +21,7 @@ import {
   TabDropdownEntry,
   getDefaultDetailsHeight,
 } from './drag_handle';
-import {globals} from './globals';
 import {raf} from '../core/raf_scheduler';
-import {TraceAttrs} from '../public/trace';
 import {Monitor} from '../base/monitor';
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackEventDetailsPanel} from '../public/details_panel';
@@ -31,22 +29,28 @@ import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {Tree, TreeNode} from '../widgets/tree';
+import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 
 interface TabWithContent extends Tab {
   content: m.Children;
 }
 
-export type TabPanelAttrs = TraceAttrs;
+export type TabPanelAttrs = TraceImplAttrs;
 
 export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
+  private readonly trace: TraceImpl;
   private readonly selectionMonitor = new Monitor([
-    () => globals.selectionManager.selection,
+    () => this.trace.selection.selection,
   ]);
   private readonly limiter = new AsyncLimiter();
   // Tabs panel starts collapsed.
   private detailsHeight = 0;
   private fadeContext = new FadeContext();
   private hasBeenDragged = false;
+
+  constructor({attrs}: m.CVnode<TabPanelAttrs>) {
+    this.trace = attrs.trace;
+  }
 
   // This stores the current track event details panel + isLoading flag. It gets
   // created in a render cycle when we notice a change in the current selection
@@ -60,8 +64,8 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
   };
 
   view() {
-    const tabMan = globals.tabManager;
-    const tabList = globals.tabManager.openTabsUri;
+    const tabMan = this.trace.tabs;
+    const tabList = this.trace.tabs.openTabsUri;
 
     const resolvedTabs = tabMan.resolveTabs(tabList);
     const tabs = resolvedTabs.map(({uri, tab: tabDesc}): TabWithContent => {
@@ -84,7 +88,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
 
     if (
       !this.hasBeenDragged &&
-      (tabs.length > 0 || globals.selectionManager.selection.kind !== 'empty')
+      (tabs.length > 0 || this.trace.selection.selection.kind !== 'empty')
     ) {
       this.detailsHeight = getDefaultDetailsHeight();
     }
@@ -96,14 +100,14 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
       content: this.renderCSTabContentWithFading(),
     });
 
-    const tabDropdownEntries = globals.tabManager.tabs
+    const tabDropdownEntries = this.trace.tabs.tabs
       .filter((tab) => tab.isEphemeral === false)
       .map(({content, uri}): TabDropdownEntry => {
         return {
           key: uri,
           title: content.getTitle(),
-          onClick: () => globals.tabManager.toggleTab(uri),
-          checked: globals.tabManager.isOpen(uri),
+          onClick: () => this.trace.tabs.toggleTab(uri),
+          checked: this.trace.tabs.isOpen(uri),
         };
       });
 
@@ -115,10 +119,10 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
         },
         height: this.detailsHeight,
         tabs,
-        currentTabKey: globals.tabManager.currentTabUri,
+        currentTabKey: this.trace.tabs.currentTabUri,
         tabDropdownEntries,
-        onTabClick: (uri) => globals.tabManager.showTab(uri),
-        onTabClose: (uri) => globals.tabManager.hideTab(uri),
+        onTabClick: (uri) => this.trace.tabs.showTab(uri),
+        onTabClose: (uri) => this.trace.tabs.hideTab(uri),
       }),
       m(
         '.details-panel-container',
@@ -126,7 +130,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
           style: {height: `${this.detailsHeight}px`},
         },
         tabs.map(({key, content}) => {
-          const active = key === globals.tabManager.currentTabUri;
+          const active = key === this.trace.tabs.currentTabUri;
           return m(Gate, {open: active}, content);
         }),
       ),
@@ -146,14 +150,14 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     // Detect changes to the selection (only works if we assume the selection
     // object is immutable)
     if (this.selectionMonitor.ifStateChanged()) {
-      const currentSelection = globals.selectionManager.selection;
+      const currentSelection = this.trace.selection.selection;
       // Show single selection panels if they are registered
       if (currentSelection.kind !== 'track_event') {
         this.trackEventDetailsPanel = undefined;
         return;
       }
 
-      const td = globals.trackManager.getTrack(currentSelection.trackUri);
+      const td = this.trace.tracks.getTrack(currentSelection.trackUri);
       if (!td) {
         this.trackEventDetailsPanel = undefined;
         return;
@@ -183,7 +187,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     // Always update the details panel
     this.maybeLoadDetailsPanel();
 
-    const currentSelection = globals.selectionManager.selection;
+    const currentSelection = this.trace.selection.selection;
     if (currentSelection.kind === 'empty') {
       return {
         isLoading: false,
@@ -215,7 +219,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     }
 
     // Get the first "truthy" details panel
-    const detailsPanels = globals.tabManager.detailsPanels.map((dp) => {
+    const detailsPanels = this.trace.tabs.detailsPanels.map((dp) => {
       return {
         content: dp.render(currentSelection),
         isLoading: dp.isLoading?.() ?? false,
@@ -243,7 +247,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
   }
 
   private renderTrackDetailsPanel(trackUri: string) {
-    const track = globals.trackManager.getTrack(trackUri);
+    const track = this.trace.tracks.getTrack(trackUri);
     if (track) {
       return m(
         DetailsShell,

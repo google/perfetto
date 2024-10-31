@@ -317,7 +317,9 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
             renderOverlay(attrs.trace, ctx, size, panels),
         }),
       ),
-      m(TabPanel),
+      m(TabPanel, {
+        trace: attrs.trace,
+      }),
     );
 
     attrs.trace.tracks.flushOldTracks();
