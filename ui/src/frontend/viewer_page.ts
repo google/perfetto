@@ -92,7 +92,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
   private keepCurrentSelection = false;
 
   private overviewTimelinePanel: OverviewTimelinePanel;
-  private timeAxisPanel = new TimeAxisPanel();
+  private timeAxisPanel;
   private timeSelectionPanel = new TimeSelectionPanel();
   private notesPanel: NotesPanel;
   private tickmarkPanel: TickmarkPanel;
@@ -102,6 +102,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
 
   constructor(vnode: m.CVnode<PageWithTraceAttrs>) {
     this.notesPanel = new NotesPanel(vnode.attrs.trace);
+    this.timeAxisPanel = new TimeAxisPanel(vnode.attrs.trace);
     this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
     this.overviewTimelinePanel = new OverviewTimelinePanel(vnode.attrs.trace);
   }
@@ -267,6 +268,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
         m(
           '.pf-timeline-header',
           m(PanelContainer, {
+            trace: attrs.trace,
             className: 'header-panel-container',
             panels: removeFalsyValues([
               OVERVIEW_PANEL_FLAG.get() && this.overviewTimelinePanel,
@@ -279,6 +281,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
           m('.scrollbar-spacer-vertical'),
         ),
         m(PanelContainer, {
+          trace: attrs.trace,
           className: 'pinned-panel-container',
           panels: attrs.trace.workspace.pinnedTracks.map((trackNode) => {
             if (trackNode.uri) {
@@ -307,6 +310,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
             renderOverlay(attrs.trace, ctx, size, panels),
         }),
         m(PanelContainer, {
+          trace: attrs.trace,
           className: 'scrolling-panel-container',
           panels: scrollingPanels,
           onPanelStackResize: (width) => {
