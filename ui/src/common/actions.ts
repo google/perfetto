@@ -123,10 +123,6 @@ export const StateActions = {
     state.perfDebug = !state.perfDebug;
   },
 
-  setSidebar(state: StateDraft, args: {visible: boolean}): void {
-    state.sidebarVisible = args.visible;
-  },
-
   setTrackFilterTerm(
     state: StateDraft,
     args: {filterTerm: string | undefined},

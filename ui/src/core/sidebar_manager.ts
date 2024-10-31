@@ -13,27 +13,37 @@
 // limitations under the License.
 
 import {Registry} from '../base/registry';
-import {SidebarManager, SidebarMenuItem} from '../public/sidebar';
+import {
+  SidebarEnabled,
+  SidebarManager,
+  SidebarMenuItem,
+  SidebarVisibility,
+} from '../public/sidebar';
 import {raf} from './raf_scheduler';
 
 export class SidebarManagerImpl implements SidebarManager {
-  private _sidebarHidden = false;
+  private _sidebarVisibility: SidebarVisibility;
   readonly menuItems = new Registry<SidebarMenuItem>((m) => m.commandId);
 
-  constructor(sidebarHidden?: boolean) {
-    this._sidebarHidden = sidebarHidden ?? false;
+  constructor(public readonly sidebarEnabled: SidebarEnabled) {
+    this._sidebarVisibility =
+      sidebarEnabled === 'ENABLED' ? 'VISIBLE' : 'HIDDEN';
   }
 
   addMenuItem(menuItem: SidebarMenuItem): Disposable {
     return this.menuItems.register(menuItem);
   }
 
-  get sidebarHidden() {
-    return this._sidebarHidden;
+  public get sidebarVisibility() {
+    return this._sidebarVisibility;
   }
 
-  set sidebarHidden(value: boolean) {
-    this._sidebarHidden = value;
+  public toggleSidebarVisbility() {
+    if (this._sidebarVisibility === 'HIDDEN') {
+      this._sidebarVisibility = 'VISIBLE';
+    } else {
+      this._sidebarVisibility = 'HIDDEN';
+    }
     raf.scheduleFullRedraw();
   }
 }
