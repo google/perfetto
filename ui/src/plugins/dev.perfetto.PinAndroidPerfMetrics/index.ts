@@ -17,6 +17,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
 import {PLUGIN_ID} from './pluginId';
+import AndroidCujsPlugin from '../dev.perfetto.AndroidCujs';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
@@ -53,6 +54,7 @@ let metrics: string[];
  */
 export default class implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
+  static readonly dependencies = [AndroidCujsPlugin];
 
   static onActivate(): void {
     metrics = getMetricsFromHash();
