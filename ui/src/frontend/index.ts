@@ -305,7 +305,7 @@ function onCssLoaded() {
 
   const router = new Router({
     '/': HomePage,
-    '/explore': ExplorePage,
+    '/explore': pageWithTrace(ExplorePage),
     '/flags': FlagsPage,
     '/info': pageWithTrace(TraceInfoPage),
     '/insights': pageWithTrace(InsightsPage),
