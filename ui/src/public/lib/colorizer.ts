@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
-import {hash} from '../../core/hash';
+import {hash} from '../../base/hash';
 import {featureFlags} from '../../core/feature_flags';
 import {Color, HSLColor, HSLuvColor} from '../color';
 import {ColorScheme} from '../color_scheme';
