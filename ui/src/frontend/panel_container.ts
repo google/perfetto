@@ -31,13 +31,13 @@ import {
   TOPBAR_HEIGHT,
   TRACK_SHELL_WIDTH,
 } from './css_constants';
-import {globals} from './globals';
 import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
 import {TimeScale} from '../base/time_scale';
 import {TrackNode} from '../public/workspace';
 import {HTMLAttrs} from '../widgets/common';
+import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 
 const CANVAS_OVERDRAW_PX = 100;
 
@@ -63,7 +63,7 @@ export interface PanelGroup {
 
 export type PanelOrGroup = Panel | PanelGroup;
 
-export interface PanelContainerAttrs {
+export interface PanelContainerAttrs extends TraceImplAttrs {
   panels: PanelOrGroup[];
   className?: string;
   onPanelStackResize?: (width: number, height: number) => void;
@@ -97,6 +97,8 @@ export interface RenderedPanelInfo {
 export class PanelContainer
   implements m.ClassComponent<PanelContainerAttrs>, PerfStatsSource
 {
+  private readonly trace: TraceImpl;
+
   // These values are updated with proper values in oncreate.
   // Y position of the panel container w.r.t. the client
   private panelContainerTop = 0;
@@ -121,6 +123,20 @@ export class PanelContainer
 
   private readonly OVERLAY_REF = 'overlay';
   private readonly PANEL_STACK_REF = 'panel-stack';
+
+  constructor({attrs}: m.CVnode<PanelContainerAttrs>) {
+    this.trace = attrs.trace;
+    const onRedraw = () => this.renderCanvas(attrs);
+    raf.addRedrawCallback(onRedraw);
+    this.trash.defer(() => {
+      raf.removeRedrawCallback(onRedraw);
+    });
+
+    perfDisplay.addContainer(this);
+    this.trash.defer(() => {
+      perfDisplay.removeContainer(this);
+    });
+  }
 
   getPanelsInRegion(
     startX: number,
@@ -152,11 +168,11 @@ export class PanelContainer
   // This finds the tracks covered by the in-progress area selection. When
   // editing areaY is not set, so this will not be used.
   handleAreaSelection() {
-    const area = globals.timeline.selectedArea;
+    const area = this.trace.timeline.selectedArea;
     if (
       area === undefined ||
-      globals.timeline.areaY.start === undefined ||
-      globals.timeline.areaY.end === undefined ||
+      this.trace.timeline.areaY.start === undefined ||
+      this.trace.timeline.areaY.end === undefined ||
       this.panelInfos.length === 0
     ) {
       return;
@@ -168,8 +184,8 @@ export class PanelContainer
       this.panelInfos[this.panelInfos.length - 1].clientY +
       this.panelInfos[this.panelInfos.length - 1].height;
     if (
-      globals.timeline.areaY.start + TOPBAR_HEIGHT < panelContainerTop ||
-      globals.timeline.areaY.start + TOPBAR_HEIGHT > panelContainerBottom
+      this.trace.timeline.areaY.start + TOPBAR_HEIGHT < panelContainerTop ||
+      this.trace.timeline.areaY.start + TOPBAR_HEIGHT > panelContainerBottom
     ) {
       return;
     }
@@ -178,7 +194,7 @@ export class PanelContainer
     // right now, that's a job for our parent, but we can put one together so we
     // don't have to refactor this entire bit right now...
 
-    const visibleTimeScale = new TimeScale(globals.timeline.visibleWindow, {
+    const visibleTimeScale = new TimeScale(this.trace.timeline.visibleWindow, {
       left: 0,
       right: this.virtualCanvas!.size.width - TRACK_SHELL_WIDTH,
     });
@@ -188,8 +204,8 @@ export class PanelContainer
     const panels = this.getPanelsInRegion(
       visibleTimeScale.timeToPx(area.start),
       visibleTimeScale.timeToPx(area.end),
-      globals.timeline.areaY.start + TOPBAR_HEIGHT,
-      globals.timeline.areaY.end + TOPBAR_HEIGHT,
+      this.trace.timeline.areaY.start + TOPBAR_HEIGHT,
+      this.trace.timeline.areaY.end + TOPBAR_HEIGHT,
     );
     // Get the track ids from the panels.
     const trackUris: string[] = [];
@@ -208,20 +224,7 @@ export class PanelContainer
         }
       }
     }
-    globals.timeline.selectArea(area.start, area.end, trackUris);
-  }
-
-  constructor({attrs}: m.CVnode<PanelContainerAttrs>) {
-    const onRedraw = () => this.renderCanvas(attrs);
-    raf.addRedrawCallback(onRedraw);
-    this.trash.defer(() => {
-      raf.removeRedrawCallback(onRedraw);
-    });
-
-    perfDisplay.addContainer(this);
-    this.trash.defer(() => {
-      perfDisplay.removeContainer(this);
-    });
+    this.trace.timeline.selectArea(area.start, area.end, trackUris);
   }
 
   private virtualCanvas?: VirtualCanvas;
@@ -457,11 +460,11 @@ export class PanelContainer
     ctx: CanvasRenderingContext2D,
     vc: VirtualCanvas,
   ): void {
-    const area = globals.timeline.selectedArea;
+    const area = this.trace.timeline.selectedArea;
     if (
       area === undefined ||
-      globals.timeline.areaY.start === undefined ||
-      globals.timeline.areaY.end === undefined
+      this.trace.timeline.areaY.start === undefined ||
+      this.trace.timeline.areaY.end === undefined
     ) {
       return;
     }
@@ -496,7 +499,7 @@ export class PanelContainer
     // right now, that's a job for our parent, but we can put one together so we
     // don't have to refactor this entire bit right now...
 
-    const visibleTimeScale = new TimeScale(globals.timeline.visibleWindow, {
+    const visibleTimeScale = new TimeScale(this.trace.timeline.visibleWindow, {
       left: 0,
       right: vc.size.width - TRACK_SHELL_WIDTH,
     });
