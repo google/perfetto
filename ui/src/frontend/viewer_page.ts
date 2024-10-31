@@ -92,8 +92,8 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
   private keepCurrentSelection = false;
 
   private overviewTimelinePanel: OverviewTimelinePanel;
-  private timeAxisPanel;
-  private timeSelectionPanel = new TimeSelectionPanel();
+  private timeAxisPanel: TimeAxisPanel;
+  private timeSelectionPanel: TimeSelectionPanel;
   private notesPanel: NotesPanel;
   private tickmarkPanel: TickmarkPanel;
   private timelineWidthPx?: number;
@@ -103,6 +103,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
   constructor(vnode: m.CVnode<PageWithTraceAttrs>) {
     this.notesPanel = new NotesPanel(vnode.attrs.trace);
     this.timeAxisPanel = new TimeAxisPanel(vnode.attrs.trace);
+    this.timeSelectionPanel = new TimeSelectionPanel(vnode.attrs.trace);
     this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
     this.overviewTimelinePanel = new OverviewTimelinePanel(vnode.attrs.trace);
   }
