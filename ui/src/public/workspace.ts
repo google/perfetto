@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {raf} from '../core/raf_scheduler';
 
 export interface WorkspaceManager {
   // This is the same of ctx.workspace, exposed for consistency also here.
@@ -67,6 +66,7 @@ function createSessionUniqueId(): string {
 export abstract class TrackNodeContainer {
   protected _children: Array<TrackNode> = [];
   protected readonly tracksById = new Map<string, TrackNode>();
+  protected abstract fireOnChangeListener(): void;
 
   /**
    * True if this node has children, false otherwise.
@@ -111,7 +111,7 @@ export abstract class TrackNodeContainer {
   addChildLast(child: TrackNode): void {
     this.adopt(child);
     this._children.push(child);
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -122,7 +122,7 @@ export abstract class TrackNodeContainer {
   addChildFirst(child: TrackNode): void {
     this.adopt(child);
     this._children.unshift(child);
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -141,7 +141,7 @@ export abstract class TrackNodeContainer {
 
     const indexOfReference = this.children.indexOf(referenceNode);
     this._children.splice(indexOfReference, 0, child);
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -160,7 +160,7 @@ export abstract class TrackNodeContainer {
 
     const indexOfReference = this.children.indexOf(referenceNode);
     this._children.splice(indexOfReference + 1, 0, child);
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -172,7 +172,7 @@ export abstract class TrackNodeContainer {
     this._children = this.children.filter((x) => child !== x);
     child.parent = undefined;
     child.id && this.tracksById.delete(child.id);
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -190,7 +190,7 @@ export abstract class TrackNodeContainer {
   clear(): void {
     this._children = [];
     this.tracksById.clear();
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -397,7 +397,7 @@ export class TrackNode extends TrackNodeContainer {
    */
   expand(): void {
     this._collapsed = false;
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -406,7 +406,7 @@ export class TrackNode extends TrackNodeContainer {
    */
   collapse(): void {
     this._collapsed = true;
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -414,7 +414,7 @@ export class TrackNode extends TrackNodeContainer {
    */
   toggleCollapsed(): void {
     this._collapsed = !this._collapsed;
-    raf.scheduleFullRedraw();
+    this.fireOnChangeListener();
   }
 
   /**
@@ -449,6 +449,10 @@ export class TrackNode extends TrackNodeContainer {
     }
     return fullPath;
   }
+
+  protected override fireOnChangeListener(): void {
+    this.workspace?.onchange(this.workspace);
+  }
 }
 
 /**
@@ -457,6 +461,7 @@ export class TrackNode extends TrackNodeContainer {
 export class Workspace extends TrackNodeContainer {
   public title = '<untitled-workspace>';
   public readonly id: string;
+  onchange: (w: Workspace) => void = () => {};
 
   // Dummy node to contain the pinned tracks
   private pinnedRoot = new TrackNode();
@@ -525,5 +530,9 @@ export class Workspace extends TrackNodeContainer {
   override getTrackById(id: string): TrackNode | undefined {
     // Also search the pinned tracks
     return this.pinnedRoot.getTrackById(id) || super.getTrackById(id);
+  }
+
+  protected override fireOnChangeListener(): void {
+    this.onchange(this);
   }
 }
