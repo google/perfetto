@@ -1357,6 +1357,7 @@ filegroup {
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
@@ -1418,6 +1419,7 @@ java_library {
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
@@ -3360,6 +3362,7 @@ filegroup {
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
@@ -3397,6 +3400,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.gen.cc",
+        "external/perfetto/protos/perfetto/config/chrome/system_metrics.gen.cc",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.gen.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.gen.cc",
         "external/perfetto/protos/perfetto/config/etw/etw_config.gen.cc",
@@ -3434,6 +3438,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.gen.h",
+        "external/perfetto/protos/perfetto/config/chrome/system_metrics.gen.h",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.gen.h",
         "external/perfetto/protos/perfetto/config/data_source_config.gen.h",
         "external/perfetto/protos/perfetto/config/etw/etw_config.gen.h",
@@ -3484,6 +3489,7 @@ genrule {
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
@@ -4057,6 +4063,7 @@ filegroup {
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
@@ -4093,6 +4100,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pb.cc",
+        "external/perfetto/protos/perfetto/config/chrome/system_metrics.pb.cc",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.pb.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.pb.cc",
         "external/perfetto/protos/perfetto/config/etw/etw_config.pb.cc",
@@ -4129,6 +4137,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pb.h",
+        "external/perfetto/protos/perfetto/config/chrome/system_metrics.pb.h",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.pb.h",
         "external/perfetto/protos/perfetto/config/data_source_config.pb.h",
         "external/perfetto/protos/perfetto/config/etw/etw_config.pb.h",
@@ -5104,6 +5113,7 @@ filegroup {
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
@@ -5141,6 +5151,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pbzero.cc",
+        "external/perfetto/protos/perfetto/config/chrome/system_metrics.pbzero.cc",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/etw/etw_config.pbzero.cc",
@@ -5178,6 +5189,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pbzero.h",
+        "external/perfetto/protos/perfetto/config/chrome/system_metrics.pbzero.h",
         "external/perfetto/protos/perfetto/config/chrome/v8_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/data_source_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/etw/etw_config.pbzero.h",
@@ -6702,6 +6714,7 @@ genrule {
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
@@ -15055,6 +15068,7 @@ java_library {
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
@@ -16353,6 +16367,7 @@ filegroup {
         "protos/perfetto/config/android/windowmanager_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
         "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/etw/etw_config.proto",
