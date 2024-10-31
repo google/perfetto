@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {TRACK_SHELL_WIDTH} from './css_constants';
-import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
@@ -36,7 +35,7 @@ export class TickmarkPanel implements Panel {
   readonly selectable = false;
   private searchOverviewTrack: SearchOverviewTrack;
 
-  constructor(trace: TraceImpl) {
+  constructor(private readonly trace: TraceImpl) {
     this.searchOverviewTrack = getOrCreate(
       trackTraceMap,
       trace,
@@ -61,7 +60,7 @@ export class TickmarkPanel implements Panel {
   }
 
   private renderTrack(ctx: CanvasRenderingContext2D, size: Size2D): void {
-    const visibleWindow = globals.timeline.visibleWindow;
+    const visibleWindow = this.trace.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
       right: size.width,
@@ -71,7 +70,7 @@ export class TickmarkPanel implements Panel {
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
 
-      const offset = globals.trace.timeline.timestampOffset();
+      const offset = this.trace.timeline.timestampOffset();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));
