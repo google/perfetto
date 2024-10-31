@@ -708,6 +708,13 @@ export function genTraceConfig(
       dataSource.config.chromeConfig = chromeConfig;
       protoCfg.dataSources.push(dataSource);
     }
+    if (chromeCategories.has('disabled-by-default-system_metrics')) {
+      const dataSource = new TraceConfig.DataSource();
+      dataSource.config = new DataSourceConfig();
+      dataSource.config.name = 'org.chromium.system_metrics';
+      dataSource.config.chromeConfig = chromeConfig;
+      protoCfg.dataSources.push(dataSource);
+    }
   }
 
   // Keep these last. The stages above can enrich them.
