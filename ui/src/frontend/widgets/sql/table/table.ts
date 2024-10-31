@@ -22,12 +22,7 @@ import {
   TableManager,
 } from './column';
 import {Button} from '../../../../widgets/button';
-import {
-  MenuDivider,
-  MenuItem,
-  MenuItemAttrs,
-  PopupMenu2,
-} from '../../../../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
 import {sqliteString} from '../../../../base/string_utils';
@@ -110,6 +105,91 @@ class AddColumnMenuItem implements m.ClassComponent<AddColumnMenuItemAttrs> {
   }
 }
 
+interface ColumnFilterAttrs {
+  filterOption: FilterOption;
+  columns: SqlColumn[];
+  state: SqlTableState;
+}
+
+// Separating out an individual column filter into a class
+// so that we can store the raw input value.
+class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
+  // Holds the raw string value from the filter text input element
+  private inputValue: string;
+
+  constructor() {
+    this.inputValue = '';
+  }
+
+  view({attrs}: m.Vnode<ColumnFilterAttrs>) {
+    const {filterOption, columns, state} = attrs;
+
+    const {op, requiresParam} = FILTER_OPTION_TO_OP[filterOption];
+
+    return m(
+      MenuItem,
+      {
+        label: filterOption,
+        // Filter options that do not need an input value will filter the
+        // table directly when clicking on the menu item
+        // (ex: IS NULL or IS NOT NULL)
+        onclick: !requiresParam
+          ? () => {
+              state.addFilter({
+                op: (cols) => `${cols[0]} ${op}`,
+                columns,
+              });
+            }
+          : undefined,
+      },
+      // All non-null filter options will have a submenu that allows
+      // the user to enter a value into textfield and filter using
+      // the Filter button.
+      requiresParam &&
+        m(
+          Form,
+          {
+            onSubmit: () => {
+              // Convert the string extracted from
+              // the input text field into the correct data type for
+              // filtering. The order in which each data type is
+              // checked matters: string, number (floating), and bigint.
+              if (this.inputValue === '') return;
+
+              let filterValue: ColumnType;
+
+              if (Number.isNaN(Number.parseFloat(this.inputValue))) {
+                filterValue = sqliteString(this.inputValue);
+              } else if (
+                !Number.isInteger(Number.parseFloat(this.inputValue))
+              ) {
+                filterValue = Number(this.inputValue);
+              } else {
+                filterValue = BigInt(this.inputValue);
+              }
+
+              state.addFilter({
+                op: (cols) => `${cols[0]} ${op} ${filterValue}`,
+                columns,
+              });
+            },
+            submitLabel: 'Filter',
+          },
+          m(TextInput, {
+            id: 'column_filter_value',
+            ref: 'COLUMN_FILTER_VALUE',
+            autofocus: true,
+            oninput: (e: KeyboardEvent) => {
+              if (!e.target) return;
+
+              this.inputValue = (e.target as HTMLInputElement).value;
+            },
+          }),
+        ),
+    );
+  }
+}
+
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
 
@@ -184,73 +264,14 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
 
   renderColumnFilterOptions(
     c: TableColumn,
-    value: string,
-    state: SqlTableState,
-  ): m.Vnode<MenuItemAttrs, unknown>[] {
-    const filterOptions = Object.values(FilterOption);
-    const columns = [c.primaryColumn()];
-
-    const filterOptionMenuItems = filterOptions.map((filterOption) => {
-      const {op, requiresParam} = FILTER_OPTION_TO_OP[filterOption];
-
-      return m(
-        MenuItem,
-        {
-          label: filterOption,
-          // Filter options that do not need an input value will filter the
-          // table directly when clicking on the menu item
-          // (ex: IS NULL or IS NOT NULL)
-          onclick: !requiresParam
-            ? () => {
-                state.addFilter({
-                  op: (cols) => `${cols[0]} ${op}`,
-                  columns,
-                });
-              }
-            : undefined,
-        },
-        // All non-null filter options will have a submenu that allows
-        // the user to enter a value into textfield and filter using
-        // the Filter button.
-        requiresParam &&
-          m(
-            Form,
-            {
-              onSubmit: () => {
-                // Convert the string extracted from
-                // the input text field into the correct data type for
-                // filtering. The order in which each data type is
-                // checked matters: string, number (floating), and bigint.
-                let filterValue: ColumnType;
-                if (Number.isNaN(Number.parseFloat(value))) {
-                  filterValue = sqliteString(value);
-                } else if (!Number.isInteger(Number.parseFloat(value))) {
-                  filterValue = Number(value);
-                } else {
-                  filterValue = BigInt(value);
-                }
-
-                state.addFilter({
-                  op: (cols) => `${cols[0]} ${op} ${filterValue}`,
-                  columns,
-                });
-              },
-              submitLabel: 'Filter',
-            },
-            m(TextInput, {
-              id: 'column_filter_value',
-              ref: 'COLUMN_FILTER_VALUE',
-              autofocus: true,
-              oninput: (e: KeyboardEvent) => {
-                if (!e.target) return;
-                value = (e.target as HTMLInputElement).value;
-              },
-            }),
-          ),
-      );
-    });
-
-    return filterOptionMenuItems;
+  ): m.Vnode<ColumnFilterAttrs, unknown>[] {
+    return Object.values(FilterOption).map((filterOption) =>
+      m(ColumnFilter, {
+        filterOption,
+        columns: [c.primaryColumn()],
+        state: this.state,
+      }),
+    );
   }
 
   renderColumnHeader(column: TableColumn, index: number) {
@@ -261,8 +282,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         : sorted === 'DESC'
           ? Icons.SortedDesc
           : Icons.ContextMenu;
-
-    const filterValue = '';
 
     return m(
       PopupMenu2,
@@ -306,7 +325,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       m(
         MenuItem,
         {label: 'Add filter', icon: Icons.Filter},
-        this.renderColumnFilterOptions(column, filterValue, this.state),
+        this.renderColumnFilterOptions(column),
       ),
       m(MenuItem, {
         label: 'Create histogram',
