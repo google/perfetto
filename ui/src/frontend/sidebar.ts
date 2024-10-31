@@ -629,7 +629,9 @@ export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
   private _asyncJobPending = new Set<string>();
 
   view({attrs}: m.CVnode<OptionalTraceAttrs>) {
-    if (AppImpl.instance.sidebar.sidebarHidden) return null;
+    if (AppImpl.instance.sidebar.sidebarEnabled === 'DISABLED') {
+      return null;
+    }
     const vdomSections = [];
     for (const section of getSections(attrs.trace)) {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
@@ -724,7 +726,10 @@ export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
     return m(
       'nav.sidebar',
       {
-        class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
+        class:
+          AppImpl.instance.sidebar.sidebarVisibility === 'VISIBLE'
+            ? 'show-sidebar'
+            : 'hide-sidebar',
         // 150 here matches --sidebar-timing in the css.
         // TODO(hjd): Should link to the CSS variable.
         ontransitionstart: (e: TransitionEvent) => {
@@ -752,7 +757,10 @@ export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
           m(
             'i.material-icons',
             {
-              title: globals.state.sidebarVisible ? 'Hide menu' : 'Show menu',
+              title:
+                AppImpl.instance.sidebar.sidebarVisibility === 'VISIBLE'
+                  ? 'Hide menu'
+                  : 'Show menu',
             },
             'menu',
           ),

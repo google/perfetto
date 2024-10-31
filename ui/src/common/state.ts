@@ -176,9 +176,6 @@ export interface State {
   // Show track perf debugging overlay
   perfDebug: boolean;
 
-  // Show the sidebar extended
-  sidebarVisible: boolean;
-
   /**
    * Trace recording
    */
