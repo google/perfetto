@@ -264,7 +264,7 @@ export class TrackPanel implements Panel {
     ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
 
     let selected = false;
-    if (node.hasChildren) {
+    if (node.isSummary) {
       selected = tracksWithUris.some((track) =>
         selection.trackUris.includes(track.uri),
       );
@@ -290,7 +290,7 @@ export class TrackPanel implements Panel {
     const selectionManager = this.attrs.trace.selection;
     const selection = selectionManager.selection;
     if (selection.kind === 'area') {
-      if (node.hasChildren) {
+      if (node.isSummary) {
         const tracksWithUris = node.flatTracks.filter(
           (t) => t.uri !== undefined,
         ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;

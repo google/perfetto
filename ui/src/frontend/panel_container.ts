@@ -211,7 +211,7 @@ export class PanelContainer
     const trackUris: string[] = [];
     for (const panel of panels) {
       if (panel.trackNode) {
-        if (panel.trackNode.hasChildren) {
+        if (panel.trackNode.isSummary) {
           const groupNode = panel.trackNode;
           // Select a track group and all child tracks if it is collapsed
           if (groupNode.collapsed) {
