@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {globals} from './globals';
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
+import {TraceImplAttrs} from '../core/trace_impl';
 
-export class NotesListEditor implements m.ClassComponent {
-  view(_: m.CVnode) {
-    const notes = globals.noteManager.notes;
+export class NotesListEditor implements m.ClassComponent<TraceImplAttrs> {
+  view({attrs}: m.CVnode<TraceImplAttrs>) {
+    const notes = attrs.trace.notes.notes;
     if (notes.size === 0) {
       return 'No notes found';
     }
@@ -51,7 +51,7 @@ export class NotesListEditor implements m.ClassComponent {
               m(Button, {
                 icon: Icons.Delete,
                 onclick: () => {
-                  globals.noteManager.removeNote(id);
+                  attrs.trace.notes.removeNote(id);
                 },
               }),
             ),
