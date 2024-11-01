@@ -14,7 +14,6 @@
 
 import {uuidv4} from '../base/uuid';
 import {NUM} from '../trace_processor/query_result';
-import {globals} from './globals';
 import {VisualizedArgsTrack} from './visualized_args_track';
 import {TrackNode} from '../public/workspace';
 import {Trace} from '../public/trace';
@@ -85,9 +84,9 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
 
     // Find the thread slice track that corresponds with this trackID and insert
     // this track before it.
-    const threadSliceTrack = globals.workspace.flatTracks.find((trackNode) => {
+    const threadSliceTrack = trace.workspace.flatTracks.find((trackNode) => {
       if (!trackNode.uri) return false;
-      const trackDescriptor = globals.trackManager.getTrack(trackNode.uri);
+      const trackDescriptor = trace.tracks.getTrack(trackNode.uri);
       return (
         trackDescriptor &&
         trackDescriptor.tags?.kind === SLICE_TRACK_KIND &&
