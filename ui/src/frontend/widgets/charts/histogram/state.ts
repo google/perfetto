@@ -11,11 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// import {stringifyJsonWithBigints} from '../../../../base/json_utils';
 import {raf} from '../../../../core/raf_scheduler';
 import {Engine} from '../../../../trace_processor/engine';
 import {Row} from '../../../../trace_processor/query_result';
+import {ChartData, ChartState, VegaLiteChartSpec} from '../chart';
 
-export interface HistogramChartConfig {
+export interface HistogramChartConfig extends VegaLiteChartSpec {
   binAxisType: 'nominal' | 'quantitative';
   binAxis: 'x' | 'y';
   countAxis: 'x' | 'y';
@@ -24,55 +26,64 @@ export interface HistogramChartConfig {
   labelLimit?: number;
 }
 
-interface HistogramData {
-  readonly rows: Row[];
-  readonly error?: string;
-  readonly chartConfig: HistogramChartConfig;
-}
-
-function getVegaConfig(
-  aggregationType: 'nominal' | 'quantitative',
-): HistogramChartConfig {
-  const labelLimit = 500;
-  if (aggregationType === 'nominal') {
-    return {
-      binAxisType: aggregationType,
-      binAxis: 'y',
-      countAxis: 'x',
-      sort: `{
-        "op": "count",
-        "order": "descending"
-      }`,
-      isBinned: false,
-      labelLimit,
-    };
-  } else {
-    return {
-      binAxisType: aggregationType,
-      binAxis: 'x',
-      countAxis: 'y',
-      sort: 'false',
-      isBinned: true,
-      labelLimit,
-    };
-  }
-}
-
-export class HistogramState {
-  data?: HistogramData;
+export class HistogramState implements ChartState {
+  data?: ChartData;
+  spec?: VegaLiteChartSpec;
 
   constructor(
-    private readonly engine: Engine,
-    private readonly query: string,
-    private readonly sqlColumn: string,
-    private readonly aggregationType?: 'nominal' | 'quantitative',
+    readonly engine: Engine,
+    readonly query: string,
+    readonly columns: string[],
+    private aggregationType?: 'nominal' | 'quantitative',
   ) {
     this.loadData();
   }
 
-  private async loadData() {
+  createHistogramVegaSpec(): VegaLiteChartSpec {
+    const binAxisEncoding = {
+      bin: this.aggregationType !== 'nominal',
+      field: this.columns[0],
+      type: this.aggregationType,
+      title: this.columns[0],
+      sort: this.aggregationType === 'nominal' && {
+        op: 'count',
+        order: 'descending',
+      },
+      axis: {
+        labelLimit: 500,
+      },
+    };
+
+    const countAxisEncoding = {
+      aggregate: 'count',
+      title: 'Count',
+    };
+
+    const spec: VegaLiteChartSpec = {
+      $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+      width: 'container',
+      mark: 'bar',
+      data: {
+        values: this.data?.rows,
+      },
+      encoding: {
+        x:
+          this.aggregationType !== 'nominal'
+            ? binAxisEncoding
+            : countAxisEncoding,
+        y:
+          this.aggregationType !== 'nominal'
+            ? countAxisEncoding
+            : binAxisEncoding,
+      },
+    };
+
+    return spec;
+  }
+
+  async loadData() {
     const res = await this.engine.query(`
-      SELECT ${this.sqlColumn}
+      SELECT ${this.columns[0]}
       FROM (
         ${this.query}
       )
@@ -83,28 +94,29 @@ export class HistogramState {
     let hasQuantitativeData = false;
 
     for (const it = res.iter({}); it.valid(); it.next()) {
-      const rowVal = it.get(this.sqlColumn);
+      const rowVal = it.get(this.columns[0]);
       if (typeof rowVal === 'bigint') {
         hasQuantitativeData = true;
       }
 
       rows.push({
-        [this.sqlColumn]: rowVal,
+        [this.columns[0]]: rowVal,
       });
     }
 
-    const aggregationType =
-      this.aggregationType !== undefined
-        ? this.aggregationType
-        : hasQuantitativeData
-          ? 'quantitative'
-          : 'nominal';
+    if (this.aggregationType === undefined) {
+      this.aggregationType = hasQuantitativeData ? 'quantitative' : 'nominal';
+    }
 
     this.data = {
       rows,
-      chartConfig: getVegaConfig(aggregationType),
     };
 
+    this.spec = this.createHistogramVegaSpec();
     raf.scheduleFullRedraw();
+  }
+
+  isLoading(): boolean {
+    return this.data === undefined;
   }
 }
