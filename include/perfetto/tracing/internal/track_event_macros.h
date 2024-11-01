@@ -21,7 +21,7 @@
 // implementation. Perfetto API users typically don't need to use anything here
 // directly.
 
-#include "perfetto/base/compiler.h"
+#include "perfetto/base/thread_annotations.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
 #include "perfetto/tracing/string_helpers.h"
 #include "perfetto/tracing/track_event_category_registry.h"

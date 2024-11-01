@@ -22,6 +22,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/platform_handle.h"
+#include "perfetto/base/thread_annotations.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/event_fd.h"
 
@@ -167,8 +168,8 @@ class Channel {
 
  private:
   std::mutex mutex_;
-  base::CircularQueue<T> elements_;
-  bool is_closed_ = false;
+  base::CircularQueue<T> elements_ PERFETTO_GUARDED_BY(mutex_);
+  bool is_closed_ PERFETTO_GUARDED_BY(mutex_) = false;
 
   base::EventFd read_fd_;
   base::EventFd write_fd_;
