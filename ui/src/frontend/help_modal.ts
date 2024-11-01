@@ -13,10 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {raf} from '../core/raf_scheduler';
 import {showModal} from '../widgets/modal';
 import {Spinner} from '../widgets/spinner';
-import {globals} from './globals';
 import {
   KeyboardLayoutMap,
   nativeKeyboardLayoutMap,
@@ -27,9 +25,13 @@ import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {assertExists} from '../base/logging';
 import {AppImpl} from '../core/app_impl';
 
-export function toggleHelp() {
-  AppImpl.instance.analytics.logEvent('User Actions', 'Show help');
-  showHelp();
+export function toggleHelp(app: AppImpl) {
+  app.analytics.logEvent('User Actions', 'Show help');
+  showModal({
+    title: 'Perfetto Help',
+    content: () => m(KeyMappingsHelp, {app}),
+    buttons: [],
+  });
 }
 
 function keycap(glyph: m.Children): m.Children {
@@ -45,14 +47,18 @@ class EnglishQwertyKeyboardLayoutMap implements KeyboardLayoutMap {
   }
 }
 
-class KeyMappingsHelp implements m.ClassComponent {
+interface KeyMappingsHelpAtrs {
+  app: AppImpl;
+}
+
+class KeyMappingsHelp implements m.ClassComponent<KeyMappingsHelpAtrs> {
   private keyMap?: KeyboardLayoutMap;
 
-  oninit() {
+  oninit({attrs}: m.Vnode<KeyMappingsHelpAtrs>) {
     nativeKeyboardLayoutMap()
       .then((keyMap: KeyboardLayoutMap) => {
         this.keyMap = keyMap;
-        raf.scheduleFullRedraw();
+        attrs.app.scheduleFullRedraw();
       })
       .catch((e) => {
         if (
@@ -67,7 +73,7 @@ class KeyMappingsHelp implements m.ClassComponent {
           // The alternative would be to show key mappings for all keyboard
           // layouts which is not feasible.
           this.keyMap = new EnglishQwertyKeyboardLayoutMap();
-          raf.scheduleFullRedraw();
+          attrs.app.scheduleFullRedraw();
         } else {
           // Something unexpected happened. Either the browser doesn't conform
           // to the keyboard API spec, or the keyboard API spec has changed!
@@ -76,7 +82,7 @@ class KeyMappingsHelp implements m.ClassComponent {
       });
   }
 
-  view(_: m.Vnode): m.Children {
+  view({attrs}: m.Vnode<KeyMappingsHelpAtrs>): m.Children {
     return m(
       '.help',
       m('h2', 'Navigation'),
@@ -156,7 +162,7 @@ class KeyMappingsHelp implements m.ClassComponent {
       m('h2', 'Command Hotkeys'),
       m(
         'table',
-        globals.commandManager.commands
+        attrs.app.commands.commands
           .filter(({defaultHotkey}) => defaultHotkey)
           .sort((a, b) => a.name.localeCompare(b.name))
           .map(({defaultHotkey, name}) => {
@@ -177,12 +183,4 @@ class KeyMappingsHelp implements m.ClassComponent {
       return keycap(m(Spinner));
     }
   }
-}
-
-function showHelp() {
-  showModal({
-    title: 'Perfetto Help',
-    content: () => m(KeyMappingsHelp),
-    buttons: [],
-  });
 }

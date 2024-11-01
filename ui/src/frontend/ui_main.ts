@@ -89,7 +89,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.ShowHelp',
         name: 'Show help',
-        callback: () => toggleHelp(),
+        callback: () => toggleHelp(AppImpl.instance),
         defaultHotkey: '?',
       },
     ];
@@ -115,7 +115,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         isEphemeral: false,
         content: {
           getTitle: () => 'Notes & markers',
-          render: () => m(NotesListEditor),
+          render: () => m(NotesListEditor, {trace}),
         },
       }),
     );
