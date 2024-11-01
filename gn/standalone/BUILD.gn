@@ -95,6 +95,13 @@ config("extra_warnings") {
       # codebase cleanup.
       "-Wno-switch-default",
     ]
+
+    if (perfetto_thread_safety_annotations) {
+      cflags += [
+        "-Wthread-safety",
+        "-Wno-thread-safety-negative",
+      ]
+    }
   } else if (is_gcc) {
     # Use return std::move(...) for compatibility with old GCC compilers.
     cflags_cc = [ "-Wno-redundant-move" ]

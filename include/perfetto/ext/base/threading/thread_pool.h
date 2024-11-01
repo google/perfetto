@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/thread_annotations.h"
 
 namespace perfetto {
 namespace base {
@@ -63,13 +64,11 @@ class ThreadPool {
   ThreadPool(ThreadPool&&) = delete;
   ThreadPool& operator=(ThreadPool&&) = delete;
 
-  // Start of mutex protected members.
   std::mutex mutex_;
-  std::list<std::function<void()>> pending_tasks_;
-  std::condition_variable thread_waiter_;
-  uint32_t thread_waiting_count_ = 0;
-  bool quit_ = false;
-  // End of mutex protected members.
+  std::list<std::function<void()>> pending_tasks_ PERFETTO_GUARDED_BY(mutex_);
+  std::condition_variable thread_waiter_ PERFETTO_GUARDED_BY(mutex_);
+  uint32_t thread_waiting_count_ PERFETTO_GUARDED_BY(mutex_) = 0;
+  bool quit_ PERFETTO_GUARDED_BY(mutex_) = false;
 
   std::vector<std::thread> threads_;
 };
