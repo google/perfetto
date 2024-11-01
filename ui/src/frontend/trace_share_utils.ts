@@ -13,39 +13,25 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../base/logging';
 import {TraceUrlSource} from '../public/trace_source';
 import {createPermalink} from './permalink';
 import {showModal} from '../widgets/modal';
 import {onClickCopy} from './clipboard';
 import {globals} from './globals';
 import {AppImpl} from '../core/app_impl';
+import {Trace} from '../public/trace';
 
-export function isShareable() {
-  return globals.isInternalUser && isDownloadable();
+export function isShareable(trace: Trace) {
+  return globals.isInternalUser && trace.traceInfo.downloadable;
 }
 
-export function isDownloadable() {
-  const traceSource = AppImpl.instance.trace?.traceInfo.source;
-  if (traceSource === undefined) {
-    return false;
-  }
-  if (traceSource.type === 'ARRAY_BUFFER' && traceSource.localOnly) {
-    return false;
-  }
-  if (traceSource.type === 'HTTP_RPC') {
-    return false;
-  }
-  return true;
-}
-
-export async function shareTrace() {
-  const traceSource = assertExists(AppImpl.instance.trace?.traceInfo.source);
+export async function shareTrace(trace: Trace) {
+  const traceSource = trace.traceInfo.source;
   const traceUrl = (traceSource as TraceUrlSource).url ?? '';
 
   // If the trace is not shareable (has been pushed via postMessage()) but has
   // a url, create a pseudo-permalink by echoing back the URL.
-  if (!isShareable()) {
+  if (!isShareable(trace)) {
     const msg = [
       m(
         'p',
@@ -66,7 +52,7 @@ export async function shareTrace() {
     return;
   }
 
-  if (!isShareable() || !isTraceLoaded()) return;
+  if (!isShareable(trace)) return;
 
   const result = confirm(
     `Upload UI state and generate a permalink. ` +
@@ -89,16 +75,4 @@ export function createTraceLink(title: string, url: string) {
     onclick: onClickCopy(url),
   };
   return m('a.trace-file-name', linkProps, title);
-}
-
-export function isTraceLoaded(): boolean {
-  return AppImpl.instance.trace !== undefined;
-}
-
-export function getCurrentTraceUrl(): undefined | string {
-  const source = AppImpl.instance.trace?.traceInfo.source;
-  if (source && source.type === 'URL') {
-    return source.url;
-  }
-  return undefined;
 }
