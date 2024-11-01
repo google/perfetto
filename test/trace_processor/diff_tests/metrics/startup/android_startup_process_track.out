@@ -80,6 +80,8 @@ android_startup {
         start_timestamp: 103
         end_timestamp: 107
         thread_name: "com.google.android.calendar"
+        thread_tid: 3
+        process_pid: 3
       }
     }
   }
@@ -165,6 +167,8 @@ android_startup {
         start_timestamp: 203
         end_timestamp: 207
         thread_name: "com.google.android.calendar"
+        thread_tid: 4
+        process_pid: 4
       }
     }
   }
