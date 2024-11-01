@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import("//build_overrides/build.gni")
-import("//gn/standalone/libc++/libc++.gni")
 import("wasm_vars.gni")
 
 # Summary of our typical build configurations:
@@ -109,6 +108,7 @@ perfetto_build_standalone =
 if (perfetto_build_standalone || is_perfetto_build_generator) {
   perfetto_root_path = "//"
   import("//gn/standalone/android.gni")  # For android_api_level
+  import("//gn/standalone/libc++/libc++.gni")  # For use_custom_libcxx
   import("//gn/standalone/sanitizers/vars.gni")  # For is_fuzzer
 } else if (!defined(perfetto_root_path)) {
   perfetto_root_path = "//third_party/perfetto/"
@@ -250,7 +250,8 @@ declare_args() {
 
   # Enables complie-time thread safety analysis.
   perfetto_thread_safety_annotations =
-      use_custom_libcxx && perfetto_build_standalone
+      perfetto_build_standalone && !is_perfetto_build_generator &&
+      defined(use_custom_libcxx) && use_custom_libcxx
 }
 
 declare_args() {
