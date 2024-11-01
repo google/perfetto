@@ -96,6 +96,8 @@ CREATE PERFETTO TABLE android_startup_processes(
   startup_id INT,
   -- Upid of process on which activity started.
   upid INT,
+  -- Pid of process on which activity started.
+  pid INT,
   -- Type of the startup.
   startup_type STRING
 ) AS
@@ -105,6 +107,7 @@ WITH startup_with_type AS MATERIALIZED (
   SELECT
     startup_id,
     upid,
+    pid,
     CASE
       -- type parsed from platform event takes precedence if available
       WHEN startup_type IS NOT NULL THEN startup_type
@@ -118,6 +121,7 @@ WITH startup_with_type AS MATERIALIZED (
       l.startup_id,
       l.startup_type,
       p.upid,
+      p.pid,
       _startup_indicator_slice_count(l.ts, l.ts_end, t.utid, 'bindApplication') AS bind_app,
       _startup_indicator_slice_count(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start,
       _startup_indicator_slice_count(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
@@ -153,8 +157,12 @@ CREATE PERFETTO VIEW android_startup_threads(
   dur INT,
   -- Upid of process involved in startup.
   upid INT,
+  -- Pid if process involved in startup.
+  pid INT,
   -- Utid of the thread.
   utid INT,
+  -- Tid of the thread.
+  tid INT,
   -- Name of the thread.
   thread_name STRING,
   -- Thread is a main thread.
@@ -165,7 +173,9 @@ SELECT
   startups.ts,
   startups.dur,
   android_startup_processes.upid,
+  android_startup_processes.pid,
   thread.utid,
+  thread.tid,
   thread.name AS thread_name,
   thread.is_main_thread AS is_main_thread
 FROM android_startups startups
@@ -189,6 +199,8 @@ CREATE PERFETTO VIEW android_thread_slices_for_all_startups(
   startup_id INT,
   -- UTID of thread with slice.
   utid INT,
+  --Tid of thread.
+  tid INT,
   -- Name of thread.
   thread_name STRING,
   -- Whether it is main thread.
@@ -209,6 +221,7 @@ SELECT
   st.ts + st.dur AS startup_ts_end,
   st.startup_id,
   st.utid,
+  st.tid,
   st.thread_name,
   st.is_main_thread,
   slice.arg_set_id,
@@ -238,10 +251,12 @@ RETURNS TABLE(
   slice_dur INT,
   -- Name of the thread with the slice.
   thread_name STRING,
+  -- Tid of the thread with the slice.
+  tid  INT,
   -- Arg set id.
   arg_set_id INT
 ) AS
-SELECT slice_id, slice_name, slice_ts, slice_dur, thread_name, arg_set_id
+SELECT slice_id, slice_name, slice_ts, slice_dur, thread_name, tid, arg_set_id
 FROM android_thread_slices_for_all_startups
 WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 
