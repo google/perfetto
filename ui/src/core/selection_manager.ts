@@ -123,9 +123,9 @@ export class SelectionManagerImpl implements SelectionManager {
 
     this.setSelection(
       {
+        ...area,
         kind: 'area',
         tracks,
-        ...area,
       },
       opts,
     );
@@ -141,7 +141,7 @@ export class SelectionManagerImpl implements SelectionManager {
     } else {
       trackUris = trackUris.filter((t) => t !== trackUri);
     }
-    this.setSelection({
+    this.selectArea({
       ...curSelection,
       trackUris,
     });
@@ -169,7 +169,7 @@ export class SelectionManagerImpl implements SelectionManager {
         }
       });
     }
-    this.setSelection({
+    this.selectArea({
       ...curSelection,
       trackUris: newTrackUris,
     });
@@ -211,9 +211,7 @@ export class SelectionManagerImpl implements SelectionManager {
 
   private setSelection(selection: Selection, opts?: SelectionOpts) {
     this._selection = selection;
-
     this.onSelectionChange(selection, opts ?? {});
-
     raf.scheduleFullRedraw();
 
     if (opts?.scrollToSelection) {
