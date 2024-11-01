@@ -28,7 +28,6 @@ import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public/details_panel';
 import {TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
-import {isTraceLoaded} from './trace_attrs';
 import {Selection} from '../public/selection';
 import {TraceImpl} from '../core/trace_impl';
 
@@ -101,61 +100,60 @@ export class NotesPanel implements Panel {
           this.trace.timeline.hoveredNoteTimestamp = undefined;
         },
       },
-      isTraceLoaded() &&
-        m(
-          ButtonBar,
-          {className: 'pf-toolbar'},
-          m(Button, {
-            onclick: (e: Event) => {
-              e.preventDefault();
-              if (allCollapsed) {
-                this.trace.commands.runCommand(
-                  'perfetto.CoreCommands#ExpandAllGroups',
-                );
-              } else {
-                this.trace.commands.runCommand(
-                  'perfetto.CoreCommands#CollapseAllGroups',
-                );
-              }
-            },
-            title: allCollapsed ? 'Expand all' : 'Collapse all',
-            icon: allCollapsed ? 'unfold_more' : 'unfold_less',
-            compact: true,
-          }),
-          m(Button, {
-            onclick: (e: Event) => {
-              e.preventDefault();
-              this.trace.workspace.pinnedTracks.forEach((t) =>
-                this.trace.workspace.unpinTrack(t),
+      m(
+        ButtonBar,
+        {className: 'pf-toolbar'},
+        m(Button, {
+          onclick: (e: Event) => {
+            e.preventDefault();
+            if (allCollapsed) {
+              this.trace.commands.runCommand(
+                'perfetto.CoreCommands#ExpandAllGroups',
               );
-              raf.scheduleFullRedraw();
-            },
-            title: 'Clear all pinned tracks',
-            icon: 'clear_all',
-            compact: true,
-          }),
-          // TODO(stevegolton): Re-introduce this when we fix track filtering
-          // m(TextInput, {
-          //   placeholder: 'Filter tracks...',
-          //   title:
-          //     'Track filter - enter one or more comma-separated search terms',
-          //   value: this.trace.state.trackFilterTerm,
-          //   oninput: (e: Event) => {
-          //     const filterTerm = (e.target as HTMLInputElement).value;
-          //     this.trace.dispatch(Actions.setTrackFilterTerm({filterTerm}));
-          //   },
-          // }),
-          // m(Button, {
-          //   type: 'reset',
-          //   icon: 'backspace',
-          //   onclick: () => {
-          //     this.trace.dispatch(
-          //       Actions.setTrackFilterTerm({filterTerm: undefined}),
-          //     );
-          //   },
-          //   title: 'Clear track filter',
-          // }),
-        ),
+            } else {
+              this.trace.commands.runCommand(
+                'perfetto.CoreCommands#CollapseAllGroups',
+              );
+            }
+          },
+          title: allCollapsed ? 'Expand all' : 'Collapse all',
+          icon: allCollapsed ? 'unfold_more' : 'unfold_less',
+          compact: true,
+        }),
+        m(Button, {
+          onclick: (e: Event) => {
+            e.preventDefault();
+            this.trace.workspace.pinnedTracks.forEach((t) =>
+              this.trace.workspace.unpinTrack(t),
+            );
+            raf.scheduleFullRedraw();
+          },
+          title: 'Clear all pinned tracks',
+          icon: 'clear_all',
+          compact: true,
+        }),
+        // TODO(stevegolton): Re-introduce this when we fix track filtering
+        // m(TextInput, {
+        //   placeholder: 'Filter tracks...',
+        //   title:
+        //     'Track filter - enter one or more comma-separated search terms',
+        //   value: this.trace.state.trackFilterTerm,
+        //   oninput: (e: Event) => {
+        //     const filterTerm = (e.target as HTMLInputElement).value;
+        //     this.trace.dispatch(Actions.setTrackFilterTerm({filterTerm}));
+        //   },
+        // }),
+        // m(Button, {
+        //   type: 'reset',
+        //   icon: 'backspace',
+        //   onclick: () => {
+        //     this.trace.dispatch(
+        //       Actions.setTrackFilterTerm({filterTerm: undefined}),
+        //     );
+        //   },
+        //   title: 'Clear track filter',
+        // }),
+      ),
     );
   }
 

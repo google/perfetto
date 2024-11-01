@@ -63,6 +63,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     hasFtrace: false,
     uuid: '',
     cached: false,
+    downloadable: false,
   };
   return TraceImpl.createInstanceForCore(
     AppImpl.instance,

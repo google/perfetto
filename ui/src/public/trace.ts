@@ -57,6 +57,12 @@ export interface Trace extends App {
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;
 
+  // Returns the blob of the current trace file.
+  // If the trace is opened from a file or postmessage, the blob is returned
+  // immediately. If the trace is opened from URL, this causes a re-download of
+  // the trace. It will throw if traceInfo.downloadable === false.
+  getTraceFile(): Promise<Blob>;
+
   // When the trace is opened via postMessage deep-linking, returns the sub-set
   // of postMessageData.pluginArgs[pluginId] for the current plugin. If not
   // present returns undefined.
