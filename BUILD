@@ -5181,6 +5181,9 @@ perfetto_proto_library(
     deps = [
         ":protos_perfetto_trace_track_event_protos",
     ],
+    exports = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
 )
 
 # GN target: //protos/perfetto/trace/android:source_set

@@ -321,6 +321,13 @@ template("perfetto_proto_library") {
     }
   }
 
+  # This config is necessary for Chrome proto_library build rule to work
+  # correctly.
+  source_set_input_config_name = "${source_set_target_name}_input_config"
+  config(source_set_input_config_name) {
+    inputs = invoker.sources
+  }
+
   # Generate the descriptor if the option is set.
   if (defined(invoker.generate_descriptor)) {
     target_name_ = string_replace(target_name, expansion_token, "descriptor")
