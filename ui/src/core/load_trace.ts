@@ -458,6 +458,11 @@ async function getTraceInfo(
   const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({uuid: STR}).uuid : '';
   const cached = await cacheTrace(traceSource, uuid);
 
+  const downloadable =
+    (traceSource.type === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
+    traceSource.type === 'FILE' ||
+    traceSource.type === 'URL';
+
   return {
     ...traceTime,
     traceTitle,
@@ -472,6 +477,7 @@ async function getTraceInfo(
     hasFtrace,
     uuid,
     cached,
+    downloadable,
   };
 }
 
