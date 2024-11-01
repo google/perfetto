@@ -264,7 +264,11 @@ function getSections(trace?: Trace): Section[] {
       expanded: true,
       summary: 'Documentation & Bugs',
       items: removeFalsyValues([
-        {t: 'Keyboard shortcuts', a: toggleHelp, i: 'help'},
+        {
+          t: 'Keyboard shortcuts',
+          a: () => toggleHelp(AppImpl.instance),
+          i: 'help',
+        },
         {t: 'Documentation', a: 'https://perfetto.dev/docs', i: 'find_in_page'},
         {t: 'Flags', a: '#!/flags', i: 'emoji_flags'},
         {
