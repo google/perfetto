@@ -86,6 +86,8 @@ android_startup {
         end_timestamp: 115000000000
         slice_id: 1
         slice_name: "bindApplication"
+        process_pid: 3
+        thread_tid: 3
       }
     }
     slow_start_reason_with_details {
@@ -107,18 +109,24 @@ android_startup {
         end_timestamp: 157000000000
         slice_id: 5
         slice_name: "Lock contention on a monitor lock (owner tid: 2)"
+        process_pid: 3
+        thread_tid: 3
       }
       trace_slice_sections {
         start_timestamp: 120000000000
         end_timestamp: 130000000000
         slice_id: 4
         slice_name: "Lock contention on thread list lock (owner tid: 2)"
+        process_pid: 3
+        thread_tid: 3
       }
       trace_slice_sections {
         start_timestamp: 155000000000
         end_timestamp: 160000000000
         slice_id: 6
         slice_name: "Lock contention on a monitor lock (owner tid: 3)"
+        process_pid: 3
+        thread_tid: 4
       }
     }
     slow_start_reason_with_details {
@@ -140,12 +148,16 @@ android_startup {
        end_timestamp: 157000000000
        slice_id: 5
        slice_name: "Lock contention on a monitor lock (owner tid: 2)"
+       process_pid: 3
+       thread_tid: 3
      }
      trace_slice_sections {
        start_timestamp: 155000000000
        end_timestamp: 160000000000
        slice_id: 6
        slice_name: "Lock contention on a monitor lock (owner tid: 3)"
+       process_pid: 3
+       thread_tid: 4
      }
     }
     startup_type: "cold"

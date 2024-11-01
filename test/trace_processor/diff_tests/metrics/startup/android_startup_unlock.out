@@ -48,6 +48,7 @@ android_startup {
         end_timestamp: 133
         slice_id: 1
         slice_name: "KeyguardUpdateMonitor#onAuthenticationSucceeded"
+        thread_tid: 2
       }
     }
   }

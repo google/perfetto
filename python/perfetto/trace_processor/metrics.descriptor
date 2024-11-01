@@ -1027,8 +1027,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-ÂF
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ÀE
+ÂG
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ÀF
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -1180,20 +1180,28 @@ PERCENTAGE
 COUNT5
 ActualValue
 value (Rvalue
-dur (Rdur›
+dur (RdurÛ
 TraceSliceSection'
 start_timestamp (RstartTimestamp#
 end_timestamp (RendTimestamp
 slice_id (RsliceId
 
-slice_name (	R	sliceName¤
+slice_name (	R	sliceName
+process_pid (R
+processPid
+
+thread_tid (R	threadTidä
 TraceThreadSection'
 start_timestamp (RstartTimestamp#
 end_timestamp (RendTimestamp
 thread_utid (R
 threadUtid
 thread_name (	R
-threadNameŒ
+threadName
+process_pid (R
+processPid
+
+thread_tid (R	threadTidŒ
 Startup
 
 startup_id (R	startupId!
