@@ -17,8 +17,8 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_DATA_SOURCE_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_DATA_SOURCE_H_
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/template_util.h"
+#include "perfetto/base/thread_annotations.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/data_source.h"

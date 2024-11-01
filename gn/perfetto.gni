@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("//build_overrides/build.gni")
+import("//gn/standalone/libc++/libc++.gni")
 import("wasm_vars.gni")
 
 # Summary of our typical build configurations:
@@ -246,6 +247,10 @@ declare_args() {
   enable_perfetto_x64_cpu_opt =
       current_cpu == "x64" && is_linux && !is_wasm &&
       perfetto_build_standalone && !is_perfetto_build_generator
+
+  # Enables complie-time thread safety analysis.
+  perfetto_thread_safety_annotations =
+      use_custom_libcxx && perfetto_build_standalone
 }
 
 declare_args() {

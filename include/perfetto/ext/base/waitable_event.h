@@ -17,6 +17,8 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_WAITABLE_EVENT_H_
 #define INCLUDE_PERFETTO_EXT_BASE_WAITABLE_EVENT_H_
 
+#include "perfetto/base/thread_annotations.h"
+
 #include <condition_variable>
 #include <mutex>
 
@@ -40,8 +42,8 @@ class WaitableEvent {
 
  private:
   std::mutex mutex_;
-  std::condition_variable event_;
-  uint64_t notifications_ = 0;
+  std::condition_variable event_ PERFETTO_GUARDED_BY(mutex_);
+  uint64_t notifications_ PERFETTO_GUARDED_BY(mutex_) = 0;
 };
 
 }  // namespace base
