@@ -39,7 +39,7 @@ import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_share_utils';
 import {AggregationsTabs} from './aggregation_tab';
-import {OmniboxMode} from '../core/omnibox_manager';
+import {OmniboxManagerImpl, OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
@@ -73,7 +73,8 @@ export class UiMainPerTrace implements m.ClassComponent {
 
   // This function is invoked once per trace.
   constructor() {
-    const trace = AppImpl.instance.trace;
+    const app = AppImpl.instance;
+    const trace = app.trace;
     this.trace = trace;
 
     // Register global commands (commands that are useful even without a trace
@@ -82,19 +83,19 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.OpenCommandPalette',
         name: 'Open command palette',
-        callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Command),
+        callback: () => app.omnibox.setMode(OmniboxMode.Command),
         defaultHotkey: '!Mod+Shift+P',
       },
 
       {
         id: 'perfetto.ShowHelp',
         name: 'Show help',
-        callback: () => toggleHelp(AppImpl.instance),
+        callback: () => toggleHelp(app),
         defaultHotkey: '?',
       },
     ];
     globalCmds.forEach((cmd) => {
-      this.trash.use(AppImpl.instance.commands.registerCommand(cmd));
+      this.trash.use(app.commands.registerCommand(cmd));
     });
 
     // When the UI loads there is no trace. There is no point registering
@@ -144,10 +145,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           ];
           const promptText = 'Select format...';
 
-          const result = await AppImpl.instance.omnibox.prompt(
-            promptText,
-            options,
-          );
+          const result = await app.omnibox.prompt(promptText, options);
           if (result === undefined) return;
           setTimestampFormat(result as TimestampFormat);
           raf.scheduleFullRedraw();
@@ -166,10 +164,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           ];
           const promptText = 'Select duration precision mode...';
 
-          const result = await AppImpl.instance.omnibox.prompt(
-            promptText,
-            options,
-          );
+          const result = await app.omnibox.prompt(promptText, options);
           if (result === undefined) return;
           setDurationPrecision(result as DurationPrecision);
           raf.scheduleFullRedraw();
@@ -312,7 +307,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           // - If nothing is selected, or all selected tracks are entirely
           //   selected, then select the entire trace. This allows double tapping
           //   Ctrl+A to select the entire track, then select the entire trace.
-          let tracksToSelect: string[] = [];
+          let tracksToSelect: string[];
           const selection = trace.selection.selection;
           if (selection.kind === 'area') {
             // Something is already selected, let's see if it covers the entire
@@ -372,8 +367,8 @@ export class UiMainPerTrace implements m.ClassComponent {
     });
   }
 
-  private renderOmnibox(): m.Children {
-    const omnibox = AppImpl.instance.omnibox;
+  private renderOmnibox(app: AppImpl): m.Children {
+    const {omnibox} = app;
     const omniboxMode = omnibox.mode;
     const statusMessage = omnibox.statusMessage;
     if (statusMessage !== undefined) {
@@ -385,9 +380,9 @@ export class UiMainPerTrace implements m.ClassComponent {
         }),
       );
     } else if (omniboxMode === OmniboxMode.Command) {
-      return this.renderCommandOmnibox();
+      return this.renderCommandOmnibox(app);
     } else if (omniboxMode === OmniboxMode.Prompt) {
-      return this.renderPromptOmnibox();
+      return this.renderPromptOmnibox(omnibox);
     } else if (omniboxMode === OmniboxMode.Query) {
       return this.renderQueryOmnibox();
     } else if (omniboxMode === OmniboxMode.Search) {
@@ -397,8 +392,8 @@ export class UiMainPerTrace implements m.ClassComponent {
     }
   }
 
-  renderPromptOmnibox(): m.Children {
-    const prompt = assertExists(AppImpl.instance.omnibox.pendingPrompt);
+  renderPromptOmnibox(omnibox: OmniboxManagerImpl): m.Children {
+    const prompt = assertExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
 
@@ -407,7 +402,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         prompt.options,
         ({displayName}) => displayName,
       );
-      const result = fuzzy.find(AppImpl.instance.omnibox.text);
+      const result = fuzzy.find(omnibox.text);
       options = result.map((result) => {
         return {
           key: result.item.key,
@@ -417,38 +412,34 @@ export class UiMainPerTrace implements m.ClassComponent {
     }
 
     return m(Omnibox, {
-      value: AppImpl.instance.omnibox.text,
+      value: omnibox.text,
       placeholder: prompt.text,
       inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'prompt-mode',
       closeOnOutsideClick: true,
       options,
-      selectedOptionIndex: AppImpl.instance.omnibox.selectionIndex,
+      selectedOptionIndex: omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
-        AppImpl.instance.omnibox.setSelectionIndex(index);
+        omnibox.setSelectionIndex(index);
         raf.scheduleFullRedraw();
       },
       onInput: (value) => {
-        AppImpl.instance.omnibox.setText(value);
-        AppImpl.instance.omnibox.setSelectionIndex(0);
+        omnibox.setText(value);
+        omnibox.setSelectionIndex(0);
         raf.scheduleFullRedraw();
       },
       onSubmit: (value, _alt) => {
-        AppImpl.instance.omnibox.resolvePrompt(value);
+        omnibox.resolvePrompt(value);
       },
       onClose: () => {
-        AppImpl.instance.omnibox.rejectPrompt();
+        omnibox.rejectPrompt();
       },
     });
   }
 
-  renderCommandOmnibox(): m.Children {
-    const cmdMgr = AppImpl.instance.commands;
-
+  renderCommandOmnibox({commands, omnibox}: AppImpl): m.Children {
     // Fuzzy-filter commands by the filter string.
-    const filteredCmds = cmdMgr.fuzzyFilterCommands(
-      AppImpl.instance.omnibox.text,
-    );
+    const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent
     // command register.
@@ -479,35 +470,35 @@ export class UiMainPerTrace implements m.ClassComponent {
     });
 
     return m(Omnibox, {
-      value: AppImpl.instance.omnibox.text,
+      value: omnibox.text,
       placeholder: 'Filter commands...',
       inputRef: OMNIBOX_INPUT_REF,
       extraClasses: 'command-mode',
       options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
-      selectedOptionIndex: AppImpl.instance.omnibox.selectionIndex,
+      selectedOptionIndex: omnibox.selectionIndex,
       onSelectedOptionChanged: (index) => {
-        AppImpl.instance.omnibox.setSelectionIndex(index);
+        omnibox.setSelectionIndex(index);
         raf.scheduleFullRedraw();
       },
       onInput: (value) => {
-        AppImpl.instance.omnibox.setText(value);
-        AppImpl.instance.omnibox.setSelectionIndex(0);
+        omnibox.setText(value);
+        omnibox.setSelectionIndex(0);
         raf.scheduleFullRedraw();
       },
       onClose: () => {
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
-        AppImpl.instance.omnibox.reset();
+        omnibox.reset();
       },
       onSubmit: (key: string) => {
         this.addRecentCommand(key);
-        cmdMgr.runCommand(key);
+        commands.runCommand(key);
       },
       onGoBack: () => {
-        AppImpl.instance.omnibox.reset();
+        omnibox.reset();
       },
     });
   }
@@ -634,13 +625,13 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   view({children}: m.Vnode): m.Children {
-    const cmdMgr = AppImpl.instance.commands;
+    const app = AppImpl.instance;
     const hotkeys: HotkeyConfig[] = [];
-    const commands = cmdMgr.commands;
+    const commands = app.commands.commands;
     for (const {id, defaultHotkey} of commands) {
       if (defaultHotkey) {
         hotkeys.push({
-          callback: () => cmdMgr.runCommand(id),
+          callback: () => app.commands.runCommand(id),
           hotkey: defaultHotkey,
         });
       }
@@ -651,9 +642,9 @@ export class UiMainPerTrace implements m.ClassComponent {
       {hotkeys},
       m(
         'main',
-        m(Sidebar, {trace: this.trace}),
+        m(Sidebar, {app, trace: this.trace}),
         m(Topbar, {
-          omnibox: this.renderOmnibox(),
+          omnibox: this.renderOmnibox(app),
           trace: this.trace,
         }),
         children,
