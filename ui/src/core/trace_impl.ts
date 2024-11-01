@@ -43,6 +43,7 @@ import {RouteArgs} from '../public/route_schema';
 import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Analytics} from '../public/analytics';
 import {getOrCreate} from '../base/utils';
+import {fetchWithProgress} from '../base/http_utils';
 
 /**
  * Handles the per-trace state of the UI
@@ -252,6 +253,31 @@ export class TraceImpl implements Trace {
 
   getPluginStoreForSerialization() {
     return this.traceCtx.pluginSerializableState;
+  }
+
+  async getTraceFile(): Promise<Blob> {
+    const src = this.traceInfo.source;
+    if (this.traceInfo.downloadable) {
+      if (src.type === 'ARRAY_BUFFER') {
+        return new Blob([src.buffer]);
+      } else if (src.type === 'FILE') {
+        return src.file;
+      } else if (src.type === 'URL') {
+        return await fetchWithProgress(src.url, (progressPercent: number) =>
+          this.omnibox.showStatusMessage(
+            `Downloading trace ${progressPercent}%`,
+          ),
+        );
+      }
+    }
+    // Not available in HTTP+RPC mode. Rather than propagating an undefined,
+    // show a graceful error (the ERR:trace_src will be intercepted by
+    // error_dialog.ts). We expect all users of this feature to not be able to
+    // do anything useful if we returned undefined (other than showing the same
+    // dialog).
+    // The caller was supposed to check that traceInfo.downloadable === true
+    // before calling this. Throwing while downloadable is true is a bug.
+    throw new Error(`Cannot getTraceFile(${src.type})`);
   }
 
   get openerPluginArgs(): {[key: string]: unknown} | undefined {

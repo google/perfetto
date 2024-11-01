@@ -59,4 +59,12 @@ export interface TraceInfo {
 
   // Wheteher the current trace has been successfully stored into cache storage.
   readonly cached: boolean;
+
+  // Returns true if the current trace can be downloaded via getTraceFile().
+  // The trace isn't downloadable in the following cases:
+  // - It comes from a source (e.g. HTTP+RPC) that doesn't support re-download
+  //   due to technical limitations.
+  // - Download is disabled because the trace was pushed via postMessage and
+  //   the caller has asked to disable downloads.
+  readonly downloadable: boolean;
 }

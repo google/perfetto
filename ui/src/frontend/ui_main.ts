@@ -37,7 +37,7 @@ import {Omnibox, OmniboxOption} from './omnibox';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
-import {shareTrace} from './trace_attrs';
+import {shareTrace} from './trace_share_utils';
 import {AggregationsTabs} from './aggregation_tab';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';

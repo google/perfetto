@@ -20,7 +20,6 @@ import {
   QueryFlamegraphAttrs,
   metricsFromTableOrSubquery,
 } from '../../public/lib/query_flamegraph';
-import {getCurrentTrace} from '../../frontend/sidebar';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -32,7 +31,7 @@ import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Icon} from '../../widgets/icon';
-import {Modal} from '../../widgets/modal';
+import {Modal, showModal} from '../../widgets/modal';
 import {Popup} from '../../widgets/popup';
 
 interface Props {
@@ -105,7 +104,7 @@ export class HeapProfileFlamegraphDetailsPanel
                 icon: 'file_download',
                 intent: Intent.Primary,
                 onclick: () => {
-                  downloadPprof(this.trace.engine, this.upid, ts);
+                  downloadPprof(this.trace, this.upid, ts);
                   this.trace.scheduleFullRedraw();
                 },
               }),
@@ -418,21 +417,16 @@ function getFlamegraphTitle(type: ProfileType) {
   }
 }
 
-async function downloadPprof(
-  engine: Engine | undefined,
-  upid: number,
-  ts: time,
-) {
-  if (engine === undefined) {
-    return;
+async function downloadPprof(trace: Trace, upid: number, ts: time) {
+  const pid = await trace.engine.query(
+    `select pid from process where upid = ${upid}`,
+  );
+  if (!trace.traceInfo.downloadable) {
+    showModal({
+      title: 'Download not supported',
+      content: m('div', 'This trace file does not support downloads'),
+    });
   }
-  try {
-    const pid = await engine.query(
-      `select pid from process where upid = ${upid}`,
-    );
-    const trace = await getCurrentTrace();
-    convertTraceToPprofAndDownload(trace, pid.firstRow({pid: NUM}).pid, ts);
-  } catch (error) {
-    throw new Error(`Failed to get current trace ${error}`);
-  }
+  const blob = await trace.getTraceFile();
+  convertTraceToPprofAndDownload(blob, pid.firstRow({pid: NUM}).pid, ts);
 }
