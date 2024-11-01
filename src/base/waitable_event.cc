@@ -22,14 +22,20 @@ namespace base {
 WaitableEvent::WaitableEvent() = default;
 WaitableEvent::~WaitableEvent() = default;
 
-void WaitableEvent::Wait(uint64_t notifications) {
+void WaitableEvent::Wait(uint64_t notifications)
+    PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+  // 'std::unique_lock' lock doesn't work well with thread annotations
+  // (see https://github.com/llvm/llvm-project/issues/63239),
+  // so we suppress thread safety static analysis for this method.
   std::unique_lock<std::mutex> lock(mutex_);
-  return event_.wait(lock, [&] { return notifications_ >= notifications; });
+  return event_.wait(lock, [&]() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    return notifications_ >= notifications;
+  });
 }
 
 void WaitableEvent::Notify() {
-  std::unique_lock<std::mutex> lock(mutex_);
-  notifications_++;
+  std::lock_guard<std::mutex> lock(mutex_);
+  ++notifications_;
   event_.notify_all();
 }
 

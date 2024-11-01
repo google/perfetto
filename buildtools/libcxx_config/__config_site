@@ -93,4 +93,10 @@
 #define _LIBCPP_CHAR_TRAITS_REMOVE_BASE_SPECIALIZATION
 
 #define _LIBCPP_HARDENING_MODE_DEFAULT _LIBCPP_HARDENING_MODE_NONE
+
+// Enable libcxx part of compile-time thread safety analysis.
+#if defined(__clang__)
+#define _LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS 1
+#endif
+
 #endif // _LIBCPP_CONFIG_SITE
