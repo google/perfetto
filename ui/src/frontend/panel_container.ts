@@ -26,11 +26,7 @@ import {
 import {raf} from '../core/raf_scheduler';
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {canvasClip} from '../base/canvas_utils';
-import {
-  SELECTION_STROKE_COLOR,
-  TOPBAR_HEIGHT,
-  TRACK_SHELL_WIDTH,
-} from './css_constants';
+import {SELECTION_STROKE_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
@@ -66,6 +62,8 @@ export type PanelOrGroup = Panel | PanelGroup;
 export interface PanelContainerAttrs extends TraceImplAttrs {
   panels: PanelOrGroup[];
   className?: string;
+  selectedYRange: VerticalBounds | undefined;
+
   onPanelStackResize?: (width: number, height: number) => void;
 
   // Called after all panels have been rendered to the canvas, to give the
@@ -87,6 +85,7 @@ interface PanelInfo {
   width: number;
   clientX: number;
   clientY: number;
+  absY: number;
 }
 
 export interface RenderedPanelInfo {
@@ -98,11 +97,7 @@ export class PanelContainer
   implements m.ClassComponent<PanelContainerAttrs>, PerfStatsSource
 {
   private readonly trace: TraceImpl;
-
-  // These values are updated with proper values in oncreate.
-  // Y position of the panel container w.r.t. the client
-  private panelContainerTop = 0;
-  private panelContainerHeight = 0;
+  private attrs: PanelContainerAttrs;
 
   // Updated every render cycle in the view() hook
   private panelById = new Map<string, Panel>();
@@ -125,8 +120,9 @@ export class PanelContainer
   private readonly PANEL_STACK_REF = 'panel-stack';
 
   constructor({attrs}: m.CVnode<PanelContainerAttrs>) {
+    this.attrs = attrs;
     this.trace = attrs.trace;
-    const onRedraw = () => this.renderCanvas(attrs);
+    const onRedraw = () => this.renderCanvas();
     raf.addRedrawCallback(onRedraw);
     this.trash.defer(() => {
       raf.removeRedrawCallback(onRedraw);
@@ -155,8 +151,8 @@ export class PanelContainer
       if (
         realPosX + pos.width >= minX &&
         realPosX <= maxX &&
-        pos.clientY + pos.height >= minY &&
-        pos.clientY <= maxY &&
+        pos.absY + pos.height >= minY &&
+        pos.absY <= maxY &&
         pos.panel.selectable
       ) {
         panels.push(pos.panel);
@@ -168,24 +164,12 @@ export class PanelContainer
   // This finds the tracks covered by the in-progress area selection. When
   // editing areaY is not set, so this will not be used.
   handleAreaSelection() {
+    const {selectedYRange} = this.attrs;
     const area = this.trace.timeline.selectedArea;
     if (
       area === undefined ||
-      this.trace.timeline.areaY.start === undefined ||
-      this.trace.timeline.areaY.end === undefined ||
+      selectedYRange === undefined ||
       this.panelInfos.length === 0
-    ) {
-      return;
-    }
-    // Only get panels from the current panel container if the selection began
-    // in this container.
-    const panelContainerTop = this.panelInfos[0].clientY;
-    const panelContainerBottom =
-      this.panelInfos[this.panelInfos.length - 1].clientY +
-      this.panelInfos[this.panelInfos.length - 1].height;
-    if (
-      this.trace.timeline.areaY.start + TOPBAR_HEIGHT < panelContainerTop ||
-      this.trace.timeline.areaY.start + TOPBAR_HEIGHT > panelContainerBottom
     ) {
       return;
     }
@@ -204,9 +188,10 @@ export class PanelContainer
     const panels = this.getPanelsInRegion(
       visibleTimeScale.timeToPx(area.start),
       visibleTimeScale.timeToPx(area.end),
-      this.trace.timeline.areaY.start + TOPBAR_HEIGHT,
-      this.trace.timeline.areaY.end + TOPBAR_HEIGHT,
+      selectedYRange.top,
+      selectedYRange.bottom,
     );
+
     // Get the track ids from the panels.
     const trackUris: string[] = [];
     for (const panel of panels) {
@@ -255,7 +240,7 @@ export class PanelContainer
     });
 
     virtualCanvas.setLayoutShiftListener(() => {
-      this.renderCanvas(vnode.attrs);
+      this.renderCanvas();
     });
 
     this.onupdate(vnode);
@@ -314,6 +299,7 @@ export class PanelContainer
   }
 
   view({attrs}: m.CVnode<PanelContainerAttrs>) {
+    this.attrs = attrs;
     this.panelById.clear();
     const children = attrs.panels.map((panel, index) =>
       this.renderTree(panel, `${index}`),
@@ -338,12 +324,10 @@ export class PanelContainer
   private readPanelRectsFromDom(dom: Element): void {
     this.panelInfos = [];
 
+    const panel = dom.querySelectorAll('.pf-panel');
     const panels = assertExists(findRef(dom, this.PANEL_STACK_REF));
-    const domRect = panels.getBoundingClientRect();
-    this.panelContainerTop = domRect.y;
-    this.panelContainerHeight = domRect.height;
-
-    dom.querySelectorAll('.pf-panel').forEach((panelElement) => {
+    const {top} = panels.getBoundingClientRect();
+    panel.forEach((panelElement) => {
       const panelHTMLElement = toHTMLElement(panelElement);
       const panelId = assertExists(panelHTMLElement.dataset.panelId);
       const panel = assertExists(this.panelById.get(panelId));
@@ -356,12 +340,13 @@ export class PanelContainer
         width: rect.width,
         clientX: rect.x,
         clientY: rect.y,
+        absY: rect.y - top,
         panel,
       });
     });
   }
 
-  private renderCanvas(attrs: PanelContainerAttrs) {
+  private renderCanvas() {
     if (!this.ctx) return;
     if (!this.virtualCanvas) return;
 
@@ -378,8 +363,7 @@ export class PanelContainer
 
     this.handleAreaSelection();
 
-    const totalRenderedPanels = this.renderPanels(ctx, vc, attrs);
-
+    const totalRenderedPanels = this.renderPanels(ctx, vc);
     this.drawTopLayerOnCanvas(ctx, vc);
 
     // Collect performance as the last thing we do.
@@ -394,9 +378,8 @@ export class PanelContainer
   private renderPanels(
     ctx: CanvasRenderingContext2D,
     vc: VirtualCanvas,
-    attrs: PanelContainerAttrs,
   ): number {
-    attrs.renderUnderlay?.(ctx, vc.size);
+    this.attrs.renderUnderlay?.(ctx, vc.size);
 
     let panelTop = 0;
     let totalOnCanvas = 0;
@@ -449,7 +432,7 @@ export class PanelContainer
       panelTop += panelHeight;
     }
 
-    attrs.renderOverlay?.(ctx, vc.size, renderedPanels);
+    this.attrs.renderOverlay?.(ctx, vc.size, renderedPanels);
 
     return totalOnCanvas;
   }
@@ -460,39 +443,30 @@ export class PanelContainer
     ctx: CanvasRenderingContext2D,
     vc: VirtualCanvas,
   ): void {
+    const {selectedYRange} = this.attrs;
     const area = this.trace.timeline.selectedArea;
-    if (
-      area === undefined ||
-      this.trace.timeline.areaY.start === undefined ||
-      this.trace.timeline.areaY.end === undefined
-    ) {
+    if (area === undefined || selectedYRange === undefined) {
       return;
     }
-    if (this.panelInfos.length === 0 || area.trackUris.length === 0) return;
+    if (this.panelInfos.length === 0 || area.trackUris.length === 0) {
+      return;
+    }
 
     // Find the minY and maxY of the selected tracks in this panel container.
-    let selectedTracksMinY = this.panelContainerHeight + this.panelContainerTop;
-    let selectedTracksMaxY = this.panelContainerTop;
-    let trackFromCurrentContainerSelected = false;
+    let selectedTracksMinY = selectedYRange.top;
+    let selectedTracksMaxY = selectedYRange.bottom;
     for (let i = 0; i < this.panelInfos.length; i++) {
       const trackUri = this.panelInfos[i].trackNode?.uri;
       if (trackUri && area.trackUris.includes(trackUri)) {
-        trackFromCurrentContainerSelected = true;
         selectedTracksMinY = Math.min(
           selectedTracksMinY,
-          this.panelInfos[i].clientY,
+          this.panelInfos[i].absY,
         );
         selectedTracksMaxY = Math.max(
           selectedTracksMaxY,
-          this.panelInfos[i].clientY + this.panelInfos[i].height,
+          this.panelInfos[i].absY + this.panelInfos[i].height,
         );
       }
-    }
-
-    // No box should be drawn if there are no selected tracks in the current
-    // container.
-    if (!trackFromCurrentContainerSelected) {
-      return;
     }
 
     // TODO(stevegolton): We shouldn't know anything about visible time scale
@@ -506,9 +480,6 @@ export class PanelContainer
 
     const startX = visibleTimeScale.timeToPx(area.start);
     const endX = visibleTimeScale.timeToPx(area.end);
-    // To align with where to draw on the canvas subtract the first panel Y.
-    selectedTracksMinY -= this.panelContainerTop;
-    selectedTracksMaxY -= this.panelContainerTop;
     ctx.save();
     ctx.strokeStyle = SELECTION_STROKE_COLOR;
     ctx.lineWidth = 1;
