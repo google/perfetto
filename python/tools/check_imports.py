@@ -14,17 +14,6 @@
 # limitations under the License.
 """
 Enforce import rules for https://ui.perfetto.dev.
-Directory structure encodes ideas about the expected dependency graph
-of the code in those directories. Both in a fuzzy sense: we expect code
-withing a directory to have high cohesion within the directory and low
-coupling (aka fewer imports) outside of the directory - but also
-concrete rules:
-- "base should not depend on the fronted"
-- "plugins should only directly depend on the public API"
-- "we should not have circular dependencies"
-
-Without enforcement exceptions to this rule quickly slip in. This
-script allows such rules to be enforced at presubmit time.
 """
 
 import sys
@@ -32,319 +21,141 @@ import os
 import re
 import collections
 import argparse
+import fnmatch
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 UI_SRC_DIR = os.path.join(ROOT_DIR, 'ui', 'src')
 
-# Current plan for the dependency tree of the UI code (2023-09-21)
-# black = current
-# red = planning to remove
-# green = planning to add
-PLAN_DOT = """
-digraph g {
-    mithril [shape=rectangle, label="mithril"];
-    protos [shape=rectangle, label="//protos/perfetto"];
+NODE_MODULES = '%node_modules%'  # placeholder to depend on any node module.
 
-    _gen [shape=ellipse, label="/gen"];
-    _base [shape=ellipse, label="/base"];
-    _core [shape=ellipse, label="/core"];
-    _engine [shape=ellipse, label="/engine"];
+# The format of this array is: (src) -> (dst).
+# If src or dst are arrays, the semantic is the cartesian product, e.g.:
+# [a,b] -> [c,d] is equivalent to allowing a>c, a>d, b>c, b>d.
+DEPS_ALLOWLIST = [
+    # Everything can depend on base/, protos and NPM packages.
+    ('*', ['/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES]),
 
-    _frontend [shape=ellipse, label="/frontend" color=red];
-    _common [shape=ellipse, label="/common" color=red];
-    _controller [shape=ellipse, label="/controller" color=red];
-    _tracks [shape=ellipse, label="/tracks" color=red];
+    # Integration tests can depend on everything.
+    ('/test/*', '*'),
 
-    _widgets [shape=ellipse, label="/widgets"];
-
-    _public [shape=ellipse, label="/public"];
-    _plugins [shape=ellipse, label="/plugins"];
-    _chrome_extension [shape=ellipse, label="/chrome_extension"];
-    _trace_processor [shape=ellipse, label="/trace_processor" color="green"];
-    _protos [shape=ellipse, label="/protos"];
-    engine_worker_bundle [shape=cds, label="Engine worker bundle"];
-    frontend_bundle [shape=cds, label="Frontend bundle"];
-
-    engine_worker_bundle -> _engine;
-    frontend_bundle -> _core [color=green];
-    frontend_bundle -> _frontend [color=red];
-
-    _core -> _public;
-    _plugins -> _public;
-
-    _widgets -> _base;
-    _core -> _base;
-    _core -> _widgets;
-
-
-    _widgets -> mithril;
-    _plugins -> mithril;
-    _core -> mithril
-
-    _plugins -> _widgets;
-
-    _core -> _chrome_extension;
-
-    _frontend -> _widgets [color=red];
-    _common -> _core [color=red];
-    _frontend -> _core [color=red];
-    _controller -> _core [color=red];
-
-    _frontend -> _controller [color=red];
-    _frontend -> _common [color=red];
-    _controller -> _frontend  [color=red];
-    _controller -> _common [color=red];
-    _common -> _controller [color=red];
-    _common -> _frontend [color=red];
-    _tracks -> _frontend  [color=red];
-    _tracks -> _controller  [color=red];
-    _common -> _chrome_extension [color=red];
-
-    _core -> _trace_processor [color=green];
-
-    _engine -> _trace_processor [color=green];
-    _engine -> _common [color=red];
-    _engine -> _base;
-
-    _gen -> protos;
-    _core -> _gen [color=red];
-
-    _core -> _protos;
-    _protos -> _gen;
-    _trace_processor -> _protos [color=green];
-
-    _trace_processor -> _public [color=green];
-
-    npm_trace_processor [shape=cds, label="npm trace_processor" color="green"];
-    npm_trace_processor -> engine_worker_bundle [color="green"];
-    npm_trace_processor -> _trace_processor [color="green"];
-}
-"""
-
-
-class Failure(object):
-
-  def __init__(self, path, rule):
-    self.path = path
-    self.rule = rule
-
-  def __str__(self):
-    nice_path = ["ui/src" + name + ".ts" for name in self.path]
-    return ''.join([
-        'Forbidden dependency path:\n\n ',
-        '\n    -> '.join(nice_path),
-        '\n',
-        '\n',
-        str(self.rule),
-        '\n',
-    ])
-
-
-class AllowList(object):
-
-  def __init__(self, allowed, dst, reasoning):
-    self.allowed = allowed
-    self.dst = dst
-    self.reasoning = reasoning
-
-  def check(self, graph):
-    for node, edges in graph.items():
-      for edge in edges:
-        if re.match(self.dst, edge):
-          if not any(re.match(a, node) for a in self.allowed):
-            yield Failure([node, edge], self)
-
-  def __str__(self):
-    return f'Only items in the allowlist ({self.allowed}) may directly depend on "{self.dst}" ' + self.reasoning
-
-
-class NoDirectDep(object):
-
-  def __init__(self, src, dst, reasoning):
-    self.src = src
-    self.dst = dst
-    self.reasoning = reasoning
-
-  def check(self, graph):
-    for node, edges in graph.items():
-      if re.match(self.src, node):
-        for edge in edges:
-          if re.match(self.dst, edge):
-            yield Failure([node, edge], self)
-
-  def __str__(self):
-    return f'"{self.src}" may not directly depend on "{self.dst}" ' + self.reasoning
-
-
-class NoDep(object):
-
-  def __init__(self, src, dst, reasoning):
-    self.src = src
-    self.dst = dst
-    self.reasoning = reasoning
-
-  def check(self, graph):
-    for node in graph:
-      if re.match(self.src, node):
-        for connected, path in bfs(graph, node):
-          if re.match(self.dst, connected):
-            yield Failure(path, self)
-
-  def __str__(self):
-    return f'"{self.src}" may not depend on "{self.dst}" ' + self.reasoning
-
-
-class NoCircularDeps(object):
-
-  def __init__(self):
-    pass
-
-  def check(self, graph):
-    for node in graph:
-      for child in graph[node]:
-        for reached, path in dfs(graph, child):
-          if reached == node:
-            yield Failure([node] + path, self)
-
-  def __str__(self):
-    return f'circular dependencies can cause complex issues'
-
-
-# We have three kinds of rules:
-# NoDirectDep(a, b) = files matching regex 'a' cannot *directly* import
-#   files matching regex 'b' - but they may indirectly depend on them.
-# NoDep(a, b) = as above but 'a' may not even transitively import 'b'.
-# NoCircularDeps = forbid introduction of circular dependencies
-RULES = [
-    AllowList(
-        ['/protos/index'],
-        r'/gen/protos',
-        'protos should be re-exported from /protos/index without the nesting.',
-    ),
-    NoDirectDep(
-        r'/plugins/.*',
-        r'/core/.*',
-        'instead plugins should depend on the API exposed at ui/src/public.',
-    ),
-    NoDirectDep(
-        r"/frontend/.*",
-        r"/core_plugins/.*",
-        "core code should not depend on plugins.",
-    ),
-    NoDirectDep(
-        r"/core/.*",
-        r"/core_plugins/.*",
-        "core code should not depend on plugins.",
-    ),
-    NoDirectDep(
-        r"/base/.*",
-        r"/core_plugins/.*",
-        "core code should not depend on plugins.",
-    ),
-    NoDep(
-        r'/core/.*',
-        r'/plugins/.*',
-        'otherwise the plugins are no longer optional.',
-    ),
-    NoDep(
-        r'/core/.*',
-        r'/frontend/.*',
-        'trying to reduce the dependency mess as we refactor into core',
-    ),
-    NoDep(
-        r'/core/.*',
-        r'/common/.*',
-        'trying to reduce the dependency mess as we refactor into core',
-    ),
-    NoDep(
-        r'/core/.*',
-        r'/controller/.*',
-        'trying to reduce the dependency mess as we refactor into core',
-    ),
-    NoDep(
-        r'/base/.*',
-        r'/core/.*',
-        'core should depend on base not the other way round',
-    ),
-    NoDep(
-        r'/base/.*',
-        r'/common/.*',
-        'common should depend on base not the other way round',
-    ),
-    NoDep(
-        r'/common/.*',
-        r'/chrome_extension/.*',
-        'chrome_extension must be a leaf',
+    # Dependencies allowed for internal UI code.
+    (
+        [
+            '/frontend/*',
+            '/core/*',
+            '/common/*',
+        ],
+        [
+            '/frontend/*',
+            '/core/*',
+            '/common/*',
+            '/public/*',
+            '/trace_processor/*',
+            '/widgets/*',
+            '/protos/*',
+            '/gen/perfetto_version',
+        ],
     ),
 
-    # Widgets
-    NoDep(
-        r'/widgets/.*',
-        r'/frontend/.*',
-        'widgets should only depend on base',
-    ),
-    NoDep(
-        r'/widgets/.*',
-        r'/core/.*',
-        'widgets should only depend on base',
-    ),
-    NoDep(
-        r'/widgets/.*',
-        r'/plugins/.*',
-        'widgets should only depend on base',
-    ),
-    NoDep(
-        r'/widgets/.*',
-        r'/common/.*',
-        'widgets should only depend on base',
+    # /public (interfaces + lib) can depend only on a restricted surface.
+    ('/public/*', ['/base/*', '/trace_processor/*']),
+
+    # /public/lib can also depend on the plublic interface and widgets.
+    ('/public/lib/*', ['/public/*', '/frontend/widgets/*', '/widgets/*']),
+
+    # /plugins (and core_plugins) can depend only on a restricted surface.
+    (
+        '/*plugins/*',
+        [
+            '/base/*',
+            '/public/*',
+            '/trace_processor/*',
+            '/widgets/*',
+            '/frontend/widgets/*',
+        ],
     ),
 
-    # Bigtrace
-    NoDep(
-        r'/bigtrace/.*',
-        r'/frontend/.*',
-        'bigtrace should not depend on frontend',
-    ),
-    NoDep(
-        r'/bigtrace/.*',
-        r'/common/.*',
-        'bigtrace should not depend on common',
-    ),
-    NoDep(
-        r'/bigtrace/.*',
-        r'/engine/.*',
-        'bigtrace should not depend on engine',
-    ),
-    NoDep(
-        r'/bigtrace/.*',
-        r'/trace_processor/.*',
-        'bigtrace should not depend on trace_processor',
-    ),
-    NoDep(
-        r'/bigtrace/.*',
-        r'/traceconv/.*',
-        'bigtrace should not depend on traceconv',
-    ),
-    NoDep(
-        r'/bigtrace/.*',
-        r'/tracks/.*',
-        'bigtrace should not depend on tracks',
-    ),
-    NoDep(
-        r'/bigtrace/.*',
-        r'/controller/.*',
-        'bigtrace should not depend on controller',
+    # Extra dependencies allowed for core_plugins only.
+    # TODO(priniano): remove this entry to figure out what it takes to move the
+    # remaining /core_plugins to /plugins and get rid of core_plugins.
+    (
+        ['/core_plugins/*'],
+        ['/core/*', '/frontend/*', '/common/actions'],
     ),
 
-    # Fails at the moment as we have several circular dependencies. One
-    # example:
-    # ui/src/frontend/cookie_consent.ts
-    #    -> ui/src/frontend/globals.ts
-    #    -> ui/src/frontend/router.ts
-    #    -> ui/src/frontend/pages.ts
-    #    -> ui/src/frontend/cookie_consent.ts
-    #NoCircularDeps(),
+    # Miscl legitimate deps.
+    ('/frontend/index', ['/gen/*']),
+    ('/traceconv/index', '/gen/traceconv'),
+    ('/engine/wasm_bridge', '/gen/trace_processor'),
+    ('/trace_processor/sql_utils/*', '/trace_processor/*'),
+    ('/protos/index', '/gen/protos'),
+
+    # ------ Technical debt that needs cleaning up below this point ------
+
+    # TODO(primiano): this dependency for BaseSliceTrack & co needs to be moved
+    # to /public/lib or something similar.
+    ('/*plugins/*', '/frontend/*track'),
+
+    # TODO(primiano): clean up generic_slice_details_tab.
+    ('/*plugins/*', '/frontend/generic_slice_details_tab'),
+
+    # TODO(primiano): these dependencies require a discussion with stevegolton@.
+    # unclear if they should be moved to public/lib/* or be part of the
+    # {Base/Named/Slice}Track overhaul.
+    ('/*plugins/*', [
+        '/frontend/slice_layout',
+        '/frontend/slice_args',
+        '/frontend/checkerboard',
+        '/common/track_helper',
+        '/common/track_data',
+    ]),
+
+    # TODO(primiano): clean up dependencies on feature flags.
+    (['/public/lib/colorizer'], '/core/feature_flags'),
+
+    # TODO(primiano): Record page-related technical debt.
+    ('/frontend/record_*', '/controller/*'),
+    ('/common/*', '/controller/record_config_types'),
+    ('/controller/index', '/common/recordingV2/target_factories/index'),
+    ('/common/recordingV2/*', '/controller/*'),
+    ('/controller/record_controller*', '*'),
+    ('/controller/adb_*', '*'),
+    ('/chrome_extension/chrome_tracing_controller', '/controller/*'),
+    ('/chrome_extension/chrome_tracing_controller', '/core/trace_config_utils'),
+
+    # TODO(primiano): query-table tech debt.
+    (
+        '/public/lib/query_table/query_table',
+        ['/frontend/*', '/core/app_impl', '/core/router'],
+    ),
+
+    # TODO(primiano): debug_tracks tech debt.
+    ('/public/lib/debug_tracks/*', [
+        '/frontend/base_counter_track',
+        '/frontend/slice_args',
+        '/frontend/tracks/custom_sql_table_slice_track',
+        '/frontend/tracks/generic_slice_details_tab',
+    ]),
+
+    # TODO(primiano): controller-related tech debt.
+    ('/frontend/index', '/controller/*'),
+    ('/controller/*', ['/base/*', '/core/*', '/common/*']),
+
+    # TODO(primiano): check this with stevegolton@. Unclear if widgets should
+    # be allowed to depend on trace_processor.
+    ('/widgets/vega_view', '/trace_processor/*'),
+
+    # Bigtrace deps.
+    ('/bigtrace/*', ['/base/*', '/widgets/*', '/trace_processor/*']),
+
+    # TODO(primiano): rationalize recordingv2. RecordingV2 is a mess of subdirs.
+    ('/common/recordingV2/*', '/common/recordingV2/*'),
+
+    # TODO(primiano): misc tech debt.
+    ('/public/lib/extensions', '/frontend/*'),
+    ('/bigtrace/index', ['/core/live_reload', '/core/raf_scheduler']),
+    ('/plugins/dev.perfetto.HeapProfile/*', '/frontend/trace_converter'),
 ]
 
 
@@ -371,22 +182,78 @@ def remove_suffix(s, suffix):
   return s[:-len(suffix)] if s.endswith(suffix) else s
 
 
+def normalize_path(path):
+  return remove_suffix(remove_prefix(path, UI_SRC_DIR), '.ts')
+
+
+def find_plugin_declared_deps(path):
+  """Returns the set of deps declared by the plugin (if any)
+
+  It scans the plugin/index.ts file, and resolves the declared dependencies,
+  working out the path of the plugin we depend on (by looking at the imports).
+  Returns a tuple of the form (src_plugin_path, set{dst_plugin_path})
+  Where:
+    src_plugin_path: is the normalized path of the input (e.g. /plugins/foo)
+    dst_path: is the normalized path of the declared dependency.
+  """
+  src = normalize_path(path)
+  src_plugin = get_plugin_path(src)
+  if src_plugin is None or src != src_plugin + '/index':
+    # If the file is not a plugin, or is not the plugin index.ts, bail out.
+    return
+  # First extract all the default-imports in the file. Usually there is one for
+  # each imported plugin, of the form:
+  # import ThreadPlugin from '../plugins/dev.perfetto.Thread'
+  import_map = {}  # 'ThreadPlugin' -> '/plugins/dev.perfetto.Thread'
+  for (src, target, default_import) in find_imports(path):
+    target_plugin = get_plugin_path(target)
+    if default_import is not None or target_plugin is not None:
+      import_map[default_import] = target_plugin
+
+  # Now extract the declared dependencies for the plugin. This looks for the
+  # statement 'static readonly dependencies = [ThreadPlugin]'. It can be broken
+  # down over multiple lines, so we approach this in two steps. First we find
+  # everything within the square brackets; then we remove spaces and \n and
+  # tokenize on commas
+  with open(path) as f:
+    s = f.read()
+  DEP_REGEX = r'^\s*static readonly dependencies\s*=\s*\[([^\]]*)\]'
+  all_deps = re.findall(DEP_REGEX, s, flags=re.MULTILINE)
+  if len(all_deps) == 0:
+    return
+  if len(all_deps) > 1:
+    raise Exception('Ambiguous plugin deps in %s: %s' % (path, all_deps))
+  declared_deps = re.sub('\s*', '', all_deps[0]).split(',')
+  for imported_as in declared_deps:
+    resolved_dep = import_map.get(imported_as)
+    if resolved_dep is None:
+      raise Exception('Could not resolve import %s in %s' % (imported_as, src))
+    yield (src_plugin, resolved_dep)
+
+
 def find_imports(path):
-  src = path
-  src = remove_prefix(src, UI_SRC_DIR)
-  src = remove_suffix(src, '.ts')
+  src = normalize_path(path)
   directory, _ = os.path.split(src)
   with open(path) as f:
     s = f.read()
-    for m in re.finditer("^import[^']*'([^']*)';", s, flags=re.MULTILINE):
-      raw_target = m[1]
-      if raw_target.startswith('.'):
-        target = os.path.normpath(os.path.join(directory, raw_target))
-        if is_dir(UI_SRC_DIR + target):
-          target = os.path.join(target, 'index')
-      else:
-        target = raw_target
-      yield (src, target)
+  for m in re.finditer(
+      "^import\s+([^;]+)\s+from\s+'([^']+)';$", s, flags=re.MULTILINE):
+    # Flatten multi-line imports into one line, removing spaces. The resulting
+    # import line can look like:
+    # '{foo,bar,baz}' in most cases
+    # 'DefaultImportName' when doing import DefaultImportName from '...'
+    # 'DefaultImportName,{foo,bar,bar}' when doing a mixture of the above.
+    imports = re.sub('\s', '', m[1])
+    default_import = (re.findall('^\w+', imports) + [None])[0]
+
+    # Normalize the imported file
+    target = m[2]
+    if target.startswith('.'):
+      target = os.path.normpath(os.path.join(directory, target))
+      if is_dir(UI_SRC_DIR + target):
+        target = os.path.join(target, 'index')
+
+    yield (src, target, default_import)
 
 
 def path_to_id(path):
@@ -399,42 +266,6 @@ def path_to_id(path):
 
 def is_external_dep(path):
   return not path.startswith('/')
-
-
-def bfs(graph, src):
-  seen = set()
-  queue = [(src, [])]
-
-  while queue:
-    node, path = queue.pop(0)
-    if node in seen:
-      continue
-
-    seen.add(node)
-
-    path = path[:]
-    path.append(node)
-
-    yield node, path
-    queue.extend([(child, path) for child in graph[node]])
-
-
-def dfs(graph, src):
-  seen = set()
-  queue = [(src, [])]
-
-  while queue:
-    node, path = queue.pop()
-    if node in seen:
-      continue
-
-    seen.add(node)
-
-    path = path[:]
-    path.append(node)
-
-    yield node, path
-    queue.extend([(child, path) for child in graph[node]])
 
 
 def write_dot(graph, f):
@@ -450,20 +281,95 @@ def write_dot(graph, f):
   print('}', file=f)
 
 
-def do_check(options, graph):
+def get_plugin_path(path):
+  m = re.match('^(/(?:core_)?plugins/([^/]+))/.*', path)
+  return m.group(1) if m is not None else None
+
+
+def flatten_rules(rules):
+  flat_deps = []
+  for rule_src, rule_dst in rules:
+    src_list = rule_src if isinstance(rule_src, list) else [rule_src]
+    dst_list = rule_dst if isinstance(rule_dst, list) else [rule_dst]
+    for src in src_list:
+      for dst in dst_list:
+        flat_deps.append((src, dst))
+  return flat_deps
+
+
+def get_node_modules(graph):
+  """Infers the dependencies onto NPM packages (node_modules)
+
+  An import is guessed to be a node module if doesn't contain any . or .. in the
+  path, and optionally starts with @.
+  """
+  node_modules = set()
+  for _, imports in graph.items():
+    for dst in imports:
+      if re.match(r'^[@a-z][a-z0-9-_/]+$', dst):
+        node_modules.add(dst)
+  return node_modules
+
+
+def check_one_import(src, dst, allowlist, plugin_declared_deps, node_modules):
+  # Translate node_module deps into the wildcard '%node_modules%' so it can be
+  # treated as a single entity.
+  if dst in node_modules:
+    dst = NODE_MODULES
+
+  # Always allow imports from the same directory or its own subdirectories.
+  src_dir = '/'.join(src.split('/')[:-1])
+  dst_dir = '/'.join(dst.split('/')[:-1])
+  if dst_dir.startswith(src_dir):
+    return True
+
+  # Match against the (flattened) allowlist.
+  for rule_src, rule_dst in allowlist:
+    if fnmatch.fnmatch(src, rule_src) and fnmatch.fnmatch(dst, rule_dst):
+      return True
+
+  # Check inter-plugin deps.
+  src_plugin = get_plugin_path(src)
+  dst_plugin = get_plugin_path(dst)
+  extra_err = ''
+  if src_plugin is not None and dst_plugin is not None:
+    if src_plugin == dst_plugin:
+      # Allow a plugin to depends on arbitrary subdirectories of itself.
+      return True
+    # Check if there is a dependency declared by plugins, via
+    # static readonly dependencies = [DstPlugin]
+    declared_deps = plugin_declared_deps.get(src_plugin, set())
+    extra_err = '(plugin deps: %s)' % ','.join(declared_deps)
+    if dst_plugin in declared_deps:
+      return True
+  print('Import not allowed %s -> %s %s' % (src, dst, extra_err))
+  return False
+
+
+def do_check(_options, graph):
   result = 0
-  for rule in RULES:
-    for failure in rule.check(graph):
-      print(failure)
-      result = 1
+  rules = flatten_rules(DEPS_ALLOWLIST)
+  node_modules = get_node_modules(graph)
+
+  # Build a map of depencies declared between plugin. The maps looks like:
+  # 'Foo' -> {'Bar', 'Baz'}  # Foo declares a dependency on Bar and Baz
+  plugin_declared_deps = collections.defaultdict(set)
+  for path in all_source_files():
+    for src_plugin, dst_plugin in find_plugin_declared_deps(path):
+      plugin_declared_deps[src_plugin].add(dst_plugin)
+
+  for src, imports in graph.items():
+    for dst in imports:
+      if not check_one_import(src, dst, rules, plugin_declared_deps,
+                              node_modules):
+        result = 1
   return result
 
 
 def do_desc(options, graph):
   print('Rules:')
-  for rule in RULES:
-    print("  - ", end='')
-    print(rule)
+  for rule in flatten_rules(DEPS_ALLOWLIST):
+    print(' - %s' % rule)
 
 
 def do_print(options, graph):
@@ -479,13 +385,12 @@ def do_dot(options, graph):
       return path
     return os.path.dirname(path)
 
-  if options.simplify:
-    new_graph = collections.defaultdict(set)
-    for node, edges in graph.items():
-      for edge in edges:
-        new_graph[simplify(edge)]
-        new_graph[simplify(node)].add(simplify(edge))
-    graph = new_graph
+  new_graph = collections.defaultdict(set)
+  for node, edges in graph.items():
+    for edge in edges:
+      new_graph[simplify(edge)]
+      new_graph[simplify(node)].add(simplify(edge))
+  graph = new_graph
 
   if options.ignore_external:
     new_graph = collections.defaultdict(set)
@@ -500,11 +405,6 @@ def do_dot(options, graph):
     graph = new_graph
 
   write_dot(graph, sys.stdout)
-  return 0
-
-
-def do_plan_dot(options, _):
-  print(PLAN_DOT, file=sys.stdout)
   return 0
 
 
@@ -525,29 +425,21 @@ def main():
 
   dot_command = subparsers.add_parser(
       'dot',
-      help='Output dependency graph in dot format suitble for use in graphviz (e.g. ./tools/check_imports dot | dot -Tpng -ograph.png)'
-  )
+      help='Output dependency graph in dot format suitble for use in ' +
+      'graphviz (e.g. ./tools/check_imports dot | dot -Tpng -ograph.png)')
   dot_command.set_defaults(func=do_dot)
-  dot_command.add_argument(
-      '--simplify',
-      action='store_true',
-      help='Show directories rather than files',
-  )
   dot_command.add_argument(
       '--ignore-external',
       action='store_true',
       help='Don\'t show external dependencies',
   )
 
-  plan_dot_command = subparsers.add_parser(
-      'plan-dot',
-      help='Output planned dependency graph in dot format suitble for use in graphviz (e.g. ./tools/check_imports plan-dot | dot -Tpng -ograph.png)'
-  )
-  plan_dot_command.set_defaults(func=do_plan_dot)
-
+  # This is a general import graph of the form /plugins/foo/index -> /base/hash
   graph = collections.defaultdict(set)
+
+  # Build the dep graph
   for path in all_source_files():
-    for src, target in find_imports(path):
+    for src, target, _ in find_imports(path):
       graph[src].add(target)
       graph[target]
 

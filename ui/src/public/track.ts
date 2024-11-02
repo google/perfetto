@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {duration, time} from '../base/time';
-import {UntypedEventSet} from '../core/event_set';
 import {Size2D, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
@@ -174,11 +173,6 @@ export interface Track {
   onMouseMove?(event: TrackMouseEvent): void;
   onMouseClick?(event: TrackMouseEvent): boolean;
   onMouseOut?(): void;
-
-  /**
-   * Optional: Get the event set that represents this track's data.
-   */
-  getEventSet?(): UntypedEventSet;
 
   /**
    * Optional: Get details of a track event given by eventId on this track.
