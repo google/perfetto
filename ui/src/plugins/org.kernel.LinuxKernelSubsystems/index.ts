@@ -18,10 +18,13 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {AsyncSliceTrack} from '../dev.perfetto.AsyncSlices/async_slice_track';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
+import AsyncSlicesPlugin from '../dev.perfetto.AsyncSlices';
 
 // This plugin renders visualizations of subsystems of the Linux kernel.
 export default class implements PerfettoPlugin {
   static readonly id = 'org.kernel.LinuxKernelSubsystems';
+  static readonly dependencies = [AsyncSlicesPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const kernel = new TrackNode({
       title: 'Linux Kernel',

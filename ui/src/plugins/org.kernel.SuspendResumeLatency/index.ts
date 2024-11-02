@@ -24,6 +24,7 @@ import {Slice} from '../../public/track';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import ThreadPlugin from '../dev.perfetto.Thread';
+import AsyncSlicesPlugin from '../dev.perfetto.AsyncSlices';
 
 // SuspendResumeSliceTrack exists so as to override the `onSliceClick` function
 // in AsyncSliceTrack.
@@ -49,7 +50,7 @@ class SuspendResumeSliceTrack extends AsyncSliceTrack {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.kernel.SuspendResumeLatency';
-  static readonly dependencies = [ThreadPlugin];
+  static readonly dependencies = [ThreadPlugin, AsyncSlicesPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
