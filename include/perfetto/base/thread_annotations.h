@@ -256,8 +256,9 @@
 // warnings when it is known that the read is not actually involved in a race,
 // but the compiler cannot confirm that.
 #define PERFETTO_TS_UNCHECKED_READ(x) \
-  thread_safety_analysis::ts_unchecked_read(x)
+  perfetto::thread_safety_analysis::ts_unchecked_read(x)
 
+namespace perfetto {
 namespace thread_safety_analysis {
 
 // Takes a reference to a guarded data member, and returns an unguarded
@@ -274,5 +275,6 @@ inline T& ts_unchecked_read(T& v) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
 }
 
 }  // namespace thread_safety_analysis
+}  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_BASE_THREAD_ANNOTATIONS_H_
