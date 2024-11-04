@@ -40,13 +40,13 @@ import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
 } from './state_serialization';
-import {TraceInfo} from '../public/trace_info';
 import {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
-import {SerializedAppState} from '../public/state_serialization_schema';
-import {TraceSource} from '../public/trace_source';
+import {SerializedAppState} from './state_serialization_schema';
+import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
+import {TraceInfoImpl} from './trace_info_impl';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -354,7 +354,7 @@ async function computeVisibleTime(
 async function getTraceInfo(
   engine: Engine,
   traceSource: TraceSource,
-): Promise<TraceInfo> {
+): Promise<TraceInfoImpl> {
   const traceTime = await getTraceTimeBounds(engine);
 
   // Find the first REALTIME or REALTIME_COARSE clock snapshot.

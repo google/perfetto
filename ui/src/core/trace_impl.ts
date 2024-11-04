@@ -19,7 +19,6 @@ import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {EventListeners, Trace} from '../public/trace';
 import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
-import {TraceInfo} from '../public/trace_info';
 import {TrackDescriptor} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
 import {CommandManagerImpl} from './command_manager';
@@ -44,6 +43,7 @@ import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Analytics} from '../public/analytics';
 import {getOrCreate} from '../base/utils';
 import {fetchWithProgress} from '../base/http_utils';
+import {TraceInfoImpl} from './trace_info_impl';
 
 /**
  * Handles the per-trace state of the UI
@@ -61,7 +61,7 @@ class TraceContext implements Disposable {
   readonly selectionMgr: SelectionManagerImpl;
   readonly tabMgr = new TabManagerImpl();
   readonly timeline: TimelineImpl;
-  readonly traceInfo: TraceInfo;
+  readonly traceInfo: TraceInfoImpl;
   readonly trackMgr = new TrackManagerImpl();
   readonly workspaceMgr = new WorkspaceManagerImpl();
   readonly noteMgr = new NoteManagerImpl();
@@ -77,7 +77,7 @@ class TraceContext implements Disposable {
   // what TraceProcessor reports on the stats table at import time.
   readonly loadingErrors: string[] = [];
 
-  constructor(gctx: AppContext, engine: EngineBase, traceInfo: TraceInfo) {
+  constructor(gctx: AppContext, engine: EngineBase, traceInfo: TraceInfoImpl) {
     this.appCtx = gctx;
     this.engine = engine;
     this.trash.use(engine);
@@ -179,7 +179,7 @@ export class TraceImpl implements Trace {
   static createInstanceForCore(
     appImpl: AppImpl,
     engine: EngineBase,
-    traceInfo: TraceInfo,
+    traceInfo: TraceInfoImpl,
   ): TraceImpl {
     const traceCtx = new TraceContext(
       appImpl.__appCtxForTraceImplCtor,
@@ -321,7 +321,7 @@ export class TraceImpl implements Trace {
     return this.traceCtx.selectionMgr;
   }
 
-  get traceInfo(): TraceInfo {
+  get traceInfo(): TraceInfoImpl {
     return this.traceCtx.traceInfo;
   }
 

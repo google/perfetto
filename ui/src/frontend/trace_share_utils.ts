@@ -13,19 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TraceUrlSource} from '../public/trace_source';
+import {TraceUrlSource} from '../core/trace_source';
 import {createPermalink} from './permalink';
 import {showModal} from '../widgets/modal';
 import {onClickCopy} from './clipboard';
 import {globals} from './globals';
 import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
+import {TraceImpl} from '../core/trace_impl';
 
 export function isShareable(trace: Trace) {
   return globals.isInternalUser && trace.traceInfo.downloadable;
 }
 
-export async function shareTrace(trace: Trace) {
+export async function shareTrace(trace: TraceImpl) {
   const traceSource = trace.traceInfo.source;
   const traceUrl = (traceSource as TraceUrlSource).url ?? '';
 
