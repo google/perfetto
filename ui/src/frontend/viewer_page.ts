@@ -114,6 +114,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
     this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
     this.overviewTimelinePanel = new OverviewTimelinePanel(vnode.attrs.trace);
     this.notesPanel = new NotesPanel(vnode.attrs.trace);
+    this.timeSelectionPanel = new TimeSelectionPanel(vnode.attrs.trace);
   }
 
   oncreate({dom, attrs}: m.CVnodeDOM<PageWithTraceAttrs>) {

@@ -90,6 +90,7 @@ export class QueryResultTab implements Tab {
 
   render(): m.Children {
     return m(QueryTable, {
+      trace: this.trace,
       query: this.args.query,
       resp: this.queryResponse,
       fillParent: true,

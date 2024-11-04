@@ -24,12 +24,13 @@ import {Button} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {downloadData} from '../../../frontend/download_utils';
-import {globals} from '../../../frontend/globals';
 import {Router} from '../../../core/router';
 import {scrollTo} from '../../scroll_helper';
 import {AppImpl} from '../../../core/app_impl';
+import {Trace} from '../../trace';
 
 interface QueryTableRowAttrs {
+  trace: Trace;
   row: Row;
   columns: string[];
 }
@@ -94,6 +95,12 @@ export function getSliceId(row: Row): number | undefined {
 }
 
 class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
+  private readonly trace: Trace;
+
+  constructor({attrs}: m.Vnode<QueryTableRowAttrs>) {
+    this.trace = attrs.trace;
+  }
+
   view(vnode: m.Vnode<QueryTableRowAttrs>) {
     const {row, columns} = vnode.attrs;
     const cells = columns.map((col) => this.renderCell(col, row[col]));
@@ -146,7 +153,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const sliceStart = Time.fromRaw(BigInt(row.ts));
     // row.dur can be negative. Clamp to 1ns.
     const sliceDur = BigintMath.max(BigInt(row.dur), 1n);
-    const trackUri = globals.trackManager.findTrack((td) =>
+    const trackUri = this.trace.tracks.findTrack((td) =>
       td.tags?.trackIds?.includes(trackId),
     )?.uri;
     if (trackUri !== undefined) {
@@ -162,7 +169,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
   }
 
   private selectSlice(sliceId: number, switchToCurrentSelectionTab: boolean) {
-    globals.selectionManager.selectSqlEvent('slice', sliceId, {
+    this.trace.selection.selectSqlEvent('slice', sliceId, {
       switchToCurrentSelectionTab,
       scrollToSelection: true,
     });
@@ -170,6 +177,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
 }
 
 interface QueryTableContentAttrs {
+  trace: Trace;
   resp: QueryResponse;
 }
 
@@ -190,7 +198,7 @@ class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
     const tableHeader = m('tr', cols);
 
     const rows = resp.rows.map((row) =>
-      m(QueryTableRow, {row, columns: resp.columns}),
+      m(QueryTableRow, {trace: vnode.attrs.trace, row, columns: resp.columns}),
     );
 
     if (resp.error) {
@@ -206,6 +214,7 @@ class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
 }
 
 interface QueryTableAttrs {
+  trace: Trace;
   query: string;
   resp?: QueryResponse;
   contextButtons?: m.Child[];
@@ -213,6 +222,12 @@ interface QueryTableAttrs {
 }
 
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
+  private readonly trace: Trace;
+
+  constructor({attrs}: m.CVnode<QueryTableAttrs>) {
+    this.trace = attrs.trace;
+  }
+
   view({attrs}: m.CVnode<QueryTableAttrs>) {
     const {resp, query, contextButtons = [], fillParent} = attrs;
 
@@ -278,7 +293,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
             'Only the results for the last statement are displayed.',
           ),
         ),
-      m(QueryTableContent, {resp}),
+      m(QueryTableContent, {trace: this.trace, resp}),
     );
   }
 }
