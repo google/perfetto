@@ -19,7 +19,7 @@ import {
   SerializedPluginState,
   SerializedSelection,
   SerializedAppState,
-} from '../public/state_serialization_schema';
+} from './state_serialization_schema';
 import {TimeSpan} from '../base/time';
 import {TraceImpl} from './trace_impl';
 
