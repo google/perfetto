@@ -90,7 +90,7 @@ message AndroidKeyEvent {
   optional int32 device_id = 6;
   // Use a signed int for display_id, because -1 (DISPLAY_IS_NONE) is a common value.
   optional sint32 display_id = 7;
-  optional int32 key_code = 8;
+  optional int32 key_code = 8 [(.perfetto.protos.typedef) = "android.view.KeyEvent.KeyCode"];
   optional uint32 scan_code = 9;
   optional uint32 meta_state = 10 [(.perfetto.protos.typedef) ="android.view.KeyEvent.MetaState"];
   optional int32 repeat_count = 11;
