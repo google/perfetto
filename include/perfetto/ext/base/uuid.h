@@ -23,10 +23,12 @@
 #include <optional>
 #include <string>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 namespace base {
 
-class Uuid {
+class PERFETTO_EXPORT_COMPONENT Uuid {
  public:
   explicit Uuid(const std::string& s);
   explicit Uuid(int64_t lsb, int64_t msb);
