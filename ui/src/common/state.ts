@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {RecordConfig} from '../controller/record_config_types';
-import {TraceSource} from '../public/trace_source';
+import {TraceSource} from '../core/trace_source';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.

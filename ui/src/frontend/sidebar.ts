@@ -41,6 +41,7 @@ import {SidebarMenuItem} from '../public/sidebar';
 import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
 import {removeFalsyValues} from '../base/array_utils';
+import {TraceImpl} from '../core/trace_impl';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';
@@ -96,7 +97,7 @@ const EXPLORE_PAGE_IN_NAV_FLAG = featureFlags.register({
 });
 
 export interface OptionalTraceAttrs {
-  trace?: Trace;
+  trace?: TraceImpl;
 }
 
 function shouldShowHiringBanner(): boolean {
@@ -147,7 +148,7 @@ function insertSidebarMenuitems(
     });
 }
 
-function getSections(app: AppImpl, trace: Trace | undefined): Section[] {
+function getSections(app: AppImpl, trace: TraceImpl | undefined): Section[] {
   const downloadDisabled = trace?.traceInfo.downloadable
     ? undefined
     : 'Cannot download external trace';
@@ -315,7 +316,7 @@ async function convertTraceToJson(trace: Trace): Promise<void> {
   await convertTraceToJsonAndDownload(file);
 }
 
-function downloadTrace(trace: Trace) {
+function downloadTrace(trace: TraceImpl) {
   if (!trace.traceInfo.downloadable) return;
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
 

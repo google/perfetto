@@ -30,7 +30,7 @@ import {globals} from './globals';
 import {
   SERIALIZED_STATE_VERSION,
   SerializedAppState,
-} from '../public/state_serialization_schema';
+} from '../core/state_serialization_schema';
 import {z} from 'zod';
 import {showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
