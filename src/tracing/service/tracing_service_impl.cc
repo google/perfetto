@@ -3755,6 +3755,14 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
     PERFETTO_ELOG("Unable to read ro.build.fingerprint");
   }
 
+  std::string device_manufacturer_value =
+      base::GetAndroidProp("ro.product.manufacturer");
+  if (!device_manufacturer_value.empty()) {
+    info->set_android_device_manufacturer(device_manufacturer_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.product.manufacturer");
+  }
+
   std::string sdk_str_value = base::GetAndroidProp("ro.build.version.sdk");
   std::optional<uint64_t> sdk_value = base::StringToUInt64(sdk_str_value);
   if (sdk_value.has_value()) {
