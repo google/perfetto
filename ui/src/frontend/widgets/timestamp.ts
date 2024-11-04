@@ -24,7 +24,9 @@ import {
 import {raf} from '../../core/raf_scheduler';
 import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
-import {globals} from '../globals';
+import {Trace} from '../../public/trace';
+import {AppImpl} from '../../core/app_impl';
+import {assertExists} from '../../base/logging';
 
 // import {MenuItem, PopupMenu2} from './menu';
 
@@ -39,22 +41,29 @@ interface TimestampAttrs {
 }
 
 export class Timestamp implements m.ClassComponent<TimestampAttrs> {
+  private readonly trace: Trace;
+
+  constructor() {
+    // TODO(primiano): the Trace object should be injected into the attrs, but
+    // there are too many users of this class and doing so requires a larger
+    // refactoring CL. Either that or we should find a different way to plumb
+    // the hoverCursorTimestamp.
+    this.trace = assertExists(AppImpl.instance.trace);
+  }
+
   view({attrs}: m.Vnode<TimestampAttrs>) {
     const {ts} = attrs;
+    const timeline = this.trace.timeline;
     return m(
       PopupMenu2,
       {
         trigger: m(
           Anchor,
           {
-            onmouseover: () => {
-              globals.trace.timeline.hoverCursorTimestamp = ts;
-            },
-            onmouseout: () => {
-              globals.trace.timeline.hoverCursorTimestamp = undefined;
-            },
+            onmouseover: () => (timeline.hoverCursorTimestamp = ts),
+            onmouseout: () => (timeline.hoverCursorTimestamp = undefined),
           },
-          attrs.display ?? renderTimestamp(ts),
+          attrs.display ?? renderTimestamp(timeline.toDomainTime(ts)),
         ),
       },
       m(MenuItem, {
@@ -100,9 +109,8 @@ export function menuItemForFormat(
   });
 }
 
-function renderTimestamp(time: time): m.Children {
+function renderTimestamp(domainTime: time): m.Children {
   const fmt = timestampFormat();
-  const domainTime = globals.trace.timeline.toDomainTime(time);
   switch (fmt) {
     case TimestampFormat.UTC:
     case TimestampFormat.TraceTz:

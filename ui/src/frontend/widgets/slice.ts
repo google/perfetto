@@ -19,12 +19,12 @@ import {
 } from '../../trace_processor/sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {globals} from '../globals';
 import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
 import {
   createSqlIdRefRenderer,
   sqlIdRegistry,
 } from './sql/details/sql_ref_renderer_registry';
+import {AppImpl} from '../../core/app_impl';
 
 interface SliceRefAttrs {
   readonly id: SliceSqlId;
@@ -43,11 +43,16 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          globals.selectionManager.selectSqlEvent('slice', vnode.attrs.id, {
-            switchToCurrentSelectionTab:
-              vnode.attrs.switchToCurrentSelectionTab,
-            scrollToSelection: true,
-          });
+          // TODO(primiano): the Trace object should be properly injected here.
+          AppImpl.instance.trace?.selection.selectSqlEvent(
+            'slice',
+            vnode.attrs.id,
+            {
+              switchToCurrentSelectionTab:
+                vnode.attrs.switchToCurrentSelectionTab,
+              scrollToSelection: true,
+            },
+          );
         },
       },
       vnode.attrs.name,

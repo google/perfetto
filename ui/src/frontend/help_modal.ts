@@ -25,11 +25,11 @@ import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {assertExists} from '../base/logging';
 import {AppImpl} from '../core/app_impl';
 
-export function toggleHelp(app: AppImpl) {
-  app.analytics.logEvent('User Actions', 'Show help');
+export function toggleHelp() {
+  AppImpl.instance.analytics.logEvent('User Actions', 'Show help');
   showModal({
     title: 'Perfetto Help',
-    content: () => m(KeyMappingsHelp, {app}),
+    content: () => m(KeyMappingsHelp),
     buttons: [],
   });
 }
@@ -47,18 +47,14 @@ class EnglishQwertyKeyboardLayoutMap implements KeyboardLayoutMap {
   }
 }
 
-interface KeyMappingsHelpAtrs {
-  app: AppImpl;
-}
-
-class KeyMappingsHelp implements m.ClassComponent<KeyMappingsHelpAtrs> {
+class KeyMappingsHelp implements m.ClassComponent {
   private keyMap?: KeyboardLayoutMap;
 
-  oninit({attrs}: m.Vnode<KeyMappingsHelpAtrs>) {
+  oninit() {
     nativeKeyboardLayoutMap()
       .then((keyMap: KeyboardLayoutMap) => {
         this.keyMap = keyMap;
-        attrs.app.scheduleFullRedraw();
+        AppImpl.instance.scheduleFullRedraw();
       })
       .catch((e) => {
         if (
@@ -73,7 +69,7 @@ class KeyMappingsHelp implements m.ClassComponent<KeyMappingsHelpAtrs> {
           // The alternative would be to show key mappings for all keyboard
           // layouts which is not feasible.
           this.keyMap = new EnglishQwertyKeyboardLayoutMap();
-          attrs.app.scheduleFullRedraw();
+          AppImpl.instance.scheduleFullRedraw();
         } else {
           // Something unexpected happened. Either the browser doesn't conform
           // to the keyboard API spec, or the keyboard API spec has changed!
@@ -82,7 +78,7 @@ class KeyMappingsHelp implements m.ClassComponent<KeyMappingsHelpAtrs> {
       });
   }
 
-  view({attrs}: m.Vnode<KeyMappingsHelpAtrs>): m.Children {
+  view(): m.Children {
     return m(
       '.help',
       m('h2', 'Navigation'),
@@ -162,7 +158,7 @@ class KeyMappingsHelp implements m.ClassComponent<KeyMappingsHelpAtrs> {
       m('h2', 'Command Hotkeys'),
       m(
         'table',
-        attrs.app.commands.commands
+        AppImpl.instance.commands.commands
           .filter(({defaultHotkey}) => defaultHotkey)
           .sort((a, b) => a.name.localeCompare(b.name))
           .map(({defaultHotkey, name}) => {
