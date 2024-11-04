@@ -39,6 +39,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/kallsyms/kernel_symbol_map.h"
@@ -630,6 +631,33 @@ void FtraceController::RemoveDataSource(FtraceDataSource* data_source) {
   StopIfNeeded(instance);
 }
 
+bool DumpKprobeStats(const std::string& text, FtraceStats* ftrace_stats) {
+  int64_t hits = 0;
+  int64_t misses = 0;
+
+  base::StringSplitter line(std::move(text), '\n');
+  while (line.Next()) {
+    base::StringSplitter tok(line.cur_token(), line.cur_token_size() + 1, ' ');
+
+    if (!tok.Next())
+      return false;
+    // Skip the event name field
+
+    if (!tok.Next())
+      return false;
+    hits += static_cast<int64_t>(std::strtoll(tok.cur_token(), nullptr, 10));
+
+    if (!tok.Next())
+      return false;
+    misses += static_cast<int64_t>(std::strtoll(tok.cur_token(), nullptr, 10));
+  }
+
+  ftrace_stats->kprobe_stats.hits = hits;
+  ftrace_stats->kprobe_stats.misses = misses;
+
+  return true;
+}
+
 void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
                                        FtraceStats* stats_out) {
   FtraceInstanceState* instance =
@@ -645,6 +673,11 @@ void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
         static_cast<uint32_t>(symbol_map->num_syms());
     stats_out->kernel_symbols_mem_kb =
         static_cast<uint32_t>(symbol_map->size_bytes() / 1024);
+  }
+
+  if (data_source->parsing_config()->kprobes.size() > 0) {
+    DumpKprobeStats(instance->ftrace_procfs.get()->ReadKprobeStats(),
+                    stats_out);
   }
 }
 

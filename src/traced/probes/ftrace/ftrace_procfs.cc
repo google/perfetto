@@ -179,6 +179,11 @@ bool FtraceProcfs::RemoveKprobeEvent(const std::string& group,
   return AppendToFile(path, "-:" + group + "/" + name);
 }
 
+std::string FtraceProcfs::ReadKprobeStats() const {
+  std::string path = root_ + "/kprobe_profile";
+  return ReadFileIntoString(path);
+}
+
 bool FtraceProcfs::DisableEvent(const std::string& group,
                                 const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";

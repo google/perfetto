@@ -275,6 +275,12 @@ class TraceStorage {
     return std::nullopt;
   }
 
+  int64_t GetStats(size_t key) {
+    PERFETTO_DCHECK(key < stats::kNumKeys);
+    PERFETTO_DCHECK(stats::kTypes[key] == stats::kSingle);
+    return stats_[key].value;
+  }
+
   class ScopedStatsTracer {
    public:
     ScopedStatsTracer(TraceStorage* storage, size_t key)
