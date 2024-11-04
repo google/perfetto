@@ -106,7 +106,7 @@ export class PerfettoTestHelper {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async runCommand(cmdId: string, ...args: any[]) {
     await this.page.evaluate(
-      (arg) => self.globals.commandManager.runCommand(arg.cmdId, ...arg.args),
+      (arg) => self.app.commands.runCommand(arg.cmdId, ...arg.args),
       {cmdId, args},
     );
   }

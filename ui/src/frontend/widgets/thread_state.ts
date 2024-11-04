@@ -16,8 +16,8 @@ import m from 'mithril';
 import {ThreadStateSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {globals} from '../globals';
 import {ThreadState} from '../../trace_processor/sql_utils/thread_state';
+import {AppImpl} from '../../core/app_impl';
 
 interface ThreadStateRefAttrs {
   id: ThreadStateSqlId;
@@ -37,7 +37,8 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          globals.selectionManager.selectSqlEvent(
+          // TODO(primiano): the Trace object should be properly injected here.
+          AppImpl.instance.trace?.selection.selectSqlEvent(
             'thread_state',
             vnode.attrs.id,
             {

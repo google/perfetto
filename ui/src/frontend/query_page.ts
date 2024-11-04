@@ -122,6 +122,7 @@ export class QueryPage implements m.ClassComponent<PageWithTraceAttrs> {
       state.executedQuery === undefined
         ? null
         : m(QueryTable, {
+            trace: attrs.trace,
             query: state.executedQuery,
             resp: state.queryResult,
             fillParent: false,

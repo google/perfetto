@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import {TimeScale} from '../../base/time_scale';
-import {DragStrategy} from './drag_strategy';
+import {DragStrategy, DragStrategyUpdateTimeFn} from './drag_strategy';
 
 export class InnerDragStrategy extends DragStrategy {
   private dragStartPx = 0;
@@ -20,8 +20,9 @@ export class InnerDragStrategy extends DragStrategy {
   constructor(
     timeScale: TimeScale,
     private pixelBounds: [number, number],
+    updateVizTime: DragStrategyUpdateTimeFn,
   ) {
-    super(timeScale);
+    super(timeScale, updateVizTime);
   }
 
   onDrag(x: number) {

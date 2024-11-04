@@ -426,6 +426,10 @@ export interface TraceImplAttrs {
   trace: TraceImpl;
 }
 
+export interface OptionalTraceImplAttrs {
+  trace?: TraceImpl;
+}
+
 // Allows to take an existing class instance (`target`) and override some of its
 // methods via `overrides`. We use this for cases where we want to expose a
 // "manager" (e.g. TrackManager, SidebarManager) to the plugins, but we want to

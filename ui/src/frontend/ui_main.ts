@@ -39,7 +39,7 @@ import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_share_utils';
 import {AggregationsTabs} from './aggregation_tab';
-import {OmniboxManagerImpl, OmniboxMode} from '../core/omnibox_manager';
+import {OmniboxMode} from '../core/omnibox_manager';
 import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
@@ -90,7 +90,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.ShowHelp',
         name: 'Show help',
-        callback: () => toggleHelp(app),
+        callback: () => toggleHelp(),
         defaultHotkey: '?',
       },
     ];
@@ -367,8 +367,8 @@ export class UiMainPerTrace implements m.ClassComponent {
     });
   }
 
-  private renderOmnibox(app: AppImpl): m.Children {
-    const {omnibox} = app;
+  private renderOmnibox(): m.Children {
+    const omnibox = AppImpl.instance.omnibox;
     const omniboxMode = omnibox.mode;
     const statusMessage = omnibox.statusMessage;
     if (statusMessage !== undefined) {
@@ -380,9 +380,9 @@ export class UiMainPerTrace implements m.ClassComponent {
         }),
       );
     } else if (omniboxMode === OmniboxMode.Command) {
-      return this.renderCommandOmnibox(app);
+      return this.renderCommandOmnibox();
     } else if (omniboxMode === OmniboxMode.Prompt) {
-      return this.renderPromptOmnibox(omnibox);
+      return this.renderPromptOmnibox();
     } else if (omniboxMode === OmniboxMode.Query) {
       return this.renderQueryOmnibox();
     } else if (omniboxMode === OmniboxMode.Search) {
@@ -392,7 +392,8 @@ export class UiMainPerTrace implements m.ClassComponent {
     }
   }
 
-  renderPromptOmnibox(omnibox: OmniboxManagerImpl): m.Children {
+  renderPromptOmnibox(): m.Children {
+    const omnibox = AppImpl.instance.omnibox;
     const prompt = assertExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
@@ -437,8 +438,9 @@ export class UiMainPerTrace implements m.ClassComponent {
     });
   }
 
-  renderCommandOmnibox({commands, omnibox}: AppImpl): m.Children {
+  renderCommandOmnibox(): m.Children {
     // Fuzzy-filter commands by the filter string.
+    const {commands, omnibox} = AppImpl.instance;
     const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent
@@ -625,13 +627,11 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   view({children}: m.Vnode): m.Children {
-    const app = AppImpl.instance;
     const hotkeys: HotkeyConfig[] = [];
-    const commands = app.commands.commands;
-    for (const {id, defaultHotkey} of commands) {
+    for (const {id, defaultHotkey} of AppImpl.instance.commands.commands) {
       if (defaultHotkey) {
         hotkeys.push({
-          callback: () => app.commands.runCommand(id),
+          callback: () => AppImpl.instance.commands.runCommand(id),
           hotkey: defaultHotkey,
         });
       }
@@ -642,9 +642,9 @@ export class UiMainPerTrace implements m.ClassComponent {
       {hotkeys},
       m(
         'main',
-        m(Sidebar, {app, trace: this.trace}),
+        m(Sidebar, {trace: this.trace}),
         m(Topbar, {
-          omnibox: this.renderOmnibox(app),
+          omnibox: this.renderOmnibox(),
           trace: this.trace,
         }),
         children,
