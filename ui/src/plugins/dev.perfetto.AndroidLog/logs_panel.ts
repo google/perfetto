@@ -96,7 +96,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       {
         title: 'Android Logs',
         description: `Total messages: ${totalEvents}`,
-        buttons: m(LogsFilters, {store: attrs.filterStore}),
+        buttons: m(LogsFilters, {trace: attrs.trace, store: attrs.filterStore}),
       },
       m(VirtualTable, {
         className: 'pf-android-logs-table',
@@ -199,9 +199,10 @@ export const LOG_PRIORITIES = [
 const IGNORED_STATES = 2;
 
 interface LogPriorityWidgetAttrs {
-  options: string[];
-  selectedIndex: number;
-  onSelect: (id: number) => void;
+  readonly trace: Trace;
+  readonly options: string[];
+  readonly selectedIndex: number;
+  readonly onSelect: (id: number) => void;
 }
 
 class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
@@ -220,6 +221,7 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
         onchange: (e: Event) => {
           const selectionValue = (e.target as HTMLSelectElement).value;
           attrs.onSelect(Number(selectionValue));
+          attrs.trace.scheduleFullRedraw();
         },
       },
       optionComponents,
@@ -228,7 +230,8 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
 }
 
 interface LogTextWidgetAttrs {
-  onChange: (value: string) => void;
+  readonly trace: Trace;
+  readonly onChange: (value: string) => void;
 }
 
 class LogTextWidget implements m.ClassComponent<LogTextWidgetAttrs> {
@@ -240,15 +243,16 @@ class LogTextWidget implements m.ClassComponent<LogTextWidgetAttrs> {
         // updated with the latest key (onkeyup).
         const htmlElement = e.target as HTMLInputElement;
         attrs.onChange(htmlElement.value);
+        attrs.trace.scheduleFullRedraw();
       },
     });
   }
 }
 
 interface FilterByTextWidgetAttrs {
-  hideNonMatching: boolean;
-  disabled: boolean;
-  onClick: () => void;
+  readonly hideNonMatching: boolean;
+  readonly disabled: boolean;
+  readonly onClick: () => void;
 }
 
 class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
@@ -267,7 +271,8 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
 }
 
 interface LogsFiltersAttrs {
-  store: Store<LogFilteringCriteria>;
+  readonly trace: Trace;
+  readonly store: Store<LogFilteringCriteria>;
 }
 
 export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
@@ -275,6 +280,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
     return [
       m('.log-label', 'Log Level'),
       m(LogPriorityWidget, {
+        trace: attrs.trace,
         options: LOG_PRIORITIES,
         selectedIndex: attrs.store.state.minimumLevel,
         onSelect: (minimumLevel) => {
@@ -298,6 +304,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
         },
       }),
       m(LogTextWidget, {
+        trace: attrs.trace,
         onChange: (text) => {
           attrs.store.edit((draft) => {
             draft.textEntry = text;
