@@ -82,6 +82,9 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
       kind: 'TRACK_EVENT',
       trackKey: stateSel.trackUri,
       eventId: stateSel.eventId.toString(),
+      detailsPanel: trace.selection
+        .getDetailsPanelForSelection()
+        ?.serializatonState(),
     });
   } else if (stateSel.kind === 'area') {
     selection.push({
@@ -202,21 +205,7 @@ export function deserializeAppStatePhase2(
   }
 
   // Restore the selection
-  const sel = appState.selection[0];
-  if (sel !== undefined) {
-    const selMgr = trace.selection;
-    switch (sel.kind) {
-      case 'TRACK_EVENT':
-        selMgr.selectTrackEvent(sel.trackKey, parseInt(sel.eventId));
-        break;
-      case 'AREA':
-        selMgr.selectArea({
-          start: sel.start,
-          end: sel.end,
-          trackUris: sel.trackUris,
-        });
-    }
-  }
+  trace.selection.deserialize(appState.selection[0]);
 }
 
 /**
