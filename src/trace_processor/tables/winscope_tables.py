@@ -30,7 +30,6 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
-    wrapping_sql_view=WrappingSqlView('inputmethod_clients'),
     tabledoc=TableDoc(
         doc='InputMethod clients',
         group='Winscope',
@@ -47,7 +46,6 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
-    wrapping_sql_view=WrappingSqlView('inputmethod_manager_service'),
     tabledoc=TableDoc(
         doc='InputMethod manager service',
         group='Winscope',
@@ -64,7 +62,6 @@ INPUTMETHOD_SERVICE_TABLE = Table(
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
-    wrapping_sql_view=WrappingSqlView('inputmethod_service'),
     tabledoc=TableDoc(
         doc='InputMethod service',
         group='Winscope',
@@ -130,7 +127,6 @@ VIEWCAPTURE_TABLE = Table(
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
-    wrapping_sql_view=WrappingSqlView('viewcapture'),
     tabledoc=TableDoc(
         doc='ViewCapture',
         group='Winscope',

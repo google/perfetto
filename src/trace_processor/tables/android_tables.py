@@ -187,7 +187,6 @@ ANDROID_KEY_EVENTS_TABLE = Table(
     python_module=__file__,
     class_name='AndroidKeyEventsTable',
     sql_name='__intrinsic_android_key_events',
-    wrapping_sql_view=WrappingSqlView('android_key_events'),
     columns=[
         C('event_id', CppUint32()),
         C('ts', CppInt64()),
@@ -214,7 +213,6 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
     python_module=__file__,
     class_name='AndroidInputEventDispatchTable',
     sql_name='__intrinsic_android_input_event_dispatch',
-    wrapping_sql_view=WrappingSqlView('android_input_event_dispath'),
     columns=[
         C('event_id', CppUint32()),
         C('arg_set_id', CppUint32()),
