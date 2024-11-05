@@ -33,7 +33,8 @@ SELECT RUN_METRIC(
 DROP VIEW IF EXISTS wattson_markers_rails_output;
 CREATE PERFETTO VIEW wattson_markers_rails_output AS
 SELECT AndroidWattsonTimePeriodMetric(
-  'metric_version', 3,
+  'metric_version', 4,
+  'power_model_version', 1,
   'period_info', (
     SELECT RepeatedField(
       AndroidWattsonEstimateInfo(
