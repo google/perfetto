@@ -28,6 +28,8 @@ import {
 import {ThreadSliceDetailsPanel} from './thread_slice_details_tab';
 import {NewTrackArgs} from './track';
 import {renderDuration} from './widgets/duration';
+import {TraceImpl} from '../core/trace_impl';
+import {assertIsInstance} from '../base/logging';
 
 export const NAMED_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -73,6 +75,9 @@ export abstract class NamedSliceTrack<
   }
 
   detailsPanel(_sel: TrackEventSelection): TrackEventDetailsPanel {
-    return new ThreadSliceDetailsPanel(this.trace);
+    // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
+    // TraceImpl (because of flows) but here we must take a Trace interface,
+    // because this class is exposed to plugins (which see only Trace).
+    return new ThreadSliceDetailsPanel(assertIsInstance(this.trace, TraceImpl));
   }
 }

@@ -36,6 +36,11 @@ export function assertExists<A>(value: A | null | undefined): A {
   return value;
 }
 
+export function assertIsInstance<T>(value: unknown, clazz: Function): T {
+  assertTrue(value instanceof clazz);
+  return value as T;
+}
+
 export function assertTrue(value: boolean, optMsg?: string) {
   if (!value) {
     throw new Error(optMsg ?? 'Failed assertion');

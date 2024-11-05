@@ -22,9 +22,7 @@ import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {getServingRoot} from '../base/http_utils';
-import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
-import {createFakeTraceImpl} from '../core/fake_trace_impl';
 
 type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
@@ -33,7 +31,6 @@ type TrackDataStore = Map<string, {}>;
  * Global accessors for state/dispatch in the frontend.
  */
 class Globals {
-  private _initialFakeTrace?: TraceImpl;
   private _dispatchMultiple?: DispatchMultiple = undefined;
   private _store = createStore<State>(createEmptyState());
   private _serviceWorkerController?: ServiceWorkerController = undefined;
@@ -51,12 +48,6 @@ class Globals {
 
   initialize(dispatchMultiple: DispatchMultiple) {
     this._dispatchMultiple = dispatchMultiple;
-
-    // TODO(primiano): we do this to avoid making all our members possibly
-    // undefined, which would cause a drama of if (!=undefined) all over the
-    // code. This is not pretty, but this entire file is going to be nuked from
-    // orbit soon.
-    this._initialFakeTrace = createFakeTraceImpl();
 
     setPerfHooks(
       () => this.state.perfDebug,
@@ -101,11 +92,6 @@ class Globals {
 
   dispatchMultiple(actions: DeferredAction[]) {
     assertExists(this._dispatchMultiple)(actions);
-  }
-
-  get trace() {
-    const trace = AppImpl.instance.trace;
-    return trace ?? assertExists(this._initialFakeTrace);
   }
 
   get serviceWorkerController() {

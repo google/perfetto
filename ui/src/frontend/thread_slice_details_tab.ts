@@ -23,7 +23,6 @@ import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
 import {Tree} from '../widgets/tree';
-import {globals} from './globals';
 import {Flow, FlowPoint} from '../core/flow_types';
 import {hasArgs, renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
@@ -42,6 +41,7 @@ import {Trace} from '../public/trace';
 import {TrackEventDetailsPanel} from '../public/details_panel';
 import {TrackEventSelection} from '../public/selection';
 import {extensions} from '../public/lib/extensions';
+import {TraceImpl} from '../core/trace_impl';
 
 interface ContextMenuItem {
   name: string;
@@ -208,7 +208,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
 
-  constructor(private readonly trace: Trace) {}
+  constructor(private readonly trace: TraceImpl) {}
 
   async load({eventId}: TrackEventSelection) {
     const {trace} = this;
@@ -268,7 +268,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderPrecedingFlows(slice: SliceDetails): m.Children {
-    const flows = globals.trace.flows.connectedFlows;
+    const flows = this.trace.flows.connectedFlows;
     const inFlows = flows.filter(({end}) => end.sliceId === slice.id);
 
     if (inFlows.length > 0) {
@@ -312,7 +312,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderFollowingFlows(slice: SliceDetails): m.Children {
-    const flows = globals.trace.flows.connectedFlows;
+    const flows = this.trace.flows.connectedFlows;
     const outFlows = flows.filter(({begin}) => begin.sliceId === slice.id);
 
     if (outFlows.length > 0) {
