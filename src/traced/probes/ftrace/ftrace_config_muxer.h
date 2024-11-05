@@ -35,7 +35,6 @@ namespace perfetto {
 
 constexpr std::string_view kKprobeGroup = "perfetto_kprobes";
 constexpr std::string_view kKretprobeGroup = "perfetto_kretprobes";
-constexpr std::string_view kKretprobeDefaultMaxactives = "1024";
 
 namespace protos {
 namespace pbzero {
