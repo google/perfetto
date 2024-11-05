@@ -24,6 +24,7 @@ import {Select} from './select';
 import {Spinner} from './spinner';
 import {TagInput} from './tag_input';
 import {SegmentedButtons} from './segmented_buttons';
+import {z} from 'zod';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -97,31 +98,52 @@ export interface FlamegraphQueryData {
   readonly maxDepth: number;
 }
 
-export interface FlamegraphPivot {
-  readonly kind: 'PIVOT';
-  readonly pivot: string;
-}
+const FLAMEGRAPH_FILTER_SCHEMA = z
+  .object({
+    kind: z
+      .union([
+        z.literal('SHOW_STACK').readonly(),
+        z.literal('HIDE_STACK').readonly(),
+        z.literal('SHOW_FROM_FRAME').readonly(),
+        z.literal('HIDE_FRAME').readonly(),
+      ])
+      .readonly(),
+    filter: z.string().readonly(),
+  })
+  .readonly();
 
-export type FlamegraphView =
-  | {readonly kind: 'TOP_DOWN' | 'BOTTOM_UP'}
-  | FlamegraphPivot;
+type FlamegraphFilter = z.infer<typeof FLAMEGRAPH_FILTER_SCHEMA>;
 
-interface FlamegraphFilter {
-  readonly kind: 'SHOW_STACK' | 'HIDE_STACK' | 'SHOW_FROM_FRAME' | 'HIDE_FRAME';
-  readonly filter: string;
-}
+const FLAMEGRAPH_VIEW_SCHEMA = z
+  .discriminatedUnion('kind', [
+    z.object({kind: z.literal('TOP_DOWN').readonly()}),
+    z.object({kind: z.literal('BOTTOM_UP').readonly()}),
+    z.object({
+      kind: z.literal('PIVOT').readonly(),
+      pivot: z.string().readonly(),
+    }),
+  ])
+  .readonly();
 
-export interface FlamegraphState {
-  readonly selectedMetricName: string;
-  readonly filters: ReadonlyArray<FlamegraphFilter>;
-  readonly view: FlamegraphView;
+export type FlamegraphView = z.infer<typeof FLAMEGRAPH_VIEW_SCHEMA>;
+
+export const FLAMEGRAPH_STATE_SCHEMA = z
+  .object({
+    selectedMetricName: z.string().readonly(),
+    filters: z.array(FLAMEGRAPH_FILTER_SCHEMA).readonly(),
+    view: FLAMEGRAPH_VIEW_SCHEMA,
+  })
+  .readonly();
+
+export type FlamegraphState = z.infer<typeof FLAMEGRAPH_STATE_SCHEMA>;
+
+interface FlamegraphMetric {
+  readonly name: string;
+  readonly unit: string;
 }
 
 export interface FlamegraphAttrs {
-  readonly metrics: ReadonlyArray<{
-    readonly name: string;
-    readonly unit: string;
-  }>;
+  readonly metrics: ReadonlyArray<FlamegraphMetric>;
   readonly state: FlamegraphState;
   readonly data: FlamegraphQueryData | undefined;
 
@@ -337,6 +359,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   onupdate({dom}: m.VnodeDOM<FlamegraphAttrs, this>) {
     this.drawCanvas(dom);
+  }
+
+  static createDefaultState(
+    metrics: ReadonlyArray<FlamegraphMetric>,
+  ): FlamegraphState {
+    return {
+      selectedMetricName: metrics[0].name,
+      filters: [],
+      view: {kind: 'TOP_DOWN'},
+    };
   }
 
   private drawCanvas(dom: Element) {
