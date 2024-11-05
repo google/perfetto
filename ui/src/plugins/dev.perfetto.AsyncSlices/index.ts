@@ -159,7 +159,6 @@ export default class implements PerfettoPlugin {
       from intermediate_groups t
       left join _slice_track_summary s using (id)
       where s.id is null
-      order by name
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
