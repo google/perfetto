@@ -802,6 +802,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             packet.android_build_fingerprint())));
   }
 
+  if (packet.has_android_device_manufacturer()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_device_manufacturer,
+        Variadic::String(context_->storage->InternString(
+            packet.android_device_manufacturer())));
+  }
+
   // If we have the SDK version in the trace directly just use that.
   // Otherwise, try and parse it from the fingerprint.
   std::optional<int64_t> opt_sdk_version;
