@@ -36,7 +36,7 @@ import {
   FlamegraphState,
   FlamegraphView,
 } from '../../widgets/flamegraph';
-import {scheduleFullRedraw} from '../../widgets/raf';
+import {Trace} from '../trace';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -119,68 +119,47 @@ export function metricsFromTableOrSubquery(
   return metrics;
 }
 
-export interface QueryFlamegraphAttrs {
-  readonly engine: Engine;
-  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
-}
-
-// A Mithril component which wraps the `Flamegraph` widget and fetches the data
-// for the widget by querying an `Engine`.
-export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
+// A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
+// data for the widget by querying an `Engine`.
+export class QueryFlamegraph {
   private data?: FlamegraphQueryData;
   private state: FlamegraphState;
-  private attrs: QueryFlamegraphAttrs;
-  private selMonitor = new Monitor([
-    () => this.getSelectedMetric().statement,
-    () => this.state.filters,
-    () => this.state.view,
-  ]);
+  private selMonitor = new Monitor([() => this.state]);
   private queryLimiter = new AsyncLimiter();
 
-  constructor({attrs}: m.Vnode<QueryFlamegraphAttrs>) {
-    this.attrs = attrs;
+  constructor(
+    private readonly trace: Trace,
+    private readonly metrics: QueryFlamegraphMetric[],
+  ) {
     this.state = {
-      selectedMetricName: attrs.metrics[0].name,
+      selectedMetricName: metrics[0].name,
       filters: [],
       view: {kind: 'TOP_DOWN'},
     };
   }
 
-  view({attrs}: m.Vnode<QueryFlamegraphAttrs>) {
-    this.attrs = attrs;
+  render() {
     if (this.selMonitor.ifStateChanged()) {
-      this.state = {
-        selectedMetricName: attrs.metrics[0].name,
-        filters: [],
-        view: {kind: 'TOP_DOWN'},
-      };
+      const metric = assertExists(
+        this.metrics.find((x) => this.state.selectedMetricName === x.name),
+      );
+      const engine = this.trace.engine;
+      const state = this.state;
       this.data = undefined;
-      this.fetchData(attrs, this.state);
+      this.queryLimiter.schedule(async () => {
+        this.data = undefined;
+        this.data = await computeFlamegraphTree(engine, metric, state);
+      });
     }
     return m(Flamegraph, {
-      metrics: attrs.metrics,
+      metrics: this.metrics,
       data: this.data,
       state: this.state,
       onStateChange: (state) => {
         this.state = state;
-        scheduleFullRedraw();
+        this.trace.scheduleFullRedraw();
       },
     });
-  }
-
-  private async fetchData(attrs: QueryFlamegraphAttrs, state: FlamegraphState) {
-    const metric = this.getSelectedMetric();
-    const engine = attrs.engine;
-    this.queryLimiter.schedule(async () => {
-      this.data = undefined;
-      this.data = await computeFlamegraphTree(engine, metric, state);
-    });
-  }
-
-  private getSelectedMetric() {
-    return assertExists(
-      this.attrs.metrics.find((x) => this.state.selectedMetricName === x.name),
-    );
   }
 }
 

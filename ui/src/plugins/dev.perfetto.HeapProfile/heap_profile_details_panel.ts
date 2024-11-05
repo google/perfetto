@@ -17,7 +17,6 @@ import {assertExists, assertFalse} from '../../base/logging';
 import {time} from '../../base/time';
 import {
   QueryFlamegraph,
-  QueryFlamegraphAttrs,
   metricsFromTableOrSubquery,
 } from '../../public/lib/query_flamegraph';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
@@ -25,7 +24,6 @@ import {Timestamp} from '../../frontend/widgets/timestamp';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {ProfileType, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
-import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
@@ -42,7 +40,7 @@ interface Props {
 export class HeapProfileFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private flamegraphAttrs?: QueryFlamegraphAttrs;
+  private flamegraph?: QueryFlamegraph;
   private props?: Props;
   private flamegraphModalDismissed = false;
 
@@ -54,14 +52,12 @@ export class HeapProfileFlamegraphDetailsPanel
 
   async load(sel: TrackEventSelection) {
     const {profileType, ts} = sel;
-
-    this.flamegraphAttrs = flamegraphAttrs(
-      this.trace.engine,
+    this.flamegraph = makeFlamegraph(
+      this.trace,
       ts,
       this.upid,
       assertExists(profileType),
     );
-
     this.props = {ts, type: assertExists(profileType)};
   }
 
@@ -110,7 +106,7 @@ export class HeapProfileFlamegraphDetailsPanel
               }),
           ],
         },
-        m(QueryFlamegraph, assertExists(this.flamegraphAttrs)),
+        assertExists(this.flamegraph).render(),
       ),
     );
   }
@@ -151,15 +147,15 @@ export class HeapProfileFlamegraphDetailsPanel
   }
 }
 
-function flamegraphAttrs(
-  engine: Engine,
+function makeFlamegraph(
+  trace: Trace,
   ts: time,
   upid: number,
   type: ProfileType,
-): QueryFlamegraphAttrs {
+): QueryFlamegraph {
   switch (type) {
     case ProfileType.NATIVE_HEAP_PROFILE:
-      return flamegraphAttrsForHeapProfile(engine, ts, upid, [
+      return flamegraphForHeapProfile(trace, ts, upid, [
         {
           name: 'Unreleased Malloc Size',
           unit: 'B',
@@ -182,7 +178,7 @@ function flamegraphAttrs(
         },
       ]);
     case ProfileType.HEAP_PROFILE:
-      return flamegraphAttrsForHeapProfile(engine, ts, upid, [
+      return flamegraphForHeapProfile(trace, ts, upid, [
         {
           name: 'Unreleased Size',
           unit: 'B',
@@ -205,7 +201,7 @@ function flamegraphAttrs(
         },
       ]);
     case ProfileType.JAVA_HEAP_SAMPLES:
-      return flamegraphAttrsForHeapProfile(engine, ts, upid, [
+      return flamegraphForHeapProfile(trace, ts, upid, [
         {
           name: 'Unreleased Allocation Size',
           unit: 'B',
@@ -218,7 +214,7 @@ function flamegraphAttrs(
         },
       ]);
     case ProfileType.MIXED_HEAP_PROFILE:
-      return flamegraphAttrsForHeapProfile(engine, ts, upid, [
+      return flamegraphForHeapProfile(trace, ts, upid, [
         {
           name: 'Unreleased Allocation Size (malloc + java)',
           unit: 'B',
@@ -231,24 +227,21 @@ function flamegraphAttrs(
         },
       ]);
     case ProfileType.JAVA_HEAP_GRAPH:
-      return flamegraphAttrsForHeapGraph(engine, ts, upid);
+      return flamegraphForHeapGraph(trace, ts, upid);
     case ProfileType.PERF_SAMPLE:
-      assertFalse(false, 'Perf sample not supported');
-      return {engine, metrics: []};
+      throw new Error('Perf sample not supported');
   }
 }
 
-function flamegraphAttrsForHeapProfile(
-  engine: Engine,
+function flamegraphForHeapProfile(
+  trace: Trace,
   ts: time,
   upid: number,
   metrics: {name: string; unit: string; columnName: string}[],
 ) {
-  return {
-    engine,
-    metrics: [
-      ...metricsFromTableOrSubquery(
-        `
+  return new QueryFlamegraph(trace, [
+    ...metricsFromTableOrSubquery(
+      `
           (
             select
               id,
@@ -273,40 +266,37 @@ function flamegraphAttrsForHeapProfile(
             ))
           )
         `,
-        metrics,
-        'include perfetto module android.memory.heap_profile.callstacks',
-        [{name: 'mapping_name', displayName: 'Mapping'}],
-        [
-          {
-            name: 'source_file',
-            displayName: 'Source File',
-            mergeAggregation: 'ONE_OR_NULL',
-          },
-          {
-            name: 'line_number',
-            displayName: 'Line Number',
-            mergeAggregation: 'ONE_OR_NULL',
-          },
-        ],
-      ),
-    ],
-  };
+      metrics,
+      'include perfetto module android.memory.heap_profile.callstacks',
+      [{name: 'mapping_name', displayName: 'Mapping'}],
+      [
+        {
+          name: 'source_file',
+          displayName: 'Source File',
+          mergeAggregation: 'ONE_OR_NULL',
+        },
+        {
+          name: 'line_number',
+          displayName: 'Line Number',
+          mergeAggregation: 'ONE_OR_NULL',
+        },
+      ],
+    ),
+  ]);
 }
 
-function flamegraphAttrsForHeapGraph(
-  engine: Engine,
+function flamegraphForHeapGraph(
+  trace: Trace,
   ts: time,
   upid: number,
-): QueryFlamegraphAttrs {
-  return {
-    engine,
-    metrics: [
-      {
-        name: 'Object Size',
-        unit: 'B',
-        dependencySql:
-          'include perfetto module android.memory.heap_graph.class_tree;',
-        statement: `
+): QueryFlamegraph {
+  return new QueryFlamegraph(trace, [
+    {
+      name: 'Object Size',
+      unit: 'B',
+      dependencySql:
+        'include perfetto module android.memory.heap_graph.class_tree;',
+      statement: `
           select
             id,
             parent_id as parentId,
@@ -317,23 +307,21 @@ function flamegraphAttrsForHeapGraph(
           from _heap_graph_class_tree
           where graph_sample_ts = ${ts} and upid = ${upid}
         `,
-        unaggregatableProperties: [
-          {name: 'root_type', displayName: 'Root Type'},
-        ],
-        aggregatableProperties: [
-          {
-            name: 'self_count',
-            displayName: 'Self Count',
-            mergeAggregation: 'SUM',
-          },
-        ],
-      },
-      {
-        name: 'Object Count',
-        unit: '',
-        dependencySql:
-          'include perfetto module android.memory.heap_graph.class_tree;',
-        statement: `
+      unaggregatableProperties: [{name: 'root_type', displayName: 'Root Type'}],
+      aggregatableProperties: [
+        {
+          name: 'self_count',
+          displayName: 'Self Count',
+          mergeAggregation: 'SUM',
+        },
+      ],
+    },
+    {
+      name: 'Object Count',
+      unit: '',
+      dependencySql:
+        'include perfetto module android.memory.heap_graph.class_tree;',
+      statement: `
           select
             id,
             parent_id as parentId,
@@ -344,16 +332,14 @@ function flamegraphAttrsForHeapGraph(
           from _heap_graph_class_tree
           where graph_sample_ts = ${ts} and upid = ${upid}
         `,
-        unaggregatableProperties: [
-          {name: 'root_type', displayName: 'Root Type'},
-        ],
-      },
-      {
-        name: 'Dominated Object Size',
-        unit: 'B',
-        dependencySql:
-          'include perfetto module android.memory.heap_graph.dominator_class_tree;',
-        statement: `
+      unaggregatableProperties: [{name: 'root_type', displayName: 'Root Type'}],
+    },
+    {
+      name: 'Dominated Object Size',
+      unit: 'B',
+      dependencySql:
+        'include perfetto module android.memory.heap_graph.dominator_class_tree;',
+      statement: `
           select
             id,
             parent_id as parentId,
@@ -364,23 +350,21 @@ function flamegraphAttrsForHeapGraph(
           from _heap_graph_dominator_class_tree
           where graph_sample_ts = ${ts} and upid = ${upid}
         `,
-        unaggregatableProperties: [
-          {name: 'root_type', displayName: 'Root Type'},
-        ],
-        aggregatableProperties: [
-          {
-            name: 'self_count',
-            displayName: 'Self Count',
-            mergeAggregation: 'SUM',
-          },
-        ],
-      },
-      {
-        name: 'Dominated Object Count',
-        unit: '',
-        dependencySql:
-          'include perfetto module android.memory.heap_graph.dominator_class_tree;',
-        statement: `
+      unaggregatableProperties: [{name: 'root_type', displayName: 'Root Type'}],
+      aggregatableProperties: [
+        {
+          name: 'self_count',
+          displayName: 'Self Count',
+          mergeAggregation: 'SUM',
+        },
+      ],
+    },
+    {
+      name: 'Dominated Object Count',
+      unit: '',
+      dependencySql:
+        'include perfetto module android.memory.heap_graph.dominator_class_tree;',
+      statement: `
           select
             id,
             parent_id as parentId,
@@ -391,12 +375,9 @@ function flamegraphAttrsForHeapGraph(
           from _heap_graph_class_tree
           where graph_sample_ts = ${ts} and upid = ${upid}
         `,
-        unaggregatableProperties: [
-          {name: 'root_type', displayName: 'Root Type'},
-        ],
-      },
-    ],
-  };
+      unaggregatableProperties: [{name: 'root_type', displayName: 'Root Type'}],
+    },
+  ]);
 }
 
 function getFlamegraphTitle(type: ProfileType) {
