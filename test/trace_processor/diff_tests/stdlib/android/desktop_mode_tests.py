@@ -94,3 +94,17 @@ class DesktopMode(TestSuite):
         "[NULL]","[NULL]",2137135290268,4737314089,35,10183
         """))
 
+  def test_android_desktop_mode_windows_statsd_events_multiple_windows_same_instance_new_session(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_desktop_mode/session_with_same_instance_id.pb'),
+        query="""
+          INCLUDE PERFETTO MODULE android.desktop_mode;
+          SELECT * FROM android_desktop_mode_windows;
+          """,
+        out=Csv("""
+        "raw_add_ts","raw_remove_ts","ts","dur","instance_id","uid"
+        8936818061228,8963638163943,8936818061228,26820102715,1000025,1110217
+        8966480744267,"[NULL]",8966480744267,3596089886,1000025,1110217
+        8966481546961,"[NULL]",8966481546961,3595287192,1000028,1110329
+        """))
+
