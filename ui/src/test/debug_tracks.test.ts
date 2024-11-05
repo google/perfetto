@@ -48,7 +48,7 @@ test('debug tracks', async () => {
   await pth.waitForIdleAndScreenshot('debug track added.png');
 
   // Click on a slice on the debug track.
-  await page.mouse.click(1454, 290);
+  await page.mouse.click(590, 180);
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('debug slice clicked.png');
 
