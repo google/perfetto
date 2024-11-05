@@ -134,7 +134,7 @@ class TraceContext implements Disposable {
     if (clearSearch) {
       this.searchMgr.reset();
     }
-    if (switchToCurrentSelectionTab) {
+    if (switchToCurrentSelectionTab && selection.kind !== 'empty') {
       this.tabMgr.showCurrentSelectionTab();
     }
 
