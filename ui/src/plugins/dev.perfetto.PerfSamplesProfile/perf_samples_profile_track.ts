@@ -31,7 +31,6 @@ import {assertExists} from '../../base/logging';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
-  QueryFlamegraphAttrs,
 } from '../../public/lib/query_flamegraph';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../frontend/widgets/timestamp';
@@ -112,11 +111,9 @@ export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack 
     const upid = assertExists(sel.upid);
     const ts = sel.ts;
 
-    const flamegraphAttrs = {
-      engine: this.engine,
-      metrics: [
-        ...metricsFromTableOrSubquery(
-          `
+    const flamegraph = new QueryFlamegraph(this.trace, [
+      ...metricsFromTableOrSubquery(
+        `
                 (
                   select
                     id,
@@ -136,33 +133,31 @@ export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack 
                   ))
                 )
               `,
-          [
-            {
-              name: 'Perf Samples',
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          'include perfetto module linux.perf.samples',
-          [{name: 'mapping_name', displayName: 'Mapping'}],
-          [
-            {
-              name: 'source_file',
-              displayName: 'Source File',
-              mergeAggregation: 'ONE_OR_NULL',
-            },
-            {
-              name: 'line_number',
-              displayName: 'Line Number',
-              mergeAggregation: 'ONE_OR_NULL',
-            },
-          ],
-        ),
-      ],
-    };
-
+        [
+          {
+            name: 'Perf Samples',
+            unit: '',
+            columnName: 'self_count',
+          },
+        ],
+        'include perfetto module linux.perf.samples',
+        [{name: 'mapping_name', displayName: 'Mapping'}],
+        [
+          {
+            name: 'source_file',
+            displayName: 'Source File',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+          {
+            name: 'line_number',
+            displayName: 'Line Number',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+        ],
+      ),
+    ]);
     return {
-      render: () => renderDetailsPanel(flamegraphAttrs, ts),
+      render: () => renderDetailsPanel(flamegraph, ts),
     };
   }
 }
@@ -206,11 +201,9 @@ export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
     const utid = assertExists(sel.utid);
     const ts = sel.ts;
 
-    const flamegraphAttrs = {
-      engine: this.engine,
-      metrics: [
-        ...metricsFromTableOrSubquery(
-          `
+    const flamegraph = new QueryFlamegraph(this.trace, [
+      ...metricsFromTableOrSubquery(
+        `
             (
               select
                 id,
@@ -229,38 +222,36 @@ export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
               ))
             )
           `,
-          [
-            {
-              name: 'Perf Samples',
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          'include perfetto module linux.perf.samples',
-          [{name: 'mapping_name', displayName: 'Mapping'}],
-          [
-            {
-              name: 'source_file',
-              displayName: 'Source File',
-              mergeAggregation: 'ONE_OR_NULL',
-            },
-            {
-              name: 'line_number',
-              displayName: 'Line Number',
-              mergeAggregation: 'ONE_OR_NULL',
-            },
-          ],
-        ),
-      ],
-    };
-
+        [
+          {
+            name: 'Perf Samples',
+            unit: '',
+            columnName: 'self_count',
+          },
+        ],
+        'include perfetto module linux.perf.samples',
+        [{name: 'mapping_name', displayName: 'Mapping'}],
+        [
+          {
+            name: 'source_file',
+            displayName: 'Source File',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+          {
+            name: 'line_number',
+            displayName: 'Line Number',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+        ],
+      ),
+    ]);
     return {
-      render: () => renderDetailsPanel(flamegraphAttrs, ts),
+      render: () => renderDetailsPanel(flamegraph, ts),
     };
   }
 }
 
-function renderDetailsPanel(flamegraphAttrs: QueryFlamegraphAttrs, ts: time) {
+function renderDetailsPanel(flamegraph: QueryFlamegraph, ts: time) {
   return m(
     '.flamegraph-profile',
     m(
@@ -286,7 +277,7 @@ function renderDetailsPanel(flamegraphAttrs: QueryFlamegraphAttrs, ts: time) {
           ),
         ],
       },
-      m(QueryFlamegraph, assertExists(flamegraphAttrs)),
+      flamegraph.render(),
     ),
   );
 }

@@ -17,28 +17,25 @@ import {time} from '../../base/time';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
-  QueryFlamegraphAttrs,
 } from '../../public/lib/query_flamegraph';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Engine} from '../../trace_processor/engine';
 import {DetailsShell} from '../../widgets/details_shell';
+import {Trace} from '../../public/trace';
 
 export class CpuProfileSampleFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private readonly flamegraphAttrs: QueryFlamegraphAttrs;
+  private readonly flamegraph: QueryFlamegraph;
 
   constructor(
-    private engine: Engine,
+    trace: Trace,
     private ts: time,
     utid: number,
   ) {
-    this.flamegraphAttrs = {
-      engine: this.engine,
-      metrics: [
-        ...metricsFromTableOrSubquery(
-          `
+    this.flamegraph = new QueryFlamegraph(trace, [
+      ...metricsFromTableOrSubquery(
+        `
             (
               select
                 id,
@@ -55,30 +52,29 @@ export class CpuProfileSampleFlamegraphDetailsPanel
               ))
             )
           `,
-          [
-            {
-              name: 'CPU Profile Samples',
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          'include perfetto module callstacks.stack_profile',
-          [{name: 'mapping_name', displayName: 'Mapping'}],
-          [
-            {
-              name: 'source_file',
-              displayName: 'Source File',
-              mergeAggregation: 'ONE_OR_NULL',
-            },
-            {
-              name: 'line_number',
-              displayName: 'Line Number',
-              mergeAggregation: 'ONE_OR_NULL',
-            },
-          ],
-        ),
-      ],
-    };
+        [
+          {
+            name: 'CPU Profile Samples',
+            unit: '',
+            columnName: 'self_count',
+          },
+        ],
+        'include perfetto module callstacks.stack_profile',
+        [{name: 'mapping_name', displayName: 'Mapping'}],
+        [
+          {
+            name: 'source_file',
+            displayName: 'Source File',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+          {
+            name: 'line_number',
+            displayName: 'Line Number',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+        ],
+      ),
+    ]);
   }
 
   render() {
@@ -92,7 +88,7 @@ export class CpuProfileSampleFlamegraphDetailsPanel
           description: [],
           buttons: [m('div.time', `Timestamp: `, m(Timestamp, {ts: this.ts}))],
         },
-        m(QueryFlamegraph, this.flamegraphAttrs),
+        this.flamegraph.render(),
       ),
     );
   }

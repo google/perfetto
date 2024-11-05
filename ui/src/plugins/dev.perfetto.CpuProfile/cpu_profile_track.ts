@@ -83,9 +83,8 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
 
   detailsPanel(selection: TrackEventSelection) {
     const {ts, utid} = selection;
-
     return new CpuProfileSampleFlamegraphDetailsPanel(
-      this.trace.engine,
+      this.trace,
       ts,
       assertExists(utid),
     );

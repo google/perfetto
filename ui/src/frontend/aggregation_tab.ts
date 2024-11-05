@@ -30,7 +30,6 @@ import {
 } from '../public/track_kinds';
 import {
   QueryFlamegraph,
-  QueryFlamegraphAttrs,
   metricsFromTableOrSubquery,
 } from '../public/lib/query_flamegraph';
 import {DisposableStack} from '../base/disposable_stack';
@@ -50,9 +49,9 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
   private trace: TraceImpl;
   private monitor: Monitor;
   private currentTab: string | undefined = undefined;
-  private cpuProfileFlamegraphAttrs?: QueryFlamegraphAttrs;
-  private perfSampleFlamegraphAttrs?: QueryFlamegraphAttrs;
-  private sliceFlamegraphAttrs?: QueryFlamegraphAttrs;
+  private cpuProfileFlamegraph?: QueryFlamegraph;
+  private perfSampleFlamegraph?: QueryFlamegraph;
+  private sliceFlamegraph?: QueryFlamegraph;
 
   constructor({attrs}: m.CVnode<AreaDetailsPanelAttrs>) {
     this.trace = attrs.trace;
@@ -174,42 +173,39 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
   }
 
   private addFlamegraphView(trace: Trace, isChanged: boolean, views: View[]) {
-    this.cpuProfileFlamegraphAttrs = this.computeCpuProfileFlamegraphAttrs(
+    this.cpuProfileFlamegraph = this.computeCpuProfileFlamegraph(
       trace,
       isChanged,
     );
-    if (this.cpuProfileFlamegraphAttrs !== undefined) {
+    if (this.cpuProfileFlamegraph !== undefined) {
       views.push({
         key: 'cpu_profile_flamegraph_selection',
         name: 'CPU Profile Sample Flamegraph',
-        content: m(QueryFlamegraph, this.cpuProfileFlamegraphAttrs),
+        content: this.cpuProfileFlamegraph.render(),
       });
     }
-    this.perfSampleFlamegraphAttrs = this.computePerfSampleFlamegraphAttrs(
+    this.perfSampleFlamegraph = this.computePerfSampleFlamegraph(
       trace,
       isChanged,
     );
-    if (this.perfSampleFlamegraphAttrs !== undefined) {
+    if (this.perfSampleFlamegraph !== undefined) {
       views.push({
         key: 'perf_sample_flamegraph_selection',
         name: 'Perf Sample Flamegraph',
-        content: m(QueryFlamegraph, this.perfSampleFlamegraphAttrs),
+        content: this.perfSampleFlamegraph.render(),
       });
     }
-    this.sliceFlamegraphAttrs = this.computeSliceFlamegraphAttrs(
-      trace,
-      isChanged,
-    );
-    if (this.sliceFlamegraphAttrs !== undefined) {
+    this.sliceFlamegraph = this.computeSliceFlamegraph(trace, isChanged);
+    if (this.sliceFlamegraph !== undefined) {
       views.push({
         key: 'slice_flamegraph_selection',
         name: 'Slice Flamegraph',
-        content: m(QueryFlamegraph, this.sliceFlamegraphAttrs),
+        content: this.sliceFlamegraph.render(),
       });
     }
   }
 
-  private computeCpuProfileFlamegraphAttrs(trace: Trace, isChanged: boolean) {
+  private computeCpuProfileFlamegraph(trace: Trace, isChanged: boolean) {
     const currentSelection = trace.selection.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
@@ -217,7 +213,7 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     if (!isChanged) {
       // If the selection has not changed, just return a copy of the last seen
       // attrs.
-      return this.cpuProfileFlamegraphAttrs;
+      return this.cpuProfileFlamegraph;
     }
     const utids = [];
     for (const trackInfo of currentSelection.tracks) {
@@ -228,11 +224,9 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     if (utids.length === 0) {
       return undefined;
     }
-    return {
-      engine: trace.engine,
-      metrics: [
-        ...metricsFromTableOrSubquery(
-          `
+    return new QueryFlamegraph(trace, [
+      ...metricsFromTableOrSubquery(
+        `
             (
               select
                 id,
@@ -251,33 +245,32 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
               ))
             )
           `,
-          [
-            {
-              name: 'CPU Profile Samples',
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          'include perfetto module callstacks.stack_profile',
-          [{name: 'mapping_name', displayName: 'Mapping'}],
-          [
-            {
-              name: 'source_file',
-              displayName: 'Source File',
-              mergeAggregation: 'ONE_OR_NULL',
-            },
-            {
-              name: 'line_number',
-              displayName: 'Line Number',
-              mergeAggregation: 'ONE_OR_NULL',
-            },
-          ],
-        ),
-      ],
-    };
+        [
+          {
+            name: 'CPU Profile Samples',
+            unit: '',
+            columnName: 'self_count',
+          },
+        ],
+        'include perfetto module callstacks.stack_profile',
+        [{name: 'mapping_name', displayName: 'Mapping'}],
+        [
+          {
+            name: 'source_file',
+            displayName: 'Source File',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+          {
+            name: 'line_number',
+            displayName: 'Line Number',
+            mergeAggregation: 'ONE_OR_NULL',
+          },
+        ],
+      ),
+    ]);
   }
 
-  private computePerfSampleFlamegraphAttrs(trace: Trace, isChanged: boolean) {
+  private computePerfSampleFlamegraph(trace: Trace, isChanged: boolean) {
     const currentSelection = trace.selection.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
@@ -285,18 +278,16 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     if (!isChanged) {
       // If the selection has not changed, just return a copy of the last seen
       // attrs.
-      return this.perfSampleFlamegraphAttrs;
+      return this.perfSampleFlamegraph;
     }
     const upids = getUpidsFromPerfSampleAreaSelection(currentSelection);
     const utids = getUtidsFromPerfSampleAreaSelection(currentSelection);
     if (utids.length === 0 && upids.length === 0) {
       return undefined;
     }
-    return {
-      engine: trace.engine,
-      metrics: [
-        ...metricsFromTableOrSubquery(
-          `
+    return new QueryFlamegraph(trace, [
+      ...metricsFromTableOrSubquery(
+        `
             (
               select id, parent_id as parentId, name, self_count
               from _callstacks_for_callsites!((
@@ -312,20 +303,19 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
               ))
             )
           `,
-          [
-            {
-              name: 'Perf Samples',
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          'include perfetto module linux.perf.samples',
-        ),
-      ],
-    };
+        [
+          {
+            name: 'Perf Samples',
+            unit: '',
+            columnName: 'self_count',
+          },
+        ],
+        'include perfetto module linux.perf.samples',
+      ),
+    ]);
   }
 
-  private computeSliceFlamegraphAttrs(trace: Trace, isChanged: boolean) {
+  private computeSliceFlamegraph(trace: Trace, isChanged: boolean) {
     const currentSelection = trace.selection.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
@@ -333,7 +323,7 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     if (!isChanged) {
       // If the selection has not changed, just return a copy of the last seen
       // attrs.
-      return this.sliceFlamegraphAttrs;
+      return this.sliceFlamegraph;
     }
     const trackIds = [];
     for (const trackInfo of currentSelection.tracks) {
@@ -348,11 +338,9 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     if (trackIds.length === 0) {
       return undefined;
     }
-    return {
-      engine: trace.engine,
-      metrics: [
-        ...metricsFromTableOrSubquery(
-          `(
+    return new QueryFlamegraph(trace, [
+      ...metricsFromTableOrSubquery(
+        `(
             select *
             from _viz_slice_ancestor_agg!((
               select s.id, s.dur
@@ -364,22 +352,21 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
                 and t.id is null
             ))
           )`,
-          [
-            {
-              name: 'Duration',
-              unit: 'ns',
-              columnName: 'self_dur',
-            },
-            {
-              name: 'Samples',
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          'include perfetto module viz.slices;',
-        ),
-      ],
-    };
+        [
+          {
+            name: 'Duration',
+            unit: 'ns',
+            columnName: 'self_dur',
+          },
+          {
+            name: 'Samples',
+            unit: '',
+            columnName: 'self_count',
+          },
+        ],
+        'include perfetto module viz.slices;',
+      ),
+    ]);
   }
 }
 
