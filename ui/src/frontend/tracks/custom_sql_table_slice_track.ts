@@ -17,8 +17,8 @@ import {NAMED_ROW, NamedRow, NamedSliceTrack} from '../named_slice_track';
 import {NewTrackArgs} from '../track';
 import {createView} from '../../trace_processor/sql_utils';
 import {Slice} from '../../public/track';
-import {uuidv4} from '../../base/uuid';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {sqlNameSafe} from '../../base/string_utils';
 
 export interface CustomSqlImportConfig {
   modules: string[];
@@ -39,19 +39,17 @@ export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
 > {
   protected readonly tableName;
 
+  constructor(args: NewTrackArgs) {
+    super(args);
+    this.tableName = `customsqltableslicetrack_${sqlNameSafe(args.uri)}`;
+  }
+
   getRowSpec(): NamedRow {
     return NAMED_ROW;
   }
 
   rowToSlice(row: NamedRow): Slice {
     return this.rowToSliceBase(row);
-  }
-
-  constructor(args: NewTrackArgs) {
-    super(args);
-    this.tableName = `customsqltableslicetrack_${uuidv4()
-      .split('-')
-      .join('_')}`;
   }
 
   abstract getSqlDataSource():
