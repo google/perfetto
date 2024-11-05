@@ -18,19 +18,10 @@ import {filterTitle} from '../../../widgets/sql/table/column';
 import {addEphemeralTab} from '../../../../common/add_ephemeral_tab';
 import {Tab} from '../../../../public/tab';
 import {Histogram, HistogramConfig} from './histogram';
+import {toTitleCase} from '../chart';
 
 export function addHistogramTab(config: HistogramConfig): void {
   addEphemeralTab('histogramTab', new HistogramTab(config));
-}
-
-function toTitleCase(s: string): string {
-  const words = s.split(/\s/);
-
-  for (let i = 0; i < words.length; ++i) {
-    words[i] = words[i][0].toUpperCase() + words[i].substring(1);
-  }
-
-  return words.join(' ');
 }
 
 export class HistogramTab implements Tab {
@@ -54,7 +45,6 @@ export class HistogramTab implements Tab {
   private getDescription(): string {
     let desc = `Count distribution for ${this.config.tableDisplay ?? ''} table`;
 
-    console.log('config filters', this.config.filters);
     if (this.config.filters && this.config.filters.length > 0) {
       desc += ' where ';
       desc += this.config.filters.map((f) => filterTitle(f)).join(', ');
