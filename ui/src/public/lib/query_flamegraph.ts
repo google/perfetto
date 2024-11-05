@@ -32,10 +32,11 @@ import {
 } from '../../trace_processor/query_result';
 import {
   Flamegraph,
-  FlamegraphFilters,
   FlamegraphQueryData,
+  FlamegraphState,
   FlamegraphView,
 } from '../../widgets/flamegraph';
+import {scheduleFullRedraw} from '../../widgets/raf';
 
 export interface QueryFlamegraphColumn {
   // The name of the column in SQL.
@@ -126,57 +127,60 @@ export interface QueryFlamegraphAttrs {
 // A Mithril component which wraps the `Flamegraph` widget and fetches the data
 // for the widget by querying an `Engine`.
 export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
-  private selectedMetricName;
   private data?: FlamegraphQueryData;
-  private filters: FlamegraphFilters = {
-    showStack: [],
-    hideStack: [],
-    showFromFrame: [],
-    hideFrame: [],
-    view: {kind: 'TOP_DOWN'},
-  };
+  private state: FlamegraphState;
   private attrs: QueryFlamegraphAttrs;
-  private selMonitor = new Monitor([() => this.attrs.metrics]);
+  private selMonitor = new Monitor([
+    () => this.getSelectedMetric().statement,
+    () => this.state.filters,
+    () => this.state.view,
+  ]);
   private queryLimiter = new AsyncLimiter();
 
   constructor({attrs}: m.Vnode<QueryFlamegraphAttrs>) {
     this.attrs = attrs;
-    this.selectedMetricName = attrs.metrics[0].name;
+    this.state = {
+      selectedMetricName: attrs.metrics[0].name,
+      filters: [],
+      view: {kind: 'TOP_DOWN'},
+    };
   }
 
   view({attrs}: m.Vnode<QueryFlamegraphAttrs>) {
     this.attrs = attrs;
     if (this.selMonitor.ifStateChanged()) {
-      this.selectedMetricName = attrs.metrics[0].name;
+      this.state = {
+        selectedMetricName: attrs.metrics[0].name,
+        filters: [],
+        view: {kind: 'TOP_DOWN'},
+      };
       this.data = undefined;
-      this.fetchData(attrs);
+      this.fetchData(attrs, this.state);
     }
     return m(Flamegraph, {
       metrics: attrs.metrics,
-      selectedMetricName: this.selectedMetricName,
       data: this.data,
-      onMetricChange: (name) => {
-        this.selectedMetricName = name;
-        this.data = undefined;
-        this.fetchData(attrs);
-      },
-      onFiltersChanged: (filters) => {
-        this.filters = filters;
-        this.data = undefined;
-        this.fetchData(attrs);
+      state: this.state,
+      onStateChange: (state) => {
+        this.state = state;
+        scheduleFullRedraw();
       },
     });
   }
 
-  private async fetchData(attrs: QueryFlamegraphAttrs) {
-    const metric = assertExists(
-      attrs.metrics.find((metric) => metric.name === this.selectedMetricName),
-    );
+  private async fetchData(attrs: QueryFlamegraphAttrs, state: FlamegraphState) {
+    const metric = this.getSelectedMetric();
     const engine = attrs.engine;
-    const filters = this.filters;
     this.queryLimiter.schedule(async () => {
-      this.data = await computeFlamegraphTree(engine, metric, filters);
+      this.data = undefined;
+      this.data = await computeFlamegraphTree(engine, metric, state);
     });
+  }
+
+  private getSelectedMetric() {
+    return assertExists(
+      this.attrs.metrics.find((x) => this.state.selectedMetricName === x.name),
+    );
   }
 }
 
@@ -188,8 +192,21 @@ async function computeFlamegraphTree(
     unaggregatableProperties,
     aggregatableProperties,
   }: QueryFlamegraphMetric,
-  {showStack, hideStack, showFromFrame, hideFrame, view}: FlamegraphFilters,
+  {filters, view}: FlamegraphState,
 ): Promise<FlamegraphQueryData> {
+  const showStack = filters
+    .filter((x) => x.kind === 'SHOW_STACK')
+    .map((x) => x.filter);
+  const hideStack = filters
+    .filter((x) => x.kind === 'HIDE_STACK')
+    .map((x) => x.filter);
+  const showFromFrame = filters
+    .filter((x) => x.kind === 'SHOW_FROM_FRAME')
+    .map((x) => x.filter);
+  const hideFrame = filters
+    .filter((x) => x.kind === 'HIDE_FRAME')
+    .map((x) => x.filter);
+
   // Pivot also essentially acts as a "show stack" filter so treat it like one.
   const showStackAndPivot = [...showStack];
   if (view.kind === 'PIVOT') {
