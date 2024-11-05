@@ -16,9 +16,6 @@ import m from 'mithril';
 import {Gate} from '../base/mithril_utils';
 import {EmptyState} from '../widgets/empty_state';
 import {raf} from '../core/raf_scheduler';
-import {Monitor} from '../base/monitor';
-import {AsyncLimiter} from '../base/async_limiter';
-import {TrackEventDetailsPanel} from '../public/details_panel';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
@@ -65,10 +62,6 @@ export interface TabDropdownEntry {
 
 export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
   private readonly trace: TraceImpl;
-  private readonly selectionMonitor = new Monitor([
-    () => this.trace.selection.selection,
-  ]);
-  private readonly limiter = new AsyncLimiter();
   // Tabs panel starts collapsed.
 
   // NOTE: the visibility state of the tab panel (COLLAPSED, VISIBLE,
@@ -92,17 +85,6 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
   constructor({attrs}: m.CVnode<TabPanelAttrs>) {
     this.trace = attrs.trace;
   }
-
-  // This stores the current track event details panel + isLoading flag. It gets
-  // created in a render cycle when we notice a change in the current selection
-  // object and it is a "track event" type selection. From there, we create a
-  // new details panel, wrap it with an isLoading flag, and kick off the
-  // detailsPanel.load() function. When this function resolves, isLoading is set
-  // to false.
-  private trackEventDetailsPanel?: {
-    detailsPanel: TrackEventDetailsPanel;
-    isLoading: boolean;
-  };
 
   view() {
     const tabMan = this.trace.tabs;
@@ -310,47 +292,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     }
   }
 
-  private maybeLoadDetailsPanel() {
-    // Detect changes to the selection (only works if we assume the selection
-    // object is immutable)
-    if (this.selectionMonitor.ifStateChanged()) {
-      const currentSelection = this.trace.selection.selection;
-      // Show single selection panels if they are registered
-      if (currentSelection.kind !== 'track_event') {
-        this.trackEventDetailsPanel = undefined;
-        return;
-      }
-
-      const td = this.trace.tracks.getTrack(currentSelection.trackUri);
-      if (!td) {
-        this.trackEventDetailsPanel = undefined;
-        return;
-      }
-
-      const detailsPanel = td.track.detailsPanel?.(currentSelection);
-      if (!detailsPanel) {
-        this.trackEventDetailsPanel = undefined;
-        return;
-      }
-
-      const renderable = {
-        detailsPanel,
-        isLoading: true,
-      };
-      this.limiter.schedule(async () => {
-        await detailsPanel?.load?.(currentSelection);
-        renderable.isLoading = false;
-        raf.scheduleFullRedraw();
-      });
-
-      this.trackEventDetailsPanel = renderable;
-    }
-  }
-
   private renderCSTabContent(): {isLoading: boolean; content: m.Children} {
-    // Always update the details panel
-    this.maybeLoadDetailsPanel();
-
     const currentSelection = this.trace.selection.selection;
     if (currentSelection.kind === 'empty') {
       return {
@@ -373,12 +315,11 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
       };
     }
 
-    // If there is a details panel present, show this
-    const dpRenderable = this.trackEventDetailsPanel;
-    if (dpRenderable) {
+    const detailsPanel = this.trace.selection.getDetailsPanelForSelection();
+    if (currentSelection.kind === 'track_event' && detailsPanel !== undefined) {
       return {
-        isLoading: dpRenderable?.isLoading ?? false,
-        content: dpRenderable?.detailsPanel.render(),
+        isLoading: detailsPanel.isLoading,
+        content: detailsPanel.render(),
       };
     }
 
