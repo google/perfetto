@@ -28,7 +28,6 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 
 namespace perfetto {
 
@@ -150,9 +149,7 @@ bool FtraceProcfs::CreateKprobeEvent(const std::string& group,
                                      bool is_retprobe) {
   std::string path = root_ + "kprobe_events";
   std::string probe =
-      (is_retprobe ? std::string("r") + std::string(kKretprobeDefaultMaxactives)
-                   : "p") +
-      std::string(":") + group + "/" + name + " " + name;
+      (is_retprobe ? "r:" : "p:") + group + "/" + name + " " + name;
 
   PERFETTO_DLOG("Writing \"%s >> %s\"", probe.c_str(), path.c_str());
 
