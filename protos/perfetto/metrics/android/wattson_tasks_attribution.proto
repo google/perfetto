@@ -34,9 +34,11 @@ message AndroidWattsonTaskInfo {
   optional float estimated_mw = 1;
   // Total energy over wall duration across CPUs in mWs
   optional float estimated_mws = 2;
-  optional string thread_name = 3;
-  optional string process_name = 4;
-  optional string package_name = 5;
-  optional int32 thread_id = 6;
-  optional int32 process_id = 7;
+  // Energy attributed to a thread for causing CPU idle exit
+  optional float idle_transitions_mws = 3;
+  optional string thread_name = 4;
+  optional string process_name = 5;
+  optional string package_name = 6;
+  optional int32 thread_id = 7;
+  optional int32 process_id = 8;
 }
