@@ -97,29 +97,23 @@ export interface FlamegraphQueryData {
   readonly maxDepth: number;
 }
 
-export interface FlamegraphTopDown {
-  readonly kind: 'TOP_DOWN';
-}
-
-export interface FlamegraphBottomUp {
-  readonly kind: 'BOTTOM_UP';
-}
-
 export interface FlamegraphPivot {
   readonly kind: 'PIVOT';
   readonly pivot: string;
 }
 
 export type FlamegraphView =
-  | FlamegraphTopDown
-  | FlamegraphBottomUp
+  | {readonly kind: 'TOP_DOWN' | 'BOTTOM_UP'}
   | FlamegraphPivot;
 
-export interface FlamegraphFilters {
-  readonly showStack: ReadonlyArray<string>;
-  readonly hideStack: ReadonlyArray<string>;
-  readonly showFromFrame: ReadonlyArray<string>;
-  readonly hideFrame: ReadonlyArray<string>;
+interface FlamegraphFilter {
+  readonly kind: 'SHOW_STACK' | 'HIDE_STACK' | 'SHOW_FROM_FRAME' | 'HIDE_FRAME';
+  readonly filter: string;
+}
+
+export interface FlamegraphState {
+  readonly selectedMetricName: string;
+  readonly filters: ReadonlyArray<FlamegraphFilter>;
   readonly view: FlamegraphView;
 }
 
@@ -128,11 +122,10 @@ export interface FlamegraphAttrs {
     readonly name: string;
     readonly unit: string;
   }>;
-  readonly selectedMetricName: string;
+  readonly state: FlamegraphState;
   readonly data: FlamegraphQueryData | undefined;
 
-  readonly onMetricChange: (metricName: string) => void;
-  readonly onFiltersChanged: (filters: FlamegraphFilters) => void;
+  readonly onStateChange: (filters: FlamegraphState) => void;
 }
 
 /*
@@ -150,21 +143,15 @@ export interface FlamegraphAttrs {
  *
  * ```
  * const metrics = [...];
- * const selectedMetricName = ...;
- * const filters = ...;
- * const data = ...;
+ * let state = ...;
+ * let data = ...;
  *
  * m(Flamegraph, {
  *   metrics,
- *   selectedMetricName,
- *   onMetricChange: (metricName) => {
- *     selectedMetricName = metricName;
- *     data = undefined;
- *     fetchData();
- *   },
+ *   state,
  *   data,
- *   onFiltersChanged: (showStack, hideStack, hideFrame) => {
- *     updateFilters(showStack, hideStack, hideFrame);
+ *   onStateChange: (newState) => {
+ *     state = newState,
  *     data = undefined;
  *     fetchData();
  *   },
@@ -175,9 +162,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private attrs: FlamegraphAttrs;
 
   private rawFilterText: string = '';
-  private rawFilters: ReadonlyArray<string> = [];
   private filterFocus: boolean = false;
-  private switchState: 'TOP_DOWN' | 'BOTTOM_UP' = 'TOP_DOWN';
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
@@ -489,10 +474,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       m(
         Select,
         {
-          value: attrs.selectedMetricName,
+          value: attrs.state.selectedMetricName,
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
-            attrs.onMetricChange(el.value);
+            attrs.onStateChange({
+              ...self.attrs.state,
+              selectedMetricName: el.value,
+            });
             scheduleFullRedraw();
           },
         },
@@ -504,30 +492,31 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         Popup,
         {
           trigger: m(TagInput, {
-            tags: this.rawFilters,
+            tags: toTags(self.attrs.state),
             value: this.rawFilterText,
             onChange: (value: string) => {
               self.rawFilterText = value;
               scheduleFullRedraw();
             },
             onTagAdd: (tag: string) => {
-              self.rawFilters = addFilter(
-                self.rawFilters,
-                normalizeFilter(tag),
-              );
               self.rawFilterText = '';
-              self.attrs.onFiltersChanged(
-                computeFilters(self.switchState, self.rawFilters),
-              );
+              self.attrs.onStateChange(updateState(self.attrs.state, tag));
               scheduleFullRedraw();
             },
             onTagRemove(index: number) {
-              const filters = Array.from(self.rawFilters);
-              filters.splice(index, 1);
-              self.rawFilters = filters;
-              self.attrs.onFiltersChanged(
-                computeFilters(self.switchState, self.rawFilters),
-              );
+              if (index === self.attrs.state.filters.length) {
+                self.attrs.onStateChange({
+                  ...self.attrs.state,
+                  view: {kind: 'TOP_DOWN'},
+                });
+              } else {
+                const filters = Array.from(self.attrs.state.filters);
+                filters.splice(index, 1);
+                self.attrs.onStateChange({
+                  ...self.attrs.state,
+                  filters,
+                });
+              }
               scheduleFullRedraw();
             },
             onfocus() {
@@ -545,15 +534,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       ),
       m(SegmentedButtons, {
         options: [{label: 'Top Down'}, {label: 'Bottom Up'}],
-        selectedOption: this.switchState === 'TOP_DOWN' ? 0 : 1,
+        selectedOption: this.attrs.state.view.kind === 'TOP_DOWN' ? 0 : 1,
         onOptionSelected: (num) => {
-          this.switchState = num === 0 ? 'TOP_DOWN' : 'BOTTOM_UP';
-          self.attrs.onFiltersChanged(
-            computeFilters(self.switchState, self.rawFilters),
-          );
+          self.attrs.onStateChange({
+            ...this.attrs.state,
+            view: {kind: num === 0 ? 'TOP_DOWN' : 'BOTTOM_UP'},
+          });
           scheduleFullRedraw();
         },
-        disabled: hasPivot(this.rawFilters),
+        disabled: this.attrs.state.view.kind === 'PIVOT',
       }),
     );
   }
@@ -597,11 +586,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       parentCumulativeValue,
       properties,
     } = nodes[queryIdx];
-    const filterButtonClick = (filter: string) => {
-      this.rawFilters = addFilter(this.rawFilters, filter);
-      this.attrs.onFiltersChanged(
-        computeFilters(this.switchState, this.rawFilters),
-      );
+    const filterButtonClick = (state: FlamegraphState) => {
+      this.attrs.onStateChange(state);
       this.tooltipPos = undefined;
       scheduleFullRedraw();
     };
@@ -665,31 +651,54 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m(Button, {
           label: 'Show Stack',
           onclick: () => {
-            filterButtonClick(`Show Stack: ^${name}$`);
+            filterButtonClick(
+              addFilter(this.attrs.state, {
+                kind: 'SHOW_STACK',
+                filter: `^${name}$`,
+              }),
+            );
           },
         }),
         m(Button, {
           label: 'Hide Stack',
           onclick: () => {
-            filterButtonClick(`Hide Stack: ^${name}$`);
+            filterButtonClick(
+              addFilter(this.attrs.state, {
+                kind: 'HIDE_STACK',
+                filter: `^${name}$`,
+              }),
+            );
           },
         }),
         m(Button, {
           label: 'Hide Frame',
           onclick: () => {
-            filterButtonClick(`Hide Frame: ^${name}$`);
+            filterButtonClick(
+              addFilter(this.attrs.state, {
+                kind: 'HIDE_FRAME',
+                filter: `^${name}$`,
+              }),
+            );
           },
         }),
         m(Button, {
           label: 'Show From Frame',
           onclick: () => {
-            filterButtonClick(`Show From Frame: ^${name}$`);
+            filterButtonClick(
+              addFilter(this.attrs.state, {
+                kind: 'SHOW_FROM_FRAME',
+                filter: `^${name}$`,
+              }),
+            );
           },
         }),
         m(Button, {
           label: 'Pivot',
           onclick: () => {
-            filterButtonClick(`Pivot: ^${name}$`);
+            filterButtonClick({
+              ...this.attrs.state,
+              view: {kind: 'PIVOT', pivot: name},
+            });
           },
         }),
       ),
@@ -698,7 +707,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private get selectedMetric() {
     return this.attrs.metrics.find(
-      (x) => x.name === this.attrs.selectedMetricName,
+      (x) => x.name === this.attrs.state.selectedMetricName,
     );
   }
 }
@@ -895,73 +904,67 @@ function displayPercentage(size: number, totalSize: number): string {
   return `${((size / totalSize) * 100.0).toFixed(2)}%`;
 }
 
-function normalizeFilter(filter: string): string {
+function updateState(state: FlamegraphState, filter: string): FlamegraphState {
   const lwr = filter.toLowerCase();
   if (lwr.startsWith('ss: ') || lwr.startsWith('show stack: ')) {
-    return 'Show Stack: ' + filter.split(': ', 2)[1];
+    return addFilter(state, {
+      kind: 'SHOW_STACK',
+      filter: filter.split(': ', 2)[1],
+    });
   } else if (lwr.startsWith('hs: ') || lwr.startsWith('hide stack: ')) {
-    return 'Hide Stack: ' + filter.split(': ', 2)[1];
+    return addFilter(state, {
+      kind: 'HIDE_STACK',
+      filter: filter.split(': ', 2)[1],
+    });
   } else if (lwr.startsWith('sff: ') || lwr.startsWith('show from frame: ')) {
-    return 'Show From Frame: ' + filter.split(': ', 2)[1];
+    return addFilter(state, {
+      kind: 'SHOW_FROM_FRAME',
+      filter: filter.split(': ', 2)[1],
+    });
   } else if (lwr.startsWith('hf: ') || lwr.startsWith('hide frame: ')) {
-    return 'Hide Frame: ' + filter.split(': ', 2)[1];
+    return addFilter(state, {
+      kind: 'HIDE_FRAME',
+      filter: filter.split(': ', 2)[1],
+    });
   } else if (lwr.startsWith('p:') || lwr.startsWith('pivot: ')) {
-    return 'Pivot: ' + filter.split(': ', 2)[1];
+    return {
+      ...state,
+      view: {kind: 'PIVOT', pivot: filter.split(': ', 2)[1]},
+    };
   }
-  return 'Show Stack: ' + filter;
+  return addFilter(state, {
+    kind: 'SHOW_STACK',
+    filter: filter.split(': ', 2)[1],
+  });
 }
 
-function addFilter(filters: ReadonlyArray<string>, filter: string): string[] {
-  if (filter.startsWith('Pivot: ')) {
-    return [...filters.filter((x) => !x.startsWith('Pivot: ')), filter];
-  }
-  return [...filters, filter];
-}
-
-function computeFilters(
-  switchState: 'TOP_DOWN' | 'BOTTOM_UP',
-  rawFilters: readonly string[],
-): FlamegraphFilters {
-  const showStack = rawFilters
-    .filter((x) => x.startsWith('Show Stack: '))
-    .map((x) => x.split(': ', 2)[1]);
-  assertTrue(
-    showStack.length < 32,
-    'More than 32 show stack filters is not supported',
-  );
-
-  const showFromFrame = rawFilters
-    .filter((x) => x.startsWith('Show From Frame: '))
-    .map((x) => x.split(': ', 2)[1]);
-  assertTrue(
-    showFromFrame.length < 32,
-    'More than 32 show from frame filters is not supported',
-  );
-
-  const pivot = rawFilters.filter((x) => x.startsWith('Pivot: '));
-  assertTrue(pivot.length <= 1, 'Only one pivot can be active');
-
-  const view: FlamegraphView =
-    pivot.length === 0
-      ? {kind: switchState}
-      : {kind: 'PIVOT', pivot: pivot[0].split(': ', 2)[1]};
-  return {
-    showStack,
-    hideStack: rawFilters
-      .filter((x) => x.startsWith('Hide Stack: '))
-      .map((x) => x.split(': ', 2)[1]),
-    showFromFrame,
-    hideFrame: rawFilters
-      .filter((x) => x.startsWith('Hide Frame: '))
-      .map((x) => x.split(': ', 2)[1]),
-    view,
+function toTags(state: FlamegraphState): ReadonlyArray<string> {
+  const toString = (x: FlamegraphFilter) => {
+    switch (x.kind) {
+      case 'HIDE_FRAME':
+        return 'Hide Frame: ' + x.filter;
+      case 'HIDE_STACK':
+        return 'Hide Stack: ' + x.filter;
+      case 'SHOW_FROM_FRAME':
+        return 'Show From Frame: ' + x.filter;
+      case 'SHOW_STACK':
+        return 'Show Stack: ' + x.filter;
+    }
   };
+  const filters = state.filters.map((x) => toString(x));
+  return filters.concat(
+    state.view.kind === 'PIVOT' ? ['Pivot: ' + state.view.pivot] : [],
+  );
 }
 
-function hasPivot(rawFilters: readonly string[]) {
-  const pivot = rawFilters.filter((x) => x.startsWith('Pivot: '));
-  assertTrue(pivot.length <= 1, 'Only one pivot can be active');
-  return pivot.length === 1;
+function addFilter(
+  state: FlamegraphState,
+  filter: FlamegraphFilter,
+): FlamegraphState {
+  return {
+    ...state,
+    filters: state.filters.concat([filter]),
+  };
 }
 
 function generateColor(name: string, greyed: boolean, hovered: boolean) {
