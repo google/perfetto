@@ -1,5 +1,6 @@
 wattson_markers_threads {
-  metric_version: 2
+  metric_version: 3
+  power_model_version: 1
   task_info {
     estimated_mws: 15.333553
     estimated_mw: 7.546518

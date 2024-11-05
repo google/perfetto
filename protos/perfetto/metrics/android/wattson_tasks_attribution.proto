@@ -19,9 +19,14 @@ syntax = "proto2";
 package perfetto.protos;
 
 message AndroidWattsonTasksAttributionMetric {
+  // Each version increment means updated structure format or field
   optional int32 metric_version = 1;
+  // Each version increment means power model has been updated and estimates
+  // might change for the exact same input. Don't compare estimates across
+  // different power model versions.
+  optional int32 power_model_version = 2;
   // Lists tasks (e.g. threads, process, package) and associated estimates
-  repeated AndroidWattsonTaskInfo task_info = 2;
+  repeated AndroidWattsonTaskInfo task_info = 3;
 }
 
 message AndroidWattsonTaskInfo {

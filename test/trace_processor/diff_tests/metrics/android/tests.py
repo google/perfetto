@@ -375,7 +375,8 @@ class AndroidMetrics(TestSuite):
         query=Metric("wattson_app_startup_rails"),
         out=Csv("""
         wattson_app_startup_rails {
-          metric_version: 3
+          metric_version: 4
+          power_model_version: 1
           period_info {
             period_id: 1
             period_dur: 384847255
@@ -428,7 +429,8 @@ class AndroidMetrics(TestSuite):
         query=Metric("wattson_trace_rails"),
         out=Csv("""
         wattson_trace_rails {
-          metric_version: 3
+          metric_version: 4
+          power_model_version: 1
           period_info {
             period_id: 1
             period_dur: 61792677852
@@ -481,7 +483,8 @@ class AndroidMetrics(TestSuite):
         query=Metric("wattson_markers_rails"),
         out=Csv("""
         wattson_markers_rails {
-          metric_version: 3
+          metric_version: 4
+          power_model_version: 1
           period_info {
             period_id: 1
             period_dur: 2031871358

@@ -51,7 +51,8 @@ ORDER BY estimated_mw DESC;
 DROP VIEW IF EXISTS wattson_markers_threads_output;
 CREATE PERFETTO VIEW wattson_markers_threads_output AS
 SELECT AndroidWattsonTasksAttributionMetric(
-  'metric_version', 2,
+  'metric_version', 3,
+  'power_model_version', 1,
   'task_info', (
     SELECT RepeatedField(
       AndroidWattsonTaskInfo(
