@@ -34,7 +34,6 @@ class Globals {
   private _dispatchMultiple?: DispatchMultiple = undefined;
   private _store = createStore<State>(createEmptyState());
   private _serviceWorkerController?: ServiceWorkerController = undefined;
-  private _isInternalUser: boolean | undefined = undefined;
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
@@ -42,6 +41,11 @@ class Globals {
   private _recordingLog?: string = undefined;
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
+
+  // This is normally undefined is injected in via is_internal_user.js.
+  // WARNING: do not change/rename/move without considering impact on the
+  // internal_user script.
+  private _isInternalUser: boolean | undefined = undefined;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -84,6 +88,12 @@ class Globals {
 
   get store(): Store<State> {
     return this._store;
+  }
+
+  // WARNING: do not change/rename/move without considering impact on the
+  // internal_user script.
+  get extraSqlPackages() {
+    return AppImpl.instance.extraSqlPackages;
   }
 
   dispatch(action: DeferredAction) {
