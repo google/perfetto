@@ -33,6 +33,7 @@ import {SearchResult} from '../public/search';
 import {SelectionAggregationManager} from './selection_aggregation_manager';
 import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
+import {SerializedSelection} from './state_serialization_schema';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -40,6 +41,7 @@ const INCOMPLETE_SLICE_DURATION = 30_000n;
 interface SelectionDetailsPanel {
   isLoading: boolean;
   render(): m.Children;
+  serializatonState(): unknown;
 }
 
 // There are two selection-related states in this class.
@@ -86,22 +88,7 @@ export class SelectionManagerImpl implements SelectionManager {
     eventId: number,
     opts?: SelectionOpts,
   ) {
-    const details = await this.trackManager
-      .getTrack(trackUri)
-      ?.track.getSelectionDetails?.(eventId);
-
-    if (!exists(details)) {
-      throw new Error('Unable to resolve selection details');
-    }
-
-    const selection: TrackEventSelection = {
-      ...details,
-      kind: 'track_event',
-      trackUri,
-      eventId,
-    };
-    this.createTrackEventDetailsPanel(selection);
-    this.setSelection(selection, opts);
+    this.selectTrackEventInternal(trackUri, eventId, opts);
   }
 
   selectTrack(trackUri: string, opts?: SelectionOpts) {
@@ -141,6 +128,28 @@ export class SelectionManagerImpl implements SelectionManager {
       },
       opts,
     );
+  }
+
+  deserialize(serialized: SerializedSelection | undefined) {
+    if (serialized === undefined) {
+      return;
+    }
+    switch (serialized.kind) {
+      case 'TRACK_EVENT':
+        this.selectTrackEventInternal(
+          serialized.trackKey,
+          parseInt(serialized.eventId),
+          undefined,
+          serialized.detailsPanel,
+        );
+        break;
+      case 'AREA':
+        this.selectArea({
+          start: serialized.start,
+          end: serialized.end,
+          trackUris: serialized.trackUris,
+        });
+    }
   }
 
   toggleTrackAreaSelection(trackUri: string) {
@@ -314,7 +323,34 @@ export class SelectionManagerImpl implements SelectionManager {
     }
   }
 
-  private createTrackEventDetailsPanel(selection: TrackEventSelection) {
+  private async selectTrackEventInternal(
+    trackUri: string,
+    eventId: number,
+    opts?: SelectionOpts,
+    serializedDetailsPanel?: unknown,
+  ) {
+    const details = await this.trackManager
+      .getTrack(trackUri)
+      ?.track.getSelectionDetails?.(eventId);
+
+    if (!exists(details)) {
+      throw new Error('Unable to resolve selection details');
+    }
+
+    const selection: TrackEventSelection = {
+      ...details,
+      kind: 'track_event',
+      trackUri,
+      eventId,
+    };
+    this.createTrackEventDetailsPanel(selection, serializedDetailsPanel);
+    this.setSelection(selection, opts);
+  }
+
+  private createTrackEventDetailsPanel(
+    selection: TrackEventSelection,
+    serializedState: unknown,
+  ) {
     const td = this.trackManager.getTrack(selection.trackUri);
     if (!td) {
       return;
@@ -323,11 +359,19 @@ export class SelectionManagerImpl implements SelectionManager {
     if (!panel) {
       return;
     }
+
+    if (panel.serialization && serializedState !== undefined) {
+      const res = panel.serialization.schema.safeParse(serializedState);
+      if (res.success) {
+        panel.serialization.state = res.data;
+      }
+    }
+
     const detailsPanel: SelectionDetailsPanel = {
       render: () => panel.render(),
+      serializatonState: () => panel.serialization?.state,
       isLoading: true,
     };
-
     // Associate this details panel with this selection object
     this.detailsPanels.set(selection, detailsPanel);
 
