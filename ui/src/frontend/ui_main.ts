@@ -359,6 +359,12 @@ export class UiMainPerTrace implements m.ClassComponent {
         // TODO(stevegolton): Decide on a sensible hotkey.
         // defaultHotkey: 'L',
       },
+      {
+        id: 'perfetto.ToggleDrawer',
+        name: 'Toggle drawer',
+        defaultHotkey: 'Q',
+        callback: () => trace.tabs.toggleTabPanelVisibility(),
+      },
     ];
 
     // Register each command with the command manager
