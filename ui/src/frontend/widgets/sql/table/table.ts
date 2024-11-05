@@ -337,7 +337,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
             ];
           addHistogramTab({
             engine: this.state.trace.engine,
-            sqlColumn: columnAlias,
+            sqlColumn: [columnAlias],
             columnTitle: columnTitle(column),
             filters: this.state.getFilters(),
             tableDisplay: this.table.displayName ?? this.table.name,

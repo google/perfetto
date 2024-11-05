@@ -23,7 +23,7 @@ import {Engine} from '../../../../trace_processor/engine';
 export interface HistogramConfig {
   engine: Engine;
   columnTitle: string; // Human readable column name (ex: Duration)
-  sqlColumn: string; // SQL column name (ex: dur)
+  sqlColumn: string[]; // SQL column name (ex: dur)
   filters?: Filter[]; // Filters applied to SQL table
   tableDisplay?: string; // Human readable table name (ex: slices)
   query: string; // SQL query for the underlying data
@@ -42,16 +42,10 @@ export class Histogram implements m.ClassComponent<HistogramConfig> {
     );
   }
 
-  view({attrs}: m.Vnode<HistogramConfig>) {
-    const data = this.state.data;
-    if (data === undefined) {
+  view() {
+    if (this.state.isLoading()) {
       return m(Spinner);
     }
-
-    const {binAxisType, binAxis, countAxis, sort, isBinned, labelLimit} =
-      this.state.data!.chartConfig;
-
-    const {sqlColumn, columnTitle} = attrs;
 
     return m(
       'figure',
@@ -59,36 +53,13 @@ export class Histogram implements m.ClassComponent<HistogramConfig> {
         className: 'pf-histogram-view',
       },
       m(VegaView, {
-        spec: `{
-          "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-          "width": "container",
-          "mark": "bar",
-          "data": {
-            "values": ${stringifyJsonWithBigints(this.state.data!.rows)}
-          },
-          "encoding": {
-            "${binAxis}": {
-              "bin": ${isBinned},
-              "field": "${sqlColumn}",
-              "type": "${binAxisType}",
-              "title": "${columnTitle}",
-              "sort": ${sort},
-              "axis": {
-                "labelLimit": ${labelLimit}
-              }
-            },
-            "${countAxis}": {
-              "aggregate": "count",
-              "title": "Count"
-            }
-          }
-        }`,
+        spec: stringifyJsonWithBigints(this.state.spec),
         data: {},
       }),
     );
   }
 
   isLoading(): boolean {
-    return this.state.data === undefined;
+    return this.state.isLoading();
   }
 }
