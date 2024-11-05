@@ -24,6 +24,7 @@ import {
   ProfileType,
   profileType,
   TrackEventDetails,
+  TrackEventSelection,
 } from '../../public/selection';
 import {Slice} from '../../public/track';
 import {LONG, STR} from '../../trace_processor/query_result';
@@ -105,11 +106,12 @@ export class HeapProfileTrack extends BaseSliceTrack<
     };
   }
 
-  detailsPanel() {
+  detailsPanel(sel: TrackEventSelection) {
     return new HeapProfileFlamegraphDetailsPanel(
       this.trace,
       this.heapProfileIsIncomplete,
       this.upid,
+      sel,
     );
   }
 }

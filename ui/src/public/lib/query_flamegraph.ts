@@ -88,6 +88,10 @@ export interface QueryFlamegraphMetric {
   readonly aggregatableProperties?: ReadonlyArray<AggQueryFlamegraphColumn>;
 }
 
+export interface QueryFlamegraphState {
+  state: FlamegraphState;
+}
+
 // Given a table and columns on those table (corresponding to metrics),
 // returns an array of `QueryFlamegraphMetric` structs which can be passed
 // in QueryFlamegraph's attrs.
@@ -123,40 +127,36 @@ export function metricsFromTableOrSubquery(
 // data for the widget by querying an `Engine`.
 export class QueryFlamegraph {
   private data?: FlamegraphQueryData;
-  private state: FlamegraphState;
-  private selMonitor = new Monitor([() => this.state]);
-  private queryLimiter = new AsyncLimiter();
+  private readonly selMonitor = new Monitor([() => this.state.state]);
+  private readonly queryLimiter = new AsyncLimiter();
 
   constructor(
     private readonly trace: Trace,
-    private readonly metrics: QueryFlamegraphMetric[],
-  ) {
-    this.state = {
-      selectedMetricName: metrics[0].name,
-      filters: [],
-      view: {kind: 'TOP_DOWN'},
-    };
-  }
+    private readonly metrics: ReadonlyArray<QueryFlamegraphMetric>,
+    private state: QueryFlamegraphState,
+  ) {}
 
   render() {
     if (this.selMonitor.ifStateChanged()) {
       const metric = assertExists(
-        this.metrics.find((x) => this.state.selectedMetricName === x.name),
+        this.metrics.find(
+          (x) => this.state.state.selectedMetricName === x.name,
+        ),
       );
       const engine = this.trace.engine;
       const state = this.state;
       this.data = undefined;
       this.queryLimiter.schedule(async () => {
         this.data = undefined;
-        this.data = await computeFlamegraphTree(engine, metric, state);
+        this.data = await computeFlamegraphTree(engine, metric, state.state);
       });
     }
     return m(Flamegraph, {
       metrics: this.metrics,
       data: this.data,
-      state: this.state,
+      state: this.state.state,
       onStateChange: (state) => {
-        this.state = state;
+        this.state.state = state;
         this.trace.scheduleFullRedraw();
       },
     });
