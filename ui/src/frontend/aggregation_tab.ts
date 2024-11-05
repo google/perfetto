@@ -36,6 +36,7 @@ import {DisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/logging';
 import {TraceImpl} from '../core/trace_impl';
 import {Trace} from '../public/trace';
+import {Flamegraph} from '../widgets/flamegraph';
 
 interface View {
   key: string;
@@ -224,50 +225,51 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     if (utids.length === 0) {
       return undefined;
     }
-    return new QueryFlamegraph(trace, [
-      ...metricsFromTableOrSubquery(
-        `
-            (
-              select
-                id,
-                parent_id as parentId,
-                name,
-                mapping_name,
-                source_file,
-                cast(line_number AS text) as line_number,
-                self_count
-              from _callstacks_for_callsites!((
-                select p.callsite_id
-                from cpu_profile_stack_sample p
-                where p.ts >= ${currentSelection.start}
-                  and p.ts <= ${currentSelection.end}
-                  and p.utid in (${utids.join(',')})
-              ))
-            )
-          `,
-        [
-          {
-            name: 'CPU Profile Samples',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module callstacks.stack_profile',
-        [{name: 'mapping_name', displayName: 'Mapping'}],
-        [
-          {
-            name: 'source_file',
-            displayName: 'Source File',
-            mergeAggregation: 'ONE_OR_NULL',
-          },
-          {
-            name: 'line_number',
-            displayName: 'Line Number',
-            mergeAggregation: 'ONE_OR_NULL',
-          },
-        ],
-      ),
-    ]);
+    const metrics = metricsFromTableOrSubquery(
+      `
+        (
+          select
+            id,
+            parent_id as parentId,
+            name,
+            mapping_name,
+            source_file,
+            cast(line_number AS text) as line_number,
+            self_count
+          from _callstacks_for_callsites!((
+            select p.callsite_id
+            from cpu_profile_stack_sample p
+            where p.ts >= ${currentSelection.start}
+              and p.ts <= ${currentSelection.end}
+              and p.utid in (${utids.join(',')})
+          ))
+        )
+      `,
+      [
+        {
+          name: 'CPU Profile Samples',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      'include perfetto module callstacks.stack_profile',
+      [{name: 'mapping_name', displayName: 'Mapping'}],
+      [
+        {
+          name: 'source_file',
+          displayName: 'Source File',
+          mergeAggregation: 'ONE_OR_NULL',
+        },
+        {
+          name: 'line_number',
+          displayName: 'Line Number',
+          mergeAggregation: 'ONE_OR_NULL',
+        },
+      ],
+    );
+    return new QueryFlamegraph(trace, metrics, {
+      state: Flamegraph.createDefaultState(metrics),
+    });
   }
 
   private computePerfSampleFlamegraph(trace: Trace, isChanged: boolean) {
@@ -285,34 +287,35 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     if (utids.length === 0 && upids.length === 0) {
       return undefined;
     }
-    return new QueryFlamegraph(trace, [
-      ...metricsFromTableOrSubquery(
-        `
-            (
-              select id, parent_id as parentId, name, self_count
-              from _callstacks_for_callsites!((
-                select p.callsite_id
-                from perf_sample p
-                join thread t using (utid)
-                where p.ts >= ${currentSelection.start}
-                  and p.ts <= ${currentSelection.end}
-                  and (
-                    p.utid in (${utids.join(',')})
-                    or t.upid in (${upids.join(',')})
-                  )
-              ))
-            )
-          `,
-        [
-          {
-            name: 'Perf Samples',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module linux.perf.samples',
-      ),
-    ]);
+    const metrics = metricsFromTableOrSubquery(
+      `
+        (
+          select id, parent_id as parentId, name, self_count
+          from _callstacks_for_callsites!((
+            select p.callsite_id
+            from perf_sample p
+            join thread t using (utid)
+            where p.ts >= ${currentSelection.start}
+              and p.ts <= ${currentSelection.end}
+              and (
+                p.utid in (${utids.join(',')})
+                or t.upid in (${upids.join(',')})
+              )
+          ))
+        )
+      `,
+      [
+        {
+          name: 'Perf Samples',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      'include perfetto module linux.perf.samples',
+    );
+    return new QueryFlamegraph(trace, metrics, {
+      state: Flamegraph.createDefaultState(metrics),
+    });
   }
 
   private computeSliceFlamegraph(trace: Trace, isChanged: boolean) {
@@ -338,35 +341,38 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
     if (trackIds.length === 0) {
       return undefined;
     }
-    return new QueryFlamegraph(trace, [
-      ...metricsFromTableOrSubquery(
-        `(
-            select *
-            from _viz_slice_ancestor_agg!((
-              select s.id, s.dur
-              from slice s
-              left join slice t on t.parent_id = s.id
-              where s.ts >= ${currentSelection.start}
-                and s.ts <= ${currentSelection.end}
-                and s.track_id in (${trackIds.join(',')})
-                and t.id is null
-            ))
-          )`,
-        [
-          {
-            name: 'Duration',
-            unit: 'ns',
-            columnName: 'self_dur',
-          },
-          {
-            name: 'Samples',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
-        'include perfetto module viz.slices;',
-      ),
-    ]);
+    const metrics = metricsFromTableOrSubquery(
+      `
+        (
+          select *
+          from _viz_slice_ancestor_agg!((
+            select s.id, s.dur
+            from slice s
+            left join slice t on t.parent_id = s.id
+            where s.ts >= ${currentSelection.start}
+              and s.ts <= ${currentSelection.end}
+              and s.track_id in (${trackIds.join(',')})
+              and t.id is null
+          ))
+        )
+      `,
+      [
+        {
+          name: 'Duration',
+          unit: 'ns',
+          columnName: 'self_dur',
+        },
+        {
+          name: 'Samples',
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      'include perfetto module viz.slices;',
+    );
+    return new QueryFlamegraph(trace, metrics, {
+      state: Flamegraph.createDefaultState(metrics),
+    });
   }
 }
 
