@@ -22,7 +22,8 @@ SELECT
   -- Requirement is there is exactly one pair of start/stop
   (SELECT ts FROM slice WHERE name == 'wattson_start') as ts,
   (SELECT ts FROM slice WHERE name == 'wattson_stop')
-  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur;
+  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur,
+  1 as period_id;
 
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',

@@ -21,7 +21,8 @@ DROP VIEW IF EXISTS _wattson_period_window;
 CREATE PERFETTO VIEW _wattson_period_window AS
 SELECT
   trace_start() as ts,
-  trace_dur() as dur;
+  trace_dur() as dur,
+  1 as period_id;
 
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',
