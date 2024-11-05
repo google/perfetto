@@ -15446,8 +15446,10 @@ message TrackDescriptor {
   // track events and system events share a track.
   optional bool disallow_merging_with_system_tracks = 9;
 
-  // How the UI should organise the nested (child) tracks, i.e. tracks where
-  // `parent_uuid` is specified to this track `uuid`.
+  // Specifies how the UI should display child tracks of this track (i.e. tracks
+  // where `parent_uuid` is specified to this track `uuid`). Note that this
+  // value is simply a *hint* to the UI: the UI is not guarnateed to respect
+  // this if it has a good reason not to do so.
   enum ChildTracksOrdering {
     // The default ordering, with no bearing on how the UI will visualise the
     // tracks.
@@ -15460,18 +15462,17 @@ message TrackDescriptor {
     // Order tracks by the first `ts` event in a track.
     CHRONOLOGICAL = 2;
 
-    // Order tracks by `sibling_order_rank` of children tracks. The
-    // lowest value will be shown before highest values, with tracks without
-    // `sibling_order_rank` being shown at the end.
+    // Order tracks by `sibling_order_rank` of child tracks. Child tracks with
+    // the lower values will be shown before tracks with higher values. Tracks
+    // with no value will be treated as having 0 rank.
     EXPLICIT = 3;
   }
-
-  // If set the ordering will be accessible to the UI via the `track` table.
   optional ChildTracksOrdering child_ordering = 11;
 
-  // As tracks with the same name under the same `parent_uuid` are grouped
-  // together in the UI, the `sibling_order_rank` of the grouped track
-  // would be the minimum `sibling_order_rank` of grouped tracks.
+  // An opaque value which allows specifying how two sibling tracks should be
+  // ordered relative to each other: tracks with lower ranks will appear before
+  // tracks with higher ranks. An unspecified rank will be treated as a rank of
+  // 0.
   optional int32 sibling_order_rank = 12;
 }
 

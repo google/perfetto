@@ -403,6 +403,37 @@ class Viz(TestSuite):
         9,5,3
         """))
 
+  def test_sanity_ordering_tracks(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_tracks_ordering.textproto'),
+        query="""
+        SELECT
+          id,
+          parent_id,
+          name,
+          EXTRACT_ARG(source_arg_set_id, 'child_ordering') AS ordering,
+          EXTRACT_ARG(source_arg_set_id, 'sibling_order_rank') AS rank
+        FROM track
+        ORDER BY parent_id, id;
+        """,
+        out=Csv("""
+          "id","parent_id","name","ordering","rank"
+          0,"[NULL]","explicit_parent","explicit",-10
+          4,"[NULL]","chronological_parent","chronological","[NULL]"
+          9,"[NULL]","lexicographic_parent","lexicographic","[NULL]"
+          1,0,"explicit_child:no z-index","[NULL]","[NULL]"
+          2,0,"explicit_child:5 z-index","[NULL]",5
+          3,0,"explicit_child:-5 z-index","[NULL]",-5
+          8,0,"explicit_child:-5 z-index","[NULL]",-5
+          5,4,"chrono","[NULL]","[NULL]"
+          6,4,"chrono2","[NULL]","[NULL]"
+          7,4,"chrono1","[NULL]","[NULL]"
+          10,9,"[NULL]","[NULL]","[NULL]"
+          11,9,"a","[NULL]","[NULL]"
+          12,9,"b","[NULL]","[NULL]"
+          13,9,"ab","[NULL]","[NULL]"
+        """))
+
   def test_sanity_ordering(self):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks_ordering.textproto'),
@@ -414,8 +445,8 @@ class Viz(TestSuite):
         """,
         out=Csv("""
         "id","order_id"
-        1,4
-        2,3
+        1,3
+        2,4
         3,1
         5,1
         6,2
