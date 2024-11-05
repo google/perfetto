@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {v4} from 'uuid';
+import {sqlNameSafe} from './string_utils';
 
 export const uuidv4 = v4;
 
@@ -23,5 +24,5 @@ export const uuidv4 = v4;
  */
 export function uuidv4Sql(uuid?: string): string {
   const str = uuid ?? uuidv4();
-  return str.replace(/[^a-zA-Z0-9_]+/g, '_');
+  return sqlNameSafe(str);
 }
