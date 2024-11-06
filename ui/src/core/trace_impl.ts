@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import {assertTrue} from '../base/logging';
 import {createStore, Migrate, Store} from '../base/store';
 import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
@@ -53,7 +52,8 @@ import {TraceInfoImpl} from './trace_info_impl';
  * This is the underlying storage for AppImpl, which instead has one instance
  * per trace per plugin.
  */
-class TraceContext implements Disposable {
+export class TraceContext implements Disposable {
+  private readonly pluginInstances = new Map<string, TraceImpl>();
   readonly appCtx: AppContext;
   readonly engine: EngineBase;
   readonly omniboxMgr = new OmniboxManagerImpl();
@@ -149,6 +149,16 @@ class TraceContext implements Disposable {
     this.selectionMgr.selectSearchResult(searchResult);
   }
 
+  // Gets or creates an instance of TraceImpl backed by the current TraceContext
+  // for the given plugin.
+  forPlugin(pluginId: string) {
+    return getOrCreate(this.pluginInstances, pluginId, () => {
+      const appForPlugin = this.appCtx.forPlugin(pluginId);
+      return new TraceImpl(appForPlugin, this);
+    });
+  }
+
+  // Called by AppContext.closeCurrentTrace().
   [Symbol.dispose]() {
     this.trash.dispose();
   }
@@ -182,15 +192,15 @@ export class TraceImpl implements Trace {
     traceInfo: TraceInfoImpl,
   ): TraceImpl {
     const traceCtx = new TraceContext(
-      appImpl.__appCtxForTraceImplCtor,
+      appImpl.__appCtxForTrace,
       engine,
       traceInfo,
     );
-    const traceImpl = new TraceImpl(appImpl, traceCtx);
-    return traceImpl;
+    return traceCtx.forPlugin(CORE_PLUGIN_ID);
   }
 
-  private constructor(appImpl: AppImpl, ctx: TraceContext) {
+  // Only called by TraceContext.forPlugin().
+  constructor(appImpl: AppImpl, ctx: TraceContext) {
     const pluginId = appImpl.pluginId;
     this.appImpl = appImpl;
     this.traceCtx = ctx;
@@ -240,8 +250,7 @@ export class TraceImpl implements Trace {
   // another plugin. This is effectively a way to "fork" the core instance and
   // create the N instances for plugins.
   forkForPlugin(pluginId: string) {
-    assertTrue(pluginId != CORE_PLUGIN_ID);
-    return new TraceImpl(this.appImpl.forkForPlugin(pluginId), this.traceCtx);
+    return this.traceCtx.forPlugin(pluginId);
   }
 
   mountStore<T>(migrate: Migrate<T>): Store<T> {
@@ -287,6 +296,10 @@ export class TraceImpl implements Trace {
     }
     const pluginArgs = traceSource.pluginArgs;
     return (pluginArgs ?? {})[this.pluginId];
+  }
+
+  get trace() {
+    return this;
   }
 
   get engine() {
@@ -383,12 +396,6 @@ export class TraceImpl implements Trace {
     this.appImpl.scheduleFullRedraw();
   }
 
-  [Symbol.dispose]() {
-    if (this.pluginId === CORE_PLUGIN_ID) {
-      this.traceCtx[Symbol.dispose]();
-    }
-  }
-
   navigate(newHash: string): void {
     this.appImpl.navigate(newHash);
   }
@@ -418,6 +425,11 @@ export class TraceImpl implements Trace {
 
   get trash(): DisposableStack {
     return this.traceCtx.trash;
+  }
+
+  // Nothing other than AppImpl should ever refer to this, hence the __ name.
+  get __traceCtxForApp() {
+    return this.traceCtx;
   }
 }
 
