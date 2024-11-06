@@ -40,14 +40,9 @@ export function initializeAppImplForTesting(): AppImpl {
   return AppImpl.instance;
 }
 
-// This is used:
-// - For testing.
-// - By globals.ts before we have an actual trace loaded, to avoid causing
-//   if (!= undefined) checks everywhere.
+// For testing purposes only.
 export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
-  if (!AppImpl.initialized) {
-    initializeAppImplForTesting();
-  }
+  initializeAppImplForTesting();
   const fakeTraceInfo: TraceInfoImpl = {
     source: {type: 'URL', url: ''},
     traceTitle: '',

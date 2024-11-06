@@ -14,7 +14,7 @@
 
 import {assertExists, assertTrue} from '../base/logging';
 import {App} from '../public/app';
-import {TraceImpl} from './trace_impl';
+import {TraceContext, TraceImpl} from './trace_impl';
 import {CommandManagerImpl} from './command_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {raf} from './raf_scheduler';
@@ -29,6 +29,7 @@ import {loadTrace} from './load_trace';
 import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Router} from './router';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
+import {getOrCreate} from '../base/utils';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -50,6 +51,8 @@ export interface AppInitArgs {
  * and should use AppImpl instead.
  */
 export class AppContext {
+  // The per-plugin instances of AppImpl (including the CORE_PLUGIN one).
+  private readonly pluginInstances = new Map<string, AppImpl>();
   readonly commandMgr = new CommandManagerImpl();
   readonly omniboxMgr = new OmniboxManagerImpl();
   readonly sidebarMgr: SidebarManagerImpl;
@@ -65,6 +68,9 @@ export class AppContext {
   // This is normally empty and is injected with extra google-internal packages
   // via is_internal_user.js
   extraSqlPackages: SqlPackage[] = [];
+
+  // The currently open trace.
+  currentTrace?: TraceContext;
 
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
@@ -84,11 +90,41 @@ export class AppContext {
     // hence no concrete root.
     assertTrue(this.initArgs.rootUrl !== '' || typeof jest !== 'undefined');
     this.pluginMgr = new PluginManagerImpl({
-      forkForPlugin: (p) => AppImpl.instance.forkForPlugin(p),
+      forkForPlugin: (pluginId) => this.forPlugin(pluginId),
       get trace() {
         return AppImpl.instance.trace;
       },
     });
+  }
+
+  // Gets or creates an instance of AppImpl backed by the current AppContext
+  // for the given plugin.
+  forPlugin(pluginId: string) {
+    return getOrCreate(this.pluginInstances, pluginId, () => {
+      return new AppImpl(this, pluginId);
+    });
+  }
+
+  closeCurrentTrace() {
+    this.omniboxMgr.reset(/* focus= */ false);
+
+    if (this.currentTrace !== undefined) {
+      // This will trigger the unregistration of trace-scoped commands and
+      // sidebar menuitems (and few similar things).
+      this.currentTrace[Symbol.dispose]();
+      this.currentTrace = undefined;
+    }
+    this.initArgs.clearState();
+  }
+
+  // Called by trace_loader.ts soon after it has created a new TraceImpl.
+  setActiveTrace(traceCtx: TraceContext) {
+    // In 99% this closeCurrentTrace() call is not needed because the real one
+    // is performed by openTrace() in this file. However in some rare cases we
+    // might end up loading a trace while another one is still loading, and this
+    // covers races in that case.
+    this.closeCurrentTrace();
+    this.currentTrace = traceCtx;
   }
 }
 
@@ -102,12 +138,6 @@ export class AppContext {
 export class AppImpl implements App {
   private appCtx: AppContext;
   readonly pluginId: string;
-  private currentTrace?: TraceImpl;
-
-  private constructor(appCtx: AppContext, pluginId: string) {
-    this.appCtx = appCtx;
-    this.pluginId = pluginId;
-  }
 
   // Gets access to the one instance that the core can use. Note that this is
   // NOT the only instance, as other AppImpl instance will be created for each
@@ -117,18 +147,17 @@ export class AppImpl implements App {
   // Invoked by frontend/index.ts.
   static initialize(args: AppInitArgs) {
     assertTrue(AppImpl._instance === undefined);
-    AppImpl._instance = new AppImpl(new AppContext(args), CORE_PLUGIN_ID);
-  }
-
-  // For testing purposes only.
-  // TODO(primiano): This is only required because today globals.ts abuses
-  // createFakeTraceImpl(). It can be removed once globals goes away.
-  static get initialized() {
-    return AppImpl._instance !== undefined;
+    AppImpl._instance = new AppContext(args).forPlugin(CORE_PLUGIN_ID);
   }
 
   static get instance(): AppImpl {
     return assertExists(AppImpl._instance);
+  }
+
+  // Only called by AppContext.forPlugin().
+  constructor(appCtx: AppContext, pluginId: string) {
+    this.appCtx = appCtx;
+    this.pluginId = pluginId;
   }
 
   get commands(): CommandManagerImpl {
@@ -152,16 +181,11 @@ export class AppImpl implements App {
   }
 
   get trace(): TraceImpl | undefined {
-    return this.currentTrace;
+    return this.appCtx.currentTrace?.forPlugin(this.pluginId);
   }
 
   scheduleFullRedraw(): void {
     raf.scheduleFullRedraw();
-  }
-
-  forkForPlugin(pluginId: string): AppImpl {
-    assertTrue(pluginId != CORE_PLUGIN_ID);
-    return new AppImpl(this.appCtx, pluginId);
   }
 
   get newEngineMode() {
@@ -194,7 +218,7 @@ export class AppImpl implements App {
 
   private async openTrace(src: TraceSource) {
     assertTrue(this.pluginId === CORE_PLUGIN_ID);
-    this.closeCurrentTrace();
+    this.appCtx.closeCurrentTrace();
     this.appCtx.isLoadingTrace = true;
     try {
       // loadTrace() in trace_loader.ts will do the following:
@@ -220,37 +244,17 @@ export class AppImpl implements App {
     }
   }
 
+  // Called by trace_loader.ts soon after it has created a new TraceImpl.
+  setActiveTrace(traceImpl: TraceImpl) {
+    this.appCtx.setActiveTrace(traceImpl.__traceCtxForApp);
+  }
+
   get embeddedMode(): boolean {
     return this.appCtx.embeddedMode;
   }
 
   get testingMode(): boolean {
     return this.appCtx.testingMode;
-  }
-
-  closeCurrentTrace() {
-    // This method should be called only on the core instance, plugins don't
-    // have access to openTrace*() methods.
-    assertTrue(this.pluginId === CORE_PLUGIN_ID);
-    this.omnibox.reset(/* focus= */ false);
-
-    if (this.currentTrace !== undefined) {
-      // This will trigger the unregistration of trace-scoped commands and
-      // sidebar menuitems (and few similar things).
-      this.currentTrace[Symbol.dispose]();
-      this.currentTrace = undefined;
-    }
-    this.appCtx.initArgs.clearState();
-  }
-
-  // Called by trace_loader.ts soon after it has created a new TraceImpl.
-  setActiveTrace(traceImpl: TraceImpl) {
-    // In 99% this closeCurrentTrace() call is not needed because the real one
-    // is performed by openTrace() in this file. However in some rare cases we
-    // might end up loading a trace while another one is still loading, and this
-    // covers races in that case.
-    this.closeCurrentTrace();
-    this.currentTrace = traceImpl;
   }
 
   get isLoadingTrace() {
@@ -268,7 +272,7 @@ export class AppImpl implements App {
   // Nothing other than TraceImpl's constructor should ever refer to this.
   // This is necessary to avoid circular dependencies between trace_impl.ts
   // and app_impl.ts.
-  get __appCtxForTraceImplCtor() {
+  get __appCtxForTrace() {
     return this.appCtx;
   }
 
