@@ -19,7 +19,6 @@
 #include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
-#include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -27,10 +26,7 @@ namespace trace_processor {
 
 SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(
     TraceProcessorContext* context)
-    : context_{context}, args_parser_{pool_} {
-  pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
-                                 kWinscopeDescriptor.size());
-}
+    : context_{context}, args_parser_{*context->descriptor_pool_} {}
 
 void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
                                        protozero::ConstBytes blob) {

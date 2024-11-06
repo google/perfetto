@@ -29,12 +29,14 @@ using perfetto::protos::pbzero::WinscopeExtensionsImpl;
 
 WinscopeModule::WinscopeModule(TraceProcessorContext* context)
     : context_{context},
-      args_parser_{pool_},
+      args_parser_{*context->descriptor_pool_.get()},
       surfaceflinger_layers_parser_(context),
       surfaceflinger_transactions_parser_(context),
       shell_transitions_parser_(context),
       protolog_parser_(context),
       android_input_event_parser_(context) {
+  context->descriptor_pool_->AddFromFileDescriptorSet(
+      kWinscopeDescriptor.data(), kWinscopeDescriptor.size());
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber,
                    context);
   RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber,
@@ -44,9 +46,6 @@ WinscopeModule::WinscopeModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kProtologMessageFieldNumber, context);
   RegisterForField(TracePacket::kProtologViewerConfigFieldNumber, context);
   RegisterForField(TracePacket::kWinscopeExtensionsFieldNumber, context);
-
-  pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
-                                 kWinscopeDescriptor.size());
 }
 
 ModuleResult WinscopeModule::TokenizePacket(

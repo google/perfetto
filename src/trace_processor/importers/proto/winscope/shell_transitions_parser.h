@@ -37,7 +37,6 @@ class ShellTransitionsParser {
       ".perfetto.protos.ShellTransition";
 
   TraceProcessorContext* const context_;
-  DescriptorPool pool_;
   util::ProtoToArgsParser args_parser_;
 };
 }  // namespace trace_processor

@@ -74,7 +74,6 @@ class WinscopeModule : public ProtoImporterModule {
       ".perfetto.protos.WindowManagerTraceEntry";
 
   TraceProcessorContext* const context_;
-  DescriptorPool pool_;
   util::ProtoToArgsParser args_parser_;
 
   SurfaceFlingerLayersParser surfaceflinger_layers_parser_;

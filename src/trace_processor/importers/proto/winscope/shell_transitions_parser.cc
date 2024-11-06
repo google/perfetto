@@ -20,7 +20,6 @@
 #include "protos/perfetto/trace/android/shell_transition.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
-#include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -28,10 +27,7 @@ namespace perfetto {
 namespace trace_processor {
 
 ShellTransitionsParser::ShellTransitionsParser(TraceProcessorContext* context)
-    : context_(context), args_parser_{pool_} {
-  pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
-                                 kWinscopeDescriptor.size());
-}
+    : context_(context), args_parser_{*context->descriptor_pool_} {}
 
 void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   protos::pbzero::ShellTransition::Decoder transition(blob);
