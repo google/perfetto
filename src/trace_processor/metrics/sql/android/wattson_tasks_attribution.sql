@@ -141,3 +141,24 @@ LEFT JOIN _per_thread_idle_attribution USING (utid, period_id)
 GROUP BY utid, period_id
 ORDER BY estimated_mw DESC;
 
+-- Create proto format task attribution for each period
+DROP VIEW IF EXISTS _wattson_per_task;
+CREATE PERFETTO VIEW _wattson_per_task AS
+SELECT
+  period_id,
+  (
+    SELECT RepeatedField(
+      AndroidWattsonTaskInfo(
+        'estimated_mws', ROUND(estimated_mws, 6),
+        'estimated_mw', ROUND(estimated_mw, 6),
+        'idle_transitions_mws', ROUND(idle_cost_mws, 6),
+        'thread_name', thread_name,
+        'process_name', process_name,
+        'thread_id', tid,
+        'process_id', pid
+      )
+    )
+  ) as proto
+FROM _wattson_thread_attribution
+GROUP BY period_id;
+

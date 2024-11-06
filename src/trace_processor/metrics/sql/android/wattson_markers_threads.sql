@@ -34,20 +34,15 @@ SELECT RUN_METRIC(
 DROP VIEW IF EXISTS wattson_markers_threads_output;
 CREATE PERFETTO VIEW wattson_markers_threads_output AS
 SELECT AndroidWattsonTasksAttributionMetric(
-  'metric_version', 3,
+  'metric_version', 4,
   'power_model_version', 1,
-  'task_info', (
+  'period_info', (
     SELECT RepeatedField(
-      AndroidWattsonTaskInfo(
-        'estimated_mws', ROUND(estimated_mws, 6),
-        'estimated_mw', ROUND(estimated_mw, 6),
-        'idle_transitions_mws', ROUND(idle_cost_mws, 6),
-        'thread_name', thread_name,
-        'process_name', process_name,
-        'thread_id', tid,
-        'process_id', pid
+      AndroidWattsonTaskPeriodInfo(
+        'period_id', period_id,
+        'task_info', proto
       )
     )
-    FROM _wattson_thread_attribution
+    FROM _wattson_per_task
   )
 );
