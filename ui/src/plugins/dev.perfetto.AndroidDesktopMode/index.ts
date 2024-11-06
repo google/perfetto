@@ -40,14 +40,12 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidDesktopMode';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.addEventListener('traceready', async () => {
-      await ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);
-      this.registerTrack(ctx, QUERY);
-      ctx.commands.registerCommand({
-        id: 'dev.perfetto.DesktopMode#AddTrackDesktopWindowss',
-        name: 'Add Track: ' + TRACK_NAME,
-        callback: () => this.addSimpleTrack(ctx),
-      });
+    await ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);
+    this.registerTrack(ctx, QUERY);
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.DesktopMode#AddTrackDesktopWindowss',
+      name: 'Add Track: ' + TRACK_NAME,
+      callback: () => this.addSimpleTrack(ctx),
     });
   }
 
