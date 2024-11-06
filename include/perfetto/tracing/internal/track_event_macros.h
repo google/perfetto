@@ -144,12 +144,6 @@
     }                                                                          \
   } while (false)
 
-// This internal macro is unused from the repo now, but some improper usage
-// remain outside of the repo.
-// TODO(b/294800182): Remove this.
-#define PERFETTO_INTERNAL_TRACK_EVENT(...) \
-  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(TraceForCategory, ##__VA_ARGS__)
-
 // C++17 doesn't like a move constructor being defined for the EventFinalizer
 // class but C++11 and MSVC doesn't compile without it being defined so support
 // both.
