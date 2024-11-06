@@ -24,7 +24,6 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
@@ -74,33 +73,27 @@ bool IsLegacyStringIdNameAllowed(tracks::TrackClassification classification) {
 
 bool IsLegacyCharArrayNameAllowed(tracks::TrackClassification classification) {
   // **DO NOT** add new values here. Use TrackTracker::AutoName instead.
-  return classification == tracks::triggers ||
-         classification == tracks::interconnect_events ||
-         classification == tracks::linux_rpm ||
-         classification == tracks::cpu_irq ||
-         classification == tracks::cpu_softirq ||
-         classification == tracks::cpu_napi_gro ||
-         classification == tracks::cpu_funcgraph ||
-         classification == tracks::cpu_mali_irq ||
-         classification == tracks::pkvm_hypervisor ||
+  return classification == tracks::cpu_capacity ||
          classification == tracks::cpu_frequency ||
          classification == tracks::cpu_frequency_throttle ||
+         classification == tracks::cpu_funcgraph ||
          classification == tracks::cpu_idle ||
-         classification == tracks::cpu_user_time ||
-         classification == tracks::cpu_nice_user_time ||
-         classification == tracks::cpu_system_mode_time ||
-         classification == tracks::cpu_idle_time ||
-         classification == tracks::cpu_io_wait_time ||
-         classification == tracks::cpu_irq_time ||
-         classification == tracks::cpu_softirq_time ||
-         classification == tracks::irq_counter ||
-         classification == tracks::softirq_counter ||
-         classification == tracks::cpu_utilization ||
-         classification == tracks::cpu_capacity ||
-         classification == tracks::cpu_nr_running ||
+         classification == tracks::cpu_irq ||
+         classification == tracks::cpu_mali_irq ||
          classification == tracks::cpu_max_frequency_limit ||
          classification == tracks::cpu_min_frequency_limit ||
-         classification == tracks::gpu_frequency;
+         classification == tracks::cpu_napi_gro ||
+         classification == tracks::cpu_nr_running ||
+         classification == tracks::cpu_stat ||
+         classification == tracks::cpu_softirq ||
+         classification == tracks::cpu_utilization ||
+         classification == tracks::gpu_frequency ||
+         classification == tracks::interconnect_events ||
+         classification == tracks::irq_counter ||
+         classification == tracks::linux_rpm ||
+         classification == tracks::pkvm_hypervisor ||
+         classification == tracks::softirq_counter ||
+         classification == tracks::triggers;
 }
 
 }  // namespace
