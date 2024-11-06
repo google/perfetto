@@ -62,6 +62,7 @@ SELECT
   s.ts,
   s.id AS slice_id,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.job_name') AS job_name,
+  extract_arg(arg_set_id, 'scheduled_job_state_changed.attribution_node[0].uid') AS uid,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.state') AS state,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.internal_stop_reason')
     AS internal_stop_reason,
@@ -126,21 +127,21 @@ WITH cte AS (
   SELECT
     *,
     LEAD(state, 1)
-      OVER (PARTITION BY job_name, job_id ORDER BY job_name, job_id, ts) AS lead_state,
+      OVER (PARTITION BY uid, job_name, job_id ORDER BY uid, job_name, job_id, ts) AS lead_state,
     LEAD(ts, 1, TRACE_END())
-      OVER (PARTITION BY job_name, job_id ORDER BY job_name, job_id, ts) AS ts_lead,
+      OVER (PARTITION BY uid, job_name, job_id ORDER BY uid, job_name, job_id, ts) AS ts_lead,
     --- Filter out statsd lossy issue.
     LEAD(ts, 1)
-      OVER (PARTITION BY job_name, job_id ORDER BY job_name, job_id, ts) IS NULL AS is_end_slice,
+      OVER (PARTITION BY uid, job_name, job_id ORDER BY uid, job_name, job_id, ts) IS NULL AS is_end_slice,
     LEAD(internal_stop_reason, 1, 'INTERNAL_STOP_REASON_UNKNOWN')
       OVER (
-        PARTITION BY job_name, job_id
-        ORDER BY job_name, job_id, ts
+        PARTITION BY uid, job_name, job_id
+        ORDER BY uid, job_name, job_id, ts
       ) AS lead_internal_stop_reason,
     LEAD(public_stop_reason, 1, 'PUBLIC_STOP_REASON_UNKNOWN')
       OVER (
-        PARTITION BY job_name, job_id
-        ORDER BY job_name, job_id, ts
+        PARTITION BY uid, job_name, job_id
+        ORDER BY uid, job_name, job_id, ts
       ) AS lead_public_stop_reason
   FROM _job_states
   WHERE state != 'CANCELLED'
@@ -209,6 +210,8 @@ CREATE PERFETTO TABLE android_job_scheduler_states(
   slice_id INT,
   -- Name of the job (as named by the app).
   job_name STRING,
+  -- Uid associated with job.
+  uid INT,
   -- Id of job (assigned by app for T- builds and system generated in U+
   -- builds).
   job_id INT,
@@ -264,7 +267,12 @@ CREATE PERFETTO TABLE android_job_scheduler_states(
   -- Number of uncompleted job work items.
   num_uncompleted_work_items INT,
   -- Process state of the process responsible for running the job.
-  proc_state STRING
+  proc_state STRING,
+  -- Internal stop reason for a job.
+  internal_stop_reason STRING,
+  -- Public stop reason for a job.
+  public_stop_reason STRING
+
 ) AS
 SELECT
   ROW_NUMBER() OVER (ORDER BY ts) AS id,
@@ -272,6 +280,7 @@ SELECT
   dur,
   slice_id,
   job_name,
+  uid,
   job_id,
   package_name,
   job_namespace,
@@ -297,7 +306,9 @@ SELECT
   deadline_ms,
   job_start_latency_ms,
   num_uncompleted_work_items,
-  proc_state
+  proc_state,
+  lead_internal_stop_reason AS internal_stop_reason,
+  lead_public_stop_reason AS public_stop_reason
 FROM _job_started;
 
 -- This table returns the constraint, charging,
@@ -324,7 +335,7 @@ FROM _job_started;
 CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Timestamp of job.
   ts INT,
-  -- Duration of job in ns.
+  -- Duration of slice in ns.
   dur INT,
   -- Id of the slice.
   slice_id INT,
@@ -333,7 +344,9 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Id of job (assigned by app for T- builds and system generated in U+
   -- builds).
   job_id INT,
-  -- Duration of job in ns.
+  -- Uid associated with job.
+  uid INT,
+  -- Duration of entire job in ns.
   job_dur INT,
   -- Package that the job belongs (ex: associated app).
   package_name STRING,
@@ -393,13 +406,18 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Number of uncompleted job work items.
   num_uncompleted_work_items INT,
   -- Process state of the process responsible for running the job.
-  proc_state STRING
+  proc_state STRING,
+  -- Internal stop reason for a job.
+  internal_stop_reason STRING,
+  -- Public stop reason for a job.
+  public_stop_reason STRING
 ) AS
 SELECT
   ii.ts,
   ii.dur,
   js.slice_id,
   js.job_name || '_' || js.job_id AS job_name,
+  js.uid,
   js.job_id,
   js.dur AS job_dur,
   js.package_name,
@@ -428,7 +446,9 @@ SELECT
   js.deadline_ms,
   js.job_start_latency_ms,
   js.num_uncompleted_work_items,
-  js.proc_state
+  js.proc_state,
+  js.internal_stop_reason,
+  js.public_stop_reason
   FROM _interval_intersect!(
         (_charging_screen_states,
         android_job_scheduler_states),
