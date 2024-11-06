@@ -15,6 +15,25 @@
 
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
+-- Lists all metrics built-into trace processor.
+CREATE PERFETTO VIEW trace_metrics(
+  -- The name of the metric.
+  name STRING
+) AS
+SELECT name FROM _trace_metrics;
+
+-- Definition of `trace_bounds` table. The values are being filled by Trace
+-- Processor when parsing the trace.
+-- It is recommended to depend on the `trace_start()` and `trace_end()`
+-- functions rather than directly on `trace_bounds`.
+CREATE PERFETTO VIEW trace_bounds(
+  -- First ts in the trace.
+  start_ts INT,
+  -- End of the trace.
+  end_ts INT
+) AS
+SELECT start_ts, end_ts FROM _trace_bounds;
+
 -- Tracks are a fundamental concept in trace processor and represent a
 -- "timeline" for events of the same type and with the same context. See
 -- https://perfetto.dev/docs/analysis/trace-processor#tracks for a more
