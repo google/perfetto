@@ -99,3 +99,23 @@ FROM _filter_idle_attribution(
    (SELECT dur FROM {{window_table}})
 )
 GROUP BY utid;
+
+-- Group by unique thread ID and disregard CPUs, summing of power over all CPUs
+-- and all instances of the thread
+DROP VIEW IF EXISTS _wattson_thread_attribution;
+CREATE PERFETTO VIEW _wattson_thread_attribution AS
+SELECT
+  -- active time of thread divided by total time of trace
+  SUM(estimated_mw * dur) / 1000000000 as estimated_mws,
+  (
+    SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
+  ) as estimated_mw,
+  idle_cost_mws,
+  thread_name,
+  process_name,
+  tid,
+  pid
+FROM _windowed_threads_system_state
+LEFT JOIN _per_thread_idle_attribution USING (utid)
+GROUP BY utid
+ORDER BY estimated_mw DESC;

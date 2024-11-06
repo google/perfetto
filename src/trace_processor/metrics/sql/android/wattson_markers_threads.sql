@@ -30,26 +30,6 @@ SELECT RUN_METRIC(
   '_wattson_period_window'
 );
 
--- Group by unique thread ID and disregard CPUs, summing of power over all CPUs
--- and all instances of the thread
-DROP VIEW IF EXISTS _wattson_thread_attribution;
-CREATE PERFETTO VIEW _wattson_thread_attribution AS
-SELECT
-  -- active time of thread divided by total time where Wattson is defined
-  SUM(estimated_mw * dur) / 1000000000 as estimated_mws,
-  (
-    SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
-  ) as estimated_mw,
-  idle_cost_mws,
-  thread_name,
-  process_name,
-  tid,
-  pid
-FROM _windowed_threads_system_state
-LEFT JOIN _per_thread_idle_attribution USING (utid)
-GROUP BY utid
-ORDER BY estimated_mw DESC;
-
 DROP VIEW IF EXISTS wattson_markers_threads_output;
 CREATE PERFETTO VIEW wattson_markers_threads_output AS
 SELECT AndroidWattsonTasksAttributionMetric(
