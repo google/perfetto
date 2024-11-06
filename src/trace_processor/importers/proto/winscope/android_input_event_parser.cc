@@ -23,6 +23,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor {
 
@@ -89,7 +90,9 @@ void AndroidInputEventParser::ParseMotionEvent(
   ArgsParser writer{packet_ts, inserter, *context_.storage};
 
   base::Status status =
-      args_parser_.ParseMessage(bytes, ".perfetto.protos.AndroidMotionEvent",
+      args_parser_.ParseMessage(bytes,
+                                *util::winscope_proto_mapping::GetProtoName(
+                                    tables::AndroidMotionEventsTable::Name()),
                                 nullptr /*parse all fields*/, writer);
   if (!status.ok())
     context_.storage->IncrementStats(stats::android_input_event_parse_errors);
@@ -114,7 +117,9 @@ void AndroidInputEventParser::ParseKeyEvent(
   ArgsParser writer{packet_ts, inserter, *context_.storage};
 
   base::Status status =
-      args_parser_.ParseMessage(bytes, ".perfetto.protos.AndroidKeyEvent",
+      args_parser_.ParseMessage(bytes,
+                                *util::winscope_proto_mapping::GetProtoName(
+                                    tables::AndroidKeyEventsTable::Name()),
                                 nullptr /*parse all fields*/, writer);
   if (!status.ok())
     context_.storage->IncrementStats(stats::android_input_event_parse_errors);
@@ -142,7 +147,9 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
   ArgsParser writer{packet_ts, inserter, *context_.storage};
 
   base::Status status = args_parser_.ParseMessage(
-      bytes, ".perfetto.protos.AndroidWindowInputDispatchEvent",
+      bytes,
+      *util::winscope_proto_mapping::GetProtoName(
+          tables::AndroidInputEventDispatchTable::Name()),
       nullptr /*parse all fields*/, writer);
   if (!status.ok())
     context_.storage->IncrementStats(stats::android_input_event_parse_errors);

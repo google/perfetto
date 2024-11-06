@@ -306,6 +306,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
     ],
     hdrs = [
@@ -3494,6 +3495,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:winscope_proto_mapping
+perfetto_filegroup(
+    name = "src_trace_processor_util_winscope_proto_mapping",
+    srcs = [
+        "src/trace_processor/util/winscope_proto_mapping.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:zip_reader
 perfetto_filegroup(
     name = "src_trace_processor_util_zip_reader",
@@ -6592,6 +6601,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
     ],
     hdrs = [
@@ -6799,6 +6809,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
         "src/trace_processor/trace_processor_shell.cc",
     ],
@@ -7057,6 +7068,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
         ":src_traceconv_lib",
         ":src_traceconv_main",

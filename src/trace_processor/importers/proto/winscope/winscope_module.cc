@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
+#include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -145,7 +146,9 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
   auto inserter = tracker.AddArgsTo(rowId);
   ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
-      args_parser_.ParseMessage(blob, kInputMethodClientsProtoName,
+      args_parser_.ParseMessage(blob,
+                                *util::winscope_proto_mapping::GetProtoName(
+                                    tables::InputMethodClientsTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(
@@ -168,9 +171,11 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
   ArgsParser writer(timestamp, inserter, *context_->storage.get());
-  base::Status status =
-      args_parser_.ParseMessage(blob, kInputMethodManagerServiceProtoName,
-                                nullptr /* parse all fields */, writer);
+  base::Status status = args_parser_.ParseMessage(
+      blob,
+      *util::winscope_proto_mapping::GetProtoName(
+          tables::InputMethodManagerServiceTable::Name()),
+      nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(
         stats::winscope_inputmethod_manager_service_parse_errors);
@@ -191,7 +196,9 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
   auto inserter = tracker.AddArgsTo(rowId);
   ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
-      args_parser_.ParseMessage(blob, kInputMethodServiceProtoName,
+      args_parser_.ParseMessage(blob,
+                                *util::winscope_proto_mapping::GetProtoName(
+                                    tables::InputMethodServiceTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(
@@ -214,8 +221,11 @@ void WinscopeModule::ParseViewCaptureData(
   auto inserter = tracker.AddArgsTo(rowId);
   ViewCaptureArgsParser writer(timestamp, inserter, *context_->storage.get(),
                                sequence_state);
-  base::Status status = args_parser_.ParseMessage(
-      blob, kViewCaptureProtoName, nullptr /* parse all fields */, writer);
+  base::Status status =
+      args_parser_.ParseMessage(blob,
+                                *util::winscope_proto_mapping::GetProtoName(
+                                    tables::ViewCaptureTable::Name()),
+                                nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
   }
@@ -233,8 +243,11 @@ void WinscopeModule::ParseWindowManagerData(int64_t timestamp,
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
   ArgsParser writer(timestamp, inserter, *context_->storage.get());
-  base::Status status = args_parser_.ParseMessage(
-      blob, kWindowManagerProtoName, nullptr /* parse all fields */, writer);
+  base::Status status =
+      args_parser_.ParseMessage(blob,
+                                *util::winscope_proto_mapping::GetProtoName(
+                                    tables::WindowManagerTable::Name()),
+                                nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(
         stats::winscope_windowmanager_parse_errors);

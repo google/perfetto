@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -44,9 +45,11 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
   ArgsParser writer(timestamp, inserter, *context_->storage.get());
-  base::Status status =
-      args_parser_.ParseMessage(blob, kTransactionTraceEntryProtoName,
-                                nullptr /* parse all fields */, writer);
+  base::Status status = args_parser_.ParseMessage(
+      blob,
+      *util::winscope_proto_mapping::GetProtoName(
+          tables::SurfaceFlingerTransactionsTable::Name()),
+      nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(
         stats::winscope_sf_transactions_parse_errors);

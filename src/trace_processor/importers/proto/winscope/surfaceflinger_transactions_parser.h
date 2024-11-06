@@ -32,9 +32,6 @@ class SurfaceFlingerTransactionsParser {
   void Parse(int64_t timestamp, protozero::ConstBytes);
 
  private:
-  static constexpr auto* kTransactionTraceEntryProtoName =
-      ".perfetto.protos.TransactionTraceEntry";
-
   TraceProcessorContext* const context_;
   util::ProtoToArgsParser args_parser_;
 };

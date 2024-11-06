@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -49,11 +50,13 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
       base::StringView(base::Base64Encode(blob.data, blob.size)));
   row.set_base64_proto(base64_proto);
   row.set_base64_proto_id(base64_proto.raw_id());
-
   auto inserter = context_->args_tracker->AddArgsTo(row_id);
   ArgsParser writer(/*timestamp=*/0, inserter, *context_->storage.get());
   base::Status status = args_parser_.ParseMessage(
-      blob, kShellTransitionsProtoName, nullptr /* parse all fields */, writer);
+      blob,
+      *util::winscope_proto_mapping::GetProtoName(
+          tables::WindowManagerShellTransitionsTable::Name()),
+      nullptr /* parse all fields */, writer);
 
   if (!status.ok()) {
     context_->storage->IncrementStats(
