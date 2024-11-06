@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 
+#include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/trace/android/shell_transition.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
@@ -44,6 +45,11 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
     row.set_ts(transition.dispatch_time_ns());
   }
 
+  auto base64_proto = context_->storage->mutable_string_pool()->InternString(
+      base::StringView(base::Base64Encode(blob.data, blob.size)));
+  row.set_base64_proto(base64_proto);
+  row.set_base64_proto_id(base64_proto.raw_id());
+
   auto inserter = context_->args_tracker->AddArgsTo(row_id);
   ArgsParser writer(/*timestamp=*/0, inserter, *context_->storage.get());
   base::Status status = args_parser_.ParseMessage(
@@ -68,6 +74,9 @@ void ShellTransitionsParser::ParseHandlerMappings(protozero::ConstBytes blob) {
     row.handler_id = mapping.id();
     row.handler_name = context_->storage->InternString(
         base::StringView(mapping.name().ToStdString()));
+    row.base64_proto = context_->storage->mutable_string_pool()->InternString(
+        base::StringView(base::Base64Encode(blob.data, blob.size)));
+    row.base64_proto_id = row.base64_proto.raw_id();
     shell_handlers_table->Insert(row);
   }
 }

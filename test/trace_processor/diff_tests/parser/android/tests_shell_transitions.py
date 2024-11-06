@@ -74,6 +74,18 @@ class ShellTransitions(TestSuite):
         "type","1"
         """))
 
+  def test_shell_transitions_table_has_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('shell_transitions.textproto'),
+        query="""
+        SELECT COUNT(*) FROM window_manager_shell_transitions
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        6
+        """))
+
   def test_has_shell_handlers(self):
     return DiffTestBlueprint(
         trace=Path('shell_handlers.textproto'),
@@ -89,3 +101,15 @@ class ShellTransitions(TestSuite):
       2,"RecentsTransitionHandler"
       3,"FreeformTaskTransitionHandler"
       """))
+
+  def test_shell_handlers_table_has_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('shell_handlers.textproto'),
+        query="""
+        SELECT COUNT(*) FROM window_manager_shell_transition_handlers
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        3
+        """))

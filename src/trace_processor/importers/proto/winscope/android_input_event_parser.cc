@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/winscope/android_input_event_parser.h"
 
+#include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/trace/android/android_input_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
@@ -76,6 +77,10 @@ void AndroidInputEventParser::ParseMotionEvent(
   tables::AndroidMotionEventsTable::Row event_row;
   event_row.event_id = event_proto.event_id();
   event_row.ts = packet_ts;
+  event_row.base64_proto =
+      context_.storage->mutable_string_pool()->InternString(
+          base::StringView(base::Base64Encode(bytes.data, bytes.size)));
+  event_row.base64_proto_id = event_row.base64_proto.raw_id();
 
   auto event_row_id = context_.storage->mutable_android_motion_events_table()
                           ->Insert(event_row)
@@ -97,6 +102,10 @@ void AndroidInputEventParser::ParseKeyEvent(
   tables::AndroidKeyEventsTable::Row event_row;
   event_row.event_id = event_proto.event_id();
   event_row.ts = packet_ts;
+  event_row.base64_proto =
+      context_.storage->mutable_string_pool()->InternString(
+          base::StringView(base::Base64Encode(bytes.data, bytes.size)));
+  event_row.base64_proto_id = event_row.base64_proto.raw_id();
 
   auto event_row_id = context_.storage->mutable_android_key_events_table()
                           ->Insert(event_row)
@@ -119,11 +128,16 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
   event_row.event_id = event_proto.event_id();
   event_row.vsync_id = event_proto.vsync_id();
   event_row.window_id = event_proto.window_id();
+  event_row.base64_proto =
+      context_.storage->mutable_string_pool()->InternString(
+          base::StringView(base::Base64Encode(bytes.data, bytes.size)));
+  event_row.base64_proto_id = event_row.base64_proto.raw_id();
 
   auto event_row_id =
       context_.storage->mutable_android_input_event_dispatch_table()
           ->Insert(event_row)
           .id;
+
   auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
   ArgsParser writer{packet_ts, inserter, *context_.storage};
 

@@ -63,3 +63,16 @@ class WindowManager(TestSuite):
         "window_manager_service.policy.keyguard_delegate.screen_state","SCREEN_STATE_ON"
         "window_manager_service.policy.keyguard_draw_complete","true"
         """))
+
+  def test_table_has_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('windowmanager.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.windowmanager;
+        SELECT COUNT(*) FROM android_windowmanager
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        2
+        """))

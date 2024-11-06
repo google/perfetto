@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h"
 
+#include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/trace/android/surfaceflinger_transactions.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
@@ -33,6 +34,9 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
                                              protozero::ConstBytes blob) {
   tables::SurfaceFlingerTransactionsTable::Row row;
   row.ts = timestamp;
+  row.base64_proto = context_->storage->mutable_string_pool()->InternString(
+      base::StringView(base::Base64Encode(blob.data, blob.size)));
+  row.base64_proto_id = row.base64_proto.raw_id();
   auto rowId = context_->storage->mutable_surfaceflinger_transactions_table()
                    ->Insert(row)
                    .id;
