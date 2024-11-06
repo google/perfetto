@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Lists all metrics built-into trace processor.
-CREATE TABLE trace_metrics(
+CREATE TABLE _trace_metrics(
   -- The name of the metric.
   name STRING
 );

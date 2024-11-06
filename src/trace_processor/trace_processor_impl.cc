@@ -192,14 +192,14 @@ base::Status RegisterAllProtoBuilderFunctions(
 
 void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   char* error = nullptr;
-  sqlite3_exec(db, "DELETE FROM trace_bounds", nullptr, nullptr, &error);
+  sqlite3_exec(db, "DELETE FROM _trace_bounds", nullptr, nullptr, &error);
   if (error) {
     PERFETTO_ELOG("Error deleting from bounds table: %s", error);
     sqlite3_free(error);
     return;
   }
 
-  base::StackString<1024> sql("INSERT INTO trace_bounds VALUES(%" PRId64
+  base::StackString<1024> sql("INSERT INTO _trace_bounds VALUES(%" PRId64
                               ", %" PRId64 ")",
                               bounds.first, bounds.second);
   sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &error);
@@ -311,7 +311,7 @@ std::vector<std::string> SanitizeMetricMountPaths(
 
 void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
   char* insert_sql = sqlite3_mprintf(
-      "INSERT INTO trace_metrics(name) VALUES('%q')", metric_name.c_str());
+      "INSERT INTO _trace_metrics(name) VALUES('%q')", metric_name.c_str());
   char* insert_error = nullptr;
   sqlite3_exec(db, insert_sql, nullptr, nullptr, &insert_error);
   sqlite3_free(insert_sql);
