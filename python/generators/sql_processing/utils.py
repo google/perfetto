@@ -82,11 +82,7 @@ CREATE_MACRO_PATTERN = update_pattern(
 
 INCLUDE_PATTERN = update_pattern(fr'^INCLUDE PERFETTO MODULE ([A-Za-z_.*]*);$')
 
-COLUMN_ANNOTATION_PATTERN = update_pattern(fr'^ ({NAME}) ({ANY_WORDS})')
-
 NAME_AND_TYPE_PATTERN = update_pattern(fr' ({NAME})\s+({TYPE}) ')
-
-ARG_ANNOTATION_PATTERN = fr'\s*{NAME_AND_TYPE_PATTERN}\s+({ANY_WORDS})'
 
 ARG_DEFINITION_PATTERN = update_pattern(ARG_PATTERN)
 
@@ -196,7 +192,7 @@ def check_banned_create_table_as(sql: str) -> List[str]:
   errors = []
   for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
     name = matches[0]
-    if name != "trace_bounds":
+    if name != "_trace_bounds":
       errors.append(
           f"Table '{name}' uses CREATE TABLE which is deprecated "
           "and this table is not allowlisted. Use CREATE PERFETTO TABLE.")
