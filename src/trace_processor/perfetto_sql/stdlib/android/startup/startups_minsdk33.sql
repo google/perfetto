@@ -45,6 +45,7 @@ FROM (
     -- Originally completed was unqualified, but at some point we introduced
     -- the startup type as well
     AND name GLOB 'launchingActivity#*:completed*:*'
+    AND NOT name GLOB '*:completed-same-process:*'
 )
 GROUP BY 1, 2, 3;
 
