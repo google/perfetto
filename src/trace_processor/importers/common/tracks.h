@@ -41,20 +41,14 @@ namespace perfetto::trace_processor::tracks {
   F(cpu_funcgraph)                               \
   F(cpu_idle_state)                              \
   F(cpu_idle)                                    \
-  F(cpu_idle_time)                               \
-  F(cpu_io_wait_time)                            \
-  F(cpu_irq_time)                                \
   F(cpu_irq)                                     \
+  F(cpu_nr_running)                              \
   F(cpu_mali_irq)                                \
   F(cpu_max_frequency_limit)                     \
   F(cpu_min_frequency_limit)                     \
   F(cpu_napi_gro)                                \
-  F(cpu_nice_user_time)                          \
-  F(cpu_nr_running)                              \
-  F(cpu_softirq_time)                            \
   F(cpu_softirq)                                 \
-  F(cpu_system_mode_time)                        \
-  F(cpu_user_time)                               \
+  F(cpu_stat)                                    \
   F(cpu_utilization)                             \
   F(gpu_frequency)                               \
   F(interconnect_events)                         \

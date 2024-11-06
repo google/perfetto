@@ -165,6 +165,7 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       thermal_unit_id_(context->storage->InternString("C")),
       gpufreq_id(context->storage->InternString("gpufreq")),
       gpufreq_unit_id(context->storage->InternString("MHz")),
+      cpu_stat_counter_name_id_(context->storage->InternString("counter_name")),
       arm_cpu_implementer(
           context->storage->InternString("arm_cpu_implementer")),
       arm_cpu_architecture(
@@ -376,47 +377,42 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       continue;
     }
 
-    TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_user_time, ct.cpu_id(),
-        TrackTracker::LegacyCharArrayName{"cpu.times.user_ns"});
-    context_->event_tracker->PushCounter(ts, static_cast<double>(ct.user_ns()),
-                                         track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_nice_user_time, ct.cpu_id(),
-        TrackTracker::LegacyCharArrayName{"cpu.times.user_nice_ns"});
+    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(ct.cpu_id());
+    auto intern_track =
+        [&, this](TrackTracker::LegacyCharArrayName name) -> TrackId {
+      auto builder = context_->track_tracker->CreateDimensionsBuilder();
+      builder.AppendDimension(
+          cpu_stat_counter_name_id_,
+          Variadic::String(context_->storage->InternString(name.name)));
+      builder.AppendUcpu(ucpu);
+      return context_->track_tracker->InternCounterTrack(
+          tracks::cpu_stat, std::move(builder).Build(), name);
+    };
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.user_nice_ns()), track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_system_mode_time, ct.cpu_id(),
-        TrackTracker::LegacyCharArrayName{"cpu.times.system_mode_ns"});
+        ts, static_cast<double>(ct.user_ns()),
+        intern_track(TrackTracker::LegacyCharArrayName{"cpu.times.user_ns"}));
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.system_mode_ns()), track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_idle_time, ct.cpu_id(),
-        TrackTracker::LegacyCharArrayName{"cpu.times.idle_ns"});
-    context_->event_tracker->PushCounter(ts, static_cast<double>(ct.idle_ns()),
-                                         track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_io_wait_time, ct.cpu_id(),
-        TrackTracker::LegacyCharArrayName{"cpu.times.io_wait_ns"});
+        ts, static_cast<double>(ct.user_nice_ns()),
+        intern_track(
+            TrackTracker::LegacyCharArrayName{"cpu.times.user_nice_ns"}));
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.io_wait_ns()), track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_irq_time, ct.cpu_id(),
-        TrackTracker::LegacyCharArrayName{"cpu.times.irq_ns"});
-    context_->event_tracker->PushCounter(ts, static_cast<double>(ct.irq_ns()),
-                                         track);
-
-    track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_softirq_time, ct.cpu_id(),
-        TrackTracker::LegacyCharArrayName{"cpu.times.softirq_ns"});
+        ts, static_cast<double>(ct.system_mode_ns()),
+        intern_track(
+            TrackTracker::LegacyCharArrayName{"cpu.times.system_mode_ns"}));
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.softirq_ns()), track);
+        ts, static_cast<double>(ct.idle_ns()),
+        intern_track(TrackTracker::LegacyCharArrayName{"cpu.times.idle_ns"}));
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(ct.io_wait_ns()),
+        intern_track(
+            TrackTracker::LegacyCharArrayName{"cpu.times.io_wait_ns"}));
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(ct.irq_ns()),
+        intern_track(TrackTracker::LegacyCharArrayName{"cpu.times.irq_ns"}));
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(ct.softirq_ns()),
+        intern_track(
+            TrackTracker::LegacyCharArrayName{"cpu.times.softirq_ns"}));
   }
 
   for (auto it = sys_stats.num_irq(); it; ++it) {
