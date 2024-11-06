@@ -60,6 +60,8 @@ def main():
       action='store_true',
       help='Update the expected output file with the actual result')
   parser.add_argument(
+      '--quiet', action='store_true', help='Only print if the test failed.')
+  parser.add_argument(
       '--no-colors', action='store_true', help='Print without coloring')
   parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
@@ -80,7 +82,8 @@ def main():
 
   test_runner = DiffTestsRunner(args.name_filter, args.trace_processor,
                                 args.trace_descriptor, args.no_colors,
-                                args.override_sql_module, args.test_dir)
+                                args.override_sql_module, args.test_dir,
+                                args.quiet)
   sys.stderr.write(f"[==========] Running {len(test_runner.tests)} tests.\n")
 
   results = test_runner.run_all_tests(args.metrics_descriptor,
