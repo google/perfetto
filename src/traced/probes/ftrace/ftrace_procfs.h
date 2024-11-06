@@ -26,6 +26,8 @@
 
 namespace perfetto {
 
+constexpr std::string_view kKretprobeDefaultMaxactives = "1024";
+
 class FtraceProcfs {
  public:
   static const char* const kTracingPaths[];
