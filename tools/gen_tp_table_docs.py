@@ -110,6 +110,13 @@ def main():
   table_docs = []
   for parsed in util.parse_tables_from_modules(modules):
     table = parsed.table
+
+    # If there is no non-intrinsic alias for the table, don't
+    # include the table in the docs.
+    name = util.public_sql_name(table)
+    if name.startswith('__intrinsic_') or name.startswith('experimental_'):
+      continue
+
     doc = table.tabledoc
     assert doc
     cols = (
@@ -117,7 +124,7 @@ def main():
         for c in parsed.columns
         if not c.is_ancestor)
     table_docs.append({
-        'name': util.public_sql_name(table),
+        'name': name,
         'cppClassName': table.class_name,
         'defMacro': table.class_name,
         'comment': '\n'.join(l.strip() for l in doc.doc.splitlines()),
