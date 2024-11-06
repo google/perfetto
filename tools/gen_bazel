@@ -78,13 +78,17 @@ gn_args_win = ' '.join((map(lambda x:'='.join(x), gn_args_win_base.items())))
 public_targets = [
     '//:libperfetto_client_experimental',
     '//src/perfetto_cmd:perfetto',
-    '//src/shared_lib:libperfetto_c',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_processor:trace_processor',
     '//src/traceconv:traceconv',
     '//src/traceconv:libpprofbuilder',
+]
+
+# These targets will be exported with visibility only to our allowlist.
+allowlist_public_targets = [
+    '//src/shared_lib:libperfetto_c',
 ]
 
 # These targets are required by internal build rules but don't need to be
@@ -100,7 +104,7 @@ default_targets = [
     '//src/tools/proto_merger:proto_merger',
     '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
-] + public_targets
+] + public_targets + allowlist_public_targets
 
 # Proto target groups which will be made public.
 proto_groups = {
@@ -713,8 +717,14 @@ def gen_target_helper(gn_target: GnParser.Target, win_target: GnParser.Target = 
   else:
     label.srcs = raw_srcs
 
-  if gn_target.name in public_targets:
+  is_public = gn_target.name in public_targets
+  is_public_for_allowlist = gn_target.name in allowlist_public_targets
+  if is_public and is_public_for_allowlist:
+    raise Error('Target %s in both public_targets and allowlist_public_targets', gn.target.name)
+  elif is_public:
     label.visibility = ['//visibility:public']
+  elif is_public_for_allowlist:
+    label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
 
   if win_target:
     label.win_srcs = list(set(label.srcs) & {s[2:] for s in win_target.sources | win_target.inputs})
