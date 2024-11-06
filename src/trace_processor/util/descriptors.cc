@@ -48,13 +48,17 @@ FieldDescriptor CreateFieldFromDecoder(
           ? static_cast<uint32_t>(f_decoder.type())
           : static_cast<uint32_t>(FieldDescriptorProto::TYPE_MESSAGE);
   protos::pbzero::FieldOptions::Decoder opt(f_decoder.options());
+  std::optional<std::string> default_value;
+  if (f_decoder.has_default_value()) {
+    default_value = f_decoder.default_value().ToStdString();
+  }
   return FieldDescriptor(
       base::StringView(f_decoder.name()).ToStdString(),
       static_cast<uint32_t>(f_decoder.number()), type, std::move(type_name),
       std::vector<uint8_t>(f_decoder.options().data,
                            f_decoder.options().data + f_decoder.options().size),
-      f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED, opt.packed(),
-      is_extension);
+      default_value, f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED,
+      opt.packed(), is_extension);
 }
 
 base::Status CheckExtensionField(const ProtoDescriptor& proto_descriptor,
@@ -443,6 +447,7 @@ FieldDescriptor::FieldDescriptor(std::string name,
                                  uint32_t type,
                                  std::string raw_type_name,
                                  std::vector<uint8_t> options,
+                                 std::optional<std::string> default_value,
                                  bool is_repeated,
                                  bool is_packed,
                                  bool is_extension)
@@ -451,6 +456,7 @@ FieldDescriptor::FieldDescriptor(std::string name,
       type_(type),
       raw_type_name_(std::move(raw_type_name)),
       options_(std::move(options)),
+      default_value_(std::move(default_value)),
       is_repeated_(is_repeated),
       is_packed_(is_packed),
       is_extension_(is_extension) {}

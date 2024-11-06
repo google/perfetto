@@ -88,9 +88,9 @@ TEST_F(ProtoBuilderTest, AppendLong) {
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, std::nullopt);
-  descriptor.AddField(FieldDescriptor("int_value", 1,
-                                      FieldDescriptorProto::TYPE_INT64, "",
-                                      std::vector<uint8_t>(), false, false));
+  descriptor.AddField(
+      FieldDescriptor("int_value", 1, FieldDescriptorProto::TYPE_INT64, "",
+                      std::vector<uint8_t>(), std::nullopt, false, false));
 
   ProtoBuilder builder(&pool, &descriptor);
   ASSERT_OK(builder.AppendSqlValue("int_value", SqlValue::Long(12345)));
@@ -112,9 +112,9 @@ TEST_F(ProtoBuilderTest, AppendDouble) {
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, std::nullopt);
-  descriptor.AddField(FieldDescriptor("double_value", 1,
-                                      FieldDescriptorProto::TYPE_DOUBLE, "",
-                                      std::vector<uint8_t>(), false, false));
+  descriptor.AddField(
+      FieldDescriptor("double_value", 1, FieldDescriptorProto::TYPE_DOUBLE, "",
+                      std::vector<uint8_t>(), std::nullopt, false, false));
 
   ProtoBuilder builder(&pool, &descriptor);
   ASSERT_OK(builder.AppendSqlValue("double_value", SqlValue::Double(1.2345)));
@@ -136,9 +136,9 @@ TEST_F(ProtoBuilderTest, AppendString) {
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, std::nullopt);
-  descriptor.AddField(FieldDescriptor("string_value", 1,
-                                      FieldDescriptorProto::TYPE_STRING, "",
-                                      std::vector<uint8_t>(), false, false));
+  descriptor.AddField(
+      FieldDescriptor("string_value", 1, FieldDescriptorProto::TYPE_STRING, "",
+                      std::vector<uint8_t>(), std::nullopt, false, false));
 
   ProtoBuilder builder(&pool, &descriptor);
   ASSERT_OK(
@@ -164,9 +164,9 @@ TEST_F(ProtoBuilderTest, AppendNested) {
   ProtoDescriptor nested("file.proto", ".perfetto.protos",
                          ".perfetto.protos.TestProto.NestedProto",
                          ProtoDescriptor::Type::kMessage, std::nullopt);
-  nested.AddField(FieldDescriptor("nested_int_value", 1,
-                                  FieldDescriptorProto::TYPE_INT64, "",
-                                  std::vector<uint8_t>(), false, false));
+  nested.AddField(
+      FieldDescriptor("nested_int_value", 1, FieldDescriptorProto::TYPE_INT64,
+                      "", std::vector<uint8_t>(), std::nullopt, false, false));
 
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
@@ -174,7 +174,7 @@ TEST_F(ProtoBuilderTest, AppendNested) {
   auto field =
       FieldDescriptor("nested_value", 1, FieldDescriptorProto::TYPE_MESSAGE,
                       ".perfetto.protos.TestProto.NestedProto",
-                      std::vector<uint8_t>(), false, false);
+                      std::vector<uint8_t>(), std::nullopt, false, false);
   field.set_resolved_type_name(".perfetto.protos.TestProto.NestedProto");
   descriptor.AddField(field);
 
@@ -214,9 +214,9 @@ TEST_F(ProtoBuilderTest, AppendRepeatedEmpty) {
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, std::nullopt);
-  descriptor.AddField(FieldDescriptor("rep_int_value", 1,
-                                      FieldDescriptorProto::TYPE_INT64, "",
-                                      std::vector<uint8_t>(), true, false));
+  descriptor.AddField(
+      FieldDescriptor("rep_int_value", 1, FieldDescriptorProto::TYPE_INT64, "",
+                      std::vector<uint8_t>(), std::nullopt, true, false));
 
   ASSERT_THAT(RepeatedFieldBuilder().SerializeToProtoBuilderResult(),
               IsEmpty());
@@ -241,9 +241,9 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, std::nullopt);
-  descriptor.AddField(FieldDescriptor("rep_int_value", 1,
-                                      FieldDescriptorProto::TYPE_INT64, "",
-                                      std::vector<uint8_t>(), true, false));
+  descriptor.AddField(
+      FieldDescriptor("rep_int_value", 1, FieldDescriptorProto::TYPE_INT64, "",
+                      std::vector<uint8_t>(), std::nullopt, true, false));
 
   RepeatedFieldBuilder rep_builder;
   rep_builder.AddSqlValue(SqlValue::Long(1234));
@@ -289,7 +289,8 @@ TEST_F(ProtoBuilderTest, AppendEnums) {
                              ProtoDescriptor::Type::kMessage, std::nullopt);
   FieldDescriptor enum_field("enum_value", 1, FieldDescriptorProto::TYPE_ENUM,
                              ".perfetto.protos.TestEnum",
-                             std::vector<uint8_t>(), false, false);
+                             std::vector<uint8_t>(), std::nullopt, false,
+                             false);
   enum_field.set_resolved_type_name(".perfetto.protos.TestEnum");
   descriptor.AddField(enum_field);
   pool.AddProtoDescriptorForTesting(descriptor);
