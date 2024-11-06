@@ -149,7 +149,9 @@ bool FtraceProcfs::CreateKprobeEvent(const std::string& group,
                                      bool is_retprobe) {
   std::string path = root_ + "kprobe_events";
   std::string probe =
-      (is_retprobe ? "r:" : "p:") + group + "/" + name + " " + name;
+      (is_retprobe ? std::string("r") + std::string(kKretprobeDefaultMaxactives)
+                   : "p") +
+      std::string(":") + group + "/" + name + " " + name;
 
   PERFETTO_DLOG("Writing \"%s >> %s\"", probe.c_str(), path.c_str());
 

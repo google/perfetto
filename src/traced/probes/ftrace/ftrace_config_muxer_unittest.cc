@@ -1406,9 +1406,10 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddKprobeBothEvent) {
           "p:perfetto_kprobes/fuse_file_write_iter fuse_file_write_iter"));
   EXPECT_CALL(
       ftrace_,
-      AppendToFile(
-          "/root/kprobe_events",
-          "r:perfetto_kretprobes/fuse_file_write_iter fuse_file_write_iter"));
+      AppendToFile("/root/kprobe_events",
+                   std::string("r") + std::string(kKretprobeDefaultMaxactives) +
+                       ":perfetto_kretprobes/fuse_file_write_iter "
+                       "fuse_file_write_iter"));
 
   std::string g1(kKprobeGroup);
   static constexpr int kExpectedEventId = 77;
