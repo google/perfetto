@@ -15,10 +15,7 @@
 import {LONG} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {
-  SimpleSliceTrack,
-  SimpleSliceTrackConfig,
-} from '../../frontend/simple_slice_track';
+import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateUserInteractionGroup} from '../../public/standard_groups';
 
@@ -45,18 +42,16 @@ export default class implements PerfettoPlugin {
       WHERE end_to_end_latency_dur IS NOT NULL
       `;
 
-    const config: SimpleSliceTrackConfig = {
-      data: {
-        sqlSource: SQL_SOURCE,
-        columns: ['ts', 'dur', 'name'],
-      },
-      columns: {ts: 'ts', dur: 'dur', name: 'name'},
-      argColumns: [],
-    };
     await ctx.engine.query('INCLUDE PERFETTO MODULE android.input;');
     const uri = 'com.android.InputEvents#InputEventsTrack';
     const title = 'Input Events';
-    const track = new SimpleSliceTrack(ctx, {trackUri: uri}, config);
+    const track = await createQuerySliceTrack({
+      trace: ctx,
+      uri,
+      data: {
+        sqlSource: SQL_SOURCE,
+      },
+    });
     ctx.tracks.registerTrack({
       uri,
       title: title,

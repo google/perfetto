@@ -145,9 +145,9 @@ export default class implements PerfettoPlugin {
         ctx.engine
           .query(`INCLUDE PERFETTO MODULE sched.thread_executing_span;`)
           .then(() =>
-            addDebugSliceTrack(
-              ctx,
-              {
+            addDebugSliceTrack({
+              trace: ctx,
+              data: {
                 sqlSource: `
                 SELECT
                   cr.id,
@@ -168,10 +168,10 @@ export default class implements PerfettoPlugin {
               `,
                 columns: sliceLiteColumnNames,
               },
-              `${thdInfo.name}`,
-              sliceLiteColumns,
-              sliceLiteColumnNames,
-            ),
+              title: `${thdInfo.name}`,
+              columns: sliceLiteColumns,
+              argColumns: sliceLiteColumnNames,
+            }),
           );
       },
     });
@@ -189,9 +189,9 @@ export default class implements PerfettoPlugin {
             `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
           )
           .then(() =>
-            addDebugSliceTrack(
-              ctx,
-              {
+            addDebugSliceTrack({
+              trace: ctx,
+              data: {
                 sqlSource: `
                 SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
                   FROM
@@ -203,10 +203,10 @@ export default class implements PerfettoPlugin {
               `,
                 columns: sliceColumnNames,
               },
-              `${thdInfo.name}`,
-              sliceColumns,
-              sliceColumnNames,
-            ),
+              title: `${thdInfo.name}`,
+              columns: sliceColumns,
+              argColumns: sliceColumnNames,
+            }),
           );
       },
     });
@@ -223,9 +223,9 @@ export default class implements PerfettoPlugin {
         await ctx.engine.query(
           `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
         );
-        await addDebugSliceTrack(
-          ctx,
-          {
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
             sqlSource: `
                 SELECT
                   cr.id,
@@ -245,11 +245,12 @@ export default class implements PerfettoPlugin {
                 `,
             columns: criticalPathsliceLiteColumnNames,
           },
-          (await getThreadInfo(ctx.engine, trackUtid as Utid)).name ??
+          title:
+            (await getThreadInfo(ctx.engine, trackUtid as Utid)).name ??
             '<thread name>',
-          criticalPathsliceLiteColumns,
-          criticalPathsliceLiteColumnNames,
-        );
+          columns: criticalPathsliceLiteColumns,
+          argColumns: criticalPathsliceLiteColumnNames,
+        });
       },
     });
 
@@ -265,9 +266,9 @@ export default class implements PerfettoPlugin {
         await ctx.engine.query(
           `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
         );
-        await addDebugSliceTrack(
-          ctx,
-          {
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
             sqlSource: `
                 SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
                 FROM
@@ -279,11 +280,12 @@ export default class implements PerfettoPlugin {
                 `,
             columns: criticalPathsliceColumnNames,
           },
-          (await getThreadInfo(ctx.engine, trackUtid as Utid)).name ??
+          title:
+            (await getThreadInfo(ctx.engine, trackUtid as Utid)).name ??
             '<thread name>',
-          criticalPathSliceColumns,
-          criticalPathsliceColumnNames,
-        );
+          columns: criticalPathSliceColumns,
+          argColumns: criticalPathsliceColumnNames,
+        });
       },
     });
 

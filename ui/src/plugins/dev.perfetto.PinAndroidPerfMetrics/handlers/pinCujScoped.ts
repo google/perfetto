@@ -20,14 +20,11 @@ import {
 } from './metricUtils';
 import {NUM} from '../../../trace_processor/query_result';
 import {Trace} from '../../../public/trace';
-import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
 
 // TODO(primiano): make deps check stricter, we shouldn't allow plugins to
 // depend on each other.
-import {
-  addAndPinSliceTrack,
-  focusOnSlice,
-} from '../../dev.perfetto.AndroidCujs/trackUtils';
+import {focusOnSlice} from '../../dev.perfetto.AndroidCujs/trackUtils';
+import {addDebugSliceTrack} from '../../../public/debug_tracks';
 
 const ENABLE_FOCUS_ON_FIRST_JANK = true;
 
@@ -63,12 +60,11 @@ class PinCujScopedJank implements MetricHandler {
    */
   public async addMetricTrack(metricData: CujScopedMetricData, ctx: Trace) {
     // TODO: b/349502258 - Refactor to single API
-    const {
-      config: cujScopedJankSlice,
-      trackName: trackName,
-      tableName: tableName,
-    } = await this.cujScopedTrackConfig(metricData, ctx);
-    addAndPinSliceTrack(ctx, cujScopedJankSlice, trackName);
+    const {tableName, ...config} = await this.cujScopedTrackConfig(
+      metricData,
+      ctx,
+    );
+    addDebugSliceTrack({trace: ctx, ...config});
     if (ENABLE_FOCUS_ON_FIRST_JANK) {
       await this.focusOnFirstJank(ctx, tableName);
     }
@@ -77,11 +73,7 @@ class PinCujScopedJank implements MetricHandler {
   private async cujScopedTrackConfig(
     metricData: CujScopedMetricData,
     ctx: Trace,
-  ): Promise<{
-    config: SimpleSliceTrackConfig;
-    trackName: string;
-    tableName: string;
-  }> {
+  ) {
     let jankTypeFilter;
     let jankTypeDisplayName = 'all';
     if (metricData.jankType?.includes('app')) {
@@ -114,20 +106,20 @@ class PinCujScopedJank implements MetricHandler {
         FROM ${tableWithJankyFramesName}
     `;
 
-    const cujScopedJankSlice: SimpleSliceTrackConfig = {
+    const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
+
+    const cujScopedJankSlice = {
       data: {
         sqlSource: jankyFramesDuringCujQuery,
         columns: ['id', 'ts', 'dur'],
       },
       columns: {ts: 'ts', dur: 'dur', name: 'id'},
       argColumns: ['id', 'ts', 'dur'],
+      trackName,
     };
 
-    const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
-
     return {
-      config: cujScopedJankSlice,
-      trackName: trackName,
+      ...cujScopedJankSlice,
       tableName: tableWithJankyFramesName,
     };
   }

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {type addDebugSliceTrack} from '../debug_tracks';
-import {type addDebugCounterTrack} from './debug_tracks/debug_tracks';
+import {type addDebugCounterTrack} from './tracks/debug_tracks';
 import {type addSqlTableTab} from '../../frontend/sql_table_tab';
 import {type addVisualizedArgTracks} from '../../frontend/visualized_args_tracks';
 import {type addQueryResultsTab} from './query_table/query_result_tab';

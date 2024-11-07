@@ -15,15 +15,9 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
-import {
-  SimpleSliceTrack,
-  SimpleSliceTrackConfig,
-} from '../../frontend/simple_slice_track';
+import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
 import {CounterOptions} from '../../frontend/base_counter_track';
-import {
-  SimpleCounterTrack,
-  SimpleCounterTrackConfig,
-} from '../../frontend/simple_counter_track';
+import {createQueryCounterTrack} from '../../public/lib/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
 
 interface ContainedTrace {
@@ -1120,24 +1114,23 @@ export default class implements PerfettoPlugin {
     }
   }
 
-  addSliceTrack(
+  async addSliceTrack(
     ctx: Trace,
     name: string,
     query: string,
     groupName?: string,
     columns: string[] = [],
-  ): void {
-    const config: SimpleSliceTrackConfig = {
+  ) {
+    const uri = `/long_battery_tracing_${name}`;
+    const track = await createQuerySliceTrack({
+      trace: ctx,
+      uri,
       data: {
         sqlSource: query,
         columns: ['ts', 'dur', 'name', ...columns],
       },
-      columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: columns,
-    };
-
-    const uri = `/long_battery_tracing_${name}`;
-    const track = new SimpleSliceTrack(ctx, {trackUri: uri}, config);
+    });
     ctx.tracks.registerTrack({
       uri,
       title: name,
@@ -1147,43 +1140,43 @@ export default class implements PerfettoPlugin {
     this.addTrack(ctx, trackNode, groupName);
   }
 
-  addCounterTrack(
+  async addCounterTrack(
     ctx: Trace,
     name: string,
     query: string,
     groupName: string,
     options?: Partial<CounterOptions>,
-  ): void {
-    const config: SimpleCounterTrackConfig = {
+  ) {
+    const uri = `/long_battery_tracing_${name}`;
+    const track = await createQueryCounterTrack({
+      trace: ctx,
+      uri,
       data: {
         sqlSource: query,
         columns: ['ts', 'value'],
       },
-      columns: {ts: 'ts', value: 'value'},
       options,
-    };
-
-    const uri = `/long_battery_tracing_${name}`;
+    });
     ctx.tracks.registerTrack({
       uri,
       title: name,
-      track: new SimpleCounterTrack(ctx, {trackUri: uri}, config),
+      track,
     });
-    const track = new TrackNode({uri, title: name});
-    this.addTrack(ctx, track, groupName);
+    const trackNode = new TrackNode({uri, title: name});
+    this.addTrack(ctx, trackNode, groupName);
   }
 
-  addBatteryStatsState(
+  async addBatteryStatsState(
     ctx: Trace,
     name: string,
     track: string,
     groupName: string,
     features: Set<string>,
-  ): void {
+  ) {
     if (!features.has(`track.${track}`)) {
       return;
     }
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       name,
       `SELECT ts, safe_dur AS dur, value_name AS name
@@ -1193,18 +1186,18 @@ export default class implements PerfettoPlugin {
     );
   }
 
-  addBatteryStatsEvent(
+  async addBatteryStatsEvent(
     ctx: Trace,
     name: string,
     track: string,
     groupName: string | undefined,
     features: Set<string>,
-  ): void {
+  ) {
     if (!features.has(`track.${track}`)) {
       return;
     }
 
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       name,
       `SELECT ts, safe_dur AS dur, str_value AS name
@@ -1227,15 +1220,19 @@ export default class implements PerfettoPlugin {
     await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
     await e.query(`INCLUDE PERFETTO MODULE counters.intervals;`);
 
-    this.addSliceTrack(ctx, 'Device State: Screen state', SCREEN_STATE);
-    this.addSliceTrack(ctx, 'Device State: Charging', CHARGING);
-    this.addSliceTrack(ctx, 'Device State: Suspend / resume', SUSPEND_RESUME);
-    this.addSliceTrack(ctx, 'Device State: Doze light state', DOZE_LIGHT);
-    this.addSliceTrack(ctx, 'Device State: Doze deep state', DOZE_DEEP);
+    await this.addSliceTrack(ctx, 'Device State: Screen state', SCREEN_STATE);
+    await this.addSliceTrack(ctx, 'Device State: Charging', CHARGING);
+    await this.addSliceTrack(
+      ctx,
+      'Device State: Suspend / resume',
+      SUSPEND_RESUME,
+    );
+    await this.addSliceTrack(ctx, 'Device State: Doze light state', DOZE_LIGHT);
+    await this.addSliceTrack(ctx, 'Device State: Doze deep state', DOZE_DEEP);
 
     query('Device State: Top app', 'battery_stats.top');
 
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'Device State: Long wakelocks',
       `SELECT
@@ -1256,7 +1253,7 @@ export default class implements PerfettoPlugin {
     query('Device State: Jobs', 'battery_stats.job');
 
     if (features.has('atom.thermal_throttling_severity_state_changed')) {
-      this.addSliceTrack(
+      await this.addSliceTrack(
         ctx,
         'Device State: Thermal throttling',
         THERMAL_THROTTLING,
@@ -1296,7 +1293,7 @@ export default class implements PerfettoPlugin {
             ? {unit}
             : undefined;
 
-      this.addCounterTrack(
+      await this.addCounterTrack(
         ctx,
         countersIt.ui_name,
         `select ts, ${unit === '%' ? 100.0 : 1.0} * counter_value as value
@@ -1367,7 +1364,7 @@ export default class implements PerfettoPlugin {
                 as ${safeArg(arg)}`;
       }
 
-      this.addSliceTrack(
+      await this.addSliceTrack(
         ctx,
         tracks.get(atom)!.ui_name,
         `select ts, dur, slice_name as name, ${args.map((a) => argSql(a)).join(', ')}
@@ -1393,13 +1390,18 @@ export default class implements PerfettoPlugin {
     await e.query(NETWORK_SUMMARY);
     await e.query(RADIO_TRANSPORT_TYPE);
 
-    this.addSliceTrack(ctx, 'Default network', DEFAULT_NETWORK, groupName);
+    await this.addSliceTrack(
+      ctx,
+      'Default network',
+      DEFAULT_NETWORK,
+      groupName,
+    );
 
     if (features.has('atom.network_tethering_reported')) {
-      this.addSliceTrack(ctx, 'Tethering', TETHERING, groupName);
+      await this.addSliceTrack(ctx, 'Tethering', TETHERING, groupName);
     }
     if (features.has('net.wifi')) {
-      this.addCounterTrack(
+      await this.addCounterTrack(
         ctx,
         'Wifi total bytes',
         `select ts, sum(value) as value from network_summary where dev_type = 'wifi' group by 1`,
@@ -1411,7 +1413,7 @@ export default class implements PerfettoPlugin {
       );
       const it = result.iter({pkg: 'str'});
       for (; it.valid(); it.next()) {
-        this.addCounterTrack(
+        await this.addCounterTrack(
           ctx,
           `Top wifi: ${it.pkg}`,
           `select ts, value from network_summary where dev_type = 'wifi' and pkg = '${it.pkg}'`,
@@ -1442,7 +1444,7 @@ export default class implements PerfettoPlugin {
       features,
     );
     if (features.has('net.modem')) {
-      this.addCounterTrack(
+      await this.addCounterTrack(
         ctx,
         'Modem total bytes',
         `select ts, sum(value) as value from network_summary where dev_type = 'modem' group by 1`,
@@ -1454,7 +1456,7 @@ export default class implements PerfettoPlugin {
       );
       const it = result.iter({pkg: 'str'});
       for (; it.valid(); it.next()) {
-        this.addCounterTrack(
+        await this.addCounterTrack(
           ctx,
           `Top modem: ${it.pkg}`,
           `select ts, value from network_summary where dev_type = 'modem' and pkg = '${it.pkg}'`,
@@ -1470,7 +1472,7 @@ export default class implements PerfettoPlugin {
       groupName,
       features,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'Cellular connection',
       `select ts, dur, name from radio_transport`,
@@ -1494,8 +1496,8 @@ export default class implements PerfettoPlugin {
   }
 
   async addModemRil(ctx: Trace, groupName: string): Promise<void> {
-    const rilStrength = (band: string, value: string): void =>
-      this.addSliceTrack(
+    const rilStrength = async (band: string, value: string) =>
+      await this.addSliceTrack(
         ctx,
         `Modem signal strength ${band} ${value}`,
         `SELECT ts, dur, name FROM RilScreenOn WHERE band_name = '${band}' AND value_name = '${value}'`,
@@ -1507,19 +1509,19 @@ export default class implements PerfettoPlugin {
     await e.query(MODEM_RIL_STRENGTH);
     await e.query(MODEM_RIL_CHANNELS_PREAMBLE);
 
-    rilStrength('LTE', 'rsrp');
-    rilStrength('LTE', 'rssi');
-    rilStrength('NR', 'rsrp');
-    rilStrength('NR', 'rssi');
+    await rilStrength('LTE', 'rsrp');
+    await rilStrength('LTE', 'rssi');
+    await rilStrength('NR', 'rsrp');
+    await rilStrength('NR', 'rssi');
 
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'Modem channel config',
       MODEM_RIL_CHANNELS,
       groupName,
     );
 
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'Modem cell reselection',
       MODEM_CELL_RESELECTION,
@@ -1545,7 +1547,7 @@ export default class implements PerfettoPlugin {
     );
     const countersIt = counters.iter({name: 'str'});
     for (; countersIt.valid(); countersIt.next()) {
-      this.addCounterTrack(
+      await this.addCounterTrack(
         ctx,
         countersIt.name,
         `select ts, value from pixel_modem_counters where name = '${countersIt.name}'`,
@@ -1557,7 +1559,7 @@ export default class implements PerfettoPlugin {
     );
     const slicesIt = slices.iter({track_name: 'str'});
     for (; slicesIt.valid(); slicesIt.next()) {
-      this.addSliceTrack(
+      await this.addSliceTrack(
         ctx,
         slicesIt.track_name,
         `select ts, dur, slice_name as name from pixel_modem_slices
@@ -1579,7 +1581,7 @@ export default class implements PerfettoPlugin {
     const result = await e.query(KERNEL_WAKELOCKS_SUMMARY);
     const it = result.iter({wakelock_name: 'str'});
     for (; it.valid(); it.next()) {
-      this.addCounterTrack(
+      await this.addCounterTrack(
         ctx,
         it.wakelock_name,
         `select ts, dur, value from kernel_wakelocks where wakelock_name = "${it.wakelock_name}"`,
@@ -1627,7 +1629,7 @@ export default class implements PerfettoPlugin {
     let labelOther = false;
     for (; it.valid(); it.next()) {
       labelOther = true;
-      this.addSliceTrack(
+      await this.addSliceTrack(
         ctx,
         `Wakeup ${it.item}`,
         `${sqlPrefix} where item="${it.item}"`,
@@ -1636,7 +1638,7 @@ export default class implements PerfettoPlugin {
       );
       items.push(it.item);
     }
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       labelOther ? 'Other wakeups' : 'Wakeups',
       `${sqlPrefix} where item not in ('${items.join("','")}')`,
@@ -1659,7 +1661,7 @@ export default class implements PerfettoPlugin {
     );
     const it = result.iter({pkg: 'str', cluster: 'str'});
     for (; it.valid(); it.next()) {
-      this.addCounterTrack(
+      await this.addCounterTrack(
         ctx,
         `CPU (${it.cluster}): ${it.pkg}`,
         `select ts, value from high_cpu where pkg = "${it.pkg}" and cluster="${it.cluster}"`,
@@ -1678,140 +1680,140 @@ export default class implements PerfettoPlugin {
       return;
     }
     const groupName = 'Bluetooth';
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'BLE Scans (opportunistic)',
       bleScanQuery('opportunistic'),
       groupName,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'BLE Scans (filtered)',
       bleScanQuery('filtered'),
       groupName,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'BLE Scans (unfiltered)',
       bleScanQuery('not filtered'),
       groupName,
     );
-    this.addSliceTrack(ctx, 'BLE Scan Results', BLE_RESULTS, groupName);
-    this.addSliceTrack(ctx, 'Connections (ACL)', BT_CONNS_ACL, groupName);
-    this.addSliceTrack(ctx, 'Connections (SCO)', BT_CONNS_SCO, groupName);
-    this.addSliceTrack(
+    await this.addSliceTrack(ctx, 'BLE Scan Results', BLE_RESULTS, groupName);
+    await this.addSliceTrack(ctx, 'Connections (ACL)', BT_CONNS_ACL, groupName);
+    await this.addSliceTrack(ctx, 'Connections (SCO)', BT_CONNS_SCO, groupName);
+    await this.addSliceTrack(
       ctx,
       'Link-level Events',
       BT_LINK_LEVEL_EVENTS,
       groupName,
       BT_LINK_LEVEL_EVENTS_COLUMNS,
     );
-    this.addSliceTrack(ctx, 'A2DP Audio', BT_A2DP_AUDIO, groupName);
-    this.addSliceTrack(
+    await this.addSliceTrack(ctx, 'A2DP Audio', BT_A2DP_AUDIO, groupName);
+    await this.addSliceTrack(
       ctx,
       'Bytes Transferred (L2CAP/RFCOMM)',
       BT_BYTES,
       groupName,
     );
     await ctx.engine.query(BT_ACTIVITY);
-    this.addCounterTrack(
+    await this.addCounterTrack(
       ctx,
       'ACL Classic Active Count',
       'select ts, dur, acl_active_count as value from bt_activity',
       groupName,
     );
-    this.addCounterTrack(
+    await this.addCounterTrack(
       ctx,
       'ACL Classic Sniff Count',
       'select ts, dur, acl_sniff_count as value from bt_activity',
       groupName,
     );
-    this.addCounterTrack(
+    await this.addCounterTrack(
       ctx,
       'ACL BLE Count',
       'select ts, dur, acl_ble_count as value from bt_activity',
       groupName,
     );
-    this.addCounterTrack(
+    await this.addCounterTrack(
       ctx,
       'Advertising Instance Count',
       'select ts, dur, advertising_count as value from bt_activity',
       groupName,
     );
-    this.addCounterTrack(
+    await this.addCounterTrack(
       ctx,
       'LE Scan Duty Cycle Maximum',
       'select ts, dur, le_scan_duty_cycle as value from bt_activity',
       groupName,
       {unit: '%'},
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'Inquiry Active',
       "select ts, dur, 'Active' as name from bt_activity where inquiry_active",
       groupName,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'SCO Active',
       "select ts, dur, 'Active' as name from bt_activity where sco_active",
       groupName,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'A2DP Active',
       "select ts, dur, 'Active' as name from bt_activity where a2dp_active",
       groupName,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'LE Audio Active',
       "select ts, dur, 'Active' as name from bt_activity where le_audio_active",
       groupName,
     );
-    this.addCounterTrack(
+    await this.addCounterTrack(
       ctx,
       'Controller Idle Time',
       'select ts, dur, controller_idle_pct as value from bt_activity',
       groupName,
       {yRangeSharingKey: 'bt_controller_time', unit: '%'},
     );
-    this.addCounterTrack(
+    await this.addCounterTrack(
       ctx,
       'Controller TX Time',
       'select ts, dur, controller_tx_pct as value from bt_activity',
       groupName,
       {yRangeSharingKey: 'bt_controller_time', unit: '%'},
     );
-    this.addCounterTrack(
+    await this.addCounterTrack(
       ctx,
       'Controller RX Time',
       'select ts, dur, controller_rx_pct as value from bt_activity',
       groupName,
       {yRangeSharingKey: 'bt_controller_time', unit: '%'},
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'Quality reports',
       BT_QUALITY_REPORTS,
       groupName,
       BT_QUALITY_REPORTS_COLUMNS,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'RSSI Reports',
       BT_RSSI_REPORTS,
       groupName,
       BT_RSSI_REPORTS_COLUMNS,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'HAL Crashes',
       BT_HAL_CRASHES,
       groupName,
       BT_HAL_CRASHES_COLUMNS,
     );
-    this.addSliceTrack(
+    await this.addSliceTrack(
       ctx,
       'Code Path Counter',
       BT_CODE_PATH_COUNTER,
@@ -1832,8 +1834,8 @@ export default class implements PerfettoPlugin {
       bySubscription.get(trace.subscription)!.push(trace);
     }
 
-    bySubscription.forEach((traces, subscription) =>
-      this.addSliceTrack(
+    for (const [subscription, traces] of bySubscription) {
+      await this.addSliceTrack(
         ctx,
         subscription,
         traces
@@ -1848,8 +1850,8 @@ export default class implements PerfettoPlugin {
           .join(' UNION ALL '),
         'Other traces',
         ['link'],
-      ),
-    );
+      );
+    }
   }
 
   async findFeatures(e: Engine): Promise<Set<string>> {

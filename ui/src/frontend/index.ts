@@ -66,7 +66,7 @@ import {configureExtensions} from '../public/lib/extensions';
 import {
   addDebugCounterTrack,
   addDebugSliceTrack,
-} from '../public/lib/debug_tracks/debug_tracks';
+} from '../public/lib/tracks/debug_tracks';
 import {addVisualizedArgTracks} from './visualized_args_tracks';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 

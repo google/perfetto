@@ -85,18 +85,23 @@ export default class implements PerfettoPlugin {
             )
         `;
 
-        await addDebugSliceTrack(
-          ctx,
-          {
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
             sqlSource:
               sqlPrefix +
               `
               SELECT * FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
           },
-          'Rutime IPC:' + tid,
-          {ts: 'ts', dur: 'dur', name: 'ipc'},
-          ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss'],
-        );
+          title: 'Rutime IPC:' + tid,
+          columns: {ts: 'ts', dur: 'dur', name: 'ipc'},
+          argColumns: [
+            'instruction',
+            'cycle',
+            'stall_backend_mem',
+            'l3_cache_miss',
+          ],
+        });
         addQueryResultsTab(ctx, {
           query:
             sqlPrefix +

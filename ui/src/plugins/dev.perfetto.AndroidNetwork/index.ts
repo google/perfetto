@@ -27,16 +27,16 @@ export default class implements PerfettoPlugin {
     tableOrQuery: string,
     columns: string[],
   ): Promise<void> {
-    await addDebugSliceTrack(
-      ctx,
-      {
+    await addDebugSliceTrack({
+      trace: ctx,
+      data: {
         sqlSource: `SELECT ${columns.join(',')} FROM ${tableOrQuery}`,
         columns: columns,
       },
-      trackName,
-      {ts: columns[0], dur: columns[1], name: columns[2]},
-      columns.slice(2),
-    );
+      title: trackName,
+      columns: {ts: columns[0], dur: columns[1], name: columns[2]},
+      argColumns: columns.slice(2),
+    });
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {

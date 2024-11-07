@@ -18,9 +18,8 @@ import {
   MetricHandler,
 } from './metricUtils';
 import {Trace} from '../../../public/trace';
-import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
 import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
-import {addAndPinSliceTrack} from '../../dev.perfetto.AndroidCujs/trackUtils';
+import {addDebugSliceTrack} from '../../../public/debug_tracks';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
@@ -54,9 +53,8 @@ class BlockingCallMetricHandler implements MetricHandler {
    */
   public addMetricTrack(metricData: BlockingCallMetricData, ctx: Trace): void {
     this.pinSingleCuj(ctx, metricData);
-    const {config: blockingCallMetricConfig, trackName: trackName} =
-      this.blockingCallTrackConfig(metricData);
-    addAndPinSliceTrack(ctx, blockingCallMetricConfig, trackName);
+    const config = this.blockingCallTrackConfig(metricData);
+    addDebugSliceTrack({trace: ctx, ...config});
   }
 
   private pinSingleCuj(ctx: Trace, metricData: BlockingCallMetricData) {
@@ -64,10 +62,7 @@ class BlockingCallMetricHandler implements MetricHandler {
     addJankCUJDebugTrack(ctx, trackName, metricData.cujName);
   }
 
-  private blockingCallTrackConfig(metricData: BlockingCallMetricData): {
-    config: SimpleSliceTrackConfig;
-    trackName: string;
-  } {
+  private blockingCallTrackConfig(metricData: BlockingCallMetricData) {
     const cuj = metricData.cujName;
     const processName = metricData.process;
     const blockingCallName = metricData.blockingCallName;
@@ -81,18 +76,16 @@ class BlockingCallMetricHandler implements MetricHandler {
       AND name = "${blockingCallName}"
   `;
 
-    const blockingCallMetricConfig: SimpleSliceTrackConfig = {
+    const trackName = 'Blocking calls in ' + processName;
+    return {
       data: {
         sqlSource: blockingCallDuringCujQuery,
         columns: ['name', 'ts', 'dur'],
       },
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: ['name', 'ts', 'dur'],
+      trackName,
     };
-
-    const trackName = 'Blocking calls in ' + processName;
-
-    return {config: blockingCallMetricConfig, trackName: trackName};
   }
 }
 
