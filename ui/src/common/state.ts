@@ -162,16 +162,12 @@ export interface State {
    * State of the ConfigEditor.
    */
   recordConfig: RecordConfig;
-  displayConfigAsPbtxt: boolean;
   lastLoadedConfig: LoadedConfig;
 
   /**
    * Open traces.
    */
   engine?: EngineConfig;
-
-  debugTrackId?: string;
-  lastTrackReloadRequest?: number;
 
   // Show track perf debugging overlay
   perfDebug: boolean;
@@ -189,12 +185,6 @@ export interface State {
 
   fetchChromeCategories: boolean;
   chromeCategories: string[] | undefined;
-
-  trackFilterTerm: string | undefined;
-
-  // TODO(primiano): this is a hack to force-re-run controllers required for the
-  // controller->managers migration. Remove once controllers are gone.
-  forceRunControllers: number;
 }
 
 export declare type RecordMode =
