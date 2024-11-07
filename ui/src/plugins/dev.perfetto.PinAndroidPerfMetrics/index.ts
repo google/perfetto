@@ -61,21 +61,19 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace) {
-    ctx.addEventListener('traceready', () => {
-      ctx.commands.registerCommand({
-        id: 'dev.perfetto.PinAndroidPerfMetrics#PinAndroidPerfMetrics',
-        name: 'Add and Pin: Jank Metric Slice',
-        callback: async (metric) => {
-          metric = prompt('Metrics names (separated by comma)', '');
-          if (metric === null) return;
-          const metricList = metric.split(',');
-          this.callHandlers(metricList, ctx);
-        },
-      });
-      if (metrics.length !== 0) {
-        this.callHandlers(metrics, ctx);
-      }
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.PinAndroidPerfMetrics#PinAndroidPerfMetrics',
+      name: 'Add and Pin: Jank Metric Slice',
+      callback: async (metric) => {
+        metric = prompt('Metrics names (separated by comma)', '');
+        if (metric === null) return;
+        const metricList = metric.split(',');
+        this.callHandlers(metricList, ctx);
+      },
     });
+    if (metrics.length !== 0) {
+      this.callHandlers(metrics, ctx);
+    }
   }
 
   private async callHandlers(metricsList: string[], ctx: Trace) {
