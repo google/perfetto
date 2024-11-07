@@ -2780,6 +2780,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_heap_profile_heap_profile",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/callstacks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/summary_tree.sql",
     ],
 )
 
