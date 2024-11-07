@@ -46,25 +46,25 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  private async registerTrack(_ctx: Trace, sql: string) {
+  private async registerTrack(ctx: Trace, sql: string) {
     const track = await createQuerySliceTrack({
-      trace: _ctx,
+      trace: ctx,
       uri: TRACK_URI,
       data: {
         sqlSource: sql,
         columns: COLUMNS,
       },
     });
-    _ctx.tracks.registerTrack({
+    ctx.tracks.registerTrack({
       uri: TRACK_URI,
       title: TRACK_NAME,
       track,
     });
   }
 
-  private addSimpleTrack(_ctx: Trace) {
+  private addSimpleTrack(ctx: Trace) {
     const trackNode = new TrackNode({uri: TRACK_URI, title: TRACK_NAME});
-    _ctx.workspace.addChildInOrder(trackNode);
+    ctx.workspace.addChildInOrder(trackNode);
     trackNode.pin();
   }
 }
