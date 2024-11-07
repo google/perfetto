@@ -49,7 +49,6 @@ export function createEmptyState(): State {
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()
       ? autosaveConfigStore.get()
       : createEmptyRecordConfig(),
-    displayConfigAsPbtxt: false,
     lastLoadedConfig: {type: 'NONE'},
 
     perfDebug: false,
@@ -62,8 +61,5 @@ export function createEmptyState(): State {
 
     fetchChromeCategories: false,
     chromeCategories: undefined,
-
-    trackFilterTerm: undefined,
-    forceRunControllers: 0,
   };
 }

@@ -42,27 +42,6 @@ export const StateActions = {
     state.chromeCategories = chromeCategories;
   },
 
-  requestTrackReload(state: StateDraft, _: {}) {
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (state.lastTrackReloadRequest) {
-      state.lastTrackReloadRequest++;
-    } else {
-      state.lastTrackReloadRequest = 1;
-    }
-  },
-
-  // TODO(hjd): Remove setState - it causes problems due to reuse of ids.
-  setState(state: StateDraft, args: {newState: State}): void {
-    for (const key of Object.keys(state)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (state as any)[key];
-    }
-    for (const key of Object.keys(args.newState)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (state as any)[key] = (args.newState as any)[key];
-    }
-  },
-
   setRecordConfig(
     state: StateDraft,
     args: {config: RecordConfig; configType?: LoadedConfig},
@@ -121,17 +100,6 @@ export const StateActions = {
 
   togglePerfDebug(state: StateDraft, _: {}): void {
     state.perfDebug = !state.perfDebug;
-  },
-
-  setTrackFilterTerm(
-    state: StateDraft,
-    args: {filterTerm: string | undefined},
-  ) {
-    state.trackFilterTerm = args.filterTerm;
-  },
-
-  runControllers(state: StateDraft, _args: {}) {
-    state.forceRunControllers++;
   },
 };
 
