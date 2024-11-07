@@ -22,7 +22,8 @@ SELECT
   -- Requirement is there is exactly one pair of start/stop
   (SELECT ts FROM slice WHERE name == 'wattson_start') as ts,
   (SELECT ts FROM slice WHERE name == 'wattson_stop')
-  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur;
+  - (SELECT ts FROM slice WHERE name == 'wattson_start') as dur,
+  1 as period_id;
 
 SELECT RUN_METRIC(
   'android/wattson_tasks_attribution.sql',
@@ -30,43 +31,18 @@ SELECT RUN_METRIC(
   '_wattson_period_window'
 );
 
--- Group by unique thread ID and disregard CPUs, summing of power over all CPUs
--- and all instances of the thread
-DROP VIEW IF EXISTS _wattson_thread_attribution;
-CREATE PERFETTO VIEW _wattson_thread_attribution AS
-SELECT
-  -- active time of thread divided by total time where Wattson is defined
-  SUM(estimated_mw * dur) / 1000000000 as estimated_mws,
-  (
-    SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
-  ) as estimated_mw,
-  idle_cost_mws,
-  thread_name,
-  process_name,
-  tid,
-  pid
-FROM _windowed_threads_system_state
-LEFT JOIN _per_thread_idle_attribution USING (utid)
-GROUP BY utid
-ORDER BY estimated_mw DESC;
-
 DROP VIEW IF EXISTS wattson_markers_threads_output;
 CREATE PERFETTO VIEW wattson_markers_threads_output AS
 SELECT AndroidWattsonTasksAttributionMetric(
-  'metric_version', 3,
+  'metric_version', 4,
   'power_model_version', 1,
-  'task_info', (
+  'period_info', (
     SELECT RepeatedField(
-      AndroidWattsonTaskInfo(
-        'estimated_mws', ROUND(estimated_mws, 6),
-        'estimated_mw', ROUND(estimated_mw, 6),
-        'idle_transitions_mws', ROUND(idle_cost_mws, 6),
-        'thread_name', thread_name,
-        'process_name', process_name,
-        'thread_id', tid,
-        'process_id', pid
+      AndroidWattsonTaskPeriodInfo(
+        'period_id', period_id,
+        'task_info', proto
       )
     )
-    FROM _wattson_thread_attribution
+    FROM _wattson_per_task
   )
 );
