@@ -115,6 +115,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -1061,6 +1062,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       std::make_unique<ExperimentalFlatSlice>(&context_));
   engine_->RegisterStaticTableFunction(std::make_unique<DfsWeightBounded>(
       context_.storage->mutable_string_pool()));
+  engine_->RegisterStaticTableFunction(
+      std::make_unique<WinscopeProtoToArgsWithDefaults>(
+          context_.storage->mutable_string_pool(), engine_.get(), &context_));
 
   // Value table aggregate functions.
   engine_->RegisterSqliteAggregateFunction<DominatorTree>(

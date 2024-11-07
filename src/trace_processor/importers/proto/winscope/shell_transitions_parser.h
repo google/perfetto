@@ -33,11 +33,7 @@ class ShellTransitionsParser {
   void ParseHandlerMappings(protozero::ConstBytes);
 
  private:
-  static constexpr auto* kShellTransitionsProtoName =
-      ".perfetto.protos.ShellTransition";
-
   TraceProcessorContext* const context_;
-  DescriptorPool pool_;
   util::ProtoToArgsParser args_parser_;
 };
 }  // namespace trace_processor

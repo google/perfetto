@@ -80,3 +80,15 @@ class SurfaceFlingerTransactions(TestSuite):
         "transactions[0].vsync_id","24769"
         "vsync_id","24776"
         """))
+
+  def test_table_has_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('surfaceflinger_transactions.textproto'),
+        query="""
+        SELECT COUNT(*) FROM surfaceflinger_transactions
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        2
+        """))

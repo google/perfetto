@@ -55,6 +55,7 @@ source_set("full") {
     "../../common:parser_types",
     "../../proto:minimal",
     "../../proto:packet_sequence_state_generation_hdr",
+    "../../../util:winscope_proto_mapping"
   ]
 }
 
