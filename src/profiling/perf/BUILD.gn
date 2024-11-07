@@ -32,6 +32,7 @@ source_set("traced_perf_main") {
     ":producer",
     "../../../gn:default_deps",
     "../../../src/base",
+    "../../../src/base:version",
     "../../../src/tracing/ipc/producer",
   ]
   sources = [
