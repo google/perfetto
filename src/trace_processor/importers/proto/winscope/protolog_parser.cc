@@ -35,7 +35,6 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h"
-#include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -45,7 +44,7 @@ namespace perfetto::trace_processor {
 
 ProtoLogParser::ProtoLogParser(TraceProcessorContext* context)
     : context_(context),
-      args_parser_{pool_},
+      args_parser_{*context_->descriptor_pool_},
       log_level_debug_string_id_(context->storage->InternString("DEBUG")),
       log_level_verbose_string_id_(context->storage->InternString("VERBOSE")),
       log_level_info_string_id_(context->storage->InternString("INFO")),
@@ -53,8 +52,6 @@ ProtoLogParser::ProtoLogParser(TraceProcessorContext* context)
       log_level_error_string_id_(context->storage->InternString("ERROR")),
       log_level_wtf_string_id_(context->storage->InternString("WTF")),
       log_level_unknown_string_id_(context_->storage->InternString("UNKNOWN")) {
-  pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
-                                 kWinscopeDescriptor.size());
 }
 
 void ProtoLogParser::ParseProtoLogMessage(

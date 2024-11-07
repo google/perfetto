@@ -66,3 +66,16 @@ class InputMethodManagerService(TestSuite):
         "input_method_manager_service.system_ready","true"
         "where","InputMethodManagerService#startInputOrWindowGainedFocus"
         """))
+
+  def test_table_has_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('inputmethod_manager_service.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.inputmethod;
+        SELECT COUNT(*) FROM android_inputmethod_manager_service
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        2
+        """))

@@ -63,3 +63,16 @@ class InputMethodClients(TestSuite):
         "client.ime_insets_source_consumer.insets_source_consumer.source_control.leash.hash_code","135479902"
         "client.ime_insets_source_consumer.insets_source_consumer.source_control.leash.layerId","105"
         """))
+
+  def test_table_has_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('inputmethod_clients.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.inputmethod;
+        SELECT COUNT(*) FROM android_inputmethod_clients
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        2
+        """))

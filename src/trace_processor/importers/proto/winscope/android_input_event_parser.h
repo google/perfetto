@@ -36,7 +36,6 @@ class AndroidInputEventParser {
 
  private:
   TraceProcessorContext& context_;
-  DescriptorPool pool_;
   util::ProtoToArgsParser args_parser_;
 
   void ParseMotionEvent(int64_t packet_ts, const protozero::ConstBytes& bytes);
