@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {raf} from '../core/raf_scheduler';
-import {Engine, EngineAttrs} from '../trace_processor/engine';
-import {PageWithTraceImplAttrs} from '../core/page_manager';
-import {QueryResult, UNKNOWN} from '../trace_processor/query_result';
-import {assertExists} from '../base/logging';
-import {TraceImplAttrs} from '../core/trace_impl';
+import {Engine, EngineAttrs} from '../../trace_processor/engine';
+import {QueryResult, UNKNOWN} from '../../trace_processor/query_result';
+import {assertExists} from '../../base/logging';
+import {TraceAttrs} from '../../public/trace';
+import {PageWithTraceAttrs} from '../../public/page';
 
 /**
  * Extracts and copies fields from a source object based on the keys present in
@@ -102,8 +101,6 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
         data.push(pickFields(it, statsSpec));
       }
       this.data = data;
-
-      raf.scheduleFullRedraw();
     });
   }
 
@@ -140,8 +137,8 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
   }
 }
 
-class LoadingErrors implements m.ClassComponent<TraceImplAttrs> {
-  view({attrs}: m.CVnode<TraceImplAttrs>) {
+class LoadingErrors implements m.ClassComponent<TraceAttrs> {
+  view({attrs}: m.CVnode<TraceAttrs>) {
     const errors = attrs.trace.loadingErrors;
     if (errors.length === 0) return;
     return m(
@@ -194,7 +191,6 @@ class TraceMetadata implements m.ClassComponent<EngineAttrs> {
         tableRows.push(pickFields(it, traceMetadataRowSpec));
       }
       this.data = tableRows;
-      raf.scheduleFullRedraw();
     });
   }
 
@@ -272,7 +268,6 @@ class AndroidGameInterventionList implements m.ClassComponent<EngineAttrs> {
         data.push(pickFields(it, androidGameInterventionRowSpec));
       }
       this.data = data;
-      raf.scheduleFullRedraw();
     });
   }
 
@@ -386,7 +381,6 @@ class PackageListSection implements m.ClassComponent<EngineAttrs> {
     }
 
     this.packageList = packageList;
-    raf.scheduleFullRedraw();
   }
 
   view() {
@@ -426,14 +420,14 @@ class PackageListSection implements m.ClassComponent<EngineAttrs> {
   }
 }
 
-export class TraceInfoPage implements m.ClassComponent<PageWithTraceImplAttrs> {
+export class TraceInfoPage implements m.ClassComponent<PageWithTraceAttrs> {
   private engine?: Engine;
 
-  oninit({attrs}: m.CVnode<PageWithTraceImplAttrs>) {
+  oninit({attrs}: m.CVnode<PageWithTraceAttrs>) {
     this.engine = attrs.trace.engine.getProxy('TraceInfoPage');
   }
 
-  view({attrs}: m.CVnode<PageWithTraceImplAttrs>) {
+  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
     const engine = assertExists(this.engine);
     return m(
       '.trace-info-page',

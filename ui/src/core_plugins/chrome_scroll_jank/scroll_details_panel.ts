@@ -20,7 +20,7 @@ import {
   Table,
   TableData,
   widgetColumn,
-} from '../../frontend/tables/table';
+} from '../../widgets/table';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {

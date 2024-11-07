@@ -75,4 +75,5 @@ export interface MetricVisualisation {
 
 export interface PluginManager {
   getPlugin<T extends PerfettoPlugin>(plugin: PerfettoPluginStatic<T>): T;
+  metricVisualisations(): MetricVisualisation[];
 }

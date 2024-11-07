@@ -63,6 +63,11 @@ export interface Trace extends App {
   // the trace. It will throw if traceInfo.downloadable === false.
   getTraceFile(): Promise<Blob>;
 
+  // List of errors that were encountered while loading the trace by the TS
+  // code. These are on top of traceInfo.importErrors, which is a summary of
+  // what TraceProcessor reports on the stats table at import time.
+  get loadingErrors(): ReadonlyArray<string>;
+
   // When the trace is opened via postMessage deep-linking, returns the sub-set
   // of postMessageData.pluginArgs[pluginId] for the current plugin. If not
   // present returns undefined.

@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {channelChanged, getNextChannel, setChannel} from '../core/channels';
-import {featureFlags, Flag, OverrideState} from '../core/feature_flags';
-import {raf} from '../core/raf_scheduler';
-import {PageAttrs} from '../public/page';
-import {Router} from '../core/router';
+import {channelChanged, getNextChannel, setChannel} from '../../core/channels';
+import {featureFlags, Flag, OverrideState} from '../../core/feature_flags';
+import {raf} from '../../core/raf_scheduler';
+import {PageAttrs} from '../../public/page';
+import {Router} from '../../core/router';
 
 const RELEASE_PROCESS_URL =
   'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
