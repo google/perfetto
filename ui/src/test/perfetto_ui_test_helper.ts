@@ -79,7 +79,7 @@ export class PerfettoTestHelper {
   ) {
     await this.page.mouse.move(0, 0); // Move mouse out of the way.
     await this.waitForPerfettoIdle();
-    await expect(this.page).toHaveScreenshot(screenshotName, opts);
+    await expect.soft(this.page).toHaveScreenshot(screenshotName, opts);
   }
 
   locateTrackGroup(name: string): Locator {
