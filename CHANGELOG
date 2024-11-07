@@ -24,6 +24,10 @@ Unreleased:
       inserted directly into it.
     * Removed the `uid_track` table. It was redundant as no data was
       inserted directly into it.
+    * Removed `common` package. It has been deprecated since `v42` and most
+      functionality has been moved into other packages. Notably, the time
+      conversion functions can be found in `time.conversion` module, and
+      `thread_slice` is available with `slices.with_context`.
   Trace Processor:
     *
   UI:
