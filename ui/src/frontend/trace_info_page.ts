@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {raf} from '../core/raf_scheduler';
 import {Engine, EngineAttrs} from '../trace_processor/engine';
-import {PageWithTraceAttrs} from './pages';
+import {PageWithTraceImplAttrs} from '../core/page_manager';
 import {QueryResult, UNKNOWN} from '../trace_processor/query_result';
 import {assertExists} from '../base/logging';
 import {TraceImplAttrs} from '../core/trace_impl';
@@ -426,14 +426,14 @@ class PackageListSection implements m.ClassComponent<EngineAttrs> {
   }
 }
 
-export class TraceInfoPage implements m.ClassComponent<PageWithTraceAttrs> {
+export class TraceInfoPage implements m.ClassComponent<PageWithTraceImplAttrs> {
   private engine?: Engine;
 
-  oninit({attrs}: m.CVnode<PageWithTraceAttrs>) {
+  oninit({attrs}: m.CVnode<PageWithTraceImplAttrs>) {
     this.engine = attrs.trace.engine.getProxy('TraceInfoPage');
   }
 
-  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
+  view({attrs}: m.CVnode<PageWithTraceImplAttrs>) {
     const engine = assertExists(this.engine);
     return m(
       '.trace-info-page',

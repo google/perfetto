@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PageWithTraceAttrs} from './pages';
+import {PageWithTraceAttrs} from '../public/page';
 import {Trace} from '../public/trace';
 import {
   DurationColumn,

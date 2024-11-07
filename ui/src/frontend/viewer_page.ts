@@ -44,8 +44,8 @@ import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackPanel} from './track_panel';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
-import {PageWithTraceAttrs} from './pages';
 import {TraceImpl} from '../core/trace_impl';
+import {PageWithTraceImplAttrs} from '../core/page_manager';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -92,7 +92,7 @@ interface SelectedContainer {
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
  */
-export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
+export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
   private zoomContent?: PanAndZoomHandler;
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
@@ -107,7 +107,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
-  constructor(vnode: m.CVnode<PageWithTraceAttrs>) {
+  constructor(vnode: m.CVnode<PageWithTraceImplAttrs>) {
     this.notesPanel = new NotesPanel(vnode.attrs.trace);
     this.timeAxisPanel = new TimeAxisPanel(vnode.attrs.trace);
     this.timeSelectionPanel = new TimeSelectionPanel(vnode.attrs.trace);
@@ -117,7 +117,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
     this.timeSelectionPanel = new TimeSelectionPanel(vnode.attrs.trace);
   }
 
-  oncreate({dom, attrs}: m.CVnodeDOM<PageWithTraceAttrs>) {
+  oncreate({dom, attrs}: m.CVnodeDOM<PageWithTraceImplAttrs>) {
     const panZoomElRaw = findRef(dom, this.PAN_ZOOM_CONTENT_REF);
     const panZoomEl = toHTMLElement(assertExists(panZoomElRaw));
 
@@ -290,7 +290,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
     if (this.zoomContent) this.zoomContent[Symbol.dispose]();
   }
 
-  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
+  view({attrs}: m.CVnode<PageWithTraceImplAttrs>) {
     const scrollingPanels = renderToplevelPanels(attrs.trace);
 
     const result = m(
