@@ -17,10 +17,10 @@ import {PerfettoPlugin} from '../../public/plugin';
 
 // This is just an example plugin, used to prove that the plugin system works.
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.ExampleSimpleCommand';
+  static readonly id = 'com.example.ExampleSimpleCommand';
   static onActivate(ctx: App): void {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
+      id: 'com.example.ExampleSimpleCommand#LogHelloWorld',
       name: 'Log "Hello, world!"',
       callback: () => console.log('Hello, world!'),
     });
