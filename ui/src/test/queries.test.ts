@@ -59,7 +59,7 @@ test('omnibox query', async () => {
 });
 
 test('query page', async () => {
-  await page.locator('.sidebar #query__sql_').click();
+  await pth.navigate('#!/query');
   await pth.waitForPerfettoIdle();
   const textbox = page.locator('.pf-editor div[role=textbox]');
   for (let i = 1; i <= 3; i++) {

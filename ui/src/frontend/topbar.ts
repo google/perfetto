@@ -128,10 +128,7 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
     return m(
       '.topbar',
       {
-        class:
-          AppImpl.instance.sidebar.sidebarVisibility === 'VISIBLE'
-            ? ''
-            : 'hide-sidebar',
+        class: AppImpl.instance.sidebar.visible ? '' : 'hide-sidebar',
       },
       omnibox,
       attrs.trace && m(Progress, {trace: attrs.trace}),
