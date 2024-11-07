@@ -13,17 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SimpleResizeObserver} from '../base/resize_observer';
-import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {QueryResponse, runQuery} from '../public/lib/query_table/queries';
-import {raf} from '../core/raf_scheduler';
-import {Callout} from '../widgets/callout';
-import {Editor} from '../widgets/editor';
-import {PageWithTraceAttrs} from '../public/page';
+import {SimpleResizeObserver} from '../../base/resize_observer';
+import {undoCommonChatAppReplacements} from '../../base/string_utils';
+import {QueryResponse, runQuery} from '../../public/lib/query_table/queries';
+import {Callout} from '../../widgets/callout';
+import {Editor} from '../../widgets/editor';
+import {PageWithTraceAttrs} from '../../public/page';
 import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
-import {Trace, TraceAttrs} from '../public/trace';
-import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
-import {QueryTable} from '../public/lib/query_table/query_table';
+import {Trace, TraceAttrs} from '../../public/trace';
+import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {QueryTable} from '../../public/lib/query_table/query_table';
 
 interface QueryPageState {
   enteredText: string;
@@ -59,10 +58,9 @@ function runManualQuery(trace: Trace, query: string) {
         return;
       }
       state.queryResult = resp;
-      raf.scheduleFullRedraw();
+      trace.scheduleFullRedraw();
     },
   );
-  raf.scheduleDelayedFullRedraw();
 }
 
 export type QueryInputAttrs = TraceAttrs;
@@ -99,7 +97,7 @@ class QueryInput implements m.ClassComponent<QueryInputAttrs> {
 
       onUpdate: (text: string) => {
         state.enteredText = text;
-        raf.scheduleFullRedraw();
+        attrs.trace.scheduleFullRedraw();
       },
     });
   }
@@ -128,11 +126,12 @@ export class QueryPage implements m.ClassComponent<PageWithTraceAttrs> {
             fillParent: false,
           }),
       m(QueryHistoryComponent, {
+        trace: attrs.trace,
         runQuery: (q: string) => runManualQuery(attrs.trace, q),
         setQuery: (q: string) => {
           state.enteredText = q;
           state.generation++;
-          raf.scheduleFullRedraw();
+          attrs.trace.scheduleFullRedraw();
         },
       }),
     );

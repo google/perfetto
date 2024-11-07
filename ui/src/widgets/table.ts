@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {allUnique, range} from '../../base/array_utils';
+import {allUnique, range} from '../base/array_utils';
 import {
   compareUniversal,
   comparingBy,
@@ -21,14 +21,14 @@ import {
   SortableValue,
   SortDirection,
   withDirection,
-} from '../../base/comparison_utils';
-import {raf} from '../../core/raf_scheduler';
+} from '../base/comparison_utils';
 import {
   menuItem,
   PopupMenuButton,
   popupMenuIcon,
   PopupMenuItem,
-} from '../popup_menu';
+} from './popup_menu';
+import {scheduleFullRedraw} from './raf';
 
 export interface ColumnDescriptorAttrs<T> {
   // Context menu items displayed on the column header.
@@ -136,13 +136,13 @@ export class TableData<T> {
     if (this._sortingInfo !== undefined) {
       this.reorder(this._sortingInfo);
     }
-    raf.scheduleFullRedraw();
+    scheduleFullRedraw();
   }
 
   resetOrder() {
     this.permutation = range(this.data.length);
     this._sortingInfo = undefined;
-    raf.scheduleFullRedraw();
+    scheduleFullRedraw();
   }
 
   get sortingInfo(): SortingInfo<T> | undefined {
@@ -157,7 +157,7 @@ export class TableData<T> {
         info.direction,
       ),
     );
-    raf.scheduleFullRedraw();
+    scheduleFullRedraw();
   }
 }
 
