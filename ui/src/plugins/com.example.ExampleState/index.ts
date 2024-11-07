@@ -25,7 +25,7 @@ interface State {
 // This example plugin shows using state that is persisted in the
 // permalink.
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.ExampleState';
+  static readonly id = 'com.example.ExampleState';
   private store: Store<State> = createStore({counter: 0});
 
   private migrate(initialState: unknown): State {
@@ -46,7 +46,7 @@ export default class implements PerfettoPlugin {
     ctx.trash.use(this.store);
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.ExampleState#ShowCounter',
+      id: 'com.example.ExampleState#ShowCounter',
       name: 'Show ExampleState counter',
       callback: () => {
         const counter = this.store.state.counter;
