@@ -79,3 +79,16 @@ class ViewCapture(TestSuite):
         "key","display_value"
         "views[1].class_name","STRING DE-INTERNING ERROR"
         """))
+
+  def test_table_has_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('viewcapture.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
+        SELECT COUNT(*) FROM android_viewcapture
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        2
+        """))
