@@ -22,86 +22,60 @@ from google.protobuf import text_format
 
 class Timestamps(TestSuite):
 
-  def test_ns(self):
+  def test_to_time(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        INCLUDE PERFETTO MODULE common.timestamps;
-        SELECT ns(4) as result;
+        INCLUDE PERFETTO MODULE time.conversion;
+
+        WITH data(unit, time) AS (
+          VALUES
+            ('ns', time_to_ns(cast_int!(1e14))),
+            ('us', time_to_us(cast_int!(1e14))),
+            ('ms', time_to_ms(cast_int!(1e14))),
+            ('s', time_to_s(cast_int!(1e14))),
+            ('min', time_to_min(cast_int!(1e14))),
+            ('h', time_to_hours(cast_int!(1e14))),
+            ('days', time_to_days(cast_int!(1e14)))
+        )
+        SELECT * FROM data
       """,
         out=Csv("""
-        "result"
-        4
+        "unit","time"
+        "ns",100000000000000
+        "us",100000000000
+        "ms",100000000
+        "s",100000
+        "min",1666
+        "h",27
+        "days",1
       """))
 
-  def test_us(self):
+  def test_from_time(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        INCLUDE PERFETTO MODULE common.timestamps;
-        SELECT us(4) as result;
-      """,
-        out=Csv("""
-        "result"
-        4000
-      """))
+        INCLUDE PERFETTO MODULE time.conversion;
 
-  def test_ms(self):
-    return DiffTestBlueprint(
-        trace=TextProto(""),
-        query="""
-        INCLUDE PERFETTO MODULE common.timestamps;
-        SELECT ms(4) as result;
+        WITH data(unit, time) AS (
+          VALUES
+            ('ns', time_from_ns(1)),
+            ('us', time_from_us(1)),
+            ('ms', time_from_ms(1)),
+            ('s', time_from_s(1)),
+            ('min', time_from_min(1)),
+            ('h', time_from_hours(1)),
+            ('days', time_from_days(1))
+        )
+        SELECT * FROM data
       """,
         out=Csv("""
-        "result"
-        4000000
-      """))
-
-  def test_seconds(self):
-    return DiffTestBlueprint(
-        trace=TextProto(""),
-        query="""
-        INCLUDE PERFETTO MODULE common.timestamps;
-        SELECT seconds(4) as result;
-      """,
-        out=Csv("""
-        "result"
-        4000000000
-      """))
-
-  def test_minutes(self):
-    return DiffTestBlueprint(
-        trace=TextProto(""),
-        query="""
-        INCLUDE PERFETTO MODULE common.timestamps;
-        SELECT minutes(1) as result;
-      """,
-        out=Csv("""
-        "result"
-        60000000000
-      """))
-
-  def test_hours(self):
-    return DiffTestBlueprint(
-        trace=TextProto(""),
-        query="""
-        INCLUDE PERFETTO MODULE common.timestamps;
-        SELECT hours(1) as result;
-      """,
-        out=Csv("""
-        "result"
-        3600000000000
-      """))
-
-  def test_days(self):
-    return DiffTestBlueprint(
-        trace=TextProto(""),
-        query="""
-        INCLUDE PERFETTO MODULE common.timestamps;
-        SELECT days(1) as result;
-      """,
-        out=Csv("""
-        "result"
-        86400000000000
+        "unit","time"
+        "ns",1
+        "us",1000
+        "ms",1000000
+        "s",1000000000
+        "min",60000000000
+        "h",3600000000000
+        "days",86400000000000
       """))
