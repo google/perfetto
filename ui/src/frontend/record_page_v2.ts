@@ -32,7 +32,7 @@ import {
 import {targetFactoryRegistry} from '../common/recordingV2/target_factory_registry';
 import {raf} from '../core/raf_scheduler';
 import {globals} from './globals';
-import {PageAttrs} from '../core/router';
+import {PageAttrs} from '../public/page';
 import {recordConfigStore} from './record_config';
 import {
   Configurations,

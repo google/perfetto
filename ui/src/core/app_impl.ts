@@ -29,7 +29,9 @@ import {loadTrace} from './load_trace';
 import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Router} from './router';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
-import {getOrCreate} from '../base/utils';
+import {createProxy, getOrCreate} from '../base/utils';
+import {PageManagerImpl} from './page_manager';
+import {PageHandler} from '../public/page';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -55,6 +57,7 @@ export class AppContext {
   private readonly pluginInstances = new Map<string, AppImpl>();
   readonly commandMgr = new CommandManagerImpl();
   readonly omniboxMgr = new OmniboxManagerImpl();
+  readonly pageMgr = new PageManagerImpl();
   readonly sidebarMgr: SidebarManagerImpl;
   readonly pluginMgr: PluginManagerImpl;
   readonly analytics: AnalyticsInternal;
@@ -136,8 +139,9 @@ export class AppContext {
  */
 
 export class AppImpl implements App {
-  private appCtx: AppContext;
   readonly pluginId: string;
+  private readonly appCtx: AppContext;
+  private readonly pageMgrProxy: PageManagerImpl;
 
   // Gets access to the one instance that the core can use. Note that this is
   // NOT the only instance, as other AppImpl instance will be created for each
@@ -158,6 +162,15 @@ export class AppImpl implements App {
   constructor(appCtx: AppContext, pluginId: string) {
     this.appCtx = appCtx;
     this.pluginId = pluginId;
+
+    this.pageMgrProxy = createProxy(this.appCtx.pageMgr, {
+      registerPage(pageHandler: PageHandler): Disposable {
+        return appCtx.pageMgr.registerPage({
+          ...pageHandler,
+          pluginId,
+        });
+      },
+    });
   }
 
   get commands(): CommandManagerImpl {
@@ -178,6 +191,10 @@ export class AppImpl implements App {
 
   get analytics(): AnalyticsInternal {
     return this.appCtx.analytics;
+  }
+
+  get pages(): PageManagerImpl {
+    return this.pageMgrProxy;
   }
 
   get trace(): TraceImpl | undefined {

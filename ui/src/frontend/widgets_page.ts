@@ -43,7 +43,7 @@ import {TextInput} from '../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
 import {VegaView} from '../widgets/vega_view';
-import {PageAttrs} from '../core/router';
+import {PageAttrs} from '../public/page';
 import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
 import {TreeTable, TreeTableAttrs} from './widgets/treetable';

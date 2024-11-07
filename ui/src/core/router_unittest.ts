@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PageManagerImpl} from './page_manager';
+import {CORE_PLUGIN_ID} from './plugin_manager';
 import {Router} from './router';
 
 const mockComponent = {
@@ -23,36 +25,50 @@ describe('Router#resolve', () => {
     window.location.hash = '';
   });
 
-  test('Default route must be defined', () => {
-    expect(() => new Router({'/a': mockComponent})).toThrow();
-  });
+  const pluginId = CORE_PLUGIN_ID;
+  const traceless = true;
 
   test('Resolves empty route to default component', () => {
-    const router = new Router({'/': mockComponent});
+    const pages = new PageManagerImpl();
+    pages.registerPage({route: '/', page: mockComponent, traceless, pluginId});
     window.location.hash = '';
-    expect(router.resolve().tag).toBe(mockComponent);
+    expect(pages.renderPageForCurrentRoute(undefined).tag).toBe(mockComponent);
   });
 
   test('Resolves subpage route to component of main page', () => {
     const nonDefaultComponent = {view() {}};
-    const router = new Router({
-      '/': mockComponent,
-      '/a': nonDefaultComponent,
+    const pages = new PageManagerImpl();
+    pages.registerPage({route: '/', page: mockComponent, traceless, pluginId});
+    pages.registerPage({
+      route: '/a',
+      page: nonDefaultComponent,
+      traceless,
+      pluginId,
     });
     window.location.hash = '#!/a/subpage';
-    expect(router.resolve().tag).toBe(nonDefaultComponent);
-    expect(router.resolve().attrs.subpage).toBe('/subpage');
+    expect(pages.renderPageForCurrentRoute(undefined).tag).toBe(
+      nonDefaultComponent,
+    );
+    expect(pages.renderPageForCurrentRoute(undefined).attrs.subpage).toBe(
+      '/subpage',
+    );
   });
 
   test('Pass empty subpage if not found in URL', () => {
     const nonDefaultComponent = {view() {}};
-    const router = new Router({
-      '/': mockComponent,
-      '/a': nonDefaultComponent,
+    const pages = new PageManagerImpl();
+    pages.registerPage({route: '/', page: mockComponent, traceless, pluginId});
+    pages.registerPage({
+      route: '/a',
+      page: nonDefaultComponent,
+      traceless,
+      pluginId,
     });
     window.location.hash = '#!/a';
-    expect(router.resolve().tag).toBe(nonDefaultComponent);
-    expect(router.resolve().attrs.subpage).toBe('');
+    expect(pages.renderPageForCurrentRoute(undefined).tag).toBe(
+      nonDefaultComponent,
+    );
+    expect(pages.renderPageForCurrentRoute(undefined).attrs.subpage).toBe('');
   });
 });
 

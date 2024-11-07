@@ -37,7 +37,7 @@ import {
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {globals} from './globals';
-import {PageAttrs} from '../core/router';
+import {PageAttrs} from '../public/page';
 import {
   autosaveConfigStore,
   recordConfigStore,

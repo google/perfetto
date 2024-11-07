@@ -17,7 +17,7 @@ import {channelChanged, getNextChannel, setChannel} from '../core/channels';
 import {Anchor} from '../widgets/anchor';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {globals} from './globals';
-import {PageAttrs} from '../core/router';
+import {PageAttrs} from '../public/page';
 
 export class Hints implements m.ClassComponent {
   view() {

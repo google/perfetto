@@ -16,7 +16,7 @@ import m from 'mithril';
 import {raf} from '../core/raf_scheduler';
 import {Editor} from '../widgets/editor';
 import {VegaView} from '../widgets/vega_view';
-import {PageWithTraceAttrs} from './pages';
+import {PageWithTraceAttrs} from '../public/page';
 import {assertExists} from '../base/logging';
 import {Engine} from '../trace_processor/engine';
 

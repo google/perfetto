@@ -28,7 +28,7 @@ import {STR} from '../trace_processor/query_result';
 import {Select} from '../widgets/select';
 import {Spinner} from '../widgets/spinner';
 import {VegaView} from '../widgets/vega_view';
-import {PageWithTraceAttrs} from './pages';
+import {PageWithTraceAttrs} from '../public/page';
 import {assertExists} from '../base/logging';
 import {AppImpl} from '../core/app_impl';
 

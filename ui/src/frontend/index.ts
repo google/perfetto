@@ -59,7 +59,6 @@ import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
-import {pageWithTrace} from './pages';
 import {AppImpl} from '../core/app_impl';
 import {addSqlTableTab} from './sql_table_tab';
 import {getServingRoot} from '../base/http_utils';
@@ -303,24 +302,33 @@ function onCssLoaded() {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
-  const router = new Router({
-    '/': HomePage,
-    '/explore': pageWithTrace(ExplorePage),
-    '/flags': FlagsPage,
-    '/info': pageWithTrace(TraceInfoPage),
-    '/insights': pageWithTrace(InsightsPage),
-    '/metrics': pageWithTrace(MetricsPage),
-    '/plugins': PluginsPage,
-    '/query': pageWithTrace(QueryPage),
-    '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
-    '/viewer': pageWithTrace(ViewerPage),
-    '/viz': pageWithTrace(VizPage),
-    '/widgets': WidgetsPage,
-  });
+  // TODO(primiano): many of the pages below (e.g. Explore, Insights, Viz,
+  // Query, Metrics, Widgets, Record) should be moved to plugins. It requires
+  // improving the sidebar API first.
+  const pages = AppImpl.instance.pages;
+  const traceless = true;
+  pages.registerPage({route: '/', traceless, page: HomePage});
+  pages.registerPage({route: '/flags', traceless, page: FlagsPage});
+  pages.registerPage({route: '/plugins', traceless, page: PluginsPage});
+  pages.registerPage({route: '/widgets', traceless, page: WidgetsPage});
+  const recordPage = RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage;
+  pages.registerPage({route: '/record', traceless, page: recordPage});
+
+  pages.registerPage({route: '/explore', page: ExplorePage});
+  pages.registerPage({route: '/info', page: TraceInfoPage});
+  pages.registerPage({route: '/insights', page: InsightsPage});
+  pages.registerPage({route: '/metrics', page: MetricsPage});
+  pages.registerPage({route: '/query', page: QueryPage});
+  pages.registerPage({route: '/viewer', page: ViewerPage});
+  pages.registerPage({route: '/viz', page: VizPage});
+  const router = new Router();
   router.onRouteChanged = routeChange;
 
   raf.domRedraw = () => {
-    m.render(document.body, m(UiMain, router.resolve()));
+    m.render(
+      document.body,
+      m(UiMain, pages.renderPageForCurrentRoute(AppImpl.instance.trace)),
+    );
   };
 
   if (
@@ -375,7 +383,10 @@ function onCssLoaded() {
   });
 
   // Force one initial render to get everything in place
-  m.render(document.body, m(UiMain, router.resolve()));
+  m.render(
+    document.body,
+    m(UiMain, AppImpl.instance.pages.renderPageForCurrentRoute(undefined)),
+  );
 
   // Initialize plugins, now that we are ready to go.
   const pluginManager = AppImpl.instance.plugins;

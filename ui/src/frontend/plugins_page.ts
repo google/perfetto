@@ -17,7 +17,7 @@ import {Button} from '../widgets/button';
 import {exists} from '../base/utils';
 import {defaultPlugins} from '../core/default_plugins';
 import {Intent} from '../widgets/common';
-import {PageAttrs} from '../core/router';
+import {PageAttrs} from '../public/page';
 import {AppImpl} from '../core/app_impl';
 import {PluginWrapper} from '../core/plugin_manager';
 import {raf} from '../core/raf_scheduler';
