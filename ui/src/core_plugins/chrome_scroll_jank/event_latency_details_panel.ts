@@ -32,7 +32,7 @@ import {
   Table,
   TableData,
   widgetColumn,
-} from '../../frontend/tables/table';
+} from '../../widgets/table';
 import {TreeTable, TreeTableAttrs} from '../../frontend/widgets/treetable';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
