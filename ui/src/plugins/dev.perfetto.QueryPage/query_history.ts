@@ -13,15 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Icons} from '../base/semantic_icons';
-import {assertTrue} from '../base/logging';
-import {Icon} from '../widgets/icon';
-import {raf} from '../core/raf_scheduler';
+import {Icons} from '../../base/semantic_icons';
+import {assertTrue} from '../../base/logging';
+import {Icon} from '../../widgets/icon';
 import {z} from 'zod';
+import {Trace} from '../../public/trace';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
 export interface QueryHistoryComponentAttrs {
+  trace: Trace;
   runQuery: (query: string) => void;
   setQuery: (query: string) => void;
 }
@@ -37,7 +38,7 @@ export class QueryHistoryComponent
     for (let i = queryHistoryStorage.data.length - 1; i >= 0; i--) {
       const entry = queryHistoryStorage.data[i];
       const arr = entry.starred ? starred : unstarred;
-      arr.push({index: i, entry, runQuery, setQuery});
+      arr.push({trace: attrs.trace, index: i, entry, runQuery, setQuery});
     }
     return m(
       '.query-history',
@@ -52,6 +53,7 @@ export class QueryHistoryComponent
 }
 
 export interface HistoryItemComponentAttrs {
+  trace: Trace;
   index: number;
   entry: QueryHistoryEntry;
   runQuery: (query: string) => void;
@@ -75,7 +77,7 @@ export class HistoryItemComponent
                 vnode.attrs.index,
                 !vnode.attrs.entry.starred,
               );
-              raf.scheduleFullRedraw();
+              vnode.attrs.trace.scheduleFullRedraw();
             },
           },
           m(Icon, {icon: Icons.Star, filled: vnode.attrs.entry.starred}),
@@ -99,7 +101,7 @@ export class HistoryItemComponent
           {
             onclick: () => {
               queryHistoryStorage.remove(vnode.attrs.index);
-              raf.scheduleFullRedraw();
+              vnode.attrs.trace.scheduleFullRedraw();
             },
           },
           m(Icon, {icon: 'delete'}),

@@ -19,7 +19,7 @@ import {
   stringColumn,
   Table,
   TableData,
-} from './table';
+} from '../../widgets/table';
 
 // This file serves as an example of a table component present in the widgets
 // showcase. Since table is somewhat complicated component that requires some

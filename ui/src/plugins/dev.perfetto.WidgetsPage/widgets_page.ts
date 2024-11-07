@@ -13,51 +13,51 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../base/classnames';
-import {Hotkey, Platform} from '../base/hotkeys';
-import {isString} from '../base/object_utils';
-import {Icons} from '../base/semantic_icons';
-import {raf} from '../core/raf_scheduler';
-import {Anchor} from '../widgets/anchor';
-import {Button} from '../widgets/button';
-import {Callout} from '../widgets/callout';
-import {Checkbox} from '../widgets/checkbox';
-import {Editor} from '../widgets/editor';
-import {EmptyState} from '../widgets/empty_state';
-import {Form, FormLabel} from '../widgets/form';
-import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
-import {Icon} from '../widgets/icon';
-import {Menu, MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
-import {showModal} from '../widgets/modal';
+import {classNames} from '../../base/classnames';
+import {Hotkey, Platform} from '../../base/hotkeys';
+import {isString} from '../../base/object_utils';
+import {Icons} from '../../base/semantic_icons';
+import {Anchor} from '../../widgets/anchor';
+import {Button} from '../../widgets/button';
+import {Callout} from '../../widgets/callout';
+import {Checkbox} from '../../widgets/checkbox';
+import {Editor} from '../../widgets/editor';
+import {EmptyState} from '../../widgets/empty_state';
+import {Form, FormLabel} from '../../widgets/form';
+import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
+import {Icon} from '../../widgets/icon';
+import {Menu, MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {showModal} from '../../widgets/modal';
 import {
   MultiSelect,
   MultiSelectDiff,
   PopupMultiSelect,
-} from '../widgets/multiselect';
-import {Popup, PopupPosition} from '../widgets/popup';
-import {Portal} from '../widgets/portal';
-import {Select} from '../widgets/select';
-import {Spinner} from '../widgets/spinner';
-import {Switch} from '../widgets/switch';
-import {TextInput} from '../widgets/text_input';
-import {MultiParagraphText, TextParagraph} from '../widgets/text_paragraph';
-import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
-import {VegaView} from '../widgets/vega_view';
-import {PageAttrs} from '../public/page';
-import {PopupMenuButton} from './popup_menu';
-import {TableShowcase} from './tables/table_showcase';
-import {TreeTable, TreeTableAttrs} from './widgets/treetable';
-import {Intent} from '../widgets/common';
+} from '../../widgets/multiselect';
+import {Popup, PopupPosition} from '../../widgets/popup';
+import {Portal} from '../../widgets/portal';
+import {Select} from '../../widgets/select';
+import {Spinner} from '../../widgets/spinner';
+import {Switch} from '../../widgets/switch';
+import {TextInput} from '../../widgets/text_input';
+import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
+import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
+import {VegaView} from '../../widgets/vega_view';
+import {PageAttrs} from '../../public/page';
+import {PopupMenuButton} from '../../widgets/popup_menu';
+import {TableShowcase} from './table_showcase';
+import {TreeTable, TreeTableAttrs} from '../../frontend/widgets/treetable';
+import {Intent} from '../../widgets/common';
 import {
   VirtualTable,
   VirtualTableAttrs,
   VirtualTableRow,
-} from '../widgets/virtual_table';
-import {TagInput} from '../widgets/tag_input';
-import {SegmentedButtons} from '../widgets/segmented_buttons';
-import {MiddleEllipsis} from '../widgets/middle_ellipsis';
-import {Chip, ChipBar} from '../widgets/chip';
-import {TrackWidget} from '../widgets/track_widget';
+} from '../../widgets/virtual_table';
+import {TagInput} from '../../widgets/tag_input';
+import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
+import {Chip, ChipBar} from '../../widgets/chip';
+import {TrackWidget} from '../../widgets/track_widget';
+import {scheduleFullRedraw} from '../../widgets/raf';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -310,7 +310,7 @@ function PortalButton() {
           intent: Intent.Primary,
           onclick: () => {
             portalOpen = !portalOpen;
-            raf.scheduleFullRedraw();
+            scheduleFullRedraw();
           },
         }),
         portalOpen &&
@@ -362,7 +362,7 @@ function ControlledPopup() {
           label: 'Close Popup',
           onclick: () => {
             popupOpen = !popupOpen;
-            raf.scheduleFullRedraw();
+            scheduleFullRedraw();
           },
         }),
       );
@@ -498,7 +498,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       label: key,
       onchange: () => {
         this.optValues[key] = !Boolean(this.optValues[key]);
-        raf.scheduleFullRedraw();
+        scheduleFullRedraw();
       },
     });
   }
@@ -512,7 +512,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
         value: this.optValues[key],
         oninput: (e: Event) => {
           this.optValues[key] = (e.target as HTMLInputElement).value;
-          raf.scheduleFullRedraw();
+          scheduleFullRedraw();
         },
       }),
     );
@@ -530,7 +530,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           this.optValues[key] = Number.parseInt(
             (e.target as HTMLInputElement).value,
           );
-          raf.scheduleFullRedraw();
+          scheduleFullRedraw();
         },
       }),
     );
@@ -550,7 +550,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
             this.optValues[key] = el.value;
-            raf.scheduleFullRedraw();
+            scheduleFullRedraw();
           },
         },
         optionElements,
@@ -642,14 +642,14 @@ function TagInputDemo() {
         onTagAdd: (tag) => {
           tags.push(tag);
           tagInputValue = '';
-          raf.scheduleFullRedraw();
+          scheduleFullRedraw();
         },
         onChange: (value) => {
           tagInputValue = value;
         },
         onTagRemove: (index) => {
           tags.splice(index, 1);
-          raf.scheduleFullRedraw();
+          scheduleFullRedraw();
         },
       });
     },
@@ -666,7 +666,7 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
         selectedOption: selectedIdx,
         onOptionSelected: (num) => {
           selectedIdx = num;
-          raf.scheduleFullRedraw();
+          scheduleFullRedraw();
         },
       });
     },
@@ -854,7 +854,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              raf.scheduleFullRedraw();
+              scheduleFullRedraw();
             },
             ...rest,
           }),
@@ -881,7 +881,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              raf.scheduleFullRedraw();
+              scheduleFullRedraw();
             },
             ...rest,
           }),
@@ -1285,7 +1285,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
                 offset: rowOffset,
                 rows,
               };
-              raf.scheduleFullRedraw();
+              scheduleFullRedraw();
             },
           };
           return m(VirtualTable, attrs);
@@ -1414,7 +1414,7 @@ class ModalShowcase implements m.ClassComponent {
         },
         view: function (vnode: m.Vnode<{}, {progress: number}>) {
           vnode.state.progress = (vnode.state.progress + 1) % 100;
-          raf.scheduleFullRedraw();
+          scheduleFullRedraw();
           return m(
             'div',
             m('div', 'You should see an animating progress bar'),

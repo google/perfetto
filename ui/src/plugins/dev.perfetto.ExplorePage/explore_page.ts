@@ -13,23 +13,26 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PageWithTraceAttrs} from '../public/page';
-import {Trace} from '../public/trace';
+import {PageWithTraceAttrs} from '../../public/page';
+import {Trace} from '../../public/trace';
 import {
   DurationColumn,
   ProcessColumnSet,
   StandardColumn,
   ThreadColumnSet,
   TimestampColumn,
-} from './widgets/sql/table/well_known_columns';
-import {SqlTableState} from './widgets/sql/table/state';
-import {SqlTable} from './widgets/sql/table/table';
-import {exists} from '../base/utils';
-import {Menu, MenuItem, MenuItemAttrs} from '../widgets/menu';
-import {TableColumn, TableColumnSet} from './widgets/sql/table/column';
-import {Button} from '../widgets/button';
-import {Icons} from '../base/semantic_icons';
-import {DetailsShell} from '../widgets/details_shell';
+} from '../../frontend/widgets/sql/table/well_known_columns';
+import {SqlTableState} from '../../frontend/widgets/sql/table/state';
+import {SqlTable} from '../../frontend/widgets/sql/table/table';
+import {exists} from '../../base/utils';
+import {Menu, MenuItem, MenuItemAttrs} from '../../widgets/menu';
+import {
+  TableColumn,
+  TableColumnSet,
+} from '../../frontend/widgets/sql/table/column';
+import {Button} from '../../widgets/button';
+import {Icons} from '../../base/semantic_icons';
+import {DetailsShell} from '../../widgets/details_shell';
 
 interface ExplorePageState {
   sqlTableState?: SqlTableState;

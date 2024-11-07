@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from '../widgets/button';
-import {exists} from '../base/utils';
-import {defaultPlugins} from '../core/default_plugins';
-import {Intent} from '../widgets/common';
-import {PageAttrs} from '../public/page';
-import {AppImpl} from '../core/app_impl';
-import {PluginWrapper} from '../core/plugin_manager';
-import {raf} from '../core/raf_scheduler';
+import {Button} from '../../widgets/button';
+import {exists} from '../../base/utils';
+import {defaultPlugins} from '../../core/default_plugins';
+import {Intent} from '../../widgets/common';
+import {PageAttrs} from '../../public/page';
+import {AppImpl} from '../../core/app_impl';
+import {PluginWrapper} from '../../core/plugin_manager';
+import {raf} from '../../core/raf_scheduler';
 
 // This flag indicated whether we need to restart the UI to apply plugin
 // changes. It is purposely a global as we want it to outlive the Mithril

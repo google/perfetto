@@ -20,17 +20,16 @@ import {
   pending,
   Result,
   success,
-} from '../base/result';
-import {raf} from '../core/raf_scheduler';
-import {MetricVisualisation} from '../public/plugin';
-import {Engine} from '../trace_processor/engine';
-import {STR} from '../trace_processor/query_result';
-import {Select} from '../widgets/select';
-import {Spinner} from '../widgets/spinner';
-import {VegaView} from '../widgets/vega_view';
-import {PageWithTraceAttrs} from '../public/page';
-import {assertExists} from '../base/logging';
-import {AppImpl} from '../core/app_impl';
+} from '../../base/result';
+import {MetricVisualisation} from '../../public/plugin';
+import {Engine} from '../../trace_processor/engine';
+import {STR} from '../../trace_processor/query_result';
+import {Select} from '../../widgets/select';
+import {Spinner} from '../../widgets/spinner';
+import {VegaView} from '../../widgets/vega_view';
+import {PageWithTraceAttrs} from '../../public/page';
+import {assertExists} from '../../base/logging';
+import {Trace} from '../../public/trace';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
@@ -58,7 +57,8 @@ async function getMetric(
 }
 
 class MetricsController {
-  engine: Engine;
+  private readonly trace: Trace;
+  private readonly engine: Engine;
   private _metrics: string[];
   private _selected?: string;
   private _result: Result<string>;
@@ -66,8 +66,9 @@ class MetricsController {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _json: any;
 
-  constructor(engine: Engine) {
-    this.engine = engine;
+  constructor(trace: Trace) {
+    this.trace = trace;
+    this.engine = trace.engine.getProxy('MetricsPage');
     this._metrics = [];
     this._result = success('');
     this._json = {};
@@ -82,7 +83,7 @@ class MetricsController {
   }
 
   get visualisations(): MetricVisualisation[] {
-    return AppImpl.instance.plugins
+    return this.trace.plugins
       .metricVisualisations()
       .filter((v) => v.metric === this.selected);
   }
@@ -145,10 +146,10 @@ class MetricsController {
           }
         })
         .finally(() => {
-          raf.scheduleFullRedraw();
+          this.trace.scheduleFullRedraw();
         });
     }
-    raf.scheduleFullRedraw();
+    this.trace.scheduleFullRedraw();
   }
 }
 
@@ -244,8 +245,7 @@ export class MetricsPage implements m.ClassComponent<PageWithTraceAttrs> {
   private controller?: MetricsController;
 
   oninit({attrs}: m.Vnode<PageWithTraceAttrs>) {
-    const engine = attrs.trace.engine.getProxy('MetricsPage');
-    this.controller = new MetricsController(engine);
+    this.controller = new MetricsController(attrs.trace);
   }
 
   view() {

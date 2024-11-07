@@ -64,41 +64,6 @@ const HIRING_BANNER_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-const WIDGETS_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showWidgetsPageInNav',
-  name: 'Show widgets page',
-  description: 'Show a link to the widgets page in the side bar.',
-  defaultValue: false,
-});
-
-const PLUGINS_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showPluginsPageInNav',
-  name: 'Show plugins page',
-  description: 'Show a link to the plugins page in the side bar.',
-  defaultValue: false,
-});
-
-const INSIGHTS_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showInsightsPageInNav',
-  name: 'Show insights page',
-  description: 'Show a link to the insights page in the side bar.',
-  defaultValue: false,
-});
-
-const VIZ_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showVizPageInNav',
-  name: 'Show viz page',
-  description: 'Show a link to the viz page in the side bar.',
-  defaultValue: true,
-});
-
-const EXPLORE_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showExplorePageInNav',
-  name: 'Show explore page',
-  description: 'Show a link to the explore page in the side bar.',
-  defaultValue: false,
-});
-
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
 }
@@ -598,27 +563,10 @@ function registerGlobalSidebarEntries() {
     icon: 'fiber_smart_record',
     sortOrder: 2,
   });
-  PLUGINS_PAGE_IN_NAV_FLAG.get() &&
-    app.sidebar.addMenuItem({
-      section: 'navigation',
-      text: 'Plugins',
-      href: '#!/plugins',
-      icon: 'extension',
-      sortOrder: 10,
-    });
-  WIDGETS_PAGE_IN_NAV_FLAG.get() &&
-    app.sidebar.addMenuItem({
-      section: 'navigation',
-      text: 'Widgets',
-      href: '#!/widgets',
-      icon: 'widgets',
-      sortOrder: 11,
-    });
-
   app.sidebar.addMenuItem({
     section: 'support',
     text: 'Keyboard shortcuts',
-    action: toggleHelp, // TODO deps rules
+    action: toggleHelp,
     icon: 'help',
   });
   app.sidebar.addMenuItem({
@@ -629,12 +577,7 @@ function registerGlobalSidebarEntries() {
   });
   app.sidebar.addMenuItem({
     section: 'support',
-    text: 'Flags',
-    href: '#!/flags',
-    icon: 'emoji_flags',
-  });
-  app.sidebar.addMenuItem({
-    section: 'support',
+    sortOrder: 4,
     text: 'Report a bug',
     href: getBugReportUrl(),
     icon: 'bug_report',
@@ -677,45 +620,6 @@ function registerTraceMenuItems(trace: TraceImpl) {
     disabled: downloadDisabled,
   });
   trace.sidebar.addMenuItem({
-    section: 'current_trace',
-    text: 'Query (SQL)',
-    href: '#!/query',
-    icon: 'database',
-  });
-  EXPLORE_PAGE_IN_NAV_FLAG.get() &&
-    trace.sidebar.addMenuItem({
-      section: 'current_trace',
-      text: 'Explore',
-      href: '#!/explore',
-      icon: 'data_exploration',
-    });
-  INSIGHTS_PAGE_IN_NAV_FLAG.get() &&
-    trace.sidebar.addMenuItem({
-      section: 'current_trace',
-      text: 'Insights',
-      href: '#!/insights',
-      icon: 'insights',
-    });
-  VIZ_PAGE_IN_NAV_FLAG.get() &&
-    trace.sidebar.addMenuItem({
-      section: 'current_trace',
-      text: 'Viz',
-      href: '#!/viz',
-      icon: 'area_chart',
-    });
-  trace.sidebar.addMenuItem({
-    section: 'current_trace',
-    text: 'Metrics',
-    href: '#!/metrics',
-    icon: 'speed',
-  });
-  trace.sidebar.addMenuItem({
-    section: 'current_trace',
-    text: 'Info and stats',
-    href: '#!/info',
-    icon: 'info',
-  });
-  trace.sidebar.addMenuItem({
     section: 'convert_trace',
     text: 'Switch to legacy UI',
     action: async () => await openCurrentTraceWithOldUI(trace),
@@ -739,6 +643,7 @@ function registerTraceMenuItems(trace: TraceImpl) {
     });
   trace.sidebar.addMenuItem({
     section: 'support',
+    sortOrder: 5,
     text: () =>
       isMetatracingEnabled() ? 'Finalize metatrace' : 'Record metatrace',
     action: () => toggleMetatrace(trace.engine),

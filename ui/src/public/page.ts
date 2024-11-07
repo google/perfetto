@@ -22,7 +22,7 @@ import {Trace} from './trace';
 export interface PageManager {
   /**
    * Example usage:
-   *   registerPage({route: '/foo', pageWithTrace: FooPage})
+   *   registerPage({route: '/foo', page: FooPage})
    *   class FooPage implements m.ClassComponent<PageWithTrace> {
    *     view({attrs}: m.CVnode<PageWithTrace>) {
    *        return m('div', ...
