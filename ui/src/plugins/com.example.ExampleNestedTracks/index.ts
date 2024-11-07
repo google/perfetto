@@ -18,7 +18,7 @@ import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.ExampleNestedTracks';
+  static readonly id = 'com.example.ExampleNestedTracks';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const traceStartTime = ctx.traceInfo.start;
     const traceDur = ctx.traceInfo.end - ctx.traceInfo.start;
@@ -39,7 +39,7 @@ export default class implements PerfettoPlugin {
     `);
 
     const title = 'Test Track';
-    const uri = `/test_track`;
+    const uri = `com.example.ExampleNestedTracks#TestTrack`;
     const track = await createQuerySliceTrack({
       trace: ctx,
       uri,
