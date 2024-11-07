@@ -704,8 +704,18 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
   }
 
   std::string package_name = sql_modules::GetPackageName(key);
+
   auto* package = FindPackage(package_name);
   if (!package) {
+    if (package_name == "common") {
+      return base::ErrStatus(
+          "INCLUDE: Package `common` has been removed and most of the "
+          "functionality has been moved to other packages. Check "
+          "`slices.with_context` for replacement for `common.slices` and "
+          "`time.conversion` for replacement for `common.timestamps`. The "
+          "documentation for Perfetto standard library can be found at "
+          "https://perfetto.dev/docs/analysis/stdlib-docs.");
+    }
     return base::ErrStatus("INCLUDE: Package '%s' not found", key.c_str());
   }
   return IncludePackageImpl(*package, key, parser);
