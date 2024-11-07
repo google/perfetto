@@ -94,6 +94,7 @@ export class TrackPanel implements Panel {
       SHOW_TRACK_DETAILS_BUTTON.get() &&
         renderTrackDetailsButton(node, trackRenderer?.desc),
       trackRenderer?.track.getTrackShellButtons?.(),
+      node.removable && renderCloseButton(node),
       // Can't pin groups.. yet!
       !node.hasChildren && renderPinButton(node),
       this.renderAreaSelectionCheckbox(node),
@@ -381,6 +382,18 @@ function renderCrashButton(error: Error, pluginId?: string) {
       // relies on the plugin page being fully functional.
     ),
   );
+}
+
+function renderCloseButton(node: TrackNode) {
+  return m(Button, {
+    onclick: (e) => {
+      node.remove();
+      e.stopPropagation();
+    },
+    icon: Icons.Close,
+    title: 'Close track',
+    compact: true,
+  });
 }
 
 function renderPinButton(node: TrackNode): m.Children {

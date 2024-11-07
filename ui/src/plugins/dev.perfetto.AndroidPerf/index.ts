@@ -34,9 +34,9 @@ export default class implements PerfettoPlugin {
       'intent',
       'table_name',
     ];
-    await addDebugSliceTrack(
-      ctx,
-      {
+    await addDebugSliceTrack({
+      trace: ctx,
+      data: {
         sqlSource: `
                     SELECT
                       start_id AS id,
@@ -51,10 +51,9 @@ export default class implements PerfettoPlugin {
                  `,
         columns: sliceColumns,
       },
-      'app_' + sliceName + '_start reason: ' + reason,
-      {ts: 'ts', dur: 'dur', name: sliceName},
-      sliceColumns,
-    );
+      title: 'app_' + sliceName + '_start reason: ' + reason,
+      argColumns: sliceColumns,
+    });
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {

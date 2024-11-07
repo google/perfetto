@@ -14,10 +14,7 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {
-  SimpleSliceTrack,
-  SimpleSliceTrackConfig,
-} from '../../frontend/simple_slice_track';
+import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 
 export default class implements PerfettoPlugin {
@@ -40,17 +37,16 @@ export default class implements PerfettoPlugin {
         ('Bar', ${traceStartTime}, ${traceDur / 2n}, 'bbb'),
         ('Baz', ${traceStartTime}, ${traceDur / 3n}, 'bbb');
     `);
-    const config: SimpleSliceTrackConfig = {
-      data: {
-        sqlSource: 'select * from example_events',
-      },
-      columns: {ts: 'ts', dur: 'dur', name: 'name'},
-      argColumns: [],
-    };
 
     const title = 'Test Track';
     const uri = `/test_track`;
-    const track = new SimpleSliceTrack(ctx, {trackUri: uri}, config);
+    const track = await createQuerySliceTrack({
+      trace: ctx,
+      uri,
+      data: {
+        sqlSource: 'select * from example_events',
+      },
+    });
     ctx.tracks.registerTrack({
       uri,
       title,

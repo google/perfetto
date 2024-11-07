@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {
-  SimpleCounterTrack,
-  SimpleCounterTrackConfig,
-} from '../../frontend/simple_counter_track';
+  createQueryCounterTrack,
+  SqlDataSource,
+} from '../../public/lib/tracks/query_counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {
   getOrCreateGroupForProcess,
@@ -25,15 +25,20 @@ import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM_NULL} from '../../trace_processor/query_result';
 
-function registerAllocsTrack(
+async function registerAllocsTrack(
   ctx: Trace,
   uri: string,
-  config: SimpleCounterTrackConfig,
-): void {
+  dataSource: SqlDataSource,
+) {
+  const track = await createQueryCounterTrack({
+    trace: ctx,
+    uri,
+    data: dataSource,
+  });
   ctx.tracks.registerTrack({
     uri,
     title: `dmabuf allocs`,
-    track: new SimpleCounterTrack(ctx, {trackUri: uri}, config),
+    track: track,
   });
 }
 
@@ -56,29 +61,21 @@ export default class implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       if (it.upid != null) {
         const uri = `/android_process_dmabuf_upid_${it.upid}`;
-        const config: SimpleCounterTrackConfig = {
-          data: {
-            sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
+        const config: SqlDataSource = {
+          sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
                  WHERE upid = ${it.upid}`,
-            columns: ['ts', 'value'],
-          },
-          columns: {ts: 'ts', value: 'value'},
         };
-        registerAllocsTrack(ctx, uri, config);
+        await registerAllocsTrack(ctx, uri, config);
         getOrCreateGroupForProcess(ctx.workspace, it.upid).addChildInOrder(
           new TrackNode({uri, title: 'dmabuf allocs'}),
         );
       } else if (it.utid != null) {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
-        const config: SimpleCounterTrackConfig = {
-          data: {
-            sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
+        const config: SqlDataSource = {
+          sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
                  WHERE utid = ${it.utid}`,
-            columns: ['ts', 'value'],
-          },
-          columns: {ts: 'ts', value: 'value'},
         };
-        registerAllocsTrack(ctx, uri, config);
+        await registerAllocsTrack(ctx, uri, config);
         getOrCreateGroupForThread(ctx.workspace, it.utid).addChildInOrder(
           new TrackNode({uri, title: 'dmabuf allocs'}),
         );

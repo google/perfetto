@@ -141,9 +141,9 @@ const ITEMS: ContextMenuItem[] = [
            INCLUDE PERFETTO MODULE android.monitor_contention;`,
         )
         .then(() =>
-          extensions.addDebugSliceTrack(
+          extensions.addDebugSliceTrack({
             trace,
-            {
+            data: {
               sqlSource: `
                                 WITH merged AS (
                                   SELECT s.ts, s.dur, tx.aidl_name AS name, 0 AS depth
@@ -182,12 +182,10 @@ const ITEMS: ContextMenuItem[] = [
                                   ORDER BY depth
                                 ) SELECT ts, dur, name FROM merged`,
             },
-            `Binder names (${getProcessNameFromSlice(
+            title: `Binder names (${getProcessNameFromSlice(
               slice,
             )}:${getThreadNameFromSlice(slice)})`,
-            {ts: 'ts', dur: 'dur', name: 'name'},
-            [],
-          ),
+          }),
         );
     },
   },
