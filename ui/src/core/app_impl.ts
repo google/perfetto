@@ -80,9 +80,9 @@ export class AppContext {
   constructor(initArgs: AppInitArgs) {
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;
-    this.sidebarMgr = new SidebarManagerImpl(
-      this.initialRouteArgs.hideSidebar === true ? 'DISABLED' : 'ENABLED',
-    );
+    this.sidebarMgr = new SidebarManagerImpl({
+      sidebarEnabled: !this.initialRouteArgs.hideSidebar,
+    });
     this.embeddedMode = this.initialRouteArgs.mode === 'embedded';
     this.testingMode =
       self.location !== undefined &&

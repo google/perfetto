@@ -40,8 +40,8 @@ export default class implements PerfettoPlugin {
       },
     });
     ctx.sidebar.addMenuItem({
+      section: 'example_traces',
       commandId: OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID,
-      group: 'example_traces',
       icon: 'description',
     });
 
@@ -55,8 +55,8 @@ export default class implements PerfettoPlugin {
       },
     });
     ctx.sidebar.addMenuItem({
+      section: 'example_traces',
       commandId: OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID,
-      group: 'example_traces',
       icon: 'description',
     });
   }
