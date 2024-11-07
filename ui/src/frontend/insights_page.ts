@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PageWithTraceAttrs} from './pages';
+import {PageWithTraceAttrs} from '../public/page';
 
 export class InsightsPage implements m.ClassComponent<PageWithTraceAttrs> {
   view() {
