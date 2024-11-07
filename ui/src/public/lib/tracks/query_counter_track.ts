@@ -114,7 +114,6 @@ class SqlTableCounterTrack extends BaseCounterTrack {
       uri,
       options,
     });
-    this.sqlTableName = `__simple_counter_${sqlNameSafe(uri)}`;
   }
 
   getSqlSource(): string {
