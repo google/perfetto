@@ -600,10 +600,10 @@ you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 
-You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap dumps
+<!-- You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap dumps
 in a trace into the [pprof](https://github.com/google/pprof) format. These can
 then be viewed using the pprof CLI or a UI (e.g. Speedscope, or Google-internal
-pprof/).
+pprof/). -->
 
 ```bash
 tools/traceconv profile /tmp/profile

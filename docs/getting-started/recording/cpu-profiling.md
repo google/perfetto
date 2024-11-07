@@ -1,6 +1,15 @@
-# Quickstart: Callstack sampling on Android
+# Recording CPU profiles with Perfetto
 
-## Prerequisites
+TODO: intro
+
+NOTE: CPU profiling with Perfetto is only supported on **Android** and **Linux**
+as Perfetto relies on the
+[`perf` Linux kernel API](https://perfwiki.github.io/main/) for collecting the
+profiling data; however, this page only currently provides guidance on Android.
+
+## Collecting your first CPU profile
+
+### Prerequisites
 
 - [ADB](https://developer.android.com/studio/command-line/adb) installed.
 - A device running Android T+.
@@ -8,8 +17,6 @@
   profiled need to be
   [marked as profileable or debuggable](https://developer.android.com/guide/topics/manifest/profileable-element)
   in their manifests.
-
-## Capture a CPU profile
 
 ### Linux or macOS
 
@@ -104,7 +111,7 @@ python3 /path/to/cpu_profile -n "com.android.foo,com.android.bar"
 
 Please see the [Linux or maxOS section](#linux-or-macos) for more examples.
 
-## Symbolization
+### Symbolization
 
 You may need to symbolize the collected profiles if they are missing symbols.
 See [this](/docs/data-sources/native-heap-profiler#symbolize-your-profile) for
@@ -117,7 +124,7 @@ For example, to profile and symbolize the profiles for the process
 PERFETTO_SYMBOLIZER_MODE=index PERFETTO_BINARY_PATH=path/to/directory/with/symbols/ ./cpu_profile -n "com.android.foo"
 ```
 
-## View profile
+## Visualizing your first CPU profile
 
 Upload the `raw-trace` or `symbolized-trace` file from the output directory to
 the [Perfetto UI](https://ui.perfetto.dev) and click and drag over one or more
@@ -133,3 +140,11 @@ profiled in the output directory, and those can be visualized using
 [`pprof`](https://github.com/google/pprof). You can merge them into one by
 passing all of them to pprof, e.g.
 `pprof /tmp/perf_profile-240105114948clvad/*`.
+
+## Analysing your first CPU profile
+
+Video: run queries in UI
+
+## Next steps
+
+Link to cpu profiling docs? Link to simpleperf + formats docs
