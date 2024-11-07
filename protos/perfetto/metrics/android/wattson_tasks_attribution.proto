@@ -26,7 +26,13 @@ message AndroidWattsonTasksAttributionMetric {
   // different power model versions.
   optional int32 power_model_version = 2;
   // Lists tasks (e.g. threads, process, package) and associated estimates
-  repeated AndroidWattsonTaskInfo task_info = 3;
+  repeated AndroidWattsonTaskPeriodInfo period_info = 3;
+}
+
+// Groups of power per task for each period
+message AndroidWattsonTaskPeriodInfo {
+  optional int32 period_id = 1;
+  repeated AndroidWattsonTaskInfo task_info = 2;
 }
 
 message AndroidWattsonTaskInfo {
