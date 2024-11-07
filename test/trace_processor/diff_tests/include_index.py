@@ -112,6 +112,7 @@ from diff_tests.stdlib.android.desktop_mode_tests import DesktopMode
 from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.android.gpu import AndroidGpu
 from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
+from diff_tests.stdlib.android.heap_profile_tests import HeapProfile
 from diff_tests.stdlib.android.memory import AndroidMemory
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.tests import AndroidStdlib
@@ -343,6 +344,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Timestamps(index_path, 'stdlib/timestamps', 'Timestamps').fetch(),
       *Viz(index_path, 'stdlib/viz', 'Viz').fetch(),
       *WattsonStdlib(index_path, 'stdlib/wattson', 'WattsonStdlib').fetch(),
+      *HeapProfile(index_path, 'stdlib/android', 'HeapProfile').fetch(),
   ] + chrome_stdlib_tests
 
   syntax_tests = [
