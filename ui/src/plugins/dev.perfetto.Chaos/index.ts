@@ -50,21 +50,19 @@ export default class implements PerfettoPlugin {
       id: 'dev.perfetto.Chaos#AddCrashingDebugTrack',
       name: 'Chaos: add crashing debug track',
       callback: () => {
-        addDebugSliceTrack(
-          ctx,
-          {
+        addDebugSliceTrack({
+          trace: ctx,
+          data: {
             sqlSource: `
-            syntactically
-            invalid
-            query
-            over
-            many
-          `,
+              syntactically
+              invalid
+              query
+              over
+              many
+            `,
           },
-          `Chaos track`,
-          {ts: 'ts', dur: 'dur', name: 'name'},
-          [],
-        );
+          title: `Chaos track`,
+        });
       },
     });
   }

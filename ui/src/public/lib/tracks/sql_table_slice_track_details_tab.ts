@@ -78,7 +78,7 @@ function renderTreeContents(dict: {[key: string]: m.Child}): m.Child[] {
   return children;
 }
 
-export class DebugSliceDetailsPanel implements TrackEventDetailsPanel {
+export class SqlTableSliceTrackDetailsPanel implements TrackEventDetailsPanel {
   private data?: {
     name: string;
     ts: time;
@@ -243,7 +243,7 @@ export class DebugSliceDetailsPanel implements TrackEventDetailsPanel {
       'Name': this.data['name'] as string,
       'Start time': m(Timestamp, {ts: timeFromSql(this.data['ts'])}),
       'Duration': m(DurationWidget, {dur: durationFromSql(this.data['dur'])}),
-      'Debug slice id': `${this.tableName}[${this.eventId}]`,
+      'Slice id': `${this.tableName}[${this.eventId}]`,
     });
     details.push(this.renderThreadStateInfo());
     details.push(this.renderSliceInfo());
@@ -256,7 +256,7 @@ export class DebugSliceDetailsPanel implements TrackEventDetailsPanel {
     return m(
       DetailsShell,
       {
-        title: 'Debug Slice',
+        title: 'Slice',
       },
       m(
         GridLayout,

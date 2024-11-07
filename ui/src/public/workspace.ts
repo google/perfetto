@@ -233,6 +233,7 @@ export interface TrackNodeArgs {
   sortOrder: number;
   collapsed: boolean;
   isSummary: boolean;
+  removable: boolean;
 }
 
 /**
@@ -273,6 +274,11 @@ export class TrackNode extends TrackNodeContainer {
   // vertical space.
   public isSummary: boolean;
 
+  // If true, this node will be removable by the user. It will show a little
+  // close button in the track shell which the user can press to remove the
+  // track from the workspace.
+  public removable: boolean;
+
   protected _collapsed = true;
 
   constructor(args?: Partial<TrackNodeArgs>) {
@@ -286,6 +292,7 @@ export class TrackNode extends TrackNodeContainer {
       sortOrder,
       collapsed = true,
       isSummary = false,
+      removable = false,
     } = args ?? {};
 
     this.id = id;
@@ -295,6 +302,7 @@ export class TrackNode extends TrackNodeContainer {
     this.sortOrder = sortOrder;
     this.isSummary = isSummary;
     this._collapsed = collapsed;
+    this.removable = removable;
   }
 
   /**
@@ -489,7 +497,11 @@ export class Workspace extends TrackNodeContainer {
    */
   pinTrack(track: TrackNode): void {
     // Make a lightweight clone of this track - just the uri and the title.
-    const cloned = new TrackNode({uri: track.uri, title: track.title});
+    const cloned = new TrackNode({
+      uri: track.uri,
+      title: track.title,
+      removable: track.removable,
+    });
     this.pinnedRoot.addChildLast(cloned);
   }
 

@@ -188,19 +188,17 @@ export default class implements PerfettoPlugin {
           name: STR,
         });
         for (; it.valid(); it.next()) {
-          await addDebugSliceTrack(
-            ctx,
-            {
+          await addDebugSliceTrack({
+            trace: ctx,
+            data: {
               sqlSource: `
                 SELECT ts, dur, name
                 FROM __enhanced_binder_for_slice_${sliceId}
                 WHERE binder_id = ${it.id}
               `,
             },
-            it.name,
-            {ts: 'ts', dur: 'dur', name: 'name'},
-            [],
-          );
+            title: it.name,
+          });
         }
       },
     });

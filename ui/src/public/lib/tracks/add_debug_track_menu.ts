@@ -18,14 +18,13 @@ import {Form, FormLabel} from '../../../widgets/form';
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {
-  CounterColumns,
-  SliceColumns,
-  SqlDataSource,
   addDebugCounterTrack,
   addDebugSliceTrack,
   addPivotedTracks,
 } from './debug_tracks';
 import {Trace} from '../../trace';
+import {SliceColumnMapping, SqlDataSource} from './query_slice_track';
+import {CounterColumnMapping} from './query_counter_track';
 
 interface AddDebugTrackMenuAttrs {
   dataSource: Required<SqlDataSource>;
@@ -177,7 +176,7 @@ export class AddDebugTrackMenu
         onSubmit: () => {
           switch (this.trackType) {
             case 'slice':
-              const sliceColumns: SliceColumns = {
+              const sliceColumns: SliceColumnMapping = {
                 ts: this.renderParams.ts,
                 dur: this.renderParams.dur,
                 name: this.renderParams.name,
@@ -189,26 +188,26 @@ export class AddDebugTrackMenu
                   this.name,
                   this.renderParams.pivot,
                   async (ctx, data, trackName) =>
-                    addDebugSliceTrack(
-                      ctx,
+                    addDebugSliceTrack({
+                      trace: ctx,
                       data,
-                      trackName,
-                      sliceColumns,
-                      this.columns,
-                    ),
+                      title: trackName,
+                      columns: sliceColumns,
+                      argColumns: this.columns,
+                    }),
                 );
               } else {
-                addDebugSliceTrack(
-                  vnode.attrs.trace,
-                  vnode.attrs.dataSource,
-                  this.name,
-                  sliceColumns,
-                  this.columns,
-                );
+                addDebugSliceTrack({
+                  trace: vnode.attrs.trace,
+                  data: vnode.attrs.dataSource,
+                  title: this.name,
+                  columns: sliceColumns,
+                  argColumns: this.columns,
+                });
               }
               break;
             case 'counter':
-              const counterColumns: CounterColumns = {
+              const counterColumns: CounterColumnMapping = {
                 ts: this.renderParams.ts,
                 value: this.renderParams.value,
               };
@@ -220,15 +219,20 @@ export class AddDebugTrackMenu
                   this.name,
                   this.renderParams.pivot,
                   async (ctx, data, trackName) =>
-                    addDebugCounterTrack(ctx, data, trackName, counterColumns),
+                    addDebugCounterTrack({
+                      trace: ctx,
+                      data,
+                      title: trackName,
+                      columns: counterColumns,
+                    }),
                 );
               } else {
-                addDebugCounterTrack(
-                  vnode.attrs.trace,
-                  vnode.attrs.dataSource,
-                  this.name,
-                  counterColumns,
-                );
+                addDebugCounterTrack({
+                  trace: vnode.attrs.trace,
+                  data: vnode.attrs.dataSource,
+                  title: this.name,
+                  columns: counterColumns,
+                });
               }
               break;
           }
