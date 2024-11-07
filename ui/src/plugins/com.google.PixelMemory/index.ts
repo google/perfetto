@@ -14,7 +14,7 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addDebugCounterTrack} from '../../public/lib/debug_tracks/debug_tracks';
+import {addDebugCounterTrack} from '../../public/lib/tracks/debug_tracks';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.google.PixelMemory';
@@ -42,9 +42,9 @@ export default class implements PerfettoPlugin {
             );
         `;
         await ctx.engine.query(RSS_ALL);
-        await addDebugCounterTrack(
-          ctx,
-          {
+        await addDebugCounterTrack({
+          trace: ctx,
+          data: {
             sqlSource: `
                 SELECT
                   ts,
@@ -54,9 +54,8 @@ export default class implements PerfettoPlugin {
             `,
             columns: ['ts', 'value'],
           },
-          pid + '_rss_anon_file_swap_shmem_gpu',
-          {ts: 'ts', value: 'value'},
-        );
+          title: pid + '_rss_anon_file_swap_shmem_gpu',
+        });
       },
     });
   }

@@ -130,8 +130,8 @@ DEPS_ALLOWLIST = [
         ['/frontend/*', '/core/app_impl', '/core/router'],
     ),
 
-    # TODO(primiano): debug_tracks tech debt.
-    ('/public/lib/debug_tracks/*', [
+    # TODO(primiano): tracks tech debt.
+    ('/public/lib/tracks/*', [
         '/frontend/base_counter_track',
         '/frontend/slice_args',
         '/frontend/tracks/custom_sql_table_slice_track',

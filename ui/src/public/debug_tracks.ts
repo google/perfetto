@@ -14,4 +14,4 @@
 
 // TODO(primiano): in near future the code to create debug tracks from an App
 // context will be moved here. For now i'm just re-exporting the function as-is.
-export {addDebugSliceTrack} from './lib/debug_tracks/debug_tracks';
+export {addDebugSliceTrack} from './lib/tracks/debug_tracks';

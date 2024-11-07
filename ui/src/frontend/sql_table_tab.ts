@@ -19,7 +19,7 @@ import {exists} from '../base/utils';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Popup, PopupPosition} from '../widgets/popup';
-import {AddDebugTrackMenu} from '../public/lib/debug_tracks/add_debug_track_menu';
+import {AddDebugTrackMenu} from '../public/lib/tracks/add_debug_track_menu';
 import {Filter} from './widgets/sql/table/column';
 import {SqlTableState} from './widgets/sql/table/state';
 import {SqlTable} from './widgets/sql/table/table';

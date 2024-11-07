@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  SimpleSliceTrack,
-  SimpleSliceTrackConfig,
-} from '../../frontend/simple_slice_track';
+import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -41,7 +38,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await ctx.engine.query(INCLUDE_DESKTOP_MODULE_QUERY);
-    this.registerTrack(ctx, QUERY);
+    await this.registerTrack(ctx, QUERY);
     ctx.commands.registerCommand({
       id: 'dev.perfetto.DesktopMode#AddTrackDesktopWindowss',
       name: 'Add Track: ' + TRACK_NAME,
@@ -49,16 +46,15 @@ export default class implements PerfettoPlugin {
     });
   }
 
-  private registerTrack(_ctx: Trace, sql: string) {
-    const config: SimpleSliceTrackConfig = {
+  private async registerTrack(_ctx: Trace, sql: string) {
+    const track = await createQuerySliceTrack({
+      trace: _ctx,
+      uri: TRACK_URI,
       data: {
         sqlSource: sql,
         columns: COLUMNS,
       },
-      columns: {ts: 'ts', dur: 'dur', name: 'name'},
-      argColumns: [],
-    };
-    const track = new SimpleSliceTrack(_ctx, {trackUri: TRACK_URI}, config);
+    });
     _ctx.tracks.registerTrack({
       uri: TRACK_URI,
       title: TRACK_NAME,
