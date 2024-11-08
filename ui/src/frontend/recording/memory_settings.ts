@@ -14,19 +14,7 @@
 
 import m from 'mithril';
 import {MeminfoCounters, VmstatCounters} from '../../protos';
-import {globals} from '../globals';
-import {
-  Dropdown,
-  DropdownAttrs,
-  Probe,
-  ProbeAttrs,
-  Slider,
-  SliderAttrs,
-  Textarea,
-  TextareaAttrs,
-  Toggle,
-  ToggleAttrs,
-} from '../record_widgets';
+import {Dropdown, Probe, Slider, Textarea, Toggle} from '../record_widgets';
 import {POLL_INTERVAL_MS, RecordingSectionAttrs} from './recording_sections';
 
 class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {
@@ -61,7 +49,7 @@ class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {
       256 * 1024 * 1024,
       512 * 1024 * 1024,
     ];
-
+    const recCfg = attrs.recState.recordConfig;
     return m(
       `.${attrs.cssClass}`,
       m(Textarea, {
@@ -75,7 +63,8 @@ class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {
           '1503',
         set: (cfg, val) => (cfg.hpProcesses = val),
         get: (cfg) => cfg.hpProcesses,
-      } as TextareaAttrs),
+        recCfg,
+      }),
       m(Slider, {
         title: 'Sampling interval',
         cssClass: '.thin',
@@ -87,7 +76,8 @@ class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {
         min: 0,
         set: (cfg, val) => (cfg.hpSamplingIntervalBytes = val),
         get: (cfg) => cfg.hpSamplingIntervalBytes,
-      } as SliderAttrs),
+        recCfg,
+      }),
       m(Slider, {
         title: 'Continuous dumps interval ',
         description: 'Time between following dumps (0 = disabled)',
@@ -99,22 +89,24 @@ class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {
           cfg.hpContinuousDumpsInterval = val;
         },
         get: (cfg) => cfg.hpContinuousDumpsInterval,
-      } as SliderAttrs),
+        recCfg,
+      }),
       m(Slider, {
         title: 'Continuous dumps phase',
         description: 'Time before first dump',
         cssClass: `.thin${
-          globals.state.recordConfig.hpContinuousDumpsInterval === 0
+          attrs.recState.recordConfig.hpContinuousDumpsInterval === 0
             ? '.greyed-out'
             : ''
         }`,
         values: valuesForMS,
         unit: 'ms',
         min: 0,
-        disabled: globals.state.recordConfig.hpContinuousDumpsInterval === 0,
+        disabled: attrs.recState.recordConfig.hpContinuousDumpsInterval === 0,
         set: (cfg, val) => (cfg.hpContinuousDumpsPhase = val),
         get: (cfg) => cfg.hpContinuousDumpsPhase,
-      } as SliderAttrs),
+        recCfg,
+      }),
       m(Slider, {
         title: `Shared memory buffer`,
         cssClass: '.thin',
@@ -125,14 +117,16 @@ class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {
         min: 0,
         set: (cfg, val) => (cfg.hpSharedMemoryBuffer = val),
         get: (cfg) => cfg.hpSharedMemoryBuffer,
-      } as SliderAttrs),
+        recCfg,
+      }),
       m(Toggle, {
         title: 'Block client',
         cssClass: '.thin',
         descr: `Slow down target application if profiler cannot keep up.`,
         setEnabled: (cfg, val) => (cfg.hpBlockClient = val),
         isEnabled: (cfg) => cfg.hpBlockClient,
-      } as ToggleAttrs),
+        recCfg,
+      }),
       m(Toggle, {
         title: 'All custom allocators (Q+)',
         cssClass: '.thin',
@@ -140,7 +134,8 @@ class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {
 sample from those.`,
         setEnabled: (cfg, val) => (cfg.hpAllHeaps = val),
         isEnabled: (cfg) => cfg.hpAllHeaps,
-      } as ToggleAttrs),
+        recCfg,
+      }),
       // TODO(hjd): Add advanced options.
     );
   }
@@ -159,7 +154,7 @@ class JavaHeapDumpSettings implements m.ClassComponent<RecordingSectionAttrs> {
       30 * 60 * 1000,
       60 * 60 * 1000,
     ];
-
+    const recCfg = attrs.recState.recordConfig;
     return m(
       `.${attrs.cssClass}`,
       m(Textarea, {
@@ -167,7 +162,8 @@ class JavaHeapDumpSettings implements m.ClassComponent<RecordingSectionAttrs> {
         placeholder: 'One per line, e.g.:\n' + 'com.android.vending\n' + '1503',
         set: (cfg, val) => (cfg.jpProcesses = val),
         get: (cfg) => cfg.jpProcesses,
-      } as TextareaAttrs),
+        recCfg,
+      }),
       m(Slider, {
         title: 'Continuous dumps interval ',
         description: 'Time between following dumps (0 = disabled)',
@@ -179,28 +175,31 @@ class JavaHeapDumpSettings implements m.ClassComponent<RecordingSectionAttrs> {
           cfg.jpContinuousDumpsInterval = val;
         },
         get: (cfg) => cfg.jpContinuousDumpsInterval,
-      } as SliderAttrs),
+        recCfg,
+      }),
       m(Slider, {
         title: 'Continuous dumps phase',
         description: 'Time before first dump',
         cssClass: `.thin${
-          globals.state.recordConfig.jpContinuousDumpsInterval === 0
+          attrs.recState.recordConfig.jpContinuousDumpsInterval === 0
             ? '.greyed-out'
             : ''
         }`,
         values: valuesForMS,
         unit: 'ms',
         min: 0,
-        disabled: globals.state.recordConfig.jpContinuousDumpsInterval === 0,
+        disabled: attrs.recState.recordConfig.jpContinuousDumpsInterval === 0,
         set: (cfg, val) => (cfg.jpContinuousDumpsPhase = val),
         get: (cfg) => cfg.jpContinuousDumpsPhase,
-      } as SliderAttrs),
+        recCfg,
+      }),
     );
   }
 }
 
 export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    const recCfg = attrs.recState.recordConfig;
     const meminfoOpts = new Map<string, string>();
     for (const x in MeminfoCounters) {
       if (
@@ -230,7 +229,8 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
                process. (Available on Android 10+)`,
           setEnabled: (cfg, val) => (cfg.heapProfiling = val),
           isEnabled: (cfg) => cfg.heapProfiling,
-        } as ProbeAttrs,
+          recCfg,
+        },
         m(HeapSettings, attrs),
       ),
       m(
@@ -242,7 +242,8 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
           Android app. (Available on Android 11+)`,
           setEnabled: (cfg, val) => (cfg.javaHeapDump = val),
           isEnabled: (cfg) => cfg.javaHeapDump,
-        } as ProbeAttrs,
+          recCfg,
+        },
         m(JavaHeapDumpSettings, attrs),
       ),
       m(
@@ -253,7 +254,8 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
           descr: 'Polling of /proc/meminfo',
           setEnabled: (cfg, val) => (cfg.meminfo = val),
           isEnabled: (cfg) => cfg.meminfo,
-        } as ProbeAttrs,
+          recCfg,
+        },
         m(Slider, {
           title: 'Poll interval',
           cssClass: '.thin',
@@ -261,14 +263,16 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
           unit: 'ms',
           set: (cfg, val) => (cfg.meminfoPeriodMs = val),
           get: (cfg) => cfg.meminfoPeriodMs,
-        } as SliderAttrs),
+          recCfg,
+        }),
         m(Dropdown, {
           title: 'Select counters',
           cssClass: '.multicolumn',
           options: meminfoOpts,
           set: (cfg, val) => (cfg.meminfoCounters = val),
           get: (cfg) => cfg.meminfoCounters,
-        } as DropdownAttrs),
+          recCfg,
+        }),
       ),
       m(Probe, {
         title: 'High-frequency memory events',
@@ -278,7 +282,8 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
                 on recent Android Q+ kernels`,
         setEnabled: (cfg, val) => (cfg.memHiFreq = val),
         isEnabled: (cfg) => cfg.memHiFreq,
-      } as ProbeAttrs),
+        recCfg,
+      }),
       m(Probe, {
         title: 'Low memory killer',
         img: 'rec_lmk.png',
@@ -287,7 +292,8 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
                 adjustments.`,
         setEnabled: (cfg, val) => (cfg.memLmk = val),
         isEnabled: (cfg) => cfg.memLmk,
-      } as ProbeAttrs),
+        recCfg,
+      }),
       m(
         Probe,
         {
@@ -298,7 +304,8 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
                     /proc/status counters) and oom_score_adj.`,
           setEnabled: (cfg, val) => (cfg.procStats = val),
           isEnabled: (cfg) => cfg.procStats,
-        } as ProbeAttrs,
+          recCfg,
+        },
         m(Slider, {
           title: 'Poll interval',
           cssClass: '.thin',
@@ -306,7 +313,8 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
           unit: 'ms',
           set: (cfg, val) => (cfg.procStatsPeriodMs = val),
           get: (cfg) => cfg.procStatsPeriodMs,
-        } as SliderAttrs),
+          recCfg,
+        }),
       ),
       m(
         Probe,
@@ -318,7 +326,8 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
                     compression and pagecache efficiency`,
           setEnabled: (cfg, val) => (cfg.vmstat = val),
           isEnabled: (cfg) => cfg.vmstat,
-        } as ProbeAttrs,
+          recCfg,
+        },
         m(Slider, {
           title: 'Poll interval',
           cssClass: '.thin',
@@ -326,14 +335,16 @@ export class MemorySettings implements m.ClassComponent<RecordingSectionAttrs> {
           unit: 'ms',
           set: (cfg, val) => (cfg.vmstatPeriodMs = val),
           get: (cfg) => cfg.vmstatPeriodMs,
-        } as SliderAttrs),
+          recCfg,
+        }),
         m(Dropdown, {
           title: 'Select counters',
           cssClass: '.multicolumn',
           options: vmstatOpts,
           set: (cfg, val) => (cfg.vmstatCounters = val),
           get: (cfg) => cfg.vmstatCounters,
-        } as DropdownAttrs),
+          recCfg,
+        }),
       ),
     );
   }

@@ -15,7 +15,6 @@
 import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
 import {isString} from '../base/object_utils';
 import {base64Encode} from '../base/string_utils';
-import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
 import {genTraceConfig} from '../common/recordingV2/recording_config_utils';
 import {TargetInfo} from '../common/recordingV2/recording_interfaces_v2';
@@ -26,8 +25,6 @@ import {
   isWindowsTarget,
   RecordingTarget,
 } from '../common/state';
-import {globals} from '../frontend/globals';
-import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 import {ConsumerPort, TraceConfig} from '../protos';
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_shell_controller';
@@ -42,10 +39,11 @@ import {
   isGetTraceStatsResponse,
   isReadBuffersResponse,
 } from './consumer_port_types';
-import {Controller} from './controller';
 import {RecordConfig} from './record_config_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 import {AppImpl} from '../core/app_impl';
+import {RecordingManager} from './recording_manager';
+import {raf} from '../core/raf_scheduler';
 
 type RPCImplMethod = Method | rpc.ServiceMethod<Message<{}>, Message<{}>>;
 
@@ -190,7 +188,8 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   return [...message(json, 0)].join('');
 }
 
-export class RecordController extends Controller<'main'> implements Consumer {
+export class RecordController implements Consumer {
+  private recMgr: RecordingManager;
   private config: RecordConfig | null = null;
   private readonly extensionPort: MessagePort;
   private recordingInProgress = false;
@@ -207,34 +206,36 @@ export class RecordController extends Controller<'main'> implements Consumer {
   // char, it is the 'targetOS'
   private controllerPromises = new Map<string, Promise<RpcConsumerPort>>();
 
-  constructor(args: {extensionPort: MessagePort}) {
-    super('main');
+  constructor(recMgr: RecordingManager, extensionPort: MessagePort) {
+    this.recMgr = recMgr;
     this.consumerPort = ConsumerPort.create(this.rpcImpl.bind(this));
-    this.extensionPort = args.extensionPort;
+    this.extensionPort = extensionPort;
   }
 
-  run() {
+  private get state() {
+    return this.recMgr.state;
+  }
+
+  refreshOnStateChange() {
     // TODO(eseckler): Use ConsumerPort's QueryServiceState instead
     // of posting a custom extension message to retrieve the category list.
-    if (globals.state.fetchChromeCategories && !this.fetchedCategories) {
+    raf.scheduleFullRedraw();
+    if (this.state.fetchChromeCategories && !this.fetchedCategories) {
       this.fetchedCategories = true;
-      if (globals.state.extensionInstalled) {
+      if (this.state.extensionInstalled) {
         this.extensionPort.postMessage({method: 'GetCategories'});
       }
-      globals.dispatch(Actions.setFetchChromeCategories({fetch: false}));
+      this.recMgr.setFetchChromeCategories(false);
     }
     if (
-      globals.state.recordConfig === this.config &&
-      globals.state.recordingInProgress === this.recordingInProgress
+      this.state.recordConfig === this.config &&
+      this.state.recordingInProgress === this.recordingInProgress
     ) {
       return;
     }
-    this.config = globals.state.recordConfig;
+    this.config = this.state.recordConfig;
 
-    const configProto = genConfigProto(
-      this.config,
-      globals.state.recordingTarget,
-    );
+    const configProto = genConfigProto(this.config, this.state.recordingTarget);
     const configProtoText = toPbtxt(configProto);
     const configProtoBase64 = base64Encode(configProto);
     const commandline = `
@@ -245,23 +246,18 @@ export class RecordController extends Controller<'main'> implements Consumer {
     `;
     const traceConfig = convertToRecordingV2Input(
       this.config,
-      globals.state.recordingTarget,
+      this.state.recordingTarget,
     );
-    // TODO(hjd): This should not be TrackData after we unify the stores.
-    publishTrackData({
-      id: 'config',
-      data: {
-        commandline,
-        pbBase64: configProtoBase64,
-        pbtxt: configProtoText,
-        traceConfig,
-      },
-    });
+    this.state.recordCmd = {
+      commandline,
+      pbBase64: configProtoBase64,
+      pbtxt: configProtoText,
+    };
 
     // If the recordingInProgress boolean state is different, it means that we
     // have to start or stop recording a trace.
-    if (globals.state.recordingInProgress === this.recordingInProgress) return;
-    this.recordingInProgress = globals.state.recordingInProgress;
+    if (this.state.recordingInProgress === this.recordingInProgress) return;
+    this.recordingInProgress = this.state.recordingInProgress;
 
     if (this.recordingInProgress) {
       this.startRecordTrace(traceConfig);
@@ -309,7 +305,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     } else if (isGetTraceStatsResponse(data)) {
       const percentage = this.getBufferUsagePercentage(data);
       if (percentage) {
-        publishBufferUsage({percentage});
+        this.recMgr.state.bufferUsage = percentage;
       }
     } else if (isFreeBuffersResponse(data)) {
       // No action required.
@@ -322,11 +318,9 @@ export class RecordController extends Controller<'main'> implements Consumer {
 
   onTraceComplete() {
     this.consumerPort.freeBuffers({});
-    globals.dispatch(Actions.setRecordingStatus({status: undefined}));
-    if (globals.state.recordingCancelled) {
-      globals.dispatch(
-        Actions.setLastRecordingError({error: 'Recording cancelled.'}),
-      );
+    this.recMgr.setRecordingStatus(undefined);
+    if (this.state.recordingCancelled) {
+      this.recMgr.setLastRecordingError('Recording cancelled.');
       this.traceBuffer = [];
       return;
     }
@@ -367,14 +361,12 @@ export class RecordController extends Controller<'main'> implements Consumer {
   onError(message: string) {
     // TODO(octaviant): b/204998302
     console.error('Error in record controller: ', message);
-    globals.dispatch(
-      Actions.setLastRecordingError({error: message.substr(0, 150)}),
-    );
-    globals.dispatch(Actions.stopRecording({}));
+    this.recMgr.setLastRecordingError(message.substring(0, 150));
+    this.recMgr.stopRecording();
   }
 
   onStatus(message: string) {
-    globals.dispatch(Actions.setRecordingStatus({status: message}));
+    this.recMgr.setRecordingStatus(message);
   }
 
   // Depending on the recording target, different implementation of the
@@ -409,8 +401,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
           const socketAccess = await this.hasSocketAccess(target);
 
           controller = socketAccess
-            ? new AdbSocketConsumerPort(this.adb, this)
-            : new AdbConsumerPort(this.adb, this);
+            ? new AdbSocketConsumerPort(this.adb, this, this.recMgr.state)
+            : new AdbConsumerPort(this.adb, this, this.recMgr.state);
         } else {
           throw Error(`No device connected`);
         }
@@ -444,7 +436,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     _callback: RPCImplCallback,
   ) {
     try {
-      const state = globals.state;
+      const state = this.state;
       // TODO(hjd): This is a bit weird. We implicitly send each RPC message to
       // whichever target is currently selected (creating that target if needed)
       // it would be nicer if the setup/teardown was more explicit.

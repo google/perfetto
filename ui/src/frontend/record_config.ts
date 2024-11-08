@@ -156,7 +156,7 @@ export class RecordConfigStore {
 export const recordConfigStore = new RecordConfigStore();
 
 export class AutosaveConfigStore {
-  config: RecordConfig;
+  private config: RecordConfig;
 
   // Whether the current config is a default one or has been saved before.
   // Used to determine whether the button to load "last started config" should

@@ -18,6 +18,7 @@ import {EnableTracingRequest, TraceConfig} from '../protos';
 import {AdbStream, MockAdb, MockAdbStream} from './adb_interfaces';
 import {AdbConsumerPort} from './adb_shell_controller';
 import {Consumer} from './record_controller_interfaces';
+import {createEmptyState} from '../common/empty_state';
 
 function generateMockConsumer(): Consumer {
   return {
@@ -28,7 +29,11 @@ function generateMockConsumer(): Consumer {
 }
 const mainCallback = generateMockConsumer();
 const adbMock = new MockAdb();
-const adbController = new AdbConsumerPort(adbMock, mainCallback);
+const adbController = new AdbConsumerPort(
+  adbMock,
+  mainCallback,
+  createEmptyState(),
+);
 const mockIntArray = new Uint8Array();
 
 const enableTracingRequest = new EnableTracingRequest();
@@ -60,7 +65,11 @@ test('handleCommand', async () => {
 test('enableTracing', async () => {
   const mainCallback = generateMockConsumer();
   const adbMock = new MockAdb();
-  const adbController = new AdbConsumerPort(adbMock, mainCallback);
+  const adbController = new AdbConsumerPort(
+    adbMock,
+    mainCallback,
+    createEmptyState(),
+  );
 
   adbController.sendErrorMessage = jest
     .fn()

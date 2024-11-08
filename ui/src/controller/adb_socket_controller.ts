@@ -27,6 +27,7 @@ import {isReadBuffersResponse} from './consumer_port_types';
 import {Consumer} from './record_controller_interfaces';
 import {exists} from '../base/utils';
 import {assertTrue} from '../base/logging';
+import {RecordingState} from '../common/state';
 
 enum SocketState {
   DISCONNECTED,
@@ -82,8 +83,8 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
 
   private socketCommandQueue: Command[] = [];
 
-  constructor(adb: Adb, consumer: Consumer) {
-    super(adb, consumer);
+  constructor(adb: Adb, consumer: Consumer, recState: RecordingState) {
+    super(adb, consumer, recState);
   }
 
   async invoke(method: string, params: Uint8Array) {

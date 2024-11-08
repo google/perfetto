@@ -13,8 +13,10 @@
 // limitations under the License.
 
 import {DataSource} from '../../common/recordingV2/recording_interfaces_v2';
+import {RecordingState} from '../../common/state';
 
 export interface RecordingSectionAttrs {
+  recState: RecordingState;
   dataSources: DataSource[];
   cssClass: string;
 }

@@ -13,14 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  Probe,
-  ProbeAttrs,
-  Slider,
-  SliderAttrs,
-  Textarea,
-  TextareaAttrs,
-} from '../record_widgets';
+import {Probe, Slider, Textarea} from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
 
 const PLACEHOLDER_TEXT = `Filters for processes to profile, one per line e.g.:
@@ -37,6 +30,7 @@ export class LinuxPerfSettings
 {
   config = {targets: []} as LinuxPerfConfiguration;
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    const recCfg = attrs.recState.recordConfig;
     return m(
       `.record-section${attrs.cssClass}`,
       m(
@@ -48,7 +42,8 @@ export class LinuxPerfSettings
               function calls) of processes.`,
           setEnabled: (cfg, val) => (cfg.tracePerf = val),
           isEnabled: (cfg) => cfg.tracePerf,
-        } as ProbeAttrs,
+          recCfg,
+        },
         m(Slider, {
           title: 'Sampling Frequency',
           cssClass: '.thin',
@@ -56,7 +51,8 @@ export class LinuxPerfSettings
           unit: 'hz',
           set: (cfg, val) => (cfg.timebaseFrequency = val),
           get: (cfg) => cfg.timebaseFrequency,
-        } as SliderAttrs),
+          recCfg,
+        }),
         m(Textarea, {
           placeholder: PLACEHOLDER_TEXT,
           cssClass: '.record-apps-list',
@@ -64,7 +60,8 @@ export class LinuxPerfSettings
             cfg.targetCmdLine = val.split('\n');
           },
           get: (cfg) => cfg.targetCmdLine.join('\n'),
-        } as TextareaAttrs),
+          recCfg,
+        }),
       ),
     );
   }
