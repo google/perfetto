@@ -23,40 +23,121 @@ class PerfettoInclude(TestSuite):
 
   def test_import(self):
     return DiffTestBlueprint(
-        trace=TextProto(''),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|13\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|20\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.audio|1\n"
+              }
+            }
+          }
+        }
+        """),
         query="""
-        SELECT IMPORT('time.conversion');
+        SELECT IMPORT('common.timestamps');
 
-        SELECT 1 AS x;
+        SELECT TRACE_START();
         """,
         out=Csv("""
-        "x"
-        1
+        "TRACE_START()"
+        1000
         """))
 
   def test_include_perfetto_module(self):
     return DiffTestBlueprint(
-        trace=TextProto(''),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|13\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|20\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.audio|1\n"
+              }
+            }
+          }
+        }
+        """),
         query="""
-        INCLUDE PERFETTO MODULE time.conversion;
+        INCLUDE PERFETTO MODULE common.timestamps;
 
-        SELECT time_to_ns(1) AS x
+        SELECT TRACE_START();
         """,
         out=Csv("""
-        "x"
-        1
+        "TRACE_START()"
+        1000
         """))
 
   def test_include_and_import(self):
     return DiffTestBlueprint(
-        trace=TextProto(''),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|13\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|20\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.audio|1\n"
+              }
+            }
+          }
+        }
+        """),
         query="""
-        SELECT IMPORT('time.conversion');
-        INCLUDE PERFETTO MODULE time.conversion;
+        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
 
-        SELECT 1 AS x
+        SELECT TRACE_START();
         """,
         out=Csv("""
-        "x"
-        1
+        "TRACE_START()"
+        1000
         """))
