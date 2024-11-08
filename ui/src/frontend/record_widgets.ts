@@ -16,8 +16,8 @@ import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
 import {assertExists} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
-import {globals} from './globals';
 import {raf} from '../core/raf_scheduler';
+import {assetSrc} from '../base/assets';
 
 export declare type Setter<T> = (cfg: RecordConfig, val: T) => void;
 export declare type Getter<T> = (cfg: RecordConfig) => T;
@@ -72,7 +72,7 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
       `.probe${attrs.compact ? '.compact' : ''}${enabled ? '.enabled' : ''}`,
       attrs.img &&
         m('img', {
-          src: `${globals.root}assets/${attrs.img}`,
+          src: assetSrc(`assets/${attrs.img}`),
           onclick: () => onToggle(!enabled),
         }),
       m(

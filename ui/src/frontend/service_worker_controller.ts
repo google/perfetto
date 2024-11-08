@@ -18,6 +18,7 @@
 // The actual service worker code is in src/service_worker.
 // Design doc: http://go/perfetto-offline.
 
+import {getServingRoot} from '../base/http_utils';
 import {reportError} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 
@@ -52,10 +53,9 @@ class BypassCache {
 }
 
 export class ServiceWorkerController {
+  private readonly servingRoot = getServingRoot();
   private _bypassed = false;
   private _installing = false;
-
-  constructor(private servingRoot: string) {}
 
   // Caller should reload().
   async setBypass(bypass: boolean) {

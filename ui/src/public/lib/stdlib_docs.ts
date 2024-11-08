@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {App} from '../app';
+import {assetSrc} from '../../base/assets';
 
 // Fetch the stdlib docs
-export async function getStdlibDocs(app: App): Promise<string> {
-  const resp = await fetch(`${app.rootUrl}/stdlib_docs.json`);
+export async function getStdlibDocs(): Promise<string> {
+  const resp = await fetch(assetSrc('stdlib_docs.json'));
   const json = await resp.json();
   return JSON.parse(json);
 }
