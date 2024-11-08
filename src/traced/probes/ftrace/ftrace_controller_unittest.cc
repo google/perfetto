@@ -656,6 +656,72 @@ TEST(FtraceStatsTest, Write) {
   EXPECT_EQ(result.cpu(), 0u);
   EXPECT_EQ(result.entries(), 1u);
   EXPECT_EQ(result.overrun(), 2u);
+  auto kprobe_stats = result_packet.ftrace_stats().kprobe_stats();
+  EXPECT_EQ(kprobe_stats.hits(), 0u);
+  EXPECT_EQ(kprobe_stats.misses(), 0u);
+}
+
+TEST(FtraceStatsTest, WriteKprobeStats) {
+  FtraceStats stats{};
+  FtraceKprobeStats kprobe_stats{};
+  kprobe_stats.hits = 1;
+  kprobe_stats.misses = 2;
+  stats.kprobe_stats = kprobe_stats;
+
+  std::unique_ptr<TraceWriterForTesting> writer =
+      std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
+  {
+    auto packet = writer->NewTracePacket();
+    auto* out = packet->set_ftrace_stats();
+    stats.Write(out);
+  }
+
+  protos::gen::TracePacket result_packet = writer->GetOnlyTracePacket();
+  auto result = result_packet.ftrace_stats();
+  EXPECT_EQ(result.kprobe_stats().hits(), 1u);
+  EXPECT_EQ(result.kprobe_stats().misses(), 2u);
+}
+
+TEST(FtraceStatsTest, KprobeProfileParseEmpty) {
+  std::string text = "";
+
+  FtraceStats stats{};
+  EXPECT_TRUE(DumpKprobeStats(text, &stats));
+}
+
+TEST(FtraceStatsTest, KprobeProfileParseEmptyLines) {
+  std::string text = R"(
+
+)";
+
+  FtraceStats stats{};
+  EXPECT_TRUE(DumpKprobeStats(text, &stats));
+}
+
+TEST(FtraceStatsTest, KprobeProfileParseValid) {
+  std::string text = R"(  _binder_inner_proc_lock  1   8
+  _binder_inner_proc_unlock                        2   9
+  _binder_node_inner_unlock                        3  10
+  _binder_node_unlock                              4  11
+)";
+
+  FtraceStats stats{};
+  EXPECT_TRUE(DumpKprobeStats(text, &stats));
+
+  EXPECT_EQ(stats.kprobe_stats.hits, 10u);
+  EXPECT_EQ(stats.kprobe_stats.misses, 38u);
+}
+
+TEST(FtraceStatsTest, KprobeProfileMissingValuesParseInvalid) {
+  std::string text = R"(  _binder_inner_proc_lock  1   8
+  _binder_inner_proc_unlock                        2
+)";
+
+  FtraceStats stats{};
+  EXPECT_FALSE(DumpKprobeStats(text, &stats));
+
+  EXPECT_EQ(stats.kprobe_stats.hits, 0u);
+  EXPECT_EQ(stats.kprobe_stats.misses, 0u);
 }
 
 TEST(FtraceControllerTest, OnlySecondaryInstance) {

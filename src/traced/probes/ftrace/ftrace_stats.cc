@@ -32,6 +32,12 @@ void FtraceStats::Write(protos::pbzero::FtraceStats* writer) const {
     writer->add_unknown_ftrace_events(err);
   for (const std::string& err : setup_errors.failed_ftrace_events)
     writer->add_failed_ftrace_events(err);
+
+  if (kprobe_stats.hits || kprobe_stats.misses) {
+    auto* kprobe_stats_pb = writer->set_kprobe_stats();
+    kprobe_stats_pb->set_hits(kprobe_stats.hits);
+    kprobe_stats_pb->set_misses(kprobe_stats.misses);
+  }
 }
 
 void FtraceCpuStats::Write(protos::pbzero::FtraceCpuStats* writer) const {
