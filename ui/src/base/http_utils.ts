@@ -70,7 +70,7 @@ export function fetchWithProgress(
 /**
  * NOTE: this function can only be called from synchronous contexts. It will
  * fail if called in timer handlers or async continuations (e.g. after an await)
- * Use globals.root which caches it on startup.
+ * Use assetSrc(relPath) which caches it on startup.
  * @returns the directory where the app is served from, e.g. 'v46.0-a2082649b'
  */
 export function getServingRoot() {

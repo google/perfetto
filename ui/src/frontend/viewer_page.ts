@@ -36,16 +36,15 @@ import {
   PanelOrGroup,
   RenderedPanelInfo,
 } from './panel_container';
-import {publishShowPanningHint} from './publish';
 import {TabPanel} from './tab_panel';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
-import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackPanel} from './track_panel';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
 import {TraceImpl} from '../core/trace_impl';
 import {PageWithTraceImplAttrs} from '../core/page_manager';
+import {AppImpl} from '../core/app_impl';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -104,6 +103,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
   private tickmarkPanel: TickmarkPanel;
   private timelineWidthPx?: number;
   private selectedContainer?: SelectedContainer;
+  private showPanningHint = false;
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
@@ -136,10 +136,6 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
         });
         const tDelta = timescale.pxToDuration(pannedPx);
         timeline.panVisibleWindow(tDelta);
-
-        // If the user has panned they no longer need the hint.
-        localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
-        raf.scheduleRedraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
         const timeline = attrs.trace.timeline;
@@ -259,7 +255,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
               dragEndAbsY: -stackTop + boundedCurrentY,
             };
           }
-          publishShowPanningHint();
+          this.showPanningHint = true;
         }
         raf.scheduleRedraw();
       },
@@ -371,6 +367,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
       m(TabPanel, {
         trace: attrs.trace,
       }),
+      this.showPanningHint && m(HelpPanningNotification),
     );
 
     attrs.trace.tracks.flushOldTracks();
@@ -608,5 +605,38 @@ export function renderNoteVerticals(
         note.color,
       );
     }
+  }
+}
+
+class HelpPanningNotification implements m.ClassComponent {
+  private readonly PANNING_HINT_KEY = 'dismissedPanningHint';
+  private dismissed = localStorage.getItem(this.PANNING_HINT_KEY) === 'true';
+
+  view() {
+    // Do not show the help notification in embedded mode because local storage
+    // does not persist for iFrames. The host is responsible for communicating
+    // to users that they can press '?' for help.
+    if (AppImpl.instance.embeddedMode || this.dismissed) {
+      return;
+    }
+    return m(
+      '.helpful-hint',
+      m(
+        '.hint-text',
+        'Are you trying to pan? Use the WASD keys or hold shift to click ' +
+          "and drag. Press '?' for more help.",
+      ),
+      m(
+        'button.hint-dismiss-button',
+        {
+          onclick: () => {
+            this.dismissed = true;
+            localStorage.setItem(this.PANNING_HINT_KEY, 'true');
+            raf.scheduleFullRedraw();
+          },
+        },
+        'Dismiss',
+      ),
+    );
   }
 }

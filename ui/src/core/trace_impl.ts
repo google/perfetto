@@ -407,10 +407,6 @@ export class TraceImpl implements Trace {
     return this.appImpl.initialRouteArgs;
   }
 
-  get rootUrl(): string {
-    return this.appImpl.rootUrl;
-  }
-
   scheduleFullRedraw(): void {
     this.appImpl.scheduleFullRedraw();
   }

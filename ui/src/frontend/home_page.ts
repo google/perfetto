@@ -16,8 +16,8 @@ import m from 'mithril';
 import {channelChanged, getNextChannel, setChannel} from '../core/channels';
 import {Anchor} from '../widgets/anchor';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
-import {globals} from './globals';
 import {PageAttrs} from '../public/page';
+import {assetSrc} from '../base/assets';
 
 export class Hints implements m.ClassComponent {
   view() {
@@ -74,7 +74,7 @@ export class HomePage implements m.ClassComponent<PageAttrs> {
         '.home-page-center',
         m(
           '.home-page-title',
-          m(`img.logo[src=${globals.root}assets/logo-3d.png]`),
+          m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
           'Perfetto',
         ),
         m(Hints),

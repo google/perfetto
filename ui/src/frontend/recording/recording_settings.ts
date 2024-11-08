@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 import {RecordMode} from '../../common/state';
-import {globals} from '../globals';
 import {Slider} from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
+import {assetSrc} from '../../base/assets';
 
 export class RecordingSettings
   implements m.ClassComponent<RecordingSectionAttrs>
@@ -40,7 +40,7 @@ export class RecordingSettings
       return m(
         `label${recCfg.mode === mode ? '.selected' : ''}`,
         m(`input[type=radio][name=rec_mode]`, checkboxArgs),
-        m(`img[src=${globals.root}assets/${img}]`),
+        m(`img[src=${assetSrc(`assets/${img}`)}]`),
         m('span', title),
       );
     };

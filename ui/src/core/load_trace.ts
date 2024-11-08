@@ -130,7 +130,7 @@ async function createEngine(
   // Check if there is any instance of the trace_processor_shell running in
   // HTTP RPC mode (i.e. trace_processor_shell -D).
   let useRpc = false;
-  if (app.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
+  if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
     useRpc = (await HttpRpcEngine.checkConnection()).connected;
   }
   let engine;

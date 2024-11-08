@@ -14,16 +14,12 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {raf} from '../core/raf_scheduler';
-import {globals} from './globals';
 import {taskTracker} from './task_tracker';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {assertFalse} from '../base/logging';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {AppImpl} from '../core/app_impl';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
-
-export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
 
 class Progress implements m.ClassComponent<TraceImplAttrs> {
   view({attrs}: m.CVnode<TraceImplAttrs>): m.Children {
@@ -34,41 +30,6 @@ class Progress implements m.ClassComponent<TraceImplAttrs> {
       taskTracker.hasPendingTasks();
     const classes = classNames(isLoading && 'progress-anim');
     return m('.progress', {class: classes});
-  }
-}
-
-class HelpPanningNotification implements m.ClassComponent {
-  view() {
-    const dismissed = localStorage.getItem(DISMISSED_PANNING_HINT_KEY);
-    // Do not show the help notification in embedded mode because local storage
-    // does not persist for iFrames. The host is responsible for communicating
-    // to users that they can press '?' for help.
-    if (
-      AppImpl.instance.embeddedMode ||
-      dismissed === 'true' ||
-      !globals.showPanningHint
-    ) {
-      return;
-    }
-    return m(
-      '.helpful-hint',
-      m(
-        '.hint-text',
-        'Are you trying to pan? Use the WASD keys or hold shift to click ' +
-          "and drag. Press '?' for more help.",
-      ),
-      m(
-        'button.hint-dismiss-button',
-        {
-          onclick: () => {
-            globals.showPanningHint = false;
-            localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
-            raf.scheduleFullRedraw();
-          },
-        },
-        'Dismiss',
-      ),
-    );
   }
 }
 
@@ -132,7 +93,6 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
       },
       omnibox,
       attrs.trace && m(Progress, {trace: attrs.trace}),
-      m(HelpPanningNotification),
       attrs.trace && m(TraceErrorIcon, {trace: attrs.trace}),
     );
   }

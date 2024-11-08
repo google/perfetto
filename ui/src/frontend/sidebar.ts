@@ -45,6 +45,7 @@ import {exists, getOrCreate} from '../base/utils';
 import {copyToClipboard} from '../base/clipboard';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
+import {assetSrc} from '../base/assets';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';
@@ -208,8 +209,8 @@ class EngineRPCWidget implements m.ClassComponent<OptionalTraceImplAttrs> {
     // this will eventually become  consistent once the engine is created.
     if (mode === undefined) {
       if (
-        globals.httpRpcState.connected &&
-        AppImpl.instance.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
+        AppImpl.instance.httpRpc.httpRpcAvailable &&
+        AppImpl.instance.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
       ) {
         mode = 'HTTP_RPC';
       } else {
@@ -241,7 +242,7 @@ const ServiceWorkerWidget: m.Component = {
     let cssClass = '';
     let title = 'Service Worker: ';
     let label = 'N/A';
-    const ctl = globals.serviceWorkerController;
+    const ctl = AppImpl.instance.serviceWorkerController;
     if (!('serviceWorker' in navigator)) {
       label = 'N/A';
       title += 'not supported by the browser (requires HTTPS)';
@@ -263,8 +264,8 @@ const ServiceWorkerWidget: m.Component = {
     }
 
     const toggle = async () => {
-      if (globals.serviceWorkerController.bypassed) {
-        globals.serviceWorkerController.setBypass(false);
+      if (ctl.bypassed) {
+        ctl.setBypass(false);
         return;
       }
       showModal({
@@ -296,11 +297,7 @@ const ServiceWorkerWidget: m.Component = {
           {
             text: 'Disable and reload',
             primary: true,
-            action: () => {
-              globals.serviceWorkerController
-                .setBypass(true)
-                .then(() => location.reload());
-            },
+            action: () => ctl.setBypass(true).then(() => location.reload()),
           },
           {text: 'Cancel'},
         ],
@@ -384,7 +381,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
       shouldShowHiringBanner() ? m(HiringBanner) : null,
       m(
         `header.${getCurrentChannel()}`,
-        m(`img[src=${globals.root}assets/brand.png].brand`),
+        m(`img[src=${assetSrc('assets/brand.png')}].brand`),
         m(
           'button.sidebar-button',
           {

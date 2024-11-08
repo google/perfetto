@@ -45,7 +45,6 @@ import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
 import {addSqlTableTab} from './sql_table_tab';
-import {getServingRoot} from '../base/http_utils';
 import {configureExtensions} from '../public/lib/extensions';
 import {
   addDebugCounterTrack,
@@ -53,6 +52,7 @@ import {
 } from '../public/lib/tracks/debug_tracks';
 import {addVisualizedArgTracks} from './visualized_args_tracks';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
+import {assetSrc, initAssets} from '../base/assets';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -145,9 +145,8 @@ function setupContentSecurityPolicy() {
 function main() {
   // Setup content security policy before anything else.
   setupContentSecurityPolicy();
-
+  initAssets();
   AppImpl.initialize({
-    rootUrl: getServingRoot(),
     initialRouteArgs: Router.parseUrl(window.location.href).args,
   });
 
@@ -159,12 +158,12 @@ function main() {
   const cssLoadPromise = defer<void>();
   const css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = globals.root + 'perfetto.css';
+  css.href = assetSrc('perfetto.css');
   css.onload = () => cssLoadPromise.resolve();
   css.onerror = (err) => cssLoadPromise.reject(err);
   const favicon = document.head.querySelector('#favicon');
   if (favicon instanceof HTMLLinkElement) {
-    favicon.href = globals.root + 'assets/favicon.png';
+    favicon.href = assetSrc('assets/favicon.png');
   }
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
@@ -190,12 +189,8 @@ function main() {
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 
-  initWasm(globals.root);
-
-  // These need to be set before globals.initialize.
-  globals.initialize();
-
-  globals.serviceWorkerController.install();
+  initWasm();
+  AppImpl.instance.serviceWorkerController.install();
 
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
