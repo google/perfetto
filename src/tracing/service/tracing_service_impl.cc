@@ -3780,7 +3780,7 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
 
   // guest_soc model is not always present
   std::string guest_soc_model_value =
-      base::GetAndroidProp("ro.guest_soc.model");
+      base::GetAndroidProp("ro.boot.guest_soc.model");
   if (!guest_soc_model_value.empty()) {
     info->set_android_guest_soc_model(guest_soc_model_value);
   }
