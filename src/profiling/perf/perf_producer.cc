@@ -500,8 +500,12 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
 
   // Inform unwinder of the new data source instance, and optionally start a
   // periodic task to clear its cached state.
-  unwinding_worker_->PostStartDataSource(ds_id,
-                                         ds.event_config.kernel_frames());
+  auto unwind_mode = (ds.event_config.unwind_mode() ==
+                      protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER)
+                         ? Unwinder::UnwindMode::kFramePointer
+                         : Unwinder::UnwindMode::kUnwindStack;
+  unwinding_worker_->PostStartDataSource(ds_id, ds.event_config.kernel_frames(),
+                                         unwind_mode);
   if (ds.event_config.unwind_state_clear_period_ms()) {
     unwinding_worker_->PostClearCachedStatePeriodic(
         ds_id, ds.event_config.unwind_state_clear_period_ms());

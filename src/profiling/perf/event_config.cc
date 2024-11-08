@@ -273,6 +273,20 @@ std::optional<PerfCounter> MakePerfCounter(
   }
 }
 
+bool IsSupportedUnwindMode(
+    protos::gen::PerfEventConfig::UnwindMode unwind_mode) {
+  using protos::gen::PerfEventConfig;
+  switch (static_cast<int>(unwind_mode)) {  // cast to pacify -Wswitch-enum
+    case PerfEventConfig::UNWIND_UNKNOWN:
+    case PerfEventConfig::UNWIND_SKIP:
+    case PerfEventConfig::UNWIND_DWARF:
+    case PerfEventConfig::UNWIND_FRAME_POINTER:
+      return true;
+    default:
+      return false;
+  }
+}
+
 }  // namespace
 
 // static
@@ -371,32 +385,18 @@ std::optional<EventConfig> EventConfig::Create(
   }
 
   // Callstack sampling.
-  bool user_frames = false;
   bool kernel_frames = false;
+  // Disable user_frames by default.
+  auto unwind_mode = protos::gen::PerfEventConfig::UNWIND_SKIP;
+
   TargetFilter target_filter;
   bool legacy_config = pb_config.all_cpus();  // all_cpus was mandatory before
   if (pb_config.has_callstack_sampling() || legacy_config) {
-    user_frames = true;
-
     // Userspace callstacks.
-    using protos::gen::PerfEventConfig;
-    switch (static_cast<int>(pb_config.callstack_sampling().user_frames())) {
-      case PerfEventConfig::UNWIND_UNKNOWN:
-        // default to true, both for backwards compatibility and because it's
-        // almost always what the user wants.
-        user_frames = true;
-        break;
-      case PerfEventConfig::UNWIND_SKIP:
-        user_frames = false;
-        break;
-      case PerfEventConfig::UNWIND_DWARF:
-        user_frames = true;
-        break;
-      default:
-        // enum value from the future that we don't yet know, refuse the config
-        // TODO(rsavitski): double-check that both pbzero and ::gen propagate
-        // unknown enum values.
-        return std::nullopt;
+    unwind_mode = pb_config.callstack_sampling().user_frames();
+    if (!IsSupportedUnwindMode(unwind_mode)) {
+      // enum value from the future that we don't yet know, refuse the config
+      return std::nullopt;
     }
 
     // Process scoping. Sharding parameter is supplied from outside as it is
@@ -482,7 +482,7 @@ std::optional<EventConfig> EventConfig::Create(
   pe.clockid = ToClockId(pb_config.timebase().timestamp_clock());
   pe.use_clockid = true;
 
-  if (user_frames) {
+  if (IsUserFramesEnabled(unwind_mode)) {
     pe.sample_type |= PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
     // PERF_SAMPLE_STACK_USER:
     // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
@@ -529,10 +529,26 @@ std::optional<EventConfig> EventConfig::Create(
 
   return EventConfig(
       raw_ds_config, pe, std::move(pe_followers), timebase_event, followers,
-      user_frames, kernel_frames, std::move(target_filter),
+      kernel_frames, unwind_mode, std::move(target_filter),
       ring_buffer_pages.value(), read_tick_period_ms, samples_per_tick_limit,
       remote_descriptor_timeout_ms, pb_config.unwind_state_clear_period_ms(),
       max_enqueued_footprint_bytes, pb_config.target_installed_by());
+}
+
+// static
+bool EventConfig::IsUserFramesEnabled(
+    const protos::gen::PerfEventConfig::UnwindMode unwind_mode) {
+  using protos::gen::PerfEventConfig;
+  switch (unwind_mode) {
+    case PerfEventConfig::UNWIND_UNKNOWN:
+    // default to true, both for backwards compatibility and because it's
+    // almost always what the user wants.
+    case PerfEventConfig::UNWIND_DWARF:
+    case PerfEventConfig::UNWIND_FRAME_POINTER:
+      return true;
+    case PerfEventConfig::UNWIND_SKIP:
+      return false;
+  }
 }
 
 EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
@@ -540,8 +556,8 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          std::vector<perf_event_attr> pe_followers,
                          const PerfCounter& timebase_event,
                          std::vector<PerfCounter> follower_events,
-                         bool user_frames,
                          bool kernel_frames,
+                         protos::gen::PerfEventConfig::UnwindMode unwind_mode,
                          TargetFilter target_filter,
                          uint32_t ring_buffer_pages,
                          uint32_t read_tick_period_ms,
@@ -554,8 +570,8 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
       perf_event_followers_(std::move(pe_followers)),
       timebase_event_(timebase_event),
       follower_events_(std::move(follower_events)),
-      user_frames_(user_frames),
       kernel_frames_(kernel_frames),
+      unwind_mode_(unwind_mode),
       target_filter_(std::move(target_filter)),
       ring_buffer_pages_(ring_buffer_pages),
       read_tick_period_ms_(read_tick_period_ms),
