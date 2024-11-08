@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {assertExists} from '../base/logging';
-import {Actions} from '../common/actions';
 import {
   JsonSerialize,
   parseAppState,
@@ -26,7 +25,6 @@ import {
   MIME_JSON,
   GcsUploader,
 } from '../common/gcs_uploader';
-import {globals} from './globals';
 import {
   SERIALIZED_STATE_VERSION,
   SerializedAppState,
@@ -36,6 +34,7 @@ import {showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
 import {Router} from '../core/router';
 import {onClickCopy} from './clipboard';
+import {RecordingManager} from '../controller/recording_manager';
 
 // Permalink serialization has two layers:
 // 1. Serialization of the app state (state_serialization.ts):
@@ -83,7 +82,7 @@ async function createPermalinkInternal(
   const permalinkData: PermalinkState = {};
 
   if (opts.mode === 'RECORDING_OPTS') {
-    permalinkData.recordingOpts = globals.state.recordConfig;
+    permalinkData.recordingOpts = RecordingManager.instance.state.recordConfig;
   } else if (opts.mode === 'APP_STATE') {
     // Check if we need to upload the trace file, before serializing the app
     // state.
@@ -170,9 +169,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
   if (permalink.recordingOpts !== undefined) {
     // This permalink state only contains a RecordConfig. Show the
     // recording page with the config, but keep other state as-is.
-    globals.dispatch(
-      Actions.setRecordConfig({config: permalink.recordingOpts}),
-    );
+    RecordingManager.instance.setRecordConfig(permalink.recordingOpts);
     Router.navigate('#!/record');
     return;
   }

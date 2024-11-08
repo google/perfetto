@@ -14,9 +14,9 @@
 
 import {assertExists, assertTrue} from '../../base/logging';
 import {currentDateHourAndMinute} from '../../base/time';
+import {RecordingManager} from '../../controller/recording_manager';
 import {AppImpl} from '../../core/app_impl';
 import {raf} from '../../core/raf_scheduler';
-import {globals} from '../../frontend/globals';
 import {autosaveConfigStore} from '../../frontend/record_config';
 import {
   DEFAULT_ADB_WEBSOCKET_URL,
@@ -24,7 +24,6 @@ import {
 } from '../../frontend/recording/recording_ui_utils';
 import {couldNotClaimInterface} from '../../frontend/recording/reset_interface_modal';
 import {TraceConfig} from '../../protos';
-import {Actions} from '../actions';
 import {TRACE_SUFFIX} from '../constants';
 import {genTraceConfig} from './recording_config_utils';
 import {RecordingError, showRecordingModal} from './recording_error_handling';
@@ -251,6 +250,8 @@ class TracingSessionWrapper {
 // Keeps track of the state the Ui is in. Has methods which are executed on
 // user actions such as starting/stopping/cancelling a tracing session.
 export class RecordingPageController {
+  private recMgr: RecordingManager;
+
   // State of the recording page. This is set by user actions and/or automatic
   // transitions. This is queried by the UI in order to
   private state: RecordingState = RecordingState.NO_TARGET;
@@ -265,6 +266,10 @@ export class RecordingPageController {
   // A counter for state modifications. We use this to ensure that state
   // transitions don't override one another in async functions.
   private stateGeneration = 0;
+
+  constructor(recMgr: RecordingManager) {
+    this.recMgr = recMgr;
+  }
 
   getBufferUsagePercentage(): number {
     return this.bufferUsagePercentage;
@@ -290,7 +295,7 @@ export class RecordingPageController {
       throw new RecordingError('Recording page state transition out of order.');
     }
     this.setState(state);
-    globals.dispatch(Actions.setRecordingStatus({status: undefined}));
+    this.recMgr.setRecordingStatus(undefined);
     raf.scheduleFullRedraw();
   }
 
@@ -322,7 +327,7 @@ export class RecordingPageController {
     // For the 'Recording in progress for 7000ms we don't show a
     // modal.'
     if (message.startsWith(RECORDING_IN_PROGRESS)) {
-      globals.dispatch(Actions.setRecordingStatus({status: message}));
+      this.recMgr.setRecordingStatus(message);
     } else {
       // For messages such as 'Please allow USB debugging on your
       // device, which require a user action, we show a modal.
@@ -422,7 +427,7 @@ export class RecordingPageController {
   onStartRecordingPressed(): void {
     assertTrue(RecordingState.TARGET_INFO_DISPLAYED === this.state);
     location.href = '#!/record/instructions';
-    autosaveConfigStore.save(globals.state.recordConfig);
+    autosaveConfigStore.save(this.recMgr.state.recordConfig);
 
     const target = this.getTarget();
     const targetInfo = target.getInfo();
@@ -430,7 +435,10 @@ export class RecordingPageController {
       'Record Trace',
       `Record trace (${targetInfo.targetType})`,
     );
-    const traceConfig = genTraceConfig(globals.state.recordConfig, targetInfo);
+    const traceConfig = genTraceConfig(
+      this.recMgr.state.recordConfig,
+      targetInfo,
+    );
 
     this.tracingSessionWrapper = this.createTracingSessionWrapper(target);
     this.tracingSessionWrapper.start(traceConfig);
@@ -541,7 +549,7 @@ export class RecordingPageController {
     this.bufferUsagePercentage = 0;
     this.tracingSessionWrapper = undefined;
     this.setState(RecordingState.TARGET_INFO_DISPLAYED);
-    globals.dispatch(Actions.setRecordingStatus({status: undefined}));
+    this.recMgr.setRecordingStatus(undefined);
     // Redrawing because this method has changed the RecordingState, which will
     // affect the display of the record_page.
     raf.scheduleFullRedraw();
