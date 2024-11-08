@@ -281,6 +281,9 @@ export interface QueryResult {
   // first result.
   firstRow<T extends Row>(spec: T): T;
 
+  // Like firstRow() but returns undefined if no rows are available.
+  maybeFirstRow<T extends Row>(spec: T): T | undefined;
+
   // If != undefined the query errored out and error() contains the message.
   error(): string | undefined;
 
@@ -403,6 +406,14 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   firstRow<T extends Row>(spec: T): T {
     const impl = new RowIteratorImplWithRowData(spec, this);
     assertTrue(impl.valid());
+    return impl as {} as RowIterator<T> as T;
+  }
+
+  maybeFirstRow<T extends Row>(spec: T): T | undefined {
+    const impl = new RowIteratorImplWithRowData(spec, this);
+    if (!impl.valid()) {
+      return undefined;
+    }
     return impl as {} as RowIterator<T> as T;
   }
 
@@ -936,6 +947,9 @@ class WaitableQueryResultImpl
   }
   firstRow<T extends Row>(spec: T) {
     return this.impl.firstRow(spec);
+  }
+  maybeFirstRow<T extends Row>(spec: T) {
+    return this.impl.maybeFirstRow(spec);
   }
   waitAllRows() {
     return this.impl.waitAllRows();
