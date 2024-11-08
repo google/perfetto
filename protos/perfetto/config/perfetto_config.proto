@@ -1982,6 +1982,8 @@ message PerfEventConfig {
     UNWIND_SKIP = 1;
     // Use libunwindstack (default):
     UNWIND_DWARF = 2;
+    // Use userspace frame pointer unwinder:
+    UNWIND_FRAME_POINTER = 3;
   }
 }
 
