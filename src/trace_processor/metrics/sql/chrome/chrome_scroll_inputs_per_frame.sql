@@ -21,22 +21,7 @@
 -- The numbers mentioned above are estimates in the ideal case scenario.
 
 INCLUDE PERFETTO MODULE chrome.scroll_jank.utils;
-
--- Checks if slice has a descendant with provided name.
-CREATE OR REPLACE PERFETTO FUNCTION _has_descendant_slice_with_name(
-  -- Id of the slice to check descendants of.
-  id INT,
-  -- Name of potential descendant slice.
-  descendant_name STRING
-)
--- Whether `descendant_name` is a name of an descendant slice.
-RETURNS BOOL AS
-SELECT EXISTS(
-  SELECT 1
-  FROM descendant_slice($id)
-  WHERE name = $descendant_name
-  LIMIT 1
-);
+INCLUDE PERFETTO MODULE common.slices;
 
 -- Grab all GestureScrollUpdate slices.
 DROP VIEW IF EXISTS chrome_all_scroll_updates;
@@ -44,7 +29,7 @@ CREATE PERFETTO VIEW chrome_all_scroll_updates AS
 SELECT
   S.id,
   chrome_get_most_recent_scroll_begin_id(ts) AS scroll_id,
-  _has_descendant_slice_with_name(S.id, "SubmitCompositorFrameToPresentationCompositorFrame")
+  has_descendant_slice_with_name(S.id, "SubmitCompositorFrameToPresentationCompositorFrame")
   AS is_presented,
   ts,
   dur,

@@ -12,6 +12,11 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
---
 
-INCLUDE PERFETTO MODULE deprecated.v42.common.slices;
+-- Extracts an int value with the given name from the metadata table.
+CREATE PERFETTO FUNCTION extract_int_metadata(
+  -- The name of the metadata entry.
+  name STRING)
+-- int_value for the given name. NULL if there's no such entry.
+RETURNS LONG AS
+SELECT int_value FROM metadata WHERE name = ($name);
