@@ -17,16 +17,9 @@ import '../base/disposable_polyfill';
 import '../base/static_initializers';
 import NON_CORE_PLUGINS from '../gen/all_plugins';
 import CORE_PLUGINS from '../gen/all_core_plugins';
-import {Draft} from 'immer';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
-import {Store} from '../base/store';
-import {Actions, DeferredAction, StateActions} from '../common/actions';
-import {traceEvent} from '../core/metatracing';
-import {State} from '../common/state';
-import {initController, runControllers} from '../controller';
-import {isGetCategoriesResponse} from '../controller/chrome_proxy_record_controller';
 import {RECORDING_V2_FLAG, featureFlags} from '../core/feature_flags';
 import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
@@ -40,7 +33,7 @@ import {installFileDropHandler} from './file_drop_handler';
 import {globals} from './globals';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
-import {RecordPage, updateAvailableAdbDevices} from './record_page';
+import {RecordPage} from './record_page';
 import {RecordPageV2} from './record_page_v2';
 import {Route, Router} from '../core/router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
@@ -61,8 +54,6 @@ import {
 import {addVisualizedArgTracks} from './visualized_args_tracks';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
 
-const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
-
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
   name: 'Relax Content Security Policy for 127.0.0.1:*',
@@ -72,14 +63,6 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
     'https://ui.perfetto.dev/#!/?rpc_port=1234',
   defaultValue: false,
 });
-
-function setExtensionAvailability(available: boolean) {
-  globals.dispatch(
-    Actions.setExtensionAvailable({
-      available,
-    }),
-  );
-}
 
 function routeChange(route: Route) {
   raf.scheduleFullRedraw();
@@ -159,47 +142,6 @@ function setupContentSecurityPolicy() {
   document.head.appendChild(meta);
 }
 
-function setupExtentionPort(extensionLocalChannel: MessageChannel) {
-  // We proxy messages between the extension and the controller because the
-  // controller's worker can't access chrome.runtime.
-  const extensionPort =
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    window.chrome && chrome.runtime
-      ? chrome.runtime.connect(EXTENSION_ID)
-      : undefined;
-
-  setExtensionAvailability(extensionPort !== undefined);
-
-  if (extensionPort) {
-    // Send messages to keep-alive the extension port.
-    const interval = setInterval(() => {
-      extensionPort.postMessage({
-        method: 'ExtensionVersion',
-      });
-    }, 25000);
-    extensionPort.onDisconnect.addListener((_) => {
-      setExtensionAvailability(false);
-      clearInterval(interval);
-      void chrome.runtime.lastError; // Needed to not receive an error log.
-    });
-    // This forwards the messages from the extension to the controller.
-    extensionPort.onMessage.addListener(
-      (message: object, _port: chrome.runtime.Port) => {
-        if (isGetCategoriesResponse(message)) {
-          globals.dispatch(Actions.setChromeCategories(message));
-          return;
-        }
-        extensionLocalChannel.port2.postMessage(message);
-      },
-    );
-  }
-
-  // This forwards the messages from the controller to the extension
-  extensionLocalChannel.port2.onmessage = ({data}) => {
-    if (extensionPort) extensionPort.postMessage(data);
-  };
-}
-
 function main() {
   // Setup content security policy before anything else.
   setupContentSecurityPolicy();
@@ -207,7 +149,6 @@ function main() {
   AppImpl.initialize({
     rootUrl: getServingRoot(),
     initialRouteArgs: Router.parseUrl(window.location.href).args,
-    clearState: () => globals.dispatch(Actions.clearState({})),
   });
 
   // Wire up raf for widgets.
@@ -249,20 +190,12 @@ function main() {
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 
-  const extensionLocalChannel = new MessageChannel();
-
   initWasm(globals.root);
-  initController(extensionLocalChannel.port1);
 
   // These need to be set before globals.initialize.
-  globals.initialize(stateActionDispatcher);
+  globals.initialize();
 
   globals.serviceWorkerController.install();
-
-  globals.store.subscribe(scheduleRafAndRunControllersOnStateChange);
-  globals.publishRedraw = () => raf.scheduleFullRedraw();
-
-  setupExtentionPort(extensionLocalChannel);
 
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
@@ -316,20 +249,6 @@ function onCssLoaded() {
     !AppImpl.instance.testingMode
   ) {
     initLiveReload();
-  }
-
-  if (!RECORDING_V2_FLAG.get()) {
-    updateAvailableAdbDevices();
-    try {
-      navigator.usb.addEventListener('connect', () =>
-        updateAvailableAdbDevices(),
-      );
-      navigator.usb.addEventListener('disconnect', () =>
-        updateAvailableAdbDevices(),
-      );
-    } catch (e) {
-      console.error('WebUSB API not supported');
-    }
   }
 
   // Will update the chip on the sidebar footer that notifies that the RPC is
@@ -405,30 +324,6 @@ function maybeChangeRpcPortFromFragment() {
       HttpRpcEngine.rpcPort = route.args.rpc_port;
     }
   }
-}
-
-function stateActionDispatcher(actions: DeferredAction[]) {
-  const edits = actions.map((action) => {
-    return traceEvent(`action.${action.type}`, () => {
-      return (draft: Draft<State>) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (StateActions as any)[action.type](draft, action.args);
-      };
-    });
-  });
-  globals.store.edit(edits);
-}
-
-function scheduleRafAndRunControllersOnStateChange(
-  store: Store<State>,
-  oldState: State,
-) {
-  // Only redraw if something actually changed
-  if (oldState !== store.state) {
-    raf.scheduleFullRedraw();
-  }
-  // Run in a separate task to avoid avoid reentry.
-  setTimeout(runControllers, 0);
 }
 
 // TODO(primiano): this injection is to break a cirular dependency. See

@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Probe, ProbeAttrs} from '../record_widgets';
+import {Probe} from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
 
 export class GpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    const recCfg = attrs.recState.recordConfig;
     return m(
       `.record-section${attrs.cssClass}`,
       m(Probe, {
@@ -26,7 +27,8 @@ export class GpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
         descr: 'Records gpu frequency via ftrace',
         setEnabled: (cfg, val) => (cfg.gpuFreq = val),
         isEnabled: (cfg) => cfg.gpuFreq,
-      } as ProbeAttrs),
+        recCfg,
+      }),
       m(Probe, {
         title: 'GPU memory',
         img: 'rec_gpu_mem_total.png',
@@ -34,7 +36,8 @@ export class GpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
                 (Available on recent Android 12+ kernels)`,
         setEnabled: (cfg, val) => (cfg.gpuMemTotal = val),
         isEnabled: (cfg) => cfg.gpuMemTotal,
-      } as ProbeAttrs),
+        recCfg,
+      }),
       m(Probe, {
         title: 'GPU work period',
         img: 'rec_cpu_voltage.png',
@@ -42,7 +45,8 @@ export class GpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
                 (Available on recent Android 14+ kernels)`,
         setEnabled: (cfg, val) => (cfg.gpuWorkPeriod = val),
         isEnabled: (cfg) => cfg.gpuWorkPeriod,
-      } as ProbeAttrs),
+        recCfg,
+      }),
     );
   }
 }

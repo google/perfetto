@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {base64Encode, utf8Decode} from '../base/string_utils';
+import {RecordingState} from '../common/state';
 import {extractTraceConfig} from '../core/trace_config_utils';
 import {AdbBaseConsumerPort, AdbConnectionState} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
@@ -31,8 +32,8 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
   shellState: AdbShellState = AdbShellState.READY;
   private recordShell?: AdbStream;
 
-  constructor(adb: Adb, consumer: Consumer) {
-    super(adb, consumer);
+  constructor(adb: Adb, consumer: Consumer, recState: RecordingState) {
+    super(adb, consumer, recState);
     this.adb = adb;
   }
 

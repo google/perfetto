@@ -13,31 +13,18 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {createStore, Store} from '../base/store';
-import {DeferredAction} from '../common/actions';
-import {createEmptyState} from '../common/empty_state';
-import {State} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {getServingRoot} from '../base/http_utils';
 import {AppImpl} from '../core/app_impl';
 
-type DispatchMultiple = (actions: DeferredAction[]) => void;
-type TrackDataStore = Map<string, {}>;
-
 /**
  * Global accessors for state/dispatch in the frontend.
  */
 class Globals {
-  private _dispatchMultiple?: DispatchMultiple = undefined;
-  private _store = createStore<State>(createEmptyState());
   private _serviceWorkerController?: ServiceWorkerController = undefined;
 
-  // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
-  private _trackDataStore?: TrackDataStore = undefined;
-  private _bufferUsage?: number = undefined;
-  private _recordingLog?: string = undefined;
   httpRpcState: HttpRpcState = {connected: false};
   showPanningHint = false;
 
@@ -46,42 +33,14 @@ class Globals {
   // internal_user script.
   private _isInternalUser: boolean | undefined = undefined;
 
-  // TODO(hjd): Remove once we no longer need to update UUID on redraw.
-  private _publishRedraw?: () => void = undefined;
-
-  initialize(dispatchMultiple: DispatchMultiple) {
-    this._dispatchMultiple = dispatchMultiple;
-
+  initialize() {
     this._serviceWorkerController = new ServiceWorkerController(
       getServingRoot(),
     );
-
-    // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
-    // TODO(primiano): for posterity: these assignments below are completely
-    // pointless and could be done as member variable initializers, as
-    // initialize() is only called ever once. (But then i'm going to kill this
-    // entire file soon).
-    this._trackDataStore = new Map<string, {}>();
   }
 
   get root() {
     return AppImpl.instance.rootUrl;
-  }
-
-  get publishRedraw(): () => void {
-    return this._publishRedraw || (() => {});
-  }
-
-  set publishRedraw(f: () => void) {
-    this._publishRedraw = f;
-  }
-
-  get state(): State {
-    return this._store.state;
-  }
-
-  get store(): Store<State> {
-    return this._store;
   }
 
   // WARNING: do not change/rename/move without considering impact on the
@@ -90,42 +49,8 @@ class Globals {
     return AppImpl.instance.extraSqlPackages;
   }
 
-  dispatch(action: DeferredAction) {
-    this.dispatchMultiple([action]);
-  }
-
-  dispatchMultiple(actions: DeferredAction[]) {
-    assertExists(this._dispatchMultiple)(actions);
-  }
-
   get serviceWorkerController() {
     return assertExists(this._serviceWorkerController);
-  }
-
-  // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
-
-  get trackDataStore(): TrackDataStore {
-    return assertExists(this._trackDataStore);
-  }
-
-  get bufferUsage() {
-    return this._bufferUsage;
-  }
-
-  get recordingLog() {
-    return this._recordingLog;
-  }
-
-  setBufferUsage(bufferUsage: number) {
-    this._bufferUsage = bufferUsage;
-  }
-
-  setTrackData(id: string, data: {}) {
-    this.trackDataStore.set(id, data);
-  }
-
-  setRecordingLog(recordingLog: string) {
-    this._recordingLog = recordingLog;
   }
 
   // This variable is set by the is_internal_user.js script if the user is a

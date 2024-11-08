@@ -39,10 +39,6 @@ import {setPerfHooks} from './perf';
 export interface AppInitArgs {
   rootUrl: string;
   initialRouteArgs: RouteArgs;
-
-  // TODO(primiano): remove once State is gone.
-  // This maps to globals.dispatch(Actions.clearState({})),
-  clearState: () => void;
 }
 
 /**
@@ -119,7 +115,6 @@ export class AppContext {
       this.currentTrace[Symbol.dispose]();
       this.currentTrace = undefined;
     }
-    this.initArgs.clearState();
   }
 
   // Called by trace_loader.ts soon after it has created a new TraceImpl.

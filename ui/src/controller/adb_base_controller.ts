@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import {exists} from '../base/utils';
-import {isAdbTarget} from '../common/state';
+import {RecordingState, RecordingTarget, isAdbTarget} from '../common/state';
 import {
   extractDurationFromTraceConfig,
   extractTraceConfig,
 } from '../core/trace_config_utils';
-import {globals} from '../frontend/globals';
 import {Adb} from './adb_interfaces';
 import {ReadBuffersResponse} from './consumer_port_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
@@ -44,10 +43,16 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
   protected adb: Adb;
   protected state = AdbConnectionState.READY_TO_CONNECT;
   protected device?: USBDevice;
+  protected recState: RecordingState;
 
-  protected constructor(adb: Adb, consumer: Consumer) {
+  protected constructor(
+    adb: Adb,
+    consumer: Consumer,
+    recState: RecordingState,
+  ) {
     super(consumer);
     this.adb = adb;
+    this.recState = recState;
   }
 
   async handleCommand(method: string, params: Uint8Array) {
@@ -74,10 +79,10 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
         this.deviceDisconnected()
       ) {
         this.state = AdbConnectionState.AUTH_IN_PROGRESS;
-        this.device = await this.findDevice();
+        this.device = await this.findDevice(this.recState.recordingTarget);
         if (!this.device) {
           this.state = AdbConnectionState.READY_TO_CONNECT;
-          const target = globals.state.recordingTarget;
+          const target = this.recState.recordingTarget;
           throw Error(
             `Device with serial ${
               isAdbTarget(target) ? target.serial : 'n/a'
@@ -91,7 +96,7 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
         await this.adb.connect(this.device);
 
         // During the authentication the device may have been disconnected.
-        if (!globals.state.recordingInProgress || this.deviceDisconnected()) {
+        if (!this.recState.recordingInProgress || this.deviceDisconnected()) {
           throw Error('Recording not in progress after adb authorization.');
         }
 
@@ -140,9 +145,10 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
     };
   }
 
-  async findDevice(): Promise<USBDevice | undefined> {
+  async findDevice(
+    connectedDevice: RecordingTarget,
+  ): Promise<USBDevice | undefined> {
     if (!('usb' in navigator)) return undefined;
-    const connectedDevice = globals.state.recordingTarget;
     if (!isAdbTarget(connectedDevice)) return undefined;
     const devices = await navigator.usb.getDevices();
     return devices.find((d) => d.serialNumber === connectedDevice.serial);

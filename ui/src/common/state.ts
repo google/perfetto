@@ -43,7 +43,13 @@ export type LoadedConfig =
   | LoadedConfigAutomatic
   | LoadedConfigNamed;
 
-export interface State {
+export interface RecordCommand {
+  commandline: string;
+  pbtxt: string;
+  pbBase64: string;
+}
+
+export interface RecordingState {
   /**
    * State of the ConfigEditor.
    */
@@ -63,6 +69,10 @@ export interface State {
 
   fetchChromeCategories: boolean;
   chromeCategories: string[] | undefined;
+
+  bufferUsage: number;
+  recordingLog: string;
+  recordCmd?: RecordCommand;
 }
 
 export declare type RecordMode =
@@ -87,7 +97,7 @@ export function isAndroidP(target: RecordingTarget) {
 }
 
 export function isAndroidTarget(target: RecordingTarget) {
-  return ['Q', 'P', 'O'].includes(target.os);
+  return ['Q', 'P', 'O', 'S'].includes(target.os);
 }
 
 export function isChromeTarget(target: RecordingTarget) {
