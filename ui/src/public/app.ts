@@ -44,8 +44,6 @@ export interface App {
    */
   readonly initialRouteArgs: RouteArgs;
 
-  readonly rootUrl: string;
-
   /**
    * Returns the current trace object, if any. The instance being returned is
    * bound to the same plugin of App.pluginId.

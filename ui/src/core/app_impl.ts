@@ -33,11 +33,11 @@ import {createProxy, getOrCreate} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {PageHandler} from '../public/page';
 import {setPerfHooks} from './perf';
+import {ServiceWorkerController} from '../frontend/service_worker_controller';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
 export interface AppInitArgs {
-  rootUrl: string;
   initialRouteArgs: RouteArgs;
 }
 
@@ -58,7 +58,11 @@ export class AppContext {
   readonly sidebarMgr: SidebarManagerImpl;
   readonly pluginMgr: PluginManagerImpl;
   readonly analytics: AnalyticsInternal;
-  newEngineMode: NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE';
+  readonly serviceWorkerController: ServiceWorkerController;
+  httpRpc = {
+    newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
+    httpRpcAvailable: false,
+  };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
   perfDebugging = false; // Enables performance debugging of tracks/panels.
@@ -81,15 +85,12 @@ export class AppContext {
     this.sidebarMgr = new SidebarManagerImpl({
       sidebarEnabled: !this.initialRouteArgs.hideSidebar,
     });
+    this.serviceWorkerController = new ServiceWorkerController();
     this.embeddedMode = this.initialRouteArgs.mode === 'embedded';
     this.testingMode =
       self.location !== undefined &&
       self.location.search.indexOf('testing=1') >= 0;
     this.analytics = initAnalytics(this.testingMode, this.embeddedMode);
-    // The rootUrl should point to 'https://ui.perfetto.dev/v1.2.3/'. It's
-    // allowed to be empty only in unittests, because there there is no bundle
-    // hence no concrete root.
-    assertTrue(this.initArgs.rootUrl !== '' || typeof jest !== 'undefined');
     this.pluginMgr = new PluginManagerImpl({
       forkForPlugin: (pluginId) => this.forPlugin(pluginId),
       get trace() {
@@ -202,12 +203,8 @@ export class AppImpl implements App {
     raf.scheduleFullRedraw();
   }
 
-  get newEngineMode() {
-    return this.appCtx.newEngineMode;
-  }
-
-  set newEngineMode(mode: NewEngineMode) {
-    this.appCtx.newEngineMode = mode;
+  get httpRpc() {
+    return this.appCtx.httpRpc;
   }
 
   get initialRouteArgs(): RouteArgs {
@@ -275,10 +272,6 @@ export class AppImpl implements App {
     return this.appCtx.isLoadingTrace;
   }
 
-  get rootUrl() {
-    return this.appCtx.initArgs.rootUrl;
-  }
-
   get extraSqlPackages(): SqlPackage[] {
     return this.appCtx.extraSqlPackages;
   }
@@ -294,6 +287,10 @@ export class AppImpl implements App {
       () => this.setPerfDebuggingEnabled(!this.perfDebugging),
     );
     raf.scheduleFullRedraw();
+  }
+
+  get serviceWorkerController(): ServiceWorkerController {
+    return this.appCtx.serviceWorkerController;
   }
 
   // Nothing other than TraceImpl's constructor should ever refer to this.

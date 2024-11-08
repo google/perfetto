@@ -18,7 +18,6 @@ import {VERSION} from '../gen/perfetto_version';
 import {StatusResult, TraceProcessorApiVersion} from '../protos';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
-import {publishHttpRpcState} from './publish';
 import {AppImpl} from '../core/app_impl';
 
 const CURRENT_API_VERSION =
@@ -151,7 +150,7 @@ Trace processor RPC API: ${tpStatus.apiVersion}
 // having to open a trace).
 export async function CheckHttpRpcConnection(): Promise<void> {
   const state = await HttpRpcEngine.checkConnection();
-  publishHttpRpcState(state);
+  AppImpl.instance.httpRpc.httpRpcAvailable = state.connected;
   if (!state.connected) {
     // No RPC = exit immediately to the WASM UI.
     return;
@@ -159,7 +158,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   const tpStatus = assertExists(state.status);
 
   function forceWasm() {
-    AppImpl.instance.newEngineMode = 'FORCE_BUILTIN_WASM';
+    AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
   }
 
   // Check short version:

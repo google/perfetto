@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assetSrc} from '../base/assets';
 import {download} from '../base/clipboard';
 import {defer} from '../base/deferred';
 import {ErrorDetails} from '../base/logging';
@@ -19,7 +20,6 @@ import {utf8Decode} from '../base/string_utils';
 import {time} from '../base/time';
 import {AppImpl} from '../core/app_impl';
 import {maybeShowErrorDialog} from './error_dialog';
-import {globals} from './globals';
 
 type Args =
   | UpdateStatusArgs
@@ -83,7 +83,7 @@ async function makeWorkerAndPost(
     }
   }
 
-  const worker = new Worker(globals.root + 'traceconv_bundle.js');
+  const worker = new Worker(assetSrc('traceconv_bundle.js'));
   worker.onmessage = handleOnMessage;
   worker.postMessage(msg);
   return promise;
