@@ -32,6 +32,7 @@ import {AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {createProxy, getOrCreate} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {PageHandler} from '../public/page';
+import {setPerfHooks} from './perf';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -64,6 +65,7 @@ export class AppContext {
   newEngineMode: NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE';
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
+  perfDebugging = false; // Enables performance debugging of tracks/panels.
   readonly initArgs: AppInitArgs;
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
@@ -284,6 +286,19 @@ export class AppImpl implements App {
 
   get extraSqlPackages(): SqlPackage[] {
     return this.appCtx.extraSqlPackages;
+  }
+
+  get perfDebugging(): boolean {
+    return this.appCtx.perfDebugging;
+  }
+
+  setPerfDebuggingEnabled(enabled: boolean) {
+    this.appCtx.perfDebugging = enabled;
+    setPerfHooks(
+      () => this.perfDebugging,
+      () => this.setPerfDebuggingEnabled(!this.perfDebugging),
+    );
+    raf.scheduleFullRedraw();
   }
 
   // Nothing other than TraceImpl's constructor should ever refer to this.
