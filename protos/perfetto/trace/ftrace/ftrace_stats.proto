@@ -61,6 +61,17 @@ message FtraceCpuStats {
   optional uint64 read_events = 9;
 }
 
+// Kprobe statistical data, gathered from /sys/kernel/tracing/kprobe_profile.
+message FtraceKprobeStats {
+  // Cumulative number of kprobe events generated for this function
+  optional int64 hits = 1;
+  // Cumulative number of kprobe events that could not be generated for this
+  // function and were missed.  This happens when too much nesting
+  // happens between a kprobe and its kretprobe, overflowing the
+  // maxactives buffer.
+  optional int64 misses = 2;
+}
+
 // Errors and kernel buffer stats for the ftrace data source.
 message FtraceStats {
   enum Phase {
@@ -112,6 +123,9 @@ message FtraceStats {
   // Any traces with entries in this field should be investigated, as they
   // indicate a bug in perfetto or the kernel.
   repeated FtraceParseStatus ftrace_parse_errors = 9;
+
+  // Kprobe profile stats for functions hits and misses
+  optional FtraceKprobeStats kprobe_stats = 10;
 }
 
 enum FtraceParseStatus {

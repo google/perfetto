@@ -61,6 +61,9 @@ class FtraceProcfs {
   // Remove kprobe event from the system
   bool RemoveKprobeEvent(const std::string& group, const std::string& name);
 
+  // Read the "kprobe_profile" file.
+  std::string ReadKprobeStats() const;
+
   // Disable the event under with the given |group| and |name|.
   bool DisableEvent(const std::string& group, const std::string& name);
 
