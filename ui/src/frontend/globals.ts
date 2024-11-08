@@ -14,10 +14,9 @@
 
 import {assertExists} from '../base/logging';
 import {createStore, Store} from '../base/store';
-import {Actions, DeferredAction} from '../common/actions';
+import {DeferredAction} from '../common/actions';
 import {createEmptyState} from '../common/empty_state';
 import {State} from '../common/state';
-import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
@@ -52,11 +51,6 @@ class Globals {
 
   initialize(dispatchMultiple: DispatchMultiple) {
     this._dispatchMultiple = dispatchMultiple;
-
-    setPerfHooks(
-      () => this.state.perfDebug,
-      () => this.dispatch(Actions.togglePerfDebug({})),
-    );
 
     this._serviceWorkerController = new ServiceWorkerController(
       getServingRoot(),

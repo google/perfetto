@@ -16,12 +16,6 @@ import {RecordConfig} from '../controller/record_config_types';
 
 export const MAX_TIME = 180;
 
-export interface QueryConfig {
-  id: string;
-  engineId?: string;
-  query: string;
-}
-
 export interface RecordingTarget {
   name: string;
   os: TargetOs;
@@ -55,9 +49,6 @@ export interface State {
    */
   recordConfig: RecordConfig;
   lastLoadedConfig: LoadedConfig;
-
-  // Show track perf debugging overlay
-  perfDebug: boolean;
 
   /**
    * Trace recording

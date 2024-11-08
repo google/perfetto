@@ -97,10 +97,6 @@ export const StateActions = {
     state.recordingStatus = args.status;
     state.lastRecordingError = undefined;
   },
-
-  togglePerfDebug(state: StateDraft, _: {}): void {
-    state.perfDebug = !state.perfDebug;
-  },
 };
 
 // When we are on the frontend side, we don't really want to execute the
