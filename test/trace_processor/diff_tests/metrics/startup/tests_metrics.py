@@ -105,6 +105,7 @@ class StartupMetrics(TestSuite):
            }
            battery_aggregates {
               avg_power_mw: 9497.722222222223
+              energy_usage_estimate: 1.3017599999999998
            }
         }
         """))
