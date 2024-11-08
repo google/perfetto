@@ -1,4 +1,4 @@
-// Copyright (C) 2021 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {raf} from '../core/raf_scheduler';
-import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-import {globals} from './globals';
+import {getServingRoot} from './http_utils';
 
-export function publishHttpRpcState(httpRpcState: HttpRpcState) {
-  globals.httpRpcState = httpRpcState;
-  raf.scheduleFullRedraw();
+let rootUrl = '';
+
+/**
+ * This function must be called once while bootstrapping in a direct script
+ * context (i.e. not a promise or callback). Typically frontend/index.ts.
+ */
+export function initAssets() {
+  rootUrl = getServingRoot();
 }
 
-export function publishShowPanningHint() {
-  globals.showPanningHint = true;
-  raf.scheduleFullRedraw();
+/**
+ * Returns the absolute url of an asset.
+ * assetSrc('assets/image.jpg') -> '/v123-deadbef/assets/image.png';
+ */
+export function assetSrc(relPath: string) {
+  return rootUrl + relPath;
 }

@@ -12,45 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
-import {ServiceWorkerController} from './service_worker_controller';
-import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-import {getServingRoot} from '../base/http_utils';
 import {AppImpl} from '../core/app_impl';
 
 /**
  * Global accessors for state/dispatch in the frontend.
  */
 class Globals {
-  private _serviceWorkerController?: ServiceWorkerController = undefined;
-
-  httpRpcState: HttpRpcState = {connected: false};
-  showPanningHint = false;
-
   // This is normally undefined is injected in via is_internal_user.js.
   // WARNING: do not change/rename/move without considering impact on the
   // internal_user script.
   private _isInternalUser: boolean | undefined = undefined;
 
-  initialize() {
-    this._serviceWorkerController = new ServiceWorkerController(
-      getServingRoot(),
-    );
-  }
-
-  get root() {
-    return AppImpl.instance.rootUrl;
-  }
-
   // WARNING: do not change/rename/move without considering impact on the
   // internal_user script.
   get extraSqlPackages() {
     return AppImpl.instance.extraSqlPackages;
-  }
-
-  get serviceWorkerController() {
-    return assertExists(this._serviceWorkerController);
   }
 
   // This variable is set by the is_internal_user.js script if the user is a

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../../frontend/globals';
+import {assetSrc} from '../../../base/assets';
 import {AdbKey} from './adb_auth';
 
 function isPasswordCredential(
@@ -37,7 +37,7 @@ export async function maybeStoreKey(key: AdbKey): Promise<void> {
     id: 'webusb-adb-key',
     password: key.serializeKey(),
     name: 'WebUSB ADB Key',
-    iconURL: `${globals.root}assets/favicon.png`,
+    iconURL: assetSrc('assets/favicon.png'),
   });
   // The 'Save password?' Chrome dialogue only appears if the key is
   // not already stored in Chrome.

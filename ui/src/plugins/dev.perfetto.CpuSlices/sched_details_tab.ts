@@ -34,6 +34,7 @@ import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {ThreadDesc, ThreadMap} from '../dev.perfetto.Thread/threads';
+import {assetSrc} from '../../base/assets';
 
 const MIN_NORMAL_SCHED_PRIORITY = 100;
 
@@ -112,7 +113,7 @@ export class SchedSliceDetailsPanel implements TrackEventDetailsPanel {
       m(
         '.slice-details-latency-panel',
         m('img.slice-details-image', {
-          src: `${this.trace.rootUrl}assets/scheduling_latency.png`,
+          src: assetSrc('assets/scheduling_latency.png'),
         }),
         this.renderWakeupText(data),
         this.renderDisplayLatencyText(data),
