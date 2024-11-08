@@ -189,6 +189,8 @@ class FtraceController {
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
 };
 
+bool DumpKprobeStats(const std::string& text, FtraceStats* ftrace_stats);
+
 }  // namespace perfetto
 
 #endif  // SRC_TRACED_PROBES_FTRACE_FTRACE_CONTROLLER_H_

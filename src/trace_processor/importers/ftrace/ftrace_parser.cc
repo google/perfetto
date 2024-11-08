@@ -660,6 +660,28 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
     }
   }
 
+  protos::pbzero::FtraceKprobeStats::Decoder kprobe_stats(evt.kprobe_stats());
+  storage->SetStats(stats::ftrace_kprobe_hits_begin + phase,
+                    kprobe_stats.hits());
+  storage->SetStats(stats::ftrace_kprobe_misses_begin + phase,
+                    kprobe_stats.misses());
+  if (is_end) {
+    auto kprobe_hits_begin = storage->GetStats(stats::ftrace_kprobe_hits_begin);
+    auto kprobe_hits_end = kprobe_stats.hits();
+    if (kprobe_hits_begin) {
+      int64_t delta_hits = kprobe_hits_end - kprobe_hits_begin;
+      storage->SetStats(stats::ftrace_kprobe_hits_delta, delta_hits);
+    }
+
+    auto kprobe_misses_begin =
+        storage->GetStats(stats::ftrace_kprobe_misses_begin);
+    auto kprobe_misses_end = kprobe_stats.misses();
+    if (kprobe_misses_begin) {
+      int64_t delta_misses = kprobe_misses_end - kprobe_misses_begin;
+      storage->SetStats(stats::ftrace_kprobe_misses_delta, delta_misses);
+    }
+  }
+
   // Compute atrace + ftrace setup errors. We do two things here:
   // 1. We add up all the errors and put the counter in the stats table (which
   //    can hold only numerals).
