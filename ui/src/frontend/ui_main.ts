@@ -18,7 +18,6 @@ import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {Actions} from '../common/actions';
 import {
   DurationPrecision,
   setDurationPrecision,
@@ -31,7 +30,6 @@ import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog, showModal} from '../widgets/modal';
 import {CookieConsent} from './cookie_consent';
-import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
@@ -173,9 +171,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.TogglePerformanceMetrics',
         name: 'Toggle performance metrics',
-        callback: () => {
-          globals.dispatch(Actions.togglePerfDebug({}));
-        },
+        callback: () => app.setPerfDebuggingEnabled(!app.perfDebugging),
       },
       {
         id: 'perfetto.ShareTrace',
@@ -656,7 +652,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         children,
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
-        globals.state.perfDebug && m('.perf-stats'),
+        AppImpl.instance.perfDebugging && m('.perf-stats'),
       ),
     );
   }

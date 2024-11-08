@@ -36,8 +36,6 @@ export function createEmptyState(): State {
       : createEmptyRecordConfig(),
     lastLoadedConfig: {type: 'NONE'},
 
-    perfDebug: false,
-
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
