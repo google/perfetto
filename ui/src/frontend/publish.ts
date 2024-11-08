@@ -16,27 +16,12 @@ import {raf} from '../core/raf_scheduler';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {globals} from './globals';
 
-export function publishTrackData(args: {id: string; data: {}}) {
-  globals.setTrackData(args.id, args.data);
-  raf.scheduleRedraw();
-}
-
 export function publishHttpRpcState(httpRpcState: HttpRpcState) {
   globals.httpRpcState = httpRpcState;
   raf.scheduleFullRedraw();
 }
 
-export function publishBufferUsage(args: {percentage: number}) {
-  globals.setBufferUsage(args.percentage);
-  globals.publishRedraw();
-}
-
-export function publishRecordingLog(args: {logs: string}) {
-  globals.setRecordingLog(args.logs);
-  globals.publishRedraw();
-}
-
 export function publishShowPanningHint() {
   globals.showPanningHint = true;
-  globals.publishRedraw();
+  raf.scheduleFullRedraw();
 }

@@ -12,24 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {produce} from 'immer';
 import m from 'mithril';
-import {Actions} from '../../common/actions';
 import {DataSource} from '../../common/recordingV2/recording_interfaces_v2';
-import {getBuiltinChromeCategoryList, isChromeTarget} from '../../common/state';
+import {
+  RecordingState,
+  getBuiltinChromeCategoryList,
+  isChromeTarget,
+} from '../../common/state';
 import {
   MultiSelect,
   MultiSelectDiff,
   Option as MultiSelectOption,
 } from '../../widgets/multiselect';
 import {Section} from '../../widgets/section';
-import {globals} from '../globals';
-import {
-  CategoryGetter,
-  CompactProbe,
-  Toggle,
-  ToggleAttrs,
-} from '../record_widgets';
+import {CategoryGetter, CompactProbe, Toggle} from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
 
 function extractChromeCategories(
@@ -46,26 +42,28 @@ function extractChromeCategories(
 class ChromeCategoriesSelection
   implements m.ClassComponent<RecordingSectionAttrs>
 {
+  private recState: RecordingState;
   private defaultCategoryOptions: MultiSelectOption[] | undefined = undefined;
   private disabledByDefaultCategoryOptions: MultiSelectOption[] | undefined =
     undefined;
 
-  static updateValue(attrs: CategoryGetter, diffs: MultiSelectDiff[]) {
-    const traceCfg = produce(globals.state.recordConfig, (draft) => {
-      const values = attrs.get(draft);
-      for (const diff of diffs) {
-        const value = diff.id;
-        const index = values.indexOf(value);
-        const enabled = diff.checked;
-        if (enabled && index === -1) {
-          values.push(value);
-        }
-        if (!enabled && index !== -1) {
-          values.splice(index, 1);
-        }
+  constructor({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    this.recState = attrs.recState;
+  }
+
+  private updateValue(attrs: CategoryGetter, diffs: MultiSelectDiff[]) {
+    const values = attrs.get(this.recState.recordConfig);
+    for (const diff of diffs) {
+      const value = diff.id;
+      const index = values.indexOf(value);
+      const enabled = diff.checked;
+      if (enabled && index === -1) {
+        values.push(value);
       }
-    });
-    globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
+      if (!enabled && index !== -1) {
+        values.splice(index, 1);
+      }
+    }
   }
 
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
@@ -83,12 +81,12 @@ class ChromeCategoriesSelection
       // back to an integrated list of categories from a recent version of
       // Chrome.
       const enabled = new Set(
-        categoryConfigGetter.get(globals.state.recordConfig),
+        categoryConfigGetter.get(this.recState.recordConfig),
       );
       let categories =
-        globals.state.chromeCategories ||
+        attrs.recState.chromeCategories ||
         extractChromeCategories(attrs.dataSources);
-      if (!categories || !isChromeTarget(globals.state.recordingTarget)) {
+      if (!categories || !isChromeTarget(attrs.recState.recordingTarget)) {
         categories = getBuiltinChromeCategoryList();
       }
       this.defaultCategoryOptions = [];
@@ -139,7 +137,7 @@ class ChromeCategoriesSelection
                 }
               }
             });
-            ChromeCategoriesSelection.updateValue(categoryConfigGetter, diffs);
+            this.updateValue(categoryConfigGetter, diffs);
           },
         }),
       ),
@@ -161,7 +159,7 @@ class ChromeCategoriesSelection
                 }
               }
             });
-            ChromeCategoriesSelection.updateValue(categoryConfigGetter, diffs);
+            this.updateValue(categoryConfigGetter, diffs);
           },
         }),
       ),
@@ -171,57 +169,68 @@ class ChromeCategoriesSelection
 
 export class ChromeSettings implements m.ClassComponent<RecordingSectionAttrs> {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    const recCfg = attrs.recState.recordConfig;
     return m(
       `.record-section${attrs.cssClass}`,
       CompactProbe({
         title: 'Task scheduling',
         setEnabled: (cfg, val) => (cfg.taskScheduling = val),
         isEnabled: (cfg) => cfg.taskScheduling,
+        recCfg,
       }),
       CompactProbe({
         title: 'IPC flows',
         setEnabled: (cfg, val) => (cfg.ipcFlows = val),
         isEnabled: (cfg) => cfg.ipcFlows,
+        recCfg,
       }),
       CompactProbe({
         title: 'Javascript execution',
         setEnabled: (cfg, val) => (cfg.jsExecution = val),
         isEnabled: (cfg) => cfg.jsExecution,
+        recCfg,
       }),
       CompactProbe({
         title: 'Web content rendering, layout and compositing',
         setEnabled: (cfg, val) => (cfg.webContentRendering = val),
         isEnabled: (cfg) => cfg.webContentRendering,
+        recCfg,
       }),
       CompactProbe({
         title: 'UI rendering & surface compositing',
         setEnabled: (cfg, val) => (cfg.uiRendering = val),
         isEnabled: (cfg) => cfg.uiRendering,
+        recCfg,
       }),
       CompactProbe({
         title: 'Input events',
         setEnabled: (cfg, val) => (cfg.inputEvents = val),
         isEnabled: (cfg) => cfg.inputEvents,
+        recCfg,
       }),
       CompactProbe({
         title: 'Navigation & Loading',
         setEnabled: (cfg, val) => (cfg.navigationAndLoading = val),
         isEnabled: (cfg) => cfg.navigationAndLoading,
+        recCfg,
       }),
       CompactProbe({
         title: 'Chrome Logs',
         setEnabled: (cfg, val) => (cfg.chromeLogs = val),
         isEnabled: (cfg) => cfg.chromeLogs,
+        recCfg,
       }),
       CompactProbe({
         title: 'Audio',
         setEnabled: (cfg, val) => (cfg.audio = val),
         isEnabled: (cfg) => cfg.audio,
+        recCfg,
       }),
       CompactProbe({
         title: 'Video',
         setEnabled: (cfg, val) => (cfg.video = val),
         isEnabled: (cfg) => cfg.video,
+        recCfg,
       }),
       m(Toggle, {
         title: 'Remove untyped and sensitive data like URLs from the trace',
@@ -230,7 +239,8 @@ export class ChromeSettings implements m.ClassComponent<RecordingSectionAttrs> {
           ' with third-parties.',
         setEnabled: (cfg, val) => (cfg.chromePrivacyFiltering = val),
         isEnabled: (cfg) => cfg.chromePrivacyFiltering,
-      } as ToggleAttrs),
+        recCfg,
+      }),
       m(ChromeCategoriesSelection, attrs),
     );
   }

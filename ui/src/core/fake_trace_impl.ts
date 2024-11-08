@@ -34,7 +34,6 @@ export function initializeAppImplForTesting(): AppImpl {
     AppImpl.initialize({
       rootUrl: getServingRoot(), // NOTE: will be '' in unittests.
       initialRouteArgs: {},
-      clearState: () => {},
     });
   }
   return AppImpl.instance;

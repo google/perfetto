@@ -12,28 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyRecordConfig} from '../controller/record_config_types';
-import {featureFlags} from '../core/feature_flags';
 import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
-import {State} from './state';
+import {RecordingState} from './state';
 
-const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
-  id: 'autoloadStartedConfig',
-  name: 'Auto-load last used recording config',
-  description:
-    'Starting a recording automatically saves its configuration. ' +
-    'This flag controls whether this config is automatically loaded.',
-  defaultValue: true,
-});
-
-export function createEmptyState(): State {
+export function createEmptyState(): RecordingState {
   return {
-    recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()
-      ? autosaveConfigStore.get()
-      : createEmptyRecordConfig(),
+    recordConfig: autosaveConfigStore.get(),
     lastLoadedConfig: {type: 'NONE'},
 
     recordingInProgress: false,
@@ -44,5 +31,7 @@ export function createEmptyState(): State {
 
     fetchChromeCategories: false,
     chromeCategories: undefined,
+    bufferUsage: 0,
+    recordingLog: '',
   };
 }
