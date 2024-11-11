@@ -58,6 +58,7 @@ import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
 import {Chip, ChipBar} from '../../widgets/chip';
 import {TrackWidget} from '../../widgets/track_widget';
 import {scheduleFullRedraw} from '../../widgets/raf';
+import {CopyableLink} from '../../widgets/copyable_link';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -779,6 +780,17 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           ),
         initialOpts: {
           icon: true,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'CopyableLink',
+        renderWidget: ({noicon}) =>
+          m(CopyableLink, {
+            noicon: arg(noicon, true),
+            url: 'https://perfetto.dev/docs/',
+          }),
+        initialOpts: {
+          noicon: false,
         },
       }),
       m(WidgetShowcase, {
