@@ -492,7 +492,7 @@ class ChromeScrollJankMetrics(TestSuite):
         INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
 
         SELECT
-          HAS_DESCENDANT_SLICE_WITH_NAME(
+          _HAS_DESCENDANT_SLICE_WITH_NAME(
             (SELECT id from slice where dur = 60156000),
             'SwapEndToPresentationCompositorFrame') AS has_descendant;
         """,
@@ -510,7 +510,7 @@ class ChromeScrollJankMetrics(TestSuite):
         INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
 
         SELECT
-          HAS_DESCENDANT_SLICE_WITH_NAME(
+          _HAS_DESCENDANT_SLICE_WITH_NAME(
             (SELECT id from slice where dur = 77247000),
             'SwapEndToPresentationCompositorFrame') AS has_descendant;
         """,
