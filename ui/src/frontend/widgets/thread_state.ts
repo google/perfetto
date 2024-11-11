@@ -58,6 +58,6 @@ export function threadStateRef(state: ThreadState): m.Child {
   if (state.thread === undefined) return null;
 
   return m(ThreadStateRef, {
-    id: state.threadStateSqlId,
+    id: state.id,
   });
 }
