@@ -227,12 +227,7 @@ export class RecordController implements Consumer {
       }
       this.recMgr.setFetchChromeCategories(false);
     }
-    if (
-      this.state.recordConfig === this.config &&
-      this.state.recordingInProgress === this.recordingInProgress
-    ) {
-      return;
-    }
+
     this.config = this.state.recordConfig;
 
     const configProto = genConfigProto(this.config, this.state.recordingTarget);
