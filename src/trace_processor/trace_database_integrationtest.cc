@@ -501,7 +501,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
   for (int repeat = 0; repeat < 3; repeat++) {
     ASSERT_EQ(RestoreInitialTables(), 0u);
     {
-      auto it = Query("INCLUDE PERFETTO MODULE common.timestamps;");
+      auto it = Query("INCLUDE PERFETTO MODULE time.conversion;");
       it.Next();
       ASSERT_TRUE(it.Status().ok());
     }

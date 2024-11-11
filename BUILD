@@ -2974,37 +2974,11 @@ perfetto_filegroup(
     srcs = glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"]),
 )
 
-# GN target: //src/trace_processor/perfetto_sql/stdlib/common:common
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_common_common",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/common/args.sql",
-        "src/trace_processor/perfetto_sql/stdlib/common/counters.sql",
-        "src/trace_processor/perfetto_sql/stdlib/common/metadata.sql",
-        "src/trace_processor/perfetto_sql/stdlib/common/percentiles.sql",
-        "src/trace_processor/perfetto_sql/stdlib/common/slices.sql",
-        "src/trace_processor/perfetto_sql/stdlib/common/timestamps.sql",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/stdlib/counters:counters
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_counters_counters",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/counters/intervals.sql",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common:common
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_deprecated_v42_common_common",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/args.sql",
-        "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/counters.sql",
-        "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/metadata.sql",
-        "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/percentiles.sql",
-        "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/slices.sql",
-        "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/timestamps.sql",
     ],
 )
 
@@ -3242,9 +3216,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_winscope_winscope",
         ":src_trace_processor_perfetto_sql_stdlib_callstacks_callstacks",
         ":src_trace_processor_perfetto_sql_stdlib_chrome_chrome_sql",
-        ":src_trace_processor_perfetto_sql_stdlib_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_counters_counters",
-        ":src_trace_processor_perfetto_sql_stdlib_deprecated_v42_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_export_export",
         ":src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
         ":src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
