@@ -117,8 +117,6 @@ from diff_tests.stdlib.android.memory import AndroidMemory
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.tests import AndroidStdlib
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
-from diff_tests.stdlib.common.tests import StdlibCommon
-from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.export.tests import ExportTests
@@ -326,7 +324,6 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Pkvm(index_path, 'stdlib/pkvm', 'Pkvm').fetch(),
       *PreludeSlices(index_path, 'stdlib/prelude', 'PreludeSlices').fetch(),
       *StdlibSmoke(index_path, 'stdlib', 'StdlibSmoke').fetch(),
-      *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
       *Slices(index_path, 'stdlib/slices', 'Slices').fetch(),
       *SpanJoinLeftJoin(index_path, 'stdlib/span_join',
                         'SpanJoinLeftJoin').fetch(),
@@ -335,7 +332,6 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *SpanJoinRegression(index_path, 'stdlib/span_join',
                           'SpanJoinRegression').fetch(),
       *SpanJoinSmoke(index_path, 'stdlib/span_join', 'SpanJoinSmoke').fetch(),
-      *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
       *StdlibIntervals(index_path, 'stdlib/intervals',
                        'StdlibIntervals').fetch(),
       *IntervalsIntersect(index_path, 'stdlib/intervals',
