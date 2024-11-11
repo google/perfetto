@@ -55,22 +55,6 @@ SELECT
           ELSE "unknown" END)
   ELSE "regular" END AS delay_type;
 
--- Checks if slice has a descendant with provided name.
-CREATE OR REPLACE PERFETTO FUNCTION _has_descendant_slice_with_name(
-  -- Id of the slice to check descendants of.
-  id INT,
-  -- Name of potential descendant slice.
-  descendant_name STRING
-)
--- Whether `descendant_name` is a name of an descendant slice.
-RETURNS BOOL AS
-SELECT EXISTS(
-  SELECT 1
-  FROM descendant_slice($id)
-  WHERE name = $descendant_name
-  LIMIT 1
-);
-
 -- Get all EventLatency events for scroll updates to use their
 -- flows later on to decide how much time we waited from queueing the event
 -- until we started processing it.
@@ -87,10 +71,16 @@ FROM
   {{slice_table_name}} AS s JOIN args USING(arg_set_id)
 WHERE
   NAME = "EventLatency"
-  AND (args.string_value GLOB "*GESTURE_SCROLL_UPDATE"
-  OR args.string_value = "GESTURE_SCROLL_END")
-  AND _has_descendant_slice_with_name(
-    s.id, "SubmitCompositorFrameToPresentationCompositorFrame")
+  AND EXISTS(
+    SELECT 1
+    FROM descendant_slice(s.id)
+    WHERE name = "SubmitCompositorFrameToPresentationCompositorFrame"
+    LIMIT 1
+    )
+    AND (
+      args.string_value GLOB "*GESTURE_SCROLL_UPDATE"
+      OR args.string_value = "GESTURE_SCROLL_END"
+    )
 ORDER BY trace_id;
 
 -- Get all chrome_latency_info_for_gesture_slices where trace_ids are not -1,
