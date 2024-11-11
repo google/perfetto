@@ -1041,7 +1041,7 @@ TEST_F(PerfettoCmdlineTest, CloneByName) {
   std::string trace_str;
   base::ReadFile(path, &trace_str);
   protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromString(cloned_trace_str));
+  ASSERT_TRUE(trace.ParseFromString(trace_str));
   ssize_t num_test_packets = std::count_if(
       trace.packet().begin(), trace.packet().end(),
       [](const protos::gen::TracePacket& tp) { return tp.has_for_testing(); });
