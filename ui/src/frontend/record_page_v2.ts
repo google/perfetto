@@ -35,9 +35,10 @@ import {PageAttrs} from '../public/page';
 import {recordConfigStore} from './record_config';
 import {
   Configurations,
+  loadRecordConfig,
   maybeGetActiveCss,
-  PERSIST_CONFIG_FLAG,
   RECORDING_SECTIONS,
+  uploadRecordingConfig,
 } from './record_page';
 import {CodeSnippet} from './record_widgets';
 import {AdvancedSettings} from './recording/advanced_settings';
@@ -52,9 +53,9 @@ import {PowerSettings} from './recording/power_settings';
 import {RecordingSettings} from './recording/recording_settings';
 import {FORCE_RESET_MESSAGE} from './recording/recording_ui_utils';
 import {showAddNewTargetModal} from './recording/reset_target_modal';
-import {createPermalink} from './permalink';
 import {RecordingManager} from '../controller/recording_manager';
 import {RecordConfig} from '../controller/record_config_types';
+import {AppImpl} from '../core/app_impl';
 
 const START_RECORDING_MESSAGE = 'Start Recording';
 
@@ -187,15 +188,13 @@ function Instructions(recCfg: RecordConfig, cssClass: string) {
   return m(
     `.record-section.instructions${cssClass}`,
     m('header', 'Recording command'),
-    PERSIST_CONFIG_FLAG.get()
-      ? m(
-          'button.permalinkconfig',
-          {
-            onclick: () => createPermalink({mode: 'RECORDING_OPTS'}),
-          },
-          'Share recording settings',
-        )
-      : null,
+    m(
+      'button.permalinkconfig',
+      {
+        onclick: () => uploadRecordingConfig(recCfg),
+      },
+      'Share recording settings',
+    ),
     RecordingSnippet(recCfg, targetInfo),
     BufferUsageProgressBar(),
     m('.buttons', StopCancelButtons()),
@@ -559,22 +558,20 @@ function recordMenu(routePage: string) {
           m('.sub', 'Manually record trace'),
         ),
       ),
-      PERSIST_CONFIG_FLAG.get()
-        ? m(
-            'a[href="#!/record/config"]',
-            {
-              onclick: () => {
-                recordConfigStore.reloadFromLocalStorage();
-              },
-            },
-            m(
-              `li${routePage === 'config' ? '.active' : ''}`,
-              m('i.material-icons', 'save'),
-              m('.title', 'Saved configs'),
-              m('.sub', 'Manage local configs'),
-            ),
-          )
-        : null,
+      m(
+        'a[href="#!/record/config"]',
+        {
+          onclick: () => {
+            recordConfigStore.reloadFromLocalStorage();
+          },
+        },
+        m(
+          `li${routePage === 'config' ? '.active' : ''}`,
+          m('i.material-icons', 'save'),
+          m('.title', 'Saved configs'),
+          m('.sub', 'Manage local configs'),
+        ),
+      ),
     ),
     m('header', 'Probes'),
     m('ul', probes),
@@ -658,12 +655,26 @@ function getRecordContainer(recMgr: RecordingManager, subpage?: string) {
 
 export class RecordPageV2 implements m.ClassComponent<PageAttrs> {
   private readonly recMgr = RecordingManager.instance;
+  private lastSubpage: string | undefined = undefined;
 
-  oninit(): void {
+  oninit({attrs}: m.CVnode<PageAttrs>) {
     controller().initFactories();
+    this.lastSubpage = attrs.subpage;
+    if (attrs.subpage !== undefined && attrs.subpage.startsWith('/share/')) {
+      const hash = attrs.subpage.substring(7);
+      loadRecordConfig(this.recMgr, hash);
+      AppImpl.instance.navigate('#!/record/instructions');
+    }
   }
 
   view({attrs}: m.CVnode<PageAttrs>) {
+    if (attrs.subpage !== this.lastSubpage) {
+      this.lastSubpage = attrs.subpage;
+      // TODO(primiano): this is a hack necesasry to retrigger the generation of
+      // the record cmdline. Refactor this code once record v1 vs v2 is gone.
+      this.recMgr.setRecordConfig(this.recMgr.state.recordConfig);
+    }
+
     return m(
       '.record-page',
       controller().getState() > RecordingState.TARGET_INFO_DISPLAYED
