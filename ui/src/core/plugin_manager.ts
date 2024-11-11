@@ -22,7 +22,8 @@ import {
 } from '../public/plugin';
 import {Trace} from '../public/trace';
 import {defaultPlugins} from './default_plugins';
-import {featureFlags, Flag} from './feature_flags';
+import {featureFlags} from './feature_flags';
+import {Flag} from '../public/feature_flag';
 import {TraceImpl} from './trace_impl';
 
 // The pseudo plugin id used for the core instance of AppImpl.
