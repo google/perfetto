@@ -23,6 +23,9 @@ SELECT TraceMetadata(
   'android_build_fingerprint', (
     SELECT str_value FROM metadata WHERE name = 'android_build_fingerprint'
   ),
+  'android_device_manufacturer', (
+    SELECT str_value FROM metadata WHERE name = 'android_device_manufacturer'
+  ),
   'statsd_triggering_subscription_id', (
     SELECT int_value FROM metadata
     WHERE name = 'statsd_triggering_subscription_id'
