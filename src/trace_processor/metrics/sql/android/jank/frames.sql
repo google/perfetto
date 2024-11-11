@@ -122,30 +122,55 @@ JOIN android_jank_cuj_frame_timeline USING (cuj_id, vsync);
 -- the commit/composite slices on the main thread.
 DROP TABLE IF EXISTS android_jank_cuj_sf_frame;
 CREATE PERFETTO TABLE android_jank_cuj_sf_frame AS
+WITH android_jank_cuj_timeline_sf_frame AS (
+    SELECT DISTINCT
+      cuj_id,
+      CAST(timeline.name AS INTEGER) AS vsync,
+      timeline.display_frame_token
+    FROM android_jank_cuj_vsync_boundary boundary
+    JOIN actual_frame_timeline_slice timeline
+      ON
+        boundary.upid = timeline.upid
+        AND CAST(timeline.name AS INTEGER) >= vsync_min
+        AND CAST(timeline.name AS INTEGER) <= vsync_max
+    WHERE
+        boundary.layer_id IS NULL
+      OR (
+        timeline.layer_name GLOB '*#*'
+        AND boundary.layer_id = CAST(STR_SPLIT(timeline.layer_name, '#', 1) AS INTEGER))
+),
+android_jank_cuj_sf_frame_base AS (
+    SELECT DISTINCT
+      boundary.cuj_id,
+      boundary.vsync,
+      boundary.ts,
+      boundary.ts_main_thread_start,
+      boundary.ts_end,
+      boundary.dur,
+      actual_timeline.jank_tag = 'Self Jank' AS sf_missed,
+      NULL AS app_missed, -- for simplicity align schema with android_jank_cuj_frame
+      jank_tag,
+      jank_type,
+      prediction_type,
+      present_type,
+      gpu_composition,
+      -- In case expected timeline is missing, as a fallback we use the typical frame deadline
+      -- for 60Hz.
+      -- See similar expression in android_jank_cuj_frame_timeline.
+      COALESCE(expected_timeline.dur, 16600000) AS dur_expected
+    FROM android_jank_cuj_sf_main_thread_frame_boundary boundary
+    JOIN android_jank_cuj_sf_process sf_process
+    JOIN actual_frame_timeline_slice actual_timeline
+      ON actual_timeline.upid = sf_process.upid
+        AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
+    JOIN android_jank_cuj_timeline_sf_frame ft
+      ON CAST(actual_timeline.name AS INTEGER) = ft.display_frame_token
+        AND boundary.cuj_id = ft.cuj_id
+    LEFT JOIN expected_frame_timeline_slice expected_timeline
+      ON expected_timeline.upid = actual_timeline.upid
+        AND expected_timeline.name = actual_timeline.name
+)
 SELECT
-  cuj_id,
-  ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY vsync ASC) AS frame_number,
-  vsync,
-  boundary.ts,
-  boundary.ts_main_thread_start,
-  boundary.ts_end,
-  boundary.dur,
-  actual_timeline.jank_tag = 'Self Jank' AS sf_missed,
-  NULL AS app_missed, -- for simplicity align schema with android_jank_cuj_frame
-  jank_tag,
-  jank_type,
-  prediction_type,
-  present_type,
-  gpu_composition,
-  -- In case expected timeline is missing, as a fallback we use the typical frame deadline
-  -- for 60Hz.
-  -- See similar expression in android_jank_cuj_frame_timeline.
-  COALESCE(expected_timeline.dur, 16600000) AS dur_expected
-FROM android_jank_cuj_sf_main_thread_frame_boundary boundary
-JOIN android_jank_cuj_sf_process sf_process
-JOIN actual_frame_timeline_slice actual_timeline
-  ON actual_timeline.upid = sf_process.upid
-    AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
-LEFT JOIN expected_frame_timeline_slice expected_timeline
-  ON expected_timeline.upid = actual_timeline.upid
-    AND expected_timeline.name = actual_timeline.name;
+ *,
+ ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY vsync ASC) AS frame_number
+FROM android_jank_cuj_sf_frame_base;
