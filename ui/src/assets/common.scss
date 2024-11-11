@@ -728,6 +728,7 @@ button.query-ctrl {
     }
   }
   &[collapsed="false"] {
+    background-color: var(--collapsed-background);
     font-weight: bold;
     span.chip {
       color: #121212;
