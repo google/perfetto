@@ -46,6 +46,8 @@ import {TraceInfoImpl} from './trace_info_impl';
 import {PageHandler, PageManager} from '../public/page';
 import {createProxy} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
+import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
+import {featureFlags} from './feature_flags';
 
 /**
  * Handles the per-trace state of the UI
@@ -405,6 +407,12 @@ export class TraceImpl implements Trace {
 
   get initialRouteArgs(): RouteArgs {
     return this.appImpl.initialRouteArgs;
+  }
+
+  get featureFlags(): FeatureFlagManager {
+    return {
+      register: (settings: FlagSettings) => featureFlags.register(settings),
+    };
   }
 
   scheduleFullRedraw(): void {

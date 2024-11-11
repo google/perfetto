@@ -34,6 +34,8 @@ import {PageManagerImpl} from './page_manager';
 import {PageHandler} from '../public/page';
 import {setPerfHooks} from './perf';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
+import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
+import {featureFlags} from './feature_flags';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -209,6 +211,12 @@ export class AppImpl implements App {
 
   get initialRouteArgs(): RouteArgs {
     return this.appCtx.initialRouteArgs;
+  }
+
+  get featureFlags(): FeatureFlagManager {
+    return {
+      register: (settings: FlagSettings) => featureFlags.register(settings),
+    };
   }
 
   openTraceFromFile(file: File): void {

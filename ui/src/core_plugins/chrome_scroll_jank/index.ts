@@ -21,7 +21,8 @@ import {ScrollJankV3Track} from './scroll_jank_v3_track';
 import {TopLevelScrollTrack} from './scroll_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
-import {featureFlags, OverrideState} from '../../core/feature_flags';
+import {featureFlags} from '../../core/feature_flags';
+import {OverrideState} from '../../public/feature_flag';
 
 // Before plugins were a thing, this plugin was enabled using a feature flag.
 // However, nowadays, plugins themselves can be selectively enabled and
