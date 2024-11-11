@@ -28,8 +28,10 @@ import {
   RecordingTarget,
 } from '../common/state';
 import {AdbOverWebUsb} from '../controller/adb';
-import {RecordConfig} from '../controller/record_config_types';
-import {featureFlags} from '../core/feature_flags';
+import {
+  RECORD_CONFIG_SCHEMA,
+  RecordConfig,
+} from '../controller/record_config_types';
 import {raf} from '../core/raf_scheduler';
 import {PageAttrs} from '../public/page';
 import {
@@ -48,16 +50,11 @@ import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
 import {RecordingSettings} from './recording/recording_settings';
 import {EtwSettings} from './recording/etw_settings';
-import {createPermalink} from './permalink';
 import {AppImpl} from '../core/app_impl';
 import {RecordingManager} from '../controller/recording_manager';
-
-export const PERSIST_CONFIG_FLAG = featureFlags.register({
-  id: 'persistConfigsUI',
-  name: 'Config persistence UI',
-  description: 'Show experimental config persistence UI on the record page.',
-  defaultValue: true,
-});
+import {BUCKET_NAME, GcsUploader, MIME_JSON} from '../common/gcs_uploader';
+import {showModal} from '../widgets/modal';
+import {CopyableLink} from '../widgets/copyable_link';
 
 export const RECORDING_SECTIONS = [
   'buffers',
@@ -165,15 +162,13 @@ function Instructions(recMgr: RecordingManager, cssClass: string) {
   return m(
     `.record-section.instructions${cssClass}`,
     m('header', 'Recording command'),
-    PERSIST_CONFIG_FLAG.get()
-      ? m(
-          'button.permalinkconfig',
-          {
-            onclick: () => createPermalink({mode: 'RECORDING_OPTS'}),
-          },
-          'Share recording settings',
-        )
-      : null,
+    m(
+      'button.permalinkconfig',
+      {
+        onclick: () => uploadRecordingConfig(recMgr.state.recordConfig),
+      },
+      'Share recording settings',
+    ),
     RecordingSnippet(recMgr),
     BufferUsageProgressBar(recMgr),
     m('.buttons', StopCancelButtons(recMgr)),
@@ -770,22 +765,20 @@ function recordMenu(recMgr: RecordingManager, routePage: string) {
           m('.sub', 'Manually record trace'),
         ),
       ),
-      PERSIST_CONFIG_FLAG.get()
-        ? m(
-            'a[href="#!/record/config"]',
-            {
-              onclick: () => {
-                recordConfigStore.reloadFromLocalStorage();
-              },
-            },
-            m(
-              `li${routePage === 'config' ? '.active' : ''}`,
-              m('i.material-icons', 'save'),
-              m('.title', 'Saved configs'),
-              m('.sub', 'Manage local configs'),
-            ),
-          )
-        : null,
+      m(
+        'a[href="#!/record/config"]',
+        {
+          onclick: () => {
+            recordConfigStore.reloadFromLocalStorage();
+          },
+        },
+        m(
+          `li${routePage === 'config' ? '.active' : ''}`,
+          m('i.material-icons', 'save'),
+          m('.title', 'Saved configs'),
+          m('.sub', 'Manage local configs'),
+        ),
+      ),
     ),
     m('header', 'Probes'),
     m('ul', probes),
@@ -798,8 +791,25 @@ export function maybeGetActiveCss(routePage: string, section: string): string {
 
 export class RecordPage implements m.ClassComponent<PageAttrs> {
   private readonly recMgr = RecordingManager.instance;
+  private lastSubpage: string | undefined = undefined;
+
+  oninit({attrs}: m.CVnode<PageAttrs>) {
+    this.lastSubpage = attrs.subpage;
+    if (attrs.subpage !== undefined && attrs.subpage.startsWith('/share/')) {
+      const hash = attrs.subpage.substring(7);
+      loadRecordConfig(this.recMgr, hash);
+      AppImpl.instance.navigate('#!/record/instructions');
+    }
+  }
 
   view({attrs}: m.CVnode<PageAttrs>) {
+    if (attrs.subpage !== this.lastSubpage) {
+      this.lastSubpage = attrs.subpage;
+      // TODO(primiano): this is a hack necesasry to retrigger the generation of
+      // the record cmdline. Refactor this code once record v1 vs v2 is gone.
+      this.recMgr.setRecordConfig(this.recMgr.state.recordConfig);
+    }
+
     const pages: m.Children = [];
     // we need to remove the `/` character from the route
     let routePage = attrs.subpage ? attrs.subpage.substr(1) : '';
@@ -861,4 +871,36 @@ export class RecordPage implements m.ClassComponent<PageAttrs> {
       ),
     );
   }
+}
+
+export async function uploadRecordingConfig(recordConfig: RecordConfig) {
+  const json = JSON.stringify(recordConfig);
+  const uploader: GcsUploader = new GcsUploader(json, {
+    mimeType: MIME_JSON,
+  });
+  await uploader.waitForCompletion();
+  const hash = uploader.uploadedFileName;
+  const url = `${self.location.origin}/#!/record/share/${hash}`;
+  showModal({
+    title: 'Shareable record settings',
+    content: m(CopyableLink, {url}),
+  });
+}
+
+export async function loadRecordConfig(recMgr: RecordingManager, hash: string) {
+  const url = `https://storage.googleapis.com/${BUCKET_NAME}/${hash}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    showModal({title: 'Load failed', content: `Could not fetch ${url}`});
+    return;
+  }
+  const text = await response.text();
+  const json = JSON.parse(text);
+  const res = RECORD_CONFIG_SCHEMA.safeParse(json);
+  if (!res.success) {
+    throw new Error(
+      'Failed to deserialize record settings ' + res.error.toString(),
+    );
+  }
+  recMgr.setRecordConfig(res.data);
 }

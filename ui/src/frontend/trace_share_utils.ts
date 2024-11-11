@@ -16,11 +16,11 @@ import m from 'mithril';
 import {TraceUrlSource} from '../core/trace_source';
 import {createPermalink} from './permalink';
 import {showModal} from '../widgets/modal';
-import {onClickCopy} from './clipboard';
 import {globals} from './globals';
 import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
 import {TraceImpl} from '../core/trace_impl';
+import {CopyableLink} from '../widgets/copyable_link';
 
 export function isShareable(trace: Trace) {
   return globals.isInternalUser && trace.traceInfo.downloadable;
@@ -43,7 +43,7 @@ export async function shareTrace(trace: TraceImpl) {
     if (traceUrl) {
       msg.push(m('p', 'By using the URL below you can open this trace again.'));
       msg.push(m('p', 'Clicking will copy the URL into the clipboard.'));
-      msg.push(createTraceLink(traceUrl, traceUrl));
+      msg.push(m(CopyableLink, {url: traceUrl}));
     }
 
     showModal({
@@ -61,19 +61,6 @@ export async function shareTrace(trace: TraceImpl) {
   );
   if (result) {
     AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
-    return await createPermalink({mode: 'APP_STATE'});
+    return await createPermalink();
   }
-}
-
-export function createTraceLink(title: string, url: string) {
-  if (url === '') {
-    return m('a.trace-file-name', title);
-  }
-  const linkProps = {
-    href: url,
-    title: 'Click to copy the URL',
-    target: '_blank',
-    onclick: onClickCopy(url),
-  };
-  return m('a.trace-file-name', linkProps, title);
 }
