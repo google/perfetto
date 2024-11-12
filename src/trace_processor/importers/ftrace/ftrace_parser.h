@@ -317,6 +317,7 @@ class FtraceParser {
   void ParseGoogleIccEvent(int64_t timestamp, protozero::ConstBytes);
   void ParseGoogleIrmEvent(int64_t timestamp, protozero::ConstBytes);
   void ParseDeviceFrequency(int64_t ts, protozero::ConstBytes blob);
+  void ParseParamSetValueCpm(protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
