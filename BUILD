@@ -5559,6 +5559,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/fastrpc.proto",
         "protos/perfetto/trace/ftrace/fence.proto",
         "protos/perfetto/trace/ftrace/filemap.proto",
+        "protos/perfetto/trace/ftrace/fs.proto",
         "protos/perfetto/trace/ftrace/ftrace.proto",
         "protos/perfetto/trace/ftrace/ftrace_event.proto",
         "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto",
