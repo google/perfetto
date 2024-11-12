@@ -21,26 +21,6 @@ const postLoadActions = [];
 let tocEventHandlersInstalled = false;
 let resizeObserver = undefined;
 
-// Handles redirects from the old docs.perfetto.dev.
-const legacyRedirectMap = {
-  '#/contributing': '/docs/contributing/getting-started#community',
-  '#/build-instructions': '/docs/contributing/build-instructions',
-  '#/testing': '/docs/contributing/testing',
-  '#/app-instrumentation': '/docs/instrumentation/tracing-sdk',
-  '#/recording-traces': '/docs/instrumentation/tracing-sdk#recording',
-  '#/running': '/docs/quickstart/android-tracing',
-  '#/long-traces': '/docs/concepts/config#long-traces',
-  '#/detached-mode': '/docs/concepts/detached-mode',
-  '#/heapprofd': '/docs/data-sources/native-heap-profiler',
-  '#/java-hprof': '/docs/data-sources/java-heap-profiler',
-  '#/trace-processor': '/docs/analysis/trace-processor',
-  '#/analysis': '/docs/analysis/trace-processor#annotations',
-  '#/metrics': '/docs/analysis/metrics',
-  '#/traceconv': '/docs/quickstart/traceconv',
-  '#/clock-sync': '/docs/concepts/clock-sync',
-  '#/architecture': '/docs/concepts/service-model',
-};
-
 function doAfterLoadEvent(action) {
   if (onloadFired) {
     return action();
@@ -345,7 +325,40 @@ window.addEventListener('load', () => {
   document.documentElement.style.setProperty('--anim-enabled', '1')
 });
 
+// Handles redirects from the old docs.perfetto.dev.
+const legacyRedirectMap = {
+  '#/contributing': '/docs/contributing/getting-started#community',
+  '#/build-instructions': '/docs/contributing/build-instructions',
+  '#/testing': '/docs/contributing/testing',
+  '#/app-instrumentation': '/docs/instrumentation/tracing-sdk',
+  '#/recording-traces': '/docs/instrumentation/tracing-sdk#recording',
+  '#/running': '/docs/quickstart/android-tracing',
+  '#/long-traces': '/docs/concepts/config#long-traces',
+  '#/detached-mode': '/docs/concepts/detached-mode',
+  '#/heapprofd': '/docs/data-sources/native-heap-profiler',
+  '#/java-hprof': '/docs/data-sources/java-heap-profiler',
+  '#/trace-processor': '/docs/analysis/trace-processor',
+  '#/analysis': '/docs/analysis/trace-processor#annotations',
+  '#/metrics': '/docs/analysis/metrics',
+  '#/traceconv': '/docs/quickstart/traceconv',
+  '#/clock-sync': '/docs/concepts/clock-sync',
+  '#/architecture': '/docs/concepts/service-model',
+};
+
 const fragment = location.hash.split('?')[0].replace('.md', '');
 if (fragment in legacyRedirectMap) {
   location.replace(legacyRedirectMap[fragment]);
+}
+
+// Pages which have been been removed/renamed/moved and need to be redirected
+// to their new home.
+const redirectMap = {
+  // stdlib docs is not a perfect replacement but is good enough until we write
+  // a proper, Android specific query codelab page.
+  // TODO(lalitm): switch to that page when it's ready.
+  '/docs/analysis/common-queries': '/docs/analysis/stdlib-docs',
+};
+
+if (location.pathname in redirectMap) {
+  location.replace(redirectMap[location.pathname]);
 }
