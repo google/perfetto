@@ -71,6 +71,7 @@
 #include "protos/perfetto/trace/ftrace/bcl_exynos.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cma.pbzero.h"
+#include "protos/perfetto/trace/ftrace/cpm_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cros_ec.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dcvsh.pbzero.h"
@@ -1370,6 +1371,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kKprobeEventFieldNumber: {
         ParseKprobe(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kParamSetValueCpmFieldNumber: {
+        ParseParamSetValueCpm(fld_bytes);
         break;
       }
       default:
@@ -3834,6 +3839,18 @@ void FtraceParser::ParseDeviceFrequency(int64_t ts,
       Variadic::String(device_name));
   context_->event_tracker->PushCounter(ts, static_cast<double>(event.freq()),
                                        track_id);
+}
+
+void FtraceParser::ParseParamSetValueCpm(protozero::ConstBytes blob) {
+  protos::pbzero::ParamSetValueCpmFtraceEvent::Decoder event(blob);
+  TrackTracker::DimensionsBuilder dims_builder =
+      context_->track_tracker->CreateDimensionsBuilder();
+  // Store event body which denotes the name of the track.
+  dims_builder.AppendName(context_->storage->InternString(event.body()));
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::pixel_cpm_trace, std::move(dims_builder).Build());
+  context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
+                                       event.value(), track_id);
 }
 
 }  // namespace perfetto::trace_processor

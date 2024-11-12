@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_TOKENIZER_H_
 
+#include <optional>
 #include <vector>
 
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -68,6 +69,11 @@ class FtraceTokenizer {
       uint32_t cpu,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
+  void TokenizeFtraceParamSetValueCpm(
+      uint32_t cpu, TraceBlobView event,
+      RefPtr<PacketSequenceStateGeneration> state);
+  std::optional<protozero::Field> GetFtraceEventField(
+      uint32_t event_id, const TraceBlobView& event);
 
   void DlogWithLimit(const base::Status& status) {
     static std::atomic<uint32_t> dlog_count(0);
