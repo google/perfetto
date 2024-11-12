@@ -24,7 +24,7 @@ import {
   MIME_BINARY,
   MIME_JSON,
   GcsUploader,
-} from '../common/gcs_uploader';
+} from '../base/gcs_uploader';
 import {
   SERIALIZED_STATE_VERSION,
   SerializedAppState,
