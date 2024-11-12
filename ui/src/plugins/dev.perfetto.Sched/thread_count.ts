@@ -18,7 +18,7 @@ import {
 } from '../../frontend/base_counter_track';
 import {NewTrackArgs} from '../../frontend/track';
 
-export class RunnableThreadCountTrack extends BaseCounterTrack {
+abstract class ThreadCountTrack extends BaseCounterTrack {
   constructor(args: NewTrackArgs) {
     super(args);
   }
@@ -35,13 +35,26 @@ export class RunnableThreadCountTrack extends BaseCounterTrack {
       `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
     );
   }
+}
 
+export class RunnableThreadCountTrack extends ThreadCountTrack {
   getSqlSource() {
     return `
       select
         ts,
         runnable_thread_count as value
       from sched_runnable_thread_count
+    `;
+  }
+}
+
+export class UninterruptibleSleepThreadCountTrack extends ThreadCountTrack {
+  getSqlSource() {
+    return `
+      select
+        ts,
+        uninterruptible_sleep_thread_count as value
+      from sched_uninterruptible_sleep_thread_count
     `;
   }
 }
