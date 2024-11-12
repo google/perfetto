@@ -7538,6 +7538,16 @@ message MmCompactionWakeupKcompactdFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/compaction.proto
 
+// Begin of protos/perfetto/trace/ftrace/cpm_trace.proto
+
+message ParamSetValueCpmFtraceEvent {
+  optional string body = 1;
+  optional uint32 value = 2;
+  optional int64 timestamp = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/cpm_trace.proto
+
 // Begin of protos/perfetto/trace/ftrace/cpuhp.proto
 
 message CpuhpExitFtraceEvent {
@@ -11413,6 +11423,7 @@ message FtraceEvent {
     SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
     DevfreqFrequencyFtraceEvent devfreq_frequency = 541;
     KprobeEvent kprobe_event = 542;
+    ParamSetValueCpmFtraceEvent param_set_value_cpm = 543;
   }
 }
 
