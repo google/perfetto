@@ -20,6 +20,7 @@ import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {STR_NULL} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';
+import {TrackEventDetails} from '../../public/selection';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -88,6 +89,17 @@ export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
     return {
       ...baseSlice,
       colorScheme: getColorSchemeForJank(row.jankTag, row.jankSeverityType),
+    };
+  }
+
+  override async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const baseDetails = await super.getSelectionDetails(id);
+    if (!baseDetails) return undefined;
+    return {
+      ...baseDetails,
+      tableName: 'slice',
     };
   }
 }

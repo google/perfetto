@@ -22,6 +22,7 @@ import {
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';
+import {TrackEventDetails} from '../../public/selection';
 
 const GREEN = makeColorScheme(new HSLColor('#4CAF50')); // Green 500
 
@@ -60,5 +61,16 @@ export class ExpectedFramesTrack extends NamedSliceTrack {
 
   getRowSpec(): NamedRow {
     return NAMED_ROW;
+  }
+
+  override async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const baseDetails = await super.getSelectionDetails(id);
+    if (!baseDetails) return undefined;
+    return {
+      ...baseDetails,
+      tableName: 'slice',
+    };
   }
 }
