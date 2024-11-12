@@ -52,7 +52,7 @@ import {RecordingSettings} from './recording/recording_settings';
 import {EtwSettings} from './recording/etw_settings';
 import {AppImpl} from '../core/app_impl';
 import {RecordingManager} from '../controller/recording_manager';
-import {BUCKET_NAME, GcsUploader, MIME_JSON} from '../common/gcs_uploader';
+import {BUCKET_NAME, GcsUploader, MIME_JSON} from '../base/gcs_uploader';
 import {showModal} from '../widgets/modal';
 import {CopyableLink} from '../widgets/copyable_link';
 
