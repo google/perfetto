@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer} from '../base/deferred';
-import {Time} from '../base/time';
-import {TraceFileStream} from '../core/trace_stream';
+import {defer} from './deferred';
+import {Time} from './time';
 
 export const BUCKET_NAME = 'perfetto-ui-data';
 export const MIME_JSON = 'application/json; charset=utf-8';
@@ -184,13 +183,16 @@ async function sha1(data: string | ArrayBuffer): Promise<string> {
  * @returns A hex-encoded string containing the hash of the file.
  */
 async function hashFileStreaming(file: Blob): Promise<string> {
-  const fileStream = new TraceFileStream(file);
+  const CHUNK_SIZE = 32 * 1024 * 1024; // 32MB
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
   let chunkDigests = '';
-  for (;;) {
-    const chunk = await fileStream.readChunk();
-    const digest = await crypto.subtle.digest('SHA-1', chunk.data);
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, file.size);
+    const chunk = await file.slice(start, end).arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-1', chunk);
     chunkDigests += digestToHex(digest);
-    if (chunk.eof) break;
   }
   return sha1(chunkDigests);
 }
