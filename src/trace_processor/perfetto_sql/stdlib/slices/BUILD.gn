@@ -21,6 +21,7 @@ perfetto_sql_source_set("slices") {
     "flow.sql",
     "hierarchy.sql",
     "slices.sql",
+    "time_in_state.sql",
     "with_context.sql",
   ]
 }

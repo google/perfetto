@@ -113,7 +113,7 @@ ALLOWED_PREFIXES = {
     'chrome/util': ['cr'],
     'intervals': ['interval'],
     'graphs': ['graph'],
-    'slices': ['slice'],
+    'slices': ['slice', 'thread_slice', 'process_slice'],
     'linux': ['cpu', 'memory'],
     'stacks': ['cpu_profiling'],
 }
@@ -121,8 +121,6 @@ ALLOWED_PREFIXES = {
 # Allows for nonstandard object names.
 OBJECT_NAME_ALLOWLIST = {
     'graphs/partition.sql': ['tree_structural_partition_by_group'],
-    'slices/with_context.sql': ['process_slice', 'thread_slice'],
-    'slices/cpu_time.sql': ['thread_slice_cpu_time', 'thread_slice_cpu_cycles']
 }
 
 
