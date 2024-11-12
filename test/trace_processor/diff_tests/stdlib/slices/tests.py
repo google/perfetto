@@ -177,3 +177,27 @@ class Slices(TestSuite):
         8,46926
         9,17865
         """))
+
+  def test_thread_slice_time_in_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE slices.time_in_state;
+
+        SELECT id, name, state, io_wait, blocked_function, dur
+        FROM thread_slice_time_in_state
+        LIMIT 10;
+        """,
+        out=Csv("""
+          "id","name","state","io_wait","blocked_function","dur"
+          0,"Deoptimization JIT inline cache","Running","[NULL]","[NULL]",178646
+          1,"Deoptimization JIT inline cache","Running","[NULL]","[NULL]",119740
+          2,"Lock contention on thread list lock (owner tid: 0)","Running","[NULL]","[NULL]",58073
+          3,"Lock contention on thread list lock (owner tid: 0)","Running","[NULL]","[NULL]",98698
+          3,"Lock contention on thread list lock (owner tid: 0)","S","[NULL]","[NULL]",56302
+          4,"monitor contention with owner InputReader (1421) at void com.android.server.power.PowerManagerService.acquireWakeLockInternal(android.os.IBinder, int, java.lang.String, java.lang.String, android.os.WorkSource, java.lang.String, int, int)(PowerManagerService.java:1018) waiters=0 blocking from void com.android.server.power.PowerManagerService.handleSandman()(PowerManagerService.java:2280)","Running","[NULL]","[NULL]",121979
+          4,"monitor contention with owner InputReader (1421) at void com.android.server.power.PowerManagerService.acquireWakeLockInternal(android.os.IBinder, int, java.lang.String, java.lang.String, android.os.WorkSource, java.lang.String, int, int)(PowerManagerService.java:1018) waiters=0 blocking from void com.android.server.power.PowerManagerService.handleSandman()(PowerManagerService.java:2280)","S","[NULL]","[NULL]",51198
+          5,"monitor contention with owner main (1204) at void com.android.server.am.ActivityManagerService.onWakefulnessChanged(int)(ActivityManagerService.java:7244) waiters=0 blocking from void com.android.server.am.ActivityManagerService$3.handleMessage(android.os.Message)(ActivityManagerService.java:1704)","Running","[NULL]","[NULL]",45000
+          5,"monitor contention with owner main (1204) at void com.android.server.am.ActivityManagerService.onWakefulnessChanged(int)(ActivityManagerService.java:7244) waiters=0 blocking from void com.android.server.am.ActivityManagerService$3.handleMessage(android.os.Message)(ActivityManagerService.java:1704)","S","[NULL]","[NULL]",20164377
+          6,"monitor contention with owner main (1204) at void com.android.server.am.ActivityManagerService.onWakefulnessChanged(int)(ActivityManagerService.java:7244) waiters=1 blocking from com.android.server.wm.ActivityTaskManagerInternal$SleepToken com.android.server.am.ActivityTaskManagerService.acquireSleepToken(java.lang.String, int)(ActivityTaskManagerService.java:5048)","Running","[NULL]","[NULL]",35104
+        """))

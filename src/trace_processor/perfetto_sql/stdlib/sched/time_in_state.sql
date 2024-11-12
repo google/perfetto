@@ -93,36 +93,58 @@ FROM sched_time_in_state_for_thread
 GROUP BY utid;
 
 -- Time the thread spent each state in a given interval.
+--
+-- This function is only designed to run over a small number of intervals
+-- (10-100 at most). It will be *very slow* for large sets of intervals.
+--
+-- Specifically for any non-trivial subset of thread slices, prefer using
+-- `thread_slice_time_in_state` in the `slices.time_in_state` module for this
+-- purpose instead.
 CREATE PERFETTO FUNCTION sched_time_in_state_for_thread_in_interval(
   -- The start of the interval.
   ts INT,
   -- The duration of the interval.
   dur INT,
   -- The utid of the thread.
-  utid INT)
+  utid INT
+)
 RETURNS TABLE(
-  -- Thread state (from the `thread_state` table).
-  -- Use `sched_state_to_human_readable_string` function to get full name.
-  state INT,
+  -- The scheduling state (from the `thread_state` table).
+  --
+  -- Use the `sched_state_to_human_readable_string` function in the `sched`
+  -- package to get full name.
+  state STRING,
   -- A (posssibly NULL) boolean indicating, if the device was in uninterruptible
   -- sleep, if it was an IO sleep.
   io_wait BOOL,
-  -- Some states can specify the blocked function. Usually NULL.
+  -- If the `state` is uninterruptible sleep, `io_wait` indicates if it was
+  -- an IO sleep. Will be null if `state` is *not* uninterruptible sleep or if
+  -- we cannot tell if it was an IO sleep or not.
+  --
+  -- Only available on Android when
+  -- `sched/sched_blocked_reason` ftrace tracepoint is enabled.
   blocked_function INT,
-  -- Total time spent with this state, cpu and blocked function.
-  dur INT) AS
+  -- The duration of time the threads slice spent for each
+  -- (state, io_wait, blocked_function) tuple.
+  dur INT
+) AS
 SELECT
   state,
   io_wait,
   blocked_function,
   sum(ii.dur) as dur
 FROM thread_state
-JOIN
-  (SELECT * FROM _interval_intersect_single!(
+JOIN (
+  SELECT *
+  FROM _interval_intersect_single!(
     $ts, $dur,
-    (SELECT id, ts, dur
-    FROM thread_state
-    WHERE utid = $utid AND dur > 0))) ii USING (id)
+    (
+      SELECT id, ts, dur
+      FROM thread_state
+      WHERE utid = $utid AND dur > 0
+    )
+  )
+) ii USING (id)
 GROUP BY 1, 2, 3
 ORDER BY 4 DESC;
 
@@ -137,7 +159,7 @@ CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
 RETURNS TABLE(
   -- Thread state (from the `thread_state` table).
   -- Use `sched_state_to_human_readable_string` function to get full name.
-  state INT,
+  state STRING,
   -- A (posssibly NULL) boolean indicating, if the device was in uninterruptible
   -- sleep, if it was an IO sleep.
   io_wait BOOL,
