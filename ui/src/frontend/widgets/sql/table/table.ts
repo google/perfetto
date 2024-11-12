@@ -40,9 +40,11 @@ import {FILTER_OPTION_TO_OP, FilterOption} from './render_cell_utils';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
 import {Intent} from '../../../../widgets/common';
-import {addHistogramTab} from '../../charts/histogram/tab';
+import {addChartTab} from '../../charts/chart_tab';
 import {Form} from '../../../../widgets/form';
 import {TextInput} from '../../../../widgets/text_input';
+import {AddChartMenuItem} from '../../charts/add_chart_menu';
+import {ChartConfig, ChartOption} from '../../charts/chart';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -65,7 +67,7 @@ function renderCell(
   return column.renderCell(sqlValue, getTableManager(state), additionalValues);
 }
 
-function columnTitle(column: TableColumn): string {
+export function columnTitle(column: TableColumn): string {
   if (column.getTitle !== undefined) {
     const title = column.getTitle();
     if (title !== undefined) return title;
@@ -283,6 +285,22 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           ? Icons.SortedDesc
           : Icons.ContextMenu;
 
+    const columnAlias =
+      this.state.getCurrentRequest().columns[
+        sqlColumnId(column.primaryColumn())
+      ];
+    const chartConfig: ChartConfig = {
+      engine: this.state.trace.engine,
+      columnTitle: columnTitle(column),
+      sqlColumn: [columnAlias],
+      filters: this.state.getFilters(),
+      tableDisplay: this.table.displayName ?? this.table.name,
+      query: this.state.getSqlQuery(
+        Object.fromEntries([[columnAlias, column.primaryColumn()]]),
+      ),
+      aggregationType: column.aggregation?.().dataType,
+    };
+
     return m(
       PopupMenu2,
       {
@@ -327,26 +345,10 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         {label: 'Add filter', icon: Icons.Filter},
         this.renderColumnFilterOptions(column),
       ),
-      m(MenuItem, {
-        label: 'Create histogram',
-        icon: Icons.Chart,
-        onclick: () => {
-          const columnAlias =
-            this.state.getCurrentRequest().columns[
-              sqlColumnId(column.primaryColumn())
-            ];
-          addHistogramTab({
-            engine: this.state.trace.engine,
-            sqlColumn: [columnAlias],
-            columnTitle: columnTitle(column),
-            filters: this.state.getFilters(),
-            tableDisplay: this.table.displayName ?? this.table.name,
-            query: this.state.getSqlQuery(
-              Object.fromEntries([[columnAlias, column.primaryColumn()]]),
-            ),
-            aggregationType: column.aggregation?.().dataType,
-          });
-        },
+      m(AddChartMenuItem, {
+        chartConfig,
+        chartOptions: [ChartOption.HISTOGRAM],
+        addChart: (option, config) => addChartTab(option, config),
       }),
       // Menu items before divider apply to selected column
       m(MenuDivider),

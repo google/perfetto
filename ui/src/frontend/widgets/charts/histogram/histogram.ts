@@ -15,25 +15,14 @@
 import m from 'mithril';
 import {stringifyJsonWithBigints} from '../../../../base/json_utils';
 import {VegaView} from '../../../../widgets/vega_view';
-import {Filter} from '../../../widgets/sql/table/column';
 import {HistogramState} from './state';
 import {Spinner} from '../../../../widgets/spinner';
-import {Engine} from '../../../../trace_processor/engine';
+import {ChartConfig} from '../chart';
 
-export interface HistogramConfig {
-  engine: Engine;
-  columnTitle: string; // Human readable column name (ex: Duration)
-  sqlColumn: string[]; // SQL column name (ex: dur)
-  filters?: Filter[]; // Filters applied to SQL table
-  tableDisplay?: string; // Human readable table name (ex: slices)
-  query: string; // SQL query for the underlying data
-  aggregationType?: 'nominal' | 'quantitative'; // Aggregation type.
-}
-
-export class Histogram implements m.ClassComponent<HistogramConfig> {
+export class Histogram implements m.ClassComponent<ChartConfig> {
   private readonly state: HistogramState;
 
-  constructor({attrs}: m.Vnode<HistogramConfig>) {
+  constructor({attrs}: m.Vnode<ChartConfig>) {
     this.state = new HistogramState(
       attrs.engine,
       attrs.query,
