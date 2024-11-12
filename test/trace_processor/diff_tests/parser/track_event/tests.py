@@ -507,7 +507,43 @@ class TrackEvent(TestSuite):
         FROM args
         ORDER BY key, display_value, arg_set_id, key ASC;
         """,
-        out=Path('track_event_merged_debug_annotations_args.out'))
+        out=Csv('''
+          "flat_key","key","int_value","string_value"
+          "cookie","cookie",1234,"[NULL]"
+          "debug.debug1.key1","debug.debug1.key1",10,"[NULL]"
+          "debug.debug1.key2","debug.debug1.key2[0]",20,"[NULL]"
+          "debug.debug1.key2","debug.debug1.key2[1]",21,"[NULL]"
+          "debug.debug1.key2","debug.debug1.key2[2]",22,"[NULL]"
+          "debug.debug1.key2","debug.debug1.key2[3]",23,"[NULL]"
+          "debug.debug1.key3","debug.debug1.key3",30,"[NULL]"
+          "debug.debug2.key1","debug.debug2.key1",10,"[NULL]"
+          "debug.debug2.key2","debug.debug2.key2[0]",20,"[NULL]"
+          "debug.debug2.key2","debug.debug2.key2[1]",21,"[NULL]"
+          "debug.debug2.key2","debug.debug2.key2[2]",22,"[NULL]"
+          "debug.debug2.key2","debug.debug2.key2[3]",23,"[NULL]"
+          "debug.debug2.key3.key31","debug.debug2.key3.key31",31,"[NULL]"
+          "debug.debug2.key3.key32","debug.debug2.key3.key32",32,"[NULL]"
+          "debug.debug2.key4","debug.debug2.key4",40,"[NULL]"
+          "debug.debug3","debug.debug3",32,"[NULL]"
+          "debug.debug4.key1","debug.debug4.key1",10,"[NULL]"
+          "debug.debug4.key2","debug.debug4.key2[0]",20,"[NULL]"
+          "debug.debug4.key2","debug.debug4.key2[1]",21,"[NULL]"
+          "event.category","event.category","[NULL]","cat"
+          "event.category","event.category","[NULL]","cat"
+          "event.name","event.name","[NULL]","[NULL]"
+          "event.name","event.name","[NULL]","name1"
+          "is_root_in_scope","is_root_in_scope",1,"[NULL]"
+          "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"
+          "scope","scope","[NULL]","cat"
+          "source","source","[NULL]","chrome"
+          "source","source","[NULL]","descriptor"
+          "source_scope","source_scope","[NULL]","cat"
+          "trace_id","trace_id",1,"[NULL]"
+          "trace_id","trace_id",1234,"[NULL]"
+          "trace_id_is_process_scoped","trace_id_is_process_scoped",0,"[NULL]"
+          "utid","utid",1,"[NULL]"
+          "utid","utid",2,"[NULL]"
+        '''))
 
   # Counters
   def test_track_event_counters_slices(self):
@@ -767,6 +803,34 @@ class TrackEvent(TestSuite):
         "ts","name"
         12000,"slice3"
         13000,"slice4"
+        """))
+
+  def test_track_event_tracks_ordering(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_tracks_ordering.textproto'),
+        query="""
+        SELECT
+          id,
+          parent_id,
+          EXTRACT_ARG(source_arg_set_id, 'child_ordering') AS ordering,
+          EXTRACT_ARG(source_arg_set_id, 'sibling_order_rank') AS rank
+        FROM track
+        """,
+        out=Csv("""
+        "id","parent_id","ordering","rank"
+        0,"[NULL]","explicit","[NULL]"
+        1,0,"[NULL]",-10
+        2,0,"[NULL]",-2
+        3,0,"[NULL]",1
+        4,0,"[NULL]",2
+        5,2,"[NULL]","[NULL]"
+        6,0,"[NULL]","[NULL]"
+        7,"[NULL]","[NULL]","[NULL]"
+        8,7,"[NULL]","[NULL]"
+        9,"[NULL]","[NULL]","[NULL]"
+        10,"[NULL]","[NULL]","[NULL]"
+        11,"[NULL]","[NULL]","[NULL]"
+        12,0,"[NULL]","[NULL]"
         """))
 
   def test_track_event_tracks_machine_id(self):

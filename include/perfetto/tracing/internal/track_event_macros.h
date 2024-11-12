@@ -21,7 +21,7 @@
 // implementation. Perfetto API users typically don't need to use anything here
 // directly.
 
-#include "perfetto/base/compiler.h"
+#include "perfetto/base/thread_annotations.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
 #include "perfetto/tracing/string_helpers.h"
 #include "perfetto/tracing/track_event_category_registry.h"
@@ -143,12 +143,6 @@
           });                                                                  \
     }                                                                          \
   } while (false)
-
-// This internal macro is unused from the repo now, but some improper usage
-// remain outside of the repo.
-// TODO(b/294800182): Remove this.
-#define PERFETTO_INTERNAL_TRACK_EVENT(...) \
-  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(TraceForCategory, ##__VA_ARGS__)
 
 // C++17 doesn't like a move constructor being defined for the EventFinalizer
 // class but C++11 and MSVC doesn't compile without it being defined so support

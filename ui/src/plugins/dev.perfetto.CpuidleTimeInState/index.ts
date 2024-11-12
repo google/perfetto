@@ -13,41 +13,39 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {CounterOptions} from '../../frontend/base_counter_track';
 import {TrackNode} from '../../public/workspace';
-import {
-  SimpleCounterTrack,
-  SimpleCounterTrackConfig,
-} from '../../frontend/simple_counter_track';
+import {createQueryCounterTrack} from '../../public/lib/tracks/query_counter_track';
 
-class CpuidleTimeInState implements PerfettoPlugin {
-  private addCounterTrack(
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.CpuidleTimeInState';
+  private async addCounterTrack(
     ctx: Trace,
     name: string,
     query: string,
     group?: TrackNode,
     options?: Partial<CounterOptions>,
-  ): void {
-    const config: SimpleCounterTrackConfig = {
+  ) {
+    const uri = `/cpuidle_time_in_state_${name}`;
+    const track = await createQueryCounterTrack({
+      trace: ctx,
+      uri,
       data: {
         sqlSource: query,
         columns: ['ts', 'value'],
       },
       columns: {ts: 'ts', value: 'value'},
       options,
-    };
-
-    const uri = `/cpuidle_time_in_state_${name}`;
+    });
     ctx.tracks.registerTrack({
       uri,
       title: name,
-      track: new SimpleCounterTrack(ctx, {trackUri: uri}, config),
+      track,
     });
-    const track = new TrackNode({uri, title: name});
-
+    const trackNode = new TrackNode({uri, title: name});
     if (group) {
-      group.addChildInOrder(track);
+      group.addChildInOrder(trackNode);
     }
   }
 
@@ -81,8 +79,3 @@ class CpuidleTimeInState implements PerfettoPlugin {
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.CpuidleTimeInState',
-  plugin: CpuidleTimeInState,
-};

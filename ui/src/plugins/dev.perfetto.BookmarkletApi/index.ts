@@ -14,7 +14,7 @@
 
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 
 declare global {
   interface Window {
@@ -22,24 +22,19 @@ declare global {
   }
 }
 
-class BookmarkletApi implements PerfettoPlugin {
-  private pluginCtx?: App;
+export default class Plugin implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.BookmarkletApi';
+  static bookmarkletPluginCtx: App;
 
-  onActivate(pluginCtx: App): void {
-    this.pluginCtx = pluginCtx;
+  static onActivate(pluginCtx: App): void {
+    this.bookmarkletPluginCtx = pluginCtx;
     window.ctx = pluginCtx;
   }
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
-    window.ctx = ctx;
-  }
-
-  async onTraceUnload(_: Trace): Promise<void> {
-    window.ctx = this.pluginCtx;
+  async onTraceLoad(trace: Trace): Promise<void> {
+    window.ctx = trace;
+    trace.trash.defer(() => {
+      window.ctx = Plugin.bookmarkletPluginCtx;
+    });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.BookmarkletApi',
-  plugin: BookmarkletApi,
-};

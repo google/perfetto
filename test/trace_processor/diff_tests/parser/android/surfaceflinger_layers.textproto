@@ -48,12 +48,9 @@ packet {
         children: 44
         children: 77
         children: 87
-        type: "Layer"
         layer_stack: 0
         z: 0
         crop {
-          left: 0
-          top: 0
           right: -1
           bottom: -1
         }
@@ -392,6 +389,18 @@ packet {
         type: 0
       }
       is_virtual: false
+    }
+    displays {
+      id: 4619827677550801153
+      name: "Common Panel"
+      size {
+        w: 1080
+        h: 2400
+      }
+      layer_stack_space_rect {
+        right: 1080
+        bottom: 2400
+      }
     }
     vsync_id: 24767
   }

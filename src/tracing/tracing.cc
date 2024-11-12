@@ -126,6 +126,8 @@ void Tracing::ActivateTriggers(const std::vector<std::string>& triggers,
 
 TracingSession::~TracingSession() = default;
 
+void TracingSession::CloneTrace(CloneTraceArgs, CloneTraceCallback) {}
+
 // Can be called from any thread.
 bool TracingSession::FlushBlocking(uint32_t timeout_ms) {
   std::atomic<bool> flush_result;

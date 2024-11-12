@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Add `--clone-by-name` to the perfetto command line. This allows cloning a
+      tracing session by its unique_session_name.
   SQL Standard library:
     * Removed the `linux_device_track` table. Linux RPM (runtime power
       management) tracks formerly in this table now can be found in the `track`
@@ -8,12 +9,25 @@ Unreleased:
     * Removed the `energy_counter_track` table. Android energy estimate
       breakdown tracks formerly in this table now can be found in the `track`
       table with `classification` `android_energy_estimation_breakdown`.
-    * Removed the `android_energy_estimation_breakdown_per_uid` table. Android
-      energy estimate breakdown tracks formerly in this table now can be found
-      in the `track` table with `classification`
-      `android_energy_estimation_breakdown_per_uid`.
+    * Removed the `energy_per_uid_counter_track` table. Android energy estimate
+      breakdown tracks formerly in this table now can be found in the `track`
+      table with `classification` `android_energy_estimation_breakdown_per_uid`.
+    * Moved the `gpu_work_period_track` table into the `android.gpu.work_period`
+      standard library module and renamed it to `android_gpu_work_period_track`.
+    * Removed the `irq_counter_track` table. Irq counter tracks formerly in this
+      table now can be found in the `track` table with `classification`
+      `irq_counter`.
+    * Removed the `softirq_counter_track` table. Softirq counter tracks formerly
+      in this table now can be found in the `track` table with `classification`
+      `softirq_counter`.
     * Removed the `uid_counter_track` table. It was redundant as no data was
       inserted directly into it.
+    * Removed the `uid_track` table. It was redundant as no data was
+      inserted directly into it.
+    * Removed `common` package. It has been deprecated since `v42` and most
+      functionality has been moved into other packages. Notably, the time
+      conversion functions can be found in `time.conversion` module, and
+      `thread_slice` is available with `slices.with_context`.
   Trace Processor:
     *
   UI:

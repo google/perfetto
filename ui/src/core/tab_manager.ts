@@ -21,6 +21,8 @@ export interface ResolvedTab {
   tab?: TabDescriptor;
 }
 
+export type TabPanelVisibility = 'COLLAPSED' | 'VISIBLE' | 'FULLSCREEN';
+
 /**
  * Stores tab & current selection section registries.
  * Keeps track of tab lifecycles.
@@ -32,6 +34,8 @@ export class TabManagerImpl implements TabManager, Disposable {
   private _instantiatedTabs = new Map<string, TabDescriptor>();
   private _openTabs: string[] = []; // URIs of the tabs open.
   private _currentTab: string = 'current_selection';
+  private _tabPanelVisibility: TabPanelVisibility = 'COLLAPSED';
+  private _tabPanelVisibilityChanged = false;
 
   [Symbol.dispose]() {
     // Dispose of all tabs that are currently alive
@@ -79,6 +83,18 @@ export class TabManagerImpl implements TabManager, Disposable {
       }
     }
     this._currentTab = uri;
+
+    // The first time that we show a tab, auto-expand the tab bottom panel.
+    // However, if the user has later collapsed the panel (hence if
+    // _tabPanelVisibilityChanged == true), don't insist and leave things as
+    // they are.
+    if (
+      !this._tabPanelVisibilityChanged &&
+      this._tabPanelVisibility === 'COLLAPSED'
+    ) {
+      this.setTabPanelVisibility('VISIBLE');
+    }
+
     raf.scheduleFullRedraw();
   }
 
@@ -180,6 +196,27 @@ export class TabManagerImpl implements TabManager, Disposable {
     this._instantiatedTabs = newTabs;
 
     return tabs;
+  }
+
+  setTabPanelVisibility(visibility: TabPanelVisibility): void {
+    this._tabPanelVisibility = visibility;
+    this._tabPanelVisibilityChanged = true;
+    raf.scheduleFullRedraw();
+  }
+
+  toggleTabPanelVisibility(): void {
+    switch (this._tabPanelVisibility) {
+      case 'COLLAPSED':
+      case 'FULLSCREEN':
+        return this.setTabPanelVisibility('VISIBLE');
+      case 'VISIBLE':
+        this.setTabPanelVisibility('COLLAPSED');
+        break;
+    }
+  }
+
+  get tabPanelVisibility() {
+    return this._tabPanelVisibility;
   }
 
   /**

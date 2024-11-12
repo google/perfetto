@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Duration, Time, TimeSpan, duration, time} from '../base/time';
-import {colorForCpu} from '../core/colorizer';
+import {colorForCpu} from '../public/lib/colorizer';
 import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
@@ -238,16 +238,22 @@ export class OverviewTimelinePanel implements Panel {
 
   onDragStart(x: number) {
     if (this.timeScale === undefined) return;
+
+    const cb = (vizTime: HighPrecisionTimeSpan) => {
+      this.trace.timeline.updateVisibleTimeHP(vizTime);
+      raf.scheduleRedraw();
+    };
     const pixelBounds = this.extractBounds(this.timeScale);
+    const timeScale = this.timeScale;
     if (
       OverviewTimelinePanel.inBorderRange(x, pixelBounds[0]) ||
       OverviewTimelinePanel.inBorderRange(x, pixelBounds[1])
     ) {
-      this.dragStrategy = new BorderDragStrategy(this.timeScale, pixelBounds);
+      this.dragStrategy = new BorderDragStrategy(timeScale, pixelBounds, cb);
     } else if (x < pixelBounds[0] || pixelBounds[1] < x) {
-      this.dragStrategy = new OuterDragStrategy(this.timeScale);
+      this.dragStrategy = new OuterDragStrategy(timeScale, cb);
     } else {
-      this.dragStrategy = new InnerDragStrategy(this.timeScale, pixelBounds);
+      this.dragStrategy = new InnerDragStrategy(timeScale, pixelBounds, cb);
     }
     this.dragStrategy.onDragStart(x);
   }

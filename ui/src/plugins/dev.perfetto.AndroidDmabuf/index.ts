@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../../frontend/globals';
 import {
-  SimpleCounterTrack,
-  SimpleCounterTrackConfig,
-} from '../../frontend/simple_counter_track';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+  createQueryCounterTrack,
+  SqlDataSource,
+} from '../../public/lib/tracks/query_counter_track';
+import {PerfettoPlugin} from '../../public/plugin';
 import {
   getOrCreateGroupForProcess,
   getOrCreateGroupForThread,
@@ -26,19 +25,25 @@ import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM_NULL} from '../../trace_processor/query_result';
 
-function registerAllocsTrack(
+async function registerAllocsTrack(
   ctx: Trace,
   uri: string,
-  config: SimpleCounterTrackConfig,
-): void {
+  dataSource: SqlDataSource,
+) {
+  const track = await createQueryCounterTrack({
+    trace: ctx,
+    uri,
+    data: dataSource,
+  });
   ctx.tracks.registerTrack({
     uri,
     title: `dmabuf allocs`,
-    track: new SimpleCounterTrack(ctx, {trackUri: uri}, config),
+    track: track,
   });
 }
 
-class AndroidDmabuf implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidDmabuf';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.memory.dmabuf`);
@@ -56,38 +61,25 @@ class AndroidDmabuf implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       if (it.upid != null) {
         const uri = `/android_process_dmabuf_upid_${it.upid}`;
-        const config: SimpleCounterTrackConfig = {
-          data: {
-            sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
+        const config: SqlDataSource = {
+          sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
                  WHERE upid = ${it.upid}`,
-            columns: ['ts', 'value'],
-          },
-          columns: {ts: 'ts', value: 'value'},
         };
-        registerAllocsTrack(ctx, uri, config);
-        getOrCreateGroupForProcess(globals.workspace, it.upid).addChildInOrder(
+        await registerAllocsTrack(ctx, uri, config);
+        getOrCreateGroupForProcess(ctx.workspace, it.upid).addChildInOrder(
           new TrackNode({uri, title: 'dmabuf allocs'}),
         );
       } else if (it.utid != null) {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
-        const config: SimpleCounterTrackConfig = {
-          data: {
-            sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
+        const config: SqlDataSource = {
+          sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
                  WHERE utid = ${it.utid}`,
-            columns: ['ts', 'value'],
-          },
-          columns: {ts: 'ts', value: 'value'},
         };
-        registerAllocsTrack(ctx, uri, config);
-        getOrCreateGroupForThread(globals.workspace, it.utid).addChildInOrder(
+        await registerAllocsTrack(ctx, uri, config);
+        getOrCreateGroupForThread(ctx.workspace, it.utid).addChildInOrder(
           new TrackNode({uri, title: 'dmabuf allocs'}),
         );
       }
     }
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidDmabuf',
-  plugin: AndroidDmabuf,
-};

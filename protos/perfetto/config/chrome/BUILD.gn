@@ -15,8 +15,10 @@
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 
-perfetto_proto_library("scenario_descriptor") {
-  proto_generators = [ "descriptor" ]
-  generate_descriptor = "scenario_config.descriptor"
+perfetto_proto_library("scenario_@TYPE@") {
+  proto_generators = []
+  deps = [ "..:@TYPE@" ]
   sources = [ "scenario_config.proto" ]
+  generate_descriptor = "scenario_config.descriptor"
+  descriptor_root_source = "scenario_config.proto"
 }

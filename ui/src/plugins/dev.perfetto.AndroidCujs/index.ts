@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {addAndPinSliceTrack} from './trackUtils';
+import {PerfettoPlugin} from '../../public/plugin';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
 /**
@@ -31,9 +29,8 @@ export function addJankCUJDebugTrack(
   trackName: string,
   cujNames?: string | string[],
 ) {
-  const jankCujTrackConfig: SimpleSliceTrackConfig =
-    generateJankCujTrackConfig(cujNames);
-  addAndPinSliceTrack(ctx, jankCujTrackConfig, trackName);
+  const jankCujTrackConfig = generateJankCujTrackConfig(cujNames);
+  addDebugSliceTrack({trace: ctx, title: trackName, ...jankCujTrackConfig});
 }
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
@@ -45,11 +42,9 @@ const JANK_CUJ_QUERY_PRECONDITIONS = `
  * Generate the Track config for a multiple Jank CUJ slices
  *
  * @param {string | string[]} cujNames List of Jank CUJs to pin, default empty
- * @returns {SimpleSliceTrackConfig} Returns the track config for given CUJs
+ * @returns Returns the track config for given CUJs
  */
-function generateJankCujTrackConfig(
-  cujNames: string | string[] = [],
-): SimpleSliceTrackConfig {
+function generateJankCujTrackConfig(cujNames: string | string[] = []) {
   // This method expects the caller to have run JANK_CUJ_QUERY_PRECONDITIONS
   // Not running the precondition query here to save time in case already run
   const jankCujQuery = JANK_CUJ_QUERY;
@@ -62,15 +57,13 @@ function generateJankCujTrackConfig(
           .join(',')})`
       : '';
 
-  const jankCujTrackConfig: SimpleSliceTrackConfig = {
+  return {
     data: {
       sqlSource: `${jankCujQuery}${filterCuj}`,
       columns: jankCujColumns,
     },
-    columns: {ts: 'ts', dur: 'dur', name: 'name'},
     argColumns: jankCujColumns,
   };
-  return jankCujTrackConfig;
 }
 
 const JANK_CUJ_QUERY = `
@@ -215,7 +208,8 @@ const BLOCKING_CALLS_DURING_CUJS_COLUMNS = [
   'table_name',
 ];
 
-class AndroidCujs implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidCujs';
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidCujs#PinJankCUJs',
@@ -244,16 +238,14 @@ class AndroidCujs implements PerfettoPlugin {
       id: 'dev.perfetto.AndroidCujs#PinLatencyCUJs',
       name: 'Add track: Android latency CUJs',
       callback: () => {
-        addDebugSliceTrack(
-          ctx,
-          {
+        addDebugSliceTrack({
+          trace: ctx,
+          data: {
             sqlSource: LATENCY_CUJ_QUERY,
             columns: LATENCY_COLUMNS,
           },
-          'Latency CUJs',
-          {ts: 'ts', dur: 'dur', name: 'name'},
-          [],
-        );
+          title: 'Latency CUJs',
+        });
       },
     });
 
@@ -272,23 +264,17 @@ class AndroidCujs implements PerfettoPlugin {
       name: 'Add track: Android Blocking calls during CUJs',
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
-          addDebugSliceTrack(
-            ctx,
-            {
+          addDebugSliceTrack({
+            trace: ctx,
+            data: {
               sqlSource: BLOCKING_CALLS_DURING_CUJS_QUERY,
               columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
             },
-            'Blocking calls during CUJs',
-            {ts: 'ts', dur: 'dur', name: 'name'},
-            BLOCKING_CALLS_DURING_CUJS_COLUMNS,
-          ),
+            title: 'Blocking calls during CUJs',
+            argColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
+          }),
         );
       },
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidCujs',
-  plugin: AndroidCujs,
-};

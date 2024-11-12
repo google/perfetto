@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -46,6 +47,12 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       category_key_(context->storage->InternString("category")),
       has_first_packet_on_sequence_key_id_(
           context->storage->InternString("has_first_packet_on_sequence")),
+      child_ordering_key_(context->storage->InternString("child_ordering")),
+      explicit_id_(context->storage->InternString("explicit")),
+      lexicographic_id_(context->storage->InternString("lexicographic")),
+      chronological_id_(context->storage->InternString("chronological")),
+      sibling_order_rank_key_(
+          context->storage->InternString("sibling_order_rank")),
       descriptor_source_(context->storage->InternString("descriptor")),
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
@@ -146,6 +153,25 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
     args.AddArg(has_first_packet_on_sequence_key_id_, Variadic::Boolean(true));
   }
 
+  switch (reservation.ordering) {
+    case DescriptorTrackReservation::ChildTracksOrdering::kLexicographic:
+      args.AddArg(child_ordering_key_, Variadic::String(lexicographic_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kChronological:
+      args.AddArg(child_ordering_key_, Variadic::String(chronological_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kExplicit:
+      args.AddArg(child_ordering_key_, Variadic::String(explicit_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kUnknown:
+      break;
+  }
+
+  if (reservation.sibling_order_rank) {
+    args.AddArg(sibling_order_rank_key_,
+                Variadic::Integer(*reservation.sibling_order_rank));
+  }
+
   auto row_ref = *context_->storage->mutable_track_table()->FindById(track_id);
   if (parent_id) {
     row_ref.set_parent_id(*parent_id);
@@ -170,14 +196,16 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
           if (it != thread_tracks_.end()) {
             return it->second;
           }
-          return thread_tracks_[track.utid()] =
-                     context_->track_tracker->CreateThreadTrack(
-                         TrackClassification::kTrackEvent, track.utid());
+          TrackId id = context_->track_tracker->CreateThreadTrack(
+              tracks::track_event, track.utid(), TrackTracker::AutoName());
+          thread_tracks_[track.utid()] = id;
+          return id;
         }
         return context_->track_tracker->InternThreadTrack(track.utid());
       }
       case ResolvedDescriptorTrack::Scope::kProcess:
-        return context_->track_tracker->InternProcessTrack(track.upid());
+        return context_->track_tracker->InternProcessTrack(tracks::track_event,
+                                                           track.upid());
       case ResolvedDescriptorTrack::Scope::kGlobal:
         // Will be handled below.
         break;
@@ -188,28 +216,30 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
     switch (track.scope()) {
       case ResolvedDescriptorTrack::Scope::kThread:
         return context_->track_tracker->CreateThreadCounterTrack(
-            TrackClassification::kTrackEvent, kNullStringId, track.utid());
+            tracks::track_event, track.utid(), TrackTracker::AutoName());
       case ResolvedDescriptorTrack::Scope::kProcess:
         return context_->track_tracker->CreateProcessCounterTrack(
-            TrackClassification::kTrackEvent, track.upid());
+            tracks::track_event, track.upid(), std::nullopt,
+            TrackTracker::AutoName());
       case ResolvedDescriptorTrack::Scope::kGlobal:
         return context_->track_tracker->CreateCounterTrack(
-            TrackClassification::kTrackEvent, std::nullopt, kNullStringId);
+            tracks::track_event, std::nullopt, TrackTracker::AutoName());
     }
   }
 
   switch (track.scope()) {
     case ResolvedDescriptorTrack::Scope::kThread: {
       return context_->track_tracker->CreateThreadTrack(
-          TrackClassification::kTrackEvent, track.utid());
+          tracks::track_event, track.utid(), TrackTracker::AutoName());
     }
     case ResolvedDescriptorTrack::Scope::kProcess: {
       return context_->track_tracker->CreateProcessTrack(
-          TrackClassification::kTrackEvent, track.upid());
+          tracks::track_event, track.upid(), std::nullopt,
+          TrackTracker::AutoName());
     }
     case ResolvedDescriptorTrack::Scope::kGlobal: {
       return context_->track_tracker->CreateTrack(
-          TrackClassification::kTrackEvent, std::nullopt, kNullStringId);
+          tracks::track_event, std::nullopt, TrackTracker::AutoName());
     }
   }
   PERFETTO_FATAL("For GCC");

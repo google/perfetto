@@ -12,60 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyRecordConfig} from '../controller/record_config_types';
-import {featureFlags} from '../core/feature_flags';
 import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
-import {State, STATE_VERSION} from './state';
+import {RecordingState} from './state';
 
-const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
-  id: 'autoloadStartedConfig',
-  name: 'Auto-load last used recording config',
-  description:
-    'Starting a recording automatically saves its configuration. ' +
-    'This flag controls whether this config is automatically loaded.',
-  defaultValue: true,
-});
-
-export function keyedMap<T>(
-  keyFn: (key: T) => string,
-  ...values: T[]
-): Map<string, T> {
-  const result = new Map<string, T>();
-
-  for (const value of values) {
-    result.set(keyFn(value), value);
-  }
-
-  return result;
-}
-
-export function createEmptyState(): State {
+export function createEmptyState(): RecordingState {
   return {
-    version: STATE_VERSION,
-
-    recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()
-      ? autosaveConfigStore.get()
-      : createEmptyRecordConfig(),
-    displayConfigAsPbtxt: false,
+    recordConfig: autosaveConfigStore.get(),
     lastLoadedConfig: {type: 'NONE'},
-
-    perfDebug: false,
-    sidebarVisible: true,
 
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
-    flamegraphModalDismissed: false,
     recordingTarget: recordTargetStore.getValidTarget(),
     availableAdbDevices: [],
 
     fetchChromeCategories: false,
     chromeCategories: undefined,
-
-    trackFilterTerm: undefined,
-    forceRunControllers: 0,
+    bufferUsage: 0,
+    recordingLog: '',
   };
 }

@@ -48,7 +48,6 @@ class ProtoLogParser {
                                       std::optional<std::string>& location);
 
   TraceProcessorContext* const context_;
-  DescriptorPool pool_;
   util::ProtoToArgsParser args_parser_;
 
   const StringId log_level_debug_string_id_;

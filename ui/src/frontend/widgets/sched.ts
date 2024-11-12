@@ -16,7 +16,7 @@ import m from 'mithril';
 import {SchedSqlId} from '../../trace_processor/sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {globals} from '../globals';
+import {AppImpl} from '../../core/app_impl';
 
 interface SchedRefAttrs {
   // The id of the referenced sched slice in the sched_slice table.
@@ -32,7 +32,8 @@ interface SchedRefAttrs {
 }
 
 export function goToSchedSlice(id: SchedSqlId) {
-  globals.selectionManager.selectSqlEvent('sched_slice', id, {
+  // TODO(primiano): the Trace object should be properly injected here.
+  AppImpl.instance.trace?.selection.selectSqlEvent('sched_slice', id, {
     scrollToSelection: true,
   });
 }
@@ -44,7 +45,8 @@ export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          globals.selectionManager.selectSqlEvent(
+          // TODO(primiano): the Trace object should be properly injected here.
+          AppImpl.instance.trace?.selection.selectSqlEvent(
             'sched_slice',
             vnode.attrs.id,
             {

@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {getServingRoot} from '../base/http_utils';
 import {Time} from '../base/time';
-import {TraceInfo} from '../public/trace_info';
 import {EngineBase} from '../trace_processor/engine';
 import {AppImpl} from './app_impl';
 import {TraceImpl} from './trace_impl';
+import {TraceInfoImpl} from './trace_info_impl';
 
 export interface FakeTraceImplArgs {
   // If true suppresses exceptions when trying to issue a query. This is to
@@ -31,24 +30,15 @@ let appImplInitialized = false;
 export function initializeAppImplForTesting(): AppImpl {
   if (!appImplInitialized) {
     appImplInitialized = true;
-    AppImpl.initialize({
-      rootUrl: getServingRoot(), // NOTE: will be '' in unittests.
-      initialRouteArgs: {},
-      clearState: () => {},
-    });
+    AppImpl.initialize({initialRouteArgs: {}});
   }
   return AppImpl.instance;
 }
 
-// This is used:
-// - For testing.
-// - By globals.ts before we have an actual trace loaded, to avoid causing
-//   if (!= undefined) checks everywhere.
+// For testing purposes only.
 export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
-  if (!AppImpl.initialized) {
-    initializeAppImplForTesting();
-  }
-  const fakeTraceInfo: TraceInfo = {
+  initializeAppImplForTesting();
+  const fakeTraceInfo: TraceInfoImpl = {
     source: {type: 'URL', url: ''},
     traceTitle: '',
     traceUrl: '',
@@ -63,6 +53,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     hasFtrace: false,
     uuid: '',
     cached: false,
+    downloadable: false,
   };
   return TraceImpl.createInstanceForCore(
     AppImpl.instance,

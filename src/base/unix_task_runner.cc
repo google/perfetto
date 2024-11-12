@@ -53,7 +53,10 @@ void UnixTaskRunner::WakeUp() {
 void UnixTaskRunner::Run() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   created_thread_id_.store(GetThreadId(), std::memory_order_relaxed);
-  quit_ = false;
+  {
+    std::lock_guard<std::mutex> lock(lock_);
+    quit_ = false;
+  }
   for (;;) {
     int poll_timeout_ms;
     {

@@ -13,11 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists, assertTrue} from '../base/logging';
-import {isString} from '../base/object_utils';
-import {getCurrentChannel} from '../common/channels';
+import {getCurrentChannel} from '../core/channels';
 import {TRACE_SUFFIX} from '../common/constants';
-import {ConversionJobStatus} from '../common/conversion_jobs';
 import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
@@ -32,22 +29,23 @@ import {Animation} from './animation';
 import {downloadData, downloadUrl} from './download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {
-  createTraceLink,
-  isDownloadable,
-  isTraceLoaded,
-  shareTrace,
-} from './trace_attrs';
+import {shareTrace} from './trace_share_utils';
 import {
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
 import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
-import {formatHotkey} from '../base/hotkeys';
-import {SidebarMenuItem} from '../public/sidebar';
+import {SIDEBAR_SECTIONS, SidebarSections} from '../public/sidebar';
 import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
-import {Router} from '../core/router';
+import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
+import {Command} from '../public/command';
+import {SidebarMenuItemInternal} from '../core/sidebar_manager';
+import {exists, getOrCreate} from '../base/utils';
+import {copyToClipboard} from '../base/clipboard';
+import {classNames} from '../base/classnames';
+import {formatHotkey} from '../base/hotkeys';
+import {assetSrc} from '../base/assets';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';
@@ -67,375 +65,34 @@ const HIRING_BANNER_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-const WIDGETS_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showWidgetsPageInNav',
-  name: 'Show widgets page',
-  description: 'Show a link to the widgets page in the side bar.',
-  defaultValue: false,
-});
-
-const PLUGINS_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showPluginsPageInNav',
-  name: 'Show plugins page',
-  description: 'Show a link to the plugins page in the side bar.',
-  defaultValue: false,
-});
-
-const INSIGHTS_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showInsightsPageInNav',
-  name: 'Show insights page',
-  description: 'Show a link to the insights page in the side bar.',
-  defaultValue: false,
-});
-
-const VIZ_PAGE_IN_NAV_FLAG = featureFlags.register({
-  id: 'showVizPageInNav',
-  name: 'Show viz page',
-  description: 'Show a link to the viz page in the side bar.',
-  defaultValue: true,
-});
-
-export interface OptionalTraceAttrs {
-  trace?: Trace;
-}
-
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 
-interface SectionItem {
-  t: string;
-  a: string | ((e: Event) => void);
-  i: string;
-  title?: string;
-  isPending?: () => boolean;
-  isVisible?: () => boolean;
-  internalUserOnly?: boolean;
-  checkDownloadDisabled?: boolean;
-  checkMetatracingEnabled?: boolean;
-  checkMetatracingDisabled?: boolean;
+async function openCurrentTraceWithOldUI(trace: Trace): Promise<void> {
+  AppImpl.instance.analytics.logEvent(
+    'Trace Actions',
+    'Open current trace in legacy UI',
+  );
+  const file = await trace.getTraceFile();
+  await openInOldUIWithSizeCheck(file);
 }
 
-interface Section {
-  title: string;
-  summary: string;
-  items: SectionItem[];
-  expanded?: boolean;
-  hideIfNoTraceLoaded?: boolean;
-  appendOpenedTraceTitle?: boolean;
+async function convertTraceToSystrace(trace: Trace): Promise<void> {
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .systrace');
+  const file = await trace.getTraceFile();
+  await convertTraceToSystraceAndDownload(file);
 }
 
-function insertSidebarMenuitems(
-  groupSelector: SidebarMenuItem['group'],
-): ReadonlyArray<SectionItem> {
-  return AppImpl.instance.sidebar.menuItems
-    .valuesAsArray()
-    .filter(({group}) => group === groupSelector)
-    .sort((a, b) => {
-      const prioA = a.priority ?? 0;
-      const prioB = b.priority ?? 0;
-      return prioA - prioB;
-    })
-    .map((item) => {
-      const cmd = globals.commandManager.getCommand(item.commandId);
-      const title = cmd.defaultHotkey
-        ? `${cmd.name} [${formatHotkey(cmd.defaultHotkey)}]`
-        : cmd.name;
-      return {
-        t: cmd.name,
-        a: (e: Event) => {
-          e.preventDefault();
-          cmd.callback();
-        },
-        i: item.icon,
-        title,
-      };
-    });
+async function convertTraceToJson(trace: Trace): Promise<void> {
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .json');
+  const file = await trace.getTraceFile();
+  await convertTraceToJsonAndDownload(file);
 }
 
-function getSections(trace?: Trace): Section[] {
-  return [
-    {
-      title: 'Navigation',
-      summary: 'Open or record a new trace',
-      expanded: true,
-      items: [
-        ...insertSidebarMenuitems('navigation'),
-        {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
-        {
-          t: 'Widgets',
-          a: navigateWidgets,
-          i: 'widgets',
-          isVisible: () => WIDGETS_PAGE_IN_NAV_FLAG.get(),
-        },
-        {
-          t: 'Plugins',
-          a: navigatePlugins,
-          i: 'extension',
-          isVisible: () => PLUGINS_PAGE_IN_NAV_FLAG.get(),
-        },
-      ],
-    },
-
-    {
-      title: 'Current Trace',
-      summary: 'Actions on the current trace',
-      expanded: true,
-      hideIfNoTraceLoaded: true,
-      appendOpenedTraceTitle: true,
-      items: [
-        {t: 'Show timeline', a: navigateViewer, i: 'line_style'},
-        {
-          t: 'Share',
-          a: handleShareTrace,
-          i: 'share',
-          internalUserOnly: true,
-          isPending: () =>
-            globals.getConversionJobStatus('create_permalink') ===
-            ConversionJobStatus.InProgress,
-        },
-        {
-          t: 'Download',
-          a: (e: Event) => trace && downloadTrace(e, trace),
-          i: 'file_download',
-          checkDownloadDisabled: true,
-        },
-        {t: 'Query (SQL)', a: navigateQuery, i: 'database'},
-        {
-          t: 'Insights',
-          a: navigateInsights,
-          i: 'insights',
-          isVisible: () => INSIGHTS_PAGE_IN_NAV_FLAG.get(),
-        },
-        {
-          t: 'Viz',
-          a: navigateViz,
-          i: 'area_chart',
-          isVisible: () => VIZ_PAGE_IN_NAV_FLAG.get(),
-        },
-        {t: 'Metrics', a: navigateMetrics, i: 'speed'},
-        {t: 'Info and stats', a: navigateInfo, i: 'info'},
-      ],
-    },
-
-    {
-      title: 'Convert trace',
-      summary: 'Convert to other formats',
-      expanded: true,
-      hideIfNoTraceLoaded: true,
-      items: [
-        {
-          t: 'Switch to legacy UI',
-          a: openCurrentTraceWithOldUI,
-          i: 'filter_none',
-          isPending: () =>
-            globals.getConversionJobStatus('open_in_legacy') ===
-            ConversionJobStatus.InProgress,
-        },
-        {
-          t: 'Convert to .json',
-          a: convertTraceToJson,
-          i: 'file_download',
-          isPending: () =>
-            globals.getConversionJobStatus('convert_json') ===
-            ConversionJobStatus.InProgress,
-          checkDownloadDisabled: true,
-        },
-
-        {
-          t: 'Convert to .systrace',
-          a: convertTraceToSystrace,
-          i: 'file_download',
-          isVisible: () => Boolean(trace?.traceInfo.hasFtrace),
-          isPending: () =>
-            globals.getConversionJobStatus('convert_systrace') ===
-            ConversionJobStatus.InProgress,
-          checkDownloadDisabled: true,
-        },
-      ],
-    },
-
-    {
-      title: 'Example Traces',
-      expanded: true,
-      summary: 'Open an example trace',
-      items: [...insertSidebarMenuitems('example_traces')],
-    },
-
-    {
-      title: 'Support',
-      expanded: true,
-      summary: 'Documentation & Bugs',
-      items: [
-        {t: 'Keyboard shortcuts', a: openHelp, i: 'help'},
-        {t: 'Documentation', a: 'https://perfetto.dev/docs', i: 'find_in_page'},
-        {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
-        {
-          t: 'Report a bug',
-          a: getBugReportUrl(),
-          i: 'bug_report',
-        },
-        ...(trace
-          ? [
-              {
-                t: 'Record metatrace',
-                a: (e: Event) => recordMetatrace(e, trace.engine),
-                i: 'fiber_smart_record',
-                checkMetatracingDisabled: true,
-              },
-              {
-                t: 'Finalise metatrace',
-                a: (e: Event) => finaliseMetatrace(e, trace.engine),
-                i: 'file_download',
-                checkMetatracingEnabled: true,
-              },
-            ]
-          : []),
-      ],
-    },
-  ];
-}
-
-function openHelp(e: Event) {
-  e.preventDefault();
-  toggleHelp();
-}
-
-function downloadTraceFromUrl(url: string): Promise<File> {
-  return m.request({
-    method: 'GET',
-    url,
-    // TODO(hjd): Once mithril is updated we can use responseType here rather
-    // than using config and remove the extract below.
-    config: (xhr) => {
-      xhr.responseType = 'blob';
-      xhr.onprogress = (progress) => {
-        const percent = ((100 * progress.loaded) / progress.total).toFixed(1);
-        const msg = `Downloading trace ${percent}%`;
-        AppImpl.instance.omnibox.showStatusMessage(msg);
-      };
-    },
-    extract: (xhr) => {
-      return xhr.response;
-    },
-  });
-}
-
-export async function getCurrentTrace(): Promise<Blob> {
-  // Caller must check engine exists.
-  const src = assertExists(AppImpl.instance.trace?.traceInfo.source);
-  if (src.type === 'ARRAY_BUFFER') {
-    return new Blob([src.buffer]);
-  } else if (src.type === 'FILE') {
-    return src.file;
-  } else if (src.type === 'URL') {
-    return downloadTraceFromUrl(src.url);
-  } else {
-    throw new Error(`Loading to catapult from source with type ${src.type}`);
-  }
-}
-
-function openCurrentTraceWithOldUI(e: Event) {
-  e.preventDefault();
-  assertTrue(isTraceLoaded());
-  globals.logging.logEvent('Trace Actions', 'Open current trace in legacy UI');
-  if (!isTraceLoaded()) return;
-  getCurrentTrace()
-    .then((file) => {
-      openInOldUIWithSizeCheck(file);
-    })
-    .catch((error) => {
-      throw new Error(`Failed to get current trace ${error}`);
-    });
-}
-
-function convertTraceToSystrace(e: Event) {
-  e.preventDefault();
-  assertTrue(isTraceLoaded());
-  globals.logging.logEvent('Trace Actions', 'Convert to .systrace');
-  if (!isTraceLoaded()) return;
-  getCurrentTrace()
-    .then((file) => {
-      convertTraceToSystraceAndDownload(file);
-    })
-    .catch((error) => {
-      throw new Error(`Failed to get current trace ${error}`);
-    });
-}
-
-function convertTraceToJson(e: Event) {
-  e.preventDefault();
-  assertTrue(isTraceLoaded());
-  globals.logging.logEvent('Trace Actions', 'Convert to .json');
-  if (!isTraceLoaded()) return;
-  getCurrentTrace()
-    .then((file) => {
-      convertTraceToJsonAndDownload(file);
-    })
-    .catch((error) => {
-      throw new Error(`Failed to get current trace ${error}`);
-    });
-}
-
-function navigateRecord(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/record');
-}
-
-function navigateWidgets(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/widgets');
-}
-
-function navigatePlugins(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/plugins');
-}
-
-function navigateQuery(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/query');
-}
-
-function navigateInsights(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/insights');
-}
-
-function navigateViz(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/viz');
-}
-
-function navigateFlags(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/flags');
-}
-
-function navigateMetrics(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/metrics');
-}
-
-function navigateInfo(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/info');
-}
-
-function navigateViewer(e: Event) {
-  e.preventDefault();
-  Router.navigate('#!/viewer');
-}
-
-function handleShareTrace(e: Event) {
-  e.preventDefault();
-  shareTrace();
-}
-
-function downloadTrace(e: Event, trace: Trace) {
-  e.preventDefault();
-  if (!isDownloadable() || !isTraceLoaded()) return;
-  globals.logging.logEvent('Trace Actions', 'Download trace');
+function downloadTrace(trace: TraceImpl) {
+  if (!trace.traceInfo.downloadable) return;
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
 
   let url = '';
   let fileName = `trace${TRACE_SUFFIX}`;
@@ -473,9 +130,8 @@ function highPrecisionTimersAvailable(): boolean {
   );
 }
 
-function recordMetatrace(e: Event, engine: Engine) {
-  e.preventDefault();
-  globals.logging.logEvent('Trace Actions', 'Record metatrace');
+function recordMetatrace(engine: Engine) {
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Record metatrace');
 
   if (!highPrecisionTimersAvailable()) {
     const PROMPT = `High-precision timers are not available to WASM trace processor yet.
@@ -511,9 +167,12 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
   }
 }
 
-async function finaliseMetatrace(e: Event, engine: Engine) {
-  e.preventDefault();
-  globals.logging.logEvent('Trace Actions', 'Finalise metatrace');
+async function toggleMetatrace(e: Engine) {
+  return isMetatracingEnabled() ? finaliseMetatrace(e) : recordMetatrace(e);
+}
+
+async function finaliseMetatrace(engine: Engine) {
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Finalise metatrace');
 
   const jsEvents = disableMetatracingAndGetTrace();
 
@@ -525,8 +184,8 @@ async function finaliseMetatrace(e: Event, engine: Engine) {
   downloadData('metatrace', result.metatrace, jsEvents);
 }
 
-class EngineRPCWidget implements m.ClassComponent<OptionalTraceAttrs> {
-  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
+class EngineRPCWidget implements m.ClassComponent<OptionalTraceImplAttrs> {
+  view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
     let cssClass = '';
     let title = 'Number of pending SQL queries';
     let label: string;
@@ -550,8 +209,8 @@ class EngineRPCWidget implements m.ClassComponent<OptionalTraceAttrs> {
     // this will eventually become  consistent once the engine is created.
     if (mode === undefined) {
       if (
-        globals.httpRpcState.connected &&
-        AppImpl.instance.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
+        AppImpl.instance.httpRpc.httpRpcAvailable &&
+        AppImpl.instance.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
       ) {
         mode = 'HTTP_RPC';
       } else {
@@ -583,7 +242,7 @@ const ServiceWorkerWidget: m.Component = {
     let cssClass = '';
     let title = 'Service Worker: ';
     let label = 'N/A';
-    const ctl = globals.serviceWorkerController;
+    const ctl = AppImpl.instance.serviceWorkerController;
     if (!('serviceWorker' in navigator)) {
       label = 'N/A';
       title += 'not supported by the browser (requires HTTPS)';
@@ -605,8 +264,8 @@ const ServiceWorkerWidget: m.Component = {
     }
 
     const toggle = async () => {
-      if (globals.serviceWorkerController.bypassed) {
-        globals.serviceWorkerController.setBypass(false);
+      if (ctl.bypassed) {
+        ctl.setBypass(false);
         return;
       }
       showModal({
@@ -638,11 +297,7 @@ const ServiceWorkerWidget: m.Component = {
           {
             text: 'Disable and reload',
             primary: true,
-            action: () => {
-              globals.serviceWorkerController
-                .setBypass(true)
-                .then(() => location.reload());
-            },
+            action: () => ctl.setBypass(true).then(() => location.reload()),
           },
           {text: 'Cancel'},
         ],
@@ -658,8 +313,8 @@ const ServiceWorkerWidget: m.Component = {
   },
 };
 
-class SidebarFooter implements m.ClassComponent<OptionalTraceAttrs> {
-  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
+class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
+  view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
     return m(
       '.sidebar-footer',
       m(EngineRPCWidget, attrs),
@@ -696,105 +351,22 @@ class HiringBanner implements m.ClassComponent {
   }
 }
 
-export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
+export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
   private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
-  view({attrs}: m.CVnode<OptionalTraceAttrs>) {
-    if (globals.hideSidebar) return null;
-    const vdomSections = [];
-    for (const section of getSections(attrs.trace)) {
-      if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
-      const vdomItems = [];
-      for (const item of section.items) {
-        if (item.isVisible !== undefined && !item.isVisible()) {
-          continue;
-        }
-        let css = '';
-        let attrs = {
-          onclick: typeof item.a === 'function' ? item.a : null,
-          href: isString(item.a) ? item.a : '#',
-          target: isString(item.a) ? '_blank' : null,
-          disabled: false,
-          id: item.t.toLowerCase().replace(/[^\w]/g, '_'),
-        };
-        if (item.isPending && item.isPending()) {
-          attrs.onclick = (e) => e.preventDefault();
-          css = '.pending';
-        }
-        if (item.internalUserOnly && !globals.isInternalUser) {
-          continue;
-        }
-        if (item.checkMetatracingEnabled || item.checkMetatracingDisabled) {
-          if (
-            item.checkMetatracingEnabled === true &&
-            !isMetatracingEnabled()
-          ) {
-            continue;
-          }
-          if (
-            item.checkMetatracingDisabled === true &&
-            isMetatracingEnabled()
-          ) {
-            continue;
-          }
-          if (
-            item.checkMetatracingDisabled &&
-            !highPrecisionTimersAvailable()
-          ) {
-            attrs.disabled = true;
-          }
-        }
-        if (item.checkDownloadDisabled && !isDownloadable()) {
-          attrs = {
-            onclick: (e) => {
-              e.preventDefault();
-              alert('Can not download external trace.');
-            },
-            href: '#',
-            target: null,
-            disabled: true,
-            id: '',
-          };
-        }
-        vdomItems.push(
-          m(
-            'li',
-            m(
-              `a${css}`,
-              {...attrs, title: item.title},
-              m('i.material-icons', item.i),
-              item.t,
-            ),
-          ),
-        );
-      }
-      if (section.appendOpenedTraceTitle) {
-        if (globals.traceContext.traceTitle) {
-          const {traceTitle, traceUrl} = globals.traceContext;
-          vdomItems.unshift(m('li', createTraceLink(traceTitle, traceUrl)));
-        }
-      }
-      vdomSections.push(
-        m(
-          `section${section.expanded ? '.expanded' : ''}`,
-          m(
-            '.section-header',
-            {
-              onclick: () => {
-                section.expanded = !section.expanded;
-                raf.scheduleFullRedraw();
-              },
-            },
-            m('h1', {title: section.summary}, section.title),
-            m('h2', section.summary),
-          ),
-          m('.section-content', m('ul', vdomItems)),
-        ),
-      );
-    }
+  private _asyncJobPending = new Set<string>();
+  private _sectionExpanded = new Map<string, boolean>();
+
+  constructor() {
+    registerMenuItems();
+  }
+
+  view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
+    const sidebar = AppImpl.instance.sidebar;
+    if (!sidebar.enabled) return null;
     return m(
       'nav.sidebar',
       {
-        class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
+        class: sidebar.visible ? 'show-sidebar' : 'hide-sidebar',
         // 150 here matches --sidebar-timing in the css.
         // TODO(hjd): Should link to the CSS variable.
         ontransitionstart: (e: TransitionEvent) => {
@@ -809,20 +381,16 @@ export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
       shouldShowHiringBanner() ? m(HiringBanner) : null,
       m(
         `header.${getCurrentChannel()}`,
-        m(`img[src=${globals.root}assets/brand.png].brand`),
+        m(`img[src=${assetSrc('assets/brand.png')}].brand`),
         m(
           'button.sidebar-button',
           {
-            onclick: () => {
-              globals.commandManager.runCommand(
-                'perfetto.CoreCommands#ToggleLeftSidebar',
-              );
-            },
+            onclick: () => sidebar.toggleVisibility(),
           },
           m(
             'i.material-icons',
             {
-              title: globals.state.sidebarVisible ? 'Hide menu' : 'Show menu',
+              title: sidebar.visible ? 'Hide menu' : 'Show menu',
             },
             'menu',
           ),
@@ -832,10 +400,259 @@ export class Sidebar implements m.ClassComponent<OptionalTraceAttrs> {
         '.sidebar-scroll',
         m(
           '.sidebar-scroll-container',
-          ...vdomSections,
+          ...(Object.keys(SIDEBAR_SECTIONS) as SidebarSections[]).map((s) =>
+            this.renderSection(s),
+          ),
           m(SidebarFooter, attrs),
         ),
       ),
     );
   }
+
+  private renderSection(sectionId: SidebarSections) {
+    const section = SIDEBAR_SECTIONS[sectionId];
+    const menuItems = AppImpl.instance.sidebar.menuItems
+      .valuesAsArray()
+      .filter((item) => item.section === sectionId)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map((item) => this.renderItem(item));
+
+    // Don't render empty sections.
+    if (menuItems.length === 0) return undefined;
+
+    const expanded = getOrCreate(this._sectionExpanded, sectionId, () => true);
+    return m(
+      `section${expanded ? '.expanded' : ''}`,
+      m(
+        '.section-header',
+        {
+          onclick: () => {
+            this._sectionExpanded.set(sectionId, !expanded);
+            raf.scheduleFullRedraw();
+          },
+        },
+        m('h1', {title: section.title}, section.title),
+        m('h2', section.summary),
+      ),
+      m('.section-content', m('ul', menuItems)),
+    );
+  }
+
+  private renderItem(item: SidebarMenuItemInternal): m.Child {
+    let href = '#';
+    let disabled = false;
+    let target = null;
+    let command: Command | undefined = undefined;
+    let tooltip = valueOrCallback(item.tooltip);
+    let onclick: (() => unknown | Promise<unknown>) | undefined = undefined;
+    const commandId = 'commandId' in item ? item.commandId : undefined;
+    const action = 'action' in item ? item.action : undefined;
+    let text = valueOrCallback(item.text);
+    const disabReason: boolean | string | undefined = valueOrCallback(
+      item.disabled,
+    );
+
+    if (disabReason === true || typeof disabReason === 'string') {
+      disabled = true;
+      onclick = () => typeof disabReason === 'string' && alert(disabReason);
+    } else if (action !== undefined) {
+      onclick = action;
+    } else if (commandId !== undefined) {
+      const cmdMgr = AppImpl.instance.commands;
+      command = cmdMgr.hasCommand(commandId ?? '')
+        ? cmdMgr.getCommand(commandId)
+        : undefined;
+      if (command === undefined) {
+        disabled = true;
+      } else {
+        text = text !== undefined ? text : command.name;
+        if (command.defaultHotkey !== undefined) {
+          tooltip =
+            `${tooltip ?? command.name}` +
+            ` [${formatHotkey(command.defaultHotkey)}]`;
+        }
+        onclick = () => cmdMgr.runCommand(commandId);
+      }
+    }
+
+    // This is not an else if because in some rare cases the user might want
+    // to have both an href and onclick, with different behaviors. The only case
+    // today is the trace name / URL, where we want the URL in the href to
+    // support right-click -> copy URL, but the onclick does copyToClipboard().
+    if ('href' in item && item.href !== undefined) {
+      href = item.href;
+      target = href.startsWith('#') ? null : '_blank';
+    }
+    return m(
+      'li',
+      m(
+        'a',
+        {
+          className: classNames(
+            valueOrCallback(item.cssClass),
+            this._asyncJobPending.has(item.id) && 'pending',
+          ),
+          onclick: onclick && this.wrapClickHandler(item.id, onclick),
+          href,
+          target,
+          disabled,
+          title: tooltip,
+        },
+        exists(item.icon) && m('i.material-icons', valueOrCallback(item.icon)),
+        text,
+      ),
+    );
+  }
+
+  // Creates the onClick handlers for the items which provided a function in the
+  // `action` member. The function can be either sync or async.
+  // What we want to achieve here is the following:
+  // - If the action is async (returns a Promise), we want to render a spinner,
+  //   next to the menu item, until the promise is resolved.
+  // - [Minor] we want to call e.preventDefault() to override the behaviour of
+  //   the <a href='#'> which gets rendered for accessibility reasons.
+  private wrapClickHandler(itemId: string, itemAction: Function) {
+    return (e: Event) => {
+      e.preventDefault(); // Make the <a href="#"> a no-op.
+      const res = itemAction();
+      if (!(res instanceof Promise)) return;
+      if (this._asyncJobPending.has(itemId)) {
+        return; // Don't queue up another action if not yet finished.
+      }
+      this._asyncJobPending.add(itemId);
+      raf.scheduleFullRedraw();
+      res.finally(() => {
+        this._asyncJobPending.delete(itemId);
+        raf.scheduleFullRedraw();
+      });
+    };
+  }
+}
+
+// TODO(primiano): The registrations below should be moved to dedicated
+// plugins (most of this really belongs to core_plugins/commads/index.ts).
+// For now i'm keeping everything here as splitting these require moving some
+// functions like share_trace() out of core, splitting out permalink, etc.
+
+let globalItemsRegistered = false;
+const traceItemsRegistered = new WeakSet<TraceImpl>();
+
+function registerMenuItems() {
+  if (!globalItemsRegistered) {
+    globalItemsRegistered = true;
+    registerGlobalSidebarEntries();
+  }
+  const trace = AppImpl.instance.trace;
+  if (trace !== undefined && !traceItemsRegistered.has(trace)) {
+    traceItemsRegistered.add(trace);
+    registerTraceMenuItems(trace);
+  }
+}
+
+function registerGlobalSidebarEntries() {
+  const app = AppImpl.instance;
+  // TODO(primiano): The Open file / Open with legacy entries are registered by
+  // the 'perfetto.CoreCommands' plugins. Make things consistent.
+  app.sidebar.addMenuItem({
+    section: 'navigation',
+    text: 'Record new trace',
+    href: '#!/record',
+    icon: 'fiber_smart_record',
+    sortOrder: 2,
+  });
+  app.sidebar.addMenuItem({
+    section: 'support',
+    text: 'Keyboard shortcuts',
+    action: toggleHelp,
+    icon: 'help',
+  });
+  app.sidebar.addMenuItem({
+    section: 'support',
+    text: 'Documentation',
+    href: 'https://perfetto.dev/docs',
+    icon: 'find_in_page',
+  });
+  app.sidebar.addMenuItem({
+    section: 'support',
+    sortOrder: 4,
+    text: 'Report a bug',
+    href: getBugReportUrl(),
+    icon: 'bug_report',
+  });
+}
+
+function registerTraceMenuItems(trace: TraceImpl) {
+  const downloadDisabled = trace.traceInfo.downloadable
+    ? false
+    : 'Cannot download external trace';
+
+  const traceTitle = trace?.traceInfo.traceTitle;
+  traceTitle &&
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      text: traceTitle,
+      href: trace.traceInfo.traceUrl,
+      action: () => copyToClipboard(trace.traceInfo.traceUrl),
+      tooltip: 'Click to copy the URL',
+      cssClass: 'trace-file-name',
+    });
+  trace.sidebar.addMenuItem({
+    section: 'current_trace',
+    text: 'Show timeline',
+    href: '#!/viewer',
+    icon: 'line_style',
+  });
+  globals.isInternalUser &&
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      text: 'Share',
+      action: async () => await shareTrace(trace),
+      icon: 'share',
+    });
+  trace.sidebar.addMenuItem({
+    section: 'current_trace',
+    text: 'Download',
+    action: () => downloadTrace(trace),
+    icon: 'file_download',
+    disabled: downloadDisabled,
+  });
+  trace.sidebar.addMenuItem({
+    section: 'convert_trace',
+    text: 'Switch to legacy UI',
+    action: async () => await openCurrentTraceWithOldUI(trace),
+    icon: 'filter_none',
+    disabled: downloadDisabled,
+  });
+  trace.sidebar.addMenuItem({
+    section: 'convert_trace',
+    text: 'Convert to .json',
+    action: async () => await convertTraceToJson(trace),
+    icon: 'file_download',
+    disabled: downloadDisabled,
+  });
+  trace.traceInfo.hasFtrace &&
+    trace.sidebar.addMenuItem({
+      section: 'convert_trace',
+      text: 'Convert to .systrace',
+      action: async () => await convertTraceToSystrace(trace),
+      icon: 'file_download',
+      disabled: downloadDisabled,
+    });
+  trace.sidebar.addMenuItem({
+    section: 'support',
+    sortOrder: 5,
+    text: () =>
+      isMetatracingEnabled() ? 'Finalize metatrace' : 'Record metatrace',
+    action: () => toggleMetatrace(trace.engine),
+    icon: () => (isMetatracingEnabled() ? 'download' : 'fiber_smart_record'),
+  });
+}
+
+// Used to deal with fields like the entry name, which can be either a direct
+// string or a callback that returns the string.
+function valueOrCallback<T>(value: T | (() => T)): T;
+function valueOrCallback<T>(value: T | (() => T) | undefined): T | undefined;
+function valueOrCallback<T>(value: T | (() => T) | undefined): T | undefined {
+  if (value === undefined) return undefined;
+  return value instanceof Function ? value() : value;
 }

@@ -14,14 +14,14 @@
 
 import {uuidv4} from '../base/uuid';
 import {NUM} from '../trace_processor/query_result';
-import {globals} from './globals';
-import {VisualisedArgsTrack} from './visualized_args_track';
+import {VisualizedArgsTrack} from './visualized_args_track';
 import {TrackNode} from '../public/workspace';
 import {Trace} from '../public/trace';
+import {SLICE_TRACK_KIND} from '../public/track_kinds';
 
-const VISUALISED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualisedArgs';
+const VISUALIZED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualizedArgs';
 
-export async function addVisualisedArgTracks(trace: Trace, argName: string) {
+export async function addVisualizedArgTracks(trace: Trace, argName: string) {
   const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
   const tableName = `__arg_visualisation_helper_${escapedArgName}_slice`;
 
@@ -58,33 +58,38 @@ export async function addVisualisedArgTracks(trace: Trace, argName: string) {
         group by track_id;
     `);
 
+  const addedTracks: TrackNode[] = [];
   const it = result.iter({trackId: NUM, maxDepth: NUM});
   for (; it.valid(); it.next()) {
     const trackId = it.trackId;
     const maxDepth = it.maxDepth;
 
-    const uri = `${VISUALISED_ARGS_SLICE_TRACK_URI_PREFIX}#${uuidv4()}`;
+    const uri = `${VISUALIZED_ARGS_SLICE_TRACK_URI_PREFIX}#${uuidv4()}`;
     trace.tracks.registerTrack({
       uri,
       title: argName,
-      chips: ['metric'],
-      track: new VisualisedArgsTrack({
+      chips: ['arg'],
+      track: new VisualizedArgsTrack({
         trace,
         uri,
         trackId,
         maxDepth,
         argName,
+        onClose: () => {
+          // Remove all added for this argument
+          addedTracks.forEach((t) => t.parent?.removeChild(t));
+        },
       }),
     });
 
     // Find the thread slice track that corresponds with this trackID and insert
     // this track before it.
-    const threadSliceTrack = globals.workspace.flatTracks.find((trackNode) => {
+    const threadSliceTrack = trace.workspace.flatTracks.find((trackNode) => {
       if (!trackNode.uri) return false;
-      const trackDescriptor = globals.trackManager.getTrack(trackNode.uri);
+      const trackDescriptor = trace.tracks.getTrack(trackNode.uri);
       return (
         trackDescriptor &&
-        trackDescriptor.tags?.kind === 'ThreadSliceTrack' &&
+        trackDescriptor.tags?.kind === SLICE_TRACK_KIND &&
         trackDescriptor.tags?.trackIds?.includes(trackId)
       );
     });
@@ -93,6 +98,7 @@ export async function addVisualisedArgTracks(trace: Trace, argName: string) {
     if (parentGroup) {
       const newTrack = new TrackNode({uri, title: argName});
       parentGroup.addChildBefore(newTrack, threadSliceTrack);
+      addedTracks.push(newTrack);
     }
   }
 }

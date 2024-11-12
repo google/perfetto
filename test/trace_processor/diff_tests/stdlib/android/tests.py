@@ -306,6 +306,28 @@ class AndroidStdlib(TestSuite):
         13934,"D",11950576,1
       """))
 
+  def test_android_monitor_contention_chain_thread_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      INCLUDE PERFETTO MODULE android.monitor_contention;
+      SELECT
+        *
+      FROM android_monitor_contention_chain_thread_state
+      WHERE id = 13934;
+      """,
+        out=Csv("""
+        "id","ts","dur","blocking_utid","blocked_function","state"
+        13934,1739927671503,141874,557,"[NULL]","R"
+        13934,1739927813377,69101,557,"[NULL]","Running"
+        13934,1739927882478,7649,557,"[NULL]","R+"
+        13934,1739927890127,3306,557,"[NULL]","Running"
+        13934,1739927893433,11950576,557,"blkdev_issue_flush","D"
+        13934,1739939844009,76306,557,"[NULL]","R"
+        13934,1739939920315,577554,557,"[NULL]","Running"
+        13934,1739940497869,82426,557,"[NULL]","R"
+      """))
+
   def test_monitor_contention_chain_extraction(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
@@ -1302,3 +1324,117 @@ class AndroidStdlib(TestSuite):
         "binder",4174605447
         "S",5144384456
         """))
+
+  def test_android_charging_states_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_job_scheduler.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.battery.charging_states;
+        SELECT ts, dur, charging_state FROM android_charging_states;
+      """,
+        out=Csv("""
+        "ts","dur","charging_state"
+        368604749651,59806073237,"Charging"
+      """))
+
+  def test_android_job_scheduler_states_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_job_scheduler.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.job_scheduler_states;
+        SELECT
+          id,
+          ts,
+          dur,
+          slice_id,
+          job_name || '_' || job_id AS job_name,
+          uid,
+          job_id,
+          package_name,
+          job_namespace,
+          effective_priority,
+          has_battery_not_low_constraint,
+          has_charging_constraint,
+          has_connectivity_constraint,
+          has_content_trigger_constraint,
+          has_deadline_constraint,
+          has_idle_constraint,
+          has_storage_not_low_constraint,
+          has_timing_delay_constraint,
+          is_prefetch,
+          is_requested_expedited_job,
+          is_running_as_expedited_job,
+          num_previous_attempts,
+          requested_priority,
+          standby_bucket,
+          is_periodic,
+          has_flex_constraint,
+          is_requested_as_user_initiated_job,
+          is_running_as_user_initiated_job,
+          deadline_ms,
+          job_start_latency_ms,
+          num_uncompleted_work_items,
+          proc_state,
+          internal_stop_reason,
+          public_stop_reason
+        FROM android_job_scheduler_states;
+      """,
+        out=Csv("""
+"id","ts","dur","slice_id","job_name","uid","job_id","package_name","job_namespace","effective_priority","has_battery_not_low_constraint","has_charging_constraint","has_connectivity_constraint","has_content_trigger_constraint","has_deadline_constraint","has_idle_constraint","has_storage_not_low_constraint","has_timing_delay_constraint","is_prefetch","is_requested_expedited_job","is_running_as_expedited_job","num_previous_attempts","requested_priority","standby_bucket","is_periodic","has_flex_constraint","is_requested_as_user_initiated_job","is_running_as_user_initiated_job","deadline_ms","job_start_latency_ms","num_uncompleted_work_items","proc_state","internal_stop_reason","public_stop_reason"
+1,377089754138,83200835,10,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286783",10090,-2746960329031286783,"com.android.providers.media.module","androidx.work.systemjobscheduler",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,3,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_CANCELLED","STOP_REASON_CANCELLED_BY_APP"
+2,385507499374,111746552,17,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286782",10090,-2746960329031286782,"com.android.providers.media.module","androidx.work.systemjobscheduler",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,6,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
+3,416753734715,129444346,53,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286781",10090,-2746960329031286781,"com.android.providers.media.module","androidx.work.systemjobscheduler",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,5,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
+4,422530232411,86735906,59,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286780",10090,-2746960329031286780,"com.android.providers.media.module","androidx.work.systemjobscheduler",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,3,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
+      """))
+
+  def test_android_job_scheduler_with_screen_charging_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_job_scheduler.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.job_scheduler_states;
+        SELECT
+          ts,
+          dur,
+          slice_id,
+          job_name,
+          uid,
+          job_id,
+          job_dur,
+          package_name,
+          job_namespace,
+          charging_state,
+          screen_state,
+          effective_priority,
+          has_battery_not_low_constraint,
+          has_charging_constraint,
+          has_connectivity_constraint,
+          has_content_trigger_constraint,
+          has_deadline_constraint,
+          has_idle_constraint,
+          has_storage_not_low_constraint,
+          has_timing_delay_constraint,
+          is_prefetch,
+          is_requested_expedited_job,
+          is_running_as_expedited_job,
+          num_previous_attempts,
+          requested_priority,
+          standby_bucket,
+          is_periodic,
+          has_flex_constraint,
+          is_requested_as_user_initiated_job,
+          is_running_as_user_initiated_job,
+          deadline_ms,
+          job_start_latency_ms,
+          num_uncompleted_work_items,
+          proc_state,
+          internal_stop_reason,
+          public_stop_reason
+        from android_job_scheduler_with_screen_charging_states;
+      """,
+        out=Csv("""
+        "ts","dur","slice_id","job_name","uid","job_id","job_dur","package_name","job_namespace","charging_state","screen_state","effective_priority","has_battery_not_low_constraint","has_charging_constraint","has_connectivity_constraint","has_content_trigger_constraint","has_deadline_constraint","has_idle_constraint","has_storage_not_low_constraint","has_timing_delay_constraint","is_prefetch","is_requested_expedited_job","is_running_as_expedited_job","num_previous_attempts","requested_priority","standby_bucket","is_periodic","has_flex_constraint","is_requested_as_user_initiated_job","is_running_as_user_initiated_job","deadline_ms","job_start_latency_ms","num_uncompleted_work_items","proc_state","internal_stop_reason","public_stop_reason"
+377089754138,83200835,10,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286783",10090,-2746960329031286783,83200835,"com.android.providers.media.module","androidx.work.systemjobscheduler","Charging","Unknown",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,3,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_CANCELLED","STOP_REASON_CANCELLED_BY_APP"
+385507499374,111746552,17,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286782",10090,-2746960329031286782,111746552,"com.android.providers.media.module","androidx.work.systemjobscheduler","Charging","Unknown",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,6,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
+416753734715,129444346,53,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286781",10090,-2746960329031286781,129444346,"com.android.providers.media.module","androidx.work.systemjobscheduler","Charging","Unknown",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,5,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
+422530232411,86735906,59,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286780",10090,-2746960329031286780,86735906,"com.android.providers.media.module","androidx.work.systemjobscheduler","Charging","Unknown",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,3,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
+      """))

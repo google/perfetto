@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Probe, ProbeAttrs} from '../record_widgets';
+import {Probe} from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
 
 export class EtwSettings implements m.ClassComponent<RecordingSectionAttrs> {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    const recCfg = attrs.recState.recordConfig;
     return m(
       `.record-section${attrs.cssClass}`,
       m(Probe, {
@@ -26,14 +27,16 @@ export class EtwSettings implements m.ClassComponent<RecordingSectionAttrs> {
         descr: `Enables to recording of context switches.`,
         setEnabled: (cfg, val) => (cfg.etwCSwitch = val),
         isEnabled: (cfg) => cfg.etwCSwitch,
-      } as ProbeAttrs),
+        recCfg,
+      }),
       m(Probe, {
         title: 'Dispatcher',
         img: null,
         descr: 'Enables to get thread state.',
         setEnabled: (cfg, val) => (cfg.etwThreadState = val),
         isEnabled: (cfg) => cfg.etwThreadState,
-      } as ProbeAttrs),
+        recCfg,
+      }),
     );
   }
 }

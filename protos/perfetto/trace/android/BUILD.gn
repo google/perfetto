@@ -60,10 +60,7 @@ perfetto_proto_library("winscope_regular_@TYPE@") {
 
 # Winscope messages added to TracePacket as extensions
 perfetto_proto_library("winscope_extensions_@TYPE@") {
-  proto_generators = [
-    "zero",
-    "source_set",
-  ]
+  proto_generators = [ "zero" ]
   public_deps = [ ":winscope_common_@TYPE@" ]
   sources = [
     "android_input_event.proto",
@@ -115,30 +112,25 @@ static_library("perfetto_winscope_extensions_zero") {
   deps = [ ":winscope_extensions_zero" ]
 }
 
-perfetto_proto_library("winscope_descriptor") {
-  proto_generators = [ "descriptor" ]
-  generate_descriptor = "winscope.descriptor"
-  link_deps = [
-    ":winscope_extensions_source_set",
-    ":winscope_regular_source_set",
-  ]
+perfetto_proto_library("winscope_@TYPE@") {
+  proto_generators = []
   sources = [ "winscope.proto" ]
+  deps = [
+    ":winscope_extensions_@TYPE@",
+    ":winscope_regular_@TYPE@",
+  ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  generate_descriptor = "winscope.descriptor"
+  descriptor_root_source = "winscope.proto"
 }
 
 # Android track_event extensions
 perfetto_proto_library("android_track_event_@TYPE@") {
-  proto_generators = [ "source_set" ]
+  sources = [ "android_track_event.proto" ]
   public_deps = [ "../track_event:@TYPE@" ]
-  sources = [ "android_track_event.proto" ]
-}
 
-perfetto_proto_library("android_track_event_@TYPE@") {
-  proto_generators = [ "descriptor" ]
   generate_descriptor = "android_track_event.descriptor"
-  sources = [ "android_track_event.proto" ]
-  deps = [ "../track_event:@TYPE@" ]
-  link_deps = [ ":android_track_event_source_set" ]
+  descriptor_root_source = "android_track_event.proto"
 
   # This is the descriptor for an extension. It shouldn't include the descriptor
   # for the base message as well.

@@ -748,7 +748,9 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
 }
 
 base::Status JsonTraceTokenizer::NotifyEndOfFile() {
-  return position_ == TracePosition::kEof
+  return position_ == TracePosition::kEof ||
+                 (position_ == TracePosition::kInsideTraceEventsArray &&
+                  format_ == TraceFormat::kOnlyTraceEvents)
              ? base::OkStatus()
              : base::ErrStatus("JSON trace file is incomplete");
 }

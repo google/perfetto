@@ -287,9 +287,15 @@ message SaveTraceForBugreportResponse {
 
 // Arguments for rpc CloneSession.
 message CloneSessionRequest {
-  // The session ID to clone. If session_id == kBugreportSessionId (0xff...ff)
-  // the session with the highest bugreport score is cloned (if any exists).
-  optional uint64 session_id = 1;
+  oneof selector {
+    // The session ID to clone. If session_id == kBugreportSessionId (0xff...ff)
+    // the session with the highest bugreport score is cloned (if any exists).
+    uint64 session_id = 1;
+
+    // The unique_session_name of the tracing session to clone. Tracing sessions
+    // that are clones of other tracing sessions are ignored.
+    string unique_session_name = 4;
+  }
 
   // If set, the trace filter will not have effect on the cloned session.
   // Used for bugreports.

@@ -13,18 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  Dropdown,
-  DropdownAttrs,
-  Probe,
-  ProbeAttrs,
-  Slider,
-  SliderAttrs,
-  Textarea,
-  TextareaAttrs,
-  Toggle,
-  ToggleAttrs,
-} from '../record_widgets';
+import {Dropdown, Probe, Slider, Textarea, Toggle} from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
 
 const FTRACE_CATEGORIES = new Map<string, string>();
@@ -52,6 +41,7 @@ export class AdvancedSettings
   implements m.ClassComponent<RecordingSectionAttrs>
 {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    const recCfg = attrs.recState.recordConfig;
     return m(
       `.record-section${attrs.cssClass}`,
       m(
@@ -64,7 +54,8 @@ export class AdvancedSettings
                   enabled by other probes.`,
           setEnabled: (cfg, val) => (cfg.ftrace = val),
           isEnabled: (cfg) => cfg.ftrace,
-        } as ProbeAttrs,
+          recCfg,
+        },
         m(Toggle, {
           title: 'Resolve kernel symbols',
           cssClass: '.thin',
@@ -73,7 +64,8 @@ export class AdvancedSettings
               (userdebug/eng builds only).`,
           setEnabled: (cfg, val) => (cfg.symbolizeKsyms = val),
           isEnabled: (cfg) => cfg.symbolizeKsyms,
-        } as ToggleAttrs),
+          recCfg,
+        }),
         m(Slider, {
           title: 'Buf size',
           cssClass: '.thin',
@@ -82,7 +74,8 @@ export class AdvancedSettings
           zeroIsDefault: true,
           set: (cfg, val) => (cfg.ftraceBufferSizeKb = val),
           get: (cfg) => cfg.ftraceBufferSizeKb,
-        } as SliderAttrs),
+          recCfg,
+        }),
         m(Slider, {
           title: 'Drain rate',
           cssClass: '.thin',
@@ -91,14 +84,16 @@ export class AdvancedSettings
           zeroIsDefault: true,
           set: (cfg, val) => (cfg.ftraceDrainPeriodMs = val),
           get: (cfg) => cfg.ftraceDrainPeriodMs,
-        } as SliderAttrs),
+          recCfg,
+        }),
         m(Dropdown, {
           title: 'Event groups',
           cssClass: '.multicolumn.ftrace-events',
           options: FTRACE_CATEGORIES,
           set: (cfg, val) => (cfg.ftraceEvents = val),
           get: (cfg) => cfg.ftraceEvents,
-        } as DropdownAttrs),
+          recCfg,
+        }),
         m(Textarea, {
           placeholder:
             'Add extra events, one per line, e.g.:\n' +
@@ -106,7 +101,8 @@ export class AdvancedSettings
             'kmem/*',
           set: (cfg, val) => (cfg.ftraceExtraEvents = val),
           get: (cfg) => cfg.ftraceExtraEvents,
-        } as TextareaAttrs),
+          recCfg,
+        }),
       ),
     );
   }

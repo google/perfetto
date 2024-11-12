@@ -31,8 +31,10 @@ namespace metadata {
   F(all_data_source_flushed_ns,        KeyType::kMulti,   Variadic::kInt),    \
   F(all_data_source_started_ns,        KeyType::kSingle,  Variadic::kInt),    \
   F(android_build_fingerprint,         KeyType::kSingle,  Variadic::kString), \
+  F(android_device_manufacturer,       KeyType::kSingle,  Variadic::kString), \
   F(android_sdk_version,               KeyType::kSingle,  Variadic::kInt),    \
   F(android_soc_model,                 KeyType::kSingle,  Variadic::kString), \
+  F(android_guest_soc_model,           KeyType::kSingle,  Variadic::kString), \
   F(android_hardware_revision,         KeyType::kSingle,  Variadic::kString), \
   F(android_storage_model,             KeyType::kSingle,  Variadic::kString), \
   F(android_ram_model,                 KeyType::kSingle,  Variadic::kString), \

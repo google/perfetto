@@ -282,3 +282,24 @@ class AndroidInputEvent(TestSuite):
         27,"vsync_id","0"
         27,"window_id","0"
         """))
+
+  def test_tables_have_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('input_event_trace.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.input;
+        SELECT COUNT(*) FROM android_key_events
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        UNION ALL
+        SELECT COUNT(*) FROM android_motion_events
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        UNION ALL
+        SELECT COUNT(*) FROM android_input_event_dispatch
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        2
+        6
+        30
+        """))

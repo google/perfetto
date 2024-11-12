@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {produce} from 'immer';
 import m from 'mithril';
-import {Actions} from '../../common/actions';
 import {RecordMode} from '../../common/state';
-import {globals} from '../globals';
-import {Slider, SliderAttrs} from '../record_widgets';
+import {Slider} from '../record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
+import {assetSrc} from '../../base/assets';
 
 export class RecordingSettings
   implements m.ClassComponent<RecordingSectionAttrs>
@@ -28,24 +26,21 @@ export class RecordingSettings
     const M = (x: number) => x * 1000 * 60;
     const H = (x: number) => x * 1000 * 60 * 60;
 
-    const cfg = globals.state.recordConfig;
+    const recCfg = attrs.recState.recordConfig;
 
     const recButton = (mode: RecordMode, title: string, img: string) => {
       const checkboxArgs = {
-        checked: cfg.mode === mode,
+        checked: recCfg.mode === mode,
         onchange: (e: InputEvent) => {
           const checked = (e.target as HTMLInputElement).checked;
           if (!checked) return;
-          const traceCfg = produce(globals.state.recordConfig, (draft) => {
-            draft.mode = mode;
-          });
-          globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
+          recCfg.mode = mode;
         },
       };
       return m(
-        `label${cfg.mode === mode ? '.selected' : ''}`,
+        `label${recCfg.mode === mode ? '.selected' : ''}`,
         m(`input[type=radio][name=rec_mode]`, checkboxArgs),
-        m(`img[src=${globals.root}assets/${img}]`),
+        m(`img[src=${assetSrc(`assets/${img}`)}]`),
         m('span', title),
       );
     };
@@ -67,7 +62,8 @@ export class RecordingSettings
         unit: 'MB',
         set: (cfg, val) => (cfg.bufferSizeMb = val),
         get: (cfg) => cfg.bufferSizeMb,
-      } as SliderAttrs),
+        recCfg,
+      }),
 
       m(Slider, {
         title: 'Max duration',
@@ -77,25 +73,28 @@ export class RecordingSettings
         unit: 'h:m:s',
         set: (cfg, val) => (cfg.durationMs = val),
         get: (cfg) => cfg.durationMs,
-      } as SliderAttrs),
+        recCfg,
+      }),
       m(Slider, {
         title: 'Max file size',
         icon: 'save',
-        cssClass: cfg.mode !== 'LONG_TRACE' ? '.hide' : '',
+        cssClass: recCfg.mode !== 'LONG_TRACE' ? '.hide' : '',
         values: [5, 25, 50, 100, 500, 1000, 1000 * 5, 1000 * 10],
         unit: 'MB',
         set: (cfg, val) => (cfg.maxFileSizeMb = val),
         get: (cfg) => cfg.maxFileSizeMb,
-      } as SliderAttrs),
+        recCfg,
+      }),
       m(Slider, {
         title: 'Flush on disk every',
-        cssClass: cfg.mode !== 'LONG_TRACE' ? '.hide' : '',
+        cssClass: recCfg.mode !== 'LONG_TRACE' ? '.hide' : '',
         icon: 'av_timer',
         values: [100, 250, 500, 1000, 2500, 5000],
         unit: 'ms',
         set: (cfg, val) => (cfg.fileWritePeriodMs = val),
         get: (cfg) => cfg.fileWritePeriodMs || 0,
-      } as SliderAttrs),
+        recCfg,
+      }),
     );
   }
 }

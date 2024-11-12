@@ -516,7 +516,13 @@ class TrackEventParser::EventImporter {
             break;
           case LegacyEvent::SCOPE_GLOBAL:
             track_id_ = context_->track_tracker->InternGlobalTrack(
-                TrackClassification::kChromeLegacyGlobalInstant);
+                tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
+                [this](ArgsTracker::BoundInserter& inserter) {
+                  inserter.AddArg(
+                      context_->storage->InternString("source"),
+                      Variadic::String(
+                          context_->storage->InternString("chrome")));
+                });
             legacy_passthrough_utid_ = utid_;
             utid_ = std::nullopt;
             break;
@@ -527,7 +533,7 @@ class TrackEventParser::EventImporter {
             }
 
             track_id_ = context_->track_tracker->InternProcessTrack(
-                TrackClassification::kChromeProcessInstant, *upid_);
+                tracks::chrome_process_instant, *upid_);
             context_->args_tracker->AddArgsTo(track_id_).AddArg(
                 context_->storage->InternString("source"),
                 Variadic::String(context_->storage->InternString("chrome")));
@@ -584,14 +590,16 @@ class TrackEventParser::EventImporter {
     // EventTracker expects counters to be pushed in order of their timestamps.
     // One more reason to switch to split begin/end events.
     if (thread_timestamp_) {
-      TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
-          parser_->counter_name_thread_time_id_, *utid_);
+      TrackId track_id =
+          context_->track_tracker->LegacyInternThreadCounterTrack(
+              parser_->counter_name_thread_time_id_, *utid_);
       context_->event_tracker->PushCounter(
           ts_, static_cast<double>(*thread_timestamp_), track_id);
     }
     if (thread_instruction_count_) {
-      TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
-          parser_->counter_name_thread_instruction_count_id_, *utid_);
+      TrackId track_id =
+          context_->track_tracker->LegacyInternThreadCounterTrack(
+              parser_->counter_name_thread_instruction_count_id_, *utid_);
       context_->event_tracker->PushCounter(
           ts_, static_cast<double>(*thread_instruction_count_), track_id);
     }
@@ -1538,10 +1546,17 @@ void TrackEventParser::ParseTrackDescriptor(
   }
 
   // Override the name with the most recent name seen (after sorting by ts).
-  if (decoder.has_name() || decoder.has_static_name()) {
+  ::protozero::ConstChars name = {nullptr, 0};
+  if (decoder.has_name()) {
+    name = decoder.name();
+  } else if (decoder.has_static_name()) {
+    name = decoder.static_name();
+  } else if (decoder.has_atrace_name()) {
+    name = decoder.atrace_name();
+  }
+  if (name.data != nullptr) {
     auto* tracks = context_->storage->mutable_track_table();
-    const StringId raw_name_id = context_->storage->InternString(
-        decoder.has_name() ? decoder.name() : decoder.static_name());
+    const StringId raw_name_id = context_->storage->InternString(name);
     const StringId name_id =
         context_->process_track_translation_table->TranslateName(raw_name_id);
     tracks->FindById(track_id)->set_name(name_id);

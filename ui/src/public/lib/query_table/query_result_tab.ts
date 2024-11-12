@@ -17,7 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 import {assertExists} from '../../../base/logging';
 import {QueryResponse, runQuery} from './queries';
 import {QueryError} from '../../../trace_processor/query_result';
-import {AddDebugTrackMenu} from '../debug_tracks/add_debug_track_menu';
+import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {Button} from '../../../widgets/button';
 import {PopupMenu2} from '../../../widgets/menu';
 import {PopupPosition} from '../../../widgets/popup';
@@ -77,7 +77,7 @@ export class QueryResultTab implements Tab {
     // TODO(stevegolton): Do we really need to create this view upfront?
     this.sqlViewName = await this.createViewForDebugTrack(uuidv4());
     if (this.sqlViewName) {
-      this.trace.scheduleRedraw();
+      this.trace.scheduleFullRedraw();
     }
   }
 
@@ -90,6 +90,7 @@ export class QueryResultTab implements Tab {
 
   render(): m.Children {
     return m(QueryTable, {
+      trace: this.trace,
       query: this.args.query,
       resp: this.queryResponse,
       fillParent: true,

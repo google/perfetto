@@ -15,10 +15,12 @@
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {addDebugSliceTrack} from '../../public/debug_tracks';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 
-class Chaos implements PerfettoPlugin {
-  onActivate(ctx: App): void {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.Chaos';
+
+  static onActivate(ctx: App): void {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.Chaos#CrashNow',
       name: 'Chaos: crash now',
@@ -48,29 +50,20 @@ class Chaos implements PerfettoPlugin {
       id: 'dev.perfetto.Chaos#AddCrashingDebugTrack',
       name: 'Chaos: add crashing debug track',
       callback: () => {
-        addDebugSliceTrack(
-          ctx,
-          {
+        addDebugSliceTrack({
+          trace: ctx,
+          data: {
             sqlSource: `
-            syntactically
-            invalid
-            query
-            over
-            many
-          `,
+              syntactically
+              invalid
+              query
+              over
+              many
+            `,
           },
-          `Chaos track`,
-          {ts: 'ts', dur: 'dur', name: 'name'},
-          [],
-        );
+          title: `Chaos track`,
+        });
       },
     });
   }
-
-  async onTraceUnload(_: Trace): Promise<void> {}
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.Chaos',
-  plugin: Chaos,
-};

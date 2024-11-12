@@ -111,6 +111,8 @@ android_startup {
         end_timestamp: 390000000000
         slice_id: 91
         slice_name: "CollectorTransition mark sweep GC"
+        process_pid: 3
+        thread_tid: 5
       }
     }
     slow_start_reason_with_details {
@@ -130,16 +132,22 @@ android_startup {
         start_timestamp: 155000000000
         end_timestamp: 165000000000
         thread_name: "Jit thread pool"
+        thread_tid: 4
+        process_pid: 3
       }
       trace_thread_sections {
         start_timestamp: 170000000000
         end_timestamp: 175000000000
         thread_name: "Jit thread pool"
+        thread_tid: 4
+        process_pid: 3
       }
       trace_thread_sections {
         start_timestamp: 185000000000
         end_timestamp: 190000000000
         thread_name: "Jit thread pool"
+        thread_tid: 4
+        process_pid: 3
       }
     }
     slow_start_reason_with_details {
@@ -160,18 +168,24 @@ android_startup {
         end_timestamp: 210000000000
         slice_id: 84
         slice_name: "JIT compiling nothing"
+        process_pid: 3
+        thread_tid: 3
       }
       trace_slice_sections {
         start_timestamp: 100000000000
         end_timestamp: 101000000000
         slice_id: 9
         slice_name: "JIT compiling something"
+        process_pid: 3
+        thread_tid: 4
       }
       trace_slice_sections {
         start_timestamp: 101000000000
         end_timestamp: 102000000000
         slice_id: 10
         slice_name: "JIT compiling something"
+        process_pid: 3
+        thread_tid: 4
       }
     }
   }

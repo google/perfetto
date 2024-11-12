@@ -13,24 +13,14 @@
 // limitations under the License.
 
 import {LONG} from '../../trace_processor/query_result';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {
-  SimpleSliceTrack,
-  SimpleSliceTrackConfig,
-} from '../../frontend/simple_slice_track';
+import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateUserInteractionGroup} from '../../public/standard_groups';
 
-class InputEvents implements PerfettoPlugin {
-  private readonly SQL_SOURCE = `
-    SELECT
-      read_time as ts,
-      end_to_end_latency_dur as dur,
-      CONCAT(event_type, ' ', event_action, ': ', process_name, ' (', input_event_id, ')') as name
-    FROM android_input_events
-    WHERE end_to_end_latency_dur IS NOT NULL
-    `;
+export default class implements PerfettoPlugin {
+  static readonly id = 'com.android.InputEvents';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const cnt = await ctx.engine.query(`
@@ -43,18 +33,25 @@ class InputEvents implements PerfettoPlugin {
       return;
     }
 
-    const config: SimpleSliceTrackConfig = {
-      data: {
-        sqlSource: this.SQL_SOURCE,
-        columns: ['ts', 'dur', 'name'],
-      },
-      columns: {ts: 'ts', dur: 'dur', name: 'name'},
-      argColumns: [],
-    };
+    const SQL_SOURCE = `
+      SELECT
+        read_time as ts,
+        end_to_end_latency_dur as dur,
+        CONCAT(event_type, ' ', event_action, ': ', process_name, ' (', input_event_id, ')') as name
+      FROM android_input_events
+      WHERE end_to_end_latency_dur IS NOT NULL
+      `;
+
     await ctx.engine.query('INCLUDE PERFETTO MODULE android.input;');
     const uri = 'com.android.InputEvents#InputEventsTrack';
     const title = 'Input Events';
-    const track = new SimpleSliceTrack(ctx, {trackUri: uri}, config);
+    const track = await createQuerySliceTrack({
+      trace: ctx,
+      uri,
+      data: {
+        sqlSource: SQL_SOURCE,
+      },
+    });
     ctx.tracks.registerTrack({
       uri,
       title: title,
@@ -65,8 +62,3 @@ class InputEvents implements PerfettoPlugin {
     group.addChildInOrder(node);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'com.android.InputEvents',
-  plugin: InputEvents,
-};

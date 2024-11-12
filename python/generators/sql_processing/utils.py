@@ -82,11 +82,7 @@ CREATE_MACRO_PATTERN = update_pattern(
 
 INCLUDE_PATTERN = update_pattern(fr'^INCLUDE PERFETTO MODULE ([A-Za-z_.*]*);$')
 
-COLUMN_ANNOTATION_PATTERN = update_pattern(fr'^ ({NAME}) ({ANY_WORDS})')
-
 NAME_AND_TYPE_PATTERN = update_pattern(fr' ({NAME})\s+({TYPE}) ')
-
-ARG_ANNOTATION_PATTERN = fr'\s*{NAME_AND_TYPE_PATTERN}\s+({ANY_WORDS})'
 
 ARG_DEFINITION_PATTERN = update_pattern(ARG_PATTERN)
 
@@ -117,7 +113,7 @@ ALLOWED_PREFIXES = {
     'chrome/util': ['cr'],
     'intervals': ['interval'],
     'graphs': ['graph'],
-    'slices': ['slice'],
+    'slices': ['slice', 'thread_slice', 'process_slice'],
     'linux': ['cpu', 'memory'],
     'stacks': ['cpu_profiling'],
 }
@@ -125,8 +121,6 @@ ALLOWED_PREFIXES = {
 # Allows for nonstandard object names.
 OBJECT_NAME_ALLOWLIST = {
     'graphs/partition.sql': ['tree_structural_partition_by_group'],
-    'slices/with_context.sql': ['process_slice', 'thread_slice'],
-    'slices/cpu_time.sql': ['thread_slice_cpu_time', 'thread_slice_cpu_cycles']
 }
 
 
@@ -196,7 +190,7 @@ def check_banned_create_table_as(sql: str) -> List[str]:
   errors = []
   for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
     name = matches[0]
-    if name != "trace_bounds":
+    if name != "_trace_bounds":
       errors.append(
           f"Table '{name}' uses CREATE TABLE which is deprecated "
           "and this table is not allowlisted. Use CREATE PERFETTO TABLE.")

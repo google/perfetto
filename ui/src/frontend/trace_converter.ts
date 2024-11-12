@@ -12,21 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assetSrc} from '../base/assets';
 import {download} from '../base/clipboard';
+import {defer} from '../base/deferred';
 import {ErrorDetails} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 import {time} from '../base/time';
-import {
-  ConversionJobName,
-  ConversionJobStatus,
-} from '../common/conversion_jobs';
 import {AppImpl} from '../core/app_impl';
 import {maybeShowErrorDialog} from './error_dialog';
-import {globals} from './globals';
 
 type Args =
   | UpdateStatusArgs
-  | UpdateJobStatusArgs
+  | JobCompletedArgs
   | DownloadFileArgs
   | OpenTraceInLegacyArgs
   | ErrorArgs;
@@ -36,10 +33,8 @@ interface UpdateStatusArgs {
   status: string;
 }
 
-interface UpdateJobStatusArgs {
-  kind: 'updateJobStatus';
-  name: ConversionJobName;
-  status: ConversionJobStatus;
+interface JobCompletedArgs {
+  kind: 'jobCompleted';
 }
 
 interface DownloadFileArgs {
@@ -64,16 +59,18 @@ type OpenTraceInLegacyCallback = (
   size: number,
 ) => void;
 
-function makeWorkerAndPost(
+async function makeWorkerAndPost(
   msg: unknown,
   openTraceInLegacy?: OpenTraceInLegacyCallback,
 ) {
+  const promise = defer<void>();
+
   function handleOnMessage(msg: MessageEvent): void {
     const args: Args = msg.data;
     if (args.kind === 'updateStatus') {
       AppImpl.instance.omnibox.showStatusMessage(args.status);
-    } else if (args.kind === 'updateJobStatus') {
-      globals.setConversionJobStatus(args.name, args.status);
+    } else if (args.kind === 'jobCompleted') {
+      promise.resolve();
     } else if (args.kind === 'downloadFile') {
       download(new File([new Blob([args.buffer])], args.name));
     } else if (args.kind === 'openTraceInLegacy') {
@@ -86,21 +83,22 @@ function makeWorkerAndPost(
     }
   }
 
-  const worker = new Worker(globals.root + 'traceconv_bundle.js');
+  const worker = new Worker(assetSrc('traceconv_bundle.js'));
   worker.onmessage = handleOnMessage;
   worker.postMessage(msg);
+  return promise;
 }
 
-export function convertTraceToJsonAndDownload(trace: Blob) {
-  makeWorkerAndPost({
+export function convertTraceToJsonAndDownload(trace: Blob): Promise<void> {
+  return makeWorkerAndPost({
     kind: 'ConvertTraceAndDownload',
     trace,
     format: 'json',
   });
 }
 
-export function convertTraceToSystraceAndDownload(trace: Blob) {
-  makeWorkerAndPost({
+export function convertTraceToSystraceAndDownload(trace: Blob): Promise<void> {
+  return makeWorkerAndPost({
     kind: 'ConvertTraceAndDownload',
     trace,
     format: 'systrace',
@@ -111,8 +109,8 @@ export function convertToJson(
   trace: Blob,
   openTraceInLegacy: OpenTraceInLegacyCallback,
   truncate?: 'start' | 'end',
-) {
-  makeWorkerAndPost(
+): Promise<void> {
+  return makeWorkerAndPost(
     {
       kind: 'ConvertTraceAndOpenInLegacy',
       trace,
@@ -126,8 +124,8 @@ export function convertTraceToPprofAndDownload(
   trace: Blob,
   pid: number,
   ts: time,
-) {
-  makeWorkerAndPost({
+): Promise<void> {
+  return makeWorkerAndPost({
     kind: 'ConvertTraceToPprof',
     trace,
     pid,

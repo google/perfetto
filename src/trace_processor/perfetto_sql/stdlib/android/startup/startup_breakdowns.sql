@@ -58,7 +58,7 @@ SELECT
   CASE
     WHEN $io_wait = 1 THEN 'io'
     WHEN $name IS NOT NULL THEN $name
-    WHEN $irq_contex = 1 THEN 'irq'
+    WHEN $irq_context = 1 THEN 'irq'
     ELSE $state
     END name;
 
@@ -84,13 +84,33 @@ JOIN process
 WHERE android_startups.dur > 0
 ORDER BY ts;
 
--- All slices normalized with _normalize_android_string.
+-- All relevant startup slices normalized with _normalize_android_string.
 CREATE PERFETTO TABLE _startup_normalized_slices
 AS
+WITH
+  relevant_startup_slices AS (
+    SELECT slice.*
+    FROM thread_slice slice
+    JOIN _startup_root_slices startup
+      ON
+        slice.utid = startup.utid
+        -- Inline the logic to check whether startup intervals overlap
+        -- with main thread slices. This is to improve performance until
+        -- interval_intersect doesn't require a JOIN.
+        -- TODO(zezeozue): Replace with interval intersect when JOINs are
+        -- not required.
+        AND MAX(slice.ts, startup.ts) < MIN(slice.ts + slice.dur, startup.ts + startup.dur)
+  )
 SELECT p.id, p.parent_id, p.depth, p.name, thread_slice.ts, thread_slice.dur, thread_slice.utid
 FROM
   _slice_remove_nulls_and_reparent
-    !((SELECT id, parent_id, depth, _normalize_android_string(name) AS name FROM slice WHERE dur > 0), name)
+    !(
+      (
+        SELECT id, parent_id, depth, _normalize_android_string(name) AS name
+        FROM relevant_startup_slices
+        WHERE dur > 0
+      ),
+      name)
       p
 JOIN thread_slice
   USING (id);
@@ -150,4 +170,19 @@ CREATE PERFETTO TABLE android_startup_opinionated_breakdown(
 AS
 SELECT b.ts, b.dur, startup.startup_id, b.slice_id, b.thread_state_id, _startup_breakdown_reason(name, state, io_wait, irq_context) AS reason
 FROM _startup_thread_states_and_slices_breakdown_sp b
-JOIN _startup_root_slices startup ON startup.id = b.root_id;
+JOIN _startup_root_slices startup ON startup.id = b.root_id
+UNION ALL
+-- Augment the existing startup breakdown with an artificial slice accounting for
+-- any launch delays before the app starts handling startup on its main thread
+SELECT
+  _startup_root_slices.ts,
+  MIN(_startup_thread_states_breakdown.ts) - _startup_root_slices.ts AS dur,
+  startup_id,
+  NULL AS slice_id,
+  NULL AS thread_state_id,
+  'launch_delay' AS reason
+FROM _startup_thread_states_breakdown
+JOIN _startup_root_slices
+  ON _startup_root_slices.id = root_id
+GROUP BY root_id
+HAVING MIN(_startup_thread_states_breakdown.ts) - _startup_root_slices.ts > 0;

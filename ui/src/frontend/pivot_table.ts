@@ -34,7 +34,11 @@ import {
   sliceAggregationColumns,
   tables,
 } from '../core/pivot_table_query_generator';
-import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
+import {
+  PopupMenuButton,
+  popupMenuIcon,
+  PopupMenuItem,
+} from '../widgets/popup_menu';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from './widgets/duration';

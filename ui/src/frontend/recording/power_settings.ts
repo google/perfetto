@@ -14,11 +14,12 @@
 
 import m from 'mithril';
 import {globals} from '../globals';
-import {Probe, ProbeAttrs, Slider, SliderAttrs} from '../record_widgets';
+import {Probe, Slider} from '../record_widgets';
 import {POLL_INTERVAL_MS, RecordingSectionAttrs} from './recording_sections';
 
 export class PowerSettings implements m.ClassComponent<RecordingSectionAttrs> {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    const recCfg = attrs.recState.recordConfig;
     const DOC_URL = 'https://perfetto.dev/docs/data-sources/battery-counters';
     const descr = [
       m(
@@ -61,7 +62,8 @@ export class PowerSettings implements m.ClassComponent<RecordingSectionAttrs> {
           descr,
           setEnabled: (cfg, val) => (cfg.batteryDrain = val),
           isEnabled: (cfg) => cfg.batteryDrain,
-        } as ProbeAttrs,
+          recCfg,
+        },
         m(Slider, {
           title: 'Poll interval',
           cssClass: '.thin',
@@ -69,7 +71,8 @@ export class PowerSettings implements m.ClassComponent<RecordingSectionAttrs> {
           unit: 'ms',
           set: (cfg, val) => (cfg.batteryDrainPollMs = val),
           get: (cfg) => cfg.batteryDrainPollMs,
-        } as SliderAttrs),
+          recCfg,
+        }),
       ),
       m(Probe, {
         title: 'Board voltages & frequencies',
@@ -77,7 +80,8 @@ export class PowerSettings implements m.ClassComponent<RecordingSectionAttrs> {
         descr: 'Tracks voltage and frequency changes from board sensors',
         setEnabled: (cfg, val) => (cfg.boardSensors = val),
         isEnabled: (cfg) => cfg.boardSensors,
-      } as ProbeAttrs),
+        recCfg,
+      }),
     );
   }
 }

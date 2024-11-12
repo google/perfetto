@@ -49,9 +49,15 @@ def to_camel_case(s):
   return first + ''.join(x.title() for x in rest)
 
 
+def is_plugin_dir(dir):
+  # Ensure plugins contain a file called index.ts. This avoids the issue empty
+  # dirs are detected as plugins.
+  return os.path.isdir(dir) and os.path.exists(os.path.join(dir, 'index.ts'))
+
+
 def gen_imports(input_dir, output_path):
   paths = [os.path.join(input_dir, p) for p in os.listdir(input_dir)]
-  paths = [p for p in paths if os.path.isdir(p)]
+  paths = [p for p in paths if is_plugin_dir(p)]
   paths.sort()
 
   output_dir = os.path.dirname(output_path)
@@ -60,10 +66,11 @@ def gen_imports(input_dir, output_path):
   imports = []
   registrations = []
   for path in paths:
+    # Get out if 
     rel_path = os.path.relpath(path, output_dir)
     snake_name = os.path.basename(path)
     camel_name = to_camel_case(snake_name)
-    imports.append(f"import {{plugin as {camel_name}}} from '{rel_path}';")
+    imports.append(f"import {camel_name} from '{rel_path}';")
     registrations.append(camel_name)
 
   import_text = '\n'.join(imports)

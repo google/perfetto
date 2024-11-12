@@ -81,6 +81,8 @@ android_startup {
         start_timestamp: 130
         end_timestamp: 210
         thread_name: "com.google.android.calendar"
+        thread_tid: 3
+        process_pid: 3
       }
     }
     startup_type: "warm"

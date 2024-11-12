@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_WATCHDOG_POSIX_H_
 #define INCLUDE_PERFETTO_EXT_BASE_WATCHDOG_POSIX_H_
 
+#include "perfetto/base/thread_annotations.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
 
@@ -154,12 +155,14 @@ class Watchdog {
 
   // Check each type of resource every |polling_interval_ms_| miillis.
   // Returns true if the threshold is exceeded and the process should be killed.
-  bool CheckMemory_Locked(uint64_t rss_bytes);
-  bool CheckCpu_Locked(uint64_t cpu_time);
+  bool CheckMemory_Locked(uint64_t rss_bytes)
+      PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  bool CheckCpu_Locked(uint64_t cpu_time)
+      PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void AddFatalTimer(TimerData);
   void RemoveFatalTimer(TimerData);
-  void RearmTimerFd_Locked();
+  void RearmTimerFd_Locked() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   void SerializeLogsAndKillThread(int tid, WatchdogCrashReason);
 
   // Computes the time interval spanned by a given ring buffer with respect
@@ -171,24 +174,20 @@ class Watchdog {
   std::thread thread_;
   ScopedPlatformHandle timer_fd_;
 
-  // --- Begin lock-protected members ---
-
   std::mutex mutex_;
 
-  uint64_t memory_limit_bytes_ = 0;
-  WindowedInterval memory_window_bytes_;
+  uint64_t memory_limit_bytes_ PERFETTO_GUARDED_BY(mutex_) = 0;
+  WindowedInterval memory_window_bytes_ PERFETTO_GUARDED_BY(mutex_);
 
-  uint32_t cpu_limit_percentage_ = 0;
-  WindowedInterval cpu_window_time_ticks_;
+  uint32_t cpu_limit_percentage_ PERFETTO_GUARDED_BY(mutex_) = 0;
+  WindowedInterval cpu_window_time_ticks_ PERFETTO_GUARDED_BY(mutex_);
 
   // Outstanding timers created via CreateFatalTimer() and not yet destroyed.
   // The vector is not sorted. In most cases there are only 1-2 timers, we can
   // afford O(N) operations.
   // All the timers in the list share the same |timer_fd_|, which is keeped
   // armed on the min(timers_) through RearmTimerFd_Locked().
-  std::vector<TimerData> timers_;
-
-  // --- End lock-protected members ---
+  std::vector<TimerData> timers_ PERFETTO_GUARDED_BY(mutex_);
 
  protected:
   // Protected for testing.

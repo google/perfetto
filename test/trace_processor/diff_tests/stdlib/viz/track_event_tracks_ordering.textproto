@@ -1,0 +1,163 @@
+# Explicit tracks.
+
+## Parent
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  first_packet_on_sequence: true
+  track_descriptor {
+    uuid: 100
+    child_ordering: 3
+    name: "explicit_parent"
+    sibling_order_rank: -10
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 1
+    }
+  }
+}
+
+## Children
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  incremental_state_cleared: true
+  first_packet_on_sequence: true
+  track_descriptor {
+    uuid: 2
+    parent_uuid: 100
+    name: "explicit_child:no z-index"
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 2
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 3
+    parent_uuid: 100
+    name: "explicit_child:5 z-index"
+    sibling_order_rank: 5
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 4
+    parent_uuid: 100
+    name: "explicit_child:-5 z-index"
+    sibling_order_rank: -5
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_descriptor {
+    uuid: 5
+    parent_uuid: 100
+    name: "explicit_child:-5 z-index"
+    sibling_order_rank: -5
+  }
+}
+
+# Lexicographic tracks.
+
+## Parent
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 200
+  track_descriptor {
+    uuid: 200
+    child_ordering: 1
+    name: "lexicographic_parent"
+  }
+}
+
+## Children
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  track_descriptor {
+    uuid: 6
+    parent_uuid: 200
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_descriptor {
+    uuid: 7
+    parent_uuid: 200
+    name: "a"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 2000
+  track_descriptor {
+    uuid: 8
+    parent_uuid: 200
+    name: "b"
+  }
+}
+# Should appear on overridden track "t2".
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 2000
+  track_descriptor {
+    uuid: 9
+    parent_uuid: 200
+    name: "ab"
+  }
+}
+
+# Chronological tracks.
+
+## Parent
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 1000
+  track_descriptor {
+    uuid: 300
+    child_ordering: 2
+    name: "chronological_parent"
+  }
+}
+
+## Children
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 10
+    parent_uuid: 300
+    name: "chrono"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 10
+  track_descriptor {
+    uuid: 11
+    parent_uuid: 300
+    name: "chrono1"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 5
+  track_descriptor {
+    uuid: 12
+    parent_uuid: 300
+    name: "chrono2"
+  }
+}

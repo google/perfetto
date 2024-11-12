@@ -31,6 +31,7 @@
     "devtools-protocol": "0.0.1319565",
     "esbuild": "^0.21.5",
     "events": "^3.3.0",
+    "fzf": "^0.5.2",
     "hsluv": "^0.1.0",
     "immer": "^10.1.1",
     "jsbn-rsa": "^1.0.4",

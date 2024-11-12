@@ -3,7 +3,8 @@ The Perfetto UI can be extended with plugins. These plugins are shipped part of
 Perfetto.
 
 ## Create a plugin
-The guide below explains how to create a plugin for the Perfetto UI.
+The guide below explains how to create a plugin for the Perfetto UI. You can
+browse the public plugin API [here](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public).
 
 ### Prepare for UI development
 First we need to prepare the UI development environment. You will need to use a
@@ -48,6 +49,8 @@ Now navigate to [localhost:10000](http://localhost:10000/)
 - Navigate to the plugins page:
   [localhost:10000/#!/plugins](http://localhost:10000/#!/plugins).
 - Ctrl-F for your plugin name and enable it.
+- Enabling/disabling plugins requires a restart of the UI, so refresh the page
+  to start your plugin.
 
 Later you can request for your plugin to be enabled by default. Follow the
 [default plugins](#default-plugins) section for this.
@@ -58,81 +61,212 @@ Later you can request for your plugin to be enabled by default. Follow the
   upload your CL to the codereview tool.
 - Once uploaded add `stevegolton@google.com` as a reviewer for your CL.
 
-## Plugin extension points
-Plugins can extend a handful of specific places in the UI. The sections below
-show these extension points and give examples of how they can be used.
+## Plugin Lifecycle
+To demonstrate the plugin's lifecycle, this is a minimal plugin that implements
+the key lifecycle hooks:
 
-### Commands
-Commands are user issuable shortcuts for actions in the UI. They can be accessed
-via the omnibox.
+```ts
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
 
-Follow the [create a plugin](#create-a-plugin) to get an initial skeleton for
-your plugin.
-
-To add your first command, add a call to `ctx.registerCommand()` in either your
-`onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
-commands in `onActivate()` by default unless they require something from
-`PluginContextTrace` which is not available on `PluginContext`.
-
-The tradeoff is that commands registered in `onTraceLoad()` are only available
-while a trace is loaded, whereas commands registered in `onActivate()` are
-available all the time the plugin is active.
-
-```typescript
-class MyPlugin implements PerfettoPlugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.registerCommand(
-       {
-         id: 'dev.perfetto.ExampleSimpleCommand#LogHelloPlugin',
-         name: 'Log "Hello, plugin!"',
-         callback: () => console.log('Hello, plugin!'),
-       },
-    );
+  static onActivate(app: App): void {
+    // Called once on app startup
+    console.log('MyPlugin::onActivate()', app.pluginId);
+    // Note: It's rare that plugins would need this hook as most plugins are
+    // interested in trace details. Thus, this function can usually be omitted.
   }
 
-  onTraceLoad(ctx: PluginContextTrace): void {
-    ctx.registerCommand(
-       {
-         id: 'dev.perfetto.ExampleSimpleTraceCommand#LogHelloTrace',
-         name: 'Log "Hello, trace!"',
-         callback: () => console.log('Hello, trace!'),
-       },
-    );
+  constructor(trace: Trace) {
+    // Called each time a trace is loaded
+    console.log('MyPlugin::constructor()', trace.traceInfo.traceTitle);
+  }
+
+  async onTraceLoad(trace: Trace): Promise<void> {
+    // Called each time a trace is loaded
+    console.log('MyPlugin::onTraceLoad()', trace.traceInfo.traceTitle);
+    // Note this function returns a promise, so any any async calls should be
+    // completed before this promise resolves as the app using this promise for
+    // timing and plugin synchronization.
   }
 }
 ```
 
-Here `id` is a unique string which identifies this command. The `id` should be
-prefixed with the plugin id followed by a `#`. All command `id`s must be unique
-system-wide. `name` is a human readable name for the command, which is shown in
-the command palette. Finally `callback()` is the callback which actually
-performs the action.
+You can run this plugin with devtools to see the log messages in the console,
+which should give you a feel for the plugin lifecycle. Try opening a few traces
+one after another.
 
-Commands are removed automatically when their context disappears. Commands
-registered with the `PluginContext` are removed when the plugin is deactivated,
-and commands registered with the `PluginContextTrace` are removed when the trace
-is unloaded.
+`onActivate()` runs shortly after Perfetto starts up, before a trace is loaded.
+This is where the you'll configure your plugin's capabilities that aren't trace
+dependent. At this point the plugin's class is not instantiated, so you'll
+notice `onActivate()` hook is a static class member. `onActivate()` is only ever
+called once, regardless of the number of traces loaded.
+
+`onActivate()` is passed an `App` object which the plugin can use to configure
+core capabilities such as commands, sidebar items and pages. Capabilities
+registered on the App interface are persisted throughout the lifetime of the app
+(practically forever until the tab is closed), in contrast to what happens for
+the same methods on the `Trace` object (see below).
+
+The plugin class in instantiated when a trace is loaded (a new plugin instance
+is created for each trace). `onTraceLoad()` is called immediately after the
+class is instantiated, which is where you'll configure your plugin's trace
+dependent capabilities.
+
+`onTraceLoad()` is passed a `Trace` object which the plugin can use to configure
+entities that are scoped to a specific trace, such as tracks and tabs. `Trace`
+is a superset of `App`, so anything you can do with `App` you can also do with
+`Trace`, however, capabilities registered on `Trace` will typically be discarded
+when a new trace is loaded.
+
+A plugin will typically register capabilities with the core and return quickly.
+But these capabilities usually contain objects and callbacks which are called
+into later by the core during the runtime of the app. Most capabilities require
+a `Trace` or an `App` to do anything useful so these are usually bound into the
+capabilities at registration time using JavaScript classes or closures.
+
+```ts
+// Toy example: Code will not compile.
+async onTraceLoad(trace: Trace) {
+  // `trace` is captured in the closure and used later by the app
+  trace.regsterXYZ(() => trace.xyz);
+}
+```
+
+That way, the callback is bound to a specific trace object which and the trace
+object can outlive the runtime of the `onTraceLoad()` function, which is a very
+common pattern in Perfetto plugins.
+
+> Note: Some capabilities can be registered on either the `App` or the `Trace`
+> object (i.e. in `onActivate()` or in `onTraceLoad()`), if in doubt about which
+> one to use, use `onTraceLoad()` as this is more than likely the one you want.
+> Most plugins add tracks and tabs that depend on the trace. You'd usually have
+> to be doing something out of the ordinary if you need to use `onActivate()`.
+
+### Performance
+`onActivate()` and `onTraceLoad()` should generally complete as quickly as
+possible, however sometimes `onTraceLoad()` may need to perform async operations
+on trace processor such as performing queries and/or creating views and tables.
+Thus, `onTraceLoad()` should return a promise (or you can simply make it an
+async function). When this promise resolves it tells the core that the plugin is
+fully initialized.
+
+> Note: It's important that any async operations done in onTraceLoad() are
+> awaited so that all async operations are completed by the time the promise is
+> resolved. This is so that plugins can be properly timed and synchronized.
+
+
+```ts
+// GOOD
+async onTraceLoad(trace: Trace) {
+  await trace.engine.query(...);
+}
+
+// BAD
+async onTraceLoad(trace: Trace) {
+  // Note the missing await!
+  trace.engine.query(...);
+}
+```
+
+## Extension Points
+Plugins can extend functionality of Perfetto by registering capabilities via
+extension points on the `App` or `Trace` objects.
+
+The following sections delve into more detail on each extension point and
+provide examples of how they can be used.
+
+### Commands
+Commands are user issuable shortcuts for actions in the UI. They are invoked via
+the command palette which can be opened by pressing Ctrl+Shift+P (or Cmd+Shift+P
+on Mac), or by typing a '>' into the omnibox.
+
+To add a command, add a call to `registerCommand()` on either your
+`onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
+commands in `onTraceLoad()` by default unless you very specifically want the
+command to be available before a trace has loaded.
+
+Example of a command that doesn't require a trace.
+```ts
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  static onActivate(app: App) {
+    app.commands.registerCommand({
+      id: `${app.pluginId}#SayHello`,
+      name: 'Say hello',
+      callback: () => console.log('Hello, world!'),
+    });
+  }
+}
+```
+
+Example of a command that requires a trace object - in this case the trace
+title.
+```ts
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace) {
+    trace.commands.registerCommand({
+      id: `${trace.pluginId}#LogTraceTitle`,
+      name: 'Log trace title',
+      callback: () => console.log(trace.info.traceTitle),
+    });
+  }
+}
+```
+
+> Notice that the trace object is captured in the closure, so it can be used
+> after the onTraceLoad() function has returned. This is a very common pattern
+> in Perfetto plugins.
+
+Command arguments explained:
+- `id` is a unique string which identifies this command. The `id` should be
+prefixed with the plugin id followed by a `#`. All command `id`s must be unique
+system-wide.
+- `name` is a human readable name for the command, which is shown in the command
+palette.
+- `callback()` is the callback which actually performs the action.
+
+#### Async commands
+It's common that commands will perform async operations in their callbacks. It's
+recommended to use async/await for this rather than `.then().catch()`. The
+easiest way to do this is to make the callback an async function.
+
+```ts
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace) {
+    trace.commands.registerCommand({
+      id: `${trace.pluginId}#QueryTraceProcessor`,
+      name: 'Query trace processor',
+      callback: async () => {
+        const results = await trace.engine.query(...);
+        // use results...
+      },
+    });
+  }
+}
+```
+
+If the callback is async (i.e. it returns a promise), nothing special happens.
+The command is still fire-n-forget as far as the core is concerned.
 
 Examples:
-- [dev.perfetto.ExampleSimpleCommand](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleSimpleCommand/index.ts).
+- [com.example.ExampleSimpleCommand](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/com.example.ExampleSimpleCommand/index.ts).
 - [perfetto.CoreCommands](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/core_plugins/commands/index.ts).
-- [dev.perfetto.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleState/index.ts).
+- [com.example.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/com.example.ExampleState/index.ts).
 
-#### Hotkeys
-
-A default hotkey may be provided when registering a command.
+### Hotkeys
+A hotkey may be associated with a command at registration time.
 
 ```typescript
-ctx.registerCommand({
-  id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
-  name: 'Log "Hello, World!"',
-  callback: () => console.log('Hello, World!'),
+ctx.commands.registerCommand({
+  ...
   defaultHotkey: 'Shift+H',
 });
 ```
 
-Even though the hotkey is a string, it's format checked at compile time using
-typescript's [template literal
+Despite the fact that the hotkey is a string, its format is checked at compile
+time using typescript's [template literal
 types](https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html).
 
 See
@@ -140,151 +274,179 @@ See
 for more details on how the hotkey syntax works, and for the available keys and
 modifiers.
 
+Note this is referred to as the 'default' hotkey because we may introduce a
+feature in the future where users can modify their hotkeys, though this doesn't
+exist at the moment.
+
 ### Tracks
-#### Defining Tracks
-Tracks describe how to render a track and how to respond to mouse interaction.
-However, the interface is a WIP and should be considered unstable. This
-documentation will be added to over the next few months after the design is
-finalised.
+In order to add a new track to the timeline, you'll need to create two entities:
+- A track 'renderer' which controls what the track looks like and how it fetches
+  data from trace processor.
+- A track 'node' controls where the track appears in the workspace.
 
-#### Reusing Existing Tracks
-Creating tracks from scratch is difficult and the API is currently a WIP, so it
-is strongly recommended to use one of our existing base classes which do a lot
-of the heavy lifting for you. These base classes also provide a more stable
-layer between your track and the (currently unstable) track API.
+Track renderers are powerful but complex, so it's, so it's strongly advised not
+to create your own. Instead, by far the easiest way to get started with tracks
+is to use the `createQuerySliceTrack` and `createQueryCounterTrack` helpers.
 
-For example, if your track needs to show slices from a given a SQL expression (a
-very common pattern), extend the `NamedSliceTrack` abstract base class and
-implement `getSqlSource()`, which should return a query with the following
-columns:
-
-- `id: INTEGER`: A unique ID for the slice.
-- `ts: INTEGER`: The timestamp of the start of the slice.
-- `dur: INTEGER`: The duration of the slice.
-- `depth: INTEGER`: Integer value defining how deep the slice should be drawn in
-    the track, 0 being rendered at the top of the track, and increasing numbers
-    being drawn towards the bottom of the track.
-- `name: TEXT`: Text to be rendered on the slice and in the popup.
-
-For example, the following track describes a slice track that displays all
-slices that begin with the letter 'a'.
+Example:
 ```ts
-class MyTrack extends NamedSliceTrack {
-  getSqlSource(): string {
-    return `
-    SELECT
-      id,
-      ts,
-      dur,
-      depth,
-      name
-    from slice
-    where name like 'a%'
-    `;
-  }
-}
-```
+import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
 
-#### Registering Tracks
-Plugins may register tracks with Perfetto using
-`PluginContextTrace.registerTrack()`, usually in their `onTraceLoad` function.
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace) {
+    const title = 'My Track';
+    const uri = `${trace.pluginId}#MyTrack`;
+    const query = 'select * from slice where track_id = 123';
 
-```ts
-class MyPlugin implements PerfettoPlugin {
-  onTraceLoad(ctx: PluginContextTrace): void {
-    ctx.registerTrack({
-      uri: 'dev.MyPlugin#ExampleTrack',
-      displayName: 'My Example Track',
-      trackFactory: ({trackKey}) => {
-        return new MyTrack({engine: ctx.engine, trackKey});
+    // Create a new track renderer based on a query
+    const track = await createQuerySliceTrack({
+      trace,
+      uri,
+      data: {
+        sqlSource: query,
       },
     });
+
+    // Register the track renderer with the core
+    trace.tracks.registerTrack({uri, title, track});
+
+    // Create a track node that references the track renderer using its uri
+    const track = new TrackNode({uri, title});
+
+    // Add the track node to the current workspace
+    trace.workspace.addChildInOrder(track);
   }
 }
 ```
 
-#### Default Tracks
-The "default" tracks are a list of tracks that are added to the timeline when a
-fresh trace is loaded (i.e. **not** when loading a trace from a permalink). This
-list is copied into the timeline after the trace has finished loading, at which
-point control is handed over to the user, allowing them add, remove and reorder
-tracks as they please. Thus it only makes sense to add default tracks in your
-plugin's `onTraceLoad` function, as adding a default track later will have no
-effect.
+See [the source](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public/lib/tracks/query_slice_track.ts)
+for detailed usage.
+
+You can also add a counter track using `createQueryCounterTrack` which works in
+a similar way.
 
 ```ts
-class MyPlugin implements PerfettoPlugin {
-  onTraceLoad(ctx: PluginContextTrace): void {
-    ctx.registerTrack({
-      // ... as above ...
-    });
+import {createQueryCounterTrack} from '../../public/lib/tracks/query_counter_track';
 
-    ctx.addDefaultTrack({
-      uri: 'dev.MyPlugin#ExampleTrack',
-      displayName: 'My Example Track',
-      sortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-    });
-  }
-}
-```
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace) {
+    const title = 'My Counter Track';
+    const uri = `${trace.pluginId}#MyCounterTrack`;
+    const query = 'select * from counter where track_id = 123';
 
-Registering and adding a default track is such a common pattern that there is a
-shortcut for doing both in one go: `PluginContextTrace.registerStaticTrack()`,
-which saves having to repeat the URI and display name.
-
-```ts
-class MyPlugin implements PerfettoPlugin {
-  onTraceLoad(ctx: PluginContextTrace): void {
-    ctx.registerStaticTrack({
-      uri: 'dev.MyPlugin#ExampleTrack',
-      displayName: 'My Example Track',
-      trackFactory: ({trackKey}) => {
-        return new MyTrack({engine: ctx.engine, trackKey});
-      },
-      sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
-    });
-  }
-}
-```
-
-#### Adding Tracks Directly
-Sometimes plugins might want to add a track to the timeline immediately, usually
-as a result of a command or on some other user action such as a button click. We
-can do this using `PluginContext.timeline.addTrack()`.
-
-```ts
-class MyPlugin implements PerfettoPlugin {
-  onTraceLoad(ctx: PluginContextTrace): void {
-    ctx.registerTrack({
-      // ... as above ...
-    });
-
-    // Register a command that directly adds a new track to the timeline
-    ctx.registerCommand({
-      id: 'dev.MyPlugin#AddMyTrack',
-      name: 'Add my track',
-      callback: () => {
-        ctx.timeline.addTrack(
-          'dev.MyPlugin#ExampleTrack',
-          'My Example Track'
-        );
+    // Create a new track renderer based on a query
+    const track = await createQueryCounterTrack({
+      trace,
+      uri,
+      data: {
+        sqlSource: query,
       },
     });
+
+    // Register the track renderer with the core
+    trace.tracks.registerTrack({uri, title, track});
+
+    // Create a track node that references the track renderer using its uri
+    const track = new TrackNode({uri, title});
+
+    // Add the track node to the current workspace
+    trace.workspace.addChildInOrder(track);
   }
 }
 ```
+
+See [the source](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public/lib/tracks/query_counter_track.ts)
+for detailed usage.
+
+#### Grouping Tracks
+Any track can have children. Just add child nodes any `TrackNode` object using
+its `addChildXYZ()` methods. Nested tracks are rendered as a collapsible tree.
+
+```ts
+const group = new TrackNode({title: 'Group'});
+trace.workspace.addChildInOrder(group);
+group.addChildLast(new TrackNode({title: 'Child Track A'}));
+group.addChildLast(new TrackNode({title: 'Child Track B'}));
+group.addChildLast(new TrackNode({title: 'Child Track C'}));
+```
+
+Tracks nodes with children can be collapsed and expanded manually by the user at
+runtime, or programmatically using their `expand()` and `collapse()` methods. By
+default tracks are collapsed, so to have tracks automatically expanded on
+startup you'll need to call `expand()` after adding the track node.
+
+```ts
+group.expand();
+```
+
+![Nested tracks](../images/ui-plugins/nested_tracks.png)
+
+Summary tracks are behave slightly differently to ordinary tracks. Summary
+tracks:
+- Are rendered with a light blue background when collapsed, dark blue when
+  expanded.
+- Stick to the top of the viewport when scrolling.
+- Area selections made on the track apply to child tracks instead of the summary
+  track itself.
+
+To create a summary track, set the `isSummary: true` option in its initializer
+list at creation time or set its `isSummary` property to true after creation.
+
+```ts
+const group = new TrackNode({title: 'Group', isSummary: true});
+// ~~~ or ~~~
+group.isSummary = true;
+```
+
+![Summary track](../images/ui-plugins/summary_track.png)
+
+Examples
+- [com.example.ExampleNestedTracks](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/com.example.ExampleNestedTracks/index.ts).
+
+#### Track Ordering
+Tracks can be manually reordered using the `addChildXYZ()` functions available on
+the track node api, including `addChildFirst()`, `addChildLast()`,
+`addChildBefore()`, and `addChildAfter()`.
+
+See [the workspace source](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public/workspace.ts) for detailed usage.
+
+However, when several plugins add tracks to the same node or the workspace, no
+single plugin has complete control over the sorting of child nodes within this
+node. Thus, the sortOrder property is be used to decentralize the sorting logic
+between plugins.
+
+In order to do this we simply give the track a `sortOrder` and call
+`addChildInOrder()` on the parent node and the track will be placed before the
+first track with a higher `sortOrder` in the list. (i.e. lower `sortOrder`s appear
+higher in the stack).
+
+```ts
+// PluginA
+workspace.addChildInOrder(new TrackNode({title: 'Foo', sortOrder: 10}));
+
+// Plugin B
+workspace.addChildInOrder(new TrackNode({title: 'Bar', sortOrder: -10}));
+```
+
+Now it doesn't matter which order plugin are initialized, track `Bar` will
+appear above track `Foo` (unless reordered later).
+
+If no `sortOrder` is defined, the track assumes a `sortOrder` of 0.
+
+> It is recommended to always use `addChildInOrder()` in plugins when adding
+> tracks to the `workspace`, especially if you want your plugin to be enabled by
+> default, as this will ensure it respects the sortOrder of other plugins.
+
 
 ### Tabs
 Tabs are a useful way to display contextual information about the trace, the
 current selection, or to show the results of an operation.
 
-To register a tab from a plugin, use the `PluginContextTrace.registerTab`
-method.
+To register a tab from a plugin, use the `Trace.registerTab` method.
 
 ```ts
-import m from 'mithril';
-import {Tab, Plugin, PluginContext, PluginContextTrace} from '../../public';
-
 class MyTab implements Tab {
   render(): m.Children {
     return m('div', 'Hello from my tab');
@@ -295,11 +457,11 @@ class MyTab implements Tab {
   }
 }
 
-class MyPlugin implements PerfettoPlugin {
-  onActivate(_: PluginContext): void {}
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerTab({
-      uri: 'dev.MyPlugin#MyTab',
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace) {
+    trace.registerTab({
+      uri: `${trace.pluginId}#MyTab`,
       content: new MyTab(),
     });
   }
@@ -320,8 +482,8 @@ handle.
 Alternatively, tabs may be shown or hidden programmatically using the tabs API.
 
 ```ts
-ctx.tabs.showTab('dev.MyPlugin#MyTab');
-ctx.tabs.hideTab('dev.MyPlugin#MyTab');
+trace.tabs.showTab(`${trace.pluginId}#MyTab`);
+trace.tabs.hideTab(`${trace.pluginId}#MyTab`);
 ```
 
 Tabs have the following properties:
@@ -345,9 +507,9 @@ Ephemeral tabs can be registered by setting the `isEphemeral` flag when
 registering the tab.
 
 ```ts
-ctx.registerTab({
+trace.registerTab({
   isEphemeral: true,
-  uri: 'dev.MyPlugin#MyTab',
+  uri: `${trace.pluginId}#MyTab`,
   content: new MyEphemeralTab(),
 });
 ```
@@ -360,13 +522,6 @@ Motivating example:
 ```ts
 import m from 'mithril';
 import {uuidv4} from '../../base/uuid';
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-  Tab,
-} from '../../public';
 
 class MyNameTab implements Tab {
   constructor(private name: string) {}
@@ -378,21 +533,21 @@ class MyNameTab implements Tab {
   }
 }
 
-class MyPlugin implements PerfettoPlugin {
-  onActivate(_: PluginContext): void {}
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerCommand({
-      id: 'dev.MyPlugin#AddNewEphemeralTab',
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace): Promise<void> {
+    trace.registerCommand({
+      id: `${trace.pluginId}#AddNewEphemeralTab`,
       name: 'Add new ephemeral tab',
-      callback: () => handleCommand(ctx),
+      callback: () => handleCommand(trace),
     });
   }
 }
 
-function handleCommand(ctx: PluginContextTrace): void {
+function handleCommand(trace: Trace): void {
   const name = prompt('What is your name');
   if (name) {
-    const uri = 'dev.MyPlugin#MyName' + uuidv4();
+    const uri = `${trace.pluginId}#MyName${uuidv4()}`;
     // This makes the tab available to perfetto
     ctx.registerTab({
       isEphemeral: true,
@@ -404,11 +559,6 @@ function handleCommand(ctx: PluginContextTrace): void {
     ctx.tabs.showTab(uri);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.MyPlugin',
-  plugin: MyPlugin,
-};
 ```
 
 ### Details Panels & The Current Selection Tab
@@ -422,10 +572,10 @@ Plugins may register interest in providing content for this tab using the
 For example:
 
 ```ts
-class MyPlugin implements PerfettoPlugin {
-  onActivate(_: PluginContext): void {}
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerDetailsPanel({
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace) {
+    trace.registerDetailsPanel({
       render(selection: Selection) {
         if (canHandleSelection(selection)) {
           return m('div', 'Details for selection');
@@ -450,6 +600,142 @@ the order that these panels are called in is not defined, so if we have multiple
 details panels competing for the same selection, the one that actually shows up
 is undefined. This is a limitation of the current approach and will be updated
 to a more democratic contribution model in the future.
+
+### Sidebar Menu Items
+Plugins can add new entries to the sidebar menu which appears on the left hand
+side of the UI. These entries can include:
+- Commands
+- Links
+- Arbitrary Callbacks
+
+#### Commands
+If a command is referenced, the command name and hotkey are displayed on the
+sidebar item.
+```ts
+trace.commands.registerCommand({
+  id: 'sayHi',
+  name: 'Say hi',
+  callback: () => window.alert('hi'),
+  defaultHotkey: 'Shift+H',
+});
+
+trace.sidebar.addMenuItem({
+  commandId: 'sayHi',
+  section: 'support',
+  icon: 'waving_hand',
+});
+```
+
+#### Links
+If an href is present, the sidebar will be used as a link. This can be an
+internal link to a page, or an external link.
+```ts
+trace.sidebar.addMenuItem({
+  section: 'navigation',
+  text: 'Plugins',
+  href: '#!/plugins',
+});
+```
+
+#### Callbacks
+Sidebar items can be instructed to execute arbitrary callbacks when the button
+is clicked.
+```ts
+trace.sidebar.addMenuItem({
+  section: 'current_trace',
+  text: 'Copy secrets to clipboard',
+  action: () => copyToClipboard('...'),
+});
+```
+
+If the action returns a promise, the sidebar item will show a little spinner
+animation until the promise returns.
+
+```ts
+trace.sidebar.addMenuItem({
+  section: 'current_trace',
+  text: 'Prepare the data...',
+  action: () => new Promise((r) => setTimeout(r, 1000)),
+});
+```
+Optional params for all types of sidebar items:
+- `icon` - A material design icon to be displayed next to the sidebar menu item.
+  See full list [here](https://fonts.google.com/icons).
+- `tooltip` - Displayed on hover
+- `section` - Where to place the menu item.
+  - `navigation`
+  - `current_trace`
+  - `convert_trace`
+  - `example_traces`
+  - `support`
+- `sortOrder` - The higher the sortOrder the higher the bar.
+
+See the [sidebar source](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public/sidebar.ts)
+for more detailed usage.
+
+### Pages
+Pages are entities that can be routed via the URL args, and whose content take
+up the entire available space to the right of the sidebar and underneath the
+topbar. Examples of pages are the timeline, record page, and query page, just to
+name a few common examples.
+
+E.g.
+```
+http://ui.perfetto.dev/#!/viewer <-- 'viewer' is is the current page.
+```
+
+Pages are added from a plugin by calling the `pages.registerPage` function.
+
+Pages can be trace-less or trace-ful. Trace-less pages are pages that are to be
+displayed when no trace is loaded - i.e. the record page. Trace-ful pages are
+displayed only when a trace is loaded, as they typically require a trace to work
+with.
+
+You'll typically register trace-less pages in your plugin's `onActivate()`
+function and trace-full pages in either `onActivate()` or `onTraceLoad()`. If
+users navigate to a trace-ful page before a trace is loaded the homepage will be
+shown instead.
+
+> Note: You don't need to bind the `Trace` object for pages unlike other
+> extension points, Perfetto will inject a trace object for you.
+
+Pages should be mithril components that accept `PageWithTraceAttrs` for
+trace-ful pages or `PageAttrs` for trace-less pages.
+
+Example of a trace-less page:
+```ts
+import m from 'mithril';
+import {PageAttrs} from '../../public/page';
+
+class MyPage implements m.ClassComponent<PageAttrs> {
+  view(vnode: m.CVnode<PageAttrs>) {
+    return `The trace title is: ${vnode.attrs.trace.traceInfo.traceTitle}`;
+  }
+}
+
+// ~~~ snip ~~~
+
+app.pages.registerPage({route: '/mypage', page: MyPage, traceless: true});
+```
+
+```ts
+import m from 'mithril';
+import {PageWithTraceAttrs} from '../../public/page';
+
+class MyPage implements m.ClassComponent<PageWithTraceAttrs> {
+  view(_vnode_: m.CVnode<PageWithTraceAttrs>) {
+    return 'Hello from my page';
+  }
+}
+
+// ~~~ snip ~~~
+
+app.pages.registerPage({route: '/mypage', page: MyPage});
+```
+
+Examples:
+- [dev.perfetto.ExplorePage](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExplorePage/index.ts).
+
 
 ### Metric Visualisations
 TBD
@@ -504,12 +790,13 @@ interface MyState {
 }
 ```
 
-To access permalink state, call `mountStore()` on your `PluginContextTrace`
+To access permalink state, call `mountStore()` on your `Trace`
 object, passing in a migration function.
 ```typescript
-class MyPlugin implements PerfettoPlugin {
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    const store = ctx.mountStore(migrate);
+default export class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace): Promise<void> {
+    const store = trace.mountStore(migrate);
   }
 }
 

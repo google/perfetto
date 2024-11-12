@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {UNEXPECTED_PINK} from '../core/colorizer';
+import {UNEXPECTED_PINK} from '../public/lib/colorizer';
 import {Slice} from '../public/track';
 import {filterVisibleSlicesForTesting as filterVisibleSlices} from './base_slice_track';
 

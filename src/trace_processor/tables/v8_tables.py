@@ -47,7 +47,6 @@ V8_ISOLATE = Table(
         C('shared_code_range', CppOptional(CppBool())),
         C('embedded_blob_code_copy_start_address', CppOptional(CppInt64())),
     ],
-    wrapping_sql_view=WrappingSqlView('v8_isolate'),
     tabledoc=TableDoc(
         doc='Represents one Isolate instance',
         group='v8',
@@ -88,7 +87,6 @@ V8_JS_SCRIPT = Table(
         C('name', CppString()),
         C('source', CppOptional(CppString())),
     ],
-    wrapping_sql_view=WrappingSqlView('v8_js_script'),
     tabledoc=TableDoc(
         doc='Represents one Javascript script',
         group='v8',
@@ -112,7 +110,6 @@ V8_WASM_SCRIPT = Table(
         C('url', CppString()),
         C('source', CppOptional(CppString())),
     ],
-    wrapping_sql_view=WrappingSqlView('v8_wasm_script'),
     tabledoc=TableDoc(
         doc='Represents one WASM script',
         group='v8',
@@ -137,7 +134,6 @@ V8_JS_FUNCTION = Table(
         C('line', CppOptional(CppUint32())),
         C('col', CppOptional(CppUint32())),
     ],
-    wrapping_sql_view=WrappingSqlView('v8_js_function'),
     tabledoc=TableDoc(
         doc='Represents a v8 Javascript function',
         group='v8',
@@ -171,7 +167,6 @@ V8_JS_CODE = Table(
         C('tier', CppString()),
         C('bytecode_base64', CppOptional(CppString())),
     ],
-    wrapping_sql_view=WrappingSqlView('v8_js_code'),
     tabledoc=TableDoc(
         doc="""
           Represents a v8 code snippet for a Javascript function. A given
@@ -210,7 +205,6 @@ V8_INTERNAL_CODE = Table(
         C('function_name', CppString()),
         C('code_type', CppString()),
     ],
-    wrapping_sql_view=WrappingSqlView('v8_internal_code'),
     tabledoc=TableDoc(
         doc="""
           Represents a v8 code snippet for a v8 internal function.
@@ -248,7 +242,6 @@ V8_WASM_CODE = Table(
         C('tier', CppString()),
         C('code_offset_in_module', CppInt32()),
     ],
-    wrapping_sql_view=WrappingSqlView('v8_wasm_code'),
     tabledoc=TableDoc(
         doc="""
           Represents the code associated to a WASM function
@@ -292,7 +285,6 @@ V8_REGEXP_CODE = Table(
         C('v8_isolate_id', CppTableId(V8_ISOLATE)),
         C('pattern', CppString()),
     ],
-    wrapping_sql_view=WrappingSqlView('v8_regexp_code'),
     tabledoc=TableDoc(
         doc="""
           Represents the code associated to a regular expression

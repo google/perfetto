@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 
@@ -49,44 +49,47 @@ const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
 
 // This plugin is responsible for organizing all the global tracks.
-class GlobalGroupsPlugin implements PerfettoPlugin {
-  async onTraceReady(trace: Trace): Promise<void> {
-    groupGlobalIonTracks(trace);
-    groupGlobalIostatTracks(trace, F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
-    groupGlobalIostatTracks(
-      trace,
-      F2FS_IOSTAT_LAT_TAG,
-      F2FS_IOSTAT_LAT_GROUP_NAME,
-    );
-    groupGlobalIostatTracks(trace, DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
-    groupTracksByRegex(trace, UFS_CMD_TAG_REGEX, UFS_CMD_TAG_GROUP);
-    groupGlobalBuddyInfoTracks(trace);
-    groupTracksByRegex(trace, KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
-    groupTracksByRegex(trace, NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
-    groupTracksByRegex(trace, ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
-    groupTracksByRegex(trace, UCLAMP_REGEX, UCLAMP_GROUP);
-    groupFrequencyTracks(trace, FREQUENCY_GROUP);
-    groupTracksByRegex(trace, POWER_RAILS_REGEX, POWER_RAILS_GROUP);
-    groupTracksByRegex(trace, TEMPERATURE_REGEX, TEMPERATURE_GROUP);
-    groupTracksByRegex(trace, IRQ_REGEX, IRQ_GROUP);
-    groupTracksByRegex(trace, CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
-    groupMiscNonAllowlistedTracks(trace, MISC_GROUP);
+export default class implements PerfettoPlugin {
+  static readonly id = 'perfetto.GlobalGroups';
+  async onTraceLoad(trace: Trace): Promise<void> {
+    trace.addEventListener('traceready', () => {
+      groupGlobalIonTracks(trace);
+      groupGlobalIostatTracks(trace, F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
+      groupGlobalIostatTracks(
+        trace,
+        F2FS_IOSTAT_LAT_TAG,
+        F2FS_IOSTAT_LAT_GROUP_NAME,
+      );
+      groupGlobalIostatTracks(trace, DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
+      groupTracksByRegex(trace, UFS_CMD_TAG_REGEX, UFS_CMD_TAG_GROUP);
+      groupGlobalBuddyInfoTracks(trace);
+      groupTracksByRegex(trace, KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
+      groupTracksByRegex(trace, NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
+      groupTracksByRegex(trace, ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
+      groupTracksByRegex(trace, UCLAMP_REGEX, UCLAMP_GROUP);
+      groupFrequencyTracks(trace, FREQUENCY_GROUP);
+      groupTracksByRegex(trace, POWER_RAILS_REGEX, POWER_RAILS_GROUP);
+      groupTracksByRegex(trace, TEMPERATURE_REGEX, TEMPERATURE_GROUP);
+      groupTracksByRegex(trace, IRQ_REGEX, IRQ_GROUP);
+      groupTracksByRegex(trace, CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
+      groupMiscNonAllowlistedTracks(trace, MISC_GROUP);
 
-    // Move groups underneath tracks
-    Array.from(trace.workspace.children)
-      .sort((a, b) => {
-        // Get the index in the order array
-        const indexA = a.hasChildren ? 1 : 0;
-        const indexB = b.hasChildren ? 1 : 0;
-        return indexA - indexB;
-      })
-      .forEach((n) => trace.workspace.addChildLast(n));
+      // Move groups underneath tracks
+      Array.from(trace.workspace.children)
+        .sort((a, b) => {
+          // Get the index in the order array
+          const indexA = a.hasChildren ? 1 : 0;
+          const indexB = b.hasChildren ? 1 : 0;
+          return indexA - indexB;
+        })
+        .forEach((n) => trace.workspace.addChildLast(n));
 
-    // If there is only one group, expand it
-    const rootLevelChildren = trace.workspace.children;
-    if (rootLevelChildren.length === 1 && rootLevelChildren[0].hasChildren) {
-      rootLevelChildren[0].expand();
-    }
+      // If there is only one group, expand it
+      const rootLevelChildren = trace.workspace.children;
+      if (rootLevelChildren.length === 1 && rootLevelChildren[0].hasChildren) {
+        rootLevelChildren[0].expand();
+      }
+    });
   }
 }
 
@@ -246,8 +249,3 @@ function groupTracksByRegex(
     trace.workspace.addChildInOrder(group);
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.GlobalGroups',
-  plugin: GlobalGroupsPlugin,
-};

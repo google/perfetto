@@ -15,8 +15,14 @@
  */
 
 #include "src/profiling/perf/traced_perf.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/version.h"
 #include "perfetto/tracing/default_socket.h"
 #include "src/profiling/perf/perf_producer.h"
 #include "src/profiling/perf/proc_descriptors.h"
@@ -41,7 +47,40 @@ int GetRawInheritedListeningSocket() {
 }  // namespace
 
 // TODO(rsavitski): watchdog.
-int TracedPerfMain(int, char**) {
+int TracedPerfMain(int argc, char** argv) {
+  enum LongOption {
+    OPT_BACKGROUND = 1000,
+    OPT_VERSION,
+  };
+
+  bool background = false;
+
+  static const option long_options[] = {
+      {"background", no_argument, nullptr, OPT_BACKGROUND},
+      {"version", no_argument, nullptr, OPT_VERSION},
+      {nullptr, 0, nullptr, 0}};
+
+  for (;;) {
+    int option = getopt_long(argc, argv, "", long_options, nullptr);
+    if (option == -1)
+      break;
+    switch (option) {
+      case OPT_BACKGROUND:
+        background = true;
+        break;
+      case OPT_VERSION:
+        printf("%s\n", base::GetVersionString());
+        return 0;
+      default:
+        fprintf(stderr, "Usage: %s [--background] [--version]\n", argv[0]);
+        return 1;
+    }
+  }
+
+  if (background) {
+    base::Daemonize([] { return 0; });
+  }
+
   base::UnixTaskRunner task_runner;
 
 // TODO(rsavitski): support standalone --root or similar on android.

@@ -85,7 +85,7 @@ export function translateState(
 // Single thread state slice, corresponding to a row of |thread_slice| table.
 export interface ThreadState {
   // Id into |thread_state| table.
-  threadStateSqlId: ThreadStateSqlId;
+  id: ThreadStateSqlId;
   // Id of the corresponding entry in the |sched| table.
   schedSqlId?: SchedSqlId;
   // Timestamp of the beginning of this thread state in nanoseconds.
@@ -108,6 +108,8 @@ export interface ThreadState {
   // unset even for runnable states, if the trace was recorded without
   // interrupt information.
   wakerInterruptCtx?: boolean;
+  // Kernel priority of this thread state.
+  priority?: number;
 }
 
 // Gets a list of thread state objects from Trace Processor with given
@@ -117,61 +119,63 @@ export async function getThreadStateFromConstraints(
   constraints: SQLConstraints,
 ): Promise<ThreadState[]> {
   const query = await engine.query(`
-    SELECT
-      thread_state.id as threadStateSqlId,
-      (select sched.id
-        from sched
-        where sched.ts=thread_state.ts and sched.utid=thread_state.utid
-        limit 1
-       ) as schedSqlId,
-      ts,
-      thread_state.dur as dur,
-      thread_state.cpu as cpu,
-      state,
-      thread_state.blocked_function as blockedFunction,
-      io_wait as ioWait,
-      thread_state.utid as utid,
-      waker_utid as wakerUtid,
-      waker_id as wakerId,
-      irq_context as wakerInterruptCtx
-    FROM thread_state
+    WITH raw AS (
+      SELECT
+      ts.id,
+      sched.id AS sched_id,
+      ts.ts,
+      ts.dur,
+      ts.cpu,
+      ts.state,
+      ts.blocked_function,
+      ts.io_wait,
+      ts.utid,
+      ts.waker_utid,
+      ts.waker_id,
+      ts.irq_context,
+      sched.priority
+    FROM thread_state ts
+    LEFT JOIN sched USING (utid, ts)
+    )
+    SELECT * FROM raw
+
     ${constraintsToQuerySuffix(constraints)}`);
   const it = query.iter({
-    threadStateSqlId: NUM,
-    schedSqlId: NUM_NULL,
+    id: NUM,
+    sched_id: NUM_NULL,
     ts: LONG,
     dur: LONG,
     cpu: NUM_NULL,
     state: STR_NULL,
-    blockedFunction: STR_NULL,
-    ioWait: NUM_NULL,
+    blocked_function: STR_NULL,
+    io_wait: NUM_NULL,
     utid: NUM,
-    wakerUtid: NUM_NULL,
-    wakerId: NUM_NULL,
-    wakerInterruptCtx: NUM_NULL,
+    waker_utid: NUM_NULL,
+    waker_id: NUM_NULL,
+    irq_context: NUM_NULL,
+    priority: NUM_NULL,
   });
 
   const result: ThreadState[] = [];
 
   for (; it.valid(); it.next()) {
-    const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
+    const ioWait = it.io_wait === null ? undefined : it.io_wait > 0;
 
-    // TODO(altimin): Consider fetcing thread / process info using a single
+    // TODO(altimin): Consider fetching thread / process info using a single
     // query instead of one per row.
     result.push({
-      threadStateSqlId: it.threadStateSqlId as ThreadStateSqlId,
-      schedSqlId: fromNumNull(it.schedSqlId) as SchedSqlId | undefined,
+      id: it.id as ThreadStateSqlId,
+      schedSqlId: fromNumNull(it.sched_id) as SchedSqlId | undefined,
       ts: Time.fromRaw(it.ts),
       dur: it.dur,
       cpu: fromNumNull(it.cpu),
       state: translateState(it.state ?? undefined, ioWait),
-      blockedFunction: it.blockedFunction ?? undefined,
+      blockedFunction: it.blocked_function ?? undefined,
       thread: await getThreadInfo(engine, asUtid(it.utid)),
-      wakerUtid: asUtid(it.wakerUtid ?? undefined),
-      wakerId: asThreadStateSqlId(it.wakerId ?? undefined),
-      wakerInterruptCtx: fromNumNull(it.wakerInterruptCtx) as
-        | boolean
-        | undefined,
+      wakerUtid: asUtid(it.waker_id ?? undefined),
+      wakerId: asThreadStateSqlId(it.waker_id ?? undefined),
+      wakerInterruptCtx: fromNumNull(it.irq_context) as boolean | undefined,
+      priority: fromNumNull(it.priority),
     });
   }
   return result;

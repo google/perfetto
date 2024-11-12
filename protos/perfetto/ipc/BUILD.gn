@@ -21,7 +21,6 @@ perfetto_proto_library("@TYPE@") {
   proto_generators = [
     "ipc",
     "cpp",
-    "source_set",
   ]
   sources = [
     "consumer_port.proto",
@@ -41,7 +40,6 @@ perfetto_proto_library("wire_protocol_@TYPE@") {
   proto_generators = [
     "zero",
     "cpp",
-    "source_set",
   ]
   sources = [ "wire_protocol.proto" ]
 }

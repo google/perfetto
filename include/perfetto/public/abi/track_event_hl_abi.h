@@ -125,6 +125,7 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_FLUSH = 15,
   PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN = 16,
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS = 17,
+  PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK = 18,
 };
 
 // An extra event parameter. Each type of parameter should embed this as its
@@ -246,6 +247,14 @@ struct PerfettoTeHlExtraFlow {
 // PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS
 struct PerfettoTeHlExtraProtoFields {
   struct PerfettoTeHlExtra header;
+  // Array of pointers to the fields. The last pointer should be NULL.
+  struct PerfettoTeHlProtoField* const* fields;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK
+struct PerfettoTeHlExtraProtoTrack {
+  struct PerfettoTeHlExtra header;
+  uint64_t uuid;
   // Array of pointers to the fields. The last pointer should be NULL.
   struct PerfettoTeHlProtoField* const* fields;
 };

@@ -18,14 +18,15 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_SYSTEM_PROBES_PARSER_H_
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -37,7 +38,7 @@ class SystemProbesParser {
   explicit SystemProbesParser(TraceProcessorContext*);
 
   void ParseProcessTree(ConstBytes);
-  void ParseProcessStats(int64_t timestamp, ConstBytes);
+  void ParseProcessStats(int64_t ts, ConstBytes);
   void ParseSysStats(int64_t ts, ConstBytes);
   void ParseSystemInfo(ConstBytes);
   void ParseCpuInfo(ConstBytes);
@@ -54,6 +55,7 @@ class SystemProbesParser {
   const StringId ns_unit_id_;
   const StringId bytes_unit_id_;
   const StringId available_chunks_unit_id_;
+  const StringId irq_id_;
 
   const StringId num_forks_name_id_;
   const StringId num_irq_total_name_id_;
@@ -62,6 +64,8 @@ class SystemProbesParser {
   const StringId thermal_unit_id_;
   const StringId gpufreq_id;
   const StringId gpufreq_unit_id;
+
+  const StringId cpu_stat_counter_name_id_;
 
   // Arm CPU identifier string IDs
   const StringId arm_cpu_implementer;
@@ -96,7 +100,6 @@ class SystemProbesParser {
   int64_t prev_flush_time = -1;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_SYSTEM_PROBES_PARSER_H_

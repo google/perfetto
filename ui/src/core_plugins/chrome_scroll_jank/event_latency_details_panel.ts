@@ -14,13 +14,11 @@
 
 import m from 'mithril';
 import {Duration, duration, Time, time} from '../../base/time';
-import {raf} from '../../core/raf_scheduler';
 import {hasArgs, renderArguments} from '../../frontend/slice_args';
 import {renderDetails} from '../../frontend/slice_details';
 import {
   getDescendantSliceTree,
   getSlice,
-  getSliceFromConstraints,
   SliceDetails,
   SliceTreeNode,
 } from '../../trace_processor/sql_utils/slice';
@@ -33,7 +31,7 @@ import {
   Table,
   TableData,
   widgetColumn,
-} from '../../frontend/tables/table';
+} from '../../widgets/table';
 import {TreeTable, TreeTableAttrs} from '../../frontend/widgets/treetable';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -166,7 +164,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
       this.trace.engine,
       asSliceSqlId(this.id),
     );
-    raf.scheduleRedraw();
+    this.trace.scheduleFullRedraw();
   }
 
   async loadJankSlice() {
@@ -251,47 +249,51 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
       this.topEventLatencyId,
     );
 
-    // TODO(altimin): this should be based on an stdlib table and consider only
-    // EventLatencies within the same scroll.
-    // This is a copy of the statement in event_latency_track. It should move to
-    // stdlib instead of living in the UI code.
-    const whereClause = `
-    EXTRACT_ARG(arg_set_id, 'event_latency.event_type') IN (
-      'FIRST_GESTURE_SCROLL_UPDATE',
-      'GESTURE_SCROLL_UPDATE',
-      'INERTIAL_GESTURE_SCROLL_UPDATE')
-    AND HAS_DESCENDANT_SLICE_WITH_NAME(
-      id,
-      'SubmitCompositorFrameToPresentationCompositorFrame')`;
-    const prevEventLatency = await getSliceFromConstraints(this.trace.engine, {
-      filters: [
-        `name = 'EventLatency'`,
-        `id < ${this.topEventLatencyId}`,
-        whereClause,
-      ],
-      orderBy: [{fieldName: 'id', direction: 'DESC'}],
-      limit: 1,
-    });
-    if (prevEventLatency.length > 0) {
+    // TODO(altimin): this should only consider EventLatencies within the same scroll.
+    const prevEventLatency = (
+      await this.trace.engine.query(`
+      INCLUDE PERFETTO MODULE chrome.event_latency;
+      SELECT
+        id
+      FROM chrome_event_latencies
+      WHERE event_type IN (
+        'FIRST_GESTURE_SCROLL_UPDATE',
+        'GESTURE_SCROLL_UPDATE',
+        'INERTIAL_GESTURE_SCROLL_UPDATE')
+      AND is_presented
+      AND id < ${this.topEventLatencyId}
+      ORDER BY id DESC
+      LIMIT 1
+      ;
+    `)
+    ).maybeFirstRow({id: NUM});
+    if (prevEventLatency !== undefined) {
       this.prevEventLatencyBreakdown = await getDescendantSliceTree(
         this.trace.engine,
-        prevEventLatency[0].id,
+        asSliceSqlId(prevEventLatency.id),
       );
     }
 
-    const nextEventLatency = await getSliceFromConstraints(this.trace.engine, {
-      filters: [
-        `name = 'EventLatency'`,
-        `id > ${this.topEventLatencyId}`,
-        whereClause,
-      ],
-      orderBy: ['id'],
-      limit: 1,
-    });
-    if (nextEventLatency.length > 0) {
+    const nextEventLatency = (
+      await this.trace.engine.query(`
+      INCLUDE PERFETTO MODULE chrome.event_latency;
+      SELECT
+        id
+      FROM chrome_event_latencies
+      WHERE event_type IN (
+        'FIRST_GESTURE_SCROLL_UPDATE',
+        'GESTURE_SCROLL_UPDATE',
+        'INERTIAL_GESTURE_SCROLL_UPDATE')
+      AND is_presented
+      AND id > ${this.topEventLatencyId}
+      ORDER BY id DESC
+      LIMIT 1;
+    `)
+    ).maybeFirstRow({id: NUM});
+    if (nextEventLatency !== undefined) {
       this.nextEventLatencyBreakdown = await getDescendantSliceTree(
         this.trace.engine,
-        nextEventLatency[0].id,
+        asSliceSqlId(nextEventLatency.id),
       );
     }
   }

@@ -17,7 +17,7 @@ import m from 'mithril';
 import {removeFalsyValues} from '../base/array_utils';
 import {canvasClip, canvasSave} from '../base/canvas_utils';
 import {findRef, toHTMLElement} from '../base/dom_utils';
-import {Size2D} from '../base/geom';
+import {Size2D, VerticalBounds} from '../base/geom';
 import {assertExists} from '../base/logging';
 import {clamp} from '../base/math_utils';
 import {Time, TimeSpan} from '../base/time';
@@ -36,16 +36,15 @@ import {
   PanelOrGroup,
   RenderedPanelInfo,
 } from './panel_container';
-import {publishShowPanningHint} from './publish';
 import {TabPanel} from './tab_panel';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
-import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackPanel} from './track_panel';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
-import {PageWithTraceAttrs} from './pages';
 import {TraceImpl} from '../core/trace_impl';
+import {PageWithTraceImplAttrs} from '../core/page_manager';
+import {AppImpl} from '../core/app_impl';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -82,33 +81,47 @@ function onTimeRangeBoundary(
   return null;
 }
 
+interface SelectedContainer {
+  readonly containerClass: string;
+  readonly dragStartAbsY: number;
+  readonly dragEndAbsY: number;
+}
+
 /**
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
  */
-export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
+export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
   private zoomContent?: PanAndZoomHandler;
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
 
   private overviewTimelinePanel: OverviewTimelinePanel;
-  private timeAxisPanel = new TimeAxisPanel();
-  private timeSelectionPanel = new TimeSelectionPanel();
-  private notesPanel = new NotesPanel();
+  private timeAxisPanel: TimeAxisPanel;
+  private timeSelectionPanel: TimeSelectionPanel;
+  private notesPanel: NotesPanel;
   private tickmarkPanel: TickmarkPanel;
   private timelineWidthPx?: number;
+  private selectedContainer?: SelectedContainer;
+  private showPanningHint = false;
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
-  constructor(vnode: m.CVnode<PageWithTraceAttrs>) {
+  constructor(vnode: m.CVnode<PageWithTraceImplAttrs>) {
+    this.notesPanel = new NotesPanel(vnode.attrs.trace);
+    this.timeAxisPanel = new TimeAxisPanel(vnode.attrs.trace);
+    this.timeSelectionPanel = new TimeSelectionPanel(vnode.attrs.trace);
     this.tickmarkPanel = new TickmarkPanel(vnode.attrs.trace);
     this.overviewTimelinePanel = new OverviewTimelinePanel(vnode.attrs.trace);
+    this.notesPanel = new NotesPanel(vnode.attrs.trace);
+    this.timeSelectionPanel = new TimeSelectionPanel(vnode.attrs.trace);
   }
 
-  oncreate({dom, attrs}: m.CVnodeDOM<PageWithTraceAttrs>) {
+  oncreate({dom, attrs}: m.CVnodeDOM<PageWithTraceImplAttrs>) {
     const panZoomElRaw = findRef(dom, this.PAN_ZOOM_CONTENT_REF);
     const panZoomEl = toHTMLElement(assertExists(panZoomElRaw));
 
+    const {top: panTop} = panZoomEl.getBoundingClientRect();
     this.zoomContent = new PanAndZoomHandler({
       element: panZoomEl,
       onPanned: (pannedPx: number) => {
@@ -123,10 +136,6 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
         });
         const tDelta = timescale.pxToDuration(pannedPx);
         timeline.panVisibleWindow(tDelta);
-
-        // If the user has panned they no longer need the hint.
-        localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
-        raf.scheduleRedraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
         const timeline = attrs.trace.timeline;
@@ -211,15 +220,47 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
             timescale.pxToHpTime(startPx).toTime('floor'),
             timescale.pxToHpTime(endPx).toTime('ceil'),
           );
-          timeline.areaY.start = dragStartY;
-          timeline.areaY.end = currentY;
-          publishShowPanningHint();
+
+          const absStartY = dragStartY + panTop;
+          const absCurrentY = currentY + panTop;
+          if (this.selectedContainer === undefined) {
+            for (const c of dom.querySelectorAll('.pf-panel-container')) {
+              const {top, bottom} = c.getBoundingClientRect();
+              if (top <= absStartY && absCurrentY <= bottom) {
+                const stack = assertExists(c.querySelector('.pf-panel-stack'));
+                const stackTop = stack.getBoundingClientRect().top;
+                this.selectedContainer = {
+                  containerClass: Array.from(c.classList).filter(
+                    (x) => x !== 'pf-panel-container',
+                  )[0],
+                  dragStartAbsY: -stackTop + absStartY,
+                  dragEndAbsY: -stackTop + absCurrentY,
+                };
+                break;
+              }
+            }
+          } else {
+            const c = assertExists(
+              dom.querySelector(`.${this.selectedContainer.containerClass}`),
+            );
+            const {top, bottom} = c.getBoundingClientRect();
+            const boundedCurrentY = Math.min(
+              Math.max(top, absCurrentY),
+              bottom,
+            );
+            const stack = assertExists(c.querySelector('.pf-panel-stack'));
+            const stackTop = stack.getBoundingClientRect().top;
+            this.selectedContainer = {
+              ...this.selectedContainer,
+              dragEndAbsY: -stackTop + boundedCurrentY,
+            };
+          }
+          this.showPanningHint = true;
         }
         raf.scheduleRedraw();
       },
       endSelection: (edit: boolean) => {
-        attrs.trace.timeline.areaY.start = undefined;
-        attrs.trace.timeline.areaY.end = undefined;
+        this.selectedContainer = undefined;
         const area = attrs.trace.timeline.selectedArea;
         // If we are editing we need to pass the current id through to ensure
         // the marked area with that id is also updated.
@@ -245,7 +286,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
     if (this.zoomContent) this.zoomContent[Symbol.dispose]();
   }
 
-  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
+  view({attrs}: m.CVnode<PageWithTraceImplAttrs>) {
     const scrollingPanels = renderToplevelPanels(attrs.trace);
 
     const result = m(
@@ -266,6 +307,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
         m(
           '.pf-timeline-header',
           m(PanelContainer, {
+            trace: attrs.trace,
             className: 'header-panel-container',
             panels: removeFalsyValues([
               OVERVIEW_PANEL_FLAG.get() && this.overviewTimelinePanel,
@@ -274,10 +316,12 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
               this.notesPanel,
               this.tickmarkPanel,
             ]),
+            selectedYRange: this.getYRange('header-panel-container'),
           }),
           m('.scrollbar-spacer-vertical'),
         ),
         m(PanelContainer, {
+          trace: attrs.trace,
           className: 'pinned-panel-container',
           panels: attrs.trace.workspace.pinnedTracks.map((trackNode) => {
             if (trackNode.uri) {
@@ -304,8 +348,10 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
           renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
           renderOverlay: (ctx, size, panels) =>
             renderOverlay(attrs.trace, ctx, size, panels),
+          selectedYRange: this.getYRange('pinned-panel-container'),
         }),
         m(PanelContainer, {
+          trace: attrs.trace,
           className: 'scrolling-panel-container',
           panels: scrollingPanels,
           onPanelStackResize: (width) => {
@@ -315,13 +361,28 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceAttrs> {
           renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
           renderOverlay: (ctx, size, panels) =>
             renderOverlay(attrs.trace, ctx, size, panels),
+          selectedYRange: this.getYRange('scrolling-panel-container'),
         }),
       ),
-      m(TabPanel),
+      m(TabPanel, {
+        trace: attrs.trace,
+      }),
+      this.showPanningHint && m(HelpPanningNotification),
     );
 
     attrs.trace.tracks.flushOldTracks();
     return result;
+  }
+
+  private getYRange(cls: string): VerticalBounds | undefined {
+    if (this.selectedContainer?.containerClass !== cls) {
+      return undefined;
+    }
+    const {dragStartAbsY, dragEndAbsY} = this.selectedContainer;
+    return {
+      top: Math.min(dragStartAbsY, dragEndAbsY),
+      bottom: Math.max(dragStartAbsY, dragEndAbsY),
+    };
   }
 }
 
@@ -544,5 +605,38 @@ export function renderNoteVerticals(
         note.color,
       );
     }
+  }
+}
+
+class HelpPanningNotification implements m.ClassComponent {
+  private readonly PANNING_HINT_KEY = 'dismissedPanningHint';
+  private dismissed = localStorage.getItem(this.PANNING_HINT_KEY) === 'true';
+
+  view() {
+    // Do not show the help notification in embedded mode because local storage
+    // does not persist for iFrames. The host is responsible for communicating
+    // to users that they can press '?' for help.
+    if (AppImpl.instance.embeddedMode || this.dismissed) {
+      return;
+    }
+    return m(
+      '.helpful-hint',
+      m(
+        '.hint-text',
+        'Are you trying to pan? Use the WASD keys or hold shift to click ' +
+          "and drag. Press '?' for more help.",
+      ),
+      m(
+        'button.hint-dismiss-button',
+        {
+          onclick: () => {
+            this.dismissed = true;
+            localStorage.setItem(this.PANNING_HINT_KEY, 'true');
+            raf.scheduleFullRedraw();
+          },
+        },
+        'Dismiss',
+      ),
+    );
   }
 }

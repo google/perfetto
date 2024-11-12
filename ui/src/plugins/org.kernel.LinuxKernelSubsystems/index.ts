@@ -14,13 +14,17 @@
 
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
-import {AsyncSliceTrack} from '../../core_plugins/async_slices/async_slice_track';
+import {PerfettoPlugin} from '../../public/plugin';
+import {AsyncSliceTrack} from '../dev.perfetto.AsyncSlices/async_slice_track';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
+import AsyncSlicesPlugin from '../dev.perfetto.AsyncSlices';
 
 // This plugin renders visualizations of subsystems of the Linux kernel.
-class LinuxKernelSubsystems implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'org.kernel.LinuxKernelSubsystems';
+  static readonly dependencies = [AsyncSlicesPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const kernel = new TrackNode({
       title: 'Linux Kernel',
@@ -82,8 +86,3 @@ class LinuxKernelSubsystems implements PerfettoPlugin {
     return rpm;
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'org.kernel.LinuxKernelSubsystems',
-  plugin: LinuxKernelSubsystems,
-};

@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assetSrc} from '../base/assets';
 import {assertExists, assertTrue} from '../base/logging';
 import {EngineBase} from '../trace_processor/engine';
 
-let bundlePath: string;
 let idleWasmWorker: Worker;
 
-export function initWasm(root: string) {
-  bundlePath = root + 'engine_bundle.js';
-  idleWasmWorker = new Worker(bundlePath);
+export function initWasm() {
+  idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
 }
 
 /**
@@ -49,7 +48,7 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
     // around. The latency is hidden by the fact that the user usually takes few
     // seconds until they click on "open trace file" and pick a file.
     this.worker = assertExists(idleWasmWorker);
-    idleWasmWorker = new Worker(bundlePath);
+    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
     this.worker.postMessage(port1, [port1]);
     this.port.onmessage = this.onMessage.bind(this);
   }

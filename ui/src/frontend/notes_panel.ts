@@ -15,12 +15,11 @@
 import m from 'mithril';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
-import {randomColor} from '../core/colorizer';
+import {randomColor} from '../public/lib/colorizer';
 import {SpanNote, Note} from '../public/note';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';
 import {TRACK_SHELL_WIDTH} from './css_constants';
-import {globals} from './globals';
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
@@ -29,9 +28,8 @@ import {assertUnreachable} from '../base/logging';
 import {DetailsPanel} from '../public/details_panel';
 import {TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
-import {isTraceLoaded} from './trace_attrs';
 import {Selection} from '../public/selection';
-import {Trace} from '../public/trace';
+import {TraceImpl} from '../core/trace_impl';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -57,12 +55,19 @@ function getStartTimestamp(note: Note | SpanNote) {
 export class NotesPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = false;
+  private readonly trace: TraceImpl;
   private timescale?: TimeScale; // The timescale from the last render()
   private hoveredX: null | number = null;
   private mouseDragging = false;
 
+  constructor(trace: TraceImpl) {
+    this.trace = trace;
+  }
+
   render(): m.Children {
-    const allCollapsed = globals.workspace.flatTracks.every((n) => n.collapsed);
+    const allCollapsed = this.trace.workspace.flatTracks.every(
+      (n) => n.collapsed,
+    );
 
     return m(
       '.notes-panel',
@@ -92,64 +97,63 @@ export class NotesPanel implements Panel {
         },
         onmouseout: () => {
           this.hoveredX = null;
-          globals.timeline.hoveredNoteTimestamp = undefined;
+          this.trace.timeline.hoveredNoteTimestamp = undefined;
         },
       },
-      isTraceLoaded() &&
-        m(
-          ButtonBar,
-          {className: 'pf-toolbar'},
-          m(Button, {
-            onclick: (e: Event) => {
-              e.preventDefault();
-              if (allCollapsed) {
-                globals.commandManager.runCommand(
-                  'perfetto.CoreCommands#ExpandAllGroups',
-                );
-              } else {
-                globals.commandManager.runCommand(
-                  'perfetto.CoreCommands#CollapseAllGroups',
-                );
-              }
-            },
-            title: allCollapsed ? 'Expand all' : 'Collapse all',
-            icon: allCollapsed ? 'unfold_more' : 'unfold_less',
-            compact: true,
-          }),
-          m(Button, {
-            onclick: (e: Event) => {
-              e.preventDefault();
-              globals.workspace.pinnedTracks.forEach((t) =>
-                globals.workspace.unpinTrack(t),
+      m(
+        ButtonBar,
+        {className: 'pf-toolbar'},
+        m(Button, {
+          onclick: (e: Event) => {
+            e.preventDefault();
+            if (allCollapsed) {
+              this.trace.commands.runCommand(
+                'perfetto.CoreCommands#ExpandAllGroups',
               );
-              raf.scheduleFullRedraw();
-            },
-            title: 'Clear all pinned tracks',
-            icon: 'clear_all',
-            compact: true,
-          }),
-          // TODO(stevegolton): Re-introduce this when we fix track filtering
-          // m(TextInput, {
-          //   placeholder: 'Filter tracks...',
-          //   title:
-          //     'Track filter - enter one or more comma-separated search terms',
-          //   value: globals.state.trackFilterTerm,
-          //   oninput: (e: Event) => {
-          //     const filterTerm = (e.target as HTMLInputElement).value;
-          //     globals.dispatch(Actions.setTrackFilterTerm({filterTerm}));
-          //   },
-          // }),
-          // m(Button, {
-          //   type: 'reset',
-          //   icon: 'backspace',
-          //   onclick: () => {
-          //     globals.dispatch(
-          //       Actions.setTrackFilterTerm({filterTerm: undefined}),
-          //     );
-          //   },
-          //   title: 'Clear track filter',
-          // }),
-        ),
+            } else {
+              this.trace.commands.runCommand(
+                'perfetto.CoreCommands#CollapseAllGroups',
+              );
+            }
+          },
+          title: allCollapsed ? 'Expand all' : 'Collapse all',
+          icon: allCollapsed ? 'unfold_more' : 'unfold_less',
+          compact: true,
+        }),
+        m(Button, {
+          onclick: (e: Event) => {
+            e.preventDefault();
+            this.trace.workspace.pinnedTracks.forEach((t) =>
+              this.trace.workspace.unpinTrack(t),
+            );
+            raf.scheduleFullRedraw();
+          },
+          title: 'Clear all pinned tracks',
+          icon: 'clear_all',
+          compact: true,
+        }),
+        // TODO(stevegolton): Re-introduce this when we fix track filtering
+        // m(TextInput, {
+        //   placeholder: 'Filter tracks...',
+        //   title:
+        //     'Track filter - enter one or more comma-separated search terms',
+        //   value: this.trace.state.trackFilterTerm,
+        //   oninput: (e: Event) => {
+        //     const filterTerm = (e.target as HTMLInputElement).value;
+        //     this.trace.dispatch(Actions.setTrackFilterTerm({filterTerm}));
+        //   },
+        // }),
+        // m(Button, {
+        //   type: 'reset',
+        //   icon: 'backspace',
+        //   onclick: () => {
+        //     this.trace.dispatch(
+        //       Actions.setTrackFilterTerm({filterTerm: undefined}),
+        //     );
+        //   },
+        //   title: 'Clear track filter',
+        // }),
+      ),
     );
   }
 
@@ -169,7 +173,7 @@ export class NotesPanel implements Panel {
   private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
     let aNoteIsHovered = false;
 
-    const visibleWindow = globals.timeline.visibleWindow;
+    const visibleWindow = this.trace.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
       right: size.width,
@@ -180,7 +184,7 @@ export class NotesPanel implements Panel {
 
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = globals.trace.timeline.timestampOffset();
+      const offset = this.trace.timeline.timestampOffset();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));
@@ -193,7 +197,7 @@ export class NotesPanel implements Panel {
     ctx.textBaseline = 'bottom';
     ctx.font = '10px Helvetica';
 
-    for (const note of globals.noteManager.notes.values()) {
+    for (const note of this.trace.notes.notes.values()) {
       const timestamp = getStartTimestamp(note);
       // TODO(hjd): We should still render area selection marks in viewport is
       // *within* the area (e.g. both lhs and rhs are out of bounds).
@@ -209,7 +213,7 @@ export class NotesPanel implements Panel {
         this.hoveredX !== null && this.hitTestNote(this.hoveredX, note);
       if (currentIsHovered) aNoteIsHovered = true;
 
-      const selection = globals.selectionManager.selection;
+      const selection = this.trace.selection.selection;
       const isSelected = selection.kind === 'note' && selection.id === note.id;
       const x = timescale.timeToPx(timestamp);
       const left = Math.floor(x);
@@ -246,14 +250,14 @@ export class NotesPanel implements Panel {
     // A real note is hovered so we don't need to see the preview line.
     // TODO(hjd): Change cursor to pointer here.
     if (aNoteIsHovered) {
-      globals.timeline.hoveredNoteTimestamp = undefined;
+      this.trace.timeline.hoveredNoteTimestamp = undefined;
     }
 
     // View preview note flag when hovering on notes panel.
     if (!aNoteIsHovered && this.hoveredX !== null) {
       const timestamp = timescale.pxToHpTime(this.hoveredX).toTime();
       if (visibleWindow.contains(timestamp)) {
-        globals.timeline.hoveredNoteTimestamp = timestamp;
+        this.trace.timeline.hoveredNoteTimestamp = timestamp;
         const x = timescale.timeToPx(timestamp);
         const left = Math.floor(x);
         this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);
@@ -334,16 +338,16 @@ export class NotesPanel implements Panel {
 
     // Select the hovered note, or create a new single note & select it
     if (x < 0) return;
-    for (const note of globals.noteManager.notes.values()) {
+    for (const note of this.trace.notes.notes.values()) {
       if (this.hoveredX !== null && this.hitTestNote(this.hoveredX, note)) {
-        globals.selectionManager.selectNote({id: note.id});
+        this.trace.selection.selectNote({id: note.id});
         return;
       }
     }
     const timestamp = this.timescale.pxToHpTime(x).toTime();
     const color = randomColor();
-    const noteId = globals.noteManager.addNote({timestamp, color});
-    globals.selectionManager.selectNote({id: noteId});
+    const noteId = this.trace.notes.addNote({timestamp, color});
+    this.trace.selection.selectNote({id: noteId});
   }
 
   private hitTestNote(x: number, note: SpanNote | Note): boolean {
@@ -367,7 +371,7 @@ export class NotesPanel implements Panel {
 }
 
 export class NotesEditorTab implements DetailsPanel {
-  constructor(private trace: Trace) {}
+  constructor(private trace: TraceImpl) {}
 
   render(selection: Selection) {
     if (selection.kind !== 'note') {
@@ -405,7 +409,7 @@ export class NotesEditorTab implements DetailsPanel {
           },
           onchange: (e: InputEvent) => {
             const newText = (e.target as HTMLInputElement).value;
-            globals.noteManager.changeNote(id, {text: newText});
+            this.trace.notes.changeNote(id, {text: newText});
           },
         }),
         m(
@@ -415,14 +419,14 @@ export class NotesEditorTab implements DetailsPanel {
             value: note.color,
             onchange: (e: Event) => {
               const newColor = (e.target as HTMLInputElement).value;
-              globals.noteManager.changeNote(id, {color: newColor});
+              this.trace.notes.changeNote(id, {color: newColor});
             },
           }),
         ),
         m(Button, {
           label: 'Remove',
           icon: Icons.Delete,
-          onclick: () => globals.noteManager.removeNote(id),
+          onclick: () => this.trace.notes.removeNote(id),
         }),
       ),
     );

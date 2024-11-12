@@ -22,11 +22,6 @@ import {Timeline} from '../public/timeline';
 import {timestampFormat, TimestampFormat} from './timestamp_format';
 import {TraceInfo} from '../public/trace_info';
 
-interface Range {
-  start?: number;
-  end?: number;
-}
-
 const MIN_DURATION = 10;
 
 /**
@@ -82,7 +77,6 @@ export class TimelineImpl implements Timeline {
   }
 
   // This is used to calculate the tracks within a Y range for area selection.
-  areaY: Range = {};
   private _selectedArea?: Area;
 
   constructor(private readonly traceInfo: TraceInfo) {

@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {raf} from '../../core/raf_scheduler';
 import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
 import {asSliceSqlId} from '../../trace_processor/sql_utils/core_types';
 import {DurationWidget} from '../../frontend/widgets/duration';
@@ -140,7 +139,7 @@ export class ScrollJankV3DetailsPanel implements TrackEventDetailsPanel {
     await this.loadJankyFrames();
 
     await this.loadSlices();
-    raf.scheduleFullRedraw();
+    this.trace.scheduleFullRedraw();
   }
 
   private hasCause(): boolean {

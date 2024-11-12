@@ -16,9 +16,11 @@
 
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
-#include <stdint.h>
+#include <unordered_set>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
@@ -38,6 +40,15 @@ void AppendProtoType(std::string& target, const std::string& value) {
   if (!target.empty())
     target += '.';
   target += value;
+}
+
+bool IsFieldAllowed(const FieldDescriptor& field,
+                    const std::vector<uint32_t>* allowed_fields) {
+  // If allowlist is not provided, reflect all fields. Otherwise, check if the
+  // current field either an extension or is in allowlist.
+  return field.is_extension() || !allowed_fields ||
+         std::find(allowed_fields->begin(), allowed_fields->end(),
+                   field.number()) != allowed_fields->end();
 }
 
 }  // namespace
@@ -88,10 +99,11 @@ base::Status ProtoToArgsParser::ParseMessage(
     const std::string& type,
     const std::vector<uint32_t>* allowed_fields,
     Delegate& delegate,
-    int* unknown_extensions) {
+    int* unknown_extensions,
+    bool add_defaults) {
   ScopedNestedKeyContext key_context(key_prefix_);
   return ParseMessageInternal(key_context, cb, type, allowed_fields, delegate,
-                              unknown_extensions);
+                              unknown_extensions, add_defaults);
 }
 
 base::Status ProtoToArgsParser::ParseMessageInternal(
@@ -100,7 +112,8 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
     const std::string& type,
     const std::vector<uint32_t>* allowed_fields,
     Delegate& delegate,
-    int* unknown_extensions) {
+    int* unknown_extensions,
+    bool add_defaults) {
   if (auto override_result =
           MaybeApplyOverrideForType(type, key_context, cb, delegate)) {
     return override_result.value();
@@ -116,6 +129,7 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
   std::unordered_map<size_t, int> repeated_field_index;
   bool empty_message = true;
   protozero::ProtoDecoder decoder(cb);
+  std::unordered_set<std::string_view> existing_fields;
   for (protozero::Field f = decoder.ReadField(); f.valid();
        f = decoder.ReadField()) {
     empty_message = false;
@@ -128,13 +142,11 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
       continue;
     }
 
-    // If allowlist is not provided, reflect all fields. Otherwise, check if the
-    // current field either an extension or is in allowlist.
-    bool is_allowed = field->is_extension() || !allowed_fields ||
-                      std::find(allowed_fields->begin(), allowed_fields->end(),
-                                f.id()) != allowed_fields->end();
+    if (add_defaults) {
+      existing_fields.insert(field->name());
+    }
 
-    if (!is_allowed) {
+    if (!IsFieldAllowed(*field, allowed_fields)) {
       // Field is neither an extension, nor is allowed to be
       // reflected.
       continue;
@@ -143,12 +155,13 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
     // Packed fields need to be handled specially because
     if (field->is_packed()) {
       RETURN_IF_ERROR(ParsePackedField(*field, repeated_field_index, f,
-                                       delegate, unknown_extensions));
+                                       delegate, unknown_extensions,
+                                       add_defaults));
       continue;
     }
 
     RETURN_IF_ERROR(ParseField(*field, repeated_field_index[f.id()], f,
-                               delegate, unknown_extensions));
+                               delegate, unknown_extensions, add_defaults));
     if (field->is_repeated()) {
       repeated_field_index[f.id()]++;
     }
@@ -156,6 +169,22 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
 
   if (empty_message) {
     delegate.AddNull(key_prefix_);
+  } else if (add_defaults) {
+    for (const auto& [id, field] : descriptor.fields()) {
+      if (!IsFieldAllowed(field, allowed_fields)) {
+        continue;
+      }
+      const std::string& field_name = field.name();
+      bool field_exists =
+          existing_fields.find(field_name) != existing_fields.cend();
+      if (field_exists) {
+        continue;
+      }
+      ScopedNestedKeyContext key_context_default(key_prefix_);
+      AppendProtoType(key_prefix_.flat_key, field_name);
+      AppendProtoType(key_prefix_.key, field_name);
+      RETURN_IF_ERROR(AddDefault(field, delegate));
+    }
   }
 
   return base::OkStatus();
@@ -166,7 +195,8 @@ base::Status ProtoToArgsParser::ParseField(
     int repeated_field_number,
     protozero::Field field,
     Delegate& delegate,
-    int* unknown_extensions) {
+    int* unknown_extensions,
+    bool add_defaults) {
   std::string prefix_part = field_descriptor.name();
   if (field_descriptor.is_repeated()) {
     std::string number = std::to_string(repeated_field_number);
@@ -197,7 +227,7 @@ base::Status ProtoToArgsParser::ParseField(
       protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE) {
     return ParseMessageInternal(key_context, field.as_bytes(),
                                 field_descriptor.resolved_type_name(), nullptr,
-                                delegate, unknown_extensions);
+                                delegate, unknown_extensions, add_defaults);
   }
   return ParseSimpleField(field_descriptor, field, delegate);
 }
@@ -207,7 +237,8 @@ base::Status ProtoToArgsParser::ParsePackedField(
     std::unordered_map<size_t, int>& repeated_field_index,
     protozero::Field field,
     Delegate& delegate,
-    int* unknown_extensions) {
+    int* unknown_extensions,
+    bool add_defaults) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   using PWT = protozero::proto_utils::ProtoWireType;
 
@@ -225,7 +256,7 @@ base::Status ProtoToArgsParser::ParsePackedField(
     protozero::Field f;
     f.initialize(field.id(), static_cast<uint8_t>(wire_type), new_value, 0);
     return ParseField(field_descriptor, repeated_field_index[field.id()]++, f,
-                      delegate, unknown_extensions);
+                      delegate, unknown_extensions, add_defaults);
   };
 
   const uint8_t* data = field.as_bytes().data;
@@ -335,30 +366,12 @@ base::Status ProtoToArgsParser::ParseSimpleField(
     case FieldDescriptorProto::TYPE_STRING:
       delegate.AddString(key_prefix_, field.as_string());
       return base::OkStatus();
-    case FieldDescriptorProto::TYPE_ENUM: {
-      auto opt_enum_descriptor_idx =
-          pool_.FindDescriptorIdx(descriptor.resolved_type_name());
-      if (!opt_enum_descriptor_idx) {
-        delegate.AddInteger(key_prefix_, field.as_int32());
-        return base::OkStatus();
-      }
-      auto opt_enum_string =
-          pool_.descriptors()[*opt_enum_descriptor_idx].FindEnumString(
-              field.as_int32());
-      if (!opt_enum_string) {
-        // Fall back to the integer representation of the field.
-        delegate.AddInteger(key_prefix_, field.as_int32());
-        return base::OkStatus();
-      }
-      delegate.AddString(key_prefix_,
-                         protozero::ConstChars{opt_enum_string->data(),
-                                               opt_enum_string->size()});
-      return base::OkStatus();
-    }
+    case FieldDescriptorProto::TYPE_ENUM:
+      return AddEnum(descriptor, field.as_int32(), delegate);
     default:
       return base::ErrStatus(
           "Tried to write value of type field %s (in proto type "
-          "%s) which has type enum %d",
+          "%s) which has type enum %u",
           descriptor.name().c_str(), descriptor.resolved_type_name().c_str(),
           descriptor.type());
   }
@@ -379,6 +392,108 @@ ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterDictionary(
   return context;
 }
 
+base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
+                                           Delegate& delegate) {
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  if (descriptor.is_repeated()) {
+    delegate.AddNull(key_prefix_);
+    return base::OkStatus();
+  }
+  const auto& default_value = descriptor.default_value();
+  const auto& default_value_if_number =
+      default_value ? default_value.value() : "0";
+  switch (descriptor.type()) {
+    case FieldDescriptorProto::TYPE_INT32:
+    case FieldDescriptorProto::TYPE_SFIXED32:
+      delegate.AddInteger(key_prefix_,
+                          base::StringToInt32(default_value_if_number).value());
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_SINT32:
+      delegate.AddInteger(
+          key_prefix_,
+          protozero::proto_utils::ZigZagDecode(
+              base::StringToInt64(default_value_if_number).value()));
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_INT64:
+    case FieldDescriptorProto::TYPE_SFIXED64:
+      delegate.AddInteger(key_prefix_,
+                          base::StringToInt64(default_value_if_number).value());
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_SINT64:
+      delegate.AddInteger(
+          key_prefix_,
+          protozero::proto_utils::ZigZagDecode(
+              base::StringToInt64(default_value_if_number).value()));
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_UINT32:
+    case FieldDescriptorProto::TYPE_FIXED32:
+      delegate.AddUnsignedInteger(
+          key_prefix_, base::StringToUInt32(default_value_if_number).value());
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_UINT64:
+    case FieldDescriptorProto::TYPE_FIXED64:
+      delegate.AddUnsignedInteger(
+          key_prefix_, base::StringToUInt64(default_value_if_number).value());
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_BOOL:
+      delegate.AddBoolean(key_prefix_, default_value == "true");
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_DOUBLE:
+    case FieldDescriptorProto::TYPE_FLOAT:
+      delegate.AddDouble(key_prefix_,
+                         base::StringToDouble(default_value_if_number).value());
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_BYTES:
+      delegate.AddBytes(key_prefix_, protozero::ConstBytes{});
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_STRING:
+      if (default_value) {
+        delegate.AddString(key_prefix_, default_value.value());
+      } else {
+        delegate.AddNull(key_prefix_);
+      }
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_MESSAGE:
+      delegate.AddNull(key_prefix_);
+      return base::OkStatus();
+    case FieldDescriptorProto::TYPE_ENUM:
+      return AddEnum(descriptor,
+                     base::StringToInt32(default_value_if_number).value(),
+                     delegate);
+    default:
+      return base::ErrStatus(
+          "Tried to write default value of type field %s (in proto type "
+          "%s) which has type enum %u",
+          descriptor.name().c_str(), descriptor.resolved_type_name().c_str(),
+          descriptor.type());
+  }
+}
+
+base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
+                                        int32_t value,
+                                        Delegate& delegate) {
+  auto opt_enum_descriptor_idx =
+      pool_.FindDescriptorIdx(descriptor.resolved_type_name());
+  if (!opt_enum_descriptor_idx) {
+    delegate.AddInteger(key_prefix_, value);
+    return base::OkStatus();
+  }
+  auto opt_enum_string =
+      pool_.descriptors()[*opt_enum_descriptor_idx].FindEnumString(value);
+  if (!opt_enum_string) {
+    // Fall back to the integer representation of the field.
+    // We add the string representation of the int value here in order that
+    // EXTRACT_ARG() should return consistent types under error conditions and
+    // that CREATE PERFETTO TABLE AS EXTRACT_ARG(...) should be generally safe
+    // to use.
+    delegate.AddString(key_prefix_, std::to_string(value));
+    return base::OkStatus();
+  }
+  delegate.AddString(
+      key_prefix_,
+      protozero::ConstChars{opt_enum_string->data(), opt_enum_string->size()});
+  return base::OkStatus();
+}
 }  // namespace util
 }  // namespace trace_processor
 }  // namespace perfetto

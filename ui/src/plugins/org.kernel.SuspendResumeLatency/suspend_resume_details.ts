@@ -22,11 +22,11 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Anchor} from '../../widgets/anchor';
-import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
+import {ThreadMap} from '../dev.perfetto.Thread/threads';
 
 interface SuspendResumeEventDetails {
   ts: time;
@@ -41,12 +41,12 @@ interface SuspendResumeEventDetails {
 }
 
 export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
-  private readonly trace: Trace;
   private suspendResumeEventDetails?: SuspendResumeEventDetails;
 
-  constructor(trace: Trace) {
-    this.trace = trace;
-  }
+  constructor(
+    private readonly trace: Trace,
+    private readonly threads: ThreadMap,
+  ) {}
 
   async load({eventId}: TrackEventSelection) {
     this.suspendResumeEventDetails = await loadSuspendResumeEventDetails(
@@ -58,7 +58,7 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
   render() {
     const eventDetails = this.suspendResumeEventDetails;
     if (eventDetails) {
-      const threadInfo = this.trace.threads.get(eventDetails.utid);
+      const threadInfo = this.threads.get(eventDetails.utid);
       if (!threadInfo) {
         return null;
       }
@@ -124,7 +124,7 @@ export class SuspendResumeDetailsPanel implements TrackEventDetailsPanel {
   }
 
   goToThread(threadStateId: number) {
-    globals.selectionManager.selectSqlEvent('thread_state', threadStateId, {
+    this.trace.selection.selectSqlEvent('thread_state', threadStateId, {
       scrollToSelection: true,
     });
   }

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {raf} from '../core/raf_scheduler';
-import {globals} from './globals';
+import {AppImpl} from '../core/app_impl';
 
 const COOKIE_ACK_KEY = 'cookieAck';
 
@@ -24,7 +24,7 @@ export class CookieConsent implements m.ClassComponent {
   oninit() {
     this.showCookieConsent = true;
     if (
-      !globals.logging.isEnabled() ||
+      !AppImpl.instance.analytics.isEnabled() ||
       localStorage.getItem(COOKIE_ACK_KEY) === 'true'
     ) {
       this.showCookieConsent = false;

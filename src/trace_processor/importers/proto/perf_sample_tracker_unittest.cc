@@ -16,32 +16,34 @@
 
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include <cstdint>
+#include <memory>
 #include <string>
 
-#include "perfetto/base/logging.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.gen.h"
-#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.gen.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 class PerfSampleTrackerTest : public ::testing::Test {
  public:
   PerfSampleTrackerTest() {
-    context.storage.reset(new TraceStorage());
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
-    context.track_tracker.reset(new TrackTracker(&context));
-    context.perf_sample_tracker.reset(new PerfSampleTracker(&context));
+    context.storage = std::make_shared<TraceStorage>();
+    context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+    context.cpu_tracker = std::make_unique<CpuTracker>(&context);
+    context.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context.storage.get());
+    context.track_tracker = std::make_unique<TrackTracker>(&context);
+    context.perf_sample_tracker = std::make_unique<PerfSampleTracker>(&context);
   }
 
  protected:
@@ -302,5 +304,4 @@ TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

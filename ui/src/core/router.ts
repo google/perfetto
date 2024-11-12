@@ -13,15 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertTrue} from '../base/logging';
 import {RouteArgs, ROUTE_SCHEMA} from '../public/route_schema';
+import {PageAttrs} from '../public/page';
 
 export const ROUTE_PREFIX = '#!';
-const DEFAULT_ROUTE = '/';
-
-export interface PageAttrs {
-  subpage?: string;
-}
 
 // The set of args that can be set on the route via #!/page?a=1&b2.
 // Route args are orthogonal to pages (i.e. should NOT make sense only in a
@@ -80,15 +76,12 @@ export interface RoutesMap {
 // triggered by Router.onRouteChanged().
 export class Router {
   private readonly recentChanges: number[] = [];
-  private routes: RoutesMap;
 
   // frontend/index.ts calls maybeOpenTraceFromRoute() + redraw here.
   // This event is decoupled for testing and to avoid circular deps.
   onRouteChanged: (route: Route) => void = () => {};
 
-  constructor(routes: RoutesMap) {
-    assertExists(routes[DEFAULT_ROUTE]);
-    this.routes = routes;
+  constructor() {
     window.onhashchange = (e: HashChangeEvent) => this.onHashChange(e);
     const route = Router.parseUrl(window.location.href);
     this.onRouteChanged(route);
@@ -134,18 +127,6 @@ export class Router {
     }
 
     this.onRouteChanged(newRoute);
-  }
-
-  // Returns the component for the current route in the URL.
-  // If no route matches the URL, returns a component corresponding to
-  // |this.defaultRoute|.
-  resolve(): m.Vnode<PageAttrs> {
-    const route = Router.parseFragment(location.hash);
-    let component = this.routes[route.page];
-    if (component === undefined) {
-      component = assertExists(this.routes[DEFAULT_ROUTE]);
-    }
-    return m(component, {subpage: route.subpage});
   }
 
   static navigate(newHash: string) {

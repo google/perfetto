@@ -31,9 +31,9 @@ test('load trace', async () => {
 });
 
 test('info and stats', async () => {
-  await page.locator('.sidebar #info_and_stats').click();
+  await pth.navigate('#!/info');
   await pth.waitForIdleAndScreenshot('into_and_stats.png');
-  await page.locator('.sidebar #show_timeline').click();
+  await pth.navigate('#!/viewer');
   await pth.waitForIdleAndScreenshot('back_to_timeline.png');
 });
 

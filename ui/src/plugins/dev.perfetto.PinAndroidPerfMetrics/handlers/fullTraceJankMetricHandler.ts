@@ -19,8 +19,7 @@ import {
   MetricHandler,
 } from './metricUtils';
 import {Trace} from '../../../public/trace';
-import {addAndPinSliceTrack} from '../../dev.perfetto.AndroidCujs/trackUtils';
-import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
+import {addDebugSliceTrack} from '../../../public/debug_tracks';
 
 class FullTraceJankMetricHandler implements MetricHandler {
   /**
@@ -55,16 +54,12 @@ class FullTraceJankMetricHandler implements MetricHandler {
     INCLUDE PERFETTO MODULE android.frames.jank_type;
     INCLUDE PERFETTO MODULE slices.slices;
     `;
-    const {config: fullTraceJankConfig, trackName: trackName} =
-      this.fullTraceJankConfig(metricData);
+    const config = this.fullTraceJankConfig(metricData);
     await ctx.engine.query(INCLUDE_PREQUERY);
-    addAndPinSliceTrack(ctx, fullTraceJankConfig, trackName);
+    addDebugSliceTrack({trace: ctx, ...config});
   }
 
-  private fullTraceJankConfig(metricData: FullTraceMetricData): {
-    config: SimpleSliceTrackConfig;
-    trackName: string;
-  } {
+  private fullTraceJankConfig(metricData: FullTraceMetricData) {
     let jankTypeFilter;
     let jankTypeDisplayName;
     if (metricData.jankType?.includes('app')) {
@@ -115,18 +110,18 @@ class FullTraceJankMetricHandler implements MetricHandler {
       'process_name',
       'pid',
     ];
-    const fullTraceJankConfig: SimpleSliceTrackConfig = {
+
+    const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
+
+    return {
       data: {
         sqlSource: fullTraceJankQuery,
         columns: fullTraceJankColumns,
       },
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: fullTraceJankColumns,
+      tableName: trackName,
     };
-
-    const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
-
-    return {config: fullTraceJankConfig, trackName: trackName};
   }
 }
 

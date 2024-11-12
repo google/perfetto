@@ -25,12 +25,22 @@ message Utsname {
   optional string machine = 4;
 }
 
+// Next id: 15;
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
 
+  // The manufacturer of the product/hardware.
+  // Source : "ro.product.manufacturer"
+  // Introduced after Android W in Nov 2024 and is not supported on older
+  // versions.
+  optional string android_device_manufacturer = 14;
+
   // The SoC model from which trace is collected
   optional string android_soc_model = 9;
+
+  // The guest SoC model from which trace is collected in case of VMs
+  optional string android_guest_soc_model = 13;
 
   // The hardware reversion from android device
   optional string android_hardware_revision = 10;

@@ -378,7 +378,7 @@ class WattsonStdlib(TestSuite):
             """))
 
   # Tests that DSU devfreq calculations are merged correctly
-  def test_wattson_dsu_devfreq(self):
+  def test_wattson_dsu_devfreq_system_state(self):
     return DiffTestBlueprint(
         trace=DataPath('wattson_tk4_pcmark.pb'),
         query=("""
@@ -409,4 +409,46 @@ class WattsonStdlib(TestSuite):
             4108587650809,95296,205.600000,2.670000,2.670000,205.600000,674.240000,674.240000,674.240000,3327.560000,1166.740927
             4108587746105,12451,2.670000,2.670000,2.670000,205.600000,674.240000,674.240000,674.240000,3327.560000,1166.556475
             4108587758556,28524,2.670000,2.670000,205.600000,205.600000,674.240000,674.240000,674.240000,3327.560000,1166.680924
+            """))
+
+  def test_wattson_time_window_api(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_dsu_pmu.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.curves.estimates;
+
+        SELECT
+          cpu0_mw,
+          cpu1_mw,
+          cpu2_mw,
+          cpu3_mw,
+          cpu4_mw,
+          cpu5_mw,
+          cpu6_mw,
+          cpu7_mw,
+          dsu_scu_mw
+        FROM _windowed_system_state_mw(362426061658, 5067704349)
+        """,
+        out=Csv("""
+            "cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"
+            13.025673,6.270190,5.448549,8.796540,8.937174,10.717942,29.482823,30.239208,26.121213
+            """))
+
+  # Tests that suspend calculations are correct on 8 CPU device where suspend
+  # indication comes from "syscore" command
+  def test_wattson_syscore_suspend(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_syscore_suspend.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            SELECT ts, dur, cpu0_id, cpu1_id, cpu2_id, cpu3_id, suspended
+            FROM _stats_cpu0123_suspend
+            WHERE suspended
+            """),
+        out=Csv("""
+            "ts","dur","cpu0_id","cpu1_id","cpu2_id","cpu3_id","suspended"
+            385019771468,61975407053,12041,12218,10488,8910,1
+            448320364476,3674872885,13005,12954,11166,9272,1
+            452415394221,69579176303,13654,13361,11651,9609,1
+            564873995228,135118729231,45223,37594,22798,20132,1
             """))

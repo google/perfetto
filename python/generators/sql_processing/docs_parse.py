@@ -25,10 +25,8 @@ from python.generators.sql_processing.utils import ObjKind
 from python.generators.sql_processing.utils import ALLOWED_PREFIXES
 from python.generators.sql_processing.utils import OBJECT_NAME_ALLOWLIST
 
-from python.generators.sql_processing.utils import COLUMN_ANNOTATION_PATTERN
 from python.generators.sql_processing.utils import ANY_PATTERN
 from python.generators.sql_processing.utils import ARG_DEFINITION_PATTERN
-from python.generators.sql_processing.utils import ARG_ANNOTATION_PATTERN
 
 
 def _is_internal(name: str) -> bool:
@@ -102,88 +100,23 @@ class AbstractDocParser(ABC):
       self._error('Description of the table/view/function/macro is missing')
     return desc.strip()
 
-  def _validate_only_contains_annotations(self,
-                                          ans: List[DocsExtractor.Annotation],
-                                          ans_types: Set[str]):
-    used_ans_types = set(a.key for a in ans)
-    for type in used_ans_types.difference(ans_types):
-      self._error(f'Unknown documentation annotation {type}')
-
-  def _parse_columns(self, ans: List[DocsExtractor.Annotation],
-                     schema: Optional[str]) -> Dict[str, Arg]:
-    column_annotations = {}
-    for t in ans:
-      if t.key != '@column':
-        continue
-      m = re.match(COLUMN_ANNOTATION_PATTERN, t.value)
-      if not m:
-        self._error(f'@column annotation value {t.value} does not match '
-                    f'pattern {COLUMN_ANNOTATION_PATTERN}')
-        continue
-      column_annotations[m.group(1)] = Arg(None, m.group(2).strip())
-
-    if not schema:
-      # If we don't have schema, we have to accept annotations as the source of
-      # truth.
-      return column_annotations
-
-    columns = self._parse_args_definition(schema)
-
+  def _parse_columns(self, schema: str) -> Dict[str, Arg]:
+    columns = self._parse_args_definition(schema) if schema else {}
     for column in columns:
-      inline_comment = columns[column].description
-      if not inline_comment and column not in column_annotations:
+      if not columns[column].description:
         self._error(f'Column "{column}" is missing a description. Please add a '
                     'comment in front of the column definition')
         continue
 
-      if column not in column_annotations:
-        continue
-      annotation = column_annotations[column].description
-      if inline_comment and annotation:
-        self._error(f'Column "{column}" is documented twice. Please remove the '
-                    '@column annotation')
-      if not inline_comment and annotation:
-        # Absorb old-style annotations.
-        columns[column] = Arg(columns[column].type, annotation)
-
-    # Check that the annotations match existing columns.
-    for annotation in column_annotations:
-      if annotation not in columns:
-        self._error(f'Column "{annotation}" is documented but does not exist '
-                    'in table definition')
     return columns
 
-  def _parse_args(self, ans: List[DocsExtractor.Annotation],
-                  sql_args_str: str) -> Dict[str, Arg]:
+  def _parse_args(self, sql_args_str: str) -> Dict[str, Arg]:
     args = self._parse_args_definition(sql_args_str)
 
-    arg_annotations = {}
-    for an in ans:
-      if an.key != '@arg':
-        continue
-      m = re.match(ARG_ANNOTATION_PATTERN, an.value)
-      if m is None:
-        self._error(f'Expected arg documentation "{an.value}" to match pattern '
-                    f'{ARG_ANNOTATION_PATTERN}')
-        continue
-      arg_annotations[m.group(1)] = Arg(m.group(2), m.group(3).strip())
-
     for arg in args:
-      if not args[arg].description and arg not in arg_annotations:
+      if not args[arg].description:
         self._error(f'Arg "{arg}" is missing a description. '
                     'Please add a comment in front of the arg definition.')
-      if args[arg].description and arg in arg_annotations:
-        self._error(f'Arg "{arg}" is documented twice. '
-                    'Please remove the @arg annotation')
-      if not args[arg].description and arg in arg_annotations:
-        # Absorb old-style annotations.
-        # TODO(b/307926059): Remove it once stdlib is migrated.
-        args[arg] = Arg(args[arg].type, arg_annotations[arg].description)
-
-    for arg in arg_annotations:
-      if arg not in args:
-        self._error(
-            f'Arg "{arg}" is documented but not found in function definition.')
     return args
 
   # Parse function argument definition list or a table schema, e.g.
@@ -243,22 +176,33 @@ class TableViewDocParser(AbstractDocParser):
           f'{type} "{self.name}": CREATE OR REPLACE is not allowed in stdlib '
           f'as standard library modules can only included once. Please just '
           f'use CREATE instead.')
+      return
+
     if _is_internal(self.name):
       return None
 
-    is_perfetto_table_or_view = (
-        perfetto_or_virtual and perfetto_or_virtual.lower() == 'perfetto')
-    if not schema and is_perfetto_table_or_view:
+    if not schema and self.name.lower() != "window":
       self._error(
           f'{type} "{self.name}": schema is missing for a non-internal stdlib'
           f' perfetto table or view')
+      return
 
-    self._validate_only_contains_annotations(doc.annotations, {'@column'})
+    if type.lower() == "table" and not perfetto_or_virtual:
+      self._error(
+          f'{type} "{self.name}": Can only expose CREATE PERFETTO tables')
+      return
+
+    is_virtual_table = type.lower() == "table" and perfetto_or_virtual.lower(
+    ) == "virtual"
+    if is_virtual_table and self.name.lower() != "window":
+      self._error(f'{type} "{self.name}": Virtual tables cannot be exposed.')
+      return
+
     return TableOrView(
         name=self._parse_name(),
         type=type,
         desc=self._parse_desc_not_empty(doc.description),
-        cols=self._parse_columns(doc.annotations, schema),
+        cols=self._parse_columns(schema),
     )
 
 
@@ -309,7 +253,7 @@ class FunctionDocParser(AbstractDocParser):
     return Function(
         name=name,
         desc=self._parse_desc_not_empty(doc.description),
-        args=self._parse_args(doc.annotations, args),
+        args=self._parse_args(args),
         return_type=ret_type,
         return_desc=ret_desc,
     )
@@ -342,13 +286,12 @@ class TableFunctionDocParser(AbstractDocParser):
           f'Function "{self.name}": CREATE OR REPLACE is not allowed in stdlib '
           f'as standard library modules can only included once. Please just '
           f'use CREATE instead.')
+      return
 
     # Ignore internal functions.
     if _is_internal(self.name):
       return None
 
-    self._validate_only_contains_annotations(doc.annotations,
-                                             {'@arg', '@column'})
     name = self._parse_name()
 
     if not _is_snake_case(name):
@@ -358,8 +301,8 @@ class TableFunctionDocParser(AbstractDocParser):
     return TableFunction(
         name=name,
         desc=self._parse_desc_not_empty(doc.description),
-        cols=self._parse_columns(doc.annotations, columns),
-        args=self._parse_args(doc.annotations, args),
+        cols=self._parse_columns(columns),
+        args=self._parse_args(args),
     )
 
 
@@ -398,7 +341,6 @@ class MacroDocParser(AbstractDocParser):
     if _is_internal(self.name):
       return None
 
-    self._validate_only_contains_annotations(doc.annotations, set())
     name = self._parse_name()
 
     if not _is_snake_case(name):
@@ -410,7 +352,7 @@ class MacroDocParser(AbstractDocParser):
         desc=self._parse_desc_not_empty(doc.description),
         return_desc=parse_comment(return_desc),
         return_type=return_type,
-        args=self._parse_args(doc.annotations, args),
+        args=self._parse_args(args),
     )
 
 

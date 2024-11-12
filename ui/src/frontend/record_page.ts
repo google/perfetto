@@ -13,9 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Actions} from '../common/actions';
 import {
-  AdbRecordingTarget,
   getDefaultRecordingTargets,
   hasActiveProbes,
   isAdbTarget,
@@ -31,13 +29,11 @@ import {
 } from '../common/state';
 import {AdbOverWebUsb} from '../controller/adb';
 import {
-  createEmptyRecordConfig,
+  RECORD_CONFIG_SCHEMA,
   RecordConfig,
 } from '../controller/record_config_types';
-import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {globals} from './globals';
-import {PageAttrs} from '../core/router';
+import {PageAttrs} from '../public/page';
 import {
   autosaveConfigStore,
   recordConfigStore,
@@ -52,17 +48,13 @@ import {GpuSettings} from './recording/gpu_settings';
 import {LinuxPerfSettings} from './recording/linux_perf_settings';
 import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
-import {RecordingSectionAttrs} from './recording/recording_sections';
 import {RecordingSettings} from './recording/recording_settings';
 import {EtwSettings} from './recording/etw_settings';
-import {createPermalink} from './permalink';
-
-export const PERSIST_CONFIG_FLAG = featureFlags.register({
-  id: 'persistConfigsUI',
-  name: 'Config persistence UI',
-  description: 'Show experimental config persistence UI on the record page.',
-  defaultValue: true,
-});
+import {AppImpl} from '../core/app_impl';
+import {RecordingManager} from '../controller/recording_manager';
+import {BUCKET_NAME, GcsUploader, MIME_JSON} from '../common/gcs_uploader';
+import {showModal} from '../widgets/modal';
+import {CopyableLink} from '../widgets/copyable_link';
 
 export const RECORDING_SECTIONS = [
   'buffers',
@@ -79,28 +71,28 @@ export const RECORDING_SECTIONS = [
   'advanced',
 ];
 
-function RecordHeader() {
+function RecordHeader(recMgr: RecordingManager) {
   return m(
     '.record-header',
     m(
       '.top-part',
       m(
         '.target-and-status',
-        RecordingPlatformSelection(),
-        RecordingStatusLabel(),
-        ErrorLabel(),
+        RecordingPlatformSelection(recMgr),
+        RecordingStatusLabel(recMgr),
+        ErrorLabel(recMgr),
       ),
-      recordingButtons(),
+      recordingButtons(recMgr),
     ),
-    RecordingNotes(),
+    RecordingNotes(recMgr),
   );
 }
 
-function RecordingPlatformSelection() {
-  if (globals.state.recordingInProgress) return [];
+function RecordingPlatformSelection(recMgr: RecordingManager) {
+  if (recMgr.state.recordingInProgress) return [];
 
-  const availableAndroidDevices = globals.state.availableAdbDevices;
-  const recordingTarget = globals.state.recordingTarget;
+  const availableAndroidDevices = recMgr.state.availableAdbDevices;
+  const recordingTarget = recMgr.state.recordingTarget;
 
   const targets = [];
   for (const {os, name} of getDefaultRecordingTargets()) {
@@ -124,7 +116,7 @@ function RecordingPlatformSelection() {
         {
           selectedIndex,
           onchange: (e: Event) => {
-            onTargetChange((e.target as HTMLSelectElement).value);
+            onTargetChange(recMgr, (e.target as HTMLSelectElement).value);
           },
           onupdate: (select) => {
             // Work around mithril bug
@@ -143,7 +135,7 @@ function RecordingPlatformSelection() {
     ),
     m(
       '.chip',
-      {onclick: addAndroidDevice},
+      {onclick: () => addAndroidDevice(recMgr)},
       m('button', 'Add ADB Device'),
       m('i.material-icons', 'add'),
     ),
@@ -151,38 +143,36 @@ function RecordingPlatformSelection() {
 }
 
 // |target| can be the TargetOs or the android serial.
-function onTargetChange(target: string) {
+function onTargetChange(recMgr: RecordingManager, target: string) {
   const recordingTarget: RecordingTarget =
-    globals.state.availableAdbDevices.find((d) => d.serial === target) ||
+    recMgr.state.availableAdbDevices.find((d) => d.serial === target) ||
     getDefaultRecordingTargets().find((t) => t.os === target) ||
     getDefaultRecordingTargets()[0];
 
   if (isChromeTarget(recordingTarget)) {
-    globals.dispatch(Actions.setFetchChromeCategories({fetch: true}));
+    recMgr.setFetchChromeCategories(true);
   }
 
-  globals.dispatch(Actions.setRecordingTarget({target: recordingTarget}));
+  recMgr.setRecordingTarget(recordingTarget);
   recordTargetStore.save(target);
   raf.scheduleFullRedraw();
 }
 
-function Instructions(cssClass: string) {
+function Instructions(recMgr: RecordingManager, cssClass: string) {
   return m(
     `.record-section.instructions${cssClass}`,
     m('header', 'Recording command'),
-    PERSIST_CONFIG_FLAG.get()
-      ? m(
-          'button.permalinkconfig',
-          {
-            onclick: () => createPermalink({mode: 'RECORDING_OPTS'}),
-          },
-          'Share recording settings',
-        )
-      : null,
-    RecordingSnippet(),
-    BufferUsageProgressBar(),
-    m('.buttons', StopCancelButtons()),
-    recordingLog(),
+    m(
+      'button.permalinkconfig',
+      {
+        onclick: () => uploadRecordingConfig(recMgr.state.recordConfig),
+      },
+      'Share recording settings',
+    ),
+    RecordingSnippet(recMgr),
+    BufferUsageProgressBar(recMgr),
+    m('.buttons', StopCancelButtons(recMgr)),
+    recordingLog(recMgr),
   );
 }
 
@@ -196,6 +186,7 @@ export function loadedConfigEqual(
 }
 
 export function loadConfigButton(
+  recMgr: RecordingManager,
   config: RecordConfig,
   configType: LoadedConfig,
 ): m.Vnode {
@@ -204,9 +195,9 @@ export function loadConfigButton(
     {
       class: 'config-button',
       title: 'Apply configuration settings',
-      disabled: loadedConfigEqual(configType, globals.state.lastLoadedConfig),
+      disabled: loadedConfigEqual(configType, recMgr.state.lastLoadedConfig),
       onclick: () => {
-        globals.dispatch(Actions.setRecordConfig({config, configType}));
+        recMgr.setRecordConfig(config, configType);
         raf.scheduleFullRedraw();
       },
     },
@@ -214,13 +205,15 @@ export function loadConfigButton(
   );
 }
 
-export function displayRecordConfigs() {
+export function displayRecordConfigs(recMgr: RecordingManager) {
   const configs = [];
   if (autosaveConfigStore.hasSavedConfig) {
     configs.push(
       m('.config', [
         m('span.title-config', m('strong', 'Latest started recording')),
-        loadConfigButton(autosaveConfigStore.get(), {type: 'AUTOMATIC'}),
+        loadConfigButton(recMgr, autosaveConfigStore.get(), {
+          type: 'AUTOMATIC',
+        }),
       ]),
     );
   }
@@ -228,7 +221,10 @@ export function displayRecordConfigs() {
     configs.push(
       m('.config', [
         m('span.title-config', item.title),
-        loadConfigButton(item.config, {type: 'NAMED', name: item.title}),
+        loadConfigButton(recMgr, item.config, {
+          type: 'NAMED',
+          name: item.title,
+        }),
         m(
           'button',
           {
@@ -241,15 +237,13 @@ export function displayRecordConfigs() {
                 )
               ) {
                 recordConfigStore.overwrite(
-                  globals.state.recordConfig,
+                  recMgr.state.recordConfig,
                   item.key,
                 );
-                globals.dispatch(
-                  Actions.setRecordConfig({
-                    config: item.config,
-                    configType: {type: 'NAMED', name: item.title},
-                  }),
-                );
+                recMgr.setRecordConfig(item.config, {
+                  type: 'NAMED',
+                  name: item.title,
+                });
                 raf.scheduleFullRedraw();
               }
             },
@@ -287,7 +281,7 @@ export const ConfigTitleState = {
   },
 };
 
-export function Configurations(cssClass: string) {
+export function Configurations(recMgr: RecordingManager, cssClass: string) {
   const canSave = recordConfigStore.canSave(ConfigTitleState.getTitle());
   return m(
     `.record-section${cssClass}`,
@@ -311,7 +305,7 @@ export function Configurations(cssClass: string) {
             : 'Duplicate name, saving disabled',
           onclick: () => {
             recordConfigStore.save(
-              globals.state.recordConfig,
+              recMgr.state.recordConfig,
               ConfigTitleState.getTitle(),
             );
             raf.scheduleFullRedraw();
@@ -331,12 +325,7 @@ export function Configurations(cssClass: string) {
                 'Current configuration will be cleared. ' + 'Are you sure?',
               )
             ) {
-              globals.dispatch(
-                Actions.setRecordConfig({
-                  config: createEmptyRecordConfig(),
-                  configType: {type: 'NONE'},
-                }),
-              );
+              recMgr.clearRecordConfig();
               raf.scheduleFullRedraw();
             }
           },
@@ -344,14 +333,14 @@ export function Configurations(cssClass: string) {
         m('i.material-icons', 'delete_forever'),
       ),
     ]),
-    displayRecordConfigs(),
+    displayRecordConfigs(recMgr),
   );
 }
 
-function BufferUsageProgressBar() {
-  if (!globals.state.recordingInProgress) return [];
+function BufferUsageProgressBar(recMgr: RecordingManager) {
+  if (!recMgr.state.recordingInProgress) return [];
 
-  const bufferUsage = globals.bufferUsage ?? 0.0;
+  const bufferUsage = recMgr.state.bufferUsage;
   // Buffer usage is not available yet on Android.
   if (bufferUsage === 0) return [];
 
@@ -362,7 +351,7 @@ function BufferUsageProgressBar() {
   );
 }
 
-function RecordingNotes() {
+function RecordingNotes(recMgr: RecordingManager) {
   const sideloadUrl =
     'https://perfetto.dev/docs/contributing/build-instructions#get-the-code';
   const linuxUrl = 'https://perfetto.dev/docs/quickstart/linux-tracing';
@@ -445,14 +434,14 @@ function RecordingNotes() {
       'Please add at least one to get a non-empty trace.',
   );
 
-  if (!hasActiveProbes(globals.state.recordConfig)) {
+  if (!hasActiveProbes(recMgr.state.recordConfig)) {
     notes.push(msgZeroProbes);
   }
 
-  if (isAdbTarget(globals.state.recordingTarget)) {
+  if (isAdbTarget(recMgr.state.recordingTarget)) {
     notes.push(msgRecordingNotSupported);
   }
-  switch (globals.state.recordingTarget.os) {
+  switch (recMgr.state.recordingTarget.os) {
     case 'Q':
       break;
     case 'P':
@@ -465,30 +454,29 @@ function RecordingNotes() {
       notes.push(msgLinux);
       break;
     case 'C':
-      if (!globals.state.extensionInstalled) notes.push(msgChrome);
+      if (!recMgr.state.extensionInstalled) notes.push(msgChrome);
       break;
     case 'CrOS':
-      if (!globals.state.extensionInstalled) notes.push(msgChrome);
+      if (!recMgr.state.extensionInstalled) notes.push(msgChrome);
       break;
     case 'Win':
-      if (!globals.state.extensionInstalled) notes.push(msgWinEtw);
+      if (!recMgr.state.extensionInstalled) notes.push(msgWinEtw);
       break;
     default:
   }
-  if (globals.state.recordConfig.mode === 'LONG_TRACE') {
+  if (recMgr.state.recordConfig.mode === 'LONG_TRACE') {
     notes.unshift(msgLongTraces);
   }
 
   return notes.length > 0 ? m('div', notes) : [];
 }
 
-function RecordingSnippet() {
-  const target = globals.state.recordingTarget;
+function RecordingSnippet(recMgr: RecordingManager) {
+  const target = recMgr.state.recordingTarget;
 
   // We don't need commands to start tracing on chrome
   if (isChromeTarget(target)) {
-    return globals.state.extensionInstalled &&
-      !globals.state.recordingInProgress
+    return recMgr.state.extensionInstalled && !recMgr.state.recordingInProgress
       ? m(
           'div',
           m(
@@ -499,17 +487,13 @@ function RecordingSnippet() {
         )
       : [];
   }
-  return m(CodeSnippet, {text: getRecordCommand(target)});
+  return m(CodeSnippet, {text: getRecordCommand(recMgr, target)});
 }
 
-function getRecordCommand(target: RecordingTarget) {
-  const data = globals.trackDataStore.get('config') as {
-    commandline: string;
-    pbtxt: string;
-    pbBase64: string;
-  } | null;
+function getRecordCommand(recMgr: RecordingManager, target: RecordingTarget) {
+  const data = recMgr.state.recordCmd;
 
-  const cfg = globals.state.recordConfig;
+  const cfg = recMgr.state.recordConfig;
   let time = cfg.durationMs / 1000;
 
   if (time > MAX_TIME) {
@@ -536,8 +520,8 @@ function getRecordCommand(target: RecordingTarget) {
   return cmd;
 }
 
-function recordingButtons() {
-  const state = globals.state;
+function recordingButtons(recMgr: RecordingManager) {
+  const state = recMgr.state;
   const target = state.recordingTarget;
   const recInProgress = state.recordingInProgress;
 
@@ -545,7 +529,7 @@ function recordingButtons() {
     `button`,
     {
       class: recInProgress ? '' : 'selected',
-      onclick: onStartRecordingPressed,
+      onclick: () => onStartRecordingPressed(recMgr),
     },
     'Start Recording',
   );
@@ -556,7 +540,7 @@ function recordingButtons() {
     if (
       !recInProgress &&
       isAdbTarget(target) &&
-      globals.state.recordConfig.mode !== 'LONG_TRACE'
+      recMgr.state.recordConfig.mode !== 'LONG_TRACE'
     ) {
       buttons.push(start);
     }
@@ -569,54 +553,57 @@ function recordingButtons() {
   return m('.button', buttons);
 }
 
-function StopCancelButtons() {
-  if (!globals.state.recordingInProgress) return [];
+function StopCancelButtons(recMgr: RecordingManager) {
+  if (!recMgr.state.recordingInProgress) return [];
 
   const stop = m(
     `button.selected`,
-    {onclick: () => globals.dispatch(Actions.stopRecording({}))},
+    {onclick: () => recMgr.stopRecording()},
     'Stop',
   );
 
   const cancel = m(
     `button`,
-    {onclick: () => globals.dispatch(Actions.cancelRecording({}))},
+    {onclick: () => recMgr.cancelRecording()},
     'Cancel',
   );
 
   return [stop, cancel];
 }
 
-function onStartRecordingPressed() {
+function onStartRecordingPressed(recMgr: RecordingManager) {
   location.href = '#!/record/instructions';
   raf.scheduleFullRedraw();
-  autosaveConfigStore.save(globals.state.recordConfig);
+  autosaveConfigStore.save(recMgr.state.recordConfig);
 
-  const target = globals.state.recordingTarget;
+  const target = recMgr.state.recordingTarget;
   if (
     isAndroidTarget(target) ||
     isChromeTarget(target) ||
     isWindowsTarget(target)
   ) {
-    globals.logging.logEvent('Record Trace', `Record trace (${target.os})`);
-    globals.dispatch(Actions.startRecording({}));
+    AppImpl.instance.analytics.logEvent(
+      'Record Trace',
+      `Record trace (${target.os})`,
+    );
+    recMgr.startRecording();
   }
 }
 
-function RecordingStatusLabel() {
-  const recordingStatus = globals.state.recordingStatus;
+function RecordingStatusLabel(recMgr: RecordingManager) {
+  const recordingStatus = recMgr.state.recordingStatus;
   if (!recordingStatus) return [];
   return m('label', recordingStatus);
 }
 
-export function ErrorLabel() {
-  const lastRecordingError = globals.state.lastRecordingError;
+export function ErrorLabel(recMgr: RecordingManager) {
+  const lastRecordingError = recMgr.state.lastRecordingError;
   if (!lastRecordingError) return [];
   return m('label.error-label', `Error:  ${lastRecordingError}`);
 }
 
-function recordingLog() {
-  const logs = globals.recordingLog;
+function recordingLog(recMgr: RecordingManager) {
+  const logs = recMgr.state.recordingLog;
   if (logs === undefined) return [];
   return m('.code-snippet.no-top-bar', m('code', logs));
 }
@@ -624,7 +611,7 @@ function recordingLog() {
 // The connection must be done in the frontend. After it, the serial ID will
 // be inserted in the state, and the worker will be able to connect to the
 // correct device.
-async function addAndroidDevice() {
+async function addAndroidDevice(recMgr: RecordingManager) {
   let device: USBDevice;
   try {
     device = await new AdbOverWebUsb().findDevice();
@@ -643,92 +630,11 @@ async function addAndroidDevice() {
   // After the user has selected a device with the chrome UI, it will be
   // available when listing all the available device from WebUSB. Therefore,
   // we update the list of available devices.
-  await updateAvailableAdbDevices(device.serialNumber);
+  await recMgr.updateAvailableAdbDevices(device.serialNumber);
 }
 
-// We really should be getting the API version from the adb target, but
-// currently its too complicated to do that (== most likely, we need to finish
-// recordingV2 migration). For now, add an escape hatch to use Android S as a
-// default, given that the main features we want are gated by API level 31 and S
-// is old enough to be the default most of the time.
-const USE_ANDROID_S_AS_DEFAULT_FLAG = featureFlags.register({
-  id: 'recordingPageUseSAsDefault',
-  name: 'Use Android S as a default recording target',
-  description: 'Use Android S as a default recording target instead of Q',
-  defaultValue: false,
-});
-
-export async function updateAvailableAdbDevices(
-  preferredDeviceSerial?: string,
-) {
-  const devices = await new AdbOverWebUsb().getPairedDevices();
-
-  let recordingTarget: AdbRecordingTarget | undefined = undefined;
-
-  const availableAdbDevices: AdbRecordingTarget[] = [];
-  devices.forEach((d) => {
-    if (d.productName && d.serialNumber) {
-      // TODO(nicomazz): At this stage, we can't know the OS version, so we
-      // assume it is 'Q'. This can create problems with devices with an old
-      // version of perfetto. The os detection should be done after the adb
-      // connection, from adb_record_controller
-      availableAdbDevices.push({
-        name: d.productName,
-        serial: d.serialNumber,
-        os: USE_ANDROID_S_AS_DEFAULT_FLAG.get() ? 'S' : 'Q',
-      });
-      if (preferredDeviceSerial && preferredDeviceSerial === d.serialNumber) {
-        recordingTarget = availableAdbDevices[availableAdbDevices.length - 1];
-      }
-    }
-  });
-
-  globals.dispatch(
-    Actions.setAvailableAdbDevices({devices: availableAdbDevices}),
-  );
-  selectAndroidDeviceIfAvailable(availableAdbDevices, recordingTarget);
-  raf.scheduleFullRedraw();
-  return availableAdbDevices;
-}
-
-function selectAndroidDeviceIfAvailable(
-  availableAdbDevices: AdbRecordingTarget[],
-  recordingTarget?: RecordingTarget,
-) {
-  if (!recordingTarget) {
-    recordingTarget = globals.state.recordingTarget;
-  }
-  const deviceConnected = isAdbTarget(recordingTarget);
-  const connectedDeviceDisconnected =
-    deviceConnected &&
-    availableAdbDevices.find(
-      (e) => e.serial === (recordingTarget as AdbRecordingTarget).serial,
-    ) === undefined;
-
-  if (availableAdbDevices.length) {
-    // If there's an Android device available and the current selection isn't
-    // one, select the Android device by default. If the current device isn't
-    // available anymore, but another Android device is, select the other
-    // Android device instead.
-    if (!deviceConnected || connectedDeviceDisconnected) {
-      recordingTarget = availableAdbDevices[0];
-    }
-
-    globals.dispatch(Actions.setRecordingTarget({target: recordingTarget}));
-    return;
-  }
-
-  // If the currently selected device was disconnected, reset the recording
-  // target to the default one.
-  if (connectedDeviceDisconnected) {
-    globals.dispatch(
-      Actions.setRecordingTarget({target: getDefaultRecordingTargets()[0]}),
-    );
-  }
-}
-
-function recordMenu(routePage: string) {
-  const target = globals.state.recordingTarget;
+function recordMenu(recMgr: RecordingManager, routePage: string) {
+  const target = recMgr.state.recordingTarget;
   const chromeProbe = m(
     'a[href="#!/record/chrome"]',
     m(
@@ -810,7 +716,7 @@ function recordMenu(routePage: string) {
       m('.sub', 'Context switch, Thread state'),
     ),
   );
-  const recInProgress = globals.state.recordingInProgress;
+  const recInProgress = recMgr.state.recordingInProgress;
 
   const probes = [];
   if (isLinuxTarget(target)) {
@@ -859,22 +765,20 @@ function recordMenu(routePage: string) {
           m('.sub', 'Manually record trace'),
         ),
       ),
-      PERSIST_CONFIG_FLAG.get()
-        ? m(
-            'a[href="#!/record/config"]',
-            {
-              onclick: () => {
-                recordConfigStore.reloadFromLocalStorage();
-              },
-            },
-            m(
-              `li${routePage === 'config' ? '.active' : ''}`,
-              m('i.material-icons', 'save'),
-              m('.title', 'Saved configs'),
-              m('.sub', 'Manage local configs'),
-            ),
-          )
-        : null,
+      m(
+        'a[href="#!/record/config"]',
+        {
+          onclick: () => {
+            recordConfigStore.reloadFromLocalStorage();
+          },
+        },
+        m(
+          `li${routePage === 'config' ? '.active' : ''}`,
+          m('i.material-icons', 'save'),
+          m('.title', 'Saved configs'),
+          m('.sub', 'Manage local configs'),
+        ),
+      ),
     ),
     m('header', 'Probes'),
     m('ul', probes),
@@ -886,23 +790,47 @@ export function maybeGetActiveCss(routePage: string, section: string): string {
 }
 
 export class RecordPage implements m.ClassComponent<PageAttrs> {
+  private readonly recMgr = RecordingManager.instance;
+  private lastSubpage: string | undefined = undefined;
+
+  oninit({attrs}: m.CVnode<PageAttrs>) {
+    this.lastSubpage = attrs.subpage;
+    if (attrs.subpage !== undefined && attrs.subpage.startsWith('/share/')) {
+      const hash = attrs.subpage.substring(7);
+      loadRecordConfig(this.recMgr, hash);
+      AppImpl.instance.navigate('#!/record/instructions');
+    }
+  }
+
   view({attrs}: m.CVnode<PageAttrs>) {
+    if (attrs.subpage !== this.lastSubpage) {
+      this.lastSubpage = attrs.subpage;
+      // TODO(primiano): this is a hack necesasry to retrigger the generation of
+      // the record cmdline. Refactor this code once record v1 vs v2 is gone.
+      this.recMgr.setRecordConfig(this.recMgr.state.recordConfig);
+    }
+
     const pages: m.Children = [];
     // we need to remove the `/` character from the route
     let routePage = attrs.subpage ? attrs.subpage.substr(1) : '';
     if (!RECORDING_SECTIONS.includes(routePage)) {
       routePage = 'buffers';
     }
-    pages.push(recordMenu(routePage));
+    pages.push(recordMenu(this.recMgr, routePage));
 
     pages.push(
       m(RecordingSettings, {
         dataSources: [],
         cssClass: maybeGetActiveCss(routePage, 'buffers'),
-      } as RecordingSectionAttrs),
+        recState: this.recMgr.state,
+      }),
     );
-    pages.push(Instructions(maybeGetActiveCss(routePage, 'instructions')));
-    pages.push(Configurations(maybeGetActiveCss(routePage, 'config')));
+    pages.push(
+      Instructions(this.recMgr, maybeGetActiveCss(routePage, 'instructions')),
+    );
+    pages.push(
+      Configurations(this.recMgr, maybeGetActiveCss(routePage, 'config')),
+    );
 
     const settingsSections = new Map([
       ['cpu', CpuSettings],
@@ -920,22 +848,59 @@ export class RecordPage implements m.ClassComponent<PageAttrs> {
         m(component, {
           dataSources: [],
           cssClass: maybeGetActiveCss(routePage, section),
-        } as RecordingSectionAttrs),
+          recState: this.recMgr.state,
+        }),
       );
     }
 
-    if (isChromeTarget(globals.state.recordingTarget)) {
-      globals.dispatch(Actions.setFetchChromeCategories({fetch: true}));
+    if (isChromeTarget(this.recMgr.state.recordingTarget)) {
+      this.recMgr.setFetchChromeCategories(true);
     }
 
     return m(
       '.record-page',
-      globals.state.recordingInProgress ? m('.hider') : [],
+      this.recMgr.state.recordingInProgress ? m('.hider') : [],
       m(
         '.record-container',
-        RecordHeader(),
-        m('.record-container-content', recordMenu(routePage), pages),
+        RecordHeader(this.recMgr),
+        m(
+          '.record-container-content',
+          recordMenu(this.recMgr, routePage),
+          pages,
+        ),
       ),
     );
   }
+}
+
+export async function uploadRecordingConfig(recordConfig: RecordConfig) {
+  const json = JSON.stringify(recordConfig);
+  const uploader: GcsUploader = new GcsUploader(json, {
+    mimeType: MIME_JSON,
+  });
+  await uploader.waitForCompletion();
+  const hash = uploader.uploadedFileName;
+  const url = `${self.location.origin}/#!/record/share/${hash}`;
+  showModal({
+    title: 'Shareable record settings',
+    content: m(CopyableLink, {url}),
+  });
+}
+
+export async function loadRecordConfig(recMgr: RecordingManager, hash: string) {
+  const url = `https://storage.googleapis.com/${BUCKET_NAME}/${hash}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    showModal({title: 'Load failed', content: `Could not fetch ${url}`});
+    return;
+  }
+  const text = await response.text();
+  const json = JSON.parse(text);
+  const res = RECORD_CONFIG_SCHEMA.safeParse(json);
+  if (!res.success) {
+    throw new Error(
+      'Failed to deserialize record settings ' + res.error.toString(),
+    );
+  }
+  recMgr.setRecordConfig(res.data);
 }

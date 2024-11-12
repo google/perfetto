@@ -289,7 +289,12 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
       TrackId track_id;
       if (scope == "g") {
         track_id = context_->track_tracker->InternGlobalTrack(
-            TrackClassification::kChromeLegacyGlobalInstant);
+            tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
+            [this](ArgsTracker::BoundInserter& inserter) {
+              inserter.AddArg(
+                  context_->storage->InternString("source"),
+                  Variadic::String(context_->storage->InternString("chrome")));
+            });
       } else if (scope == "p") {
         if (!opt_pid) {
           context_->storage->IncrementStats(stats::json_parser_failure);
@@ -297,7 +302,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
         }
         UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
         track_id = context_->track_tracker->InternProcessTrack(
-            TrackClassification::kChromeProcessInstant, upid);
+            tracks::chrome_process_instant, upid);
         context_->args_tracker->AddArgsTo(track_id).AddArg(
             context_->storage->InternString("source"),
             Variadic::String(context_->storage->InternString("chrome")));

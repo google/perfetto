@@ -21,8 +21,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 AsyncTrackSetTracker::AsyncTrackSetTracker(TraceProcessorContext* context)
     : android_source_(context->storage->InternString("android")),
@@ -187,10 +186,9 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
       TrackTracker::DimensionsBuilder builder =
           context_->track_tracker->CreateDimensionsBuilder();
       builder.AppendName(set.global_track_name);
-
-      return context_->track_tracker->CreateTrack(TrackClassification::kAsync,
-                                                  std::move(builder).Build(),
-                                                  set.global_track_name);
+      return context_->track_tracker->CreateTrack(
+          tracks::unknown, std::move(builder).Build(),
+          TrackTracker::LegacyStringIdName{set.global_track_name});
     }
     case TrackSetScope::kProcess:
       // TODO(lalitm): propogate source from callers rather than just passing
@@ -210,7 +208,8 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
       TrackTracker::Dimensions dims_id = std::move(dims_builder).Build();
 
       TrackId id = context_->track_tracker->CreateProcessTrack(
-          TrackClassification::kAsync, set.process_tuple.upid, dims_id, name);
+          tracks::unknown, set.process_tuple.upid, dims_id,
+          TrackTracker::LegacyStringIdName{name});
 
       if (!source.is_null()) {
         context_->args_tracker->AddArgsTo(id).AddArg(source,
@@ -222,5 +221,4 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
   PERFETTO_FATAL("For GCC");
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

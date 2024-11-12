@@ -442,6 +442,11 @@ void TracingMuxerImpl::ConsumerImpl::OnConnect() {
     query_service_state_callback_ = nullptr;
     muxer_->QueryServiceState(session_id_, std::move(callback));
   }
+  if (session_to_clone_) {
+    service_->CloneSession(*session_to_clone_);
+    session_to_clone_ = std::nullopt;
+  }
+
   if (stop_pending_)
     muxer_->StopTracingSession(session_id_);
 }
@@ -613,9 +618,17 @@ void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnSessionCloned(
-    const OnSessionClonedArgs&) {
-  // CloneSession is not exposed in the SDK. This should never happen.
-  PERFETTO_DCHECK(false);
+    const OnSessionClonedArgs& args) {
+  if (!clone_trace_callback_)
+    return;
+  TracingSession::CloneTraceCallbackArgs callback_arg{};
+  callback_arg.success = args.success;
+  callback_arg.error = std::move(args.error);
+  callback_arg.uuid_msb = args.uuid.msb();
+  callback_arg.uuid_lsb = args.uuid.lsb();
+  muxer_->task_runner_->PostTask(
+      std::bind(std::move(clone_trace_callback_), std::move(callback_arg)));
+  clone_trace_callback_ = nullptr;
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnTraceStats(
@@ -686,6 +699,15 @@ void TracingMuxerImpl::TracingSessionImpl::Start() {
   auto session_id = session_id_;
   muxer->task_runner_->PostTask(
       [muxer, session_id] { muxer->StartTracingSession(session_id); });
+}
+
+void TracingMuxerImpl::TracingSessionImpl::CloneTrace(CloneTraceArgs args,
+                                                      CloneTraceCallback cb) {
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  muxer->task_runner_->PostTask([muxer, session_id, args, cb] {
+    muxer->CloneTracingSession(session_id, args, std::move(cb));
+  });
 }
 
 // Can be called from any thread.
@@ -1925,6 +1947,32 @@ void TracingMuxerImpl::StartTracingSession(TracingSessionGlobalID session_id) {
   }
 
   // TODO implement support for the deferred-start + fast-triggering case.
+}
+
+void TracingMuxerImpl::CloneTracingSession(
+    TracingSessionGlobalID session_id,
+    TracingSession::CloneTraceArgs args,
+    TracingSession::CloneTraceCallback callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto* consumer = FindConsumer(session_id);
+  if (!consumer) {
+    TracingSession::CloneTraceCallbackArgs callback_arg{};
+    callback_arg.success = false;
+    callback_arg.error = "Tracing session not found";
+    callback(callback_arg);
+    return;
+  }
+  // Multiple concurrent cloning isn't supported.
+  PERFETTO_DCHECK(!consumer->clone_trace_callback_);
+  consumer->clone_trace_callback_ = std::move(callback);
+  ConsumerEndpoint::CloneSessionArgs consumer_args{};
+  consumer_args.unique_session_name = args.unique_session_name;
+  if (!consumer->connected_) {
+    consumer->session_to_clone_ = std::move(consumer_args);
+    return;
+  }
+  consumer->session_to_clone_ = std::nullopt;
+  consumer->service_->CloneSession(consumer_args);
 }
 
 void TracingMuxerImpl::ChangeTracingSessionConfig(

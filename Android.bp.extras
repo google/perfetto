@@ -212,6 +212,7 @@ java_library {
     static_libs: [
         "libprotobuf-java-lite",
     ],
+    sdk_version: "current",
 }
 
 java_library {
@@ -247,5 +248,12 @@ phony {
         "mm_events",
         "traced_perf",
         "trigger_perfetto",
+    ],
+}
+
+filegroup {
+    name: "heap_profile",
+    srcs: [
+        "tools/heap_profile",
     ],
 }

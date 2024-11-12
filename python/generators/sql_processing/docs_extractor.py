@@ -30,18 +30,12 @@ class DocsExtractor:
   sql: str
 
   @dataclass
-  class Annotation:
-    key: str
-    value: str
-
-  @dataclass
   class Extract:
     """Extracted documentation for a single view/table/function."""
     obj_kind: ObjKind
     obj_match: Match
 
     description: str
-    annotations: List['DocsExtractor.Annotation']
 
   def __init__(self, path: str, module_name: str, sql: str):
     self.path = path
@@ -72,27 +66,13 @@ class DocsExtractor:
 
   def _extract_from_comment(self, kind: ObjKind, match: Match,
                             comment_lines: List[str]) -> Optional[Extract]:
-    extract = DocsExtractor.Extract(kind, match, '', [])
+    extract = DocsExtractor.Extract(kind, match, '')
     for line in comment_lines:
       assert line.startswith('--')
 
       # Remove the comment.
       comment_stripped = line.lstrip('--')
       stripped = comment_stripped.lstrip()
+      extract.description += comment_stripped + "\n"
 
-      # Check if the line is an annotation.
-      if not stripped.startswith('@'):
-        # We are not in annotation: if we haven't seen an annotation yet, we
-        # must be still be parsing the description. Just add to that
-        if not extract.annotations:
-          extract.description += comment_stripped + "\n"
-          continue
-
-        # Otherwise, add to the latest annotation.
-        extract.annotations[-1].value += " " + stripped
-        continue
-
-      # This line is an annotation: find its name and add a new entry
-      annotation, rest = stripped.split(' ', 1)
-      extract.annotations.append(DocsExtractor.Annotation(annotation, rest))
     return extract

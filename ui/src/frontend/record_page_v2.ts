@@ -31,14 +31,14 @@ import {
 } from '../common/recordingV2/recording_utils';
 import {targetFactoryRegistry} from '../common/recordingV2/target_factory_registry';
 import {raf} from '../core/raf_scheduler';
-import {globals} from './globals';
-import {PageAttrs} from '../core/router';
+import {PageAttrs} from '../public/page';
 import {recordConfigStore} from './record_config';
 import {
   Configurations,
+  loadRecordConfig,
   maybeGetActiveCss,
-  PERSIST_CONFIG_FLAG,
   RECORDING_SECTIONS,
+  uploadRecordingConfig,
 } from './record_page';
 import {CodeSnippet} from './record_widgets';
 import {AdvancedSettings} from './recording/advanced_settings';
@@ -50,15 +50,24 @@ import {GpuSettings} from './recording/gpu_settings';
 import {LinuxPerfSettings} from './recording/linux_perf_settings';
 import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
-import {RecordingSectionAttrs} from './recording/recording_sections';
 import {RecordingSettings} from './recording/recording_settings';
 import {FORCE_RESET_MESSAGE} from './recording/recording_ui_utils';
 import {showAddNewTargetModal} from './recording/reset_target_modal';
-import {createPermalink} from './permalink';
+import {RecordingManager} from '../controller/recording_manager';
+import {RecordConfig} from '../controller/record_config_types';
+import {AppImpl} from '../core/app_impl';
 
 const START_RECORDING_MESSAGE = 'Start Recording';
 
-const controller = new RecordingPageController();
+// TODO(primiano): this is needs to be rewritten, but then i'm going to rewrite
+// the whole record_page_v2 so not worth cleaning up now.
+let _controller: RecordingPageController;
+function controller(): RecordingPageController {
+  if (_controller === undefined) {
+    _controller = new RecordingPageController(RecordingManager.instance);
+  }
+  return _controller;
+}
 const recordConfigUtils = new RecordingConfigUtils();
 
 // Options for displaying a target selection menu.
@@ -76,11 +85,11 @@ function isChromeTargetInfo(
   return ['CHROME', 'CHROME_OS', 'WINDOWS'].includes(targetInfo.targetType);
 }
 
-function RecordHeader() {
+function RecordHeader(recMgr: RecordingManager) {
   const platformSelection = RecordingPlatformSelection();
-  const statusLabel = RecordingStatusLabel();
-  const buttons = RecordingButton();
-  const notes = RecordingNotes();
+  const statusLabel = RecordingStatusLabel(recMgr);
+  const buttons = RecordingButton(recMgr.state.recordConfig);
+  const notes = RecordingNotes(recMgr.state.recordConfig);
   if (!platformSelection && !statusLabel && !buttons && !notes) {
     // The header should not be displayed when it has no content.
     return undefined;
@@ -98,13 +107,13 @@ function RecordHeader() {
 
 function RecordingPlatformSelection() {
   // Don't show the platform selector while we are recording a trace.
-  if (controller.getState() >= RecordingState.RECORDING) return undefined;
+  if (controller().getState() >= RecordingState.RECORDING) return undefined;
 
   return m(
     '.target',
     m(
       '.chip',
-      {onclick: () => showAddNewTargetModal(controller)},
+      {onclick: () => showAddNewTargetModal(controller())},
       m('button', 'Add new recording target'),
       m('i.material-icons', 'add'),
     ),
@@ -113,13 +122,13 @@ function RecordingPlatformSelection() {
 }
 
 export function targetSelection(): m.Vnode | undefined {
-  if (!controller.shouldShowTargetSelection()) {
+  if (!controller().shouldShowTargetSelection()) {
     return undefined;
   }
 
   const targets: RecordingTargetV2[] = targetFactoryRegistry.listTargets();
   const targetNames = [];
-  const targetInfo = controller.getTargetInfo();
+  const targetInfo = controller().getTargetInfo();
   if (!targetInfo) {
     targetNames.push(m('option', 'PLEASE_SELECT_TARGET'));
   }
@@ -141,7 +150,7 @@ export function targetSelection(): m.Vnode | undefined {
       {
         selectedIndex,
         onchange: (e: Event) => {
-          controller.onTargetSelection((e.target as HTMLSelectElement).value);
+          controller().onTargetSelection((e.target as HTMLSelectElement).value);
         },
         onupdate: (select) => {
           // Work around mithril bug
@@ -163,32 +172,30 @@ export function targetSelection(): m.Vnode | undefined {
 // This will display status messages which are informative, but do not require
 // user action, such as: "Recording in progress for X seconds" in the recording
 // page header.
-function RecordingStatusLabel() {
-  const recordingStatus = globals.state.recordingStatus;
+function RecordingStatusLabel(recMgr: RecordingManager) {
+  const recordingStatus = recMgr.state.recordingStatus;
   if (!recordingStatus) return undefined;
   return m('label', recordingStatus);
 }
 
-function Instructions(cssClass: string) {
-  if (controller.getState() < RecordingState.TARGET_SELECTED) {
+function Instructions(recCfg: RecordConfig, cssClass: string) {
+  if (controller().getState() < RecordingState.TARGET_SELECTED) {
     return undefined;
   }
   // We will have a valid target at this step because we checked the state.
-  const targetInfo = assertExists(controller.getTargetInfo());
+  const targetInfo = assertExists(controller().getTargetInfo());
 
   return m(
     `.record-section.instructions${cssClass}`,
     m('header', 'Recording command'),
-    PERSIST_CONFIG_FLAG.get()
-      ? m(
-          'button.permalinkconfig',
-          {
-            onclick: () => createPermalink({mode: 'RECORDING_OPTS'}),
-          },
-          'Share recording settings',
-        )
-      : null,
-    RecordingSnippet(targetInfo),
+    m(
+      'button.permalinkconfig',
+      {
+        onclick: () => uploadRecordingConfig(recCfg),
+      },
+      'Share recording settings',
+    ),
+    RecordingSnippet(recCfg, targetInfo),
     BufferUsageProgressBar(),
     m('.buttons', StopCancelButtons()),
   );
@@ -196,13 +203,13 @@ function Instructions(cssClass: string) {
 
 function BufferUsageProgressBar() {
   // Show the Buffer Usage bar only after we start recording a trace.
-  if (controller.getState() !== RecordingState.RECORDING) {
+  if (controller().getState() !== RecordingState.RECORDING) {
     return undefined;
   }
 
-  controller.fetchBufferUsage();
+  controller().fetchBufferUsage();
 
-  const bufferUsage = controller.getBufferUsagePercentage();
+  const bufferUsage = controller().getBufferUsagePercentage();
   // Buffer usage is not available yet on Android.
   if (bufferUsage === 0) return undefined;
 
@@ -213,12 +220,12 @@ function BufferUsageProgressBar() {
   );
 }
 
-function RecordingNotes() {
-  if (controller.getState() !== RecordingState.TARGET_INFO_DISPLAYED) {
+function RecordingNotes(recCfg: RecordConfig) {
+  if (controller().getState() !== RecordingState.TARGET_INFO_DISPLAYED) {
     return undefined;
   }
   // We will have a valid target at this step because we checked the state.
-  const targetInfo = assertExists(controller.getTargetInfo());
+  const targetInfo = assertExists(controller().getTargetInfo());
 
   const linuxUrl = 'https://perfetto.dev/docs/quickstart/linux-tracing';
   const cmdlineUrl =
@@ -258,10 +265,8 @@ function RecordingNotes() {
   );
 
   if (
-    !recordConfigUtils.fetchLatestRecordCommand(
-      globals.state.recordConfig,
-      targetInfo,
-    ).hasDataSources
+    !recordConfigUtils.fetchLatestRecordCommand(recCfg, targetInfo)
+      .hasDataSources
   ) {
     notes.push(
       m(
@@ -305,17 +310,17 @@ function RecordingNotes() {
     default:
   }
 
-  if (globals.state.recordConfig.mode === 'LONG_TRACE') {
+  if (recCfg.mode === 'LONG_TRACE') {
     notes.unshift(msgLongTraces);
   }
 
   return notes.length > 0 ? m('div', notes) : undefined;
 }
 
-function RecordingSnippet(targetInfo: TargetInfo) {
+function RecordingSnippet(recCfg: RecordConfig, targetInfo: TargetInfo) {
   // We don't need commands to start tracing on chrome
   if (isChromeTargetInfo(targetInfo)) {
-    if (controller.getState() > RecordingState.AUTH_P2) {
+    if (controller().getState() > RecordingState.AUTH_P2) {
       // If the UI has started tracing, don't display a message guiding the user
       // to start recording.
       return undefined;
@@ -329,12 +334,15 @@ function RecordingSnippet(targetInfo: TargetInfo) {
       ),
     );
   }
-  return m(CodeSnippet, {text: getRecordCommand(targetInfo)});
+  return m(CodeSnippet, {text: getRecordCommand(recCfg, targetInfo)});
 }
 
-function getRecordCommand(targetInfo: TargetInfo): string {
+function getRecordCommand(
+  recCfg: RecordConfig,
+  targetInfo: TargetInfo,
+): string {
   const recordCommand = recordConfigUtils.fetchLatestRecordCommand(
-    globals.state.recordConfig,
+    recCfg,
     targetInfo,
   );
 
@@ -362,18 +370,18 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   return cmd;
 }
 
-function RecordingButton() {
+function RecordingButton(recCfg: RecordConfig) {
   if (
-    controller.getState() !== RecordingState.TARGET_INFO_DISPLAYED ||
-    !controller.canCreateTracingSession()
+    controller().getState() !== RecordingState.TARGET_INFO_DISPLAYED ||
+    !controller().canCreateTracingSession()
   ) {
     return undefined;
   }
 
   // We know we have a target because we checked the state.
-  const targetInfo = assertExists(controller.getTargetInfo());
+  const targetInfo = assertExists(controller().getTargetInfo());
   const hasDataSources = recordConfigUtils.fetchLatestRecordCommand(
-    globals.state.recordConfig,
+    recCfg,
     targetInfo,
   ).hasDataSources;
   if (!hasDataSources) {
@@ -386,7 +394,7 @@ function RecordingButton() {
       'button',
       {
         class: 'selected',
-        onclick: () => controller.onStartRecordingPressed(),
+        onclick: () => controller().onStartRecordingPressed(),
       },
       START_RECORDING_MESSAGE,
     ),
@@ -395,17 +403,21 @@ function RecordingButton() {
 
 function StopCancelButtons() {
   // Show the Stop/Cancel buttons only while we are recording a trace.
-  if (!controller.shouldShowStopCancelButtons()) {
+  if (!controller().shouldShowStopCancelButtons()) {
     return undefined;
   }
 
   const stop = m(
     `button.selected`,
-    {onclick: () => controller.onStop()},
+    {onclick: () => controller().onStop()},
     'Stop',
   );
 
-  const cancel = m(`button`, {onclick: () => controller.onCancel()}, 'Cancel');
+  const cancel = m(
+    `button`,
+    {onclick: () => controller().onCancel()},
+    'Cancel',
+  );
 
   return [stop, cancel];
 }
@@ -495,7 +507,7 @@ function recordMenu(routePage: string) {
 
   // We only display the probes when we have a valid target, so it's not
   // possible for the target to be undefined here.
-  const targetType = assertExists(controller.getTargetInfo()).targetType;
+  const targetType = assertExists(controller().getTargetInfo()).targetType;
   const probes = [];
   if (targetType === 'LINUX') {
     probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
@@ -520,7 +532,7 @@ function recordMenu(routePage: string) {
     '.record-menu',
     {
       class:
-        controller.getState() > RecordingState.TARGET_INFO_DISPLAYED
+        controller().getState() > RecordingState.TARGET_INFO_DISPLAYED
           ? 'disabled'
           : '',
       onclick: () => raf.scheduleFullRedraw(),
@@ -546,35 +558,33 @@ function recordMenu(routePage: string) {
           m('.sub', 'Manually record trace'),
         ),
       ),
-      PERSIST_CONFIG_FLAG.get()
-        ? m(
-            'a[href="#!/record/config"]',
-            {
-              onclick: () => {
-                recordConfigStore.reloadFromLocalStorage();
-              },
-            },
-            m(
-              `li${routePage === 'config' ? '.active' : ''}`,
-              m('i.material-icons', 'save'),
-              m('.title', 'Saved configs'),
-              m('.sub', 'Manage local configs'),
-            ),
-          )
-        : null,
+      m(
+        'a[href="#!/record/config"]',
+        {
+          onclick: () => {
+            recordConfigStore.reloadFromLocalStorage();
+          },
+        },
+        m(
+          `li${routePage === 'config' ? '.active' : ''}`,
+          m('i.material-icons', 'save'),
+          m('.title', 'Saved configs'),
+          m('.sub', 'Manage local configs'),
+        ),
+      ),
     ),
     m('header', 'Probes'),
     m('ul', probes),
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getRecordContainer(subpage?: string): m.Vnode<any, any> {
-  const components: m.Children[] = [RecordHeader()];
-  if (controller.getState() === RecordingState.NO_TARGET) {
+function getRecordContainer(recMgr: RecordingManager, subpage?: string) {
+  const recCfg = recMgr.state.recordConfig;
+  const components: m.Children[] = [RecordHeader(recMgr)];
+  if (controller().getState() === RecordingState.NO_TARGET) {
     components.push(m('.full-centered', 'Please connect a valid target.'));
     return m('.record-container', components);
-  } else if (controller.getState() <= RecordingState.ASK_TO_FORCE_P1) {
+  } else if (controller().getState() <= RecordingState.ASK_TO_FORCE_P1) {
     components.push(
       m(
         '.full-centered',
@@ -584,13 +594,13 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
       ),
     );
     return m('.record-container', components);
-  } else if (controller.getState() === RecordingState.AUTH_P1) {
+  } else if (controller().getState() === RecordingState.AUTH_P1) {
     components.push(
       m('.full-centered', 'Please allow USB debugging on the device.'),
     );
     return m('.record-container', components);
   } else if (
-    controller.getState() === RecordingState.WAITING_FOR_TRACE_DISPLAY
+    controller().getState() === RecordingState.WAITING_FOR_TRACE_DISPLAY
   ) {
     components.push(
       m('.full-centered', 'Waiting for the trace to be collected.'),
@@ -610,10 +620,13 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
     m(RecordingSettings, {
       dataSources: [],
       cssClass: maybeGetActiveCss(routePage, 'buffers'),
-    } as RecordingSectionAttrs),
+      recState: recMgr.state,
+    }),
   );
-  pages.push(Instructions(maybeGetActiveCss(routePage, 'instructions')));
-  pages.push(Configurations(maybeGetActiveCss(routePage, 'config')));
+  pages.push(
+    Instructions(recCfg, maybeGetActiveCss(routePage, 'instructions')),
+  );
+  pages.push(Configurations(recMgr, maybeGetActiveCss(routePage, 'config')));
 
   const settingsSections = new Map([
     ['cpu', CpuSettings],
@@ -629,9 +642,10 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
   for (const [section, component] of settingsSections.entries()) {
     pages.push(
       m(component, {
-        dataSources: controller.getTargetInfo()?.dataSources || [],
+        dataSources: controller().getTargetInfo()?.dataSources || [],
         cssClass: maybeGetActiveCss(routePage, section),
-      } as RecordingSectionAttrs),
+        recState: recMgr.state,
+      }),
     );
   }
 
@@ -640,17 +654,33 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
 }
 
 export class RecordPageV2 implements m.ClassComponent<PageAttrs> {
-  oninit(): void {
-    controller.initFactories();
+  private readonly recMgr = RecordingManager.instance;
+  private lastSubpage: string | undefined = undefined;
+
+  oninit({attrs}: m.CVnode<PageAttrs>) {
+    controller().initFactories();
+    this.lastSubpage = attrs.subpage;
+    if (attrs.subpage !== undefined && attrs.subpage.startsWith('/share/')) {
+      const hash = attrs.subpage.substring(7);
+      loadRecordConfig(this.recMgr, hash);
+      AppImpl.instance.navigate('#!/record/instructions');
+    }
   }
 
   view({attrs}: m.CVnode<PageAttrs>) {
+    if (attrs.subpage !== this.lastSubpage) {
+      this.lastSubpage = attrs.subpage;
+      // TODO(primiano): this is a hack necesasry to retrigger the generation of
+      // the record cmdline. Refactor this code once record v1 vs v2 is gone.
+      this.recMgr.setRecordConfig(this.recMgr.state.recordConfig);
+    }
+
     return m(
       '.record-page',
-      controller.getState() > RecordingState.TARGET_INFO_DISPLAYED
+      controller().getState() > RecordingState.TARGET_INFO_DISPLAYED
         ? m('.hider')
         : [],
-      getRecordContainer(attrs.subpage),
+      getRecordContainer(this.recMgr, attrs.subpage),
     );
   }
 }

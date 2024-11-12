@@ -64,3 +64,16 @@ class InputMethodService(TestSuite):
         "input_method_service.token","android.os.BinderProxy@50043d1"
         "where","InputMethodService#doFinishInput"
         """))
+
+  def test_table_has_raw_protos(self):
+    return DiffTestBlueprint(
+        trace=Path('inputmethod_service.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.inputmethod;
+        SELECT COUNT(*) FROM android_inputmethod_service
+        WHERE base64_proto IS NOT NULL AND base64_proto_id IS NOT NULL
+        """,
+        out=Csv("""
+        "COUNT(*)"
+        2
+        """))

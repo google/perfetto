@@ -155,7 +155,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     }
     StringId counter_name_id =
         context_->storage->InternString(counter_name.string_view());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
         TrackTracker::Group::kPower, counter_name_id,
         [this, &desc](ArgsTracker::BoundInserter& inserter) {
           StringId raw_name = context_->storage->InternString(desc.rail_name());

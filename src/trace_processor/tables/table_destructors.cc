@@ -110,14 +110,10 @@ ProcessTrackTable::~ProcessTrackTable() = default;
 ThreadTrackTable::~ThreadTrackTable() = default;
 CpuTrackTable::~CpuTrackTable() = default;
 GpuTrackTable::~GpuTrackTable() = default;
-UidTrackTable::~UidTrackTable() = default;
-GpuWorkPeriodTrackTable::~GpuWorkPeriodTrackTable() = default;
 CounterTrackTable::~CounterTrackTable() = default;
 ThreadCounterTrackTable::~ThreadCounterTrackTable() = default;
 ProcessCounterTrackTable::~ProcessCounterTrackTable() = default;
 CpuCounterTrackTable::~CpuCounterTrackTable() = default;
-IrqCounterTrackTable::~IrqCounterTrackTable() = default;
-SoftirqCounterTrackTable::~SoftirqCounterTrackTable() = default;
 GpuCounterTrackTable::~GpuCounterTrackTable() = default;
 PerfCounterTrackTable::~PerfCounterTrackTable() = default;
 

@@ -15,57 +15,29 @@
 import {Trace} from './trace';
 import {App} from './app';
 
-// TODO(primiano): I think we should re-think the plugins lifecycle API. Having
-// onTraceUnload and on(another)TraceLoad on the same object is too brittle.
-// What is going to happen is that plugins will mix the state of old and new
-// trace their `this.xxx` and hit bugs on trace swap.
-// I think a better model is to create a new Plugin instance for each trace, and
-// pass the Trace interface in the ctor. In this way they can save it in
-// `this.trace` if they want, and keep all their trace-related state there.
-// The number of plugins that want to do things before a trace is loaded is
-// extremely low and I'd much rather treat that as a special case (e.g., by
-// having a two different factories in the PluginDescriptor, one for App and
-// one factory invoked on each new trace. Such a model would be incredibly more
-// robust.
+/**
+ * This interface defines the shape of the plugins's class constructor (i.e. the
+ * the constructor and all static members of the plugin's class.
+ *
+ * This class constructor is registered with the core.
+ *
+ * On trace load, the core will create a new class instance by calling new on
+ * this constructor and then call its onTraceLoad() function.
+ */
+export interface PerfettoPluginStatic<T extends PerfettoPlugin> {
+  readonly id: string;
+  readonly dependencies?: ReadonlyArray<PerfettoPluginStatic<PerfettoPlugin>>;
+  onActivate?(app: App): void;
+  metricVisualisations?(): MetricVisualisation[];
+  new (trace: Trace): T;
+}
 
+/**
+ * This interface defines the shape of a plugin's trace-scoped instance, which
+ * is created from the class constructor above at trace load time.
+ */
 export interface PerfettoPlugin {
-  // Lifecycle methods.
-  onActivate?(ctx: App): void;
   onTraceLoad?(ctx: Trace): Promise<void>;
-  onTraceReady?(ctx: Trace): Promise<void>;
-  onTraceUnload?(ctx: Trace): Promise<void>;
-
-  // Extension points.
-  metricVisualisations?(ctx: App): MetricVisualisation[];
-}
-// This interface defines what a plugin factory should look like.
-// This can be defined in the plugin class definition by defining a constructor
-// and the relevant static methods:
-// E.g.
-// class MyPlugin implements TracePlugin<MyState> {
-//   migrate(initialState: unknown): MyState {...}
-//   constructor(store: Store<MyState>, engine: EngineProxy) {...}
-//   ... methods from the TracePlugin interface go here ...
-// }
-// ... which can then be passed around by class i.e. MyPlugin
-
-export interface PluginClass {
-  // Instantiate the plugin.
-  new (): PerfettoPlugin;
-}
-// Plugins can be class refs or concrete plugin implementations.
-
-export type PluginFactory = PluginClass | PerfettoPlugin;
-
-export interface PluginDescriptor {
-  // A unique string for your plugin. To ensure the name is unique you
-  // may wish to use a URL with reversed components in the manner of
-  // Java package names.
-  pluginId: string;
-
-  // The plugin factory used to instantiate the plugin object, or if this is
-  // an actual plugin implementation, it's just used as-is.
-  plugin: PluginFactory;
 }
 
 export interface MetricVisualisation {
@@ -99,4 +71,9 @@ export interface MetricVisualisation {
   // [ {"name": "a"}, {"name": "b"}, {"name": "c"} ]
   // And pass that to the vega(-lite) visualisation.
   path: string[];
+}
+
+export interface PluginManager {
+  getPlugin<T extends PerfettoPlugin>(plugin: PerfettoPluginStatic<T>): T;
+  metricVisualisations(): MetricVisualisation[];
 }

@@ -14,11 +14,12 @@
 
 import {addDebugSliceTrack} from '../../public/debug_tracks';
 import {Trace} from '../../public/trace';
-import {PerfettoPlugin, PluginDescriptor} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
 
-class AndroidPerf implements PerfettoPlugin {
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.AndroidPerf';
   async addAppProcessStartsDebugTrack(
     ctx: Trace,
     reason: string,
@@ -33,9 +34,9 @@ class AndroidPerf implements PerfettoPlugin {
       'intent',
       'table_name',
     ];
-    await addDebugSliceTrack(
-      ctx,
-      {
+    await addDebugSliceTrack({
+      trace: ctx,
+      data: {
         sqlSource: `
                     SELECT
                       start_id AS id,
@@ -50,10 +51,9 @@ class AndroidPerf implements PerfettoPlugin {
                  `,
         columns: sliceColumns,
       },
-      'app_' + sliceName + '_start reason: ' + reason,
-      {ts: 'ts', dur: 'dur', name: sliceName},
-      sliceColumns,
-    );
+      title: 'app_' + sliceName + '_start reason: ' + reason,
+      argColumns: sliceColumns,
+    });
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -96,7 +96,7 @@ class AndroidPerf implements PerfettoPlugin {
       callback: () =>
         addQueryResultsTab(ctx, {
           query: `INCLUDE PERFETTO MODULE android.binder;
-           SELECT * FROM android_binder_graph(-1000, title: 1000, -1000, 1000})`,
+           SELECT * FROM android_binder_graph(-1000, 1000, -1000, 1000)`,
           title: 'all process binder graph',
         }),
     });
@@ -121,7 +121,7 @@ class AndroidPerf implements PerfettoPlugin {
               WHERE t.tid = ${tid}
             )
             SELECT
-              c.cluster_type AS cluster, title: sum(dur})/1e6 AS total_dur_ms,
+              c.cluster_type AS cluster, sum(dur)/1e6 AS total_dur_ms,
               sum(dur) * 1.0 / (SELECT * FROM total_runtime) AS percentage
             FROM sched s
             LEFT JOIN thread t
@@ -145,10 +145,10 @@ class AndroidPerf implements PerfettoPlugin {
         }
         addQueryResultsTab(ctx, {
           query: `
-          SELECT ts.*, title: t.tid, t.name, tt.id AS track_id
+          SELECT ts.*, t.tid, t.name, tt.id AS track_id
           FROM thread_state ts
           LEFT JOIN thread_track tt
-           USING (utid})
+           USING (utid)
           LEFT JOIN thread t
            USING (utid)
           WHERE ts.state IN ('R', 'R+') AND tid = ${tid}
@@ -218,8 +218,3 @@ class AndroidPerf implements PerfettoPlugin {
     });
   }
 }
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'dev.perfetto.AndroidPerf',
-  plugin: AndroidPerf,
-};

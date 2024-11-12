@@ -44,11 +44,6 @@ perfetto_proto_library("@TYPE@") {
     "track_descriptor.proto",
     "track_event.proto",
   ]
-}
-
-perfetto_proto_library("descriptor") {
-  proto_generators = [ "descriptor" ]
   generate_descriptor = "track_event.descriptor"
-  sources = [ "track_event.proto" ]
-  link_deps = [ ":source_set" ]
+  descriptor_root_source = "track_event.proto"
 }
