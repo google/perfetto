@@ -107,6 +107,7 @@ template("protozero_library") {
                              "generator_plugin_options",
                              "include_dirs",
                              "proto_data_sources",
+                             "proto_deps",
                              "proto_in_dir",
                              "proto_out_dir",
                              "sources",
@@ -153,6 +154,7 @@ template("protozero_cpp_library") {
                              "defines",
                              "generator_plugin_options",
                              "include_dirs",
+                             "proto_deps",
                              "proto_in_dir",
                              "proto_out_dir",
                              "sources",
@@ -205,6 +207,7 @@ template("ipc_library") {
                              "defines",
                              "extra_configs",
                              "include_dirs",
+                             "proto_deps",
                              "proto_in_dir",
                              "proto_out_dir",
                              "generator_plugin_options",
@@ -286,46 +289,48 @@ template("perfetto_proto_library") {
   # build generators and for generating descriptors.
   source_set_target_name =
       string_replace(target_name, expansion_token, "source_set")
-  group(source_set_target_name) {
-    public_deps_ = []
-    if (defined(invoker.public_deps)) {
-      foreach(dep, invoker.public_deps) {
-        # Get the absolute target path
-        mapped_dep = string_replace(dep, expansion_token, "source_set")
-        public_deps_ += [ mapped_dep ]
-      }
-    }
-
-    deps = []
-    if (defined(invoker.deps)) {
-      foreach(dep, invoker.deps) {
-        mapped_dep = string_replace(dep, expansion_token, "source_set")
-        deps += [ mapped_dep ]
-      }
-    }
-    deps += public_deps_
-
-    sources = []
-    foreach(source, invoker.sources) {
-      sources += [ get_path_info(source, "abspath") ]
-    }
-
-    metadata = {
-      proto_library_sources = sources
-      proto_import_dirs = import_dirs_
-      exports = []
-      foreach(dep, public_deps_) {
-        exports +=
-            [ get_label_info(dep, "dir") + ":" + get_label_info(dep, "name") ]
-      }
-    }
-  }
 
   # This config is necessary for Chrome proto_library build rule to work
   # correctly.
   source_set_input_config_name = "${source_set_target_name}_input_config"
   config(source_set_input_config_name) {
     inputs = invoker.sources
+  }
+
+  group(source_set_target_name) {
+    # To propagate indirect inputs dependencies to descendant tareget, we use
+    # public_deps and public_configs in this target.
+    public_deps = []
+    exports_ = []
+    if (defined(invoker.public_deps)) {
+      foreach(dep, invoker.public_deps) {
+        # Get the absolute target path
+        mapped_dep = string_replace(dep, expansion_token, "source_set")
+        public_deps += [ mapped_dep ]
+        exports_ += [ get_label_info(mapped_dep, "dir") + ":" +
+                      get_label_info(mapped_dep, "name") ]
+      }
+    }
+
+    if (defined(invoker.deps)) {
+      foreach(dep, invoker.deps) {
+        mapped_dep = string_replace(dep, expansion_token, "source_set")
+        public_deps += [ mapped_dep ]
+      }
+    }
+
+    sources = []
+    foreach(source, invoker.sources) {
+      sources += [ get_path_info(source, "abspath") ]
+    }
+
+    public_configs = [ ":${source_set_input_config_name}" ]
+
+    metadata = {
+      proto_library_sources = sources
+      proto_import_dirs = import_dirs_
+      exports = exports_
+    }
   }
 
   # Generate the descriptor if the option is set.
@@ -385,6 +390,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=pbzero"
         deps = all_deps_
+        proto_deps = [ ":$source_set_target_name" ]
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
@@ -395,6 +401,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=gen"
         deps = all_deps_
+        proto_deps = [ ":$source_set_target_name" ]
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
@@ -405,6 +412,7 @@ template("perfetto_proto_library") {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=gen"
+        proto_deps = [ ":$source_set_target_name" ]
         deps = all_deps_ + [ ":$cpp_target_name_" ]
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
@@ -419,6 +427,7 @@ template("perfetto_proto_library") {
         cc_generator_options = "lite=true:"
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
+        proto_deps = [ ":${source_set_target_name}" ]
         forward_variables_from(invoker, vars_to_forward)
       }
     } else {
