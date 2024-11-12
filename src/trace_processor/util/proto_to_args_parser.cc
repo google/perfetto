@@ -482,7 +482,11 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
       pool_.descriptors()[*opt_enum_descriptor_idx].FindEnumString(value);
   if (!opt_enum_string) {
     // Fall back to the integer representation of the field.
-    delegate.AddInteger(key_prefix_, value);
+    // We add the string representation of the int value here in order that
+    // EXTRACT_ARG() should return consistent types under error conditions and
+    // that CREATE PERFETTO TABLE AS EXTRACT_ARG(...) should be generally safe
+    // to use.
+    delegate.AddString(key_prefix_, std::to_string(value));
     return base::OkStatus();
   }
   delegate.AddString(
