@@ -966,7 +966,7 @@ function updateState(state: FlamegraphState, filter: string): FlamegraphState {
   }
   return addFilter(state, {
     kind: 'SHOW_STACK',
-    filter: filter.split(': ', 2)[1],
+    filter: filter,
   });
 }
 
