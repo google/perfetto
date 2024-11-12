@@ -48,7 +48,6 @@
     * [Standard Library](analysis/stdlib-docs.autogen)
     * [Syntax](analysis/perfetto-sql-syntax.md)
     * [Prelude tables](analysis/sql-tables.autogen)
-    * [Common Queries](analysis/common-queries.md)
     * [Built-ins](analysis/builtin.md)
   * [Analysis at scale](#)
     * [Batch Trace Processor](analysis/batch-trace-processor.md)
