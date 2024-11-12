@@ -22,6 +22,10 @@ if (host_os == "win") {
 
 template("proto_library") {
   assert(defined(invoker.sources))
+
+  # This is used in chromium build.
+  not_needed(invoker, [ "proto_deps" ])
+
   proto_sources = invoker.sources
 
   # All the proto imports should be relative to the project root.
