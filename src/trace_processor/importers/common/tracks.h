@@ -56,6 +56,7 @@ namespace perfetto::trace_processor::tracks {
   F(legacy_chrome_global_instants)               \
   F(linux_device_frequency)                      \
   F(linux_rpm)                                   \
+  F(pixel_cpm_trace)                             \
   F(pkvm_hypervisor)                             \
   F(softirq_counter)                             \
   F(thread)                                      \

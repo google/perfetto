@@ -43,6 +43,7 @@
 #include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/trace/ftrace/cpm_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
@@ -279,6 +280,11 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event),
                                         std::move(state));
     return;
+  } else if (PERFETTO_UNLIKELY(event_id ==
+                               protos::pbzero::FtraceEvent::
+                                   kParamSetValueCpmFieldNumber)) {
+    TokenizeFtraceParamSetValueCpm(cpu, std::move(event), std::move(state));
+    return;
   }
 
   auto timestamp = context_->clock_tracker->ToTraceTime(
@@ -448,19 +454,12 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid gpu_work_period tracepoint events which contain
   // timestamp values for the GPU time period nested inside the event data.
-  const uint8_t* data = event.data();
-  const size_t length = event.length();
-
-  ProtoDecoder decoder(data, length);
-  auto ts_field =
-      decoder.FindField(protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber);
-  if (!ts_field.valid()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
-    return;
-  }
+  auto ts_field = GetFtraceEventField(
+      protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber, event);
+  if (!ts_field.has_value()) return;
 
   protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder gpu_work_event(
-      ts_field.data(), ts_field.size());
+      ts_field.value().data(), ts_field.value().size());
   if (!gpu_work_event.has_start_time_ns()) {
     context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
     return;
@@ -490,19 +489,13 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid thermal_exynos_acpm_bulk tracepoint events which
   // contains the right timestamp value nested inside the event data.
-  const uint8_t* data = event.data();
-  const size_t length = event.length();
-
-  ProtoDecoder decoder(data, length);
-  auto ts_field = decoder.FindField(
-      protos::pbzero::FtraceEvent::kThermalExynosAcpmBulkFieldNumber);
-  if (!ts_field.valid()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
-    return;
-  }
+  auto ts_field = GetFtraceEventField(
+      protos::pbzero::FtraceEvent::kThermalExynosAcpmBulkFieldNumber, event);
+  if (!ts_field.has_value()) return;
 
   protos::pbzero::ThermalExynosAcpmBulkFtraceEvent::Decoder
-      thermal_exynos_acpm_bulk_event(ts_field.data(), ts_field.size());
+      thermal_exynos_acpm_bulk_event(ts_field.value().data(),
+                                     ts_field.value().size());
   if (!thermal_exynos_acpm_bulk_event.has_timestamp()) {
     context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
     return;
@@ -511,6 +504,43 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
       static_cast<int64_t>(thermal_exynos_acpm_bulk_event.timestamp());
   context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event),
                                     std::move(state), context_->machine_id());
+}
+
+void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
+    uint32_t cpu, TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
+  // Special handling of valid param_set_value_cpm tracepoint events which
+  // contains the right timestamp value nested inside the event data.
+  auto ts_field = GetFtraceEventField(
+      protos::pbzero::FtraceEvent::kParamSetValueCpmFieldNumber, event);
+  if (!ts_field.has_value()) return;
+
+  protos::pbzero::ParamSetValueCpmFtraceEvent::Decoder
+      param_set_value_cpm_event(ts_field.value().data(),
+                                ts_field.value().size());
+  if (!param_set_value_cpm_event.has_timestamp()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+  int64_t timestamp =
+      static_cast<int64_t>(param_set_value_cpm_event.timestamp());
+  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event),
+                                    std::move(state), context_->machine_id());
+}
+
+std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(
+    uint32_t event_id, const TraceBlobView& event) {
+  //  Extract ftrace event field by decoding event trace blob.
+  const uint8_t* data = event.data();
+  const size_t length = event.length();
+
+  ProtoDecoder decoder(data, length);
+  auto ts_field = decoder.FindField(event_id);
+  if (!ts_field.valid()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return std::nullopt;
+  }
+  return ts_field;
 }
 
 }  // namespace trace_processor
