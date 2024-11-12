@@ -28,8 +28,11 @@ CREATE PERFETTO VIEW rss_gca AS
 SELECT ts, dur, rss_val AS gca_rss_val
 FROM rss_and_swap_span
 JOIN (
-  SELECT max(start_ts), upid
+  SELECT max(rss), upid
   FROM process
+  JOIN (
+    SELECT max(rss_val) as rss, upid FROM rss_and_swap_span GROUP BY upid
+  ) USING (upid)
   WHERE name GLOB '*GoogleCamera'
     OR name GLOB '*googlecamera.fishfood'
     OR name GLOB '*GoogleCameraEng'
