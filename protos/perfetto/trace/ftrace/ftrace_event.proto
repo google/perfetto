@@ -28,6 +28,7 @@ import "protos/perfetto/trace/ftrace/cgroup.proto";
 import "protos/perfetto/trace/ftrace/clk.proto";
 import "protos/perfetto/trace/ftrace/cma.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
+import "protos/perfetto/trace/ftrace/cpm_trace.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
 import "protos/perfetto/trace/ftrace/cros_ec.proto";
 import "protos/perfetto/trace/ftrace/dcvsh.proto";
@@ -681,5 +682,6 @@ message FtraceEvent {
     SchedWakeupTaskAttrFtraceEvent sched_wakeup_task_attr = 540;
     DevfreqFrequencyFtraceEvent devfreq_frequency = 541;
     KprobeEvent kprobe_event = 542;
+    ParamSetValueCpmFtraceEvent param_set_value_cpm = 543;
   }
 }
