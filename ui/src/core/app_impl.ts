@@ -79,9 +79,20 @@ export class AppContext {
   // The currently open trace.
   currentTrace?: TraceContext;
 
+  private static _instance: AppContext;
+
+  static initialize(initArgs: AppInitArgs): AppContext {
+    assertTrue(AppContext._instance === undefined);
+    return (AppContext._instance = new AppContext(initArgs));
+  }
+
+  static get instance(): AppContext {
+    return assertExists(AppContext._instance);
+  }
+
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
-  constructor(initArgs: AppInitArgs) {
+  private constructor(initArgs: AppInitArgs) {
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;
     this.sidebarMgr = new SidebarManagerImpl({
@@ -143,19 +154,16 @@ export class AppImpl implements App {
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
 
+  // Invoked by frontend/index.ts.
+  static initialize(args: AppInitArgs) {
+    AppContext.initialize(args).forPlugin(CORE_PLUGIN_ID);
+  }
+
   // Gets access to the one instance that the core can use. Note that this is
   // NOT the only instance, as other AppImpl instance will be created for each
   // plugin.
-  private static _instance: AppImpl;
-
-  // Invoked by frontend/index.ts.
-  static initialize(args: AppInitArgs) {
-    assertTrue(AppImpl._instance === undefined);
-    AppImpl._instance = new AppContext(args).forPlugin(CORE_PLUGIN_ID);
-  }
-
   static get instance(): AppImpl {
-    return assertExists(AppImpl._instance);
+    return AppContext.instance.forPlugin(CORE_PLUGIN_ID);
   }
 
   // Only called by AppContext.forPlugin().
@@ -171,6 +179,10 @@ export class AppImpl implements App {
         });
       },
     });
+  }
+
+  forPlugin(pluginId: string): AppImpl {
+    return this.appCtx.forPlugin(pluginId);
   }
 
   get commands(): CommandManagerImpl {
@@ -236,7 +248,6 @@ export class AppImpl implements App {
   }
 
   private async openTrace(src: TraceSource) {
-    assertTrue(this.pluginId === CORE_PLUGIN_ID);
     this.appCtx.closeCurrentTrace();
     this.appCtx.isLoadingTrace = true;
     try {
