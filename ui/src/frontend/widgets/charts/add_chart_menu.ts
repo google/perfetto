@@ -15,12 +15,12 @@
 import m from 'mithril';
 import {MenuItem} from '../../../widgets/menu';
 import {Icons} from '../../../base/semantic_icons';
-import {ChartConfig, ChartOption, toTitleCase} from './chart';
+import {Chart, ChartConfig, ChartOption, toTitleCase} from './chart';
 
 interface AddChartMenuItemAttrs {
   readonly chartConfig: ChartConfig;
   readonly chartOptions: Array<ChartOption>;
-  readonly addChart: (option: ChartOption, config: ChartConfig) => void;
+  readonly addChart: (chart: Chart) => void;
 }
 
 export class AddChartMenuItem
@@ -29,12 +29,12 @@ export class AddChartMenuItem
   private renderAddChartOptions(
     config: ChartConfig,
     chartOptions: Array<ChartOption>,
-    addChart: (option: ChartOption, config: ChartConfig) => void,
+    addChart: (chart: Chart) => void,
   ): m.Children {
     return chartOptions.map((option) => {
       return m(MenuItem, {
         label: toTitleCase(option),
-        onclick: () => addChart(option, config),
+        onclick: () => addChart({option, config}),
       });
     });
   }
