@@ -84,14 +84,15 @@ export class AppContext {
   constructor(initArgs: AppInitArgs) {
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;
-    this.sidebarMgr = new SidebarManagerImpl({
-      sidebarEnabled: !this.initialRouteArgs.hideSidebar,
-    });
     this.serviceWorkerController = new ServiceWorkerController();
     this.embeddedMode = this.initialRouteArgs.mode === 'embedded';
     this.testingMode =
       self.location !== undefined &&
       self.location.search.indexOf('testing=1') >= 0;
+    this.sidebarMgr = new SidebarManagerImpl({
+      disabled: this.embeddedMode,
+      hidden: this.initialRouteArgs.hideSidebar,
+    });
     this.analytics = initAnalytics(this.testingMode, this.embeddedMode);
     this.pluginMgr = new PluginManagerImpl({
       forkForPlugin: (pluginId) => this.forPlugin(pluginId),
