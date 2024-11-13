@@ -96,3 +96,5 @@ export interface Trace extends App {
 export interface TraceAttrs {
   trace: Trace;
 }
+
+export const TRACE_SUFFIX = '.perfetto-trace';

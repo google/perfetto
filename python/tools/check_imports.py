@@ -115,15 +115,9 @@ DEPS_ALLOWLIST = [
     (['/public/lib/colorizer'], '/core/feature_flags'),
 
     # TODO(primiano): Record page-related technical debt.
-    ('/frontend/record*', '/controller/*'),
-    ('/frontend/permalink', '/controller/*'),
-    ('/common/*', '/controller/record_config_types'),
-    ('/controller/index', '/common/recordingV2/target_factories/index'),
-    ('/common/recordingV2/*', '/controller/*'),
-    ('/controller/record_controller*', '*'),
-    ('/controller/adb_*', '*'),
-    ('/chrome_extension/chrome_tracing_controller', '/controller/*'),
-    ('/chrome_extension/chrome_tracing_controller', '/core/trace_config_utils'),
+    ('/plugins/dev.perfetto.RecordTrace/*', '/frontend/globals'),
+    ('/chrome_extension/chrome_tracing_controller',
+     '/plugins/dev.perfetto.RecordTrace/*'),
 
     # TODO(primiano): query-table tech debt.
     (
@@ -149,9 +143,6 @@ DEPS_ALLOWLIST = [
 
     # Bigtrace deps.
     ('/bigtrace/*', ['/base/*', '/widgets/*', '/trace_processor/*']),
-
-    # TODO(primiano): rationalize recordingv2. RecordingV2 is a mess of subdirs.
-    ('/common/recordingV2/*', '/common/recordingV2/*'),
 
     # TODO(primiano): misc tech debt.
     ('/public/lib/extensions', '/frontend/*'),
