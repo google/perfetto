@@ -2541,8 +2541,8 @@ message AndroidStartupMetric {
     // sorted by the duration in descending order.
     // By checking out the top slices/threads, developers can identify specific
     // slices or threads for further investigation.
-    repeated TraceSliceSection trace_slice_sections = 7;
-    repeated TraceThreadSection trace_thread_sections = 8;
+    optional TraceSliceSectionInfo trace_slice_sections = 7;
+    optional TraceThreadSectionInfo trace_thread_sections = 8;
 
     // Details specific for a reason.
     optional string additional_info = 9;
@@ -2593,6 +2593,13 @@ message AndroidStartupMetric {
     optional uint32 thread_tid = 6;
   }
 
+  // Information for the SliceSections
+  message TraceSliceSectionInfo {
+    repeated TraceSliceSection slice_section = 1;
+    optional int64 start_timestamp = 2;
+    optional int64 end_timestamp = 3;
+  }
+
   // Contains information for a section of a thread.
   message TraceThreadSection {
     optional int64 start_timestamp = 1;
@@ -2607,6 +2614,13 @@ message AndroidStartupMetric {
     optional uint32 process_pid = 5;
 
     optional uint32 thread_tid = 6;
+  }
+
+  // Information for the ThreadSections
+  message TraceThreadSectionInfo {
+    repeated TraceThreadSection thread_section = 1;
+    optional int64 start_timestamp  = 2;
+    optional int64 end_timestamp = 3;
   }
 
   // Next id: 26

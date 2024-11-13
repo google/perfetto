@@ -1029,8 +1029,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-ÂG
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ÀF
+ÚJ
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ØI
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -1123,7 +1123,7 @@ firstFrame÷
 dex2oat_dur_ns (Rdex2oatDurNsK
 SlowStartReasonDetailed
 reason (	Rreason
-details (	Rdetailsô
+details (	Rdetailsü
 SlowStartReason[
 	reason_id (2>.perfetto.protos.AndroidStartupMetric.SlowStartReason.ReasonIdRreasonId
 reason (	Rreason_
@@ -1133,9 +1133,9 @@ firstFrame÷
 actual_value (21.perfetto.protos.AndroidStartupMetric.ActualValueRactualValue
 
 launch_dur (R	launchDur
-duration (Rdurationi
-trace_slice_sections (27.perfetto.protos.AndroidStartupMetric.TraceSliceSectionRtraceSliceSectionsl
-trace_thread_sections (28.perfetto.protos.AndroidStartupMetric.TraceThreadSectionRtraceThreadSections'
+duration (Rdurationm
+trace_slice_sections (2;.perfetto.protos.AndroidStartupMetric.TraceSliceSectionInfoRtraceSliceSectionsp
+trace_thread_sections (2<.perfetto.protos.AndroidStartupMetric.TraceThreadSectionInfoRtraceThreadSections'
 additional_info	 (	RadditionalInfo"Í
 ReasonId
 REASON_ID_UNSPECIFIED !
@@ -1192,7 +1192,11 @@ slice_name (	R	sliceName
 process_pid (R
 processPid
 
-thread_tid (R	threadTidä
+thread_tid (R	threadTidÃ
+TraceSliceSectionInfo\
+slice_section (27.perfetto.protos.AndroidStartupMetric.TraceSliceSectionRsliceSection'
+start_timestamp (RstartTimestamp#
+end_timestamp (RendTimestampä
 TraceThreadSection'
 start_timestamp (RstartTimestamp#
 end_timestamp (RendTimestamp
@@ -1203,7 +1207,11 @@ threadName
 process_pid (R
 processPid
 
-thread_tid (R	threadTidŒ
+thread_tid (R	threadTidÇ
+TraceThreadSectionInfo_
+thread_section (28.perfetto.protos.AndroidStartupMetric.TraceThreadSectionRthreadSection'
+start_timestamp (RstartTimestamp#
+end_timestamp (RendTimestampŒ
 Startup
 
 startup_id (R	startupId!
