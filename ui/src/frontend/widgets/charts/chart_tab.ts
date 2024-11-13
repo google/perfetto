@@ -17,25 +17,14 @@ import {DetailsShell} from '../../../widgets/details_shell';
 import {filterTitle} from '../sql/table/column';
 import {addEphemeralTab} from '../../../common/add_ephemeral_tab';
 import {Tab} from '../../../public/tab';
-import {
-  ChartConfig,
-  ChartOption,
-  renderChartComponent,
-  toTitleCase,
-} from './chart';
+import {Chart, renderChartComponent, toTitleCase} from './chart';
 
-export function addChartTab(
-  chartOption: ChartOption,
-  chartConfig: ChartConfig,
-): void {
-  addEphemeralTab('histogramTab', new ChartTab(chartOption, chartConfig));
+export function addChartTab(chart: Chart): void {
+  addEphemeralTab('histogramTab', new ChartTab(chart));
 }
 
 export class ChartTab implements Tab {
-  constructor(
-    private readonly chartOption: ChartOption,
-    private readonly chartConfig: ChartConfig,
-  ) {}
+  constructor(private readonly chart: Chart) {}
 
   render() {
     return m(
@@ -44,20 +33,20 @@ export class ChartTab implements Tab {
         title: this.getTitle(),
         description: this.getDescription(),
       },
-      renderChartComponent(this.chartOption, this.chartConfig),
+      renderChartComponent(this.chart),
     );
   }
 
   getTitle(): string {
-    return `${toTitleCase(this.chartConfig.columnTitle)} Histogram`;
+    return `${toTitleCase(this.chart.config.columnTitle)} Histogram`;
   }
 
   private getDescription(): string {
-    let desc = `Count distribution for ${this.chartConfig.tableDisplay ?? ''} table`;
+    let desc = `Count distribution for ${this.chart.config.tableDisplay ?? ''} table`;
 
-    if (this.chartConfig.filters && this.chartConfig.filters.length > 0) {
+    if (this.chart.config.filters && this.chart.config.filters.length > 0) {
       desc += ' where ';
-      desc += this.chartConfig.filters.map((f) => filterTitle(f)).join(', ');
+      desc += this.chart.config.filters.map((f) => filterTitle(f)).join(', ');
     }
 
     return desc;
