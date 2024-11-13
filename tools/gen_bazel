@@ -83,12 +83,12 @@ public_targets = [
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_processor:trace_processor',
     '//src/traceconv:traceconv',
-    '//src/traceconv:libpprofbuilder',
 ]
 
 # These targets will be exported with visibility only to our allowlist.
 allowlist_public_targets = [
     '//src/shared_lib:libperfetto_c',
+    '//src/traceconv:libpprofbuilder',
 ]
 
 # These targets are required by internal build rules but don't need to be
