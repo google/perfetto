@@ -17,7 +17,10 @@ import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
-import {RunnableThreadCountTrack} from './runnable_thread_count';
+import {
+  RunnableThreadCountTrack,
+  UninterruptibleSleepThreadCountTrack,
+} from './thread_count';
 import {getSchedTable} from './table';
 import {extensions} from '../../public/lib/extensions';
 
@@ -38,6 +41,26 @@ export default class implements PerfettoPlugin {
       name: 'Add track: runnable thread count',
       callback: () =>
         addPinnedTrack(ctx, runnableThreadCountUri, 'Runnable thread count'),
+    });
+
+    const uninterruptibleSleepThreadCountUri = `/uninterruptible_sleep_thread_count`;
+    ctx.tracks.registerTrack({
+      uri: uninterruptibleSleepThreadCountUri,
+      title: 'Uninterruptible Sleep thread count',
+      track: new UninterruptibleSleepThreadCountTrack({
+        trace: ctx,
+        uri: uninterruptibleSleepThreadCountUri,
+      }),
+    });
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Sched.AddUninterruptibleSleepThreadCountTrackCommand',
+      name: 'Add track: uninterruptible sleep thread count',
+      callback: () =>
+        addPinnedTrack(
+          ctx,
+          uninterruptibleSleepThreadCountUri,
+          'Uninterruptible Sleep thread count',
+        ),
     });
 
     const uri = uriForActiveCPUCountTrack();
