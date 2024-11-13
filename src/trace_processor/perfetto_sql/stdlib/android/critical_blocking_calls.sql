@@ -39,6 +39,8 @@ RETURNS BOOL AS SELECT
   OR $name GLOB 'NotificationStackScrollLayout#onMeasure'
   OR $name GLOB 'ExpNotRow#*'
   OR $name GLOB 'GC: Wait For*'
+  OR $name GLOB 'Recomposer:*'
+  OR $name GLOB 'Compose:*'
   OR (
     -- Some top level handler slices
     $depth = 0
