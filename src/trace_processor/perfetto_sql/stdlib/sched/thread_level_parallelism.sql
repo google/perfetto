@@ -37,6 +37,24 @@ SELECT
 FROM intervals_overlap_count!(runnable, ts, dur)
 ORDER BY ts;
 
+-- The count of threads in uninterruptible sleep over time.
+CREATE PERFETTO TABLE sched_uninterruptible_sleep_thread_count(
+  -- Timestamp when the thread count changed to the current value.
+  ts INT,
+  -- Number of threads in uninterrutible sleep, covering the range from this timestamp to the
+  -- next row's timestamp.
+  uninterruptible_sleep_thread_count INT
+) AS
+WITH
+uninterruptible_sleep AS (
+  SELECT ts, dur FROM thread_state
+  where state = 'D'
+)
+SELECT
+  ts, value as uninterruptible_sleep_thread_count
+FROM intervals_overlap_count!(uninterruptible_sleep, ts, dur)
+ORDER BY ts;
+
 -- The count of active CPUs over time.
 CREATE PERFETTO TABLE sched_active_cpu_count(
   -- Timestamp when the number of active CPU changed.
