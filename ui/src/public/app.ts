@@ -60,4 +60,12 @@ export interface App {
    * Navigate to a new page.
    */
   navigate(newHash: string): void;
+
+  openTraceFromFile(file: File): void;
+  openTraceFromUrl(url: string): void;
+  openTraceFromBuffer(args: {
+    buffer: ArrayBuffer;
+    title: string;
+    fileName: string;
+  }): void;
 }

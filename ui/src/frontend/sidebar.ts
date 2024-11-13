@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {getCurrentChannel} from '../core/channels';
-import {TRACE_SUFFIX} from '../common/constants';
+import {TRACE_SUFFIX} from '../public/trace';
 import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
@@ -553,13 +553,6 @@ function registerGlobalSidebarEntries() {
   const app = AppImpl.instance;
   // TODO(primiano): The Open file / Open with legacy entries are registered by
   // the 'perfetto.CoreCommands' plugins. Make things consistent.
-  app.sidebar.addMenuItem({
-    section: 'navigation',
-    text: 'Record new trace',
-    href: '#!/record',
-    icon: 'fiber_smart_record',
-    sortOrder: 2,
-  });
   app.sidebar.addMenuItem({
     section: 'support',
     text: 'Keyboard shortcuts',

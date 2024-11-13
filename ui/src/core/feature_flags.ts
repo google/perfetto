@@ -202,10 +202,3 @@ class LocalStorageStore implements FlagStore {
 
 export const FlagsForTesting = Flags;
 export const featureFlags = new Flags(new LocalStorageStore());
-
-export const RECORDING_V2_FLAG = featureFlags.register({
-  id: 'recordingv2',
-  name: 'Recording V2',
-  description: 'Record using V2 interface',
-  defaultValue: false,
-});
