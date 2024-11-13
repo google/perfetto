@@ -106,7 +106,10 @@ USING
 CREATE PERFETTO TABLE _gc_slice_heap
 AS
 SELECT
-  *,
+  gc_ts as ts,
+  gc_dur as dur,
+  upid, gc_id, gc_name, gc_ts, gc_dur, utid, tid, pid,
+  thread_name, process_name, last_value, value,
   CASE
     WHEN gc_name GLOB '*young*' THEN 'young'
     WHEN gc_name GLOB '*NativeAlloc*' THEN 'native_alloc'
