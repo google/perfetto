@@ -95,6 +95,6 @@ export class TimelineFetcher<Data> implements Disposable {
     const {start, end} = this.latestTimespan;
     const resolution = this.latestResolution;
     this.data_ = await this.doFetch(start, end, resolution);
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 }

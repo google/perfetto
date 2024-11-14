@@ -31,12 +31,12 @@ export class Animation {
     }
     this.startMs = nowMs;
     this.endMs = nowMs + durationMs;
-    raf.start(this.boundOnAnimationFrame);
+    raf.startAnimation(this.boundOnAnimationFrame);
   }
 
   stop() {
     this.endMs = 0;
-    raf.stop(this.boundOnAnimationFrame);
+    raf.stopAnimation(this.boundOnAnimationFrame);
   }
 
   get startTimeMs(): number {
@@ -45,7 +45,7 @@ export class Animation {
 
   private onAnimationFrame(nowMs: number) {
     if (nowMs >= this.endMs) {
-      raf.stop(this.boundOnAnimationFrame);
+      raf.stopAnimation(this.boundOnAnimationFrame);
       return;
     }
     this.onAnimationStep(Math.max(Math.round(nowMs - this.startMs), 0));

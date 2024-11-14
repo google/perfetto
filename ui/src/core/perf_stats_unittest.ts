@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RunningStatistics} from './perf';
+import {PerfStats} from './perf_stats';
 
 test('buffer size is accurate before reaching max capacity', () => {
-  const buf = new RunningStatistics(10);
+  const buf = new PerfStats(10);
 
   for (let i = 0; i < 10; i++) {
     buf.addValue(i);
@@ -24,7 +24,7 @@ test('buffer size is accurate before reaching max capacity', () => {
 });
 
 test('buffer size is accurate after reaching max capacity', () => {
-  const buf = new RunningStatistics(10);
+  const buf = new PerfStats(10);
 
   for (let i = 0; i < 10; i++) {
     buf.addValue(i);
@@ -37,7 +37,7 @@ test('buffer size is accurate after reaching max capacity', () => {
 });
 
 test('buffer mean is accurate before reaching max capacity', () => {
-  const buf = new RunningStatistics(10);
+  const buf = new PerfStats(10);
 
   buf.addValue(1);
   buf.addValue(2);
@@ -47,7 +47,7 @@ test('buffer mean is accurate before reaching max capacity', () => {
 });
 
 test('buffer mean is accurate after reaching max capacity', () => {
-  const buf = new RunningStatistics(10);
+  const buf = new PerfStats(10);
 
   for (let i = 0; i < 20; i++) {
     buf.addValue(2);

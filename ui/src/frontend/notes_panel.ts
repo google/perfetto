@@ -89,11 +89,11 @@ export class NotesPanel implements Panel {
         onmousemove: (e: MouseEvent) => {
           this.mouseDragging = true;
           this.hoveredX = currentTargetOffset(e).x - TRACK_SHELL_WIDTH;
-          raf.scheduleRedraw();
+          raf.scheduleCanvasRedraw();
         },
         onmouseenter: (e: MouseEvent) => {
           this.hoveredX = currentTargetOffset(e).x - TRACK_SHELL_WIDTH;
-          raf.scheduleRedraw();
+          raf.scheduleCanvasRedraw();
         },
         onmouseout: () => {
           this.hoveredX = null;

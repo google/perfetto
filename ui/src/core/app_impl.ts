@@ -32,7 +32,7 @@ import {AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {createProxy, getOrCreate} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {PageHandler} from '../public/page';
-import {setPerfHooks} from './perf';
+import {PerfManager} from './perf_manager';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {featureFlags} from './feature_flags';
@@ -59,6 +59,7 @@ export class AppContext {
   readonly pageMgr = new PageManagerImpl();
   readonly sidebarMgr: SidebarManagerImpl;
   readonly pluginMgr: PluginManagerImpl;
+  readonly perfMgr = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController: ServiceWorkerController;
   httpRpc = {
@@ -67,7 +68,6 @@ export class AppContext {
   };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
-  perfDebugging = false; // Enables performance debugging of tracks/panels.
   readonly initArgs: AppInitArgs;
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
@@ -296,17 +296,8 @@ export class AppImpl implements App {
     return this.appCtx.extraSqlPackages;
   }
 
-  get perfDebugging(): boolean {
-    return this.appCtx.perfDebugging;
-  }
-
-  setPerfDebuggingEnabled(enabled: boolean) {
-    this.appCtx.perfDebugging = enabled;
-    setPerfHooks(
-      () => this.perfDebugging,
-      () => this.setPerfDebuggingEnabled(!this.perfDebugging),
-    );
-    raf.scheduleFullRedraw();
+  get perfDebugging(): PerfManager {
+    return this.appCtx.perfMgr;
   }
 
   get serviceWorkerController(): ServiceWorkerController {

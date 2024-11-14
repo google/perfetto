@@ -133,15 +133,15 @@ export class TrackPanel implements Panel {
           ...pos,
           timescale,
         });
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
       },
       onTrackContentMouseOut: () => {
         trackRenderer?.track.onMouseOut?.();
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
       },
       onTrackContentClick: (pos, bounds) => {
         const timescale = this.getTimescaleForBounds(bounds);
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
         return (
           trackRenderer?.track.onMouseClick?.({
             ...pos,

@@ -145,7 +145,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
         const rect = dom.getBoundingClientRect();
         const centerPoint = zoomPx / (rect.width - TRACK_SHELL_WIDTH);
         timeline.zoomVisibleWindow(1 - zoomRatio, centerPoint);
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
       },
       editSelection: (currentPx: number) => {
         if (this.timelineWidthPx === undefined) return false;
@@ -257,7 +257,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
           }
           this.showPanningHint = true;
         }
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
       },
       endSelection: (edit: boolean) => {
         this.selectedContainer = undefined;
