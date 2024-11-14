@@ -155,6 +155,8 @@ message TraceProcessorRpc {
     StatusResult status = 210;
     // For TPM_REGISTER_SQL_PACKAGE.
     RegisterSqlPackageResult register_sql_package_result = 211;
+    // For TPM_FINALIZE_TRACE_DATA.
+    FinalizeDataResult finalize_data_result = 212;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -355,5 +357,9 @@ message RegisterSqlPackageArgs {
 }
 
 message RegisterSqlPackageResult {
+  optional string error = 1;
+}
+
+message FinalizeDataResult {
   optional string error = 1;
 }

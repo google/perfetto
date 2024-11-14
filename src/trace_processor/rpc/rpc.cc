@@ -212,7 +212,11 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     case RpcProto::TPM_FINALIZE_TRACE_DATA: {
       Response resp(tx_seq_id_++, req_type);
-      NotifyEndOfFile();
+      auto* result = resp->set_finalize_data_result();
+      base::Status res = NotifyEndOfFile();
+      if (!res.ok()) {
+        result->set_error(res.message());
+      }
       resp.Send(rpc_response_fn_);
       break;
     }
