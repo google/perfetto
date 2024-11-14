@@ -34,11 +34,6 @@ import {
   sliceAggregationColumns,
   tables,
 } from '../core/pivot_table_query_generator';
-import {
-  PopupMenuButton,
-  popupMenuIcon,
-  PopupMenuItem,
-} from '../widgets/popup_menu';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from './widgets/duration';
@@ -49,6 +44,9 @@ import {argSqlColumn} from './widgets/sql/table/well_known_columns';
 import {TraceImpl} from '../core/trace_impl';
 import {PivotTableManager} from '../core/pivot_table_manager';
 import {extensions} from '../public/lib/extensions';
+import {MenuItem, PopupMenu2} from '../widgets/menu';
+import {Button} from '../widgets/button';
+import {popupMenuIcon} from '../widgets/table';
 
 interface PathItem {
   tree: PivotTree;
@@ -293,15 +291,14 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     return m('tr', overallValuesRow);
   }
 
-  sortingItem(aggregationIndex: number, order: SortDirection): PopupMenuItem {
+  sortingItem(aggregationIndex: number, order: SortDirection): m.Child {
     const pivotMgr = this.pivotMgr;
-    return {
-      itemType: 'regular',
-      text: order === 'DESC' ? 'Highest first' : 'Lowest first',
-      callback() {
+    return m(MenuItem, {
+      label: order === 'DESC' ? 'Highest first' : 'Lowest first',
+      onclick: () => {
         pivotMgr.setSortColumn(aggregationIndex, order);
       },
-    };
+    });
   }
 
   readableAggregationName(aggregation: Aggregation) {
@@ -317,20 +314,21 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     aggregation: Aggregation,
     index: number,
     nameOverride?: string,
-  ): PopupMenuItem {
-    return {
-      itemType: 'regular',
-      text: nameOverride ?? readableColumnName(aggregation.column),
-      callback: () => this.pivotMgr.addAggregation(aggregation, index),
-    };
+  ): m.Child {
+    return m(MenuItem, {
+      label: nameOverride ?? readableColumnName(aggregation.column),
+      onclick: () => {
+        this.pivotMgr.addAggregation(aggregation, index);
+      },
+    });
   }
 
   aggregationPopupTableGroup(
     table: string,
     columns: string[],
     index: number,
-  ): PopupMenuItem | undefined {
-    const items = [];
+  ): m.Child | undefined {
+    const items: m.Child[] = [];
     for (const column of columns) {
       const tableColumn: TableColumn = {kind: 'regular', table, column};
       items.push(
@@ -345,12 +343,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       return undefined;
     }
 
-    return {
-      itemType: 'group',
-      itemId: `aggregations-${table}`,
-      text: `Add ${table} aggregation`,
-      children: items,
-    };
+    return m(MenuItem, {label: `Add ${table} aggregation`}, items);
   }
 
   renderAggregationHeaderCell(
@@ -358,7 +351,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     index: number,
     removeItem: boolean,
   ): ReorderableCell {
-    const popupItems: PopupMenuItem[] = [];
+    const popupItems: m.Child[] = [];
     if (aggregation.sortDirection === undefined) {
       popupItems.push(
         this.sortingItem(index, 'DESC'),
@@ -381,22 +374,26 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           continue;
         }
         const pivotMgr = this.pivotMgr;
-        popupItems.push({
-          itemType: 'regular',
-          text: otherAgg,
-          callback() {
-            pivotMgr.setAggregationFunction(index, otherAgg);
-          },
-        });
+        popupItems.push(
+          m(MenuItem, {
+            label: otherAgg,
+            onclick: () => {
+              pivotMgr.setAggregationFunction(index, otherAgg);
+            },
+          }),
+        );
       }
     }
 
     if (removeItem) {
-      popupItems.push({
-        itemType: 'regular',
-        text: 'Remove',
-        callback: () => this.pivotMgr.removeAggregation(index),
-      });
+      popupItems.push(
+        m(MenuItem, {
+          label: 'Remove',
+          onclick: () => {
+            this.pivotMgr.removeAggregation(index);
+          },
+        }),
+      );
     }
 
     let hasCount = false;
@@ -429,10 +426,15 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
       extraClass: '.aggregation' + markFirst(index),
       content: [
         this.readableAggregationName(aggregation),
-        m(PopupMenuButton, {
-          icon: popupMenuIcon(aggregation.sortDirection),
-          items: popupItems,
-        }),
+        m(
+          PopupMenu2,
+          {
+            trigger: m(Button, {
+              icon: popupMenuIcon(aggregation.sortDirection),
+            }),
+          },
+          popupItems,
+        ),
       ],
     };
   }
@@ -445,27 +447,27 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     selectedPivots: Set<string>,
   ): ReorderableCell {
     const pivotMgr = this.pivotMgr;
-    const items: PopupMenuItem[] = [
-      {
-        itemType: 'regular',
-        text: 'Add argument pivot',
-        callback: () => {
+    const items: m.Child[] = [
+      m(MenuItem, {
+        label: 'Add argument pivot',
+        onclick: () => {
           this.attributeModalHolder.start();
         },
-      },
+      }),
     ];
     if (queryResult.metadata.pivotColumns.length > 1) {
-      items.push({
-        itemType: 'regular',
-        text: 'Remove',
-        callback() {
-          pivotMgr.setPivotSelected({column: pivot, selected: false});
-        },
-      });
+      items.push(
+        m(MenuItem, {
+          label: 'Remove',
+          onclick: () => {
+            pivotMgr.setPivotSelected({column: pivot, selected: false});
+          },
+        }),
+      );
     }
 
     for (const table of tables) {
-      const group: PopupMenuItem[] = [];
+      const group: m.Child[] = [];
       for (const columnName of table.columns) {
         const column: TableColumn = {
           kind: 'regular',
@@ -475,26 +477,30 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
         if (selectedPivots.has(columnKey(column))) {
           continue;
         }
-        group.push({
-          itemType: 'regular',
-          text: columnName,
-          callback() {
-            pivotMgr.setPivotSelected({column, selected: true});
-          },
-        });
+        group.push(
+          m(MenuItem, {
+            label: columnName,
+            onclick: () => {
+              pivotMgr.setPivotSelected({column, selected: true});
+            },
+          }),
+        );
       }
-      items.push({
-        itemType: 'group',
-        itemId: `pivot-${table.name}`,
-        text: `Add ${table.displayName} pivot`,
-        children: group,
-      });
+      items.push(
+        m(
+          MenuItem,
+          {
+            label: `Add ${table.displayName} pivot`,
+          },
+          group,
+        ),
+      );
     }
 
     return {
       content: [
         readableColumnName(pivot),
-        m(PopupMenuButton, {icon: 'more_horiz', items}),
+        m(PopupMenu2, {trigger: m(Button, {icon: 'more_horiz'})}, items),
       ],
     };
   }
@@ -551,20 +557,20 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           }),
           m(
             'td.menu',
-            m(PopupMenuButton, {
-              icon: 'menu',
-              items: [
-                {
-                  itemType: 'regular',
-                  text: state.constrainToArea
-                    ? 'Query data for the whole timeline'
-                    : 'Constrain to selected area',
-                  callback: () => {
-                    this.pivotMgr.setConstrainedToArea(!state.constrainToArea);
-                  },
+            m(
+              PopupMenu2,
+              {
+                trigger: m(Button, {icon: 'menu'}),
+              },
+              m(MenuItem, {
+                label: state.constrainToArea
+                  ? 'Query data for the whole timeline'
+                  : 'Constrain to selected area',
+                onclick: () => {
+                  this.pivotMgr.setConstrainedToArea(!state.constrainToArea);
                 },
-              ],
-            }),
+              }),
+            ),
           ),
         ),
       ),
