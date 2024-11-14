@@ -2268,6 +2268,22 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // family) and thread creation (clone(CLONE_THREAD, ...)).
   static const uint32_t kCloneThread = 0x00010000;  // From kernel's sched.h.
 
+  if (PERFETTO_UNLIKELY(new_tid == 0)) {
+    // In the case of boot-time tracing (kernel is started with tracing
+    // enabled), the ftrace buffer will see /bin/init creating swapper/0 tasks:
+    // event {
+    //  pid: 1
+    //  task_newtask {
+    //    pid: 0
+    //    comm: "swapper/0"
+    //  }
+    // }
+    // Skip these task_newtask events since they are kernel idle tasks.
+    PERFETTO_DCHECK(source_tid == 1);
+    PERFETTO_DCHECK(base::StartsWith(evt.comm().ToStdString(), "swapper"));
+    return;
+  }
+
   // If the process is a fork, start a new process.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
