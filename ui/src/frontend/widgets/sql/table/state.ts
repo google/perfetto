@@ -331,8 +331,15 @@ export class SqlTableState {
       this.rowCount = undefined;
     }
 
-    // Run a delayed UI update to avoid flickering if the query returns quickly.
-    raf.scheduleDelayedFullRedraw();
+    // Schedule a full redraw to happen after a short delay (50 ms).
+    // This is done to prevent flickering / visual noise and allow the UI to fetch
+    // the initial data from the Trace Processor.
+    // There is a chance that someone else schedules a full redraw in the
+    // meantime, forcing the flicker, but in practice it works quite well and
+    // avoids a lot of complexity for the callers.
+    // 50ms is half of the responsiveness threshold (100ms):
+    // https://web.dev/rail/#response-process-events-in-under-50ms
+    setTimeout(() => raf.scheduleFullRedraw(), 50);
 
     if (!filtersMatch) {
       this.rowCount = await this.loadRowCount();

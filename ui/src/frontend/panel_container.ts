@@ -16,13 +16,10 @@ import m from 'mithril';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {assertExists, assertFalse} from '../base/logging';
 import {
-  PerfStatsSource,
-  RunningStatistics,
-  debugNow,
-  perfDebug,
-  perfDisplay,
+  PerfStats,
+  PerfStatsContainer,
   runningStatStr,
-} from '../core/perf';
+} from '../core/perf_stats';
 import {raf} from '../core/raf_scheduler';
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {canvasClip} from '../base/canvas_utils';
@@ -94,7 +91,7 @@ export interface RenderedPanelInfo {
 }
 
 export class PanelContainer
-  implements m.ClassComponent<PanelContainerAttrs>, PerfStatsSource
+  implements m.ClassComponent<PanelContainerAttrs>, PerfStatsContainer
 {
   private readonly trace: TraceImpl;
   private attrs: PanelContainerAttrs;
@@ -105,11 +102,12 @@ export class PanelContainer
   // Updated every render cycle in the oncreate/onupdate hook
   private panelInfos: PanelInfo[] = [];
 
-  private panelPerfStats = new WeakMap<Panel, RunningStatistics>();
+  private perfStatsEnabled = false;
+  private panelPerfStats = new WeakMap<Panel, PerfStats>();
   private perfStats = {
     totalPanels: 0,
     panelsOnCanvas: 0,
-    renderStats: new RunningStatistics(10),
+    renderStats: new PerfStats(10),
   };
 
   private ctx?: CanvasRenderingContext2D;
@@ -122,16 +120,8 @@ export class PanelContainer
   constructor({attrs}: m.CVnode<PanelContainerAttrs>) {
     this.attrs = attrs;
     this.trace = attrs.trace;
-    const onRedraw = () => this.renderCanvas();
-    raf.addRedrawCallback(onRedraw);
-    this.trash.defer(() => {
-      raf.removeRedrawCallback(onRedraw);
-    });
-
-    perfDisplay.addContainer(this);
-    this.trash.defer(() => {
-      perfDisplay.removeContainer(this);
-    });
+    this.trash.use(raf.addCanvasRedrawCallback(() => this.renderCanvas()));
+    this.trash.use(attrs.trace.perfDebugging.addContainer(this));
   }
 
   getPanelsInRegion(
@@ -352,7 +342,7 @@ export class PanelContainer
 
     const ctx = this.ctx;
     const vc = this.virtualCanvas;
-    const redrawStart = debugNow();
+    const redrawStart = performance.now();
 
     ctx.resetTransform();
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -367,7 +357,7 @@ export class PanelContainer
     this.drawTopLayerOnCanvas(ctx, vc);
 
     // Collect performance as the last thing we do.
-    const redrawDur = debugNow() - redrawStart;
+    const redrawDur = performance.now() - redrawStart;
     this.updatePerfStats(
       redrawDur,
       this.panelInfos.length,
@@ -407,12 +397,12 @@ export class PanelContainer
         ctx.save();
         ctx.translate(0, panelTop);
         canvasClip(ctx, 0, 0, panelWidth, panelHeight);
-        const beforeRender = debugNow();
+        const beforeRender = performance.now();
         panel.renderCanvas(ctx, panelSize);
         this.updatePanelStats(
           i,
           panel,
-          debugNow() - beforeRender,
+          performance.now() - beforeRender,
           ctx,
           panelSize,
         );
@@ -505,10 +495,10 @@ export class PanelContainer
     ctx: CanvasRenderingContext2D,
     size: Size2D,
   ) {
-    if (!perfDebug()) return;
+    if (!this.perfStatsEnabled) return;
     let renderStats = this.panelPerfStats.get(panel);
     if (renderStats === undefined) {
-      renderStats = new RunningStatistics();
+      renderStats = new PerfStats();
       this.panelPerfStats.set(panel, renderStats);
     }
     renderStats.addValue(renderTime);
@@ -537,10 +527,14 @@ export class PanelContainer
     totalPanels: number,
     panelsOnCanvas: number,
   ) {
-    if (!perfDebug()) return;
+    if (!this.perfStatsEnabled) return;
     this.perfStats.renderStats.addValue(renderTime);
     this.perfStats.totalPanels = totalPanels;
     this.perfStats.panelsOnCanvas = panelsOnCanvas;
+  }
+
+  setPerfStatsEnabled(enable: boolean): void {
+    this.perfStatsEnabled = enable;
   }
 
   renderPerfStats() {

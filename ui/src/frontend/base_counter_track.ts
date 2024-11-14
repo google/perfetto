@@ -867,7 +867,7 @@ export abstract class BaseCounterTrack implements Track {
     this.countersKey = countersKey;
     this.counters = data;
 
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   private async createTableAndFetchLimits(

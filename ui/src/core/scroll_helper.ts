@@ -35,7 +35,7 @@ export class ScrollHelper {
   // See comments in ScrollToArgs for the intended semantics.
   scrollTo(args: ScrollToArgs) {
     const {time, track} = args;
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
 
     if (time !== undefined) {
       if (time.end === undefined) {
