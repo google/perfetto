@@ -241,7 +241,7 @@ export class OverviewTimelinePanel implements Panel {
 
     const cb = (vizTime: HighPrecisionTimeSpan) => {
       this.trace.timeline.updateVisibleTimeHP(vizTime);
-      raf.scheduleRedraw();
+      raf.scheduleCanvasRedraw();
     };
     const pixelBounds = this.extractBounds(this.timeScale);
     const timeScale = this.timeScale;
@@ -445,6 +445,6 @@ class OverviewDataLoader {
         this.overviewData.get(key)!.push(value);
       }
     }
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 }

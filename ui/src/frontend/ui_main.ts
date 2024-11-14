@@ -171,7 +171,8 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.TogglePerformanceMetrics',
         name: 'Toggle performance metrics',
-        callback: () => app.setPerfDebuggingEnabled(!app.perfDebugging),
+        callback: () =>
+          (app.perfDebugging.enabled = !app.perfDebugging.enabled),
       },
       {
         id: 'perfetto.ShareTrace',
@@ -652,7 +653,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         children,
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
-        AppImpl.instance.perfDebugging && m('.perf-stats'),
+        AppImpl.instance.perfDebugging.renderPerfStats(),
       ),
     );
   }

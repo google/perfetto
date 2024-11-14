@@ -694,7 +694,7 @@ export abstract class BaseSliceTrack<
     this.onUpdatedSlices(slices);
     this.slices = slices;
 
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   private rowToSliceInternal(row: RowT): CastInternal<SliceT> {
