@@ -245,6 +245,12 @@ export abstract class TrackController<
         promise
             .then(() => {
               this.isSetup = true;
+
+              // The host application may have filtered this track out
+              if (!globals.state.tracks[this.trackId]) {
+                return;
+              }
+
               let resolution = visibleState.resolution;
 
               if (BigintMath.popcount(resolution) !== 1) {
@@ -257,7 +263,9 @@ export abstract class TrackController<
                   resolution);
             })
             .then((data) => {
-              this.publish(data);
+              if (data) {
+                this.publish(data);
+              }
             })
             .finally(() => {
               this.requestingData = false;
