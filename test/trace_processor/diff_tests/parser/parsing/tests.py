@@ -1570,3 +1570,76 @@ class Parsing(TestSuite):
         5230422153284,0,1306,"[NULL]"
         5230425693562,0,10,1
         """))
+
+  # Kernel idle tasks created by /sbin/init should be filtered.
+  def test_task_newtask_swapper_by_init(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000000
+              pid: 0
+              task_newtask {
+                pid: 1
+                comm: "swapper/0"
+                clone_flags: 8389376
+                oom_score_adj: 0
+              }
+            }
+            event {
+              timestamp: 1000000
+              pid: 0
+              task_newtask {
+                pid: 2
+                comm: "swapper/0"
+                clone_flags: 8390400
+                oom_score_adj: 0
+              }
+            }
+            event {
+              timestamp: 17000000
+              pid: 1
+              task_newtask {
+                pid: 0
+                comm: "swapper/0"
+                clone_flags: 256
+                oom_score_adj: 0
+              }
+            }
+            event {
+              timestamp: 17000000
+              pid: 1
+              task_newtask {
+                pid: 0
+                comm: "swapper/0"
+                clone_flags: 256
+                oom_score_adj: 0
+              }
+            }
+            event {
+              timestamp: 17000000
+              pid: 1
+              task_newtask {
+                pid: 0
+                comm: "swapper/0"
+                clone_flags: 256
+                oom_score_adj: 0
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+          trusted_pid: 521
+          previous_packet_dropped: true
+        }
+        """),
+        query="""
+        SELECT utid, tid, name from thread where tid = 0
+        """,
+        out=Csv("""
+        "utid","tid","name"
+        0,0,"swapper"
+        """))
