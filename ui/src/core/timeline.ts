@@ -46,7 +46,7 @@ export class TimelineImpl implements Timeline {
 
   set highlightedSliceId(x) {
     this._highlightedSliceId = x;
-    raf.scheduleFullRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   get hoveredNoteTimestamp() {
@@ -55,7 +55,7 @@ export class TimelineImpl implements Timeline {
 
   set hoveredNoteTimestamp(x) {
     this._hoveredNoteTimestamp = x;
-    raf.scheduleFullRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   get hoveredUtid() {
@@ -64,7 +64,7 @@ export class TimelineImpl implements Timeline {
 
   set hoveredUtid(x) {
     this._hoveredUtid = x;
-    raf.scheduleFullRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   get hoveredPid() {
@@ -73,7 +73,7 @@ export class TimelineImpl implements Timeline {
 
   set hoveredPid(x) {
     this._hoveredPid = x;
-    raf.scheduleFullRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   // This is used to calculate the tracks within a Y range for area selection.
