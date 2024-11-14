@@ -33,8 +33,15 @@ import {
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {DetailsShell} from '../../widgets/details_shell';
+import {
+  Chart,
+  ChartOption,
+  createChartConfigFromSqlTableState,
+  renderChartComponent,
+} from '../../frontend/widgets/charts/chart';
+import {AddChartMenuItem} from '../../frontend/widgets/charts/add_chart_menu';
 
-interface ExplorePageState {
+interface ExploreTableState {
   sqlTableState?: SqlTableState;
   selectedTable?: ExplorableTable;
 }
@@ -46,13 +53,12 @@ interface ExplorableTable {
 }
 
 export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
-  private readonly state: ExplorePageState;
+  private readonly state: ExploreTableState;
+  private readonly charts: Chart[];
 
   constructor() {
-    this.state = {
-      sqlTableState: undefined,
-      selectedTable: undefined,
-    };
+    this.charts = [];
+    this.state = {};
   }
 
   // Show menu with standard library tables
@@ -115,7 +121,7 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
 
           this.state.selectedTable = table;
 
-          const sqlTableState = new SqlTableState(
+          this.state.sqlTableState = new SqlTableState(
             trace,
             {
               name: table.name,
@@ -123,7 +129,6 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
             },
             {imports: [table.module]},
           );
-          this.state.sqlTableState = sqlTableState;
         },
       });
     });
@@ -162,6 +167,16 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
       },
       m(SqlTable, {
         state: sqlTableState,
+        addColumnMenuItems: (column, columnAlias) =>
+          m(AddChartMenuItem, {
+            chartConfig: createChartConfigFromSqlTableState(
+              column,
+              columnAlias,
+              sqlTableState,
+            ),
+            chartOptions: [ChartOption.HISTOGRAM],
+            addChart: (chart) => this.charts.push(chart),
+          }),
       }),
     );
   }
@@ -170,6 +185,7 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
     return m(
       '.explore-page',
       m(Menu, this.renderSelectableTablesMenuItems(attrs.trace)),
+      this.charts.map((chart) => renderChartComponent(chart)),
       this.state.selectedTable && this.renderSqlTable(),
     );
   }

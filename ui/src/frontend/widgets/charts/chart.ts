@@ -16,6 +16,8 @@ import {Row} from '../../../trace_processor/query_result';
 import {Engine} from '../../../trace_processor/engine';
 import {Filter, TableColumn, TableColumnSet} from '../sql/table/column';
 import {Histogram} from './histogram/histogram';
+import {SqlTableState} from '../sql/table/state';
+import {columnTitle} from '../sql/table/table';
 
 export interface VegaLiteChartSpec {
   $schema: string;
@@ -58,6 +60,11 @@ export interface ChartConfig {
   readonly aggregationType?: 'nominal' | 'quantitative'; // Aggregation type.
 }
 
+export interface Chart {
+  readonly option: ChartOption;
+  readonly config: ChartConfig;
+}
+
 export interface ChartData {
   readonly rows: Row[];
   readonly error?: string;
@@ -85,11 +92,29 @@ export function toTitleCase(s: string): string {
 
 // renderChartComponent will take a chart option and config and map
 // to the corresponding chart class component.
-export function renderChartComponent(option: ChartOption, config: ChartConfig) {
-  switch (option) {
+export function renderChartComponent(chart: Chart) {
+  switch (chart.option) {
     case ChartOption.HISTOGRAM:
-      return m(Histogram, config);
+      return m(Histogram, chart.config);
     default:
       return;
   }
+}
+
+export function createChartConfigFromSqlTableState(
+  column: TableColumn,
+  columnAlias: string,
+  sqlTableState: SqlTableState,
+) {
+  return {
+    engine: sqlTableState.trace.engine,
+    columnTitle: columnTitle(column),
+    sqlColumn: [columnAlias],
+    filters: sqlTableState?.getFilters(),
+    tableDisplay: sqlTableState.config.displayName ?? sqlTableState.config.name,
+    query: sqlTableState.getSqlQuery(
+      Object.fromEntries([[columnAlias, column.primaryColumn()]]),
+    ),
+    aggregationType: column.aggregation?.().dataType,
+  };
 }
