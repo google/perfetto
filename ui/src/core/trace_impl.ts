@@ -50,6 +50,7 @@ import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {featureFlags} from './feature_flags';
 import {SerializedAppState} from './state_serialization_schema';
 import {PostedTrace} from './trace_source';
+import {PerfManager} from './perf_manager';
 
 /**
  * Handles the per-trace state of the UI
@@ -458,6 +459,10 @@ export class TraceImpl implements Trace {
     } else {
       return [];
     }
+  }
+
+  get perfDebugging(): PerfManager {
+    return this.appImpl.perfDebugging;
   }
 
   get trash(): DisposableStack {

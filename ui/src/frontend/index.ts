@@ -63,19 +63,18 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
 });
 
 function routeChange(route: Route) {
-  raf.scheduleFullRedraw();
-  maybeOpenTraceFromRoute(route);
-  if (route.fragment) {
-    // This needs to happen after the next redraw call. It's not enough
-    // to use setTimeout(..., 0); since that may occur before the
-    // redraw scheduled above.
-    raf.addPendingCallback(() => {
+  raf.scheduleFullRedraw(() => {
+    if (route.fragment) {
+      // This needs to happen after the next redraw call. It's not enough
+      // to use setTimeout(..., 0); since that may occur before the
+      // redraw scheduled above.
       const e = document.getElementById(route.fragment);
       if (e) {
         e.scrollIntoView();
       }
-    });
-  }
+    }
+  });
+  maybeOpenTraceFromRoute(route);
 }
 
 function setupContentSecurityPolicy() {
@@ -226,12 +225,12 @@ function onCssLoaded() {
   const router = new Router();
   router.onRouteChanged = routeChange;
 
-  raf.domRedraw = () => {
+  raf.initialize(() =>
     m.render(
       document.body,
       m(UiMain, pages.renderPageForCurrentRoute(AppImpl.instance.trace)),
-    );
-  };
+    ),
+  );
 
   if (
     (location.origin.startsWith('http://localhost:') ||

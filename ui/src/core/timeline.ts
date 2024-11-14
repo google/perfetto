@@ -46,7 +46,7 @@ export class TimelineImpl implements Timeline {
 
   set highlightedSliceId(x) {
     this._highlightedSliceId = x;
-    raf.scheduleFullRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   get hoveredNoteTimestamp() {
@@ -55,7 +55,7 @@ export class TimelineImpl implements Timeline {
 
   set hoveredNoteTimestamp(x) {
     this._hoveredNoteTimestamp = x;
-    raf.scheduleFullRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   get hoveredUtid() {
@@ -64,7 +64,7 @@ export class TimelineImpl implements Timeline {
 
   set hoveredUtid(x) {
     this._hoveredUtid = x;
-    raf.scheduleFullRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   get hoveredPid() {
@@ -73,7 +73,7 @@ export class TimelineImpl implements Timeline {
 
   set hoveredPid(x) {
     this._hoveredPid = x;
-    raf.scheduleFullRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   // This is used to calculate the tracks within a Y range for area selection.
@@ -95,7 +95,7 @@ export class TimelineImpl implements Timeline {
       .scale(ratio, centerPoint, MIN_DURATION)
       .fitWithin(this.traceInfo.start, this.traceInfo.end);
 
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   panVisibleWindow(delta: number) {
@@ -103,7 +103,7 @@ export class TimelineImpl implements Timeline {
       .translate(delta)
       .fitWithin(this.traceInfo.start, this.traceInfo.end);
 
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   // Given a timestamp, if |ts| is not currently in view move the view to
@@ -136,7 +136,7 @@ export class TimelineImpl implements Timeline {
 
   deselectArea() {
     this._selectedArea = undefined;
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   get selectedArea(): Area | undefined {
@@ -160,7 +160,7 @@ export class TimelineImpl implements Timeline {
       .clampDuration(MIN_DURATION)
       .fitWithin(this.traceInfo.start, this.traceInfo.end);
 
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   // Get the bounds of the visible window as a high-precision time span
@@ -174,7 +174,7 @@ export class TimelineImpl implements Timeline {
 
   set hoverCursorTimestamp(t: time | undefined) {
     this._hoverCursorTimestamp = t;
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 
   // Offset between t=0 and the configured time domain.
