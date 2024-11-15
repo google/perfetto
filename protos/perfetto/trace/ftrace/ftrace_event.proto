@@ -685,5 +685,6 @@ message FtraceEvent {
     KprobeEvent kprobe_event = 542;
     ParamSetValueCpmFtraceEvent param_set_value_cpm = 543;
     DoSysOpenFtraceEvent do_sys_open = 544;
+    OpenExecFtraceEvent open_exec = 545;
   }
 }
