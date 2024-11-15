@@ -147,8 +147,10 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
         TrackTracker::Group::kPower, batt_power_id);
     auto current = evt.current_ua();
     auto voltage = evt.voltage_uv();
-    context_->event_tracker->PushCounter(
-        ts, static_cast<double>(current * voltage / 1000000000), track);
+    // Current is negative when discharging, but we want the power counter to
+    // always be positive, so take the absolute value.
+    auto power = std::abs(static_cast<double>(current * voltage / 1000000000));
+    context_->event_tracker->PushCounter(ts, power, track);
   }
 }
 
