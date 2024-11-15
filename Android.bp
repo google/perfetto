@@ -17078,6 +17078,11 @@ cc_binary {
     cflags: [
         "-DZLIB_IMPLEMENTATION",
     ],
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.profiling",
+    ],
+    min_sdk_version: "35",
 }
 
 // GN: //src/traceconv:traceconv
