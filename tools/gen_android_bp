@@ -302,6 +302,13 @@ additional_args = {
     ],
     'libperfetto': [('export_include_dirs', {'include', buildflags_dir}),],
     'perfetto': [('required', {'perfetto_persistent_cfg.pbtxt'}),],
+    'trace_redactor': [
+        ('min_sdk_version', '35'),
+        ('apex_available', {
+            '//apex_available:platform',
+            'com.android.profiling'
+        }),
+    ],
 }
 
 
