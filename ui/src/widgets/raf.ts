@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-let FULL_REDRAW_FUNCTION = () => {};
+let FULL_REDRAW_FUNCTION = (_force?: 'force') => {};
 
 export function setScheduleFullRedraw(func: () => void) {
   FULL_REDRAW_FUNCTION = func;
 }
 
-export function scheduleFullRedraw() {
-  FULL_REDRAW_FUNCTION();
+export function scheduleFullRedraw(force?: 'force') {
+  FULL_REDRAW_FUNCTION(force);
 }
