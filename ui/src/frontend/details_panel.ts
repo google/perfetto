@@ -19,7 +19,7 @@ import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
 import {pluginManager} from '../common/plugins';
 import {addSelectionChangeObserver} from '../common/selection_observer';
-import {Selection} from '../common/state';
+import {equalSelections, Selection} from '../common/state';
 import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
 import {SCROLL_JANK_PLUGIN_ID} from '../tracks/scroll_jank';
 import {TOP_LEVEL_SCROLL_KIND} from '../tracks/scroll_jank/scroll_track';
@@ -57,9 +57,10 @@ function getDetailsHeight() {
 }
 
 function getFullScreenHeight(dom?: Element) {
-  for(const selector of globals.frontendLocalState.detailsFullScreenSelectors) {
+  const selectors = globals.frontendLocalState.detailsFullScreenSelectors;
+  for (const selector of selectors) {
     const element = dom?.closest(selector) || document.querySelector(selector);
-    if(element != null) {
+    if (element != null) {
       return element.clientHeight;
     }
   }
@@ -81,6 +82,7 @@ interface DragHandleAttrs {
   resize: (height: number) => void;
   tabs: Tab[];
   currentTabKey?: string;
+  forceOpen?: boolean;
 }
 
 class DragHandle implements m.ClassComponent<DragHandleAttrs> {
@@ -93,6 +95,21 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   // We can't get real fullscreen height until the pan_and_zoom_handler exists.
   private fullscreenHeight = getDetailsHeight();
   private dom?: Element = undefined;
+
+  private toggleClosed() {
+    if (this.height === DRAG_HANDLE_HEIGHT_PX) {
+      this.isClosed = false;
+      if (this.previousHeight === 0) {
+        this.previousHeight = getDetailsHeight();
+      }
+      this.resize(this.previousHeight);
+    } else {
+      this.isFullscreen = false;
+      this.isClosed = true;
+      this.previousHeight = this.height;
+      this.resize(DRAG_HANDLE_HEIGHT_PX);
+    }
+  }
 
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
@@ -145,6 +162,11 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
           },
           tab.name);
     };
+
+    if (attrs.forceOpen && this.isClosed) {
+      this.toggleClosed();
+    }
+
     return m(
         '.handle',
         m('.tabs', attrs.tabs.map(renderTab)),
@@ -164,18 +186,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
           m('i.material-icons',
             {
               onclick: () => {
-                if (this.height === DRAG_HANDLE_HEIGHT_PX) {
-                  this.isClosed = false;
-                  if (this.previousHeight === 0) {
-                    this.previousHeight = getDetailsHeight();
-                  }
-                  this.resize(this.previousHeight);
-                } else {
-                  this.isFullscreen = false;
-                  this.isClosed = true;
-                  this.previousHeight = this.height;
-                  this.resize(DRAG_HANDLE_HEIGHT_PX);
-                }
+                this.toggleClosed();
                 globals.rafScheduler.scheduleFullRedraw();
               },
               title,
@@ -244,6 +255,7 @@ addSelectionChangeObserver(handleSelectionChange);
 
 export class DetailsPanel implements m.ClassComponent {
   private detailsHeight = getDetailsHeight();
+  private previousSelection: Selection | null = null;
 
   view() {
     interface DetailsPanel {
@@ -265,6 +277,9 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     const curSelection = globals.state.currentSelection;
+    const shouldOpenDetails = globals.alwaysOpenDetailsOnSelectionChange &&
+      !equalSelections(curSelection, this.previousSelection);
+    this.previousSelection = curSelection;
     if (curSelection) {
       switch (curSelection.kind) {
         case 'NOTE':
@@ -281,7 +296,7 @@ export class DetailsPanel implements m.ClassComponent {
           break;
         case 'SLICE':
           detailsPanels.push({
-            key: 'current_selection',
+            key: CURRENT_SELECTION_TAG,
             name: 'Current Selection',
             vnode: m(SliceDetailsPanel, {
               key: 'slice',
@@ -290,7 +305,7 @@ export class DetailsPanel implements m.ClassComponent {
           break;
         case 'COUNTER':
           detailsPanels.push({
-            key: 'current_selection',
+            key: CURRENT_SELECTION_TAG,
             name: 'Current Selection',
             vnode: m(CounterDetailsPanel, {
               key: 'counter',
@@ -300,14 +315,14 @@ export class DetailsPanel implements m.ClassComponent {
         case 'PERF_SAMPLES':
         case 'HEAP_PROFILE':
           detailsPanels.push({
-            key: 'current_selection',
+            key: CURRENT_SELECTION_TAG,
             name: 'Current Selection',
             vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'}),
           });
           break;
         case 'CPU_PROFILE_SAMPLE':
           detailsPanels.push({
-            key: 'current_selection',
+            key: CURRENT_SELECTION_TAG,
             name: 'Current Selection',
             vnode: m(CpuProfileDetailsPanel, {
               key: 'cpu_profile_sample',
@@ -316,7 +331,7 @@ export class DetailsPanel implements m.ClassComponent {
           break;
         case 'CHROME_SLICE':
           detailsPanels.push({
-            key: 'current_selection',
+            key: CURRENT_SELECTION_TAG,
             name: 'Current Selection',
             vnode: m(ChromeSliceDetailsPanel, {key: 'chrome_slice'}),
           });
@@ -325,6 +340,10 @@ export class DetailsPanel implements m.ClassComponent {
           break;
       }
     }
+
+    const openDetails = shouldOpenDetails && detailsPanels.length > 0 &&
+     detailsPanels[detailsPanels.length - 1].key === CURRENT_SELECTION_TAG;
+
     if (hasLogs()) {
       detailsPanels.push({
         key: 'android_logs',
@@ -403,6 +422,7 @@ export class DetailsPanel implements m.ClassComponent {
           },
         },
         m(DragHandle, {
+          forceOpen: openDetails,
           resize: (height: number) => {
             this.detailsHeight = Math.max(height, DRAG_HANDLE_HEIGHT_PX);
           },

@@ -24,6 +24,7 @@ import {TopLevelScrollSelection} from '../tracks/scroll_jank/scroll_track';
 import {Direction} from './event_set';
 import {TPDuration, TPTime} from './time';
 import {AddTrackLikeArgs} from './actions';
+import {assertExists} from '../base/logging';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -985,4 +986,53 @@ export function getContainingTrackIds(state: State, trackId: string): null|
   }
 
   return result;
+}
+
+/**
+ * Determine whether two selections are selecting the same
+ * object in the trace.
+ *
+ * @param {Selection|null} a a selection or none
+ * @param {Selection|null} b another selection or none
+ * @return {boolean} whether the selections are equal
+ */
+export function equalSelections(
+   a: Selection | null,
+   b: Selection | null): boolean {
+  if (a === b) {
+    return true;
+  }
+  if (!!a !== !!b) {
+    return false;
+  }
+
+  // If both were null, the first check would have returned
+  const one = assertExists(a);
+  const other = assertExists(b);
+
+  if (one.kind !== other.kind) {
+    return false;
+  }
+
+  const keys = Object.keys(one) as (keyof Selection)[];
+  if (Object.keys(other).length !== keys.length) {
+    return false;
+  }
+
+  for (const key of keys) {
+    if (!eq(one[key], other[key])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function eq(a: any, b: any): boolean {
+  // Selection properties are only primitives or arrays of primitives
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length &&
+      a.every((item, index) => eq(item, b[index]));
+  }
+  return a === b;
 }

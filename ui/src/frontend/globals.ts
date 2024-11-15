@@ -294,10 +294,12 @@ class Globals {
   private _trackFilteringEnabled = false;
   private _engineReadyObservers: ((engine: EngineConfig) => void)[] = [];
   private _timelineSubsetRange?: TimespanProvider = undefined;
+  private _alwaysOpenDetailsOnSelectionChange = true;
 
 
   // Init from session storage since correct value may be required very early on
-  private _customContentSecurityPolicy = window.sessionStorage.getItem(CUSTOM_CONTENT_SECURITY_POLICY);
+  private _customContentSecurityPolicy =
+    window.sessionStorage.getItem(CUSTOM_CONTENT_SECURITY_POLICY);
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: new Float64Array(0),
@@ -699,7 +701,8 @@ class Globals {
     return this._httpRpcEngineCustomizer;
   }
 
-  set httpRpcEngineCustomizer(httpRpcEngineCustomizer: HttpRcpEngineCustomizer | undefined) {
+  set httpRpcEngineCustomizer(
+      httpRpcEngineCustomizer: HttpRcpEngineCustomizer | undefined) {
     this._httpRpcEngineCustomizer = httpRpcEngineCustomizer;
   }
 
@@ -715,8 +718,10 @@ class Globals {
     return this._promptToLoadFromTraceProcessorShell;
   }
 
-  set promptToLoadFromTraceProcessorShell(promptToLoadFromTraceProcessorShell: boolean) {
-    this._promptToLoadFromTraceProcessorShell = promptToLoadFromTraceProcessorShell;
+  set promptToLoadFromTraceProcessorShell(
+      promptToLoadFromTraceProcessorShell: boolean) {
+    this._promptToLoadFromTraceProcessorShell =
+      promptToLoadFromTraceProcessorShell;
   }
 
   get trackFilteringEnabled(): boolean {
@@ -741,9 +746,11 @@ class Globals {
     }
   }
 
-  /** Register an engine ready observer.
+  /**
+   * Register an engine ready observer.
    *
-   * returns a cleanup function, to be called to unregister.
+   * @param {Function} observer an engine-ready call-back function to register
+   * @return {Function} a cleanup function, to be called to unregister
    */
   addEngineReadyObserver(observer: (engine: EngineConfig) => void): ()=>void {
     this._engineReadyObservers.push(observer);
@@ -771,6 +778,19 @@ class Globals {
    */
   set timelineSubsetRange(timeSpan: TimespanProvider | undefined) {
     this._timelineSubsetRange = timeSpan;
+  }
+
+  /**
+   * Whether the details pane is always opened to show the new selection
+   * on selection change (if the selection is not cleared), even when the
+   * user had previously closed it. Initially this is `true`.
+   */
+  get alwaysOpenDetailsOnSelectionChange() {
+    return this._alwaysOpenDetailsOnSelectionChange;
+  };
+
+  set alwaysOpenDetailsOnSelectionChange(always: boolean) {
+    this._alwaysOpenDetailsOnSelectionChange = always;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
