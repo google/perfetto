@@ -46,7 +46,7 @@ std::shared_ptr<Client> ConstructClient(
   std::optional<perfetto::base::UnixSocketRaw> sock =
       Client::ConnectToHeapprofd(perfetto::profiling::kHeapprofdSocketFile);
   if (!sock) {
-    PERFETTO_ELOG("Failed to connect to %s. This is benign on user builds.",
+    PERFETTO_ELOG("Failed to connect to %s.",
                   perfetto::profiling::kHeapprofdSocketFile);
     return nullptr;
   }
