@@ -15,6 +15,7 @@
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Registry} from '../base/registry';
 import {Command, CommandManager} from '../public/command';
+import {raf} from './raf_scheduler';
 
 export interface CommandWithMatchInfo extends Command {
   segments: FuzzySegment[];
@@ -39,10 +40,11 @@ export class CommandManagerImpl implements CommandManager {
     return this.registry.register(cmd);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  runCommand(id: string, ...args: any[]): any {
+  runCommand(id: string, ...args: unknown[]): unknown {
     const cmd = this.registry.get(id);
-    return cmd.callback(...args);
+    const res = cmd.callback(...args);
+    Promise.resolve(res).finally(() => raf.scheduleFullRedraw('force'));
+    return res;
   }
 
   // Returns a list of commands that match the search term, along with a list

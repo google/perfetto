@@ -21,6 +21,7 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {DragGestureHandler} from '../base/drag_gesture_handler';
 import {DisposableStack} from '../base/disposable_stack';
+import {scheduleFullRedraw} from './raf';
 
 export interface EditorAttrs {
   // Initial state for the editor.
@@ -64,6 +65,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
             text = selectedText;
           }
           onExecute(text);
+          scheduleFullRedraw('force');
           return true;
         },
       });
@@ -75,6 +77,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         view.update([tr]);
         const text = view.state.doc.toString();
         onUpdate(text);
+        scheduleFullRedraw('force');
       };
     }
 

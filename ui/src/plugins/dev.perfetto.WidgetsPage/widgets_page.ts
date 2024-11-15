@@ -685,6 +685,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             icon: arg(icon, 'send'),
             rightIcon: arg(rightIcon, 'arrow_forward'),
             label: arg(label, 'Button', ''),
+            onclick: () => alert('button pressed'),
             ...rest,
           }),
         initialOpts: {

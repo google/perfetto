@@ -214,8 +214,8 @@ export class AppImpl implements App {
     return this.appCtx.currentTrace?.forPlugin(this.pluginId);
   }
 
-  scheduleFullRedraw(): void {
-    raf.scheduleFullRedraw();
+  scheduleFullRedraw(force?: 'force'): void {
+    raf.scheduleFullRedraw(force);
   }
 
   get httpRpc() {

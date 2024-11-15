@@ -163,7 +163,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
         /* onDrag */ (_x, y) => {
           const deltaYSinceDragStart = dragStartY - y;
           this.resizableHeight = heightWhenDragStarted + deltaYSinceDragStart;
-          raf.scheduleFullRedraw();
+          raf.scheduleFullRedraw('force');
         },
         /* onDragStarted */ (_x, y) => {
           this.resizableHeight = this.height;

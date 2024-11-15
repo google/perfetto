@@ -46,13 +46,22 @@ export interface PortalAttrs {
 export class Portal implements m.ClassComponent<PortalAttrs> {
   private portalElement?: HTMLElement;
   private containerElement?: Element;
+  private contentComponent: m.Component;
+
+  constructor({children}: m.CVnode<PortalAttrs>) {
+    // Create a temporary component that we can mount in oncreate, and unmount
+    // in onremove, but inject the new portal content (children) into it each
+    // render cycle. This is initialized here rather than in oncreate to avoid
+    // having to make it optional or use assertExists().
+    this.contentComponent = {view: () => children};
+  }
 
   view() {
     // Dummy element renders nothing but permits DOM access in lifecycle hooks.
     return m('span', {style: {display: 'none'}});
   }
 
-  oncreate({attrs, children, dom}: m.VnodeDOM<PortalAttrs, this>) {
+  oncreate({attrs, dom}: m.CVnodeDOM<PortalAttrs>) {
     const {
       onContentMount = () => {},
       onBeforeContentMount = (): MountOptions => ({}),
@@ -65,16 +74,21 @@ export class Portal implements m.ClassComponent<PortalAttrs> {
     container.appendChild(this.portalElement);
     this.applyPortalProps(attrs);
 
-    m.render(this.portalElement, children);
+    m.mount(this.portalElement, this.contentComponent);
 
     onContentMount(this.portalElement);
   }
 
-  onupdate({attrs, children}: m.VnodeDOM<PortalAttrs, this>) {
+  onbeforeupdate({children}: m.CVnode<PortalAttrs>) {
+    // Update the mounted content's view function to return the latest portal
+    // content passed in via children, without changing the component itself.
+    this.contentComponent.view = () => children;
+  }
+
+  onupdate({attrs}: m.CVnodeDOM<PortalAttrs>) {
     const {onContentUpdate = () => {}} = attrs;
     if (this.portalElement) {
       this.applyPortalProps(attrs);
-      m.render(this.portalElement, children);
       onContentUpdate(this.portalElement);
     }
   }
@@ -86,14 +100,14 @@ export class Portal implements m.ClassComponent<PortalAttrs> {
     }
   }
 
-  onremove({attrs}: m.VnodeDOM<PortalAttrs, this>) {
+  onremove({attrs}: m.CVnodeDOM<PortalAttrs>) {
     const {onContentUnmount = () => {}} = attrs;
     const container = this.containerElement ?? document.body;
     if (this.portalElement) {
       if (container.contains(this.portalElement)) {
         onContentUnmount(this.portalElement);
         // Rendering null ensures previous vnodes are removed properly.
-        m.render(this.portalElement, null);
+        m.mount(this.portalElement, null);
         container.removeChild(this.portalElement);
       }
     }

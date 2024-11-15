@@ -54,7 +54,7 @@ class KeyMappingsHelp implements m.ClassComponent {
     nativeKeyboardLayoutMap()
       .then((keyMap: KeyboardLayoutMap) => {
         this.keyMap = keyMap;
-        AppImpl.instance.scheduleFullRedraw();
+        AppImpl.instance.scheduleFullRedraw('force');
       })
       .catch((e) => {
         if (
@@ -69,7 +69,7 @@ class KeyMappingsHelp implements m.ClassComponent {
           // The alternative would be to show key mappings for all keyboard
           // layouts which is not feasible.
           this.keyMap = new EnglishQwertyKeyboardLayoutMap();
-          AppImpl.instance.scheduleFullRedraw();
+          AppImpl.instance.scheduleFullRedraw('force');
         } else {
           // Something unexpected happened. Either the browser doesn't conform
           // to the keyboard API spec, or the keyboard API spec has changed!
