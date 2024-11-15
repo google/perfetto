@@ -228,7 +228,7 @@ class VegaWrapper {
     }
     this._status = Status.Done;
     this.pending = undefined;
-    scheduleFullRedraw();
+    scheduleFullRedraw('force');
   }
 
   private handleError(pending: Promise<vega.View>, err: unknown) {
@@ -242,7 +242,7 @@ class VegaWrapper {
   private setError(err: unknown) {
     this._status = Status.Error;
     this._error = getErrorMessage(err);
-    scheduleFullRedraw();
+    scheduleFullRedraw('force');
   }
 
   [Symbol.dispose]() {

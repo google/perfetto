@@ -352,13 +352,13 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     if (this.isOpen) {
       this.isOpen = false;
       this.onChange(this.isOpen);
-      scheduleFullRedraw();
+      scheduleFullRedraw('force');
     }
   }
 
   private togglePopup() {
     this.isOpen = !this.isOpen;
     this.onChange(this.isOpen);
-    scheduleFullRedraw();
+    scheduleFullRedraw('force');
   }
 }

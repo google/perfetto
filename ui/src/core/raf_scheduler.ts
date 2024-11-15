@@ -13,9 +13,18 @@
 // limitations under the License.
 
 import {PerfStats} from './perf_stats';
+import m from 'mithril';
+import {featureFlags} from './feature_flags';
 
 export type AnimationCallback = (lastFrameMs: number) => void;
 export type RedrawCallback = () => void;
+
+export const AUTOREDRAW_FLAG = featureFlags.register({
+  id: 'mithrilAutoredraw',
+  name: 'Enable Mithril autoredraw',
+  description: 'Turns calls to schedulefullRedraw() a no-op',
+  defaultValue: false,
+});
 
 // This class orchestrates all RAFs in the UI. It ensures that there is only
 // one animation frame handler overall and that callbacks are called in
@@ -34,12 +43,12 @@ export class RafScheduler {
 
   // These happen at the end of full (DOM) animation frames.
   private postRedrawCallbacks = new Array<RedrawCallback>();
-  private syncDomRedrawFn: () => void = () => {};
   private hasScheduledNextFrame = false;
   private requestedFullRedraw = false;
   private isRedrawing = false;
   private _shutdown = false;
   private recordPerfStats = false;
+  private mounts = new Map<Element, m.ComponentTypes>();
 
   readonly perfStats = {
     rafActions: new PerfStats(),
@@ -49,16 +58,23 @@ export class RafScheduler {
     domRedraw: new PerfStats(),
   };
 
-  // Called by frontend/index.ts. syncDomRedrawFn is a function that invokes
-  // m.render() of the root UiMain component.
-  initialize(syncDomRedrawFn: () => void) {
-    this.syncDomRedrawFn = syncDomRedrawFn;
+  constructor() {
+    // Patch m.redraw() to our RAF full redraw.
+    const origSync = m.redraw.sync;
+    const redrawFn = () => this.scheduleFullRedraw('force');
+    redrawFn.sync = origSync;
+    m.redraw = redrawFn;
+
+    m.mount = this.mount.bind(this);
   }
 
   // Schedule re-rendering of virtual DOM and canvas.
   // If a callback is passed it will be executed after the DOM redraw has
   // completed.
-  scheduleFullRedraw(cb?: RedrawCallback) {
+  scheduleFullRedraw(force?: 'force', cb?: RedrawCallback) {
+    // If we are using autoredraw mode, make this function a no-op unless
+    // 'force' is passed.
+    if (AUTOREDRAW_FLAG.get() && force !== 'force') return;
     this.requestedFullRedraw = true;
     cb && this.postRedrawCallbacks.push(cb);
     this.maybeScheduleAnimationFrame(true);
@@ -88,6 +104,16 @@ export class RafScheduler {
     };
   }
 
+  mount(element: Element, component: m.ComponentTypes | null): void {
+    const mounts = this.mounts;
+    if (component === null) {
+      mounts.delete(element);
+    } else {
+      mounts.set(element, component);
+    }
+    this.syncDomRedrawMountEntry(element, component);
+  }
+
   shutdown() {
     this._shutdown = true;
   }
@@ -103,10 +129,35 @@ export class RafScheduler {
 
   private syncDomRedraw() {
     const redrawStart = performance.now();
-    this.syncDomRedrawFn();
+
+    for (const [element, component] of this.mounts.entries()) {
+      this.syncDomRedrawMountEntry(element, component);
+    }
+
     if (this.recordPerfStats) {
       this.perfStats.domRedraw.addValue(performance.now() - redrawStart);
     }
+  }
+
+  private syncDomRedrawMountEntry(
+    element: Element,
+    component: m.ComponentTypes | null,
+  ) {
+    // Mithril's render() function takes a third argument which tells us if a
+    // further redraw is needed (e.g. due to managed event handler). This allows
+    // us to implement auto-redraw. The redraw argument is documented in the
+    // official Mithril docs but is just not part of the @types/mithril package.
+    const mithrilRender = m.render as (
+      el: Element,
+      vnodes: m.Children,
+      redraw?: () => void,
+    ) => void;
+
+    mithrilRender(
+      element,
+      component !== null ? m(component) : null,
+      AUTOREDRAW_FLAG.get() ? () => raf.scheduleFullRedraw('force') : undefined,
+    );
   }
 
   private syncCanvasRedraw() {

@@ -352,7 +352,9 @@ class HiringBanner implements m.ClassComponent {
 }
 
 export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
-  private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
+  private _redrawWhileAnimating = new Animation(() =>
+    raf.scheduleFullRedraw('force'),
+  );
   private _asyncJobPending = new Set<string>();
   private _sectionExpanded = new Map<string, boolean>();
 
@@ -523,7 +525,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
       raf.scheduleFullRedraw();
       res.finally(() => {
         this._asyncJobPending.delete(itemId);
-        raf.scheduleFullRedraw();
+        raf.scheduleFullRedraw('force');
       });
     };
   }
