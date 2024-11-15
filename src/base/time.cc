@@ -188,10 +188,15 @@ void InitializeTime() {}
 std::string GetTimeFmt(const std::string& fmt) {
   time_t raw_time;
   time(&raw_time);
-  struct tm* local_tm;
-  local_tm = localtime(&raw_time);
+  struct tm local_tm;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  PERFETTO_CHECK(localtime_s(&local_tm, &raw_time) == 0);
+#else
+  tzset();
+  PERFETTO_CHECK(localtime_r(&raw_time, &local_tm) != nullptr);
+#endif
   char buf[128];
-  PERFETTO_CHECK(strftime(buf, 80, fmt.c_str(), local_tm) > 0);
+  PERFETTO_CHECK(strftime(buf, 80, fmt.c_str(), &local_tm) > 0);
   return buf;
 }
 
