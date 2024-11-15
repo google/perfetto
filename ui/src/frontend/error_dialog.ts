@@ -242,7 +242,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
       this.uploadStatus = '';
       const uploader = new GcsUploader(this.traceData, {
         onProgress: () => {
-          raf.scheduleFullRedraw();
+          raf.scheduleFullRedraw('force');
           this.uploadStatus = uploader.getEtaString();
           if (uploader.state === 'UPLOADED') {
             this.traceState = 'UPLOADED';

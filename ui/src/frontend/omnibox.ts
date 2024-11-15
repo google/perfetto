@@ -328,7 +328,13 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     document.removeEventListener('mousedown', this.onMouseDown);
   }
 
+  // This is defined as an arrow function to have a single handler that can be
+  // added/remove while keeping `this` bound.
   private onMouseDown = (e: Event) => {
+    // We need to schedule a redraw manually as this event handler was added
+    // manually to the DOM and doesn't use Mithril's auto-redraw system.
+    raf.scheduleFullRedraw('force');
+
     // Don't close if the click was within ourselves or our popup.
     if (e.target instanceof Node) {
       if (this.popupElement && this.popupElement.contains(e.target)) {
