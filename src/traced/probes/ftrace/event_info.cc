@@ -5061,6 +5061,16 @@ std::vector<Event> GetStaticEventInfo() {
        kUnsetFtraceId,
        544,
        kUnsetSize},
+      {"open_exec",
+       "fs",
+       {
+           {kUnsetOffset, kUnsetSize, FtraceFieldType::kInvalidFtraceFieldType,
+            "filename", 1, ProtoSchemaType::kString,
+            TranslationStrategy::kInvalidTranslationStrategy},
+       },
+       kUnsetFtraceId,
+       545,
+       kUnsetSize},
       {"print",
        "ftrace",
        {
