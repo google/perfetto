@@ -147,7 +147,7 @@ class LinuxSysfsPower(TestSuite):
         packet {
           timestamp: 4000000
           battery {
-            current_ua: 510000
+            current_ua: -510000
             voltage_uv: 12000000
           }
         }
