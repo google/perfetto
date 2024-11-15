@@ -208,7 +208,7 @@ export abstract class EngineBase implements Engine, Disposable {
     let isFinalResponse = true;
 
     switch (rpc.response) {
-      case TPM.TPM_APPEND_TRACE_DATA:
+      case TPM.TPM_APPEND_TRACE_DATA: {
         const appendResult = assertExists(rpc.appendResult);
         const pendingPromise = assertExists(this.pendingParses.shift());
         if (exists(appendResult.error) && appendResult.error.length > 0) {
@@ -217,9 +217,17 @@ export abstract class EngineBase implements Engine, Disposable {
           pendingPromise.resolve();
         }
         break;
-      case TPM.TPM_FINALIZE_TRACE_DATA:
-        assertExists(this.pendingEOFs.shift()).resolve();
+      }
+      case TPM.TPM_FINALIZE_TRACE_DATA: {
+        const finalizeResult = assertExists(rpc.finalizeDataResult);
+        const pendingPromise = assertExists(this.pendingEOFs.shift());
+        if (exists(finalizeResult.error) && finalizeResult.error.length > 0) {
+          pendingPromise.reject(finalizeResult.error);
+        } else {
+          pendingPromise.resolve();
+        }
         break;
+      }
       case TPM.TPM_RESET_TRACE_PROCESSOR:
         assertExists(this.pendingResetTraceProcessors.shift()).resolve();
         break;
