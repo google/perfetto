@@ -27,11 +27,14 @@ import {TrackRenderContext} from '../../public/track';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
+const RECT_WIDTH = 8;
 const TRACK_HEIGHT = RECT_HEIGHT + 2 * MARGIN;
 
-export interface Data extends TrackData {
-  timestamps: BigInt64Array;
-  names: string[];
+interface Data extends TrackData {
+  events: Array<{
+    timestamp: time;
+    color: string;
+  }>;
 }
 
 export interface Config {
@@ -92,21 +95,22 @@ export class FtraceRawTrack implements Track {
       order by tsQuant limit ${LIMIT};`);
 
     const rowCount = queryRes.numRows();
-    const result: Data = {
+
+    const it = queryRes.iter({tsQuant: LONG, name: STR});
+    const events = [];
+    for (let row = 0; it.valid(); it.next(), row++) {
+      events.push({
+        timestamp: Time.fromRaw(it.tsQuant),
+        color: colorForFtrace(it.name).base.cssString,
+      });
+    }
+    return {
       start,
       end,
       resolution,
       length: rowCount,
-      timestamps: new BigInt64Array(rowCount),
-      names: [],
+      events,
     };
-
-    const it = queryRes.iter({tsQuant: LONG, name: STR});
-    for (let row = 0; it.valid(); it.next(), row++) {
-      result.timestamps[row] = it.tsQuant;
-      result.names[row] = it.name;
-    }
-    return result;
   }
 
   render({ctx, size, timescale}: TrackRenderContext): void {
@@ -125,21 +129,10 @@ export class FtraceRawTrack implements Track {
       dataStartPx,
       dataEndPx,
     );
-
-    const diamondSideLen = RECT_HEIGHT / Math.sqrt(2);
-
-    for (let i = 0; i < data.timestamps.length; i++) {
-      const name = data.names[i];
-      ctx.fillStyle = colorForFtrace(name).base.cssString;
-      const timestamp = Time.fromRaw(data.timestamps[i]);
-      const xPos = Math.floor(timescale.timeToPx(timestamp));
-
-      // Draw a diamond over the event
-      ctx.save();
-      ctx.translate(xPos, MARGIN);
-      ctx.rotate(Math.PI / 4);
-      ctx.fillRect(0, 0, diamondSideLen, diamondSideLen);
-      ctx.restore();
+    for (const e of data.events) {
+      ctx.fillStyle = e.color;
+      const xPos = Math.floor(timescale.timeToPx(e.timestamp));
+      ctx.fillRect(xPos - RECT_WIDTH / 2, MARGIN, RECT_WIDTH, RECT_HEIGHT);
     }
   }
 }
