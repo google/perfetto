@@ -20,10 +20,11 @@ import {checkerboardExcept} from '../../frontend/checkerboard';
 import {TrackData} from '../../common/track_data';
 import {Engine} from '../../trace_processor/engine';
 import {Track} from '../../public/track';
-import {LONG, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
 import {Monitor} from '../../base/monitor';
 import {TrackRenderContext} from '../../public/track';
+import {Ds} from '../../trace_processor/dataset';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
@@ -51,6 +52,25 @@ export class FtraceRawTrack implements Track {
     this.store = store;
 
     this.monitor = new Monitor([() => store.state]);
+  }
+
+  getDataset(): Ds.Dataset {
+    return {
+      // 'ftrace_event' doesn't have a dur column, but injecting dur=0 (all
+      // ftrace events are effectively 'instant') allows us to participate in
+      // generic slice aggregations
+      src: 'select id, ts, 0 as dur, name from ftrace_event',
+      schema: {
+        id: NUM,
+        name: STR,
+        ts: LONG,
+        dur: LONG,
+      },
+      filter: {
+        col: 'cpu',
+        eq: this.cpu,
+      },
+    };
   }
 
   async onUpdate({
