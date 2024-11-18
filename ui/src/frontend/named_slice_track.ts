@@ -30,7 +30,7 @@ import {NewTrackArgs} from './track';
 import {renderDuration} from './widgets/duration';
 import {TraceImpl} from '../core/trace_impl';
 import {assertIsInstance} from '../base/logging';
-import {Ds} from '../trace_processor/dataset';
+import {SourceDataset, Dataset} from '../trace_processor/dataset';
 
 export const NAMED_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -82,8 +82,8 @@ export abstract class NamedSliceTrack<
     return new ThreadSliceDetailsPanel(assertIsInstance(this.trace, TraceImpl));
   }
 
-  override getDataset(): Ds.Dataset | undefined {
-    return {
+  override getDataset(): Dataset | undefined {
+    return new SourceDataset({
       src: this.getSqlSource(),
       schema: {
         id: NUM,
@@ -91,6 +91,6 @@ export abstract class NamedSliceTrack<
         ts: LONG,
         dur: LONG,
       },
-    };
+    });
   }
 }
