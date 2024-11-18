@@ -256,19 +256,21 @@ jank_types (2:.perfetto.protos.AndroidFrameTimelineMetric.JankTypeMetricR	ja
 pid (Rpid
 subject (	Rsubject
 ts (Rts
-ú
-1protos/perfetto/metrics/android/batt_metric.protoperfetto.protos"³
+¦	
+1protos/perfetto/metrics/android/batt_metric.protoperfetto.protos"ß
 AndroidBatteryMetric`
 battery_counters (25.perfetto.protos.AndroidBatteryMetric.BatteryCountersRbatteryCountersf
 battery_aggregates (27.perfetto.protos.AndroidBatteryMetric.BatteryAggregatesRbatteryAggregatesZ
-suspend_period (23.perfetto.protos.AndroidBatteryMetric.SuspendPeriodRsuspendPeriodÒ
+suspend_period (23.perfetto.protos.AndroidBatteryMetric.SuspendPeriodRsuspendPeriodñ
 BatteryCounters!
 timestamp_ns (RtimestampNs,
 charge_counter_uah (RchargeCounterUah)
 capacity_percent (RcapacityPercent
 
 current_ua (R	currentUa$
-current_avg_ua (RcurrentAvgUaÊ
+current_avg_ua (RcurrentAvgUa
+
+voltage_uv (R	voltageUv×
 BatteryAggregates-
 total_screen_off_ns (RtotalScreenOffNs+
 total_screen_on_ns (RtotalScreenOnNs/
@@ -279,9 +281,9 @@ current_ua (R	currentUa$
 sleep_screen_on_ns (RsleepScreenOnNs/
 sleep_screen_doze_ns (RsleepScreenDozeNs 
 avg_power_mw	 (R
-avgPowerMw2
-energy_usage_estimate
- (RenergyUsageEstimateS
+avgPowerMw?
+avg_power_from_charge_diff_mw
+ (RavgPowerFromChargeDiffMwS
 SuspendPeriod!
 timestamp_ns (RtimestampNs
 duration_ns (R
