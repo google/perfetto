@@ -24,7 +24,7 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
 import {Monitor} from '../../base/monitor';
 import {TrackRenderContext} from '../../public/track';
-import {Ds} from '../../trace_processor/dataset';
+import {SourceDataset, Dataset} from '../../trace_processor/dataset';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
@@ -57,8 +57,8 @@ export class FtraceRawTrack implements Track {
     this.monitor = new Monitor([() => store.state]);
   }
 
-  getDataset(): Ds.Dataset {
-    return {
+  getDataset(): Dataset {
+    return new SourceDataset({
       // 'ftrace_event' doesn't have a dur column, but injecting dur=0 (all
       // ftrace events are effectively 'instant') allows us to participate in
       // generic slice aggregations
@@ -73,7 +73,7 @@ export class FtraceRawTrack implements Track {
         col: 'cpu',
         eq: this.cpu,
       },
-    };
+    });
   }
 
   async onUpdate({

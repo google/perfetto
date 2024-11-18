@@ -14,12 +14,12 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
-import {Ds} from '../../trace_processor/dataset';
 import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {TrackEventDetails} from '../../public/selection';
 import {Slice} from '../../public/track';
+import {SourceDataset, Dataset} from '../../trace_processor/dataset';
 import {
   LONG,
   LONG_NULL,
@@ -112,8 +112,8 @@ export class AsyncSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
     };
   }
 
-  override getDataset(): Ds.Dataset {
-    return {
+  override getDataset(): Dataset {
+    return new SourceDataset({
       src: `slice`,
       filter: {
         col: 'track_id',
@@ -126,6 +126,6 @@ export class AsyncSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
         dur: LONG,
         parent_id: NUM_NULL,
       },
-    };
+    });
   }
 }
