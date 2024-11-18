@@ -69,7 +69,7 @@ function updateTOC() {
     toc.appendChild(li);
     doAfterLoadEvent(() => {
       tocAnchors.push(
-          {top: anchor.offsetTop + anchor.offsetHeight / 2, obj: link});
+        { top: anchor.offsetTop + anchor.offsetHeight / 2, obj: link });
     });
   }
   tocContainer.innerHTML = '';
@@ -81,7 +81,7 @@ function updateTOC() {
     return;
   tocEventHandlersInstalled = true;
   const doc = document.querySelector('.doc');
-  const passive = {passive: true};
+  const passive = { passive: true };
   if (doc) {
     const offY = doc.offsetTop;
     doc.addEventListener('mousemove', (e) => onMouseMove(offY, e), passive);
@@ -91,9 +91,9 @@ function updateTOC() {
   }
   window.addEventListener('scroll', () => onScroll(), passive);
   resizeObserver = new ResizeObserver(() => requestAnimationFrame(() => {
-                                        updateNav();
-                                        updateTOC();
-                                      }));
+    updateNav();
+    updateTOC();
+  }));
   resizeObserver.observe(doc);
 }
 
@@ -235,7 +235,7 @@ function initMermaid() {
 
 function setupSearch() {
   const URL =
-      'https://www.googleapis.com/customsearch/v1?key=AIzaSyBTD2XJkQkkuvDn76LSftsgWOkdBz9Gfwo&cx=007128963598137843411:8suis14kcmy&q='
+    'https://www.googleapis.com/customsearch/v1?key=AIzaSyBTD2XJkQkkuvDn76LSftsgWOkdBz9Gfwo&cx=007128963598137843411:8suis14kcmy&q='
   const searchContainer = document.getElementById('search');
   const searchBox = document.getElementById('search-box');
   const searchRes = document.getElementById('search-res')
