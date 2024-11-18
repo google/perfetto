@@ -15,13 +15,13 @@ generated through the
 
 At the UI level system calls are shown inlined with the per-thread slice tracks:
 
-![](/docs/images/syscalls.png "System calls in the thread tracks")
+![](/docs/images/syscalls.png 'System calls in the thread tracks')
 
 ## SQL
 
 At the SQL level, syscalls are no different than any other userspace slice
 event. They get interleaved in the per-thread slice stack and can be easily
-filtered by looking for the 'sys_' prefix:
+filtered by looking for the 'sys\_' prefix:
 
 ```sql
 select ts, dur, t.name as thread, s.name, depth from slices as s
@@ -30,14 +30,14 @@ left join thread as t on tt.utid = t.utid
 where s.name like 'sys_%'
 ```
 
-ts | dur | thread | name 
----|-----|--------|------
-856325324372751 | 439867648 | s.nexuslauncher | sys_epoll_pwait
-856325324376970 | 990 | FpsThrottlerThr | sys_recvfrom
-856325324378376 | 2657 | surfaceflinger | sys_ioctl
-856325324419574 | 1250 | android.anim.lf | sys_recvfrom
-856325324428168 | 27344 | android.anim.lf | sys_ioctl
-856325324451345 | 573 | FpsThrottlerThr | sys_getuid
+| ts              | dur       | thread          | name            |
+| --------------- | --------- | --------------- | --------------- |
+| 856325324372751 | 439867648 | s.nexuslauncher | sys_epoll_pwait |
+| 856325324376970 | 990       | FpsThrottlerThr | sys_recvfrom    |
+| 856325324378376 | 2657      | surfaceflinger  | sys_ioctl       |
+| 856325324419574 | 1250      | android.anim.lf | sys_recvfrom    |
+| 856325324428168 | 27344     | android.anim.lf | sys_ioctl       |
+| 856325324451345 | 573       | FpsThrottlerThr | sys_getuid      |
 
 ## TraceConfig
 
