@@ -13654,6 +13654,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/views.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/tables.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/trace_bounds.sql",
+        "src/trace_processor/perfetto_sql/stdlib/sched/latency.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/runnable.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/states.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_executing_span.sql",
