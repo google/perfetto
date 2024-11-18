@@ -14,12 +14,19 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
+import {Ds} from '../../trace_processor/dataset';
 import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {TrackEventDetails} from '../../public/selection';
 import {Slice} from '../../public/track';
-import {LONG_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../trace_processor/query_result';
 
 export const THREAD_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -102,6 +109,23 @@ export class AsyncSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
     return {
       ...baseDetails,
       tableName: 'slice',
+    };
+  }
+
+  override getDataset(): Ds.Dataset {
+    return {
+      src: `slice`,
+      filter: {
+        col: 'track_id',
+        in: this.trackIds,
+      },
+      schema: {
+        id: NUM,
+        name: STR,
+        ts: LONG,
+        dur: LONG,
+        parent_id: NUM_NULL,
+      },
     };
   }
 }

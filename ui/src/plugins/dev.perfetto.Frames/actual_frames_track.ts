@@ -102,6 +102,15 @@ export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
       tableName: 'slice',
     };
   }
+
+  // Override dataset from base class NamedSliceTrack as we don't want these
+  // tracks to participate in generic area selection aggregation (frames tracks
+  // have their own dedicated aggregation panel).
+  // TODO(stevegolton): In future CLs this will be handled with aggregation keys
+  // instead, as this track will have to expose a dataset anyway.
+  override getDataset() {
+    return undefined;
+  }
 }
 
 function getColorSchemeForJank(

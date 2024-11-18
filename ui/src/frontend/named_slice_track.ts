@@ -16,7 +16,7 @@ import {getColorForSlice} from '../public/lib/colorizer';
 import {TrackEventDetailsPanel} from '../public/details_panel';
 import {TrackEventSelection} from '../public/selection';
 import {Slice} from '../public/track';
-import {STR_NULL} from '../trace_processor/query_result';
+import {LONG, NUM, STR, STR_NULL} from '../trace_processor/query_result';
 import {
   BASE_ROW,
   BaseSliceTrack,
@@ -30,6 +30,7 @@ import {NewTrackArgs} from './track';
 import {renderDuration} from './widgets/duration';
 import {TraceImpl} from '../core/trace_impl';
 import {assertIsInstance} from '../base/logging';
+import {Ds} from '../trace_processor/dataset';
 
 export const NAMED_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -79,5 +80,17 @@ export abstract class NamedSliceTrack<
     // TraceImpl (because of flows) but here we must take a Trace interface,
     // because this class is exposed to plugins (which see only Trace).
     return new ThreadSliceDetailsPanel(assertIsInstance(this.trace, TraceImpl));
+  }
+
+  override getDataset(): Ds.Dataset | undefined {
+    return {
+      src: this.getSqlSource(),
+      schema: {
+        id: NUM,
+        name: STR,
+        ts: LONG,
+        dur: LONG,
+      },
+    };
   }
 }
