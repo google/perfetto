@@ -12,168 +12,158 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Ds} from './dataset';
+import {SourceDataset, UnionDataset} from './dataset';
 import {LONG, NUM, STR} from './query_result';
 
 test('get query for simple dataset', () => {
-  const dataset: Ds.Dataset = {
+  const dataset = new SourceDataset({
     src: 'slice',
     schema: {id: NUM},
-  };
+  });
 
-  expect(Ds.query(dataset)).toEqual('select id from (slice)');
+  expect(dataset.query()).toEqual('select id from (slice)');
 });
 
 test("get query for simple dataset with 'eq' filter", () => {
-  const dataset: Ds.Dataset = {
+  const dataset = new SourceDataset({
     src: 'slice',
     schema: {id: NUM},
     filter: {
       col: 'id',
       eq: 123,
     },
-  };
+  });
 
-  expect(Ds.query(dataset)).toEqual('select id from (slice) where id = 123');
+  expect(dataset.query()).toEqual('select id from (slice) where id = 123');
 });
 
 test("get query for simple dataset with an 'in' filter", () => {
-  const dataset: Ds.Dataset = {
+  const dataset = new SourceDataset({
     src: 'slice',
     schema: {id: NUM},
     filter: {
       col: 'id',
       in: [123, 456],
     },
-  };
+  });
 
-  expect(Ds.query(dataset)).toEqual(
+  expect(dataset.query()).toEqual(
     'select id from (slice) where id in (123,456)',
   );
 });
 
 test('get query for union dataset', () => {
-  const dataset: Ds.Dataset = {
-    union: [
-      {
-        src: 'slice',
-        schema: {id: NUM},
-        filter: {
-          col: 'id',
-          eq: 123,
-        },
+  const dataset = new UnionDataset([
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {
+        col: 'id',
+        eq: 123,
       },
-      {
-        src: 'slice',
-        schema: {id: NUM},
-        filter: {
-          col: 'id',
-          eq: 456,
-        },
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM},
+      filter: {
+        col: 'id',
+        eq: 456,
       },
-    ],
-  };
+    }),
+  ]);
 
-  expect(Ds.query(dataset)).toEqual(
+  expect(dataset.query()).toEqual(
     'select id from (slice) where id = 123 union all select id from (slice) where id = 456',
   );
 });
 
 test('doesImplement', () => {
-  const dataset = {
+  const dataset = new SourceDataset({
     src: 'slice',
     schema: {id: NUM, ts: LONG},
-  };
+  });
 
-  expect(Ds.doesImplement(dataset, {id: NUM})).toBe(true);
-  expect(Ds.doesImplement(dataset, {id: NUM, ts: LONG})).toBe(true);
-  expect(Ds.doesImplement(dataset, {id: NUM, ts: LONG, name: STR})).toBe(false);
-  expect(Ds.doesImplement(dataset, {id: LONG})).toBe(false);
+  expect(dataset.implements({id: NUM})).toBe(true);
+  expect(dataset.implements({id: NUM, ts: LONG})).toBe(true);
+  expect(dataset.implements({id: NUM, ts: LONG, name: STR})).toBe(false);
+  expect(dataset.implements({id: LONG})).toBe(false);
 });
 
 test('find the schema of a simple dataset', () => {
-  const dataset: Ds.Dataset = {
+  const dataset = new SourceDataset({
     src: 'slice',
     schema: {id: NUM, ts: LONG},
-  };
+  });
 
-  expect(Ds.schema(dataset)).toMatchObject({id: NUM, ts: LONG});
+  expect(dataset.schema).toMatchObject({id: NUM, ts: LONG});
 });
 
 test('find the schema of a union where source sets differ in their names', () => {
-  const dataset: Ds.Dataset = {
-    union: [
-      {
-        src: 'slice',
-        schema: {foo: NUM},
-      },
-      {
-        src: 'slice',
-        schema: {bar: NUM},
-      },
-    ],
-  };
+  const dataset = new UnionDataset([
+    new SourceDataset({
+      src: 'slice',
+      schema: {foo: NUM},
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {bar: NUM},
+    }),
+  ]);
 
-  expect(Ds.schema(dataset)).toMatchObject({});
+  expect(dataset.schema).toMatchObject({});
 });
 
 test('find the schema of a union with differing source sets', () => {
-  const dataset: Ds.Dataset = {
-    union: [
-      {
-        src: 'slice',
-        schema: {foo: NUM},
-      },
-      {
-        src: 'slice',
-        schema: {foo: LONG},
-      },
-    ],
-  };
+  const dataset = new UnionDataset([
+    new SourceDataset({
+      src: 'slice',
+      schema: {foo: NUM},
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {foo: LONG},
+    }),
+  ]);
 
-  expect(Ds.schema(dataset)).toMatchObject({});
+  expect(dataset.schema).toMatchObject({});
 });
 
 test('find the schema of a union with one column in common', () => {
-  const dataset: Ds.Dataset = {
-    union: [
-      {
-        src: 'slice',
-        schema: {foo: NUM, bar: NUM},
-      },
-      {
-        src: 'slice',
-        schema: {foo: NUM, baz: NUM},
-      },
-    ],
-  };
+  const dataset = new UnionDataset([
+    new SourceDataset({
+      src: 'slice',
+      schema: {foo: NUM, bar: NUM},
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {foo: NUM, baz: NUM},
+    }),
+  ]);
 
-  expect(Ds.schema(dataset)).toMatchObject({foo: NUM});
+  expect(dataset.schema).toMatchObject({foo: NUM});
 });
 
 test('optimize a union dataset', () => {
-  const dataset: Ds.Dataset = {
-    union: [
-      {
-        src: 'slice',
-        schema: {},
-        filter: {
-          col: 'track_id',
-          eq: 123,
-        },
+  const dataset = new UnionDataset([
+    new SourceDataset({
+      src: 'slice',
+      schema: {},
+      filter: {
+        col: 'track_id',
+        eq: 123,
       },
-      {
-        src: 'slice',
-        schema: {},
-        filter: {
-          col: 'track_id',
-          eq: 456,
-        },
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {},
+      filter: {
+        col: 'track_id',
+        eq: 456,
       },
-    ],
-  };
+    }),
+  ]);
 
-  expect(Ds.optimize(dataset)).toEqual({
+  expect(dataset.optimize()).toEqual({
     src: 'slice',
     schema: {},
     filter: {
@@ -184,28 +174,26 @@ test('optimize a union dataset', () => {
 });
 
 test('optimize a union dataset with different types of filters', () => {
-  const dataset: Ds.Dataset = {
-    union: [
-      {
-        src: 'slice',
-        schema: {},
-        filter: {
-          col: 'track_id',
-          eq: 123,
-        },
+  const dataset = new UnionDataset([
+    new SourceDataset({
+      src: 'slice',
+      schema: {},
+      filter: {
+        col: 'track_id',
+        eq: 123,
       },
-      {
-        src: 'slice',
-        schema: {},
-        filter: {
-          col: 'track_id',
-          in: [456, 789],
-        },
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {},
+      filter: {
+        col: 'track_id',
+        in: [456, 789],
       },
-    ],
-  };
+    }),
+  ]);
 
-  expect(Ds.optimize(dataset)).toEqual({
+  expect(dataset.optimize()).toEqual({
     src: 'slice',
     schema: {},
     filter: {
@@ -216,20 +204,18 @@ test('optimize a union dataset with different types of filters', () => {
 });
 
 test('optimize a union dataset with different schemas', () => {
-  const dataset: Ds.Dataset = {
-    union: [
-      {
-        src: 'slice',
-        schema: {foo: NUM},
-      },
-      {
-        src: 'slice',
-        schema: {bar: NUM},
-      },
-    ],
-  };
+  const dataset = new UnionDataset([
+    new SourceDataset({
+      src: 'slice',
+      schema: {foo: NUM},
+    }),
+    new SourceDataset({
+      src: 'slice',
+      schema: {bar: NUM},
+    }),
+  ]);
 
-  expect(Ds.optimize(dataset)).toEqual({
+  expect(dataset.optimize()).toEqual({
     src: 'slice',
     // The resultant schema is the combination of the union's member's schemas,
     // as we know the source is the same as we know we can get all of the 'seen'
