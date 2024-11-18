@@ -88,7 +88,9 @@ type Special =
   | 'ArrowLeft'
   | 'ArrowRight'
   | '['
-  | ']';
+  | ']'
+  | ','
+  | '.';
 export type Key = Alphabet | Number | Special;
 export type Modifier =
   | ''
