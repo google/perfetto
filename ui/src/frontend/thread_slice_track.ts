@@ -16,13 +16,13 @@ import {BigintMath as BIMath} from '../base/bigint_math';
 import {clamp} from '../base/math_utils';
 import {NAMED_ROW, NamedSliceTrack} from './named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
-import {NewTrackArgs} from './track';
 import {LONG_NULL} from '../trace_processor/query_result';
 import {Slice} from '../public/track';
 import {TrackEventDetails} from '../public/selection';
 import {ThreadSliceDetailsPanel} from './thread_slice_details_tab';
 import {TraceImpl} from '../core/trace_impl';
 import {assertIsInstance} from '../base/logging';
+import {Trace} from '../public/trace';
 
 export const THREAD_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -35,12 +35,13 @@ export type ThreadSliceRow = typeof THREAD_SLICE_ROW;
 
 export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
   constructor(
-    args: NewTrackArgs,
-    private trackId: number,
+    trace: Trace,
+    uri: string,
+    private readonly trackId: number,
     maxDepth: number,
-    private tableName: string = 'slice',
+    private readonly tableName: string = 'slice',
   ) {
-    super(args);
+    super(trace, uri);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,

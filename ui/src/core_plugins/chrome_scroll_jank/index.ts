@@ -95,10 +95,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new TopLevelScrollTrack({
-        trace: ctx,
-        uri,
-      }),
+      track: new TopLevelScrollTrack(ctx, uri),
     });
 
     const track = new TrackNode({uri, title});
@@ -207,7 +204,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new EventLatencyTrack({trace: ctx, uri}, baseTable),
+      track: new EventLatencyTrack(ctx, uri, baseTable),
     });
 
     const track = new TrackNode({uri, title});
@@ -228,10 +225,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new ScrollJankV3Track({
-        trace: ctx,
-        uri,
-      }),
+      track: new ScrollJankV3Track(ctx, uri),
     });
 
     const track = new TrackNode({uri, title});

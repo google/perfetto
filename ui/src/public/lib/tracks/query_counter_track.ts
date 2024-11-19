@@ -109,11 +109,7 @@ class SqlTableCounterTrack extends BaseCounterTrack {
     private readonly sqlTableName: string,
     options?: Partial<CounterOptions>,
   ) {
-    super({
-      trace,
-      uri,
-      options,
-    });
+    super(trace, uri, options);
   }
 
   getSqlSource(): string {

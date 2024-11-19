@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {NamedRow} from '../../frontend/named_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
 import {Slice} from '../../public/track';
 import {
   CustomSqlTableDefConfig,
@@ -22,15 +21,17 @@ import {
 import {JANK_COLOR} from './jank_colors';
 import {TrackEventSelection} from '../../public/selection';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
+import {Trace} from '../../public/trace';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
 export class EventLatencyTrack extends CustomSqlTableSliceTrack {
   constructor(
-    args: NewTrackArgs,
+    trace: Trace,
+    uri: string,
     private baseTable: string,
   ) {
-    super(args);
+    super(trace, uri);
   }
 
   getSqlSource(): string {

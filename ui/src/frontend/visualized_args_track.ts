@@ -46,7 +46,7 @@ export class VisualizedArgsTrack extends ThreadSliceTrack {
     const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
     const viewName = `__arg_visualisation_helper_${escapedArgName}_${uuid}_slice`;
 
-    super({trace, uri}, trackId, maxDepth, viewName);
+    super(trace, uri, trackId, maxDepth, viewName);
     this.viewName = viewName;
     this.argName = argName;
     this.onClose = onClose;

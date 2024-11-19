@@ -35,10 +35,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: new ScreenshotsTrack({
-          trace: ctx,
-          uri,
-        }),
+        track: new ScreenshotsTrack(ctx, uri),
         tags: {
           kind: ScreenshotsTrack.kind,
         },
