@@ -17,6 +17,13 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackDescriptor} from '../../public/track';
 import {z} from 'zod';
+import {
+  base64Decode,
+  base64Encode,
+  utf8Decode,
+  utf8Encode,
+} from '../../base/string_utils';
+import {assertExists} from '../../base/logging';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -41,40 +48,85 @@ export default class implements PerfettoPlugin {
       id: `${PLUGIN_ID}#save`,
       name: 'Save: Pinned tracks',
       callback: () => {
-        this.saveTracks();
+        this.savedState = {
+          ...this.savedState,
+          tracks: this.getCurrentPinnedTracks(),
+        };
       },
     });
     ctx.commands.registerCommand({
       id: RESTORE_COMMAND_ID,
       name: 'Restore: Pinned tracks',
       callback: () => {
-        this.restoreTracks();
+        const tracks = this.savedState?.tracks;
+        if (!tracks) {
+          alert('No saved tracks. Use the Save command first');
+          return;
+        }
+        this.restoreTracks(tracks);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: `${PLUGIN_ID}#saveByName`,
+      name: 'Save by name: Pinned tracks',
+      callback: async () => {
+        const res = await this.ctx.omnibox.prompt(
+          'Give a name to the pinned set of tracks',
+        );
+        if (res) {
+          const rawTracksByName = this.savedState?.tracksByName ?? [];
+          const tracksByNameMap = new Map(
+            rawTracksByName.map((x) => [x.name, x.tracks]),
+          );
+          tracksByNameMap.set(
+            base64Encode(utf8Encode(res)),
+            this.getCurrentPinnedTracks(),
+          );
+          this.savedState = {
+            ...this.savedState,
+            tracksByName: Array.from(tracksByNameMap.entries()).map(
+              ([k, v]) => ({
+                name: k,
+                tracks: v,
+              }),
+            ),
+          };
+        }
+      },
+    });
+    ctx.commands.registerCommand({
+      id: `${PLUGIN_ID}#restoreByName`,
+      name: 'Restore by name: Pinned tracks',
+      callback: async () => {
+        const tracksByName = this.savedState?.tracksByName ?? [];
+        if (tracksByName.length === 0) {
+          alert('No saved tracks. Use the Save by name command first');
+          return;
+        }
+        const res = await this.ctx.omnibox.prompt(
+          'Select name of set of pinned tracks to restore',
+          tracksByName.map((x) => ({
+            key: x.name,
+            displayName: utf8Decode(base64Decode(x.name)),
+          })),
+        );
+        if (res) {
+          const tracks = assertExists(
+            tracksByName.find((x) => x.name === res)?.tracks,
+          );
+          this.restoreTracks(tracks);
+        }
       },
     });
   }
 
-  private saveTracks() {
-    this.savedState = {
-      tracks: this.ctx.workspace.pinnedTracks.map((track) =>
-        this.toSavedTrack(track),
-      ),
-    };
-  }
-
-  private restoreTracks() {
-    const savedState = this.savedState;
-    if (!savedState) {
-      alert('No saved tracks. Use the Save command first');
-      return;
-    }
-
-    const localTracks: Array<LocalTrack> = this.ctx.workspace.flatTracks.map(
-      (track) => ({
-        savedTrack: this.toSavedTrack(track),
-        track: track,
-      }),
-    );
-    savedState.tracks.forEach((trackToRestore) => {
+  private restoreTracks(tracks: ReadonlyArray<SavedPinnedTrack>) {
+    const localTracks = this.ctx.workspace.flatTracks.map((track) => ({
+      savedTrack: this.toSavedTrack(track),
+      track: track,
+    }));
+    tracks.forEach((trackToRestore) => {
       const foundTrack = this.findMatchingTrack(localTracks, trackToRestore);
       if (foundTrack) {
         foundTrack.pin();
@@ -85,6 +137,12 @@ export default class implements PerfettoPlugin {
         );
       }
     });
+  }
+
+  private getCurrentPinnedTracks() {
+    return this.ctx.workspace.pinnedTracks.map((track) =>
+      this.toSavedTrack(track),
+    );
   }
 
   private findMatchingTrack(
@@ -256,7 +314,20 @@ const SAVED_PINNED_TRACK_SCHEMA = z
 type SavedPinnedTrack = z.infer<typeof SAVED_PINNED_TRACK_SCHEMA>;
 
 const SAVED_STATE_SCHEMA = z
-  .object({tracks: z.array(SAVED_PINNED_TRACK_SCHEMA).readonly()})
+  .object({
+    tracks: z.array(SAVED_PINNED_TRACK_SCHEMA).optional().readonly(),
+    tracksByName: z
+      .array(
+        z
+          .object({
+            name: z.string(),
+            tracks: z.array(SAVED_PINNED_TRACK_SCHEMA).readonly(),
+          })
+          .readonly(),
+      )
+      .optional()
+      .readonly(),
+  })
   .readonly();
 
 type SavedState = z.infer<typeof SAVED_STATE_SCHEMA>;
