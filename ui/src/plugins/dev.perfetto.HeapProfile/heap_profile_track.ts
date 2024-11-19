@@ -19,13 +19,13 @@ import {
   OnSliceClickArgs,
   OnSliceOverArgs,
 } from '../../frontend/base_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
 import {
   ProfileType,
   profileType,
   TrackEventDetails,
   TrackEventSelection,
 } from '../../public/selection';
+import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';
 import {LONG, STR} from '../../trace_processor/query_result';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
@@ -44,12 +44,13 @@ export class HeapProfileTrack extends BaseSliceTrack<
   HeapProfileRow
 > {
   constructor(
-    args: NewTrackArgs,
+    trace: Trace,
+    uri: string,
     private readonly tableName: string,
     private readonly upid: number,
     private readonly heapProfileIsIncomplete: boolean,
   ) {
-    super(args);
+    super(trace, uri);
   }
 
   getSqlSource(): string {

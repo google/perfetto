@@ -14,7 +14,6 @@
 
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {AsyncSliceTrack} from '../dev.perfetto.AsyncSlices/async_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -31,12 +30,13 @@ import AsyncSlicesPlugin from '../dev.perfetto.AsyncSlices';
 // TODO(stevegolton): Remove this?
 class SuspendResumeSliceTrack extends AsyncSliceTrack {
   constructor(
-    args: NewTrackArgs,
+    trace: Trace,
+    uri: string,
     maxDepth: number,
     trackIds: number[],
     private readonly threads: ThreadMap,
   ) {
-    super(args, maxDepth, trackIds);
+    super(trace, uri, maxDepth, trackIds);
   }
 
   onSliceClick(args: OnSliceClickArgs<Slice>) {
@@ -96,12 +96,7 @@ export default class implements PerfettoPlugin {
         trackIds,
         kind: SLICE_TRACK_KIND,
       },
-      track: new SuspendResumeSliceTrack(
-        {uri, trace: ctx},
-        maxDepth,
-        trackIds,
-        threads,
-      ),
+      track: new SuspendResumeSliceTrack(ctx, uri, maxDepth, trackIds, threads),
     });
 
     // Display the track in the UI.

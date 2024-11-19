@@ -39,10 +39,10 @@ export default class implements PerfettoPlugin {
         kind: CriticalUserInteractionTrack.kind,
       },
       title: 'Chrome Interactions',
-      track: new CriticalUserInteractionTrack({
-        trace: ctx,
-        uri: CriticalUserInteractionTrack.kind,
-      }),
+      track: new CriticalUserInteractionTrack(
+        ctx,
+        CriticalUserInteractionTrack.kind,
+      ),
     });
   }
 }

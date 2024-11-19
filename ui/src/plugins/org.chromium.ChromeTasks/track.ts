@@ -25,9 +25,9 @@ export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack {
   constructor(
     trace: Trace,
     uri: string,
-    private utid: Utid,
+    private readonly utid: Utid,
   ) {
-    super({trace, uri});
+    super(trace, uri);
   }
 
   getSqlDataSource(): CustomSqlTableDefConfig {

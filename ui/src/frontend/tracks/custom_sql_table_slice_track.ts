@@ -14,11 +14,11 @@
 
 import {generateSqlWithInternalLayout} from '../../trace_processor/sql_utils/layout';
 import {NAMED_ROW, NamedRow, NamedSliceTrack} from '../named_slice_track';
-import {NewTrackArgs} from '../track';
 import {createView} from '../../trace_processor/sql_utils';
 import {Slice} from '../../public/track';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {sqlNameSafe} from '../../base/string_utils';
+import {Trace} from '../../public/trace';
 
 export interface CustomSqlImportConfig {
   modules: string[];
@@ -39,9 +39,9 @@ export abstract class CustomSqlTableSliceTrack extends NamedSliceTrack<
 > {
   protected readonly tableName;
 
-  constructor(args: NewTrackArgs) {
-    super(args);
-    this.tableName = `customsqltableslicetrack_${sqlNameSafe(args.uri)}`;
+  constructor(trace: Trace, uri: string) {
+    super(trace, uri);
+    this.tableName = `customsqltableslicetrack_${sqlNameSafe(uri)}`;
   }
 
   getRowSpec(): NamedRow {

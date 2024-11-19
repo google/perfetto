@@ -55,7 +55,7 @@ export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
     uri: string,
     private trackIds: number[],
   ) {
-    super({trace, uri});
+    super(trace, uri);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
