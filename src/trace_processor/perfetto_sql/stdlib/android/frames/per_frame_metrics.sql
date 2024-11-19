@@ -16,6 +16,33 @@
 INCLUDE PERFETTO MODULE time.conversion;
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
+-- `actual_frame_timeline_slice` returns the same slice name for different layer IDs or tracks.
+-- This happens because there can be multiple slices associated with a single frame_id.
+-- We are interested in unique names(frame_id) and the respective counts.
+-- This is a legacy table which is moved to this file because the android_frames_overrun table depends on it.
+CREATE PERFETTO TABLE _frame_id_count_in_actual_timeline AS
+SELECT
+    cast_int!(name) AS frame_id,
+    MIN(id) AS id,
+    MIN(ts) AS ts,
+    MAX(dur) AS dur,
+    MAX(ts + dur) AS ts_end,
+    count() AS count
+FROM actual_frame_timeline_slice
+GROUP BY 1;
+
+-- `expected_frame_timeline_slice` returns the same slice name for different tracks.
+-- This happens because there can be multiple slices associated with a single frame_id.
+-- We are interested in unique names(frame_id) and the respective counts.
+-- This is a legacy table which is moved to this file because the android_frames_overrun table depends on it.
+CREATE PERFETTO TABLE _frame_id_count_in_expected_timeline AS
+SELECT
+    cast_int!(name) AS frame_id,
+    id,
+    count() AS count
+FROM expected_frame_timeline_slice
+GROUP BY 1;
+
 -- The amount by which each frame missed of hit its deadline. Negative if the
 -- deadline was not missed. Frames are considered janky if `overrun` is
 -- positive.
@@ -34,8 +61,8 @@ CREATE PERFETTO TABLE android_frames_overrun(
 SELECT
     frame_id,
     (act_slice.ts + act_slice.dur) - (exp_slice.ts + exp_slice.dur) AS overrun
-FROM _distinct_from_actual_timeline_slice act
-JOIN _distinct_from_expected_timeline_slice exp USING (frame_id)
+FROM _frame_id_count_in_actual_timeline act
+JOIN _frame_id_count_in_expected_timeline exp USING (frame_id)
 JOIN slice act_slice ON (act.id = act_slice.id)
 JOIN slice exp_slice ON (exp.id = exp_slice.id);
 
