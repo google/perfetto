@@ -77,6 +77,8 @@ message ChromeThreadDescriptor {
 
     THREAD_MEMORY_INFRA = 50;
     THREAD_SAMPLING_PROFILER = 51;
+
+    THREAD_COMPOSITOR_GPU = 52;
   };
 
   optional ThreadType thread_type = 1;
