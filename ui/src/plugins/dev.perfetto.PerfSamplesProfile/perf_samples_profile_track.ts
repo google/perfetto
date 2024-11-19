@@ -32,7 +32,7 @@ import {
   QueryFlamegraph,
 } from '../../public/lib/query_flamegraph';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {time} from '../../base/time';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';

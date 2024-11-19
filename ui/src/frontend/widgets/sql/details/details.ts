@@ -30,8 +30,8 @@ import {renderError} from '../../../../widgets/error';
 import {SqlRef} from '../../../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../../../widgets/tree';
 import {hasArgs, renderArguments} from '../../../slice_args';
-import {DurationWidget} from '../../../widgets/duration';
-import {Timestamp as TimestampWidget} from '../../../widgets/timestamp';
+import {DurationWidget} from '../../../../public/lib/widgets/duration';
+import {Timestamp as TimestampWidget} from '../../../../public/lib/widgets/timestamp';
 import {sqlIdRegistry} from './sql_ref_renderer_registry';
 import {Trace} from '../../../../public/trace';
 

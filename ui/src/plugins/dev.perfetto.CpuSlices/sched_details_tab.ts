@@ -19,8 +19,8 @@ import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {DurationWidget} from '../../frontend/widgets/duration';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {DurationWidget} from '../../public/lib/widgets/duration';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
 import {
   getSched,

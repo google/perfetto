@@ -26,10 +26,10 @@ import {
   SLICE_FLAGS_INSTANT,
 } from './base_slice_track';
 import {ThreadSliceDetailsPanel} from './thread_slice_details_tab';
-import {renderDuration} from './widgets/duration';
 import {TraceImpl} from '../core/trace_impl';
 import {assertIsInstance} from '../base/logging';
 import {SourceDataset, Dataset} from '../trace_processor/dataset';
+import {formatDuration} from '../public/lib/time_utils';
 import {Trace} from '../public/trace';
 
 export const NAMED_ROW = {
@@ -66,7 +66,7 @@ export abstract class NamedSliceTrack<
     } else if (flags & SLICE_FLAGS_INSTANT) {
       duration = 'Instant';
     } else {
-      duration = renderDuration(dur);
+      duration = formatDuration(this.trace, dur);
     }
     args.tooltip = [`${title} - [${duration}]`];
   }

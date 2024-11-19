@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Duration, duration, Time, time} from '../../base/time';
 import {hasArgs, renderArguments} from '../../frontend/slice_args';
-import {renderDetails} from '../../frontend/slice_details';
+import {renderDetails} from '../../public/lib/details/slice_details';
 import {
   getDescendantSliceTree,
   getSlice,

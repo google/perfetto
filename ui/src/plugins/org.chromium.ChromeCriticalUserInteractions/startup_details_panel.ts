@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
-import {DurationWidget} from '../../frontend/widgets/duration';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {DurationWidget} from '../../public/lib/widgets/duration';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';

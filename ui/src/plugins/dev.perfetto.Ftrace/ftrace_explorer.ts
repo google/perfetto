@@ -22,7 +22,7 @@ import {
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {FtraceFilter, FtraceStat} from './common';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';

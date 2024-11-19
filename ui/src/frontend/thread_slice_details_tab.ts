@@ -25,14 +25,14 @@ import {Section} from '../widgets/section';
 import {Tree} from '../widgets/tree';
 import {Flow, FlowPoint} from '../core/flow_types';
 import {hasArgs, renderArguments} from './slice_args';
-import {renderDetails} from './slice_details';
+import {renderDetails} from '../public/lib/details/slice_details';
 import {getSlice, SliceDetails} from '../trace_processor/sql_utils/slice';
 import {
   BreakdownByThreadState,
   breakDownIntervalByThreadState,
-} from './sql/thread_state';
+} from '../public/lib/details/thread_state';
 import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
-import {DurationWidget} from './widgets/duration';
+import {DurationWidget} from '../public/lib/widgets/duration';
 import {SliceRef} from './widgets/slice';
 import {BasicTable} from '../widgets/basic_table';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';

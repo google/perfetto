@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {time, Time} from '../base/time';
-import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
+import {timestampFormat} from '../core/timestamp_format';
 import {
   BACKGROUND_COLOR,
   FOREGROUND_COLOR,
@@ -23,10 +23,12 @@ import {
 import {getMaxMajorTicks, generateTicks, TickType} from './gridline_helper';
 import {Size2D} from '../base/geom';
 import {Panel} from './panel_container';
-import {renderDuration} from './widgets/duration';
 import {canvasClip} from '../base/canvas_utils';
 import {TimeScale} from '../base/time_scale';
 import {TraceImpl} from '../core/trace_impl';
+import {formatDuration} from '../public/lib/time_utils';
+import {TimestampFormat} from '../public/timeline';
+import {assertUnreachable} from '../base/logging';
 
 export interface BBox {
   x: number;
@@ -235,7 +237,7 @@ export class TimeSelectionPanel implements Panel {
   ) {
     const xLeft = timescale.timeToPx(start);
     const xRight = timescale.timeToPx(end);
-    const label = renderDuration(end - start);
+    const label = formatDuration(this.trace, end - start);
     drawHBar(
       ctx,
       {
@@ -273,12 +275,11 @@ function stringifyTimestamp(time: time): string {
       return time.toLocaleString();
     case TimestampFormat.Seconds:
       return Time.formatSeconds(time);
-    case TimestampFormat.Milliseoncds:
+    case TimestampFormat.Milliseconds:
       return Time.formatMilliseconds(time);
     case TimestampFormat.Microseconds:
       return Time.formatMicroseconds(time);
     default:
-      const z: never = fmt;
-      throw new Error(`Invalid timestamp ${z}`);
+      assertUnreachable(fmt);
   }
 }

@@ -19,10 +19,8 @@ import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {
-  DurationPrecision,
   setDurationPrecision,
   setTimestampFormat,
-  TimestampFormat,
 } from '../core/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public/command';
@@ -46,6 +44,7 @@ import {AppImpl} from '../core/app_impl';
 import {NotesEditorTab} from './notes_panel';
 import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
+import {DurationPrecision, TimestampFormat} from '../public/timeline';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 
@@ -132,7 +131,7 @@ export class UiMainPerTrace implements m.ClassComponent {
               displayName: 'Realtime (Trace TZ)',
             },
             {key: TimestampFormat.Seconds, displayName: 'Seconds'},
-            {key: TimestampFormat.Milliseoncds, displayName: 'Milliseconds'},
+            {key: TimestampFormat.Milliseconds, displayName: 'Milliseconds'},
             {key: TimestampFormat.Microseconds, displayName: 'Microseconds'},
             {key: TimestampFormat.TraceNs, displayName: 'Trace nanoseconds'},
             {

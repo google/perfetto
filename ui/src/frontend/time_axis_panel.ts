@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Time, time, toISODateOnly} from '../base/time';
-import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
+import {timestampFormat} from '../core/timestamp_format';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {
   getMaxMajorTicks,
@@ -27,6 +27,8 @@ import {Panel} from './panel_container';
 import {TimeScale} from '../base/time_scale';
 import {canvasClip} from '../base/canvas_utils';
 import {Trace} from '../public/trace';
+import {assertUnreachable} from '../base/logging';
+import {TimestampFormat} from '../public/timeline';
 
 export class TimeAxisPanel implements Panel {
   readonly kind = 'panel';
@@ -58,11 +60,14 @@ export class TimeAxisPanel implements Panel {
 
   private renderOffsetTimestamp(ctx: CanvasRenderingContext2D): void {
     const offset = this.trace.timeline.timestampOffset();
-    switch (timestampFormat()) {
+    const timestampFormat = this.trace.timeline.timestampFormat;
+    switch (timestampFormat) {
       case TimestampFormat.TraceNs:
       case TimestampFormat.TraceNsLocale:
         break;
       case TimestampFormat.Seconds:
+      case TimestampFormat.Milliseconds:
+      case TimestampFormat.Microseconds:
       case TimestampFormat.Timecode:
         const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
         ctx.fillText('+', 6 + width + 2, 10, 6);
@@ -83,6 +88,8 @@ export class TimeAxisPanel implements Panel {
         const dateTzStr = toISODateOnly(offsetTzDate);
         ctx.fillText(dateTzStr, 6, 10);
         break;
+      default:
+        assertUnreachable(timestampFormat);
     }
   }
 
@@ -130,7 +137,7 @@ function renderTimestamp(
       return renderRawTimestamp(ctx, time.toLocaleString(), x, y, minWidth);
     case TimestampFormat.Seconds:
       return renderRawTimestamp(ctx, Time.formatSeconds(time), x, y, minWidth);
-    case TimestampFormat.Milliseoncds:
+    case TimestampFormat.Milliseconds:
       return renderRawTimestamp(
         ctx,
         Time.formatMilliseconds(time),
