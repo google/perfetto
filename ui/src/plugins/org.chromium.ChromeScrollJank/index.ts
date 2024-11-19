@@ -23,7 +23,7 @@ import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'perfetto.ChromeScrollJank';
+  static readonly id = 'org.chromium.ChromeScrollJank';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
       title: 'Chrome Scroll Jank',
