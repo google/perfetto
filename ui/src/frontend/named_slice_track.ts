@@ -26,11 +26,11 @@ import {
   SLICE_FLAGS_INSTANT,
 } from './base_slice_track';
 import {ThreadSliceDetailsPanel} from './thread_slice_details_tab';
-import {NewTrackArgs} from './track';
 import {renderDuration} from './widgets/duration';
 import {TraceImpl} from '../core/trace_impl';
 import {assertIsInstance} from '../base/logging';
 import {SourceDataset, Dataset} from '../trace_processor/dataset';
+import {Trace} from '../public/trace';
 
 export const NAMED_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -45,8 +45,8 @@ export abstract class NamedSliceTrack<
   SliceType extends Slice = Slice,
   RowType extends NamedRow = NamedRow,
 > extends BaseSliceTrack<SliceType, RowType> {
-  constructor(args: NewTrackArgs) {
-    super(args);
+  constructor(trace: Trace, uri: string) {
+    super(trace, uri);
   }
 
   // Converts a SQL result row to an "Impl" Slice.

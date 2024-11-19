@@ -28,7 +28,6 @@ import {Slice} from '../public/track';
 import {LONG, NUM} from '../trace_processor/query_result';
 import {checkerboardExcept} from './checkerboard';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
-import {NewTrackArgs} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey} from '../core/timeline_cache';
 import {uuidv4Sql} from '../base/uuid';
 import {AsyncDisposableStack} from '../base/disposable_stack';
@@ -163,8 +162,6 @@ export abstract class BaseSliceTrack<
 > implements Track
 {
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
-  protected trace: Trace;
-  protected uri: string;
   protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
@@ -240,9 +237,10 @@ export abstract class BaseSliceTrack<
     _selectedSlice?: SliceT,
   ): void {}
 
-  constructor(args: NewTrackArgs) {
-    this.trace = args.trace;
-    this.uri = args.uri;
+  constructor(
+    protected readonly trace: Trace,
+    protected readonly uri: string,
+  ) {
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
     // we know about (ts, dur, ...).

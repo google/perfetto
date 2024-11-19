@@ -33,10 +33,7 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
   private readonly cpuType?: CPUType;
 
   constructor(ctx: TrackContext, trace: Trace, cpuType?: CPUType) {
-    super({
-      trace,
-      uri: ctx.trackUri,
-    });
+    super(trace, ctx.trackUri);
     this.cpuType = cpuType;
   }
 

@@ -94,10 +94,7 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   readonly queryKey: string;
 
   constructor(trace: Trace, uri: string, queryKey: string) {
-    super({
-      trace,
-      uri,
-    });
+    super(trace, uri);
     this.queryKey = queryKey;
   }
 

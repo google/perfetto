@@ -92,15 +92,7 @@ export default class implements PerfettoPlugin {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
-        track: new HeapProfileTrack(
-          {
-            trace: ctx,
-            uri,
-          },
-          tableName,
-          upid,
-          incomplete,
-        ),
+        track: new HeapProfileTrack(ctx, uri, tableName, upid, incomplete),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title, sortOrder: -30});

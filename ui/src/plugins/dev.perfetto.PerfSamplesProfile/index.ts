@@ -57,13 +57,7 @@ export default class implements PerfettoPlugin {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        track: new ProcessPerfSamplesProfileTrack(
-          {
-            trace: ctx,
-            uri,
-          },
-          upid,
-        ),
+        track: new ProcessPerfSamplesProfileTrack(ctx, uri, upid),
       });
       const group = getOrCreateGroupForProcess(ctx.workspace, upid);
       const track = new TrackNode({uri, title, sortOrder: -40});
@@ -103,13 +97,7 @@ export default class implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
         },
-        track: new ThreadPerfSamplesProfileTrack(
-          {
-            trace: ctx,
-            uri,
-          },
-          utid,
-        ),
+        track: new ThreadPerfSamplesProfileTrack(ctx, uri, utid),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title, sortOrder: -50});

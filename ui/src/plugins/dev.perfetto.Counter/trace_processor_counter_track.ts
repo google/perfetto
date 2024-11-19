@@ -12,33 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
+import {Time} from '../../base/time';
 import {
   BaseCounterTrack,
-  BaseCounterTrackArgs,
+  CounterOptions,
 } from '../../frontend/base_counter_track';
-
-import {TrackMouseEvent} from '../../public/track';
 import {TrackEventDetails} from '../../public/selection';
-import {Time} from '../../base/time';
+import {Trace} from '../../public/trace';
+import {TrackMouseEvent} from '../../public/track';
+import {LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
 import {CounterDetailsPanel} from './counter_details_panel';
 
-interface TraceProcessorCounterTrackArgs extends BaseCounterTrackArgs {
-  readonly trackId: number;
-  readonly trackName: string;
-  readonly rootTable?: string;
-}
-
 export class TraceProcessorCounterTrack extends BaseCounterTrack {
-  private readonly trackId: number;
-  private readonly rootTable: string;
-  private readonly trackName: string;
-
-  constructor(args: TraceProcessorCounterTrackArgs) {
-    super(args);
-    this.trackId = args.trackId;
-    this.rootTable = args.rootTable ?? 'counter';
-    this.trackName = args.trackName;
+  constructor(
+    trace: Trace,
+    uri: string,
+    options: Partial<CounterOptions>,
+    private readonly trackId: number,
+    private readonly trackName: string,
+    private readonly rootTable: string = 'counter',
+  ) {
+    super(trace, uri, options);
   }
 
   getSqlSource() {

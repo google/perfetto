@@ -60,13 +60,7 @@ export default class implements PerfettoPlugin {
           utid,
           ...(exists(upid) && {upid}),
         },
-        track: new CpuProfileTrack(
-          {
-            trace: ctx,
-            uri,
-          },
-          utid,
-        ),
+        track: new CpuProfileTrack(ctx, uri, utid),
       });
       const group = getOrCreateGroupForThread(ctx.workspace, utid);
       const track = new TrackNode({uri, title, sortOrder: -40});

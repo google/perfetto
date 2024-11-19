@@ -197,7 +197,7 @@ export default class implements PerfettoPlugin {
             kind: SLICE_TRACK_KIND,
             scope: 'global',
           },
-          track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
+          track: new AsyncSliceTrack(ctx, uri, maxDepth, trackIds),
         });
         const trackNode = new TrackNode({
           uri,
@@ -283,7 +283,7 @@ export default class implements PerfettoPlugin {
           scope: 'process',
           upid,
         },
-        track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
+        track: new AsyncSliceTrack(ctx, uri, maxDepth, trackIds),
       });
       const track = new TrackNode({uri, title, sortOrder: 30});
       trackIds.forEach((id) => {
@@ -384,7 +384,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: new AsyncSliceTrack({trace: ctx, uri}, maxDepth, trackIds),
+        track: new AsyncSliceTrack(ctx, uri, maxDepth, trackIds),
       });
       const track = new TrackNode({uri, title, sortOrder: 20});
       trackIds.forEach((id) => {

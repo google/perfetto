@@ -25,7 +25,6 @@ import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 import {LONG, NUM} from '../trace_processor/query_result';
 import {checkerboardExcept} from './checkerboard';
-import {NewTrackArgs} from './track';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {Trace} from '../public/trace';
 
@@ -180,13 +179,7 @@ export interface CounterOptions {
   unit?: string;
 }
 
-export type BaseCounterTrackArgs = NewTrackArgs & {
-  options?: Partial<CounterOptions>;
-};
-
 export abstract class BaseCounterTrack implements Track {
-  protected trace: Trace;
-  protected uri: string;
   protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
@@ -204,7 +197,6 @@ export abstract class BaseCounterTrack implements Track {
 
   private mousePos = {x: 0, y: 0};
   private hover?: CounterTooltipState;
-  private defaultOptions: Partial<CounterOptions>;
   private options?: CounterOptions;
 
   private readonly trash: AsyncDisposableStack;
@@ -244,10 +236,11 @@ export abstract class BaseCounterTrack implements Track {
     };
   }
 
-  constructor(args: BaseCounterTrackArgs) {
-    this.trace = args.trace;
-    this.uri = args.uri;
-    this.defaultOptions = args.options ?? {};
+  constructor(
+    protected readonly trace: Trace,
+    protected readonly uri: string,
+    protected readonly defaultOptions: Partial<CounterOptions> = {},
+  ) {
     this.trash = new AsyncDisposableStack();
   }
 
