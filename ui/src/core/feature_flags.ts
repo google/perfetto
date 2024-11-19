@@ -16,6 +16,7 @@
 // ~everywhere and the are "statically" initialized (i.e. files construct Flags
 // at import time) if this file starts importing anything we will quickly run
 // into issues with initialization order which will be a pain.
+import {z} from 'zod';
 import {Flag, FlagSettings, OverrideState} from '../public/feature_flag';
 
 export interface FlagStore {
@@ -26,22 +27,6 @@ export interface FlagStore {
 // Stored state for a number of flags.
 interface FlagOverrides {
   [id: string]: OverrideState;
-}
-
-// Check if the given object is a valid FlagOverrides.
-// This is necessary since someone could modify the persisted flags
-// behind our backs.
-function isFlagOverrides(o: object): o is FlagOverrides {
-  const states = [
-    OverrideState.TRUE.toString(),
-    OverrideState.FALSE.toString(),
-  ];
-  for (const v of Object.values(o)) {
-    if (typeof v !== 'string' || !states.includes(v)) {
-      return false;
-    }
-  }
-  return true;
 }
 
 class Flags {
@@ -89,8 +74,17 @@ class Flags {
 
   load(): void {
     const o = this.store.load();
-    if (isFlagOverrides(o)) {
-      this.overrides = o;
+
+    // Check if the given object is a valid FlagOverrides.
+    // This is necessary since someone could modify the persisted flags
+    // behind our backs.
+    const flagsSchema = z.record(
+      z.string(),
+      z.union([z.literal(OverrideState.TRUE), z.literal(OverrideState.FALSE)]),
+    );
+    const {success, data} = flagsSchema.safeParse(o);
+    if (success) {
+      this.overrides = data;
     }
   }
 
