@@ -170,6 +170,7 @@ constexpr ThreadName kThreadNames[] = {
      "NetworkConfigWatcher"},
     {ChromeThreadDescriptor::THREAD_WASAPI_RENDER, "wasapi_render_thread"},
     {ChromeThreadDescriptor::THREAD_LOADER_LOCK_SAMPLER, "LoaderLockSampler"},
+    {ChromeThreadDescriptor::THREAD_COMPOSITOR_GPU, "CompositorGpuThread"},
 };
 
 }  // namespace
