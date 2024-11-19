@@ -106,6 +106,7 @@ DEPS_ALLOWLIST = [
     ('/*plugins/*', [
         '/frontend/slice_layout',
         '/frontend/slice_args',
+        '/frontend/slice_details',
         '/frontend/checkerboard',
         '/common/track_helper',
         '/common/track_data',
