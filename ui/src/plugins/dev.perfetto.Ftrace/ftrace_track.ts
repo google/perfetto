@@ -62,7 +62,7 @@ export class FtraceRawTrack implements Track {
       // 'ftrace_event' doesn't have a dur column, but injecting dur=0 (all
       // ftrace events are effectively 'instant') allows us to participate in
       // generic slice aggregations
-      src: 'select id, ts, 0 as dur, name from ftrace_event',
+      src: 'select id, ts, 0 as dur, name, cpu from ftrace_event',
       schema: {
         id: NUM,
         name: STR,
