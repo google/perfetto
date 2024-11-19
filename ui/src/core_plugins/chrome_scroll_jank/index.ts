@@ -21,47 +21,6 @@ import {ScrollJankV3Track} from './scroll_jank_v3_track';
 import {TopLevelScrollTrack} from './scroll_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
-import {featureFlags} from '../../core/feature_flags';
-import {OverrideState} from '../../public/feature_flag';
-
-// Before plugins were a thing, this plugin was enabled using a feature flag.
-// However, nowadays, plugins themselves can be selectively enabled and
-// disabled. This function inspects local storage to see whether the old feature
-// flag is enabled, and patches the flags settings to enable the chrome scroll
-// jank plugin, before deleting the old flag. This provides a seamless
-// experience for anyone who currently uses the chrome scroll jank plugin.
-//
-// TODO(stevegolton): Remove this code after 2025-01-01. This should give it
-// enough time on stable for most relevant users to have run it at least once.
-function patchChromeScrollJankFlag() {
-  try {
-    const flagsKey = 'perfettoFeatureFlags';
-    const enableScrollJankPluginV2FlagKey = 'enableScrollJankPluginV2';
-    const chromeScrollJankPuginFlagKey = 'plugin_perfetto.ChromeScrollJank';
-
-    const flagsRaw = localStorage.getItem(flagsKey);
-    if (flagsRaw) {
-      const flags = JSON.parse(flagsRaw);
-      if (flags[enableScrollJankPluginV2FlagKey] === 'OVERRIDE_TRUE') {
-        featureFlags.patchOverride(
-          chromeScrollJankPuginFlagKey,
-          OverrideState.TRUE,
-        );
-        console.log(
-          `Cleared deprecated 'enableScrollJankPluginV2' flag & enabled 'ChromeScrollJank' plugin.`,
-        );
-      }
-
-      // Just remove the original flag
-      delete flags[enableScrollJankPluginV2FlagKey];
-      localStorage.setItem(flagsKey, JSON.stringify(flags));
-    }
-  } catch {
-    // Ignore - this was very much best-effort.
-  }
-}
-
-patchChromeScrollJankFlag();
 
 export default class implements PerfettoPlugin {
   static readonly id = 'perfetto.ChromeScrollJank';
