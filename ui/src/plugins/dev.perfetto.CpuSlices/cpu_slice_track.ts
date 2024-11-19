@@ -42,6 +42,7 @@ import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
+import {Dataset, SourceDataset} from '../../trace_processor/dataset';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -94,6 +95,21 @@ export class CpuSliceTrack implements Track {
       where cpu = ${this.cpu} and utid != 0
     `);
     this.lastRowId = it.firstRow({lastRowId: NUM}).lastRowId;
+  }
+
+  getDataset(): Dataset | undefined {
+    return new SourceDataset({
+      src: 'select id, ts, dur, cpu from sched where utid != 0',
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+      },
+      filter: {
+        col: 'cpu',
+        eq: this.cpu,
+      },
+    });
   }
 
   async onUpdate({
