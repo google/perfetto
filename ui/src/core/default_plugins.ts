@@ -60,6 +60,7 @@ export const defaultPlugins = [
   'dev.perfetto.RestorePinnedTrack',
   'dev.perfetto.Sched',
   'dev.perfetto.Screenshots',
+  'dev.perfetto.SqlModules',
   'dev.perfetto.Thread',
   'dev.perfetto.ThreadState',
   'dev.perfetto.TimelineSync',
