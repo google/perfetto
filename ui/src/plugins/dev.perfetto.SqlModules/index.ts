@@ -13,10 +13,23 @@
 // limitations under the License.
 
 import {assetSrc} from '../../base/assets';
+import {assertExists} from '../../base/logging';
+import {PerfettoPlugin} from '../../public/plugin';
+import {SqlModules} from './sql_modules';
+import {SQL_MODULES_DOCS_SCHEMA, SqlModulesImpl} from './sql_modules_impl';
 
-// Fetch the stdlib docs
-export async function getStdlibDocs(): Promise<string> {
-  const resp = await fetch(assetSrc('stdlib_docs.json'));
-  const json = await resp.json();
-  return JSON.parse(json);
+export default class implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.SqlModules';
+  private sqlModules?: SqlModules;
+
+  async onTraceLoad() {
+    const resp = await fetch(assetSrc('stdlib_docs.json'));
+    const json = await resp.json();
+    const docs = SQL_MODULES_DOCS_SCHEMA.parse(json);
+    this.sqlModules = new SqlModulesImpl(docs);
+  }
+
+  getSqlModules() {
+    return assertExists(this.sqlModules);
+  }
 }
