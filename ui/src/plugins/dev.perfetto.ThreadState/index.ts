@@ -84,13 +84,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: new ThreadStateTrack(
-          {
-            trace: ctx,
-            uri,
-          },
-          utid,
-        ),
+        track: new ThreadStateTrack(ctx, uri, utid),
       });
 
       const group = getOrCreateGroupForThread(ctx.workspace, utid);

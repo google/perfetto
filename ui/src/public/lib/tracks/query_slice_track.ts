@@ -137,10 +137,7 @@ class SqlTableSliceTrack extends CustomSqlTableSliceTrack {
     uri: string,
     private readonly sqlTableName: string,
   ) {
-    super({
-      trace,
-      uri,
-    });
+    super(trace, uri);
   }
 
   override async getSqlDataSource(): Promise<CustomSqlTableDefConfig> {

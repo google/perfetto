@@ -19,7 +19,6 @@ import {
   BaseSliceTrack,
   OnSliceClickArgs,
 } from '../../frontend/base_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
 import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
 import {getColorForSample} from '../../public/lib/colorizer';
 import {
@@ -37,6 +36,7 @@ import {Timestamp} from '../../frontend/widgets/timestamp';
 import {time} from '../../base/time';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {Trace} from '../../public/trace';
 
 interface PerfSampleRow extends NamedRow {
   callsiteId: number;
@@ -46,8 +46,8 @@ abstract class BasePerfSamplesProfileTrack extends BaseSliceTrack<
   Slice,
   PerfSampleRow
 > {
-  constructor(args: NewTrackArgs) {
-    super(args);
+  constructor(trace: Trace, uri: string) {
+    super(trace, uri);
   }
 
   protected getRowSpec(): PerfSampleRow {
@@ -75,10 +75,11 @@ abstract class BasePerfSamplesProfileTrack extends BaseSliceTrack<
 
 export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
   constructor(
-    args: NewTrackArgs,
-    private upid: number,
+    trace: Trace,
+    uri: string,
+    private readonly upid: number,
   ) {
-    super(args);
+    super(trace, uri);
   }
 
   getSqlSource(): string {
@@ -170,10 +171,11 @@ export class ProcessPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack 
 
 export class ThreadPerfSamplesProfileTrack extends BasePerfSamplesProfileTrack {
   constructor(
-    args: NewTrackArgs,
-    private utid: number,
+    trace: Trace,
+    uri: string,
+    private readonly utid: number,
   ) {
-    super(args);
+    super(trace, uri);
   }
 
   getSqlSource(): string {

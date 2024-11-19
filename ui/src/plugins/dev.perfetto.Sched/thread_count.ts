@@ -16,11 +16,11 @@ import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
-import {NewTrackArgs} from '../../frontend/track';
+import {Trace} from '../../public/trace';
 
 abstract class ThreadCountTrack extends BaseCounterTrack {
-  constructor(args: NewTrackArgs) {
-    super(args);
+  constructor(trace: Trace, uri: string) {
+    super(trace, uri);
   }
 
   protected getDefaultCounterOptions(): CounterOptions {
