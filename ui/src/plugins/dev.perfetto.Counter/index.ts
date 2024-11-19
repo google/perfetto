@@ -85,10 +85,6 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
   //   options.yRangeSharingKey = 'mem';
   // }
 
-  if (name.startsWith('battery_stats.')) {
-    options.yRangeSharingKey = 'battery_stats';
-  }
-
   // All 'Entity residency: foo bar1234' tracks should share a y-axis
   // with 'Entity residency: foo baz5678' etc tracks:
   {
