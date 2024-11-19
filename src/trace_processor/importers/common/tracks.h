@@ -34,6 +34,7 @@ namespace perfetto::trace_processor::tracks {
   F(android_energy_estimation_breakdown)         \
   F(android_gpu_work_period)                     \
   F(android_lmk)                                 \
+  F(block_io)                                    \
   F(chrome_process_instant)                      \
   F(cpu_capacity)                                \
   F(cpu_frequency_throttle)                      \

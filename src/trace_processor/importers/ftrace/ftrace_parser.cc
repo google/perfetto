@@ -70,6 +70,7 @@
 #include "protos/perfetto/trace/ftrace/android_fs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/bcl_exynos.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
+#include "protos/perfetto/trace/ftrace/block.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cma.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpm_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
@@ -468,7 +469,10 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context->storage->InternString("callback_phase")),
       suspend_resume_event_type_arg_name_(
           context->storage->InternString("event_type")),
-      device_name_id_(context->storage->InternString("device_name")) {
+      device_name_id_(context->storage->InternString("device_name")),
+      block_io_id_(context->storage->InternString("block_io")),
+      block_io_device_id_(context->storage->InternString("block_device")),
+      block_io_arg_sector_id_(context->storage->InternString("sector")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -1375,6 +1379,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kParamSetValueCpmFieldNumber: {
         ParseParamSetValueCpm(fld_bytes);
+        break;
+      }
+      case FtraceEvent::kBlockIoStartFieldNumber: {
+        ParseBlockIoStart(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kBlockIoDoneFieldNumber: {
+        ParseBlockIoDone(ts, fld_bytes);
         break;
       }
       default:
@@ -3867,6 +3879,38 @@ void FtraceParser::ParseParamSetValueCpm(protozero::ConstBytes blob) {
       tracks::pixel_cpm_trace, std::move(dims_builder).Build());
   context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
                                        event.value(), track_id);
+}
+
+void FtraceParser::ParseBlockIoStart(int64_t ts, protozero::ConstBytes blob) {
+  protos::pbzero::BlockIoStartFtraceEvent::Decoder event(blob);
+
+  auto args_inserter = [this, &event](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(block_io_arg_sector_id_,
+                     Variadic::UnsignedInteger(event.sector()));
+  };
+
+  TrackTracker::DimensionsBuilder dims = context_->track_tracker->CreateDimensionsBuilder();
+  dims.AppendDimension(block_io_device_id_, Variadic::UnsignedInteger(event.dev()));
+  TrackId track_id =
+      context_->track_tracker->InternTrack(tracks::block_io, std::move(dims).Build());
+  context_->slice_tracker->Begin(ts, track_id, kNullStringId, block_io_id_,
+                                  args_inserter);
+}
+
+void FtraceParser::ParseBlockIoDone(int64_t ts, protozero::ConstBytes blob) {
+  protos::pbzero::BlockIoDoneFtraceEvent::Decoder event(blob);
+
+  auto args_inserter = [this, &event](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(block_io_arg_sector_id_,
+                     Variadic::UnsignedInteger(event.sector()));
+  };
+
+  TrackTracker::DimensionsBuilder dims = context_->track_tracker->CreateDimensionsBuilder();
+  dims.AppendDimension(block_io_device_id_, Variadic::UnsignedInteger(event.dev()));
+  TrackId track_id =
+      context_->track_tracker->InternTrack(tracks::block_io, std::move(dims).Build());
+  context_->slice_tracker->End(ts, track_id, kNullStringId, block_io_id_,
+                                  args_inserter);
 }
 
 }  // namespace perfetto::trace_processor
