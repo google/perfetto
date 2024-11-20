@@ -34,8 +34,6 @@ export default class implements PerfettoPlugin {
     // Short circuit if Wattson is not supported for this Perfetto trace
     if (!(await hasWattsonSupport(ctx.engine))) return;
 
-    ctx.engine.query(`INCLUDE PERFETTO MODULE wattson.curves.estimates;`);
-
     const group = new TrackNode({title: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
 
@@ -96,6 +94,12 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   constructor(trace: Trace, uri: string, queryKey: string) {
     super(trace, uri);
     this.queryKey = queryKey;
+  }
+
+  async onInit() {
+    await this.engine.query(
+      `INCLUDE PERFETTO MODULE wattson.curves.estimates;`,
+    );
   }
 
   protected getDefaultCounterOptions(): CounterOptions {
