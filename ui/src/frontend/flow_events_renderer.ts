@@ -18,7 +18,7 @@ import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow} from '../core/flow_types';
 import {RenderedPanelInfo} from './panel_container';
 import {TimeScale} from '../base/time_scale';
-import {TrackNode} from '../public/workspace';
+import {TrackNode, TrackNodeContainer} from '../public/workspace';
 import {TraceImpl} from '../core/trace_impl';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
@@ -57,6 +57,7 @@ export function renderFlows(
   ctx: CanvasRenderingContext2D,
   size: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
+  tracks: TrackNodeContainer,
 ): void {
   const timescale = new TimeScale(trace.timeline.visibleWindow, {
     left: 0,
@@ -74,7 +75,7 @@ export function renderFlows(
   // the tree to find containing groups.
 
   const sqlTrackIdToTrack = new Map<number, TrackNode>();
-  trace.workspace.flatTracks.forEach((track) =>
+  tracks.flatTracks.forEach((track) =>
     track.uri
       ? trace.tracks
           .getTrack(track.uri)
