@@ -472,7 +472,7 @@ export class Workspace extends TrackNodeContainer {
   onchange: (w: Workspace) => void = () => {};
 
   // Dummy node to contain the pinned tracks
-  private pinnedRoot = new TrackNode();
+  public readonly pinnedRoot = new TrackNode();
 
   get pinnedTracks(): ReadonlyArray<TrackNode> {
     return this.pinnedRoot.children;
