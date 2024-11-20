@@ -70,6 +70,7 @@ export const defaultPlugins = [
   'org.chromium.CriticalUserInteraction',
   'org.kernel.LinuxKernelSubsystems',
   'org.kernel.SuspendResumeLatency',
+  'org.kernel.Wattson',
   'perfetto.CoreCommands',
   'perfetto.ExampleTraces',
   'perfetto.GlobalGroups',
