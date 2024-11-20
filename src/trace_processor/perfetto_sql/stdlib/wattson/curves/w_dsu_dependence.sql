@@ -55,6 +55,22 @@ LEFT JOIN _filtered_curves_1d lut7 ON
   base.freq_7 = lut7.freq_khz AND
   base.idle_7 = lut7.idle;
 
+-- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
+-- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
+-- DSU frequency is a prerequisite for power estimation on Pixel 9.
+CREATE PERFETTO TABLE _dsu_frequency AS
+SELECT * from linux_devfreq_dsu_counter
+UNION ALL
+SELECT
+ 0 as id,
+ trace_start() as ts,
+ trace_end() - trace_start() as dur,
+ 610000 as dsu_freq
+-- Only add this for traces from a VM on Pixel 9 where DSU values aren't present
+WHERE (SELECT str_value FROM metadata WHERE name = 'android_guest_soc_model')
+  IN (SELECT device FROM _use_devfreq)
+  AND (SELECT COUNT(*) FROM linux_devfreq_dsu_counter) = 0;
+
 CREATE PERFETTO TABLE _w_dsu_dependence AS
 SELECT
   c.ts, c.dur,
@@ -80,10 +96,10 @@ SELECT
 FROM _interval_intersect!(
   (
     _ii_subquery!(_cpu_curves),
-    _ii_subquery!(linux_devfreq_dsu_counter)
+    _ii_subquery!(_dsu_frequency)
   ),
   ()
 ) ii
 JOIN _cpu_curves AS c ON c._auto_id = id_0
-JOIN linux_devfreq_dsu_counter AS d on d._auto_id = id_1;
+JOIN _dsu_frequency AS d on d._auto_id = id_1;
 
