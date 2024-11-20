@@ -18,16 +18,18 @@ import {
 } from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {ActualFramesTrack} from './actual_frames_track';
 import {ExpectedFramesTrack} from './expected_frames_track';
 import {FrameSelectionAggregator} from './frame_selection_aggregator';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Frames';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
@@ -88,9 +90,11 @@ export default class implements PerfettoPlugin {
           kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         },
       });
-      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
+      const group = ctx.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForProcess(upid);
       const track = new TrackNode({uri, title, sortOrder: -50});
-      group.addChildInOrder(track);
+      group?.addChildInOrder(track);
     }
   }
 
@@ -151,9 +155,11 @@ export default class implements PerfettoPlugin {
           kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         },
       });
-      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
+      const group = ctx.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForProcess(upid);
       const track = new TrackNode({uri, title, sortOrder: -50});
-      group.addChildInOrder(track);
+      group?.addChildInOrder(track);
     }
   }
 }

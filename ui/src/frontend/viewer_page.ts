@@ -323,28 +323,30 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
         m(PanelContainer, {
           trace: attrs.trace,
           className: 'pinned-panel-container',
-          panels: attrs.trace.workspace.pinnedTracks.map((trackNode) => {
-            if (trackNode.uri) {
-              const tr = attrs.trace.tracks.getTrackRenderer(trackNode.uri);
-              return new TrackPanel({
-                trace: attrs.trace,
-                reorderable: true,
-                node: trackNode,
-                trackRenderer: tr,
-                revealOnCreate: true,
-                indentationLevel: 0,
-                topOffsetPx: 0,
-              });
-            } else {
-              return new TrackPanel({
-                trace: attrs.trace,
-                node: trackNode,
-                revealOnCreate: true,
-                indentationLevel: 0,
-                topOffsetPx: 0,
-              });
-            }
-          }),
+          panels: AppImpl.instance.isLoadingTrace
+            ? []
+            : attrs.trace.workspace.pinnedTracks.map((trackNode) => {
+                if (trackNode.uri) {
+                  const tr = attrs.trace.tracks.getTrackRenderer(trackNode.uri);
+                  return new TrackPanel({
+                    trace: attrs.trace,
+                    reorderable: true,
+                    node: trackNode,
+                    trackRenderer: tr,
+                    revealOnCreate: true,
+                    indentationLevel: 0,
+                    topOffsetPx: 0,
+                  });
+                } else {
+                  return new TrackPanel({
+                    trace: attrs.trace,
+                    node: trackNode,
+                    revealOnCreate: true,
+                    indentationLevel: 0,
+                    topOffsetPx: 0,
+                  });
+                }
+              }),
           renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
           renderOverlay: (ctx, size, panels) =>
             renderOverlay(attrs.trace, ctx, size, panels),
@@ -353,7 +355,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
         m(PanelContainer, {
           trace: attrs.trace,
           className: 'scrolling-panel-container',
-          panels: scrollingPanels,
+          panels: AppImpl.instance.isLoadingTrace ? [] : scrollingPanels,
           onPanelStackResize: (width) => {
             const timelineWidth = width - TRACK_SHELL_WIDTH;
             this.timelineWidthPx = timelineWidth;
