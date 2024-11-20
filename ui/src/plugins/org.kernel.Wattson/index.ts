@@ -82,10 +82,10 @@ export default class implements PerfettoPlugin {
       new WattsonThreadSelectionAggregator(),
     );
     ctx.selection.registerAreaSelectionAggreagtor(
-      new WattsonPackageSelectionAggregator(),
+      new WattsonProcessSelectionAggregator(),
     );
     ctx.selection.registerAreaSelectionAggreagtor(
-      new WattsonProcessSelectionAggregator(),
+      new WattsonPackageSelectionAggregator(),
     );
   }
 }
