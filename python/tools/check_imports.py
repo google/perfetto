@@ -106,7 +106,6 @@ DEPS_ALLOWLIST = [
     ('/*plugins/*', [
         '/frontend/slice_layout',
         '/frontend/slice_args',
-        '/frontend/slice_details',
         '/frontend/checkerboard',
         '/common/track_helper',
         '/common/track_data',
@@ -132,6 +131,12 @@ DEPS_ALLOWLIST = [
         '/frontend/slice_args',
         '/frontend/tracks/custom_sql_table_slice_track',
         '/frontend/tracks/generic_slice_details_tab',
+    ]),
+
+    # TODO(stevegolton): It's too much effort to change all the callsites of
+    # Timestamp and Duration widgets in order to inject trace into them.
+    ('/public/lib/widgets/*', [
+        '/core/app_impl',
     ]),
 
     # TODO(primiano): controller-related tech debt.

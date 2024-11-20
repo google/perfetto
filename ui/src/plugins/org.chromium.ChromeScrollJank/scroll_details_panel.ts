@@ -21,8 +21,8 @@ import {
   TableData,
   widgetColumn,
 } from '../../widgets/table';
-import {DurationWidget} from '../../frontend/widgets/duration';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {DurationWidget} from '../../public/lib/widgets/duration';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {
   LONG,
   LONG_NULL,

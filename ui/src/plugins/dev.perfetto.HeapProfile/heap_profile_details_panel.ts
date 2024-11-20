@@ -21,7 +21,7 @@ import {
   metricsFromTableOrSubquery,
 } from '../../public/lib/query_flamegraph';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {
   TrackEventDetailsPanel,
   TrackEventDetailsPanelSerializeArgs,

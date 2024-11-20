@@ -12,14 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../base/logging';
+import {assertTrue, assertUnreachable} from '../base/logging';
 import {Time, time, TimeSpan} from '../base/time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {Area} from '../public/selection';
 import {raf} from './raf_scheduler';
 import {HighPrecisionTime} from '../base/high_precision_time';
-import {Timeline} from '../public/timeline';
-import {timestampFormat, TimestampFormat} from './timestamp_format';
+import {DurationPrecision, Timeline, TimestampFormat} from '../public/timeline';
+import {
+  durationPrecision,
+  setDurationPrecision,
+  setTimestampFormat,
+  timestampFormat,
+} from './timestamp_format';
 import {TraceInfo} from '../public/trace_info';
 
 const MIN_DURATION = 10;
@@ -183,7 +188,7 @@ export class TimelineImpl implements Timeline {
     switch (fmt) {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
-      case TimestampFormat.Milliseoncds:
+      case TimestampFormat.Milliseconds:
       case TimestampFormat.Microseconds:
         return this.traceInfo.start;
       case TimestampFormat.TraceNs:
@@ -194,13 +199,28 @@ export class TimelineImpl implements Timeline {
       case TimestampFormat.TraceTz:
         return this.traceInfo.traceTzOffset;
       default:
-        const x: never = fmt;
-        throw new Error(`Unsupported format ${x}`);
+        assertUnreachable(fmt);
     }
   }
 
   // Convert absolute time to domain time.
   toDomainTime(ts: time): time {
     return Time.sub(ts, this.timestampOffset());
+  }
+
+  get timestampFormat() {
+    return timestampFormat();
+  }
+
+  set timestampFormat(format: TimestampFormat) {
+    setTimestampFormat(format);
+  }
+
+  get durationPrecision() {
+    return durationPrecision();
+  }
+
+  set durationPrecision(precision: DurationPrecision) {
+    setDurationPrecision(precision);
   }
 }

@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, TimeSpan} from '../../base/time';
-import {Engine} from '../../trace_processor/engine';
+import {duration, TimeSpan} from '../../../base/time';
+import {Engine} from '../../../trace_processor/engine';
 import {
   LONG,
   NUM_NULL,
   STR,
   STR_NULL,
-} from '../../trace_processor/query_result';
-import {TreeNode} from '../../widgets/tree';
-import {Utid} from '../../trace_processor/sql_utils/core_types';
+} from '../../../trace_processor/query_result';
+import {TreeNode} from '../../../widgets/tree';
+import {Utid} from '../../../trace_processor/sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 
 // An individual node of the thread state breakdown tree.

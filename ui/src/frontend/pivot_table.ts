@@ -36,7 +36,7 @@ import {
 } from '../core/pivot_table_query_generator';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
-import {DurationWidget} from './widgets/duration';
+import {DurationWidget} from '../public/lib/widgets/duration';
 import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
 import {assertExists, assertFalse} from '../base/logging';
 import {Filter, SqlColumn} from './widgets/sql/table/column';
