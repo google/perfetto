@@ -15,40 +15,6 @@
 import {TrackNode, TrackNodeArgs, Workspace} from './workspace';
 
 /**
- * Gets or creates a group for a given process given the normal grouping
- * conventions.
- *
- * @param workspace - The workspace to search for the group on.
- * @param upid - The upid of teh process to find.
- */
-export function getOrCreateGroupForProcess(
-  workspace: Workspace,
-  upid: number,
-): TrackNode {
-  return getOrCreateGroup(workspace, `process${upid}`, {
-    title: `Process ${upid}`,
-    isSummary: true,
-  });
-}
-
-/**
- * Gets or creates a group for a given thread given the normal grouping
- * conventions.
- *
- * @param workspace - The workspace to search for the group on.
- * @param utid - The utid of the thread to find.
- */
-export function getOrCreateGroupForThread(
-  workspace: Workspace,
-  utid: number,
-): TrackNode {
-  return getOrCreateGroup(workspace, `thread${utid}`, {
-    title: `Thread ${utid}`,
-    isSummary: true,
-  });
-}
-
-/**
  * Gets or creates a group for user interaction
  *
  * @param workspace - The workspace on which to create the group.

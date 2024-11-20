@@ -17,13 +17,10 @@ import {
   SqlDataSource,
 } from '../../public/lib/tracks/query_counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
-import {
-  getOrCreateGroupForProcess,
-  getOrCreateGroupForThread,
-} from '../../public/standard_groups';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM_NULL} from '../../trace_processor/query_result';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 async function registerAllocsTrack(
   ctx: Trace,
@@ -44,6 +41,8 @@ async function registerAllocsTrack(
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidDmabuf';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.memory.dmabuf`);
@@ -66,9 +65,10 @@ export default class implements PerfettoPlugin {
                  WHERE upid = ${it.upid}`,
         };
         await registerAllocsTrack(ctx, uri, config);
-        getOrCreateGroupForProcess(ctx.workspace, it.upid).addChildInOrder(
-          new TrackNode({uri, title: 'dmabuf allocs'}),
-        );
+        ctx.plugins
+          .getPlugin(ProcessThreadGroupsPlugin)
+          .getGroupForProcess(it.upid)
+          ?.addChildInOrder(new TrackNode({uri, title: 'dmabuf allocs'}));
       } else if (it.utid != null) {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
         const config: SqlDataSource = {
@@ -76,9 +76,10 @@ export default class implements PerfettoPlugin {
                  WHERE utid = ${it.utid}`,
         };
         await registerAllocsTrack(ctx, uri, config);
-        getOrCreateGroupForThread(ctx.workspace, it.utid).addChildInOrder(
-          new TrackNode({uri, title: 'dmabuf allocs'}),
-        );
+        ctx.plugins
+          .getPlugin(ProcessThreadGroupsPlugin)
+          .getGroupForThread(it.utid)
+          ?.addChildInOrder(new TrackNode({uri, title: 'dmabuf allocs'}));
       }
     }
   }
