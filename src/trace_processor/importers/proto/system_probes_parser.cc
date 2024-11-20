@@ -166,6 +166,7 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       gpufreq_id(context->storage->InternString("gpufreq")),
       gpufreq_unit_id(context->storage->InternString("MHz")),
       cpu_stat_counter_name_id_(context->storage->InternString("counter_name")),
+      cpu_idle_state_id_(context_->storage->InternString("cpu_idle_state")),
       arm_cpu_implementer(
           context->storage->InternString("arm_cpu_implementer")),
       arm_cpu_architecture(
@@ -526,12 +527,20 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::CpuIdleState::Decoder cpuidle_state(blob);
   uint32_t cpu_id = cpuidle_state.cpu_id();
+  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu_id);
   for (auto cpuidle_field = cpuidle_state.cpuidle_state_entry(); cpuidle_field;
        ++cpuidle_field) {
     protos::pbzero::SysStats::CpuIdleStateEntry::Decoder idle(*cpuidle_field);
 
-    TrackId track = context_->track_tracker->LegacyInternCpuIdleStateTrack(
-        cpu_id, context_->storage->InternString(idle.state()));
+    TrackTracker::DimensionsBuilder dims_builder =
+        context_->track_tracker->CreateDimensionsBuilder();
+    dims_builder.AppendDimension(
+        cpu_idle_state_id_,
+        Variadic::String(context_->storage->InternString(idle.state())));
+    dims_builder.AppendUcpu(ucpu);
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::cpu_idle_state, std::move(dims_builder).Build());
+
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(idle.duration_us()), track);
   }

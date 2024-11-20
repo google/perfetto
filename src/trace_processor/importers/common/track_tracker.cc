@@ -464,40 +464,6 @@ TrackId TrackTracker::InternCpuCounterTrack(
   return track_id;
 }
 
-TrackId TrackTracker::LegacyInternCpuIdleStateTrack(uint32_t cpu,
-                                                    StringId state) {
-  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendDimension(
-      context_->storage->InternString("cpu_idle_state"),
-      Variadic::String(state));
-  dims_builder.AppendUcpu(ucpu);
-  Dimensions dims_id = std::move(dims_builder).Build();
-
-  tracks::TrackClassification classification = tracks::cpu_idle_state;
-
-  auto* it = tracks_.Find({classification, dims_id});
-  if (it) {
-    return *it;
-  }
-
-  std::string name =
-      "cpuidle." + context_->storage->GetString(state).ToStdString();
-
-  tables::CpuCounterTrackTable::Row row(
-      context_->storage->InternString(name.c_str()));
-  row.ucpu = ucpu;
-  row.machine_id = context_->machine_id();
-  row.classification =
-      context_->storage->InternString(tracks::ToString(classification));
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-
-  TrackId track_id =
-      context_->storage->mutable_cpu_counter_track_table()->Insert(row).id;
-  tracks_[{classification, dims_id}] = track_id;
-  return track_id;
-}
-
 TrackId TrackTracker::InternGpuCounterTrack(
     tracks::TrackClassification classification,
     uint32_t gpu_id,

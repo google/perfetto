@@ -21,6 +21,8 @@ INCLUDE PERFETTO MODULE time.conversion;
 CREATE PERFETTO TABLE cpu_idle_time_in_state_counters(
   -- Timestamp.
   ts LONG,
+  -- The machine this residency is calculated for.
+  machine_id LONG,
   -- State name.
   state_name STRING,
   -- Percentage of time all CPUS spent in this state.
@@ -30,31 +32,51 @@ CREATE PERFETTO TABLE cpu_idle_time_in_state_counters(
   -- Time all CPUS spent in any state, in microseconds.
   time_slice INT
 ) AS
-WITH residency_deltas AS (
+WITH cpu_counts_per_machine AS (
+  SELECT machine_id, count(1) AS cpu_count
+  FROM cpu
+  GROUP BY machine_id
+),
+idle_states AS (
   SELECT
-  ts,
-  c.name as state_name,
-  value - (LAG(value) OVER (PARTITION BY c.name, cct.cpu ORDER BY ts)) as delta
-  FROM counters c
-  JOIN cpu_counter_track cct on c.track_id=cct.id
-  WHERE c.name GLOB 'cpuidle.*'
+    c.ts,
+    c.value,
+    EXTRACT_ARG(t.dimension_arg_set_id, 'cpu_idle_state') as state,
+    EXTRACT_ARG(t.dimension_arg_set_id, 'ucpu') as ucpu
+  FROM counter c
+  JOIN track t on c.track_id = t.id
+  WHERE t.classification = 'cpu_idle_state'
+),
+residency_deltas AS (
+  SELECT
+    ts,
+    state,
+    ucpu,
+    value - (LAG(value) OVER (PARTITION BY state, ucpu ORDER BY ts)) as delta
+  FROM idle_states
 ),
 total_residency_calc AS (
-SELECT
-  ts,
-  state_name,
-  sum(delta) as total_residency,
-  -- Perfetto timestamp is in nanoseconds whereas sysfs cpuidle time
-  -- is in microseconds.
-  (
-    (SELECT count(distinct cpu) from cpu_counter_track) *
-    (time_to_us(ts - LAG(ts,1) over (partition by state_name order by ts)))
-  )  as time_slice
+  SELECT
+    ts,
+    cpu.machine_id,
+    state AS state_name,
+    SUM(delta) as total_residency,
+    -- Perfetto timestamp is in nanoseconds whereas sysfs cpuidle time
+    -- is in microseconds.
+    (
+      cpu_counts_per_machine.cpu_count *
+      (time_to_us(ts - LAG(ts, 1) over (PARTITION BY state ORDER BY ts)))
+    )  as time_slice
   FROM residency_deltas
-GROUP BY ts, state_name
+  JOIN cpu USING (ucpu)
+  -- The use of `IS` instead of `=` is intentional because machine_id can be
+  -- null and we still want this join to work in that case.
+  JOIN cpu_counts_per_machine ON cpu.machine_id IS cpu_counts_per_machine.machine_id
+  GROUP BY ts, cpu.machine_id, state
 )
 SELECT
   ts,
+  machine_id,
   state_name,
   MIN(100, (total_residency / time_slice) * 100) as idle_percentage,
   total_residency,
@@ -65,7 +87,8 @@ UNION ALL
 -- Calculate c0 state by subtracting all other states from total time.
 SELECT
   ts,
-  'cpuidle.C0' as state_name,
+  machine_id,
+  'C0' as state_name,
   (MAX(0,time_slice - SUM(total_residency)) / time_slice) * 100 AS idle_percentage,
   time_slice - SUM(total_residency),
   time_slice
