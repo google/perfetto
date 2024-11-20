@@ -42,7 +42,7 @@ export default class implements PerfettoPlugin {
     // CPUs estimate as part of CPU subsystem
     const cpus = ctx.traceInfo.cpus;
     for (const cpu of cpus) {
-      const queryKey = `cpu${cpu}_curve`;
+      const queryKey = `cpu${cpu}_mw`;
       const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu}`;
       const title = `Cpu${cpu} Estimate`;
       ctx.tracks.registerTrack({
@@ -63,7 +63,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new CpuSubsystemEstimateTrack(ctx, uri, `dsu_scu`),
+      track: new CpuSubsystemEstimateTrack(ctx, uri, `dsu_scu_mw`),
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
         wattson: 'Dsu_Scu',
@@ -106,19 +106,7 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   }
 
   getSqlSource() {
-    if (this.queryKey.startsWith(`cpu`)) {
-      return `select ts, ${this.queryKey} as value from _system_state_curves`;
-    } else {
-      return `
-        select
-          ts,
-          -- L3 values are scaled by 1000 because it's divided by ns and L3 LUTs
-          -- are scaled by 10^6. This brings to same units as static_curve (mW)
-          ((IFNULL(l3_hit_value, 0) + IFNULL(l3_miss_value, 0)) * 1000 / dur)
-            + static_curve  as value
-        from _system_state_curves
-      `;
-    }
+    return `select ts, ${this.queryKey} as value from _system_state_mw`;
   }
 }
 
