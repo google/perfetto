@@ -67,6 +67,8 @@ class SystemProbesParser {
 
   const StringId cpu_stat_counter_name_id_;
 
+  const StringId cpu_idle_state_id_;
+
   // Arm CPU identifier string IDs
   const StringId arm_cpu_implementer;
   const StringId arm_cpu_architecture;

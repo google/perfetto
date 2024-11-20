@@ -65,11 +65,13 @@ export default class implements PerfettoPlugin {
       this.addCounterTrack(
         ctx,
         it.state_name,
-        `select
+        `
+          select
             ts,
             idle_percentage as value
-        from cpu_idle_time_in_state_counters
-        where state_name='${it.state_name}'`,
+          from cpu_idle_time_in_state_counters
+          where state_name = '${it.state_name}'
+        `,
         group,
         {unit: 'percent'},
       );

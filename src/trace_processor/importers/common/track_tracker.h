@@ -247,8 +247,6 @@ class TrackTracker {
                                              bool trace_id_is_process_scoped,
                                              StringId source_scope);
 
-  TrackId LegacyInternCpuIdleStateTrack(uint32_t cpu, StringId state);
-
   TrackId LegacyCreateGpuCounterTrack(StringId name,
                                       uint32_t gpu_id,
                                       StringId description = StringId::Null(),
