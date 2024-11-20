@@ -70,7 +70,7 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
           copyToClipboard(ts.toString());
         },
       }),
-      m(TimestampFormatMenuItem),
+      m(TimestampFormatMenuItem, {trace: this.trace}),
       attrs.extraMenuItems ? [m(MenuDivider), attrs.extraMenuItems] : null,
     );
   }
