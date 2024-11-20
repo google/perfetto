@@ -24,7 +24,7 @@ import {Time, TimeSpan} from '../base/time';
 import {TimeScale} from '../base/time_scale';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {TrackNode} from '../public/workspace';
+import {TrackNode, TrackNodeContainer} from '../public/workspace';
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {renderFlows} from './flow_events_renderer';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
@@ -349,7 +349,13 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
               }),
           renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
           renderOverlay: (ctx, size, panels) =>
-            renderOverlay(attrs.trace, ctx, size, panels),
+            renderOverlay(
+              attrs.trace,
+              ctx,
+              size,
+              panels,
+              attrs.trace.workspace.pinnedRoot,
+            ),
           selectedYRange: this.getYRange('pinned-panel-container'),
         }),
         m(PanelContainer, {
@@ -362,7 +368,13 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
           },
           renderUnderlay: (ctx, size) => renderUnderlay(attrs.trace, ctx, size),
           renderOverlay: (ctx, size, panels) =>
-            renderOverlay(attrs.trace, ctx, size, panels),
+            renderOverlay(
+              attrs.trace,
+              ctx,
+              size,
+              panels,
+              attrs.trace.workspace,
+            ),
           selectedYRange: this.getYRange('scrolling-panel-container'),
         }),
       ),
@@ -413,6 +425,7 @@ function renderOverlay(
   ctx: CanvasRenderingContext2D,
   canvasSize: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
+  trackContainer: TrackNodeContainer,
 ): void {
   const size = {
     width: canvasSize.width - TRACK_SHELL_WIDTH,
@@ -424,7 +437,7 @@ function renderOverlay(
   canvasClip(ctx, 0, 0, size.width, size.height);
 
   // TODO(primiano): plumb the TraceImpl obj throughout the viwer page.
-  renderFlows(trace, ctx, size, panels);
+  renderFlows(trace, ctx, size, panels, trackContainer);
 
   const timewindow = trace.timeline.visibleWindow;
   const timescale = new TimeScale(timewindow, {left: 0, right: size.width});
