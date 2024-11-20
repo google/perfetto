@@ -27,11 +27,8 @@ import {CounterOptions} from '../../frontend/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
-import {
-  getOrCreateGroupForProcess,
-  getOrCreateGroupForThread,
-} from '../../public/standard_groups';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
@@ -108,6 +105,8 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Counter';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCounterTracks(ctx);
     await this.addGpuFrequencyTracks(ctx);
@@ -313,9 +312,11 @@ export default class implements PerfettoPlugin {
           name,
         ),
       });
-      const group = getOrCreateGroupForThread(ctx.workspace, utid);
+      const group = ctx.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForThread(utid);
       const track = new TrackNode({uri, title: name, sortOrder: 30});
-      group.addChildInOrder(track);
+      group?.addChildInOrder(track);
     }
   }
 
@@ -371,9 +372,11 @@ export default class implements PerfettoPlugin {
           name,
         ),
       });
-      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
+      const group = ctx.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForProcess(upid);
       const track = new TrackNode({uri, title: name, sortOrder: 20});
-      group.addChildInOrder(track);
+      group?.addChildInOrder(track);
     }
   }
 
