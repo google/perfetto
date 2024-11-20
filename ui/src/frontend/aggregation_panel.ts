@@ -20,7 +20,7 @@ import {
   isEmptyData,
 } from '../public/aggregation';
 import {colorForState} from '../public/lib/colorizer';
-import {DurationWidget} from './widgets/duration';
+import {DurationWidget} from '../public/lib/widgets/duration';
 import {EmptyState} from '../widgets/empty_state';
 import {Anchor} from '../widgets/anchor';
 import {Icons} from '../base/semantic_icons';

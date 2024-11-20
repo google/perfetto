@@ -27,8 +27,8 @@ import {
   getThreadStateFromConstraints,
   ThreadState,
 } from '../../trace_processor/sql_utils/thread_state';
-import {DurationWidget, renderDuration} from '../../frontend/widgets/duration';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {DurationWidget} from '../../public/lib/widgets/duration';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {getProcessName} from '../../trace_processor/sql_utils/process';
 import {
   getFullThreadName,
@@ -42,6 +42,7 @@ import {
 import {goToSchedSlice} from '../../frontend/widgets/sched';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
+import {formatDuration} from '../../public/lib/time_utils';
 
 interface RelatedThreadStates {
   prev?: ThreadState;
@@ -225,7 +226,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       });
 
     const nameForNextOrPrev = (threadState: ThreadState) =>
-      `${threadState.state} for ${renderDuration(threadState.dur)}`;
+      `${threadState.state} for ${formatDuration(this.trace, threadState.dur)}`;
 
     const renderWaker = (related: RelatedThreadStates) => {
       // Could be absent if:
@@ -274,7 +275,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
           m(TreeNode, {
             left: m(Timestamp, {
               ts: state.ts,
-              display: `+${renderDuration(state.ts - startTs)}`,
+              display: `+${formatDuration(this.trace, state.ts - startTs)}`,
             }),
             right: renderRef(state, getFullThreadName(state.thread)),
           }),

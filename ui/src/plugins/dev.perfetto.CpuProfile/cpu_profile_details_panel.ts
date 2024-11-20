@@ -18,7 +18,7 @@ import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
 } from '../../public/lib/query_flamegraph';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {
   TrackEventDetailsPanel,
   TrackEventDetailsPanelSerializeArgs,

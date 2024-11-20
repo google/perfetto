@@ -24,8 +24,8 @@ import {
   getThreadState,
   ThreadState,
 } from '../../../trace_processor/sql_utils/thread_state';
-import {DurationWidget} from '../../../frontend/widgets/duration';
-import {Timestamp} from '../../../frontend/widgets/timestamp';
+import {DurationWidget} from '../widgets/duration';
+import {Timestamp} from '../widgets/timestamp';
 import {
   ColumnType,
   durationFromSql,

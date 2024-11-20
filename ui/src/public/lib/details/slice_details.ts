@@ -13,27 +13,27 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BigintMath} from '../base/bigint_math';
-import {sqliteString} from '../base/string_utils';
-import {exists} from '../base/utils';
-import {SliceDetails} from '../trace_processor/sql_utils/slice';
-import {Anchor} from '../widgets/anchor';
-import {MenuItem, PopupMenu2} from '../widgets/menu';
-import {Section} from '../widgets/section';
-import {SqlRef} from '../widgets/sql_ref';
-import {Tree, TreeNode} from '../widgets/tree';
+import {BigintMath} from '../../../base/bigint_math';
+import {sqliteString} from '../../../base/string_utils';
+import {exists} from '../../../base/utils';
+import {SliceDetails} from '../../../trace_processor/sql_utils/slice';
+import {Anchor} from '../../../widgets/anchor';
+import {MenuItem, PopupMenu2} from '../../../widgets/menu';
+import {Section} from '../../../widgets/section';
+import {SqlRef} from '../../../widgets/sql_ref';
+import {Tree, TreeNode} from '../../../widgets/tree';
 import {
   BreakdownByThreadState,
   BreakdownByThreadStateTreeNode,
-} from './sql/thread_state';
-import {DurationWidget} from './widgets/duration';
-import {renderProcessRef} from './widgets/process';
-import {renderThreadRef} from './widgets/thread';
-import {Timestamp} from './widgets/timestamp';
-import {getSqlTableDescription} from './widgets/sql/table/sql_table_registry';
-import {assertExists} from '../base/logging';
-import {Trace} from '../public/trace';
-import {extensions} from '../public/lib/extensions';
+} from './thread_state';
+import {DurationWidget} from '../widgets/duration';
+import {renderProcessRef} from '../../../frontend/widgets/process';
+import {renderThreadRef} from '../../../frontend/widgets/thread';
+import {Timestamp} from '../widgets/timestamp';
+import {getSqlTableDescription} from '../../../frontend/widgets/sql/table/sql_table_registry';
+import {assertExists} from '../../../base/logging';
+import {Trace} from '../../trace';
+import {extensions} from '../extensions';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.

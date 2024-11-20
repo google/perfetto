@@ -29,13 +29,13 @@ import {getThreadName} from '../../../../trace_processor/sql_utils/thread';
 import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
 import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
-import {DurationWidget} from '../../duration';
+import {DurationWidget} from '../../../../public/lib/widgets/duration';
 import {processRefMenuItems, showProcessDetailsMenuItem} from '../../process';
 import {SchedRef} from '../../sched';
 import {SliceRef} from '../../slice';
 import {showThreadDetailsMenuItem, threadRefMenuItems} from '../../thread';
 import {ThreadStateRef} from '../../thread_state';
-import {Timestamp} from '../../timestamp';
+import {Timestamp} from '../../../../public/lib/widgets/timestamp';
 import {
   AggregationConfig,
   SourceTable,

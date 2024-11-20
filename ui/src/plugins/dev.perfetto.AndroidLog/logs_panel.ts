@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {time, Time, TimeSpan} from '../../base/time';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Timestamp} from '../../frontend/widgets/timestamp';
+import {Timestamp} from '../../public/lib/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Monitor} from '../../base/monitor';

@@ -48,7 +48,7 @@ export default class implements PerfettoPlugin {
       INCLUDE PERFETTO MODULE chrome.event_latency;
     `);
 
-    const uri = 'perfetto.ChromeScrollJank#toplevelScrolls';
+    const uri = 'org.chromium.ChromeScrollJank#toplevelScrolls';
     const title = 'Chrome Scrolls';
 
     ctx.tracks.registerTrack({
@@ -157,7 +157,7 @@ export default class implements PerfettoPlugin {
     );
     await ctx.engine.query(tableDefSql);
 
-    const uri = 'perfetto.ChromeScrollJank#eventLatency';
+    const uri = 'org.chromium.ChromeScrollJank#eventLatency';
     const title = 'Chrome Scroll Input Latencies';
 
     ctx.tracks.registerTrack({
@@ -178,7 +178,7 @@ export default class implements PerfettoPlugin {
       `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`,
     );
 
-    const uri = 'perfetto.ChromeScrollJank#scrollJankV3';
+    const uri = 'org.chromium.ChromeScrollJank#scrollJankV3';
     const title = 'Chrome Scroll Janks';
 
     ctx.tracks.registerTrack({
