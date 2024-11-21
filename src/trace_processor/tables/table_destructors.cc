@@ -68,6 +68,7 @@ MachineTable::~MachineTable() = default;
 TraceFileTable::~TraceFileTable() = default;
 
 // perf_tables.py
+MmapRecordTable::~MmapRecordTable() = default;
 SpeRecordTable::~SpeRecordTable() = default;
 
 // profiler_tables_py.h

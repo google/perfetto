@@ -26,6 +26,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from .profiler_tables import STACK_PROFILE_FRAME_TABLE
+from .profiler_tables import STACK_PROFILE_MAPPING_TABLE
 from .metadata_tables import THREAD_TABLE
 
 SPE_RECORD_TABLE = Table(
@@ -97,5 +98,17 @@ SPE_RECORD_TABLE = Table(
     ),
 )
 
-# Keep this list sorted.
-ALL_TABLES = [SPE_RECORD_TABLE]
+MMAP_RECORD = Table(
+    python_module=__file__,
+    class_name='MmapRecordTable',
+    sql_name='__intrinsic_mmap_record',
+    columns=[
+        C('ts', CppInt64()),
+        C('upid', CppOptional(CppUint32())),
+        C('mapping_id', CppTableId(STACK_PROFILE_MAPPING_TABLE)),
+    ])
+
+ALL_TABLES = [
+    SPE_RECORD_TABLE,
+    MMAP_RECORD,
+]

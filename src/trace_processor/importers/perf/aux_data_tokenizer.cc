@@ -22,7 +22,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
-#include "src/trace_processor/importers/perf/aux_stream_manager.h"
 #include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -31,26 +30,34 @@
 namespace perfetto::trace_processor::perf_importer {
 
 AuxDataTokenizer::~AuxDataTokenizer() = default;
-AuxDataTokenizerFactory::~AuxDataTokenizerFactory() = default;
+AuxDataStream::~AuxDataStream() = default;
 
-DummyAuxDataTokenizer::DummyAuxDataTokenizer(TraceProcessorContext* context,
-                                             AuxStream*)
+DummyAuxDataTokenizer::DummyAuxDataTokenizer(TraceProcessorContext* context)
+    : stream_(context) {}
+
+DummyAuxDataTokenizer::~DummyAuxDataTokenizer() = default;
+
+base::StatusOr<AuxDataStream*> DummyAuxDataTokenizer::InitializeAuxDataStream(
+    AuxStream*) {
+  return &stream_;
+}
+
+DummyAuxDataStream::DummyAuxDataStream(TraceProcessorContext* context)
     : context_(context) {}
-
-void DummyAuxDataTokenizer::OnDataLoss(uint64_t size) {
+void DummyAuxDataStream::OnDataLoss(uint64_t size) {
   context_->storage->IncrementStats(stats::perf_aux_lost,
                                     static_cast<int>(size));
 }
-base::Status DummyAuxDataTokenizer::Parse(AuxRecord, TraceBlobView data) {
+base::Status DummyAuxDataStream::Parse(AuxRecord, TraceBlobView data) {
   context_->storage->IncrementStats(stats::perf_aux_ignored,
                                     static_cast<int>(data.size()));
   return base::OkStatus();
 }
-base::Status DummyAuxDataTokenizer::NotifyEndOfStream() {
+base::Status DummyAuxDataStream::NotifyEndOfStream() {
   return base::OkStatus();
 }
 
-base::Status DummyAuxDataTokenizer::OnItraceStartRecord(ItraceStartRecord) {
+base::Status DummyAuxDataStream::OnItraceStartRecord(ItraceStartRecord) {
   return base::OkStatus();
 }
 

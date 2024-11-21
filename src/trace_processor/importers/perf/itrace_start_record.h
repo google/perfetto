@@ -21,6 +21,7 @@
 #include <optional>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/sample_id.h"
 
 namespace perfetto::trace_processor::perf_importer {
@@ -28,9 +29,14 @@ namespace perfetto::trace_processor::perf_importer {
 struct Record;
 
 struct ItraceStartRecord {
+  RefPtr<PerfEventAttr> attr;
   uint32_t pid;
   uint32_t tid;
   std::optional<SampleId> sample_id;
+
+  std::optional<uint64_t> time() const {
+    return sample_id.has_value() ? sample_id->time() : std::nullopt;
+  }
 
   base::Status Parse(const Record& record);
 };
