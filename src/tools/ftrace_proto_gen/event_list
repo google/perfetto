@@ -539,3 +539,5 @@ devfreq/devfreq_frequency
 cpm_trace/param_set_value_cpm
 fs/do_sys_open
 fs/open_exec
+block/block_io_start
+block/block_io_done

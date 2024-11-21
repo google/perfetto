@@ -686,5 +686,7 @@ message FtraceEvent {
     ParamSetValueCpmFtraceEvent param_set_value_cpm = 543;
     DoSysOpenFtraceEvent do_sys_open = 544;
     OpenExecFtraceEvent open_exec = 545;
+    BlockIoStartFtraceEvent block_io_start = 546;
+    BlockIoDoneFtraceEvent block_io_done = 547;
   }
 }
