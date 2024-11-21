@@ -104,9 +104,9 @@ export default class implements PerfettoPlugin {
         select
           t.parent_id,
           t.name,
-          group_concat(id) as trackIds,
+          group_concat(t.id) as trackIds,
           count() as trackCount,
-          min(a.order_id) as order_id
+          ifnull(min(a.order_id), 0) as order_id
         from track t
         join _slice_track_summary using (id)
         left join _track_event_tracks_ordered a USING (id)
@@ -128,7 +128,8 @@ export default class implements PerfettoPlugin {
         select
           t.name,
           t.id,
-          t.parent_id
+          t.parent_id,
+          ifnull(a.order_id, 0) as order_id
         from graph_reachable_dfs!(
           (
             select id as source_node_id, parent_id as dest_node_id
@@ -142,11 +143,13 @@ export default class implements PerfettoPlugin {
           )
         ) g
         join track t on g.node_id = t.id
+        left join _track_event_tracks_ordered a USING (id)
       )
       select
         t.name as name,
         t.parent_id as parentId,
         t.trackIds as trackIds,
+        t.order_id as orderId,
         __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks_grouped t
       union all
@@ -154,15 +157,18 @@ export default class implements PerfettoPlugin {
         t.name as name,
         t.parent_id as parentId,
         cast_string!(t.id) as trackIds,
+        t.order_id as orderId,
         NULL as maxDepth
       from intermediate_groups t
       left join _slice_track_summary s using (id)
       where s.id is null
+      order by parentId, orderId
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
       parentId: NUM_NULL,
       trackIds: STR,
+      orderId: NUM,
       maxDepth: NUM_NULL,
     });
 
@@ -201,7 +207,7 @@ export default class implements PerfettoPlugin {
         const trackNode = new TrackNode({
           uri,
           title,
-          sortOrder: it.parentId === undefined ? -25 : 0,
+          sortOrder: it.orderId,
         });
         trackIds.forEach((id) => {
           trackMap.set(id, {parentId: it.parentId, trackNode});
