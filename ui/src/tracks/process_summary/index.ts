@@ -20,7 +20,7 @@ import {NUM} from '../../common/query_result';
 import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
+import {DynamicTable, TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
@@ -44,14 +44,17 @@ export interface Config {
 class ProcessSummaryTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SUMMARY_TRACK;
   private setup = false;
+  private window = DynamicTable.NONE;
+  private span = DynamicTable.NONE;
+  private processSliceView = DynamicTable.NONE;
 
   async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
     assertFalse(resolution === 0n, 'Resolution cannot be 0');
 
     if (this.setup === false) {
-      await this.query(
-          `create virtual table ${this.tableName('window')} using window;`);
+      this.window = this.createDynamicTable('window',
+          (name) => `create virtual table ${name} using window;`);
 
       let utids = [this.config.utid];
       if (this.config.upid) {
@@ -65,22 +68,22 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
 
       const trackQuery = await this.query(
           `select id from thread_track where utid in (${utids.join(',')})`);
-      const tracks = [];
+      const tracks: number[] = [];
       for (const it = trackQuery.iter({id: NUM}); it.valid(); it.next()) {
         tracks.push(it.id);
       }
 
-      const processSliceView = this.tableName('process_slice_view');
-      await this.query(
-          `create view ${processSliceView} as ` +
+      this.processSliceView = this.createDynamicView('process_slice_view',
+        (name) => `create view ${name} as ` +
           // 0 as cpu is a dummy column to perform span join on.
           `select ts, dur/${utids.length} as dur ` +
           `from slice s ` +
           `where depth = 0 and track_id in ` +
           `(${tracks.join(',')})`);
-      await this.query(`create virtual table ${this.tableName('span')}
-          using span_join(${processSliceView},
-                          ${this.tableName('window')});`);
+      this.span = this.createDynamicTable('span',
+         (name, processSliceView, window) => `create virtual table ${name}
+          using span_join(${processSliceView}, ${window});`,
+        this.processSliceView, this.window);
       this.setup = true;
     }
 
@@ -90,7 +93,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     const windowStart = BigintMath.quant(start, bucketSize);
     const windowDur = BigintMath.max(1n, end - windowStart);
 
-    await this.query(`update ${this.tableName('window')} set
+    await this.window.query((window) => `update ${window} set
       window_start=${windowStart},
       window_dur=${windowDur},
       quantum=${bucketSize}
@@ -105,41 +108,51 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     const duration = end - start;
     const numBuckets = Math.min(Number(duration / bucketSize), LIMIT);
 
-    const query = `select
+    const sql = (span: string) => `select
       quantum_ts as bucket,
       sum(dur)/cast(${bucketSize} as float) as utilization
-      from ${this.tableName('span')}
+      from ${span}
       group by quantum_ts
       limit ${LIMIT}`;
 
+    // Default to an empty summary in case the query fails,
+    // e.g. on the track being filtered out
     const summary: Data = {
       start,
       end,
       resolution,
-      length: numBuckets,
+      length: 0,
       bucketSize,
-      utilizations: new Float64Array(numBuckets),
+      utilizations: Float64Array.of(),
     };
 
-    const queryRes = await this.query(query);
-    const it = queryRes.iter({bucket: NUM, utilization: NUM});
-    for (; it.valid(); it.next()) {
-      const bucket = it.bucket;
-      if (bucket > numBuckets) {
-        continue;
-      }
-      summary.utilizations[bucket] = it.utilization;
-    }
+    const result = await this.span.query(sql, (queryRes) => {
+      // Fill in the summary from the query results
+      Object.assign(summary, {
+        length: numBuckets,
+        utilizations: new Float64Array(numBuckets),
+      });
 
-    return summary;
+      const it = queryRes.iter({bucket: NUM, utilization: NUM});
+      for (; it.valid(); it.next()) {
+        const bucket = it.bucket;
+        if (bucket > numBuckets) {
+          continue;
+        }
+        summary.utilizations[bucket] = it.utilization;
+      }
+
+      return summary;
+    }, () => summary);
+
+    return result;
   }
 
   onDestroy(): void {
-    if (this.setup) {
-      this.query(`drop table if exists ${this.tableName('window')}`);
-      this.query(`drop table if exists ${this.tableName('span')}`);
-      this.setup = false;
-    }
+    this.span.drop();
+    this.processSliceView.drop();
+    this.window.drop();
+    this.setup = false;
   }
 }
 

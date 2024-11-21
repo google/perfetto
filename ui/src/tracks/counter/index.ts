@@ -29,7 +29,7 @@ import {
 } from '../../common/plugin_api';
 import {TPDuration, TPTime, tpTimeToSeconds} from '../../common/time';
 import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
+import {DynamicTable, TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
@@ -77,13 +77,15 @@ class CounterTrackController extends TrackController<Config, Data> {
   private maximumDeltaSeen = 0;
   private minimumDeltaSeen = 0;
   private maxDurNs: TPDuration = 0n;
+  private counterView = DynamicTable.NONE;
 
   async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
     if (!this.setup) {
+      let ddl: (counterView: string) => string;
       if (this.config.namespace === undefined) {
-        await this.query(`
-          create view ${this.tableName('counter_view')} as
+        ddl = (counterView) => `
+          create view ${counterView} as
           select
             id,
             ts,
@@ -92,10 +94,10 @@ class CounterTrackController extends TrackController<Config, Data> {
             delta
           from experimental_counter_dur
           where track_id = ${this.config.trackId};
-        `);
+        `;
       } else {
-        await this.query(`
-          create view ${this.tableName('counter_view')} as
+        ddl = (counterView) => `
+          create view ${counterView} as
           select
             id,
             ts,
@@ -104,55 +106,51 @@ class CounterTrackController extends TrackController<Config, Data> {
             value
           from ${this.namespaceTable('counter')}
           where track_id = ${this.config.trackId};
-        `);
+        `;
       }
+      this.counterView = this.createDynamicView('counter_view', ddl);
 
-      const maxDurResult = await this.query(`
+      await this.counterView.query((counterView) => `
           select
             max(
               iif(dur != -1, dur, (select end_ts from trace_bounds) - ts)
             ) as maxDur
-          from ${this.tableName('counter_view')}
-      `);
-      this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
+          from ${counterView}
+      `, (maxDurResult) => {
+          this.maxDurNs = maxDurResult.firstRow({
+            maxDur: LONG_NULL,
+          }).maxDur || 0n;
+        });
 
-      const queryRes = await this.query(`
+      await this.counterView.query((counterView) => `
         select
           ifnull(max(value), 0) as maxValue,
           ifnull(min(value), 0) as minValue,
           ifnull(max(delta), 0) as maxDelta,
           ifnull(min(delta), 0) as minDelta
-        from ${this.tableName('counter_view')}`);
-      const row = queryRes.firstRow(
-          {maxValue: NUM, minValue: NUM, maxDelta: NUM, minDelta: NUM});
-      this.maximumValueSeen = row.maxValue;
-      this.minimumValueSeen = row.minValue;
-      this.maximumDeltaSeen = row.maxDelta;
-      this.minimumDeltaSeen = row.minDelta;
+        from ${counterView}`,
+        (queryRes) => {
+          const row = queryRes.firstRow(
+              {maxValue: NUM, minValue: NUM, maxDelta: NUM, minDelta: NUM});
+          this.maximumValueSeen = row.maxValue;
+          this.minimumValueSeen = row.minValue;
+          this.maximumDeltaSeen = row.maxDelta;
+          this.minimumDeltaSeen = row.minDelta;
+        },
+      );
 
       this.setup = true;
     }
 
-    const queryRes = await this.query(`
-      select
-        (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
-        min(value) as minValue,
-        max(value) as maxValue,
-        sum(delta) as totalDelta,
-        value_at_max_ts(ts, id) as lastId,
-        value_at_max_ts(ts, value) as lastValue
-      from ${this.tableName('counter_view')}
-      where ts >= ${start - this.maxDurNs} and ts <= ${end}
-      group by tsq
-      order by tsq
-    `);
+    const emptyBigInts = BigInt64Array.of();
+    const emptyFloats = Float64Array.of();
 
-    const numRows = queryRes.numRows();
-
+    // Default to an empty data in case the query fails,
+    // e.g. on the track being filtered out
     const data: Data = {
       start,
       end,
-      length: numRows,
+      length: 0,
       maximumValue: this.maximumValue(),
       minimumValue: this.minimumValue(),
       maximumDelta: this.maximumDeltaSeen,
@@ -160,46 +158,85 @@ class CounterTrackController extends TrackController<Config, Data> {
       maximumRate: 0,
       minimumRate: 0,
       resolution,
-      timestamps: new BigInt64Array(numRows),
-      lastIds: new Float64Array(numRows),
-      minValues: new Float64Array(numRows),
-      maxValues: new Float64Array(numRows),
-      lastValues: new Float64Array(numRows),
-      totalDeltas: new Float64Array(numRows),
-      rate: new Float64Array(numRows),
+      timestamps: emptyBigInts,
+      lastIds: emptyFloats,
+      minValues: emptyFloats,
+      maxValues: emptyFloats,
+      lastValues: emptyFloats,
+      totalDeltas: emptyFloats,
+      rate: emptyFloats,
     };
 
-    const it = queryRes.iter({
-      'tsq': LONG,
-      'lastId': NUM,
-      'minValue': NUM,
-      'maxValue': NUM,
-      'lastValue': NUM,
-      'totalDelta': NUM,
-    });
-    let lastValue = 0;
-    let lastTs = 0n;
-    for (let row = 0; it.valid(); it.next(), row++) {
-      const ts = it.tsq;
-      const value = it.lastValue;
-      const rate = (value - lastValue) / (tpTimeToSeconds(ts - lastTs));
-      lastTs = ts;
-      lastValue = value;
+    const result = await this.counterView.query((counterView) => `
+        select
+          (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
+          min(value) as minValue,
+          max(value) as maxValue,
+          sum(delta) as totalDelta,
+          value_at_max_ts(ts, id) as lastId,
+          value_at_max_ts(ts, value) as lastValue
+        from ${counterView}
+        where ts >= ${start - this.maxDurNs} and ts <= ${end}
+        group by tsq
+        order by tsq
+      `,
+      (queryRes) => {
+        const numRows = queryRes.numRows();
 
-      data.timestamps[row] = ts;
-      data.lastIds[row] = it.lastId;
-      data.minValues[row] = it.minValue;
-      data.maxValues[row] = it.maxValue;
-      data.lastValues[row] = value;
-      data.totalDeltas[row] = it.totalDelta;
-      data.rate[row] = rate;
-      if (row > 0) {
-        data.rate[row - 1] = rate;
-        data.maximumRate = Math.max(data.maximumRate, rate);
-        data.minimumRate = Math.min(data.minimumRate, rate);
-      }
-    }
-    return data;
+        // Fill in the data from the query results
+        Object.assign(data, {
+          length: numRows,
+          timestamps: new BigInt64Array(numRows),
+          lastIds: new Float64Array(numRows),
+          minValues: new Float64Array(numRows),
+          maxValues: new Float64Array(numRows),
+          lastValues: new Float64Array(numRows),
+          totalDeltas: new Float64Array(numRows),
+          rate: new Float64Array(numRows),
+        });
+
+       const it = queryRes.iter({
+          'tsq': LONG,
+          'lastId': NUM,
+          'minValue': NUM,
+          'maxValue': NUM,
+          'lastValue': NUM,
+          'totalDelta': NUM,
+        });
+        let lastValue = 0;
+        let lastTs = 0n;
+        for (let row = 0; it.valid(); it.next(), row++) {
+          const ts = it.tsq;
+          const value = it.lastValue;
+          const rate = (value - lastValue) / (tpTimeToSeconds(ts - lastTs));
+          lastTs = ts;
+          lastValue = value;
+
+          data.timestamps[row] = ts;
+          data.lastIds[row] = it.lastId;
+          data.minValues[row] = it.minValue;
+          data.maxValues[row] = it.maxValue;
+          data.lastValues[row] = value;
+          data.totalDeltas[row] = it.totalDelta;
+          data.rate[row] = rate;
+          if (row > 0) {
+            data.rate[row - 1] = rate;
+            data.maximumRate = Math.max(data.maximumRate, rate);
+            data.minimumRate = Math.min(data.minimumRate, rate);
+          }
+        }
+
+        return data;
+      },
+      () => data,
+    );
+
+    return result;
+  }
+
+  onDestroy(): void {
+    this.counterView.drop();
+    this.setup = false;
   }
 
   private maximumValue() {
