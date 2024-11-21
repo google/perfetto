@@ -21,6 +21,7 @@
 namespace perfetto::trace_processor::perf_importer {
 
 base::Status ItraceStartRecord::Parse(const Record& record) {
+  attr = record.attr;
   Reader reader(record.payload.copy());
 
   if (!reader.Read(pid) || !reader.Read(tid)) {
