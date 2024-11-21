@@ -21,7 +21,9 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <variant>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -52,43 +54,62 @@ class AuxStreamManager;
 // `AuxDataTokenizer` .
 class AuxStream {
  public:
+  enum class Type {
+    kCpuBound,
+    kThreadBound,
+  };
+
   ~AuxStream();
-  base::Status OnAuxRecord(AuxRecord aux);
-  base::Status OnAuxtraceRecord(AuxtraceRecord auxtrace, TraceBlobView data);
-  base::Status NotifyEndOfStream();
-  base::Status OnItraceStartRecord(ItraceStartRecord start) {
-    return tokenizer_->OnItraceStartRecord(std::move(start));
-  }
   std::optional<uint64_t> ConvertTscToPerfTime(uint64_t cycles);
 
+  Type type() const { return type_; }
+
+  uint32_t cpu() const {
+    PERFETTO_CHECK(type_ == Type::kCpuBound);
+    return tid_or_cpu_;
+  }
+
+  uint32_t tid() const {
+    PERFETTO_CHECK(type_ == Type::kThreadBound);
+    return tid_or_cpu_;
+  }
+
  private:
-  class AuxtraceDataChunk {
+  class AuxtraceDataReader {
    public:
-    AuxtraceDataChunk(AuxtraceRecord auxtrace, TraceBlobView data)
-        : auxtrace_(std::move(auxtrace)), data_(std::move(data)) {}
+    AuxtraceDataReader(AuxtraceRecord auxtrace, TraceBlobView data);
 
     TraceBlobView ConsumeFront(uint64_t size);
     void DropUntil(uint64_t offset);
 
-    uint64_t offset() const { return auxtrace_.offset; }
-    uint64_t end() const { return auxtrace_.offset + data_.size(); }
+    uint64_t offset() const { return offset_; }
+    uint64_t end() const { return offset_ + data_.size(); }
     uint64_t size() const { return data_.size(); }
 
    private:
-    AuxtraceRecord auxtrace_;
+    uint64_t offset_;
     TraceBlobView data_;
   };
 
+  using OutstandingRecord = std::variant<ItraceStartRecord, AuxRecord>;
+
   friend AuxStreamManager;
-  explicit AuxStream(AuxStreamManager* manager);
+  AuxStream(AuxStreamManager* manager, Type type, uint32_t tid_or_cpu);
+
+  base::Status OnAuxRecord(AuxRecord aux);
+  base::Status OnAuxtraceRecord(AuxtraceRecord auxtrace, TraceBlobView data);
+  base::Status NotifyEndOfStream();
+  base::Status OnItraceStartRecord(ItraceStartRecord start);
 
   base::Status MaybeParse();
 
   AuxStreamManager& manager_;
-  std::unique_ptr<AuxDataTokenizer> tokenizer_;
-  base::CircularQueue<AuxRecord> outstanding_aux_records_;
+  Type type_;
+  uint32_t tid_or_cpu_;
+  AuxDataStream* data_stream_;
+  base::CircularQueue<OutstandingRecord> outstanding_records_;
   uint64_t aux_end_ = 0;
-  base::CircularQueue<AuxtraceDataChunk> outstanding_auxtrace_data_;
+  base::CircularQueue<AuxtraceDataReader> outstanding_auxtrace_data_;
   uint64_t auxtrace_end_ = 0;
   uint64_t tokenizer_offset_ = 0;
 };
@@ -126,7 +147,7 @@ class AuxStreamManager {
       uint32_t cpu);
 
   TraceProcessorContext* const context_;
-  std::unique_ptr<AuxDataTokenizerFactory> tokenizer_factory_;
+  std::unique_ptr<AuxDataTokenizer> tokenizer_;
   base::FlatHashMap<uint32_t, std::unique_ptr<AuxStream>>
       auxdata_streams_by_cpu_;
   std::optional<TimeConvRecord> time_conv_;

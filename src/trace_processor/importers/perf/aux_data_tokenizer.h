@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_AUX_DATA_TOKENIZER_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 #include "perfetto/base/status.h"
@@ -36,47 +37,33 @@ struct AuxRecord;
 class AuxStream;
 struct ItraceStartRecord;
 
-class AuxDataTokenizer {
+class AuxDataStream {
  public:
-  virtual ~AuxDataTokenizer();
+  virtual ~AuxDataStream();
   virtual void OnDataLoss(uint64_t) = 0;
   virtual base::Status Parse(AuxRecord record, TraceBlobView data) = 0;
   virtual base::Status NotifyEndOfStream() = 0;
   virtual base::Status OnItraceStartRecord(ItraceStartRecord start) = 0;
 };
 
-// Base class for `AuxDataTokenizer` factories.
+// Base class for aux data tokenizers.
 // A factory is created upon encountering an AUXTRACE_INFO record. the payload
 // for such messages usually contains trace specific information to setup trace
 // specific parsing. Subclasses are responsible for parsing the payload and
-// storing any data needed to create `AuxDataTokenizer` instances as new data
+// storing any data needed to create `AuxDataStream` instances as new data
 // streams are encountered in the trace.
-class AuxDataTokenizerFactory {
+class AuxDataTokenizer {
  public:
-  virtual ~AuxDataTokenizerFactory();
-  virtual base::StatusOr<std::unique_ptr<AuxDataTokenizer>> Create(
-      TraceProcessorContext* context,
+  virtual ~AuxDataTokenizer();
+  virtual base::StatusOr<AuxDataStream*> InitializeAuxDataStream(
       AuxStream* stream) = 0;
-};
-
-// Generic `AuxDataTokenizerFactory` implementation for factories that keep no
-// state.
-template <typename Tokenizer>
-class SimpleAuxDataTokenizerFactory : public AuxDataTokenizerFactory {
- public:
-  SimpleAuxDataTokenizerFactory() {}
-  base::StatusOr<std::unique_ptr<AuxDataTokenizer>> Create(
-      TraceProcessorContext* context,
-      AuxStream* stream) override {
-    return std::unique_ptr<AuxDataTokenizer>(new Tokenizer(context, stream));
-  }
 };
 
 // Dummy tokenizer that just discard data.
 // Used to skip streams that we do not know how to parse.
-class DummyAuxDataTokenizer : public AuxDataTokenizer {
+class DummyAuxDataStream : public AuxDataStream {
  public:
-  DummyAuxDataTokenizer(TraceProcessorContext* context, AuxStream* stream);
+  explicit DummyAuxDataStream(TraceProcessorContext* context);
   void OnDataLoss(uint64_t size) override;
   base::Status Parse(AuxRecord, TraceBlobView data) override;
   base::Status NotifyEndOfStream() override;
@@ -86,10 +73,18 @@ class DummyAuxDataTokenizer : public AuxDataTokenizer {
   TraceProcessorContext* const context_;
 };
 
-// Dummy factory that creates tokenizers that just discard data.
+// Dummy tokenizer that just discard data.
 // Used to skip streams that we do not know how to parse.
-using DummyAuxDataTokenizerFactory =
-    SimpleAuxDataTokenizerFactory<DummyAuxDataTokenizer>;
+class DummyAuxDataTokenizer : public AuxDataTokenizer {
+ public:
+  explicit DummyAuxDataTokenizer(TraceProcessorContext* context);
+  ~DummyAuxDataTokenizer() override;
+  virtual base::StatusOr<AuxDataStream*> InitializeAuxDataStream(
+      AuxStream* stream) override;
+
+ private:
+  DummyAuxDataStream stream_;
+};
 
 }  // namespace perf_importer
 }  // namespace trace_processor

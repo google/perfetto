@@ -17,16 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_SPE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_SPE_TOKENIZER_H_
 
-#include <cstdint>
-#include <optional>
+#include <memory>
 
-#include "perfetto/base/status.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
-#include "src/trace_processor/importers/perf/aux_record.h"
 #include "src/trace_processor/importers/perf/aux_stream_manager.h"
-#include "src/trace_processor/importers/perf/perf_session.h"
-#include "src/trace_processor/util/trace_blob_view_reader.h"
+#include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 
 namespace perfetto ::trace_processor {
 class TraceProcessorContext;
@@ -34,34 +30,20 @@ namespace perf_importer {
 
 class SpeTokenizer : public AuxDataTokenizer {
  public:
-  explicit SpeTokenizer(TraceProcessorContext* context, AuxStream* stream)
-      : context_(context), stream_(*stream) {}
-  void OnDataLoss(uint64_t) override;
-  base::Status Parse(AuxRecord record, TraceBlobView data) override;
-  base::Status NotifyEndOfStream() override;
-  base::Status OnItraceStartRecord(ItraceStartRecord) override;
+  static base::StatusOr<std::unique_ptr<AuxDataTokenizer>> Create(
+      TraceProcessorContext* context,
+      AuxtraceInfoRecord) {
+    return std::unique_ptr<AuxDataTokenizer>(new SpeTokenizer(context));
+  }
+  ~SpeTokenizer() override;
+  base::StatusOr<AuxDataStream*> InitializeAuxDataStream(
+      AuxStream* stream) override;
 
  private:
-  // A SPE trace is just a stream of SPE records which in turn are a collection
-  // of packets. An End or Timestamp packet signals the end of the current
-  // record. This method will read the stream until an end of record condition,
-  // emit the record to the sorter, consume the bytes from the buffer, and
-  // finally return true. If not enough data is available to parse a full record
-  // it returns false and the internal buffer is not modified.
-  bool ProcessRecord();
-  uint64_t ReadTimestamp(const TraceBlobView& record);
-
-  // Emits a record to the sorter. You can optionally pass the cycles value
-  // contained in the timestamp packet which will be used to determine the trace
-  // timestamp.
-  void Emit(TraceBlobView data, std::optional<uint64_t> cycles);
+  explicit SpeTokenizer(TraceProcessorContext* context) : context_(context) {}
   TraceProcessorContext* const context_;
-  AuxStream& stream_;
-  util::TraceBlobViewReader buffer_;
-  std::optional<AuxRecord> last_aux_record_;
+  std::vector<std::unique_ptr<AuxDataStream>> streams_;
 };
-
-using SpeTokenizerFactory = SimpleAuxDataTokenizerFactory<SpeTokenizer>;
 
 }  // namespace perf_importer
 }  // namespace perfetto::trace_processor
