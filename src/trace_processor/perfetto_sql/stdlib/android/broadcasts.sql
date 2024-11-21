@@ -17,14 +17,14 @@
 INCLUDE PERFETTO MODULE android.freezer;
 
 CREATE PERFETTO FUNCTION _extract_broadcast_process_name(name STRING)
-RETURNS INT
+RETURNS LONG
 AS
 WITH
   pid_and_name AS (
     SELECT STR_SPLIT(STR_SPLIT($name, '/', 0), ' ', 1) AS value
   ),
   start AS (
-    SELECT CAST(INSTR(value, ':') AS INT) + 1 AS value FROM pid_and_name
+    SELECT cast_int!(INSTR(value, ':')) + 1 AS value FROM pid_and_name
   )
 SELECT SUBSTR(pid_and_name.value, start.value) FROM pid_and_name, start;
 
@@ -36,25 +36,25 @@ CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
   -- Name of the process the broadcast was sent to.
   process_name STRING,
   -- Pid of the process the broadcast was sent to.
-  pid INT,
+  pid LONG,
   -- Upid of the process the broadcast was sent to.
-  upid INT,
+  upid LONG,
   -- Id of the broacast queue the broadcast was dispatched from.
-  queue_id INT,
+  queue_id LONG,
   -- Slice id of the broadcast dispatch.
-  id INT,
+  id LONG,
   -- Timestamp the broadcast was dispatched.
-  ts INT,
+  ts LONG,
   -- Duration to dispatch the broadcast.
-  dur INT,
+  dur LONG,
   -- Track id the broadcast was dispatched from.
-  track_id INT
+  track_id LONG
 ) AS
 WITH
   broadcast_queues AS (
     SELECT
       process_track.id,
-      CAST(replace(str_split(process_track.name, '[', 1), ']', '') AS INT) AS queue_id
+      cast_int!(replace(str_split(process_track.name, '[', 1), ']', '')) AS queue_id
     FROM process_track
     JOIN process
       USING (upid)
@@ -69,7 +69,7 @@ WITH
       slice.dur,
       broadcast_queues.queue_id,
       _extract_broadcast_process_name(slice.name) AS process_name,
-      CAST(str_split(str_split(str_split(slice.name, '/', 0), ' ', 1), ':', 0) AS INT) AS pid,
+      cast_int!(str_split(str_split(str_split(slice.name, '/', 0), ' ', 1), ':', 0)) AS pid,
       queue_id
     FROM slice
     JOIN broadcast_queues

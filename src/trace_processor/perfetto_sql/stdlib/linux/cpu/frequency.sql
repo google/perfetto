@@ -19,20 +19,20 @@ INCLUDE PERFETTO MODULE counters.intervals;
 -- region where a CPU frequency is constant.
 CREATE PERFETTO TABLE cpu_frequency_counters(
   -- Counter id.
-  id INT,
+  id LONG,
   -- Joinable with 'counter_track.id'.
-  track_id INT,
+  track_id LONG,
   -- Starting timestamp of the counter
   ts LONG,
   -- Duration in which counter is constant and frequency doesn't change.
-  dur INT,
+  dur LONG,
   -- Frequency in kHz of the CPU that corresponds to this counter. NULL if not
   -- found or undefined.
-  freq INT,
+  freq LONG,
   -- Unique CPU id.
-  ucpu INT,
+  ucpu LONG,
   -- CPU that corresponds to this counter.
-  cpu INT
+  cpu LONG
 ) AS
 SELECT
   count_w_dur.id,

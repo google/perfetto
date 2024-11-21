@@ -19,13 +19,13 @@ CREATE PERFETTO VIEW android_anrs(
   -- Name of the process that triggered the ANR.
   process_name STRING,
   -- PID of the process that triggered the ANR.
-  pid INT,
+  pid LONG,
   -- UPID of the process that triggered the ANR.
-  upid INT,
+  upid LONG,
   -- UUID of the ANR (generated on the platform).
   error_id STRING,
   -- Timestamp of the ANR.
-  ts INT,
+  ts LONG,
   -- Subject line of the ANR.
   subject STRING
 ) AS
@@ -36,7 +36,7 @@ WITH anr AS (
     -- v1: "ErrorId:<process_name>#<UUID>"
     -- v2: "ErrorId:<process_name> <pid>#<UUID>"
     STR_SPLIT(SUBSTR(STR_SPLIT(process_counter_track.name, '#', 0), 9), ' ', 0) AS process_name,
-    CAST(STR_SPLIT(SUBSTR(STR_SPLIT(process_counter_track.name, '#', 0), 9), ' ', 1) AS INT32) AS pid,
+    cast_int!(STR_SPLIT(SUBSTR(STR_SPLIT(process_counter_track.name, '#', 0), 9), ' ', 1)) AS pid,
     STR_SPLIT(process_counter_track.name, '#', 1) AS error_id,
     counter.ts
   FROM process_counter_track

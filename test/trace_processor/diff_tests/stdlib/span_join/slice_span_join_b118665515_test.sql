@@ -19,4 +19,4 @@ CREATE VIRTUAL TABLE span_8 USING span_join(sched PARTITIONED cpu, window_8);
 
 UPDATE window_8 SET window_start = 81473010031230, window_dur = 19684693341, quantum = 10000000 WHERE rowid = 0;
 
-SELECT quantum_ts AS bucket, sum(dur) / cast(10000000 AS float) AS utilization FROM span_8 WHERE cpu = 7 AND utid != 0 GROUP BY quantum_ts;
+SELECT quantum_ts AS bucket, sum(dur) / cast_double!(10000000) AS utilization FROM span_8 WHERE cpu = 7 AND utid != 0 GROUP BY quantum_ts;

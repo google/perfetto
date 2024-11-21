@@ -44,17 +44,17 @@ FROM counter_leading_intervals!(high_watermark_as_counter);
 CREATE PERFETTO VIEW memory_rss_high_watermark_per_process
 (
     -- Timestamp
-    ts INT,
+    ts LONG,
     -- Duration
-    dur INT,
+    dur LONG,
     -- Upid of the process
-    upid INT,
+    upid LONG,
     -- Pid of the process
-    pid INT,
+    pid LONG,
     -- Name of the process
     process_name STRING,
     -- Maximum `rss` value until now
-    rss_high_watermark INT
+    rss_high_watermark LONG
 ) AS
 SELECT
     ts,

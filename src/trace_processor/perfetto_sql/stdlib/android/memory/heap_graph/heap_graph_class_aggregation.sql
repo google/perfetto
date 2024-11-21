@@ -18,7 +18,7 @@ INCLUDE PERFETTO MODULE graphs.partition;
 
 CREATE PERFETTO FUNCTION _partition_tree_super_root_fn()
 -- The assigned id of the "super root".
-RETURNS INT AS
+RETURNS LONG AS
 SELECT id + 1
 FROM heap_graph_object
 ORDER BY id DESC
@@ -64,36 +64,36 @@ ORDER BY id;
 -- Per type name aggregates the object stats and the dominator tree stats.
 CREATE PERFETTO TABLE android_heap_graph_class_aggregation (
   -- Process upid
-  upid INT,
+  upid LONG,
   -- Heap dump timestamp
-  graph_sample_ts INT,
+  graph_sample_ts LONG,
   -- Class type id
-  type_id INT,
+  type_id LONG,
   -- Class name (deobfuscated if available)
   type_name STRING,
   -- Is type an instance of a libcore object (java.*) or array
   is_libcore_or_array BOOL,
   -- Count of class instances
-  obj_count INT,
+  obj_count LONG,
   -- Size of class instances
-  size_bytes INT,
+  size_bytes LONG,
   -- Native size of class instances
-  native_size_bytes INT,
+  native_size_bytes LONG,
   -- Count of reachable class instances
-  reachable_obj_count INT,
+  reachable_obj_count LONG,
   -- Size of reachable class instances
-  reachable_size_bytes INT,
+  reachable_size_bytes LONG,
   -- Native size of reachable class instances
-  reachable_native_size_bytes INT,
+  reachable_native_size_bytes LONG,
   -- Count of all objects dominated by instances of this class
   -- Only applies to reachable objects
-  dominated_obj_count INT,
+  dominated_obj_count LONG,
   -- Size of all objects dominated by instances of this class
   -- Only applies to reachable objects
-  dominated_size_bytes INT,
+  dominated_size_bytes LONG,
   -- Native size of all objects dominated by instances of this class
   -- Only applies to reachable objects
-  dominated_native_size_bytes INT
+  dominated_native_size_bytes LONG
 ) AS
 WITH base AS (
   -- First level aggregation to avoid joining with class for every object

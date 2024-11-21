@@ -110,8 +110,8 @@ SELECT
   slice_id,
   depth AS slice_depth,
   name AS slice_name,
-  CAST(ts AS INT) AS ts,
-  CAST(dur AS INT) AS dur,
+  cast_int!(ts) AS ts,
+  cast_int!(dur) AS dur,
   utid
 FROM _slice_flattened;
 
@@ -213,17 +213,17 @@ USING
 -- critical_path slice_stack (enabled with |enable_critical_path_slice|).
 -- running cpu (if one exists).
 -- A 'stack' is the group of resulting unpivoted rows sharing the same timestamp.
-CREATE PERFETTO FUNCTION _critical_path_stack(root_utid INT, ts LONG, dur LONG, enable_process_name INT, enable_thread_name INT, enable_self_slice INT, enable_critical_path_slice INT)
+CREATE PERFETTO FUNCTION _critical_path_stack(root_utid LONG, ts LONG, dur LONG, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
 RETURNS
   TABLE(
-    id INT,
+    id LONG,
     ts LONG,
     dur LONG,
-    utid INT,
-    stack_depth INT,
+    utid LONG,
+    stack_depth LONG,
     name STRING,
     table_name STRING,
-    root_utid INT) AS
+    root_utid LONG) AS
   -- Spans filtered to the query time window and root_utid.
   -- This is a preliminary step that gets the start and end ts of all the rows
   -- so that we can chop the ends of each interval correctly if it overlaps with the query time interval.
@@ -553,7 +553,7 @@ SELECT * FROM merged WHERE id IS NOT NULL;
 -- critical_path thread_name, critical_path slice_stack, running_cpu.
 CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_stack(
   -- Thread utid to filter critical paths to.
-  root_utid INT,
+  root_utid LONG,
   -- Timestamp of start of time range to filter critical paths to.
   ts LONG,
   -- Duration of time range to filter critical paths to.
@@ -561,26 +561,26 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_stack(
 RETURNS
   TABLE(
     -- Id of the thread_state or slice in the thread_executing_span.
-    id INT,
+    id LONG,
     -- Timestamp of slice in the critical path.
     ts LONG,
     -- Duration of slice in the critical path.
     dur LONG,
     -- Utid of thread that emitted the slice.
-    utid INT,
+    utid LONG,
     -- Stack depth of the entitity in the debug track.
-    stack_depth INT,
+    stack_depth LONG,
     -- Name of entity in the critical path (could be a thread_state, kernel blocked_function, process_name, thread_name, slice name or cpu).
     name STRING,
     -- Table name of entity in the critical path (could be either slice or thread_state).
     table_name STRING,
     -- Utid of the thread the critical path was filtered to.
-    root_utid INT
+    root_utid LONG
 ) AS
 SELECT * FROM _critical_path_stack($root_utid, $ts, $dur, 1, 1, 1, 1);
 
 -- Returns a pprof aggregation of the stacks in |_critical_path_stack|.
-CREATE PERFETTO FUNCTION _critical_path_graph(graph_title STRING, root_utid INT, ts LONG, dur LONG, enable_process_name INT, enable_thread_name INT, enable_self_slice INT, enable_critical_path_slice INT)
+CREATE PERFETTO FUNCTION _critical_path_graph(graph_title STRING, root_utid LONG, ts LONG, dur LONG, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
 RETURNS TABLE(pprof BYTES)
 AS
 WITH
@@ -635,11 +635,11 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_graph(
   -- Descriptive name for the graph.
   graph_title STRING,
   -- Thread utid to filter critical paths to.
-  root_utid INT,
+  root_utid LONG,
   -- Timestamp of start of time range to filter critical paths to.
-  ts INT,
+  ts LONG,
   -- Duration of time range to filter critical paths to.
-  dur INT)
+  dur LONG)
 RETURNS TABLE(
   -- Pprof of critical path stacks.
   pprof BYTES

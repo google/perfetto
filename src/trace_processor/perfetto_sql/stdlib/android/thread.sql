@@ -21,19 +21,19 @@ SELECT STR_SPLIT(STR_SPLIT(STR_SPLIT(STR_SPLIT($thread_name, "-", 0), "[", 0), "
 CREATE PERFETTO FUNCTION _android_thread_creation_spam(
   -- Minimum duration between creating and destroying a thread before their the
   -- thread creation event is considered. If NULL, considers all thread creations.
-  min_thread_dur FLOAT,
+  min_thread_dur DOUBLE,
   -- Sliding window duration for counting the thread creations. Each window
   -- starts at the first thread creation per <process, thread_name_prefix>.
-  sliding_window_dur FLOAT)
+  sliding_window_dur DOUBLE)
 RETURNS TABLE(
   -- Process name creating threads.
   process_name STRING,
   -- Process pid creating threads.
-  pid INT,
+  pid LONG,
   -- String prefix of thread names created.
   thread_name_prefix STRING,
   -- Max number of threads created within a time window.
-  max_count_per_sec INT
+  max_count_per_sec LONG
 ) AS
 WITH
 x AS (
@@ -46,7 +46,7 @@ x AS (
       OVER (
         PARTITION BY upid, thread.name
         ORDER BY thread.start_ts
-        RANGE BETWEEN CURRENT ROW AND CAST($sliding_window_dur AS INT64) FOLLOWING
+        RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING
       ) AS count
   FROM thread
   JOIN process

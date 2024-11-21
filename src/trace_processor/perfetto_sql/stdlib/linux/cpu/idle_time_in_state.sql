@@ -30,7 +30,7 @@ CREATE PERFETTO TABLE cpu_idle_time_in_state_counters(
   -- Incremental time spent in this state (residency), in microseconds.
   total_residency DOUBLE,
   -- Time all CPUS spent in any state, in microseconds.
-  time_slice INT
+  time_slice LONG
 ) AS
 WITH cpu_counts_per_machine AS (
   SELECT machine_id, count(1) AS cpu_count

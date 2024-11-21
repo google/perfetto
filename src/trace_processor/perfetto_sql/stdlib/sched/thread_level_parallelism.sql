@@ -22,10 +22,10 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 -- The count of runnable threads over time.
 CREATE PERFETTO TABLE sched_runnable_thread_count(
   -- Timestamp when the runnable thread count changed to the current value.
-  ts INT,
+  ts LONG,
   -- Number of runnable threads, covering the range from this timestamp to the
   -- next row's timestamp.
-  runnable_thread_count INT
+  runnable_thread_count LONG
 ) AS
 WITH
 runnable AS (
@@ -40,10 +40,10 @@ ORDER BY ts;
 -- The count of threads in uninterruptible sleep over time.
 CREATE PERFETTO TABLE sched_uninterruptible_sleep_thread_count(
   -- Timestamp when the thread count changed to the current value.
-  ts INT,
+  ts LONG,
   -- Number of threads in uninterrutible sleep, covering the range from this timestamp to the
   -- next row's timestamp.
-  uninterruptible_sleep_thread_count INT
+  uninterruptible_sleep_thread_count LONG
 ) AS
 WITH
 uninterruptible_sleep AS (
@@ -58,10 +58,10 @@ ORDER BY ts;
 -- The count of active CPUs over time.
 CREATE PERFETTO TABLE sched_active_cpu_count(
   -- Timestamp when the number of active CPU changed.
-  ts INT,
+  ts LONG,
   -- Number of active CPUs, covering the range from this timestamp to the next
   -- row's timestamp.
-  active_cpu_count INT
+  active_cpu_count LONG
 ) AS
 WITH
 -- Filter sched events corresponding to running tasks.

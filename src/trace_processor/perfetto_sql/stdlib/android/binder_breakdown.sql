@@ -141,10 +141,10 @@ JOIN _thread_state_view
 CREATE PERFETTO FUNCTION _binder_reason(
   name STRING,
   state STRING,
-  io_wait INT,
-  binder_txn_id INT,
-  binder_reply_id INT,
-  flat_id INT)
+  io_wait LONG,
+  binder_txn_id LONG,
+  binder_reply_id LONG,
+  flat_id LONG)
 RETURNS STRING
 AS
 SELECT
@@ -170,13 +170,13 @@ SELECT
 -- Server side binder breakdowns per transactions per txn.
 CREATE PERFETTO TABLE android_binder_server_breakdown(
   -- Client side id of the binder txn. Alias of `slice.id`.
-  binder_txn_id INT,
+  binder_txn_id LONG,
   -- Server side id of the binder txn. Alias of `slice.id`.
-  binder_reply_id INT,
+  binder_reply_id LONG,
   -- Timestamp of an exclusive interval during the binder reply with a single reason.
-  ts INT,
+  ts LONG,
   -- Duration of an exclusive interval during the binder reply with a single reason.
-  dur INT,
+  dur LONG,
   -- Cause of delay during an exclusive interval of the binder reply.
   reason STRING
 )
@@ -192,13 +192,13 @@ FROM _binder_server_flat_descendants_with_thread_state;
 -- Client side binder breakdowns per transactions per txn.
 CREATE PERFETTO TABLE android_binder_client_breakdown(
   -- Client side id of the binder txn. Alias of `slice.id`.
-  binder_txn_id INT,
+  binder_txn_id LONG,
   -- Server side id of the binder txn. Alias of `slice.id`.
-  binder_reply_id INT,
+  binder_reply_id LONG,
   -- Timestamp of an exclusive interval during the binder txn with a single latency reason.
-  ts INT,
+  ts LONG,
   -- Duration of an exclusive interval during the binder txn with a single latency reason.
-  dur INT,
+  dur LONG,
   -- Cause of delay during an exclusive interval of the binder txn.
   reason STRING
 )
