@@ -20,7 +20,7 @@ export interface SqlModules {
 
   // Returns Perfetto SQL table/view if it was loaded in one of the Perfetto
   // SQL module.
-  getTable(tableName: string): SqlTable | undefined;
+  getModuleForTable(tableName: string): SqlModule | undefined;
 }
 
 // Handles the access to a specific Perfetto SQL Package. Package consists of
@@ -29,7 +29,7 @@ export interface SqlPackage {
   readonly name: string;
   readonly modules: SqlModule[];
   listTables(): string[];
-  getTable(tableName: string): SqlTable | undefined;
+  getModuleForTable(tableName: string): SqlModule | undefined;
 }
 
 // Handles the access to a specific Perfetto SQL module.
@@ -39,6 +39,7 @@ export interface SqlModule {
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
   readonly macros: SqlMacro[];
+  getTable(tableName: string): SqlTable | undefined;
 }
 
 // The definition of Perfetto SQL table/view.
