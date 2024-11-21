@@ -25,7 +25,7 @@ CREATE PERFETTO VIEW android_anrs(
   -- UUID of the ANR (generated on the platform).
   error_id STRING,
   -- Timestamp of the ANR.
-  ts LONG,
+  ts TIMESTAMP,
   -- Subject line of the ANR.
   subject STRING
 ) AS

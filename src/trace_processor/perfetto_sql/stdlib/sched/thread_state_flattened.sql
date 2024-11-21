@@ -32,7 +32,7 @@ CREATE PERFETTO FUNCTION _get_flattened_thread_state(
 RETURNS
   TABLE(
     -- Timestamp.
-    ts LONG,
+    ts TIMESTAMP,
     -- Duration.
     dur LONG,
     -- Utid.

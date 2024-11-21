@@ -174,7 +174,7 @@ CREATE PERFETTO TABLE android_binder_server_breakdown(
   -- Server side id of the binder txn. Alias of `slice.id`.
   binder_reply_id LONG,
   -- Timestamp of an exclusive interval during the binder reply with a single reason.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of an exclusive interval during the binder reply with a single reason.
   dur LONG,
   -- Cause of delay during an exclusive interval of the binder reply.
@@ -196,7 +196,7 @@ CREATE PERFETTO TABLE android_binder_client_breakdown(
   -- Server side id of the binder txn. Alias of `slice.id`.
   binder_reply_id LONG,
   -- Timestamp of an exclusive interval during the binder txn with a single latency reason.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of an exclusive interval during the binder txn with a single latency reason.
   dur LONG,
   -- Cause of delay during an exclusive interval of the binder txn.

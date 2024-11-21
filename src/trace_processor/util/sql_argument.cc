@@ -34,7 +34,7 @@ std::optional<Type> ParseType(base::StringView str) {
   if (str.CaseInsensitiveEq("bool")) {
     return Type::kBool;
   }
-  if (str.CaseInsensitiveEq("int")) {
+  if (str.CaseInsensitiveEq("int") || str.CaseInsensitiveEq("timestamp")) {
     return Type::kInt;
   }
   if (str.CaseInsensitiveEq("uint")) {

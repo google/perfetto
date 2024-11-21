@@ -11,7 +11,7 @@ CREATE PERFETTO TABLE chrome_janky_event_latencies_v3(
   -- The slice id.
   id LONG,
   -- The start timestamp of the slice.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the slice.
   dur LONG,
   -- The track_id for the slice.
@@ -25,7 +25,7 @@ CREATE PERFETTO TABLE chrome_janky_event_latencies_v3(
   -- How many vsyncs this frame missed its deadline by.
   delayed_frame_count LONG,
   -- The start timestamp where frame presentation was delayed.
-  frame_jank_ts LONG,
+  frame_jank_ts TIMESTAMP,
   -- The duration in ms of the delay in frame presentation.
   frame_jank_dur LONG
 ) AS
@@ -53,7 +53,7 @@ CREATE PERFETTO VIEW chrome_janky_frame_presentation_intervals(
   -- Unique id.
   id LONG,
   -- The start timestamp of the slice.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the slice.
   dur LONG,
   -- How many vsyncs this frame missed its deadline by.
@@ -132,7 +132,7 @@ CREATE PERFETTO TABLE chrome_scroll_jank_intervals_v3(
   -- The unique identifier of the janky interval.
   id LONG,
   -- The start timestamp of the janky interval.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the janky interval.
   dur LONG
 ) AS

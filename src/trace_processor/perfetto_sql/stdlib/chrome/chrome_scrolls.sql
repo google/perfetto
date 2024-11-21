@@ -18,16 +18,16 @@ CREATE PERFETTO TABLE chrome_scrolls(
   -- The unique identifier of the scroll.
   id LONG,
   -- The start timestamp of the scroll.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the scroll.
   dur LONG,
   -- The earliest timestamp of the EventLatency slice of the GESTURE_SCROLL_BEGIN type for the
   -- corresponding scroll id.
-  gesture_scroll_begin_ts LONG,
+  gesture_scroll_begin_ts TIMESTAMP,
   -- The earliest timestamp of the EventLatency slice of the GESTURE_SCROLL_END type /
   -- the latest timestamp of the EventLatency slice of the GESTURE_SCROLL_UPDATE type for the
   -- corresponding scroll id.
-  gesture_scroll_end_ts LONG
+  gesture_scroll_end_ts TIMESTAMP
 ) AS
 WITH all_scrolls AS (
   SELECT

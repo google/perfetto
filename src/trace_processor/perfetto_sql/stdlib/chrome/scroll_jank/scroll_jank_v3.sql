@@ -24,7 +24,7 @@ WHERE $id = id;
 -- timestamps, regardless of being presented.
 CREATE PERFETTO TABLE chrome_gesture_scroll_updates(
   -- The start timestamp of the scroll.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the scroll.
   dur LONG,
   -- Slice id for the scroll.
@@ -77,11 +77,11 @@ CREATE PERFETTO TABLE chrome_presented_gesture_scrolls(
   -- Minimum slice id for input presented in this frame, the non-presented input.
   id LONG,
   -- The start timestamp for producing the frame.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration between producing and presenting the frame.
   dur LONG,
   -- The timestamp of the last input that arrived and got presented in the frame.
-  last_presented_input_ts LONG,
+  last_presented_input_ts TIMESTAMP,
   -- The id of the scroll update event, a unique identifier to the gesture.
   scroll_update_id LONG,
   -- The id of the ongoing scroll.
@@ -147,9 +147,9 @@ CREATE PERFETTO TABLE chrome_full_frame_view(
   -- ID of the frame.
   id LONG,
   -- Start timestamp of the frame.
-  ts LONG,
+  ts TIMESTAMP,
   -- The timestamp of the last presented input.
-  last_presented_input_ts LONG,
+  last_presented_input_ts TIMESTAMP,
   -- ID of the associated scroll.
   scroll_id LONG,
   -- ID of the associated scroll update.
@@ -183,13 +183,13 @@ CREATE PERFETTO TABLE chrome_full_frame_delta_view(
   -- ID of the frame.
   id LONG,
   -- Start timestamp of the frame.
-  ts LONG,
+  ts TIMESTAMP,
   -- ID of the associated scroll.
   scroll_id LONG,
   -- ID of the associated scroll update.
   scroll_update_id LONG,
   -- The timestamp of the last presented input.
-  last_presented_input_ts LONG,
+  last_presented_input_ts TIMESTAMP,
   -- The perceived delta_y on the screen post prediction.
   delta_y DOUBLE,
   -- ID of the associated EventLatency.
@@ -219,9 +219,9 @@ CREATE PERFETTO TABLE chrome_merged_frame_view(
   -- ID of the frame.
   id LONG,
   -- The timestamp of the last presented input.
-  max_start_ts LONG,
+  max_start_ts TIMESTAMP,
   -- The earliest frame start timestamp.
-  min_start_ts LONG,
+  min_start_ts TIMESTAMP,
   -- ID of the associated scroll.
   scroll_id LONG,
   -- ID of the associated scroll update.
@@ -262,9 +262,9 @@ CREATE PERFETTO TABLE chrome_frame_info_with_delay(
   -- gesture scroll slice id.
   id LONG,
   -- OS timestamp of the last touch move arrival within a frame.
-  max_start_ts LONG,
+  max_start_ts TIMESTAMP,
   -- OS timestamp of the first touch move arrival within a frame.
-  min_start_ts LONG,
+  min_start_ts TIMESTAMP,
   -- The scroll which the touch belongs to.
   scroll_id LONG,
   -- ID of the associated scroll update.

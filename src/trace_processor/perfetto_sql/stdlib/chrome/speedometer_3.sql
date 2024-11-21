@@ -100,7 +100,7 @@ WHERE iteration_str = iteration;
 -- There are two intervals that are measured for every test: sync and async.
 CREATE PERFETTO TABLE chrome_speedometer_3_measure(
   -- Start timestamp of the measure slice
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the measure slice
   dur LONG,
   -- Full measure name
@@ -133,7 +133,7 @@ ORDER BY s.ts ASC;
 -- ~100us) so the actual values might differ a bit.
 CREATE PERFETTO TABLE chrome_speedometer_3_iteration(
   -- Start timestamp of the iteration
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the iteration
   dur LONG,
   -- Iteration name

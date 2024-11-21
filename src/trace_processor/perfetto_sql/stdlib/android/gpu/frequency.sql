@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 -- GPU frequency counter per GPU.
 CREATE PERFETTO TABLE android_gpu_frequency(
   -- Timestamp
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration
   dur LONG,
   -- GPU id. Joinable with `gpu_counter_track.gpu_id`.

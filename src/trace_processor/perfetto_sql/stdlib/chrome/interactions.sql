@@ -26,7 +26,7 @@ CREATE PERFETTO TABLE chrome_interactions(
   -- stored in other tables.
   name STRING,
   -- Timestamp of the CUI event.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the CUI event.
   dur LONG
 ) AS

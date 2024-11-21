@@ -213,11 +213,11 @@ USING
 -- critical_path slice_stack (enabled with |enable_critical_path_slice|).
 -- running cpu (if one exists).
 -- A 'stack' is the group of resulting unpivoted rows sharing the same timestamp.
-CREATE PERFETTO FUNCTION _critical_path_stack(root_utid LONG, ts LONG, dur LONG, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
+CREATE PERFETTO FUNCTION _critical_path_stack(root_utid LONG, ts TIMESTAMP, dur LONG, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
 RETURNS
   TABLE(
     id LONG,
-    ts LONG,
+    ts TIMESTAMP,
     dur LONG,
     utid LONG,
     stack_depth LONG,
@@ -555,7 +555,7 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_stack(
   -- Thread utid to filter critical paths to.
   root_utid LONG,
   -- Timestamp of start of time range to filter critical paths to.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of time range to filter critical paths to.
   dur LONG)
 RETURNS
@@ -563,7 +563,7 @@ RETURNS
     -- Id of the thread_state or slice in the thread_executing_span.
     id LONG,
     -- Timestamp of slice in the critical path.
-    ts LONG,
+    ts TIMESTAMP,
     -- Duration of slice in the critical path.
     dur LONG,
     -- Utid of thread that emitted the slice.
@@ -580,7 +580,7 @@ RETURNS
 SELECT * FROM _critical_path_stack($root_utid, $ts, $dur, 1, 1, 1, 1);
 
 -- Returns a pprof aggregation of the stacks in |_critical_path_stack|.
-CREATE PERFETTO FUNCTION _critical_path_graph(graph_title STRING, root_utid LONG, ts LONG, dur LONG, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
+CREATE PERFETTO FUNCTION _critical_path_graph(graph_title STRING, root_utid LONG, ts TIMESTAMP, dur LONG, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
 RETURNS TABLE(pprof BYTES)
 AS
 WITH
@@ -637,7 +637,7 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_graph(
   -- Thread utid to filter critical paths to.
   root_utid LONG,
   -- Timestamp of start of time range to filter critical paths to.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of time range to filter critical paths to.
   dur LONG)
 RETURNS TABLE(

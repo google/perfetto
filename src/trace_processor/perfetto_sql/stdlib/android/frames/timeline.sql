@@ -32,7 +32,7 @@ CREATE PERFETTO FUNCTION _get_frame_table_with_id(
     -- Upid.
     upid LONG,
     -- Timestamp of the frame slice.
-    ts LONG
+    ts TIMESTAMP
 ) AS
 WITH all_found AS (
     SELECT
@@ -62,7 +62,7 @@ CREATE PERFETTO TABLE android_frames_choreographer_do_frame(
     -- Upid of application process
     upid LONG,
     -- Timestamp of the slice.
-    ts LONG
+    ts TIMESTAMP
 ) AS
 SELECT
     id,
@@ -128,7 +128,7 @@ CREATE PERFETTO TABLE android_frames(
     -- Timestamp of the frame. Start of the frame as defined by the start of
     -- "Choreographer#doFrame" slice and the same as the start of the frame in
     -- `actual_frame_timeline_slice if present.
-    ts LONG,
+    ts TIMESTAMP,
     -- Duration of the frame, as defined by the duration of the corresponding
     -- `actual_frame_timeline_slice` or, if not present the time between the
     -- `ts` and the end of the final `DrawFrame`.
@@ -214,12 +214,12 @@ WHERE sdk = IIF(
 -- most one row.
 CREATE PERFETTO FUNCTION android_first_frame_after(
     -- Timestamp.
-    ts LONG)
+    ts TIMESTAMP)
 RETURNS TABLE (
     -- Frame id.
     frame_id LONG,
     -- Start of the frame, the timestamp of the "Choreographer#doFrame" slice.
-    ts LONG,
+    ts TIMESTAMP,
     -- Duration of the frame.
     dur LONG,
     -- `slice.id` of "Choreographer#doFrame" slice.

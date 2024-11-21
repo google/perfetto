@@ -18,7 +18,7 @@ CREATE PERFETTO VIEW android_viewcapture(
   -- Snapshot id
   id LONG,
   -- Timestamp when the snapshot was triggered
-  ts LONG,
+  ts TIMESTAMP,
   -- Extra args parsed from the proto message
   arg_set_id LONG,
   -- Raw proto message encoded in base64

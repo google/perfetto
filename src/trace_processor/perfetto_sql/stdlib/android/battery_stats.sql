@@ -118,7 +118,7 @@ SELECT
 -- given time.
 CREATE PERFETTO VIEW android_battery_stats_state(
   -- Timestamp in nanoseconds.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration the state was active, may be negative for incomplete slices.
   dur LONG,
   -- The same as `dur`, but extends to trace end for incomplete slices.
@@ -162,7 +162,7 @@ WHERE counter_track.name GLOB 'battery_stats.*';
 --     int_value=10215
 CREATE PERFETTO VIEW android_battery_stats_event_slices(
   -- Timestamp in nanoseconds.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration the state was active, may be negative for incomplete slices.
   dur LONG,
   -- The same as `dur`, but extends to trace end for incomplete slices.

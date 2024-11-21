@@ -27,7 +27,7 @@ CREATE PERFETTO MACRO intervals_overlap_count(
     ts_column ColumnName,
     -- Column containing interval durations (usually `dur`).
     dur_column ColumnName)
--- The returned table has the schema (ts LONG, value LONG).
+-- The returned table has the schema (ts TIMESTAMP, value LONG).
 -- |ts| is the timestamp when the number of open segments changed. |value| is
 -- the number of open segments.
 RETURNS TableOrSubquery AS
@@ -105,8 +105,8 @@ CREATE PERFETTO MACRO _intervals_merge_root_and_children(
   -- Table or subquery containing all the child intervals:
   -- (root_id, id, parent_id, ts, dur)
   children_table TableOrSubquery)
--- The returned table has the schema (root_id LONG, root_ts LONG, root_dur, LONG,
--- id LONG, parent_id LONG, ts LONG, dur LONG).
+-- The returned table has the schema (root_id LONG, root_ts TIMESTAMP, root_dur, LONG,
+-- id LONG, parent_id LONG, ts TIMESTAMP, dur LONG).
 RETURNS TableOrSubquery
 AS (
   WITH
@@ -195,7 +195,7 @@ AS (
 -- See _intervals_merge_root_and_children that can be used to generate input to this macro
 -- from two different root and children tables.
 CREATE PERFETTO MACRO _intervals_flatten(children_with_roots_table TableOrSubquery)
--- The returned table has the schema (root_id LONG, id LONG, ts LONG, dur LONG).
+-- The returned table has the schema (root_id LONG, id LONG, ts TIMESTAMP, dur LONG).
 RETURNS TableOrSubquery
 AS (
   -- Algorithm: Sort all the start and end timestamps of the children within a root.

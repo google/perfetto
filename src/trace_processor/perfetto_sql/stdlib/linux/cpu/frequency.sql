@@ -23,7 +23,7 @@ CREATE PERFETTO TABLE cpu_frequency_counters(
   -- Joinable with 'counter_track.id'.
   track_id LONG,
   -- Starting timestamp of the counter
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration in which counter is constant and frequency doesn't change.
   dur LONG,
   -- Frequency in kHz of the CPU that corresponds to this counter. NULL if not

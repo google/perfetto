@@ -20,11 +20,11 @@ CREATE PERFETTO VIEW _jit_code (
   -- Unique jit code id.
   jit_code_id LONG,
   -- Time this code was created / allocated.
-  create_ts LONG,
+  create_ts TIMESTAMP,
   -- Time this code was destroyed / deallocated. This is a upper bound, as we
   -- can only detect deletions indirectly when new code is allocated overlapping
   -- existing one.
-  estimated_delete_ts LONG,
+  estimated_delete_ts TIMESTAMP,
   -- Thread that generated the code.
   utid LONG,
   -- Start address for the generated code.
