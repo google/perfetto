@@ -22,15 +22,15 @@ INCLUDE PERFETTO MODULE slices.with_context;
 -- Requires scheduling data to be available in the trace.
 CREATE PERFETTO TABLE thread_slice_time_in_state(
   -- Id of a slice. Alias of `slice.id`.
-  id INT,
+  id LONG,
   -- Name of the slice.
   name STRING,
   -- Id of the thread the slice is running on. Alias of `thread.id`.
-  utid INT,
+  utid LONG,
   -- Name of the thread.
   thread_name STRING,
   -- Id of the process the slice is running on. Alias of `process.id`.
-  upid INT,
+  upid LONG,
   -- Name of the process.
   process_name STRING,
   -- The scheduling state (from the `thread_state` table).
@@ -48,10 +48,10 @@ CREATE PERFETTO TABLE thread_slice_time_in_state(
   -- If in uninterruptible sleep (D), the kernel function on which was blocked.
   -- Only available on userdebug Android builds when
   -- `sched/sched_blocked_reason` ftrace tracepoint is enabled.
-  blocked_function INT,
+  blocked_function LONG,
   -- The duration of time the threads slice spent for each
   -- (state, io_wait, blocked_function) tuple.
-  dur INT
+  dur LONG
 ) AS
 SELECT
   ii.id_0 AS id,

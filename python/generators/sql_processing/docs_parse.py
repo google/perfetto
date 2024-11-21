@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Set, NamedTuple
 
 from python.generators.sql_processing.docs_extractor import DocsExtractor
 from python.generators.sql_processing.utils import ObjKind
+from python.generators.sql_processing.utils import COLUMN_TYPES, MACRO_ARG_TYPES
 
 from python.generators.sql_processing.utils import ALLOWED_PREFIXES
 from python.generators.sql_processing.utils import OBJECT_NAME_ALLOWLIST
@@ -38,7 +39,9 @@ def _is_snake_case(s: str) -> bool:
 
 
 def parse_comment(comment: str) -> str:
-  """Parse a SQL comment (i.e. -- Foo\n -- bar.) into a string (i.e. "Foo bar.")."""
+  """
+  Parse a SQL comment (i.e. -- Foo\n -- bar.) into a string (i.e. "Foo bar.").
+  """
   return ' '.join(line.strip().lstrip('--').lstrip()
                   for line in comment.strip().split('\n'))
 
@@ -68,9 +71,7 @@ def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
 
 
 class Arg(NamedTuple):
-  # TODO(b/307926059): the type is missing on old-style documentation for
-  # tables. Make it "str" after stdlib is migrated.
-  type: Optional[str]
+  type: str
   description: str
 
 
@@ -100,23 +101,47 @@ class AbstractDocParser(ABC):
       self._error('Description of the table/view/function/macro is missing')
     return desc.strip()
 
-  def _parse_columns(self, schema: str) -> Dict[str, Arg]:
+  def _parse_columns(self, schema: str, kind: ObjKind) -> Dict[str, Arg]:
     columns = self._parse_args_definition(schema) if schema else {}
-    for column in columns:
-      if not columns[column].description:
-        self._error(f'Column "{column}" is missing a description. Please add a '
+    for column_name, properties in columns.items():
+      if not properties.description:
+        self._error(f'Column "{column_name}" is missing a description. Please add a '
                     'comment in front of the column definition')
         continue
 
+      upper_arg_type = properties.type.upper()
+      if kind is ObjKind.table_function:
+        if upper_arg_type not in COLUMN_TYPES:
+          self._error(
+              f'Table function column "{column_name}" has unsupported type "{properties.type}".')
+      elif kind is ObjKind.table_view:
+        if upper_arg_type not in COLUMN_TYPES:
+          self._error(
+              f'Table/view column "{column_name}" has unsupported type "{properties.type}".')
+      else:
+        self._error(f'This Perfetto SQL object doesnt support columns".')
+
     return columns
 
-  def _parse_args(self, sql_args_str: str) -> Dict[str, Arg]:
+  def _parse_args(self, sql_args_str: str, kind: ObjKind) -> Dict[str, Arg]:
     args = self._parse_args_definition(sql_args_str)
 
     for arg in args:
       if not args[arg].description:
         self._error(f'Arg "{arg}" is missing a description. '
                     'Please add a comment in front of the arg definition.')
+      upper_arg_type = args[arg].type.upper()
+      if (kind is ObjKind.function or kind is ObjKind.table_function):
+        if upper_arg_type not in COLUMN_TYPES:
+          self._error(
+              f'Function arg "{arg}" has unsupported type "{args[arg].type}".')
+      elif (kind is ObjKind.macro):
+        if upper_arg_type not in MACRO_ARG_TYPES:
+          self._error(
+              f'Macro arg "{arg}" has unsupported type "{args[arg].type}".')
+      else:
+        self._error(f'This Perfetto SQL object doesnt support types".')
+
     return args
 
   # Parse function argument definition list or a table schema, e.g.
@@ -202,7 +227,7 @@ class TableViewDocParser(AbstractDocParser):
         name=self._parse_name(),
         type=type,
         desc=self._parse_desc_not_empty(doc.description),
-        cols=self._parse_columns(schema),
+        cols=self._parse_columns(schema, ObjKind.table_view),
     )
 
 
@@ -253,7 +278,7 @@ class FunctionDocParser(AbstractDocParser):
     return Function(
         name=name,
         desc=self._parse_desc_not_empty(doc.description),
-        args=self._parse_args(args),
+        args=self._parse_args(args, ObjKind.function),
         return_type=ret_type,
         return_desc=ret_desc,
     )
@@ -301,8 +326,8 @@ class TableFunctionDocParser(AbstractDocParser):
     return TableFunction(
         name=name,
         desc=self._parse_desc_not_empty(doc.description),
-        cols=self._parse_columns(columns),
-        args=self._parse_args(args),
+        cols=self._parse_columns(columns, ObjKind.table_function),
+        args=self._parse_args(args, ObjKind.table_function),
     )
 
 
@@ -352,7 +377,7 @@ class MacroDocParser(AbstractDocParser):
         desc=self._parse_desc_not_empty(doc.description),
         return_desc=parse_comment(return_desc),
         return_type=return_type,
-        args=self._parse_args(args),
+        args=self._parse_args(args, ObjKind.macro),
     )
 
 

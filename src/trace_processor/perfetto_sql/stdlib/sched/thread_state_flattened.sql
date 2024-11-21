@@ -46,11 +46,11 @@ RETURNS
     -- Track id.
     track_id LONG,
     -- CPU.
-    cpu INT,
+    cpu LONG,
     -- State.
     state STRING,
     -- IO wait.
-    io_wait INT,
+    io_wait LONG,
     -- Thread state's blocked_function.
     blocked_function STRING,
     -- Thread state's waker utid.

@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
 INCLUDE PERFETTO MODULE slices.with_context;
 
-CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth INT)
+CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth LONG)
 RETURNS BOOL AS SELECT
   $name = 'measure'
   OR $name = 'layout'

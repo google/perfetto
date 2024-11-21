@@ -18,7 +18,7 @@
 -- TODO(carlscab): Make public
 CREATE PERFETTO VIEW _jit_code (
   -- Unique jit code id.
-  jit_code_id UINT,
+  jit_code_id LONG,
   -- Time this code was created / allocated.
   create_ts LONG,
   -- Time this code was destroyed / deallocated. This is a upper bound, as we
@@ -26,7 +26,7 @@ CREATE PERFETTO VIEW _jit_code (
   -- existing one.
   estimated_delete_ts LONG,
   -- Thread that generated the code.
-  utid UINT,
+  utid LONG,
   -- Start address for the generated code.
   start_address LONG,
   -- Size in bytes of the generated code.
@@ -51,9 +51,9 @@ FROM __intrinsic_jit_code;
 -- TODO(carlscab): Make public
 CREATE PERFETTO VIEW _jit_frame (
   -- Jitted code snipped the frame is in (joins with _jit_code.jit_code_id).
-  jit_code_id UINT,
+  jit_code_id LONG,
   -- Jitted frame (joins with stack_profile_frame.id).
-  frame_id UINT
+  frame_id LONG
 ) AS
 SELECT
   jit_code_id,

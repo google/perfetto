@@ -72,7 +72,7 @@ CREATE PERFETTO MACRO graph_dominator_tree(
   -- tree.
   root_node_id Expr
 )
--- The returned table has the schema (node_id UINT32, dominator_node_id UINT32).
+-- The returned table has the schema (node_id LONG, dominator_node_id LONG).
 -- |node_id| is the id of the node from the input graph and |dominator_node_id|
 -- is the id of the node in the input flow-graph which is the "dominator" of
 -- |node_id|.

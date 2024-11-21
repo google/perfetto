@@ -132,7 +132,7 @@ JOIN _system_state_mw as power ON power._auto_id = id_1;
 -- information can then further be filtered by specific CPU and GROUP BY on
 -- either utid or upid
 CREATE PERFETTO FUNCTION _filter_idle_attribution(ts LONG, dur LONG)
-RETURNS Table(idle_cost_mws LONG, utid INT, upid INT, cpu INT) AS
+RETURNS Table(idle_cost_mws LONG, utid LONG, upid LONG, cpu LONG) AS
 SELECT
   cost.estimated_mw * cost.dur / 1e9 as idle_cost_mws,
   cost.utid,

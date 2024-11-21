@@ -154,7 +154,7 @@ ORDER BY utid, id;
 -- Returns an instance of `SamplesTable` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
 -- for the given `utid`.
-CREATE PERFETTO FUNCTION _export_firefox_samples_table(utid INT)
+CREATE PERFETTO FUNCTION _export_firefox_samples_table(utid LONG)
 RETURNS STRING
 AS
 WITH
@@ -185,7 +185,7 @@ FROM samples_table;
 -- Returns an instance of `StackTable` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
 -- for the given `utid`.
-CREATE PERFETTO FUNCTION _export_firefox_stack_table(utid INT)
+CREATE PERFETTO FUNCTION _export_firefox_stack_table(utid LONG)
 RETURNS STRING
 AS
 WITH
@@ -235,7 +235,7 @@ FROM stack_table;
 -- Returns an instance of `FrameTable` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
 -- for the given `utid`.
-CREATE PERFETTO FUNCTION _export_firefox_frame_table(utid INT)
+CREATE PERFETTO FUNCTION _export_firefox_frame_table(utid LONG)
 RETURNS STRING
 AS
 WITH
@@ -271,7 +271,7 @@ SELECT
 FROM frame_table;
 
 -- Returns an array of strings for the given `utid`.
-CREATE PERFETTO FUNCTION _export_firefox_string_array(utid INT)
+CREATE PERFETTO FUNCTION _export_firefox_string_array(utid LONG)
 RETURNS STRING
 AS
 WITH
@@ -289,7 +289,7 @@ FROM string_table;
 -- Returns an instance of `FuncTable` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
 -- for the given `utid`.
-CREATE PERFETTO FUNCTION _export_firefox_func_table(utid INT)
+CREATE PERFETTO FUNCTION _export_firefox_func_table(utid LONG)
 RETURNS STRING
 AS
 WITH
@@ -322,7 +322,7 @@ FROM func_table;
 -- Returns an instance of `Thread` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
 -- for the given `utid`.
-CREATE PERFETTO FUNCTION _export_firefox_thread(utid INT)
+CREATE PERFETTO FUNCTION _export_firefox_thread(utid LONG)
 RETURNS STRING
 AS
 SELECT
