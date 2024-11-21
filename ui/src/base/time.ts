@@ -281,11 +281,11 @@ export class Duration {
   }
 
   static formatMilliseconds(dur: duration): string {
-    return Duration.toMilliseconds(dur).toString() + ' s';
+    return Duration.toMilliseconds(dur).toString() + ' ms';
   }
 
   static formatMicroseconds(dur: duration): string {
-    return Duration.toMicroSeconds(dur).toString() + ' s';
+    return Duration.toMicroSeconds(dur).toString() + ' us';
   }
 }
 

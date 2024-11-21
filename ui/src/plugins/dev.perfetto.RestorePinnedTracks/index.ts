@@ -17,13 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackDescriptor} from '../../public/track';
 import {z} from 'zod';
-import {
-  base64Decode,
-  base64Encode,
-  utf8Decode,
-  utf8Encode,
-} from '../../base/string_utils';
-import {assertExists} from '../../base/logging';
+import {assertExists, assertIsInstance} from '../../base/logging';
 
 const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -41,6 +35,35 @@ export default class implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   private ctx!: Trace;
 
+  static onActivate() {
+    const input = document.createElement('input');
+    input.classList.add('pinned_tracks_import_selector');
+    input.setAttribute('type', 'file');
+    input.style.display = 'none';
+    input.addEventListener('change', async (e) => {
+      if (!(e.target instanceof HTMLInputElement)) {
+        throw new Error('Not an input element');
+      }
+      if (!e.target.files) {
+        return;
+      }
+      const file = e.target.files[0];
+      const textPromise = file.text();
+
+      // Reset the value so onchange will be fired with the same file.
+      e.target.value = '';
+
+      const rawFile = JSON.parse(await textPromise);
+      const parsed = SAVED_NAMED_PINNED_TRACKS_SCHEMA.safeParse(rawFile);
+      if (!parsed.success) {
+        alert('Unable to import saved tracks.');
+        return;
+      }
+      addOrReplaceNamedPinnedTracks(parsed.data);
+    });
+    document.body.appendChild(input);
+  }
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     this.ctx = ctx;
 
@@ -48,17 +71,17 @@ export default class implements PerfettoPlugin {
       id: `${PLUGIN_ID}#save`,
       name: 'Save: Pinned tracks',
       callback: () => {
-        this.savedState = {
-          ...this.savedState,
+        setSavedState({
+          ...getSavedState(),
           tracks: this.getCurrentPinnedTracks(),
-        };
+        });
       },
     });
     ctx.commands.registerCommand({
       id: RESTORE_COMMAND_ID,
       name: 'Restore: Pinned tracks',
       callback: () => {
-        const tracks = this.savedState?.tracks;
+        const tracks = getSavedState()?.tracks;
         if (!tracks) {
           alert('No saved tracks. Use the Save command first');
           return;
@@ -71,27 +94,12 @@ export default class implements PerfettoPlugin {
       id: `${PLUGIN_ID}#saveByName`,
       name: 'Save by name: Pinned tracks',
       callback: async () => {
-        const res = await this.ctx.omnibox.prompt(
+        const name = await this.ctx.omnibox.prompt(
           'Give a name to the pinned set of tracks',
         );
-        if (res) {
-          const rawTracksByName = this.savedState?.tracksByName ?? [];
-          const tracksByNameMap = new Map(
-            rawTracksByName.map((x) => [x.name, x.tracks]),
-          );
-          tracksByNameMap.set(
-            base64Encode(utf8Encode(res)),
-            this.getCurrentPinnedTracks(),
-          );
-          this.savedState = {
-            ...this.savedState,
-            tracksByName: Array.from(tracksByNameMap.entries()).map(
-              ([k, v]) => ({
-                name: k,
-                tracks: v,
-              }),
-            ),
-          };
+        if (name) {
+          const tracks = this.getCurrentPinnedTracks();
+          addOrReplaceNamedPinnedTracks({name, tracks});
         }
       },
     });
@@ -99,7 +107,7 @@ export default class implements PerfettoPlugin {
       id: `${PLUGIN_ID}#restoreByName`,
       name: 'Restore by name: Pinned tracks',
       callback: async () => {
-        const tracksByName = this.savedState?.tracksByName ?? [];
+        const tracksByName = getSavedState()?.tracksByName ?? [];
         if (tracksByName.length === 0) {
           alert('No saved tracks. Use the Save by name command first');
           return;
@@ -108,7 +116,7 @@ export default class implements PerfettoPlugin {
           'Select name of set of pinned tracks to restore',
           tracksByName.map((x) => ({
             key: x.name,
-            displayName: utf8Decode(base64Decode(x.name)),
+            displayName: x.name,
           })),
         );
         if (res) {
@@ -117,6 +125,47 @@ export default class implements PerfettoPlugin {
           );
           this.restoreTracks(tracks);
         }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: `${PLUGIN_ID}#exportByName`,
+      name: 'Export by name: Pinned tracks',
+      callback: async () => {
+        const tracksByName = getSavedState()?.tracksByName ?? [];
+        if (tracksByName.length === 0) {
+          alert('No saved tracks. Use the Save by name command first');
+          return;
+        }
+        const name = await this.ctx.omnibox.prompt(
+          'Select name of set of pinned tracks to export',
+          tracksByName.map((x) => ({
+            key: x.name,
+            displayName: x.name,
+          })),
+        );
+        if (name) {
+          const tracks = assertExists(
+            tracksByName.find((x) => x.name === name),
+          );
+
+          const a = document.createElement('a');
+          a.href =
+            'data:application/json;charset=utf-8,' + JSON.stringify(tracks);
+          a.download = 'perfetto-pinned-tracks-export.json';
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      },
+    });
+    ctx.commands.registerCommand({
+      id: `${PLUGIN_ID}#importByName`,
+      name: 'Import by name: Pinned tracks',
+      callback: async () => {
+        const files = document.querySelector('.pinned_tracks_import_selector');
+        assertIsInstance<HTMLInputElement>(files, HTMLInputElement).click();
       },
     });
   }
@@ -266,24 +315,38 @@ export default class implements PerfettoPlugin {
       isMainThread: trackDescriptor?.chips?.includes('main thread') || false,
     };
   }
+}
 
-  private get savedState(): SavedState | undefined {
-    const savedStateString = window.localStorage.getItem(SAVED_TRACKS_KEY);
-    if (!savedStateString) {
-      return undefined;
-    }
-    const savedState = SAVED_STATE_SCHEMA.safeParse(
-      JSON.parse(savedStateString),
-    );
-    if (!savedState.success) {
-      return undefined;
-    }
-    return savedState.data;
+function getSavedState(): SavedState | undefined {
+  const savedStateString = window.localStorage.getItem(SAVED_TRACKS_KEY);
+  if (!savedStateString) {
+    return undefined;
   }
+  const savedState = SAVED_STATE_SCHEMA.safeParse(JSON.parse(savedStateString));
+  if (!savedState.success) {
+    return undefined;
+  }
+  return savedState.data;
+}
 
-  private set savedState(state: SavedState) {
-    window.localStorage.setItem(SAVED_TRACKS_KEY, JSON.stringify(state));
-  }
+function setSavedState(state: SavedState) {
+  window.localStorage.setItem(SAVED_TRACKS_KEY, JSON.stringify(state));
+}
+
+function addOrReplaceNamedPinnedTracks({name, tracks}: SavedNamedPinnedTracks) {
+  const savedState = getSavedState();
+  const rawTracksByName = savedState?.tracksByName ?? [];
+  const tracksByNameMap = new Map(
+    rawTracksByName.map((x) => [x.name, x.tracks]),
+  );
+  tracksByNameMap.set(name, tracks);
+  setSavedState({
+    ...savedState,
+    tracksByName: Array.from(tracksByNameMap.entries()).map(([k, v]) => ({
+      name: k,
+      tracks: v,
+    })),
+  });
 }
 
 // Return the displayname of the containing group
@@ -313,18 +376,20 @@ const SAVED_PINNED_TRACK_SCHEMA = z
 
 type SavedPinnedTrack = z.infer<typeof SAVED_PINNED_TRACK_SCHEMA>;
 
+const SAVED_NAMED_PINNED_TRACKS_SCHEMA = z
+  .object({
+    name: z.string(),
+    tracks: z.array(SAVED_PINNED_TRACK_SCHEMA).readonly(),
+  })
+  .readonly();
+
+type SavedNamedPinnedTracks = z.infer<typeof SAVED_NAMED_PINNED_TRACKS_SCHEMA>;
+
 const SAVED_STATE_SCHEMA = z
   .object({
     tracks: z.array(SAVED_PINNED_TRACK_SCHEMA).optional().readonly(),
     tracksByName: z
-      .array(
-        z
-          .object({
-            name: z.string(),
-            tracks: z.array(SAVED_PINNED_TRACK_SCHEMA).readonly(),
-          })
-          .readonly(),
-      )
+      .array(SAVED_NAMED_PINNED_TRACKS_SCHEMA)
       .optional()
       .readonly(),
   })
