@@ -85,31 +85,31 @@ FROM _rss_swap_sj;
 -- Memory metrics timeline for each process.
 CREATE PERFETTO VIEW memory_rss_and_swap_per_process(
   -- Timestamp
-  ts INT,
+  ts LONG,
   -- Duration
-  dur INT,
+  dur LONG,
   -- Upid of the process
-  upid INT,
+  upid LONG,
   -- Pid of the process
-  pid INT,
+  pid LONG,
   -- Name of the process
   process_name STRING,
   -- Anon RSS counter value
-  anon_rss INT,
+  anon_rss LONG,
   -- File RSS counter value
-  file_rss INT,
+  file_rss LONG,
   -- Shared memory RSS counter value
-  shmem_rss INT,
+  shmem_rss LONG,
   -- Total RSS value. Sum of `anon_rss`, `file_rss` and `shmem_rss`. Returns
   -- value even if one of the values is NULL.
-  rss INT,
+  rss LONG,
   -- Swap counter value
-  swap INT,
+  swap LONG,
   -- Sum or `anon_rss` and `swap`. Returns value even if one of the values is
   -- NULL.
-  anon_rss_and_swap INT,
+  anon_rss_and_swap LONG,
   -- Sum or `rss` and `swap`. Returns value even if one of the values is NULL.
-  rss_and_swap INT
+  rss_and_swap LONG
 ) AS
 SELECT
   ts,

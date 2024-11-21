@@ -18,11 +18,11 @@ INCLUDE PERFETTO MODULE counters.intervals;
 CREATE PERFETTO TABLE android_charging_states(
   -- Alias of counter.id if a slice with charging state exists otherwise
   -- there will be a single row where id = 1.
-  id INT,
+  id LONG,
   -- Timestamp at which the device charging state began.
-  ts INT,
+  ts LONG,
   -- Duration of the device charging state.
-  dur INT,
+  dur LONG,
   -- Device charging state, one of: Charging, Discharging, Not charging
   -- (when the charger is present but battery is not charging),
   -- Full, Unknown

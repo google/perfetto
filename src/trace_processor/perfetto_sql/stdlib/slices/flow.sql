@@ -32,7 +32,7 @@ CREATE PERFETTO MACRO _slice_following_flow(
   -- This table must have a uint32 "id" column.
   source_table TableOrSubquery
 )
--- The returned table has the schema (root_node_id, node_id UINT32, parent_node_id UINT32).
+-- The returned table has the schema (root_node_id, node_id LONG, parent_node_id LONG).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a DFS

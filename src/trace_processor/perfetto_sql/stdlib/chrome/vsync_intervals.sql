@@ -9,15 +9,15 @@
 --       TraceEvents and this table will be empty.
 CREATE PERFETTO TABLE chrome_vsync_intervals(
   -- Slice id of the vsync slice.
-  slice_id INT,
+  slice_id LONG,
   -- Timestamp of the vsync slice.
-  ts INT,
+  ts LONG,
   -- Duration of the vsync slice.
-  dur INT,
+  dur LONG,
   -- Track id of the vsync slice.
-  track_id INT,
+  track_id LONG,
   -- Duration until next vsync arrives.
-  time_to_next_vsync INT
+  time_to_next_vsync LONG
 ) AS
 SELECT
   slice_id,
@@ -43,11 +43,11 @@ CREATE PERFETTO FUNCTION chrome_calculate_avg_vsync_interval(
 )
 -- The average vsync interval on this time segment
 -- or 1.6e+7, if trace doesn't contain the VSync TraceEvent.
-RETURNS FLOAT AS
+RETURNS DOUBLE AS
 SELECT
   COALESCE((
     SELECT
-      CAST(AVG(time_to_next_vsync) AS FLOAT)
+      cast_double!(AVG(time_to_next_vsync))
     FROM chrome_vsync_intervals in_query
     WHERE
       time_to_next_vsync IS NOT NULL AND

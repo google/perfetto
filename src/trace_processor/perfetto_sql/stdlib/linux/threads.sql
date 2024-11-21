@@ -17,20 +17,20 @@
 -- also process data.
 CREATE PERFETTO TABLE linux_kernel_threads(
     -- Upid of kernel thread. Alias of |process.upid|.
-    upid INT,
+    upid LONG,
     -- Utid of kernel thread. Alias of |thread.utid|.
-    utid INT,
+    utid LONG,
     -- Pid of kernel thread. Alias of |process.pid|.
-    pid INT,
+    pid LONG,
     -- Tid of kernel thread. Alias of |process.pid|.
-    tid INT,
+    tid LONG,
     -- Name of kernel process. Alias of |process.name|.
     process_name STRING,
     -- Name of kernel thread. Alias of |thread.name|.
     thread_name STRING,
     -- Machine id of kernel thread. If NULL then it's a single machine trace.
     -- Alias of |process.machine_id|.
-    machine_id INT
+    machine_id LONG
 ) AS
 WITH pid_2 AS (
     SELECT upid, pid, name, machine_id

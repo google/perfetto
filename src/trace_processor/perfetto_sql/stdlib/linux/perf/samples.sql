@@ -34,9 +34,9 @@ ORDER BY c.id;
 CREATE PERFETTO TABLE linux_perf_samples_summary_tree(
   -- The id of the callstack. A callstack in this context
   -- is a unique set of frames up to the root.
-  id INT,
+  id LONG,
   -- The id of the parent callstack for this callstack.
-  parent_id INT,
+  parent_id LONG,
   -- The function name of the frame for this callstack.
   name STRING,
   -- The name of the mapping containing the frame. This
@@ -45,13 +45,13 @@ CREATE PERFETTO TABLE linux_perf_samples_summary_tree(
   -- The name of the file containing the function.
   source_file STRING,
   -- The line number in the file the function is located at.
-  line_number INT,
+  line_number LONG,
   -- The number of samples with this function as the leaf
   -- frame.
-  self_count INT,
+  self_count LONG,
   -- The number of samples with this function appearing
   -- anywhere on the callstack.
-  cumulative_count INT
+  cumulative_count LONG
 ) AS
 SELECT r.*, a.cumulative_count
 FROM _callstacks_self_to_cumulative!((

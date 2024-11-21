@@ -28,9 +28,9 @@ SELECT name FROM _trace_metrics;
 -- functions rather than directly on `trace_bounds`.
 CREATE PERFETTO VIEW trace_bounds(
   -- First ts in the trace.
-  start_ts INT,
+  start_ts LONG,
   -- End of the trace.
-  end_ts INT
+  end_ts LONG
 ) AS
 SELECT start_ts, end_ts FROM _trace_bounds;
 
@@ -41,7 +41,7 @@ SELECT start_ts, end_ts FROM _trace_bounds;
 CREATE PERFETTO VIEW track (
   -- Unique identifier for this track. Identical to |track_id|, prefer using
   -- |track_id| instead.
-  id UINT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- Name of the track; can be null for some types of tracks (e.g. thread
@@ -61,17 +61,17 @@ CREATE PERFETTO VIEW track (
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
-  dimension_arg_set_id UINT,
+  dimension_arg_set_id LONG,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id UINT,
+  parent_id LONG,
   -- Generic key-value pairs containing extra information about the track.
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
-  source_arg_set_id UINT,
+  source_arg_set_id LONG,
   -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id UINT
+  machine_id LONG
 ) AS
 SELECT
   id,
@@ -88,27 +88,27 @@ FROM __intrinsic_track;
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
   -- instead.
-  id UINT,
+  id LONG,
   -- Unique identifier for this CPU. Isn't equal to |cpu| for remote machines
   -- and is equal to |cpu| for the host machine.
-  ucpu UINT,
+  ucpu LONG,
   -- The 0-based CPU core identifier.
-  cpu UINT,
+  cpu LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The cluster id is shared by CPUs in the same cluster.
-  cluster_id UINT,
+  cluster_id LONG,
   -- A string describing this core.
   processor STRING,
   -- Machine identifier, non-null for CPUs on a remote machine.
-  machine_id UINT,
+  machine_id LONG,
   -- Capacity of a CPU of a device, a metric which indicates the
   -- relative performance of a CPU on a device
   -- For details see:
   -- https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
-  capacity UINT,
+  capacity LONG,
   -- Extra key/value pairs associated with this cpu.
-  arg_set_id UINT
+  arg_set_id LONG
 ) AS
 SELECT
   id,
@@ -129,17 +129,17 @@ WHERE
 -- running at.
 CREATE PERFETTO VIEW cpu_available_frequencies (
   -- Unique identifier for this cpu frequency.
-  id UINT,
+  id LONG,
   -- The CPU for this frequency, meaningful only in single machine traces.
   -- For multi-machine, join with the `cpu` table on `ucpu` to get the CPU
   -- identifier of each machine.
-  cpu UINT,
+  cpu LONG,
   -- CPU frequency in KHz.
-  freq UINT,
+  freq LONG,
   -- The CPU that the slice executed on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
-  ucpu UINT
+  ucpu LONG
 ) AS
 SELECT
   id,
@@ -157,7 +157,7 @@ FROM
 -- table with |thread_state.state| = 'Running'
 CREATE PERFETTO VIEW sched_slice (
   --  Unique identifier for this scheduling slice.
-  id UINT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The timestamp at the start of the slice (in nanoseconds).
@@ -167,9 +167,9 @@ CREATE PERFETTO VIEW sched_slice (
   -- The CPU that the slice executed on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
-  cpu UINT,
+  cpu LONG,
   -- The thread's unique id in the trace.
-  utid UINT,
+  utid LONG,
   -- A string representing the scheduling state of the kernel
   -- thread at the end of the slice.  The individual characters in
   -- the string mean the following: R (runnable), S (awaiting a
@@ -180,9 +180,9 @@ CREATE PERFETTO VIEW sched_slice (
   -- cleanup).
   end_state STRING,
   -- The kernel priority that the thread ran at.
-  priority INT,
+  priority LONG,
   -- The unique CPU identifier that the slice executed on.
-  ucpu UINT
+  ucpu LONG
 ) AS
 SELECT
   id,
@@ -200,7 +200,7 @@ FROM
 -- Shorter alias for table `sched_slice`.
 CREATE PERFETTO VIEW sched(
   -- Alias for `sched_slice.id`.
-  id UINT,
+  id LONG,
   -- Alias for `sched_slice.type`.
   type STRING,
   -- Alias for `sched_slice.ts`.
@@ -208,17 +208,17 @@ CREATE PERFETTO VIEW sched(
   -- Alias for `sched_slice.dur`.
   dur LONG,
   -- Alias for `sched_slice.cpu`.
-  cpu UINT,
+  cpu LONG,
   -- Alias for `sched_slice.utid`.
-  utid UINT,
+  utid LONG,
   -- Alias for `sched_slice.end_state`.
   end_state STRING,
   -- Alias for `sched_slice.priority`.
-  priority INT,
+  priority LONG,
   -- Alias for `sched_slice.ucpu`.
-  ucpu UINT,
+  ucpu LONG,
   -- Legacy column, should no longer be used.
-  ts_end UINT
+  ts_end LONG
 ) AS
 SELECT *, ts + dur as ts_end
 FROM sched_slice;
@@ -230,7 +230,7 @@ FROM sched_slice;
 -- corresponding row in the |sched_slice| table.
 CREATE PERFETTO VIEW thread_state (
   -- Unique identifier for this thread state.
-  id UINT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The timestamp at the start of the slice (in nanoseconds).
@@ -240,24 +240,24 @@ CREATE PERFETTO VIEW thread_state (
   -- The CPU that the thread executed on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
-  cpu UINT,
+  cpu LONG,
   -- The thread's unique id in the trace.
-  utid UINT,
+  utid LONG,
   -- The scheduling state of the thread. Can be "Running" or any of the states
   -- described in |sched_slice.end_state|.
   state STRING,
   -- Indicates whether this thread was blocked on IO.
-  io_wait UINT,
+  io_wait LONG,
   -- The function in the kernel this thread was blocked on.
   blocked_function STRING,
   -- The unique thread id of the thread which caused a wakeup of this thread.
-  waker_utid UINT,
+  waker_utid LONG,
   -- The unique thread state id which caused a wakeup of this thread.
-  waker_id UINT,
+  waker_id LONG,
   -- Whether the wakeup was from interrupt context or process context.
-  irq_context UINT,
+  irq_context LONG,
   -- The unique CPU identifier that the thread executed on.
-  ucpu UINT
+  ucpu LONG
 ) AS
 SELECT
   id,
@@ -281,7 +281,7 @@ FROM
 -- usecases (i.e. metrics, standard library etc.)
 CREATE PERFETTO VIEW raw (
   -- Unique identifier for this raw event.
-  id UINT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The timestamp of this event.
@@ -292,16 +292,16 @@ CREATE PERFETTO VIEW raw (
   -- The CPU this event was emitted on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
-  cpu UINT,
+  cpu LONG,
   -- The thread this event was emitted on.
-  utid UINT,
+  utid LONG,
   -- The set of key/value pairs associated with this event.
-  arg_set_id UINT,
+  arg_set_id LONG,
   -- Ftrace event flags for this event. Currently only emitted for sched_waking
   -- events.
-  common_flags UINT,
+  common_flags LONG,
   -- The unique CPU identifier that this event was emitted on.
-  ucpu UINT
+  ucpu LONG
 ) AS
 SELECT
   id,
@@ -322,7 +322,7 @@ FROM
 -- raw ftrace parsing has been disabled.
 CREATE PERFETTO VIEW ftrace_event (
   -- Unique identifier for this ftrace event.
-  id UINT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The timestamp of this event.
@@ -332,16 +332,16 @@ CREATE PERFETTO VIEW ftrace_event (
   -- The CPU this event was emitted on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
-  cpu UINT,
+  cpu LONG,
   -- The thread this event was emitted on.
-  utid UINT,
+  utid LONG,
   -- The set of key/value pairs associated with this event.
-  arg_set_id UINT,
+  arg_set_id LONG,
   -- Ftrace event flags for this event. Currently only emitted for
   -- sched_waking events.
-  common_flags UINT,
+  common_flags LONG,
   -- The unique CPU identifier that this event was emitted on.
-  ucpu UINT
+  ucpu LONG
 ) AS
 SELECT
   id,
@@ -359,7 +359,7 @@ FROM
 -- The sched_slice table with the upid column.
 CREATE PERFETTO VIEW experimental_sched_upid (
   --  Unique identifier for this scheduling slice.
-  id UINT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The timestamp at the start of the slice (in nanoseconds).
@@ -369,9 +369,9 @@ CREATE PERFETTO VIEW experimental_sched_upid (
   -- The CPU that the slice executed on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
-  cpu UINT,
+  cpu LONG,
   -- The thread's unique id in the trace.
-  utid UINT,
+  utid LONG,
   -- A string representing the scheduling state of the kernel thread at the end
   -- of the slice. The individual characters in the string mean the following: R
   -- (runnable), S (awaiting a wakeup), D (in an uninterruptible sleep), T
@@ -380,11 +380,11 @@ CREATE PERFETTO VIEW experimental_sched_upid (
   -- signals) and Z (zombie, awaiting cleanup).
   end_state STRING,
   -- The kernel priority that the thread ran at.
-  priority INT,
+  priority LONG,
   -- The unique CPU identifier that the slice executed on.
-  ucpu UINT,
+  ucpu LONG,
   -- The process's unique id in the trace.
-  upid UINT
+  upid LONG
 ) AS
 SELECT
   id,
@@ -403,26 +403,26 @@ FROM
 -- Tracks which are associated to a single CPU.
 CREATE PERFETTO VIEW cpu_track (
   -- Unique identifier for this cpu track.
-  id UINT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id UINT,
+  parent_id LONG,
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id UINT,
+  source_arg_set_id LONG,
   -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id UINT,
+  machine_id LONG,
   -- The CPU that the track is associated with (meaningful only in single
   -- machine traces). For multi-machine, join with the `cpu` table on `ucpu` to
   -- get the CPU identifier of each machine.
-  cpu UINT,
+  cpu LONG,
   -- The unique CPU identifier that this track is associated with.
-  ucpu UINT
+  ucpu LONG
 ) AS
 SELECT
   id,
@@ -439,20 +439,20 @@ FROM
 -- Tracks containing counter-like events associated to a CPU.
 CREATE PERFETTO VIEW cpu_counter_track (
   -- Unique identifier for this cpu counter track.
-  id UINT,
+  id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- Name of the track.
   name STRING,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id UINT,
+  parent_id LONG,
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id UINT,
+  source_arg_set_id LONG,
   -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id UINT,
+  machine_id LONG,
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -460,9 +460,9 @@ CREATE PERFETTO VIEW cpu_counter_track (
   -- The CPU that the track is associated with (meaningful only in single
   -- machine traces). For multi-machine, join with the `cpu` table on `ucpu` to
   -- get the CPU identifier of each machine.
-  cpu UINT,
+  cpu LONG,
   -- The unique CPU identifier that this track is associated with.
-  ucpu UINT
+  ucpu LONG
 ) AS
 SELECT
   id,

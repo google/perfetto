@@ -19,43 +19,43 @@
 -- is not associated with a thread or a process.
 CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
   -- Alias for `slice.id`.
-  id INT,
+  id LONG,
   -- Alias for `slice.type`.
   type STRING,
   -- Alias for `slice.ts`.
-  ts INT,
+  ts LONG,
   -- Alias for `slice.dur`.
-  dur INT,
+  dur LONG,
   -- Alias for `slice.category`.
   category STRING,
   -- Alias for `slice.name`.
   name STRING,
   -- Alias for `slice.track_id`.
-  track_id INT,
+  track_id LONG,
   -- Alias for `track.name`.
   track_name STRING,
   -- Alias for `thread.name`.
   thread_name STRING,
   -- Alias for `thread.utid`.
-  utid INT,
+  utid LONG,
   -- Alias for `thread.tid`
-  tid INT,
+  tid LONG,
   -- Alias for `process.name`.
   process_name STRING,
   -- Alias for `process.upid`.
-  upid INT,
+  upid LONG,
   -- Alias for `process.pid`.
-  pid INT,
+  pid LONG,
   -- Alias for `slice.depth`.
-  depth INT,
+  depth LONG,
   -- Alias for `slice.parent_id`.
-  parent_id INT,
+  parent_id LONG,
   -- Alias for `slice.arg_set_id`.
-  arg_set_id INT,
+  arg_set_id LONG,
   -- Alias for `slice.thread_ts`.
-  thread_ts INT,
+  thread_ts LONG,
   -- Alias for `slice.thread_dur`.
-  thread_dur INT
+  thread_dur LONG
 ) AS
 SELECT
   slice.id,
