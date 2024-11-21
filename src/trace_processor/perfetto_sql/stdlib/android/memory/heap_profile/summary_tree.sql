@@ -82,9 +82,9 @@ FROM _graph_aggregating_scan!(
 CREATE PERFETTO TABLE android_heap_profile_summary_tree(
   -- The id of the callstack. A callstack in this context
   -- is a unique set of frames up to the root.
-  id INT,
+  id LONG,
   -- The id of the parent callstack for this callstack.
-  parent_id INT,
+  parent_id LONG,
   -- The function name of the frame for this callstack.
   name STRING,
   -- The name of the mapping containing the frame. This
@@ -93,20 +93,20 @@ CREATE PERFETTO TABLE android_heap_profile_summary_tree(
   -- The name of the file containing the function.
   source_file STRING,
   -- The line number in the file the function is located at.
-  line_number INT,
+  line_number LONG,
   -- The amount of memory allocated and *not freed* with this
   -- function as the leaf frame.
-  self_size INT,
+  self_size LONG,
   -- The amount of memory allocated and *not freed* with this
   -- function appearing anywhere on the callstack.
-  cumulative_size INT,
+  cumulative_size LONG,
   -- The amount of memory allocated with this function as the leaf
   -- frame. This may include memory which was later freed.
-  self_alloc_size INT,
+  self_alloc_size LONG,
   -- The amount of memory allocated with this function appearing
   -- anywhere on the callstack. This may include memory which was
   -- later freed.
-  cumulative_alloc_size INT
+  cumulative_alloc_size LONG
 ) AS
 SELECT
   id,

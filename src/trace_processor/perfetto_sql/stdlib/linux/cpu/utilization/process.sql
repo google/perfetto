@@ -24,13 +24,13 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_process_utilization_per_period(
     -- Length of the period on which utilization should be averaged.
-    interval INT,
+    interval LONG,
     -- Upid of the process.
-    upid INT
+    upid LONG
 )
 RETURNS TABLE(
   -- Timestamp of start of a second.
-  ts INT,
+  ts LONG,
   -- Sum of average utilization over period.
   -- Note: as the data is normalized, the values will be in the
   -- [0, 1] range.
@@ -57,11 +57,11 @@ SELECT * FROM _cpu_avg_utilization_per_period!($interval, sched_for_upid);
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_process_utilization_per_second(
   -- Upid of the process.
-  upid INT
+  upid LONG
 )
 RETURNS TABLE (
   -- Timestamp of start of a second.
-  ts INT,
+  ts LONG,
   -- Sum of average utilization over period.
   -- Note: as the data is normalized, the values will be in the
   -- [0, 1] range.
@@ -76,19 +76,19 @@ SELECT * FROM cpu_process_utilization_per_period(time_from_s(1), $upid);
 -- Aggregated CPU statistics for each process.
 CREATE PERFETTO TABLE cpu_cycles_per_process(
   -- Unique process id
-  upid INT,
+  upid LONG,
   -- Sum of CPU millicycles
-  millicycles INT,
+  millicycles LONG,
   -- Sum of CPU megacycles
-  megacycles INT,
+  megacycles LONG,
   -- Total runtime duration
-  runtime INT,
+  runtime LONG,
   -- Minimum CPU frequency in kHz
-  min_freq INT,
+  min_freq LONG,
   -- Maximum CPU frequency in kHz
-  max_freq INT,
+  max_freq LONG,
   -- Average CPU frequency in kHz
-  avg_freq INT
+  avg_freq LONG
 ) AS
 SELECT
   upid,
@@ -106,25 +106,25 @@ GROUP BY upid;
 -- Aggregated CPU statistics for each process in a provided interval.
 CREATE PERFETTO FUNCTION cpu_cycles_per_process_in_interval(
     -- Start of the interval.
-    ts INT,
+    ts LONG,
     -- Duration of the interval.
-    dur INT
+    dur LONG
 )
 RETURNS TABLE(
   -- Unique process id. Joinable with `process.id`.
-  upid INT,
+  upid LONG,
   -- Sum of CPU millicycles
-  millicycles INT,
+  millicycles LONG,
   -- Sum of CPU megacycles
-  megacycles INT,
+  megacycles LONG,
   -- Total runtime duration
-  runtime INT,
+  runtime LONG,
   -- Minimum CPU frequency in kHz
-  min_freq INT,
+  min_freq LONG,
   -- Maximum CPU frequency in kHz
-  max_freq INT,
+  max_freq LONG,
   -- Average CPU frequency in kHz
-  avg_freq INT
+  avg_freq LONG
 ) AS
 WITH threads_counters AS (
   SELECT c.id, c.ts, c.dur, c.freq, upid

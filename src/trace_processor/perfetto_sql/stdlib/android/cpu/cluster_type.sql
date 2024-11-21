@@ -35,9 +35,9 @@ SELECT * FROM data;
 -- If nothing is avaiable, NULL is returned.
 CREATE PERFETTO TABLE android_cpu_cluster_mapping (
   -- Alias of `cpu.ucpu`.
-  ucpu INT,
+  ucpu LONG,
   -- Alias of `cpu.cpu`.
-  cpu INT,
+  cpu LONG,
   -- The cluster type of the CPU.
   cluster_type STRING
 ) AS

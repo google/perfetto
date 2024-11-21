@@ -23,13 +23,13 @@ CREATE PERFETTO FUNCTION _get_devfreq_counters(
 )
 RETURNS TABLE(
   -- Unique identifier for this counter.
-  id INT,
+  id LONG,
   -- Starting timestamp of the counter.
   ts LONG,
   -- Duration in which counter is constant and frequency doesn't chamge.
-  dur INT,
+  dur LONG,
   -- Frequency in kHz of the device that corresponds to the counter.
-  freq INT
+  freq LONG
 ) AS
 SELECT
   count_w_dur.id,
@@ -49,13 +49,13 @@ FROM counter_leading_intervals!((
 -- and from ARM devices with the DSU (DynamIQ Shared Unit) hardware.
 CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
   -- Unique identifier for this counter.
-  id INT,
+  id LONG,
   -- Starting timestamp of the counter.
   ts LONG,
   -- Duration in which counter is constant and frequency doesn't chamge.
-  dur INT,
+  dur LONG,
   -- Frequency in kHz of the device that corresponds to the counter.
-  dsu_freq INT
+  dsu_freq LONG
 ) AS
 SELECT
   id, ts, dur, freq as dsu_freq

@@ -21,22 +21,22 @@ INCLUDE PERFETTO MODULE slices.with_context;
 -- "Choreographer#doSlice".
 CREATE PERFETTO TABLE _frames_maxsdk_28(
     -- Frame id. Created manually starting from 0.
-    frame_id INT,
+    frame_id LONG,
     -- Timestamp of the frame. Start of "Choreographer#doFrame" slice.
-    ts INT,
+    ts LONG,
     -- Duration of the frame, defined as the duration until the last
     -- "DrawFrame" of this frame finishes.
-    dur INT,
+    dur LONG,
     -- `slice.id` of "Choreographer#doFrame" slice.
-    do_frame_id INT,
+    do_frame_id LONG,
     -- `slice.id` of "DrawFrame" slice. Fetched as one of the "DrawFrame"
     -- slices that happen for the same process as "Choreographer#doFrame" slice
     -- and start after it started and before the next "doFrame" started.
-    draw_frame_id INT,
+    draw_frame_id LONG,
     -- `utid` of the render thread.
-    render_thread_utid INT,
+    render_thread_utid LONG,
     -- `utid` of the UI thread.
-    ui_thread_utid INT,
+    ui_thread_utid LONG,
     -- "maxsdk28"
     sdk STRING
 ) AS

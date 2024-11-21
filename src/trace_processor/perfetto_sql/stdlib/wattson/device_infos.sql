@@ -129,7 +129,7 @@ select * from data;
 
 -- Get policy corresponding to minimum volt vote
 CREATE PERFETTO FUNCTION _get_min_policy_vote()
-RETURNS INT AS
+RETURNS LONG AS
 SELECT
   vote_tbl.policy
 FROM _device_min_volt_vote as vote_tbl
@@ -138,7 +138,7 @@ WHERE vote_tbl.device = device.name;
 
 -- Get frequency corresponding to minimum volt vote
 CREATE PERFETTO FUNCTION _get_min_freq_vote()
-RETURNS INT AS
+RETURNS LONG AS
 SELECT
  vote_tbl.freq
 FROM _device_min_volt_vote as vote_tbl

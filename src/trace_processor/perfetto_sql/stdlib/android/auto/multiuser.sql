@@ -23,9 +23,9 @@ CREATE PERFETTO TABLE android_auto_multiuser_timing(
     -- Id of the started android user
     event_start_user_id STRING,
     -- Start event time
-    event_start_time INT,
+    event_start_time LONG,
     -- End event time
-    event_end_time INT,
+    event_end_time LONG,
     -- End event name
     event_end_name STRING,
     -- Start event name
@@ -139,9 +139,9 @@ CREATE PERFETTO VIEW android_auto_multiuser_timing_with_previous_user_resource_u
     -- Start user id
     event_start_user_id STRING,
     -- Start event time
-    event_start_time INT,
+    event_start_time LONG,
     -- End event time
-    event_end_time INT,
+    event_end_time LONG,
     -- End event name
     event_end_name STRING,
     -- Start event name
@@ -150,7 +150,7 @@ CREATE PERFETTO VIEW android_auto_multiuser_timing_with_previous_user_resource_u
     -- to end event
     duration LONG,
     -- User id
-    user_id INT,
+    user_id LONG,
     -- Total CPU time for a user
     total_cpu_time LONG,
     -- Total memory user for a user
