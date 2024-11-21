@@ -33,16 +33,12 @@ export class SqlModulesImpl implements SqlModules {
   }
 
   listTables(): string[] {
-    const tables: string[] = [];
-    for (const stdlibPackage of this.packages) {
-      tables.concat(stdlibPackage.listTables());
-    }
-    return tables;
+    return this.packages.flatMap((p) => p.listTables());
   }
 
-  getTable(tableName: string): SqlTable | undefined {
+  getModuleForTable(tableName: string): SqlModule | undefined {
     for (const stdlibPackage of this.packages) {
-      const maybeTable = stdlibPackage.getTable(tableName);
+      const maybeTable = stdlibPackage.getModuleForTable(tableName);
       if (maybeTable) {
         return maybeTable;
       }
@@ -62,12 +58,11 @@ export class StdlibPackageImpl implements SqlPackage {
       this.modules.push(new StdlibModuleImpl(moduleJson));
     }
   }
-
-  getTable(tableName: string): SqlTable | undefined {
+  getModuleForTable(tableName: string): SqlModule | undefined {
     for (const module of this.modules) {
       for (const dataObj of module.dataObjects) {
         if (dataObj.name == tableName) {
-          return dataObj;
+          return module;
         }
       }
     }
@@ -98,6 +93,14 @@ export class StdlibModuleImpl implements SqlModule {
       (json) => new StdlibTableFunctionImpl(json),
     );
     this.macros = docs.macros.map((json) => new StdlibMacroImpl(json));
+  }
+  getTable(tableName: string): SqlTable | undefined {
+    for (const obj of this.dataObjects) {
+      if (obj.name == tableName) {
+        return obj;
+      }
+    }
+    return undefined;
   }
 }
 

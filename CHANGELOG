@@ -31,7 +31,8 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Introduced `Open table:` command which would open any Perfetto Standard
+      Library table in a new tab.
   SDK:
     *
 
