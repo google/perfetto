@@ -329,6 +329,7 @@ perfetto_cc_library(
         ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
+        ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
         ":src_trace_processor_importers_archive_archive",
         ":src_trace_processor_importers_art_method_art_method",
@@ -1692,8 +1693,14 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_android_bugreport_android_bugreport",
     srcs = [
+        "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.cc",
+        "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.h",
+        "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.cc",
+        "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h",
         "src/trace_processor/importers/android_bugreport/android_bugreport_reader.cc",
         "src/trace_processor/importers/android_bugreport/android_bugreport_reader.h",
+        "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.cc",
+        "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h",
         "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.cc",
         "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h",
         "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.cc",
@@ -1702,6 +1709,14 @@ perfetto_filegroup(
         "src/trace_processor/importers/android_bugreport/android_log_reader.h",
         "src/trace_processor/importers/android_bugreport/chunked_line_reader.cc",
         "src/trace_processor/importers/android_bugreport/chunked_line_reader.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/android_bugreport:android_dumpstate_event
+perfetto_filegroup(
+    name = "src_trace_processor_importers_android_bugreport_android_dumpstate_event",
+    srcs = [
+        "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h",
     ],
 )
 
@@ -6575,6 +6590,7 @@ perfetto_cc_library(
         ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
+        ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
         ":src_trace_processor_importers_archive_archive",
         ":src_trace_processor_importers_art_method_art_method",
@@ -6779,6 +6795,7 @@ perfetto_cc_binary(
         ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
+        ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
         ":src_trace_processor_importers_archive_archive",
         ":src_trace_processor_importers_art_method_art_method",
@@ -6972,6 +6989,7 @@ perfetto_cc_binary(
         ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
+        ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
         ":src_trace_processor_importers_archive_archive",
         ":src_trace_processor_importers_art_method_art_method",
