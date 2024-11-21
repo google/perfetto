@@ -7341,6 +7341,26 @@ message BlockUnplugFtraceEvent {
   optional int32 nr_rq = 1;
   optional string comm = 2;
 }
+message BlockIoStartFtraceEvent {
+  optional uint64 dev = 1;
+  optional uint64 sector = 2;
+  optional uint32 nr_sector = 3;
+  optional uint32 bytes = 4;
+  optional uint32 ioprio = 5;
+  optional string rwbs = 6;
+  optional string comm = 7;
+  optional string cmd = 8;
+}
+message BlockIoDoneFtraceEvent {
+  optional uint64 dev = 1;
+  optional uint64 sector = 2;
+  optional uint32 nr_sector = 3;
+  optional uint32 bytes = 4;
+  optional uint32 ioprio = 5;
+  optional string rwbs = 6;
+  optional string comm = 7;
+  optional string cmd = 8;
+}
 
 // End of protos/perfetto/trace/ftrace/block.proto
 
@@ -11441,6 +11461,8 @@ message FtraceEvent {
     ParamSetValueCpmFtraceEvent param_set_value_cpm = 543;
     DoSysOpenFtraceEvent do_sys_open = 544;
     OpenExecFtraceEvent open_exec = 545;
+    BlockIoStartFtraceEvent block_io_start = 546;
+    BlockIoDoneFtraceEvent block_io_done = 547;
   }
 }
 
