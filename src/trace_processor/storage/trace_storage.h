@@ -801,6 +801,12 @@ class TraceStorage {
   }
   tables::JitFrameTable* mutable_jit_frame_table() { return &jit_frame_table_; }
 
+  tables::MmapRecordTable* mutable_mmap_record_table() {
+    return &mmap_record_table_;
+  }
+  const tables::MmapRecordTable& mmap_record_table() const {
+    return mmap_record_table_;
+  }
   const tables::SpeRecordTable& spe_record_table() const {
     return spe_record_table_;
   }
@@ -1157,6 +1163,7 @@ class TraceStorage {
   tables::JitFrameTable jit_frame_table_{&string_pool_};
 
   // Perf tables
+  tables::MmapRecordTable mmap_record_table_{&string_pool_};
   tables::SpeRecordTable spe_record_table_{&string_pool_};
 
   // Winscope tables

@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample.h"
@@ -112,10 +113,10 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
       return ParseSample(ts, std::move(record));
 
     case PERF_RECORD_MMAP:
-      return ParseMmap(std::move(record));
+      return ParseMmap(ts, std::move(record));
 
     case PERF_RECORD_MMAP2:
-      return ParseMmap2(std::move(record));
+      return ParseMmap2(ts, std::move(record));
 
     case PERF_RECORD_ITRACE_START:
       return ParseItraceStart(std::move(record));
@@ -257,42 +258,43 @@ base::Status RecordParser::ParseComm(Record record) {
   return base::OkStatus();
 }
 
-base::Status RecordParser::ParseMmap(Record record) {
+base::Status RecordParser::ParseMmap(int64_t trace_ts, Record record) {
   MmapRecord mmap;
   RETURN_IF_ERROR(mmap.Parse(record));
   std::optional<BuildId> build_id =
       record.session->LookupBuildId(mmap.pid, mmap.filename);
+
+  auto params =
+      BuildCreateMappingParams(mmap, mmap.filename, std::move(build_id));
+
   if (IsInKernel(record.GetCpuMode())) {
-    context_->mapping_tracker->CreateKernelMemoryMapping(
-        BuildCreateMappingParams(mmap, std::move(mmap.filename),
-                                 std::move(build_id)));
-    return base::OkStatus();
+    PerfTracker::GetOrCreate(context_)->CreateKernelMemoryMapping(
+        trace_ts, std::move(params));
+  } else {
+    PerfTracker::GetOrCreate(context_)->CreateUserMemoryMapping(
+        trace_ts, GetUpid(mmap), std::move(params));
   }
-
-  context_->mapping_tracker->CreateUserMemoryMapping(
-      GetUpid(mmap), BuildCreateMappingParams(mmap, std::move(mmap.filename),
-                                              std::move(build_id)));
-
   return base::OkStatus();
 }
 
-base::Status RecordParser::ParseMmap2(Record record) {
+base::Status RecordParser::ParseMmap2(int64_t trace_ts, Record record) {
   Mmap2Record mmap2;
   RETURN_IF_ERROR(mmap2.Parse(record));
   std::optional<BuildId> build_id = mmap2.GetBuildId();
   if (!build_id.has_value()) {
     build_id = record.session->LookupBuildId(mmap2.pid, mmap2.filename);
   }
-  if (IsInKernel(record.GetCpuMode())) {
-    context_->mapping_tracker->CreateKernelMemoryMapping(
-        BuildCreateMappingParams(mmap2, std::move(mmap2.filename),
-                                 std::move(build_id)));
-    return base::OkStatus();
-  }
 
-  context_->mapping_tracker->CreateUserMemoryMapping(
-      GetUpid(mmap2), BuildCreateMappingParams(mmap2, std::move(mmap2.filename),
-                                               std::move(build_id)));
+  auto params =
+      BuildCreateMappingParams(mmap2, mmap2.filename, std::move(build_id));
+
+  if (IsInKernel(record.GetCpuMode())) {
+    PerfTracker::GetOrCreate(context_)->CreateKernelMemoryMapping(
+        trace_ts, std::move(params));
+  } else {
+    PerfTracker::GetOrCreate(context_)->CreateUserMemoryMapping(
+        trace_ts, GetUpid(mmap2), std::move(params));
+  }
 
   return base::OkStatus();
 }

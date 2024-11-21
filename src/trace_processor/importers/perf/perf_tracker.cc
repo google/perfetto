@@ -14,16 +14,21 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/perf/dso_tracker.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 
 #include <cstdint>
+#include <limits>
+#include <memory>
+#include <optional>
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/string_view.h"
-#include "protos/third_party/simpleperf/record_file.pbzero.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/spe_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/profiler_tables_py.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
@@ -44,14 +49,33 @@ void InsertSymbols(const FileFeature::Decoder& file,
         symbol.name().ToStdString());
   }
 }
+
+bool IsBpfMapping(const CreateMappingParams& params) {
+  return params.name == "[bpf]";
+}
+
 }  // namespace
 
-DsoTracker::DsoTracker(TraceProcessorContext* context)
+PerfTracker::PerfTracker(TraceProcessorContext* context)
     : context_(context),
-      mapping_table_(context_->storage->stack_profile_mapping_table()) {}
-DsoTracker::~DsoTracker() = default;
+      mapping_table_(context->storage->stack_profile_mapping_table()) {
+  RegisterAuxTokenizer(PERF_AUXTRACE_ARM_SPE, &SpeTokenizer::Create);
+}
 
-void DsoTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
+PerfTracker::~PerfTracker() = default;
+
+base::StatusOr<std::unique_ptr<AuxDataTokenizer>>
+PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
+  auto it = factories_.Find(info.type);
+  if (!it) {
+    return std::unique_ptr<AuxDataTokenizer>(
+        new DummyAuxDataTokenizer(context_));
+  }
+
+  return (*it)(context_, std::move(info));
+}
+
+void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
   Dso dso;
   switch (file.type()) {
     case DsoType::DSO_KERNEL:
@@ -73,6 +97,7 @@ void DsoTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
     case DsoType::DSO_DEX_FILE:
     case DsoType::DSO_SYMBOL_MAP_FILE:
     case DsoType::DSO_UNKNOWN_FILE:
+    default:
       return;
   }
 
@@ -80,7 +105,7 @@ void DsoTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
   files_.Insert(context_->storage->InternString(file.path()), std::move(dso));
 }
 
-void DsoTracker::SymbolizeFrames() {
+void PerfTracker::SymbolizeFrames() {
   const StringId kEmptyString = context_->storage->InternString("");
   for (auto frame = context_->storage->mutable_stack_profile_frame_table()
                         ->IterateRows();
@@ -95,7 +120,7 @@ void DsoTracker::SymbolizeFrames() {
   }
 }
 
-void DsoTracker::SymbolizeKernelFrame(
+void PerfTracker::SymbolizeKernelFrame(
     tables::StackProfileFrameTable::RowReference frame) {
   const auto mapping = *mapping_table_.FindById(frame.mapping());
   uint64_t address = static_cast<uint64_t>(frame.rel_pc()) +
@@ -108,7 +133,7 @@ void DsoTracker::SymbolizeKernelFrame(
       context_->storage->InternString(base::StringView(symbol->second)));
 }
 
-bool DsoTracker::TrySymbolizeFrame(
+bool PerfTracker::TrySymbolizeFrame(
     tables::StackProfileFrameTable::RowReference frame) {
   const auto mapping = *mapping_table_.FindById(frame.mapping());
   auto* file = files_.Find(mapping.name());
@@ -129,6 +154,40 @@ bool DsoTracker::TrySymbolizeFrame(
   frame.set_name(
       context_->storage->InternString(base::StringView(symbol->second)));
   return true;
+}
+
+void PerfTracker::CreateKernelMemoryMapping(int64_t trace_ts,
+                                            CreateMappingParams params) {
+  // Ignore BPF mapping that spans the entire memory range
+  if (IsBpfMapping(params) &&
+      params.memory_range.size() == std::numeric_limits<uint64_t>::max()) {
+    return;
+  }
+  const KernelMemoryMapping* mapping =
+      &context_->mapping_tracker->CreateKernelMemoryMapping(std::move(params));
+
+  context_->storage->mutable_mmap_record_table()->Insert(
+      {trace_ts, std::nullopt, mapping->mapping_id()});
+}
+
+void PerfTracker::CreateUserMemoryMapping(int64_t trace_ts,
+                                          UniquePid upid,
+                                          CreateMappingParams params) {
+  const UserMemoryMapping* mapping =
+      &context_->mapping_tracker->CreateUserMemoryMapping(upid,
+                                                          std::move(params));
+
+  context_->storage->mutable_mmap_record_table()->Insert(
+      {trace_ts, upid, mapping->mapping_id()});
+}
+
+void PerfTracker::NotifyEndOfFile() {
+  SymbolizeFrames();
+}
+
+void PerfTracker::RegisterAuxTokenizer(uint32_t type,
+                                       AuxDataTokenizerFactory factory) {
+  PERFETTO_CHECK(factories_.Insert(type, std::move(factory)).second);
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
