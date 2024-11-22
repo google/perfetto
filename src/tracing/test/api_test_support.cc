@@ -21,6 +21,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/tracing/internal/basic_types.h"
 #include "src/tracing/internal/tracing_muxer_impl.h"
 
 #include <sstream>
@@ -201,8 +202,15 @@ void TracingMuxerImplInternalsForTest::ClearIncrementalState() {
   auto* muxer =
       reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
   for (const auto& data_source : muxer->data_sources_) {
-    data_source.static_state->incremental_state_generation.fetch_add(
-        1, std::memory_order_relaxed);
+    for (uint32_t inst_idx = 0; inst_idx < internal::kMaxDataSourceInstances;
+         inst_idx++) {
+      internal::DataSourceState* ds_static_state =
+          data_source.static_state->TryGet(inst_idx);
+      if (ds_static_state) {
+        ds_static_state->incremental_state_generation.fetch_add(
+            1, std::memory_order_relaxed);
+      }
+    }
   }
 }
 
