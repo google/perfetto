@@ -176,3 +176,22 @@ SELECT FALSE AS devfreq_necessary
 FROM _use_devfreq as d
 JOIN _wattson_device as device
 ON d.device != device.name;
+
+-- Devices that require idle state mapping
+CREATE PERFETTO TABLE _idle_state_map
+AS
+WITH data(device, nominal_idle, override_idle) AS (
+  VALUES
+  ("neo", 4294967295, -1),
+  ("neo", 0, 0),
+  ("neo", 1, 1),
+  ("neo", 2, 1)
+)
+select * from data;
+
+-- idle_mapping override filtered for device
+CREATE PERFETTO TABLE _idle_state_map_override AS
+SELECT nominal_idle, override_idle
+FROM _idle_state_map as idle_map
+JOIN _wattson_device as device
+ON idle_map.device = device.name;
