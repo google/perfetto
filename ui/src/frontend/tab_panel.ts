@@ -23,10 +23,7 @@ import {Tree, TreeNode} from '../widgets/tree';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Button} from '../widgets/button';
-import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
-import {DisposableStack} from '../base/disposable_stack';
-import {DragGestureHandler} from '../base/drag_gesture_handler';
-import {assertExists} from '../base/logging';
+import {CollapsiblePanel} from './widgets/collapsible_panel';
 
 export type TabPanelAttrs = TraceImplAttrs;
 
@@ -64,23 +61,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
   private readonly trace: TraceImpl;
   // Tabs panel starts collapsed.
 
-  // NOTE: the visibility state of the tab panel (COLLAPSED, VISIBLE,
-  // FULLSCREEN) is stored in TabManagerImpl because it can be toggled via
-  // commands. Here we store only the heights for the various states, because
-  // nobody else needs to know about them and are an impl. detail of the VDOM.
-
-  // The actual height of the vdom node. It matches resizableHeight if VISIBLE,
-  // 0 if COLLAPSED, fullscreenHeight if FULLSCREEN.
-  private height = 0;
-
-  // The height when the panel is 'VISIBLE'.
-  private resizableHeight = getDefaultDetailsHeight();
-
-  // The height when the panel is 'FULLSCREEN'.
-  private fullscreenHeight = 0;
-
   private fadeContext = new FadeContext();
-  private trash = new DisposableStack();
 
   constructor({attrs}: m.CVnode<TabPanelAttrs>) {
     this.trace = attrs.trace;
@@ -90,21 +71,6 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     const tabMan = this.trace.tabs;
     const tabList = this.trace.tabs.openTabsUri;
     const resolvedTabs = tabMan.resolveTabs(tabList);
-
-    switch (this.trace.tabs.tabPanelVisibility) {
-      case 'VISIBLE':
-        this.height = Math.min(
-          Math.max(this.resizableHeight, 0),
-          this.fullscreenHeight,
-        );
-        break;
-      case 'FULLSCREEN':
-        this.height = this.fullscreenHeight;
-        break;
-      case 'COLLAPSED':
-        this.height = 0;
-        break;
-    }
 
     const tabs = resolvedTabs.map(({uri, tab: tabDesc}): TabWithContent => {
       if (tabDesc) {
@@ -131,62 +97,19 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
       content: this.renderCSTabContentWithFading(),
     });
 
-    return [
-      // Render the header with the ... menu, tab strip and resize buttons.
-      m(
-        '.handle',
+    return m(CollapsiblePanel, {
+      visibility: this.trace.tabs.tabPanelVisibility,
+      setVisibility: (visibility) =>
+        this.trace.tabs.setTabPanelVisibility(visibility),
+      headerActions: [
         this.renderTripleDotDropdownMenu(),
         this.renderTabStrip(tabs),
-        this.renderTabResizeButtons(),
-      ),
-      // Render the tab contents.
-      m(
-        '.details-panel-container',
-        {
-          style: {height: `${this.height}px`},
-        },
-        tabs.map(({key, content}) => {
-          const active = key === this.trace.tabs.currentTabUri;
-          return m(Gate, {open: active}, content);
-        }),
-      ),
-    ];
-  }
-
-  oncreate(vnode: m.VnodeDOM<TraceImplAttrs, this>) {
-    let dragStartY = 0;
-    let heightWhenDragStarted = 0;
-
-    this.trash.use(
-      new DragGestureHandler(
-        vnode.dom as HTMLElement,
-        /* onDrag */ (_x, y) => {
-          const deltaYSinceDragStart = dragStartY - y;
-          this.resizableHeight = heightWhenDragStarted + deltaYSinceDragStart;
-          raf.scheduleFullRedraw('force');
-        },
-        /* onDragStarted */ (_x, y) => {
-          this.resizableHeight = this.height;
-          heightWhenDragStarted = this.height;
-          dragStartY = y;
-          this.trace.tabs.setTabPanelVisibility('VISIBLE');
-        },
-        /* onDragFinished */ () => {},
-      ),
-    );
-
-    const page = assertExists(vnode.dom.parentElement);
-    this.fullscreenHeight = page.clientHeight;
-    const resizeObs = new ResizeObserver(() => {
-      this.fullscreenHeight = page.clientHeight;
-      raf.scheduleFullRedraw();
+      ],
+      tabs: tabs.map(({key, content}) => {
+        const active = key === this.trace.tabs.currentTabUri;
+        return m(Gate, {open: active}, content);
+      }),
     });
-    resizeObs.observe(page);
-    this.trash.defer(() => resizeObs.disconnect());
-  }
-
-  onremove() {
-    this.trash.dispose();
   }
 
   private renderTripleDotDropdownMenu(): m.Child {
@@ -259,26 +182,6 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
               icon: 'close',
             }),
         );
-      }),
-    );
-  }
-
-  private renderTabResizeButtons(): m.Child {
-    const isClosed = this.trace.tabs.tabPanelVisibility === 'COLLAPSED';
-    return m(
-      '.buttons',
-      m(Button, {
-        title: 'Open fullscreen',
-        disabled: this.trace.tabs.tabPanelVisibility === 'FULLSCREEN',
-        icon: 'vertical_align_top',
-        compact: true,
-        onclick: () => this.trace.tabs.setTabPanelVisibility('FULLSCREEN'),
-      }),
-      m(Button, {
-        onclick: () => this.trace.tabs.toggleTabPanelVisibility(),
-        title: isClosed ? 'Show panel' : 'Hide panel',
-        icon: isClosed ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
-        compact: true,
       }),
     );
   }
@@ -437,11 +340,4 @@ class FadeIn implements m.ClassComponent {
   view(vnode: m.Vnode): m.Children {
     return this.show ? vnode.children : undefined;
   }
-}
-
-function getDefaultDetailsHeight() {
-  const DRAG_HANDLE_HEIGHT_PX = 28;
-  // This needs to be a function instead of a const to ensure the CSS constants
-  // have been initialized by the time we perform this calculation;
-  return DRAG_HANDLE_HEIGHT_PX + DEFAULT_DETAILS_CONTENT_HEIGHT;
 }

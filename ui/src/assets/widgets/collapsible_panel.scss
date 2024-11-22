@@ -11,17 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-.explore-page {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
 
-  .chart-container {
-    flex: 1;
-    position: relative;
-    display: flex;
-    flex-flow: column nowrap;
+.collapsible-panel {
+  .details-panel-container {
+    box-shadow: #0000003b 0px 0px 3px 1px;
     overflow: auto;
   }
 }
