@@ -115,18 +115,25 @@ function groupGlobalIonTracks(trace: Trace): void {
     return;
   }
 
-  const group = new TrackNode({title: 'Ion Tracks'});
-  group.isSummary = true;
-  trace.workspace.addChildInOrder(group);
-
+  const tracksToAddToGroup: TrackNode[] = [];
+  let memGroupNode: TrackNode | undefined;
   for (const track of ionTracks) {
-    if ([MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.title)) {
-      trace.workspace.removeChild(track);
-      group.uri = track.uri;
-      group.title = track.title;
+    if (
+      !memGroupNode &&
+      [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.title)
+    ) {
+      // Create a new group that copies the details from this track
+      memGroupNode = new TrackNode({uri: track.uri, title: track.title});
+      // Remove it from the workspace as we're going to add the group later
+      track.remove();
     } else {
-      group.addChildInOrder(track);
+      tracksToAddToGroup.push(track);
     }
+  }
+
+  if (memGroupNode) {
+    tracksToAddToGroup.forEach((t) => memGroupNode.addChildInOrder(t));
+    trace.workspace.addChildInOrder(memGroupNode);
   }
 }
 
