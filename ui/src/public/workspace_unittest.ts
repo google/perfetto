@@ -181,3 +181,46 @@ describe('TrackNode.addChildInOrder', () => {
     expect(container.children[1]).toBe(child1);
   });
 });
+
+test('TrackNode::flatTracksOrdered', () => {
+  const root = new TrackNode();
+
+  const removeme = new TrackNode({id: 'removeme'});
+  root.addChildFirst(removeme);
+
+  const foo = new TrackNode({id: 'foo'});
+  root.addChildLast(foo);
+  foo.addChildLast(new TrackNode({id: 'fooBar'})); // <-- Note this one is added as a child of foo
+  const bar = new TrackNode({id: 'bar'});
+  root.addChildLast(bar);
+  root.addChildFirst(new TrackNode({id: 'baz'})); // <- Note this one is added first so should appear before the others in flatTracks
+
+  root.removeChild(removeme);
+
+  expect(root.flatTracksOrdered.map(({id}) => id)).toEqual([
+    'baz',
+    'foo',
+    'fooBar',
+    'bar',
+  ]);
+});
+
+test('TrackNode::flatTracks', () => {
+  const root = new TrackNode();
+
+  const removeme = new TrackNode({id: 'removeme'});
+  root.addChildFirst(removeme);
+
+  const foo = new TrackNode({id: 'foo'});
+  root.addChildLast(foo);
+  foo.addChildLast(new TrackNode({id: 'fooBar'})); // <-- Note this one is added as a child of foo
+  root.addChildLast(new TrackNode({id: 'bar'}));
+  root.addChildFirst(new TrackNode({id: 'baz'})); // <- Note this one is added first so should appear before the others in flatTracks
+
+  root.removeChild(removeme);
+
+  expect(root.flatTracks.map(({id}) => id)).toEqual(
+    expect.arrayContaining(['baz', 'foo', 'fooBar', 'bar']),
+  );
+  expect(root.flatTracks.length).toBe(4);
+});

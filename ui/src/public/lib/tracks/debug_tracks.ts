@@ -94,8 +94,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
 
   // Create the track node and pin it
   const trackNode = new TrackNode({uri, title, removable: true});
-  trace.workspace.addChildFirst(trackNode);
-  trackNode.pin();
+  trace.workspace.pinnedTracksNode.addChildLast(trackNode);
 }
 
 export interface DebugCounterTrackArgs {
@@ -128,6 +127,5 @@ export async function addDebugCounterTrack(args: DebugCounterTrackArgs) {
 
   // Create the track node and pin it
   const trackNode = new TrackNode({uri, title, removable: true});
-  trace.workspace.addChildFirst(trackNode);
-  trackNode.pin();
+  trace.workspace.pinnedTracksNode.addChildLast(trackNode);
 }
