@@ -19,6 +19,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -140,7 +141,7 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
     name_id =
         context_->storage->InternString(base::StringView("chrome_trigger"));
   }
-  context_->slice_tracker->Scoped(
+  auto slice_id = context_->slice_tracker->Scoped(
       ts, track_id, cat_id, name_id,
       /* duration = */ 0, [&](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(
@@ -150,6 +151,11 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
           inserter->AddArg(chrome_trigger_name_id_, Variadic::String(name_id));
         }
       });
+  if (slice_id && trigger.has_flow_id() &&
+      context_->flow_tracker->IsActive(trigger.flow_id())) {
+    context_->flow_tracker->End(*slice_id, trigger.flow_id(),
+                                /* close_flow = */ true);
+  }
 
   MetadataTracker* metadata = context_->metadata_tracker.get();
   metadata->SetDynamicMetadata(
