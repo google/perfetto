@@ -106,7 +106,7 @@ export interface OmniboxAttrs {
   onInput?: (value: string, previousValue: string) => void;
 
   // Class or list of classes to append to the Omnibox element.
-  extraClasses?: string | string[];
+  extraClasses?: string;
 
   // Called on close.
   onClose?: () => void;
@@ -182,7 +182,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
         trigger: m(
           '.omnibox',
           {
-            class: classNames(extraClasses),
+            class: extraClasses,
           },
           m('input', {
             ref: inputRef,
