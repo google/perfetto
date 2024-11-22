@@ -78,6 +78,7 @@ class TracePacket;
 class TracingServiceImpl : public TracingService {
  private:
   struct DataSourceInstance;
+  struct TriggerInfo;
 
  public:
   static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
@@ -212,7 +213,6 @@ class TracingServiceImpl : public TracingService {
     ~ConsumerEndpointImpl() override;
 
     void NotifyOnTracingDisabled(const std::string& error);
-    void NotifyCloneSnapshotTrigger(const std::string& trigger_name);
 
     // TracingService::ConsumerEndpoint implementation.
     void EnableTracing(const TraceConfig&, base::ScopedFile) override;
@@ -245,6 +245,8 @@ class TracingServiceImpl : public TracingService {
     friend class TracingServiceImpl;
     ConsumerEndpointImpl(const ConsumerEndpointImpl&) = delete;
     ConsumerEndpointImpl& operator=(const ConsumerEndpointImpl&) = delete;
+
+    void NotifyCloneSnapshotTrigger(const TriggerInfo& trigger_name);
 
     // Returns a pointer to an ObservableEvents object that the caller can fill
     // and schedules a task to send the ObservableEvents to the consumer.
@@ -474,6 +476,13 @@ class TracingServiceImpl : public TracingService {
 
   using PendingCloneID = uint64_t;
 
+  struct TriggerInfo {
+    uint64_t boot_time_ns = 0;
+    std::string trigger_name;
+    std::string producer_name;
+    uid_t producer_uid = 0;
+  };
+
   struct PendingClone {
     size_t pending_flush_cnt = 0;
     // This vector might not be populated all at once. Some buffers might be
@@ -482,6 +491,7 @@ class TracingServiceImpl : public TracingService {
     bool flush_failed = false;
     base::WeakPtr<ConsumerEndpointImpl> weak_consumer;
     bool skip_trace_filter = false;
+    std::optional<TriggerInfo> clone_trigger;
   };
 
   // Holds the state of a tracing session. A tracing session is uniquely bound
@@ -580,12 +590,6 @@ class TracingServiceImpl : public TracingService {
     // were received at. This is used to insert 'fake' packets back to the
     // consumer so they can tell when some event happened. The order matches the
     // order they were received.
-    struct TriggerInfo {
-      uint64_t boot_time_ns;
-      std::string trigger_name;
-      std::string producer_name;
-      uid_t producer_uid;
-    };
     std::vector<TriggerInfo> received_triggers;
 
     // The trace config provided by the Consumer when calling
@@ -734,6 +738,9 @@ class TracingServiceImpl : public TracingService {
     // uuid to avoid emitting two different traces with the same uuid.
     base::Uuid trace_uuid;
 
+    // This is set when the clone operation was caused by a clone trigger.
+    std::optional<TriggerInfo> clone_trigger;
+
     // NOTE: when adding new fields here consider whether that state should be
     // copied over in DoCloneSession() or not. Ask yourself: is this a
     // "runtime state" (e.g. active data sources) or a "trace (meta)data state"?
@@ -799,6 +806,7 @@ class TracingServiceImpl : public TracingService {
   void EmitUuid(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void EmitSystemInfo(std::vector<TracePacket>*);
+  void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
@@ -830,6 +838,7 @@ class TracingServiceImpl : public TracingService {
                                   std::vector<std::unique_ptr<TraceBuffer>>,
                                   bool skip_filter,
                                   bool final_flush_outcome,
+                                  std::optional<TriggerInfo> clone_trigger,
                                   base::Uuid*);
   void OnFlushDoneForClone(TracingSessionID src_tsid,
                            PendingCloneID clone_id,

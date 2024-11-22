@@ -51,6 +51,7 @@ using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::Property;
 using ::testing::SizeIs;
 
@@ -898,6 +899,137 @@ TEST_F(PerfettoCmdlineTest, TriggerCloneSnapshot) {
               Contains(Property(&protos::gen::TracePacket::trigger,
                                 Property(&protos::gen::Trigger::trigger_name,
                                          Eq("trigger_name")))));
+}
+
+TEST_F(PerfettoCmdlineTest, MultipleTriggersCloneSnapshot) {
+  protos::gen::TraceConfig trace_config =
+      CreateTraceConfigForTest(kTestMessageCount, kTestMessageSize);
+  auto* trigger_cfg = trace_config.mutable_trigger_config();
+  trigger_cfg->set_trigger_mode(
+      protos::gen::TraceConfig::TriggerConfig::CLONE_SNAPSHOT);
+  trigger_cfg->set_trigger_timeout_ms(600000);
+  // Add two triggers, the "trigger_name_2" hits before "trigger_name_1".
+  auto* trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name_1");
+  trigger->set_stop_delay_ms(1500);
+  trigger = trigger_cfg->add_triggers();
+  trigger->set_name("trigger_name_2");
+  trigger->set_stop_delay_ms(500);
+
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
+  const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  auto triggers_proc = ExecTrigger({"trigger_name_1", "trigger_name_2"});
+
+  // Start the service and connect a simple fake producer.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+  });
+
+  test_helper().WaitForProducerEnabled();
+  // Wait for the producer to start, and then write out some test packets,
+  // before the trace actually starts (the trigger is seen).
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written_1");
+
+  EXPECT_EQ(0, triggers_proc.Run(&stderr_)) << "stderr: " << stderr_;
+
+  // Wait for both clone triggers to hit and wait for two snapshot files.
+  std::string snapshot_path = path + ".0";
+  for (int i = 0; i < 100 && !base::FileExists(snapshot_path); i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_TRUE(base::FileExists(snapshot_path));
+
+  std::string snapshot_path_2 = path + ".1";
+  for (int i = 0; i < 100 && !base::FileExists(snapshot_path_2); i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_TRUE(base::FileExists(snapshot_path_2));
+
+  perfetto_proc.SendSigterm();
+  background_trace.join();
+
+  // We now have two traces, the first one was cloned by "trigger_name_2",
+  // the second was cloned by "trigger_name_1".
+
+  // Asserts for the first trace.
+  protos::gen::Trace trace;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(snapshot_path, trace));
+  EXPECT_LT(static_cast<int>(kTestMessageCount), trace.packet_size());
+  EXPECT_THAT(GetReceivedTriggerNames(trace),
+              ElementsAre("trigger_name_1", "trigger_name_2"));
+
+  std::vector<protos::gen::TracePacket> clone_trigger_packets;
+  protos::gen::TracePacket trigger_packet;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_clone_snapshot_trigger()) {
+      clone_trigger_packets.push_back(packet);
+    } else if (packet.has_trigger() &&
+               packet.trigger().trigger_name() == "trigger_name_2") {
+      trigger_packet = packet;
+    }
+  }
+  ASSERT_EQ(clone_trigger_packets.size(), 1ul);
+  EXPECT_EQ(clone_trigger_packets[0].clone_snapshot_trigger().trigger_name(),
+            "trigger_name_2");
+  // Assert that all fields of 'clone_snapshot_trigger' equal to the same fields
+  // of a 'trigger'.
+  EXPECT_EQ(clone_trigger_packets[0].timestamp(), trigger_packet.timestamp());
+  EXPECT_EQ(clone_trigger_packets[0].clone_snapshot_trigger(),
+            trigger_packet.trigger());
+
+  // Asserts for the second trace.
+  protos::gen::Trace trace_2;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(snapshot_path_2, trace_2));
+  EXPECT_LT(static_cast<int>(kTestMessageCount), trace_2.packet_size());
+  // List of received triggers from the main session was cleaned after the first
+  // clone operation happened, the list is empty in the second trace.
+  EXPECT_THAT(GetReceivedTriggerNames(trace_2), IsEmpty());
+
+  std::vector<protos::gen::TracePacket> clone_trigger_packets_2;
+  for (const auto& packet : trace_2.packet()) {
+    if (packet.has_clone_snapshot_trigger()) {
+      clone_trigger_packets_2.push_back(packet);
+    }
+  }
+  ASSERT_EQ(clone_trigger_packets_2.size(), 1ul);
+  EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger().trigger_name(),
+            "trigger_name_1");
+
+  // There is no triggers in the second snapshot, but we can compare the
+  // "clone_snapshot_trigger" with the trigger saved into the first snapshot.
+  protos::gen::TracePacket trigger_packet_from_first_snapshot;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_trigger() &&
+        packet.trigger().trigger_name() == "trigger_name_1") {
+      trigger_packet_from_first_snapshot = packet;
+    }
+  }
+  // Assert that all fields of 'clone_snapshot_trigger' equal to the same fields
+  // of a 'trigger'.
+  EXPECT_EQ(clone_trigger_packets_2[0].timestamp(),
+            trigger_packet_from_first_snapshot.timestamp());
+  EXPECT_EQ(clone_trigger_packets_2[0].clone_snapshot_trigger(),
+            trigger_packet_from_first_snapshot.trigger());
 }
 
 TEST_F(PerfettoCmdlineTest, SaveForBugreport) {
