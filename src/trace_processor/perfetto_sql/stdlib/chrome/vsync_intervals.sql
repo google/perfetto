@@ -11,7 +11,7 @@ CREATE PERFETTO TABLE chrome_vsync_intervals(
   -- Slice id of the vsync slice.
   slice_id LONG,
   -- Timestamp of the vsync slice.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the vsync slice.
   dur LONG,
   -- Track id of the vsync slice.
@@ -37,9 +37,9 @@ ORDER BY track_id, ts;
 -- corresponds to 16 ms or 60 FPS).
 CREATE PERFETTO FUNCTION chrome_calculate_avg_vsync_interval(
   -- Interval start time.
-  begin_ts LONG,
+  begin_ts TIMESTAMP,
   -- Interval end time.
-  end_ts LONG
+  end_ts TIMESTAMP
 )
 -- The average vsync interval on this time segment
 -- or 1.6e+7, if trace doesn't contain the VSync TraceEvent.

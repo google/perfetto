@@ -55,7 +55,7 @@ LEFT JOIN _gralloc_binders gb ON r.utid = gb.utid AND r.ts BETWEEN gb.ts AND gb.
 LEFT JOIN thread_track client_thread ON gb.client_slice_id = client_thread.id
 ORDER BY r.inode, r.ts;
 
-CREATE PERFETTO FUNCTION _alloc_source(is_alloc BOOL, inode LONG, ts LONG)
+CREATE PERFETTO FUNCTION _alloc_source(is_alloc BOOL, inode LONG, ts TIMESTAMP)
 RETURNS LONG AS
 SELECT attr_utid
 FROM _attributed_dmabufs
@@ -72,7 +72,7 @@ LIMIT 1;
 -- (if binder transactions to gralloc are recorded).
 CREATE PERFETTO TABLE android_dmabuf_allocs (
   -- timestamp of the allocation
-  ts LONG,
+  ts TIMESTAMP,
   -- allocation size (will be negative for release)
   buf_size LONG,
   -- dmabuf inode

@@ -56,7 +56,7 @@ CREATE PERFETTO FUNCTION _active_cpu_count_for_cluster_type(
   cluster_type STRING
 ) RETURNS TABLE(
   -- Timestamp when the number of active CPU changed.
-  ts LONG,
+  ts TIMESTAMP,
   -- Number of active CPUs, covering the range from this timestamp to the next
   -- row's timestamp.
   active_cpu_count LONG

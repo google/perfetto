@@ -77,9 +77,9 @@ CREATE PERFETTO TABLE chrome_startups(
   -- Name of the launch start event.
   name STRING,
   -- Timestamp that the startup occurred.
-  startup_begin_ts LONG,
+  startup_begin_ts TIMESTAMP,
   -- Timestamp to the first visible content.
-  first_visible_content_ts LONG,
+  first_visible_content_ts TIMESTAMP,
   -- Launch cause. See Startup.LaunchCauseType in chrome_track_event.proto.
   launch_cause STRING,
   -- Process ID of the Browser where the startup occurred.

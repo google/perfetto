@@ -21,9 +21,9 @@ INCLUDE PERFETTO MODULE chrome.event_latency;
 -- timestamp of the neighbour and computes whether the frame was janky or not.
 CREATE PERFETTO FUNCTION _is_janky_frame(cur_gesture_id LONG,
                                       neighbour_gesture_id LONG,
-                                      neighbour_ts LONG,
-                                      cur_gesture_begin_ts LONG,
-                                      cur_gesture_end_ts LONG,
+                                      neighbour_ts TIMESTAMP,
+                                      cur_gesture_begin_ts TIMESTAMP,
+                                      cur_gesture_end_ts TIMESTAMP,
                                       cur_frame_exact DOUBLE,
                                       neighbour_frame_exact DOUBLE)
 -- Returns true if the frame was janky, false otherwise

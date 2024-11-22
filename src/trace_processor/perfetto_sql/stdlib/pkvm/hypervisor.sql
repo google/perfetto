@@ -21,7 +21,7 @@ CREATE PERFETTO VIEW pkvm_hypervisor_events(
   -- CPU that entered hypervisor.
   cpu LONG,
   -- Timestamp when CPU entered hypervisor (in nanoseconds).
-  ts LONG,
+  ts TIMESTAMP,
   -- How much time CPU spent in hypervisor (in nanoseconds).
   dur LONG,
   -- Reason for entering hypervisor (e.g. host_hcall, host_mem_abort), or NULL if unknown.

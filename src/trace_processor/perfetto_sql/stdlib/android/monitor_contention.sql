@@ -153,7 +153,7 @@ process_name STRING,
 -- Slice id of lock contention.
 id LONG,
 -- Timestamp of lock contention start.
-ts LONG,
+ts TIMESTAMP,
 -- Wall clock duration of lock contention.
 dur LONG,
 -- Monotonic clock duration of lock contention.
@@ -171,7 +171,7 @@ blocking_thread_tid LONG,
 -- Slice id of binder reply slice if lock contention was part of a binder txn.
 binder_reply_id LONG,
 -- Timestamp of binder reply slice if lock contention was part of a binder txn.
-binder_reply_ts LONG,
+binder_reply_ts TIMESTAMP,
 -- Tid of binder reply slice if lock contention was part of a binder txn.
 binder_reply_tid LONG,
 -- Pid of process experiencing lock contention.
@@ -294,7 +294,7 @@ process_name STRING,
 -- Slice id of lock contention.
 id LONG,
 -- Timestamp of lock contention start.
-ts LONG,
+ts TIMESTAMP,
 -- Wall clock duration of lock contention.
 dur LONG,
 -- Monotonic clock duration of lock contention.
@@ -312,7 +312,7 @@ blocking_thread_tid LONG,
 -- Slice id of binder reply slice if lock contention was part of a binder txn.
 binder_reply_id LONG,
 -- Timestamp of binder reply slice if lock contention was part of a binder txn.
-binder_reply_ts LONG,
+binder_reply_ts TIMESTAMP,
 -- Tid of binder reply slice if lock contention was part of a binder txn.
 binder_reply_tid LONG,
 -- Pid of process experiencing lock contention.
@@ -368,7 +368,7 @@ CREATE PERFETTO TABLE android_monitor_contention_chain_thread_state(
 -- Slice id of lock contention.
 id LONG,
 -- Timestamp of lock contention start.
-ts LONG,
+ts TIMESTAMP,
 -- Wall clock duration of lock contention.
 dur LONG,
 -- Utid of the blocking |thread_state|.

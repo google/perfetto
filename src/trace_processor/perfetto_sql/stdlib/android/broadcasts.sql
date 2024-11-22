@@ -44,7 +44,7 @@ CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
   -- Slice id of the broadcast dispatch.
   id LONG,
   -- Timestamp the broadcast was dispatched.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration to dispatch the broadcast.
   dur LONG,
   -- Track id the broadcast was dispatched from.

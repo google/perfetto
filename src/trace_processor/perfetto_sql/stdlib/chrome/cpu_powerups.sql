@@ -26,7 +26,7 @@
 -- state that the CPU enters while idle.
 CREATE PERFETTO VIEW chrome_cpu_power_slice(
   -- The timestamp at the start of the slice.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the slice.
   dur LONG,
   -- The CPU on which the transition occurred
@@ -98,7 +98,7 @@ USING
 -- CPU power up.
 CREATE PERFETTO TABLE chrome_cpu_power_first_sched_slice_after_powerup(
   -- The timestamp at the start of the slice.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the slice.
   dur LONG,
   -- The cpu on which the slice executed.
@@ -157,7 +157,7 @@ USING
 -- slice that ran on a CPU immediately after power-up.
 CREATE PERFETTO TABLE chrome_cpu_power_post_powerup_slice(
 -- Timestamp of the resulting slice
-ts LONG,
+ts TIMESTAMP,
 -- Duration of the slice.
 dur LONG,
 -- The CPU the sched slice ran on.

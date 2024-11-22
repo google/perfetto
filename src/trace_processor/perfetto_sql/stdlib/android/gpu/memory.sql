@@ -18,7 +18,7 @@ INCLUDE PERFETTO MODULE linux.memory.general;
 -- Counter for GPU memory per process with duration.
 CREATE PERFETTO TABLE android_gpu_memory_per_process(
   -- Timestamp
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration
   dur LONG,
   -- Upid of the process

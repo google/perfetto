@@ -123,15 +123,15 @@ CREATE PERFETTO TABLE android_app_process_starts(
   -- Process start reason: activity, broadcast, service or provider.
   reason STRING,
   -- Timestamp the process start was dispatched from system_server.
-  proc_start_ts LONG,
+  proc_start_ts TIMESTAMP,
   -- Duration to dispatch the process start from system_server.
   proc_start_dur LONG,
   -- Timestamp the bindApplication started in the app.
-  bind_app_ts LONG,
+  bind_app_ts TIMESTAMP,
   -- Duration to complete bindApplication in the app.
   bind_app_dur LONG,
   -- Timestamp the Intent was received in the app.
-  intent_ts LONG,
+  intent_ts TIMESTAMP,
   -- Duration to handle intent in the app.
   intent_dur LONG,
   -- Total duration from proc_start dispatched to intent completed.

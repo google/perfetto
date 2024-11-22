@@ -18,7 +18,7 @@ CREATE PERFETTO VIEW android_dvfs_counters(
   -- Counter name.
   name STRING,
   -- Timestamp when counter value changed.
-  ts LONG,
+  ts TIMESTAMP,
   -- Counter value.
   value DOUBLE,
   -- Counter duration.

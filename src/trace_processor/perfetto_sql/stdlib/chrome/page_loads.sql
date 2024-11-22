@@ -21,7 +21,7 @@ WHERE name = 'PageLoadMetrics.NavigationToFirstContentfulPaint';
 
 CREATE PERFETTO FUNCTION _page_load_metrics(event_name STRING)
 RETURNS TABLE(
-  ts LONG,
+  ts TIMESTAMP,
   dur LONG,
   navigation_id LONG,
   browser_upid LONG
@@ -46,32 +46,32 @@ CREATE PERFETTO TABLE chrome_page_loads(
   -- and not globally unique.
   navigation_id LONG,
   -- Timestamp of the start of navigation.
-  navigation_start_ts LONG,
+  navigation_start_ts TIMESTAMP,
   -- Duration between the navigation start and the first contentful paint event
   -- (web.dev/fcp).
   fcp LONG,
   -- Timestamp of the first contentful paint.
-  fcp_ts LONG,
+  fcp_ts TIMESTAMP,
   -- Duration between the navigation start and the largest contentful paint event
   -- (web.dev/lcp).
   lcp LONG,
   -- Timestamp of the largest contentful paint.
-  lcp_ts LONG,
+  lcp_ts TIMESTAMP,
   -- Timestamp of the DomContentLoaded event:
   -- https://developer.mozilla.org/en-US/docs/Web/API/Document/DOMContentLoaded_event
-  dom_content_loaded_event_ts LONG,
+  dom_content_loaded_event_ts TIMESTAMP,
   -- Timestamp of the window load event:
   -- https://developer.mozilla.org/en-US/docs/Web/API/Window/load_event
-  load_event_ts LONG,
+  load_event_ts TIMESTAMP,
   -- Timestamp of the page self-reporting as fully loaded through the
   -- performance.mark('mark_fully_loaded') API.
-  mark_fully_loaded_ts LONG,
+  mark_fully_loaded_ts TIMESTAMP,
   -- Timestamp of the page self-reporting as fully visible through the
   -- performance.mark('mark_fully_visible') API.
-  mark_fully_visible_ts LONG,
+  mark_fully_visible_ts TIMESTAMP,
   -- Timestamp of the page self-reporting as fully interactive through the
   -- performance.mark('mark_interactive') API.
-  mark_interactive_ts LONG,
+  mark_interactive_ts TIMESTAMP,
   -- URL at the page load event.
   url STRING,
   -- The unique process id (upid) of the browser process where the page load occurred.

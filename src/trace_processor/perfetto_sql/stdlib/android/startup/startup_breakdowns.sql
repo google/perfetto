@@ -161,7 +161,7 @@ CREATE PERFETTO TABLE android_startup_opinionated_breakdown(
   -- Id of thread_state blocking startup. Alias of `thread_state.id`.
   thread_state_id LONG,
   -- Timestamp of an exclusive interval during the app startup with a single latency reason.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of an exclusive interval during the app startup with a single latency reason.
   dur LONG,
   -- Cause of delay during an exclusive interval of the app startup.

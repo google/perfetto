@@ -20,7 +20,7 @@ INCLUDE PERFETTO MODULE time.conversion;
 -- any state.
 CREATE PERFETTO TABLE cpu_idle_time_in_state_counters(
   -- Timestamp.
-  ts LONG,
+  ts TIMESTAMP,
   -- The machine this residency is calculated for.
   machine_id LONG,
   -- State name.

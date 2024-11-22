@@ -89,7 +89,7 @@ CREATE PERFETTO TABLE android_service_bindings(
   -- Utid of client thread making the binding.
   client_utid LONG,
   -- Timestamp the client process made the request.
-  client_ts LONG,
+  client_ts TIMESTAMP,
   -- Duration of the client binding request.
   client_dur LONG,
   -- OOM score of server process getting bound to.
@@ -107,7 +107,7 @@ CREATE PERFETTO TABLE android_service_bindings(
   -- Utid of server process getting bound to.
   server_utid LONG,
   -- Timestamp the server process got bound to.
-  server_ts LONG,
+  server_ts TIMESTAMP,
   -- Duration of the server process handling the binding.
   server_dur LONG,
   -- Unique binder identifier for the Service binding.

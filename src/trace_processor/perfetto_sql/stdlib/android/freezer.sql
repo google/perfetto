@@ -29,7 +29,7 @@ CREATE PERFETTO FUNCTION _pid_to_upid(
   -- Pid to convert from.
   pid LONG,
   -- Timestamp of an event from the |pid|.
-  event_ts LONG)
+  event_ts TIMESTAMP)
 -- Returns the converted upid.
 RETURNS LONG
 AS
@@ -94,7 +94,7 @@ CREATE PERFETTO TABLE android_freezer_events (
   -- Pid of frozen process
   pid LONG,
   -- Timestamp process was frozen.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration process was frozen for.
   dur LONG,
   -- Unfreeze reason Integer.
