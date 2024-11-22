@@ -41,7 +41,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.FindTrackByName',
       name: 'Find track by name',
       callback: async () => {
-        const options = ctx.workspace.flatTracks
+        const options = ctx.workspace.flatTracksOrdered
           .map((node) => {
             return exists(node.uri)
               ? {key: node.uri, displayName: node.fullPath.join(' \u2023 ')}
@@ -57,7 +57,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.FindTrackByUri',
       name: 'Find track by URI',
       callback: async () => {
-        const options = ctx.workspace.flatTracks
+        const options = ctx.workspace.flatTracksOrdered
           .map((track) => track.uri)
           .filter((uri) => uri !== undefined)
           .map((uri) => {
@@ -73,7 +73,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.PinTrackByName',
       name: 'Pin track by name',
       callback: async () => {
-        const options = ctx.workspace.flatTracks
+        const options = ctx.workspace.flatTracksOrdered
           .map((node) => {
             return exists(node.uri)
               ? {key: node.id, displayName: node.fullPath.join(' \u2023 ')}

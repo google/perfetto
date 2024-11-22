@@ -18,7 +18,7 @@ import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow} from '../core/flow_types';
 import {RenderedPanelInfo} from './panel_container';
 import {TimeScale} from '../base/time_scale';
-import {TrackNode, TrackNodeContainer} from '../public/workspace';
+import {TrackNode} from '../public/workspace';
 import {TraceImpl} from '../core/trace_impl';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
@@ -57,7 +57,7 @@ export function renderFlows(
   ctx: CanvasRenderingContext2D,
   size: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
-  tracks: TrackNodeContainer,
+  trackRoot: TrackNode,
 ): void {
   const timescale = new TimeScale(trace.timeline.visibleWindow, {
     left: 0,
@@ -74,7 +74,7 @@ export function renderFlows(
   // specifically here (not just the URIs) because we might need to navigate up
   // the tree to find containing groups.
   const uriToTrackNode = new Map<string, TrackNode>();
-  tracks.flatTracks.forEach(
+  trackRoot.flatTracks.forEach(
     (track) => track.uri && uriToTrackNode.set(track.uri, track),
   );
 
