@@ -31,6 +31,7 @@ export interface Flow {
 
 export interface FlowPoint {
   trackId: number;
+  trackUri?: string;
 
   sliceName: string;
   sliceCategory: string;
