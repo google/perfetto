@@ -70,14 +70,6 @@ export function renderFlows(
     panels.map((panel) => [panel.panel.trackNode, panel]),
   );
 
-  // Build a track index on trackIds. Note: We need to find the track nodes
-  // specifically here (not just the URIs) because we might need to navigate up
-  // the tree to find containing groups.
-  const uriToTrackNode = new Map<string, TrackNode>();
-  trackRoot.flatTracks.forEach(
-    (track) => track.uri && uriToTrackNode.set(track.uri, track),
-  );
-
   const drawFlow = (flow: Flow, hue: number) => {
     const flowStartTs =
       flow.flowToDescendant || flow.begin.sliceStartTs >= flow.end.sliceStartTs
@@ -136,7 +128,7 @@ export function renderFlows(
       return undefined;
     }
 
-    const track = uriToTrackNode.get(trackUri);
+    const track = trackRoot.findTrackByUri(trackUri);
     if (!track) {
       return undefined;
     }

@@ -118,6 +118,7 @@ export class TrackNode {
   protected _collapsed = true;
   protected _children: Array<TrackNode> = [];
   protected readonly tracksById = new Map<string, TrackNode>();
+  protected readonly tracksByUri = new Map<string, TrackNode>();
   private _parent?: TrackNode;
   public _workspace?: Workspace;
 
@@ -453,6 +454,18 @@ export class TrackNode {
     return this.tracksById.get(id);
   }
 
+  /**
+   * Find a track node via its URI.
+   *
+   * Node: This is an O(1) operation.
+   *
+   * @param uri The uri of the track to find.
+   * @returns The node or undefined if no such node exists with this URI.
+   */
+  findTrackByUri(uri: string): TrackNode | undefined {
+    return this.tracksByUri.get(uri);
+  }
+
   private adopt(child: TrackNode): void {
     if (child.parent) {
       child.parent.removeChild(child);
@@ -467,12 +480,22 @@ export class TrackNode {
     for (const [id, node] of child.tracksById) {
       this.tracksById.set(id, node);
     }
+
+    child.uri && this.tracksByUri.set(child.uri, child);
+    for (const [uri, node] of child.tracksByUri) {
+      this.tracksByUri.set(uri, node);
+    }
   }
 
   private removeFromIndex(child: TrackNode) {
     this.tracksById.delete(child.id);
     for (const [id] of child.tracksById) {
       this.tracksById.delete(id);
+    }
+
+    child.uri && this.tracksByUri.delete(child.uri);
+    for (const [uri] of child.tracksByUri) {
+      this.tracksByUri.delete(uri);
     }
   }
 
