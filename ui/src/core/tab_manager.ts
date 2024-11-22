@@ -14,6 +14,10 @@
 
 import {DetailsPanel} from '../public/details_panel';
 import {TabDescriptor, TabManager} from '../public/tab';
+import {
+  CollapsiblePanelVisibility,
+  toggleVisibility,
+} from '../frontend/widgets/collapsible_panel';
 import {raf} from './raf_scheduler';
 
 export interface ResolvedTab {
@@ -34,7 +38,7 @@ export class TabManagerImpl implements TabManager, Disposable {
   private _instantiatedTabs = new Map<string, TabDescriptor>();
   private _openTabs: string[] = []; // URIs of the tabs open.
   private _currentTab: string = 'current_selection';
-  private _tabPanelVisibility: TabPanelVisibility = 'COLLAPSED';
+  private _tabPanelVisibility = CollapsiblePanelVisibility.COLLAPSED;
   private _tabPanelVisibilityChanged = false;
 
   [Symbol.dispose]() {
@@ -90,9 +94,9 @@ export class TabManagerImpl implements TabManager, Disposable {
     // they are.
     if (
       !this._tabPanelVisibilityChanged &&
-      this._tabPanelVisibility === 'COLLAPSED'
+      this._tabPanelVisibility === CollapsiblePanelVisibility.COLLAPSED
     ) {
-      this.setTabPanelVisibility('VISIBLE');
+      this.setTabPanelVisibility(CollapsiblePanelVisibility.VISIBLE);
     }
 
     raf.scheduleFullRedraw();
@@ -198,21 +202,15 @@ export class TabManagerImpl implements TabManager, Disposable {
     return tabs;
   }
 
-  setTabPanelVisibility(visibility: TabPanelVisibility): void {
+  setTabPanelVisibility(visibility: CollapsiblePanelVisibility): void {
     this._tabPanelVisibility = visibility;
     this._tabPanelVisibilityChanged = true;
-    raf.scheduleFullRedraw();
   }
 
   toggleTabPanelVisibility(): void {
-    switch (this._tabPanelVisibility) {
-      case 'COLLAPSED':
-      case 'FULLSCREEN':
-        return this.setTabPanelVisibility('VISIBLE');
-      case 'VISIBLE':
-        this.setTabPanelVisibility('COLLAPSED');
-        break;
-    }
+    toggleVisibility(this._tabPanelVisibility, (visibility) =>
+      this.setTabPanelVisibility(visibility),
+    );
   }
 
   get tabPanelVisibility() {
