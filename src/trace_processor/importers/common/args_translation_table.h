@@ -76,6 +76,9 @@ class ArgsTranslationTable {
                                                    base::StringView name) {
     chrome_performance_mark_mark_hash_to_name_.Insert(hash, name.ToStdString());
   }
+  void AddChromeStudyTranslationRule(uint64_t hash, base::StringView name) {
+    chrome_study_hash_to_name_.Insert(hash, name.ToStdString());
+  }
   void AddNativeSymbolTranslationRule(MappingId mapping_id,
                                       uint64_t rel_pc,
                                       const SourceLocation& loc) {
@@ -102,6 +105,10 @@ class ArgsTranslationTable {
   TranslateChromePerformanceMarkMarkHashForTesting(uint64_t hash) const {
     return TranslateChromePerformanceMarkMarkHash(hash);
   }
+  std::optional<base::StringView> TranslateChromeStudyHashForTesting(
+      uint64_t hash) const {
+    return TranslateChromeStudyHash(hash);
+  }
   std::optional<StringId> TranslateClassNameForTesting(
       StringId obfuscated_class_name_id) const {
     return TranslateClassName(obfuscated_class_name_id);
@@ -116,6 +123,7 @@ class ArgsTranslationTable {
     kMojoMethodMappingId = 4,
     kMojoMethodRelPc = 5,
     kClassName = 6,
+    kChromeTriggerHash = 7,
   };
 
   static constexpr char kChromeHistogramHashKey[] =
@@ -138,6 +146,9 @@ class ArgsTranslationTable {
   static constexpr char kChromePerformanceMarkMarkKey[] =
       "chrome_hashed_performance_mark.mark";
 
+  static constexpr char kChromeTriggerHashKey[] = "chrome_trigger.name_hash";
+  static constexpr char kChromeTriggerNameKey[] = "chrome_trigger.name";
+
   static constexpr char kMojoMethodMappingIdKey[] =
       "chrome_mojo_event_info.mojo_interface_method.native_symbol.mapping_id";
   static constexpr char kMojoMethodRelPcKey[] =
@@ -159,6 +170,8 @@ class ArgsTranslationTable {
   StringId interned_chrome_performance_mark_site_key_;
   StringId interned_chrome_performance_mark_mark_hash_key_;
   StringId interned_chrome_performance_mark_mark_key_;
+  StringId interned_chrome_trigger_hash_key_;
+  StringId interned_chrome_trigger_name_key_;
 
   StringId interned_mojo_method_mapping_id_;
   StringId interned_mojo_method_rel_pc_;
@@ -175,6 +188,7 @@ class ArgsTranslationTable {
       chrome_performance_mark_site_hash_to_name_;
   base::FlatHashMap<uint64_t, std::string>
       chrome_performance_mark_mark_hash_to_name_;
+  base::FlatHashMap<uint64_t, std::string> chrome_study_hash_to_name_;
   base::FlatHashMap<NativeSymbolKey, SourceLocation> native_symbol_to_location_;
   // A translation mapping for obfuscated Java class names and its members.
   DeobfuscationMappingTable deobfuscation_mapping_table_;
@@ -194,6 +208,7 @@ class ArgsTranslationTable {
       uint64_t hash) const;
   std::optional<base::StringView> TranslateChromePerformanceMarkMarkHash(
       uint64_t hash) const;
+  std::optional<base::StringView> TranslateChromeStudyHash(uint64_t hash) const;
   std::optional<SourceLocation> TranslateNativeSymbol(MappingId mapping_id,
                                                       uint64_t rel_pc) const;
 
