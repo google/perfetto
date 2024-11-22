@@ -80,7 +80,7 @@ FROM data, mark_type;
 -- between the sync-end and async-end marks.
 CREATE PERFETTO TABLE chrome_speedometer_2_1_measure(
   -- Start timestamp of the measure slice
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the measure slice
   dur LONG,
   -- Full measure name
@@ -174,7 +174,7 @@ FROM base;
 -- returns the values in ms these here and in ns.
 CREATE PERFETTO TABLE chrome_speedometer_2_1_iteration(
   -- Start timestamp of the iteration
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the iteration
   dur LONG,
   -- Iteration name

@@ -156,7 +156,7 @@ CREATE PERFETTO TABLE android_garbage_collection_events (
   -- Garbage collection id.
   gc_id LONG,
   -- Garbage collection timestamp.
-  gc_ts LONG,
+  gc_ts TIMESTAMP,
   -- Garbage collection wall duration.
   gc_dur LONG,
   -- Garbage collection duration spent executing on CPU.

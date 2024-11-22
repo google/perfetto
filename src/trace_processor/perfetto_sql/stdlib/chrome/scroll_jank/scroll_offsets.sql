@@ -96,7 +96,7 @@ CREATE PERFETTO TABLE chrome_scroll_input_offsets(
   -- event_latency_id) that it was presented with.
   scroll_update_id LONG,
   -- Timestamp the of the scroll input event.
-  ts LONG,
+  ts TIMESTAMP,
   -- The delta in raw coordinates between this scroll update event and the
   -- previous.
   delta_y DOUBLE,
@@ -128,7 +128,7 @@ CREATE PERFETTO TABLE chrome_presented_scroll_offsets(
   -- event_latency_id) that it was presented with.
   scroll_update_id LONG,
   -- Presentation timestamp.
-  ts LONG,
+  ts TIMESTAMP,
   -- The delta in raw coordinates between this scroll update event and the
   -- previous.
   delta_y DOUBLE,

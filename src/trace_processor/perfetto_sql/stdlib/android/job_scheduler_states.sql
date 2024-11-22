@@ -203,7 +203,7 @@ CREATE PERFETTO TABLE android_job_scheduler_states(
   -- Unique identifier for row.
   id LONG,
   -- Timestamp of job state slice.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of job state slice.
   dur LONG,
   -- Id of the slice.
@@ -244,7 +244,7 @@ CREATE PERFETTO TABLE android_job_scheduler_states(
   -- The job is run as an expedited job.
   is_running_as_expedited_job BOOL,
   -- Number of previous attempts at running job.
-  num_previous_attempts LONG,
+  num_previous_attempts TIMESTAMP,
   -- The requested priority at which the job should run.
   requested_priority LONG,
   -- The job's standby bucket (one of: Active, Working Set, Frequent, Rare,
@@ -334,7 +334,7 @@ FROM _job_started;
 -- `ATOM_SCHEDULED_JOB_STATE_CHANGED` is available in a trace.
 CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Timestamp of job.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of slice in ns.
   dur LONG,
   -- Id of the slice.
@@ -383,7 +383,7 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- The job is run as an expedited job.
   is_running_as_expedited_job BOOL,
   -- Number of previous attempts at running job.
-  num_previous_attempts LONG,
+  num_previous_attempts TIMESTAMP,
   -- The requested priority at which the job should run.
   requested_priority LONG,
   -- The job's standby bucket (one of: Active, Working Set, Frequent, Rare,

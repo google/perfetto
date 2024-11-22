@@ -26,7 +26,7 @@ LIMIT 1;
 -- There are two intervals that are measured for every test: sync and async
 CREATE PERFETTO TABLE chrome_speedometer_measure(
   -- Start timestamp of the measure slice
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the measure slice
   dur LONG,
   -- Full measure name
@@ -58,7 +58,7 @@ WHERE version = _chrome_speedometer_version();
 -- a bit.
 CREATE PERFETTO TABLE chrome_speedometer_iteration(
   -- Start timestamp of the iteration
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the iteration
   dur LONG,
   -- Iteration name

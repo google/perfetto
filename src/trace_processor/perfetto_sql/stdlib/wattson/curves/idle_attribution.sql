@@ -131,7 +131,7 @@ JOIN _system_state_mw as power ON power._auto_id = id_1;
 -- Macro for easily filtering idle attribution to a specified time window. This
 -- information can then further be filtered by specific CPU and GROUP BY on
 -- either utid or upid
-CREATE PERFETTO FUNCTION _filter_idle_attribution(ts LONG, dur LONG)
+CREATE PERFETTO FUNCTION _filter_idle_attribution(ts TIMESTAMP, dur LONG)
 RETURNS Table(idle_cost_mws LONG, utid LONG, upid LONG, cpu LONG) AS
 SELECT
   cost.estimated_mw * cost.dur / 1e9 as idle_cost_mws,

@@ -19,7 +19,7 @@ CREATE PERFETTO TABLE chrome_graphics_pipeline_surface_frame_steps(
   -- Slice Id of the `Graphics.Pipeline` slice.
   id LONG,
   -- The start timestamp of the slice/step.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the slice/step.
   dur LONG,
   -- Step name of the `Graphics.Pipeline` slice.
@@ -52,7 +52,7 @@ CREATE PERFETTO TABLE chrome_graphics_pipeline_display_frame_steps(
   -- Slice Id of the `Graphics.Pipeline` slice.
   id LONG,
   -- The start timestamp of the slice/step.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the slice/step.
   dur LONG,
   -- Step name of the `Graphics.Pipeline` slice.

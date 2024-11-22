@@ -66,7 +66,7 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation (
   -- Process upid
   upid LONG,
   -- Heap dump timestamp
-  graph_sample_ts LONG,
+  graph_sample_ts TIMESTAMP,
   -- Class type id
   type_id LONG,
   -- Class name (deobfuscated if available)

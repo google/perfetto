@@ -23,7 +23,7 @@ CREATE PERFETTO TABLE _frames_maxsdk_28(
     -- Frame id. Created manually starting from 0.
     frame_id LONG,
     -- Timestamp of the frame. Start of "Choreographer#doFrame" slice.
-    ts LONG,
+    ts TIMESTAMP,
     -- Duration of the frame, defined as the duration until the last
     -- "DrawFrame" of this frame finishes.
     dur LONG,

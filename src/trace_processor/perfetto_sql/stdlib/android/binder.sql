@@ -214,13 +214,13 @@ CREATE PERFETTO VIEW android_sync_binder_thread_state_by_txn(
   -- slice id of the binder txn
   binder_txn_id LONG,
   -- Client timestamp
-  client_ts LONG,
+  client_ts TIMESTAMP,
   -- Client tid
   client_tid LONG,
   -- slice id of the binder reply
   binder_reply_id LONG,
   -- Server timestamp
-  server_ts LONG,
+  server_ts TIMESTAMP,
   -- Server tid
   server_tid LONG,
   -- whether thread state is on the txn or reply side
@@ -271,13 +271,13 @@ CREATE PERFETTO VIEW android_sync_binder_blocked_functions_by_txn(
   -- slice id of the binder txn
   binder_txn_id LONG,
   -- Client ts
-  client_ts LONG,
+  client_ts TIMESTAMP,
   -- Client tid
   client_tid LONG,
   -- slice id of the binder reply
   binder_reply_id LONG,
   -- Server ts
-  server_ts LONG,
+  server_ts TIMESTAMP,
   -- Server tid
   server_tid LONG,
   -- whether thread state is on the txn or reply side
@@ -403,7 +403,7 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- name of the binder interface if existing.
   aidl_name STRING,
   -- Timestamp the binder interface name was emitted. Proxy to 'ts' and 'dur' for async txns.
-  aidl_ts LONG,
+  aidl_ts TIMESTAMP,
   -- Duration of the binder interface name. Proxy to 'ts' and 'dur' for async txns.
   aidl_dur LONG,
   -- slice id of the binder txn.
@@ -423,7 +423,7 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- Whether the txn was initiated from the main thread of the client process.
   is_main_thread BOOL,
   -- timestamp of the client txn.
-  client_ts LONG,
+  client_ts TIMESTAMP,
   -- wall clock dur of the client txn.
   client_dur LONG,
   -- slice id of the binder reply.
@@ -441,7 +441,7 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- Pid of the server thread.
   server_pid LONG,
   -- timestamp of the server txn.
-  server_ts LONG,
+  server_ts TIMESTAMP,
   -- wall clock dur of the server txn.
   server_dur LONG,
   -- oom score of the client process at the start of the txn.

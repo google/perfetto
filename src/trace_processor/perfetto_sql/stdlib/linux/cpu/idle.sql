@@ -23,7 +23,7 @@ CREATE PERFETTO TABLE cpu_idle_counters(
   -- Joinable with 'counter_track.id'.
   track_id LONG,
   -- Starting timestamp of the counter.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration in which the counter is contant and idle state doesn't change.
   dur LONG,
   -- Idle state of the CPU that corresponds to this counter. An idle state of -1

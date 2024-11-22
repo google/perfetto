@@ -80,7 +80,7 @@ CREATE PERFETTO TABLE chrome_event_latencies(
   -- Slice name.
   name STRING,
   -- The start timestamp of the scroll.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the scroll.
   dur LONG,
   -- The id of the scroll update event.
@@ -165,7 +165,7 @@ WHERE (
 -- Extracts scroll id for the EventLatency slice at `ts`.
 CREATE PERFETTO FUNCTION chrome_get_most_recent_scroll_begin_id(
   -- Timestamp of the EventLatency slice to get the scroll id for.
-  ts LONG)
+  ts TIMESTAMP)
 -- The event_latency_id of the EventLatency slice with the type
 -- GESTURE_SCROLL_BEGIN that is the closest to `ts`.
 RETURNS LONG AS
@@ -186,7 +186,7 @@ CREATE PERFETTO TABLE chrome_gesture_scroll_events(
   -- Slice name.
   name STRING,
   -- The start timestamp of the scroll.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the scroll.
   dur LONG,
   -- The id of the scroll update event.

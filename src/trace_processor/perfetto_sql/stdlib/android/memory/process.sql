@@ -27,7 +27,7 @@ USING SPAN_OUTER_JOIN(
 -- interval means that either the memory or OOM adjuster score of the process changed.
 CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
   -- Timestamp the oom_adj score or memory of the process changed
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration until the next oom_adj score or memory change of the process.
   dur LONG,
   -- oom adjuster score of the process.
@@ -44,7 +44,7 @@ CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
   -- `slice.id`.
   oom_adj_id LONG,
   -- Timestamp of the latest oom_adj update in the system_server.
-  oom_adj_ts LONG,
+  oom_adj_ts TIMESTAMP,
   -- Duration of the latest oom_adj update in the system_server.
   oom_adj_dur LONG,
   -- Track of the latest oom_adj update in the system_server. Alias of

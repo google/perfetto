@@ -60,7 +60,7 @@ ORDER BY id;
 -- heap graph.
 CREATE PERFETTO TABLE android_heap_graph_class_summary_tree(
   -- The timestamp the heap graph was dumped at.
-  graph_sample_ts LONG,
+  graph_sample_ts TIMESTAMP,
   -- The upid of the process.
   upid LONG,
   -- The id of the node in the class tree.

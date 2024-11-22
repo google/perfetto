@@ -28,7 +28,7 @@ CREATE PERFETTO TABLE cpu_profiling_samples(
   -- The id of the sample.
   id LONG,
   -- The timestamp of the sample.
-  ts LONG,
+  ts TIMESTAMP,
   -- The utid of the thread of the sample, if available.
   utid LONG,
   -- The tid of the sample, if available.

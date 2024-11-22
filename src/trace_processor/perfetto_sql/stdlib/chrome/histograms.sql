@@ -10,7 +10,7 @@ CREATE PERFETTO TABLE chrome_histograms(
   -- The value of the histogram sample.
   value LONG,
   -- Alias of |slice.ts|.
-  ts LONG,
+  ts TIMESTAMP,
   -- Thread name.
   thread_name STRING,
   -- Utid of the thread.

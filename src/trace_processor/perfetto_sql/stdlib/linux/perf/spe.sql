@@ -16,7 +16,7 @@
 -- Contains ARM Statistical Profiling Extension records
 CREATE PERFETTO VIEW linux_perf_spe_record(
   -- Timestap when the operation was sampled
-  ts LONG,
+  ts TIMESTAMP,
   -- Thread the operation executed in
   utid LONG,
   -- Exception level the instruction was executed in

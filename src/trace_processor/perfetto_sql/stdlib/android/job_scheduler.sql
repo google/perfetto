@@ -41,7 +41,7 @@ CREATE PERFETTO TABLE android_job_scheduler_events (
   -- Slice id of the job scheduler event slice.
   id LONG,
   -- Timestamp the job was scheduled.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the scheduled job.
   dur LONG
   ) AS

@@ -85,7 +85,7 @@ FROM _rss_swap_sj;
 -- Memory metrics timeline for each process.
 CREATE PERFETTO VIEW memory_rss_and_swap_per_process(
   -- Timestamp
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration
   dur LONG,
   -- Upid of the process

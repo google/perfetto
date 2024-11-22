@@ -113,7 +113,7 @@ CREATE PERFETTO TABLE chrome_predictor_error(
   -- event_latency_id) that it was presented with.
   scroll_update_id LONG,
   -- Presentation timestamp.
-  present_ts LONG,
+  present_ts TIMESTAMP,
   -- The delta in raw coordinates between this presented EventLatency and the
   -- previous presented frame.
   delta_y DOUBLE,

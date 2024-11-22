@@ -11,7 +11,7 @@ CREATE PERFETTO TABLE _chrome_input_pipeline_steps_no_input_type(
   -- Slice id
   slice_id LONG,
   -- The step timestamp.
-  ts LONG,
+  ts TIMESTAMP,
   -- Step duration.
   dur LONG,
   -- Utid of the thread.
@@ -21,7 +21,7 @@ CREATE PERFETTO TABLE _chrome_input_pipeline_steps_no_input_type(
   -- Input type.
   input_type STRING,
   -- Start time of the parent Chrome scheduler task (if any) of this step.
-  task_start_time_ts LONG
+  task_start_time_ts TIMESTAMP
 ) AS
 SELECT
   EXTRACT_ARG(thread_slice.arg_set_id, 'chrome_latency_info.trace_id') AS latency_id,
@@ -64,7 +64,7 @@ CREATE PERFETTO TABLE chrome_input_pipeline_steps(
   -- Slice id
   slice_id LONG,
   -- The step timestamp.
-  ts LONG,
+  ts TIMESTAMP,
   -- Step duration.
   dur LONG,
   -- Utid of the thread.
@@ -74,7 +74,7 @@ CREATE PERFETTO TABLE chrome_input_pipeline_steps(
   -- Input type.
   input_type STRING,
   -- Start time of the parent Chrome scheduler task (if any) of this step.
-  task_start_time_ts LONG
+  task_start_time_ts TIMESTAMP
 ) AS
 SELECT
   latency_id,

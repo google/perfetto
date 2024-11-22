@@ -18,7 +18,7 @@ CREATE PERFETTO VIEW android_inputmethod_clients(
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
-  ts LONG,
+  ts TIMESTAMP,
   -- Extra args parsed from the proto message
   arg_set_id LONG,
   -- Raw proto message encoded in base64
@@ -39,7 +39,7 @@ CREATE PERFETTO VIEW android_inputmethod_manager_service(
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
-  ts LONG,
+  ts TIMESTAMP,
   -- Extra args parsed from the proto message
   arg_set_id LONG,
   -- Raw proto message encoded in base64
@@ -60,7 +60,7 @@ CREATE PERFETTO VIEW android_inputmethod_service(
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
-  ts LONG,
+  ts TIMESTAMP,
   -- Extra args parsed from the proto message
   arg_set_id LONG,
   -- Raw proto message encoded in base64
