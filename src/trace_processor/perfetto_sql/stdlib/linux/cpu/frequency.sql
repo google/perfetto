@@ -25,7 +25,7 @@ CREATE PERFETTO TABLE cpu_frequency_counters(
   -- Starting timestamp of the counter
   ts TIMESTAMP,
   -- Duration in which counter is constant and frequency doesn't change.
-  dur LONG,
+  dur DURATION,
   -- Frequency in kHz of the CPU that corresponds to this counter. NULL if not
   -- found or undefined.
   freq LONG,

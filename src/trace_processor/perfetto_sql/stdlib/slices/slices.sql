@@ -25,7 +25,7 @@ CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
   -- Alias for `slice.ts`.
   ts TIMESTAMP,
   -- Alias for `slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias for `slice.category`.
   category STRING,
   -- Alias for `slice.name`.

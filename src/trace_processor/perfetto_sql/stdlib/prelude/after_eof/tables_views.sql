@@ -160,10 +160,10 @@ CREATE PERFETTO VIEW sched_slice (
   id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
-  -- The timestamp at the start of the slice (in nanoseconds).
+  -- The timestamp at the start of the slice.
   ts TIMESTAMP,
-  -- The duration of the slice (in nanoseconds).
-  dur LONG,
+  -- The duration of the slice.
+  dur DURATION,
   -- The CPU that the slice executed on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
@@ -206,7 +206,7 @@ CREATE PERFETTO VIEW sched(
   -- Alias for `sched_slice.ts`.
   ts TIMESTAMP,
   -- Alias for `sched_slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias for `sched_slice.cpu`.
   cpu LONG,
   -- Alias for `sched_slice.utid`.
@@ -233,10 +233,10 @@ CREATE PERFETTO VIEW thread_state (
   id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
-  -- The timestamp at the start of the slice (in nanoseconds).
+  -- The timestamp at the start of the slice.
   ts TIMESTAMP,
-  -- The duration of the slice (in nanoseconds).
-  dur LONG,
+  -- The duration of the slice.
+  dur DURATION,
   -- The CPU that the thread executed on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.
@@ -362,10 +362,10 @@ CREATE PERFETTO VIEW experimental_sched_upid (
   id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
-  -- The timestamp at the start of the slice (in nanoseconds).
+  -- The timestamp at the start of the slice.
   ts TIMESTAMP,
-  -- The duration of the slice (in nanoseconds).
-  dur LONG,
+  -- The duration of the slice.
+  dur DURATION,
   -- The CPU that the slice executed on (meaningful only in single machine
   -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
   -- CPU identifier of each machine.

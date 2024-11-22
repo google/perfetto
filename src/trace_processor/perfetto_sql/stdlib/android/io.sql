@@ -26,7 +26,7 @@ CREATE PERFETTO VIEW _android_io_f2fs_counter_stats(
   -- Min of all counter values for the counter name.
   min DOUBLE,
   -- Duration between the first and last counter value for the counter name.
-  dur LONG,
+  dur DURATION,
   -- Count of all the counter values for the counter name.
   count LONG,
   -- Avergate of all the counter values for the counter name.

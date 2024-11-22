@@ -22,7 +22,7 @@ WHERE name = 'PageLoadMetrics.NavigationToFirstContentfulPaint';
 CREATE PERFETTO FUNCTION _page_load_metrics(event_name STRING)
 RETURNS TABLE(
   ts TIMESTAMP,
-  dur LONG,
+  dur DURATION,
   navigation_id LONG,
   browser_upid LONG
 ) AS

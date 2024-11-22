@@ -29,7 +29,7 @@ CREATE PERFETTO TABLE android_startups(
   -- Timestamp of startup end.
   ts_end LONG,
   -- Startup duration.
-  dur LONG,
+  dur DURATION,
   -- Package name.
   package STRING,
   -- Startup type.
@@ -154,7 +154,7 @@ CREATE PERFETTO VIEW android_startup_threads(
   -- Timestamp of start.
   ts TIMESTAMP,
   -- Duration of startup.
-  dur LONG,
+  dur DURATION,
   -- Upid of process involved in startup.
   upid LONG,
   -- Pid if process involved in startup.
@@ -248,7 +248,7 @@ RETURNS TABLE(
   -- Timestamp of start of the slice.
   slice_ts TIMESTAMP,
   -- Duration of the slice.
-  slice_dur LONG,
+  slice_dur DURATION,
   -- Name of the thread with the slice.
   thread_name STRING,
   -- Tid of the thread with the slice.
@@ -270,7 +270,7 @@ RETURNS TABLE(
   -- Slice id.
   id LONG,
   -- Slice duration.
-  slice_dur LONG,
+  slice_dur DURATION,
   -- Name of the thread with slice.
   thread_name STRING,
   -- Name of the process with slice.

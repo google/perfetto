@@ -132,7 +132,7 @@ CREATE PERFETTO TABLE android_frames(
     -- Duration of the frame, as defined by the duration of the corresponding
     -- `actual_frame_timeline_slice` or, if not present the time between the
     -- `ts` and the end of the final `DrawFrame`.
-    dur LONG,
+    dur DURATION,
     -- `slice.id` of "Choreographer#doFrame" slice.
     do_frame_id LONG,
     -- `slice.id` of "DrawFrame" slice.
@@ -221,7 +221,7 @@ RETURNS TABLE (
     -- Start of the frame, the timestamp of the "Choreographer#doFrame" slice.
     ts TIMESTAMP,
     -- Duration of the frame.
-    dur LONG,
+    dur DURATION,
     -- `slice.id` of "Choreographer#doFrame" slice.
     do_frame_id LONG,
     -- `slice.id` of "DrawFrame" slice.

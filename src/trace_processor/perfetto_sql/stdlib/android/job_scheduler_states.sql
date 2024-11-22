@@ -205,7 +205,7 @@ CREATE PERFETTO TABLE android_job_scheduler_states(
   -- Timestamp of job state slice.
   ts TIMESTAMP,
   -- Duration of job state slice.
-  dur LONG,
+  dur DURATION,
   -- Id of the slice.
   slice_id LONG,
   -- Name of the job (as named by the app).
@@ -336,7 +336,7 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Timestamp of job.
   ts TIMESTAMP,
   -- Duration of slice in ns.
-  dur LONG,
+  dur DURATION,
   -- Id of the slice.
   slice_id LONG,
   -- Name of the job (as named by the app).
@@ -347,7 +347,7 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Uid associated with job.
   uid LONG,
   -- Duration of entire job in ns.
-  job_dur LONG,
+  job_dur DURATION,
   -- Package that the job belongs (ex: associated app).
   package_name STRING,
   -- Namespace of job.

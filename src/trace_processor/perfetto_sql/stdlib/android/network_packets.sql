@@ -15,10 +15,10 @@
 
 -- Android network packet events (from android.network_packets data source).
 CREATE PERFETTO VIEW android_network_packets(
-  -- Timestamp in nanoseconds.
+  -- Timestamp.
   ts TIMESTAMP,
   -- Duration (non-zero only in aggregate events)
-  dur LONG,
+  dur DURATION,
   -- The track name (interface and direction)
   track_name STRING,
   -- Traffic package source (or uid=$X if not found)

@@ -317,7 +317,7 @@ FROM posted_from;
 -- @column name          The name of the slice.
 CREATE PERFETTO FUNCTION _select_begin_main_frame_java_slices(
   name STRING)
-RETURNS TABLE(id LONG, kind STRING, ts TIMESTAMP, dur LONG, name STRING) AS
+RETURNS TABLE(id LONG, kind STRING, ts TIMESTAMP, dur DURATION, name STRING) AS
 SELECT
   id,
   "SingleThreadProxy::BeginMainFrame" AS kind,
@@ -382,7 +382,7 @@ CREATE PERFETTO VIEW chrome_scheduler_tasks(
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration.
-  dur LONG,
+  dur DURATION,
   -- Utid of the thread this task run on.
   utid LONG,
   -- Name of the thread this task run on.
@@ -404,7 +404,7 @@ CREATE PERFETTO VIEW chrome_scheduler_tasks(
   -- Same as slice.thread_ts.
   thread_ts TIMESTAMP,
   -- Same as slice.thread_dur.
-  thread_dur LONG,
+  thread_dur DURATION,
   -- Source location where the PostTask was called.
   posted_from STRING
 ) AS
@@ -609,7 +609,7 @@ CREATE PERFETTO VIEW chrome_tasks(
   -- Alias of |slice.ts|.
   ts TIMESTAMP,
   -- Alias of |slice.dur|.
-  dur LONG,
+  dur DURATION,
   -- Alias of |slice.track_id|.
   track_id LONG,
   -- Alias of |slice.category|.
@@ -619,7 +619,7 @@ CREATE PERFETTO VIEW chrome_tasks(
   -- Alias of |slice.thread_ts|.
   thread_ts TIMESTAMP,
   -- Alias of |slice.thread_dur|.
-  thread_dur LONG,
+  thread_dur DURATION,
   -- STRING    Legacy alias for |name|.
   full_name STRING
 ) AS

@@ -23,7 +23,7 @@ CREATE PERFETTO VIEW thread_slice(
   -- Alias for `slice.ts`.
   ts TIMESTAMP,
   -- Alias for `slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias for `slice.category`.
   category STRING,
   -- Alias for `slice.name`.
@@ -93,7 +93,7 @@ CREATE PERFETTO VIEW process_slice(
   -- Alias for `slice.ts`.
   ts TIMESTAMP,
   -- Alias for `slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias for `slice.category`.
   category STRING,
   -- Alias for `slice.name`.

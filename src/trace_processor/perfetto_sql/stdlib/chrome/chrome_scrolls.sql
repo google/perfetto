@@ -20,7 +20,7 @@ CREATE PERFETTO TABLE chrome_scrolls(
   -- The start timestamp of the scroll.
   ts TIMESTAMP,
   -- The duration of the scroll.
-  dur LONG,
+  dur DURATION,
   -- The earliest timestamp of the EventLatency slice of the GESTURE_SCROLL_BEGIN type for the
   -- corresponding scroll id.
   gesture_scroll_begin_ts TIMESTAMP,
