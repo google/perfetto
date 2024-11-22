@@ -43,7 +43,7 @@ CREATE PERFETTO TABLE android_job_scheduler_events (
   -- Timestamp the job was scheduled.
   ts TIMESTAMP,
   -- Duration of the scheduled job.
-  dur LONG
+  dur DURATION
   ) AS
 SELECT
   cast_int!(STR_SPLIT(slice.name, '#', 1)) AS job_id,

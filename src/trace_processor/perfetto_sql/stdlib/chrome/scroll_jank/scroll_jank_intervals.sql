@@ -13,7 +13,7 @@ CREATE PERFETTO TABLE chrome_janky_event_latencies_v3(
   -- The start timestamp of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
-  dur LONG,
+  dur DURATION,
   -- The track_id for the slice.
   track_id LONG,
   -- The name of the slice (EventLatency).
@@ -55,7 +55,7 @@ CREATE PERFETTO VIEW chrome_janky_frame_presentation_intervals(
   -- The start timestamp of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
-  dur LONG,
+  dur DURATION,
   -- How many vsyncs this frame missed its deadline by.
   delayed_frame_count LONG,
   -- The stage of EventLatency that the caused the jank.
@@ -134,7 +134,7 @@ CREATE PERFETTO TABLE chrome_scroll_jank_intervals_v3(
   -- The start timestamp of the janky interval.
   ts TIMESTAMP,
   -- The duration of the janky interval.
-  dur LONG
+  dur DURATION
 ) AS
 -- Sub-table to retrieve all janky slice timestamps. Ordering calculations are
 -- based on timestamps rather than durations.

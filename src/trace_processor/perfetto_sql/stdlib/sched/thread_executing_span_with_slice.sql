@@ -213,12 +213,12 @@ USING
 -- critical_path slice_stack (enabled with |enable_critical_path_slice|).
 -- running cpu (if one exists).
 -- A 'stack' is the group of resulting unpivoted rows sharing the same timestamp.
-CREATE PERFETTO FUNCTION _critical_path_stack(root_utid LONG, ts TIMESTAMP, dur LONG, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
+CREATE PERFETTO FUNCTION _critical_path_stack(root_utid LONG, ts TIMESTAMP, dur DURATION, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
 RETURNS
   TABLE(
     id LONG,
     ts TIMESTAMP,
-    dur LONG,
+    dur DURATION,
     utid LONG,
     stack_depth LONG,
     name STRING,
@@ -557,7 +557,7 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_stack(
   -- Timestamp of start of time range to filter critical paths to.
   ts TIMESTAMP,
   -- Duration of time range to filter critical paths to.
-  dur LONG)
+  dur DURATION)
 RETURNS
   TABLE(
     -- Id of the thread_state or slice in the thread_executing_span.
@@ -565,7 +565,7 @@ RETURNS
     -- Timestamp of slice in the critical path.
     ts TIMESTAMP,
     -- Duration of slice in the critical path.
-    dur LONG,
+    dur DURATION,
     -- Utid of thread that emitted the slice.
     utid LONG,
     -- Stack depth of the entitity in the debug track.
@@ -580,7 +580,7 @@ RETURNS
 SELECT * FROM _critical_path_stack($root_utid, $ts, $dur, 1, 1, 1, 1);
 
 -- Returns a pprof aggregation of the stacks in |_critical_path_stack|.
-CREATE PERFETTO FUNCTION _critical_path_graph(graph_title STRING, root_utid LONG, ts TIMESTAMP, dur LONG, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
+CREATE PERFETTO FUNCTION _critical_path_graph(graph_title STRING, root_utid LONG, ts TIMESTAMP, dur DURATION, enable_process_name LONG, enable_thread_name LONG, enable_self_slice LONG, enable_critical_path_slice LONG)
 RETURNS TABLE(pprof BYTES)
 AS
 WITH
@@ -639,7 +639,7 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_graph(
   -- Timestamp of start of time range to filter critical paths to.
   ts TIMESTAMP,
   -- Duration of time range to filter critical paths to.
-  dur LONG)
+  dur DURATION)
 RETURNS TABLE(
   -- Pprof of critical path stacks.
   pprof BYTES

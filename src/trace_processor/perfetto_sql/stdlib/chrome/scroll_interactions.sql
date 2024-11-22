@@ -13,7 +13,7 @@ CREATE PERFETTO TABLE chrome_scroll_interactions(
   -- Start timestamp of the scroll.
   ts TIMESTAMP,
   -- Duration of the scroll.
-  dur LONG,
+  dur DURATION,
   -- The total number of frames in the scroll.
   frame_count LONG,
   -- The total number of vsyncs in the scroll.

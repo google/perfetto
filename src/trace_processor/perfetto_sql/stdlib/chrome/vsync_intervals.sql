@@ -13,7 +13,7 @@ CREATE PERFETTO TABLE chrome_vsync_intervals(
   -- Timestamp of the vsync slice.
   ts TIMESTAMP,
   -- Duration of the vsync slice.
-  dur LONG,
+  dur DURATION,
   -- Track id of the vsync slice.
   track_id LONG,
   -- Duration until next vsync arrives.

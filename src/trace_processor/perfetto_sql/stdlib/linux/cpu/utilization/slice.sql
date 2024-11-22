@@ -68,10 +68,10 @@ LEFT JOIN intersected ON slice_id = ts.id AND ts.dur = intersected.dur;
 
 -- CPU cycles per each slice in interval.
 CREATE PERFETTO FUNCTION cpu_cycles_per_thread_slice_in_interval(
-    -- Start of the interval.
-    ts TIMESTAMP,
-    -- Duration of the interval.
-    dur LONG
+  -- Start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION
 )
 RETURNS TABLE(
   -- Id of a slice. Alias of `slice.id`.

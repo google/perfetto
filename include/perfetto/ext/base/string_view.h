@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -118,6 +119,15 @@ class StringView {
 #else
     return strncasecmp(data(), other.data(), size()) == 0;
 #endif
+  }
+
+  bool CaseInsensitiveOneOf(const std::vector<StringView>& others) const {
+    for (const StringView& other : others) {
+      if (CaseInsensitiveEq(other)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool StartsWith(const StringView& other) const {

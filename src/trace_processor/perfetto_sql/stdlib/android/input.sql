@@ -180,15 +180,15 @@ JOIN _input_read_time
 -- 4. Input ACk event received in OS.
 CREATE PERFETTO TABLE android_input_events (
   -- Duration from input dispatch to input received.
-  dispatch_latency_dur LONG,
+  dispatch_latency_dur DURATION,
   -- Duration from input received to input ACK sent.
-  handling_latency_dur LONG,
+  handling_latency_dur DURATION,
   -- Duration from input ACK sent to input ACK recieved.
-  ack_latency_dur LONG,
+  ack_latency_dur DURATION,
   -- Duration from input dispatch to input event ACK received.
-  total_latency_dur LONG,
+  total_latency_dur DURATION,
   -- Duration from input read to frame present time. Null if an input event has no associated frame event.
-  end_to_end_latency_dur LONG,
+  end_to_end_latency_dur DURATION,
   -- Tid of thread receiving the input event.
   tid LONG,
   -- Name of thread receiving the input event.
@@ -214,13 +214,13 @@ CREATE PERFETTO TABLE android_input_events (
   -- Timestamp input event was dispatched.
   dispatch_ts TIMESTAMP,
   -- Duration of input event dispatch.
-  dispatch_dur LONG,
+  dispatch_dur DURATION,
   -- Thread track id of input event receiving thread.
   receive_track_id LONG,
   -- Timestamp input event was received.
   receive_ts TIMESTAMP,
   -- Duration of input event receipt.
-  receive_dur LONG,
+  receive_dur DURATION,
   -- Vsync Id associated with the input. Null if an input event has no associated frame event.
   frame_id LONG
   )

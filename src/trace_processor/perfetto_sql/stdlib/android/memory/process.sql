@@ -29,7 +29,7 @@ CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
   -- Timestamp the oom_adj score or memory of the process changed
   ts TIMESTAMP,
   -- Duration until the next oom_adj score or memory change of the process.
-  dur LONG,
+  dur DURATION,
   -- oom adjuster score of the process.
   score LONG,
   -- oom adjuster bucket of the process.
@@ -46,7 +46,7 @@ CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
   -- Timestamp of the latest oom_adj update in the system_server.
   oom_adj_ts TIMESTAMP,
   -- Duration of the latest oom_adj update in the system_server.
-  oom_adj_dur LONG,
+  oom_adj_dur DURATION,
   -- Track of the latest oom_adj update in the system_server. Alias of
   -- `track.id`.
   oom_adj_track_id LONG,

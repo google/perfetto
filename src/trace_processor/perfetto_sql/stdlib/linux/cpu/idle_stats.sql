@@ -23,10 +23,10 @@ CREATE PERFETTO TABLE cpu_idle_stats(
   state LONG,
   -- The count of entering idle state.
   count LONG,
-  -- Total CPU core idle state duration in nanoseconds.
-  dur LONG,
-  -- Average CPU core idle state duration in nanoseconds.
-  avg_dur LONG,
+  -- Total CPU core idle state duration.
+  dur DURATION,
+  -- Average CPU core idle state duration.
+  avg_dur DURATION,
   -- Idle state percentage of non suspend time (C-states + P-states).
   idle_percent DOUBLE
 )

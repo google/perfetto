@@ -87,7 +87,7 @@ CREATE PERFETTO VIEW memory_rss_and_swap_per_process(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
-  dur LONG,
+  dur DURATION,
   -- Upid of the process
   upid LONG,
   -- Pid of the process

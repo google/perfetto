@@ -28,7 +28,7 @@ CREATE PERFETTO TABLE chrome_interactions(
   -- Timestamp of the CUI event.
   ts TIMESTAMP,
   -- Duration of the CUI event.
-  dur LONG
+  dur DURATION
 ) AS
 SELECT
   id AS scoped_id,

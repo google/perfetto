@@ -42,7 +42,8 @@ COLUMN_TYPES = [
     'BYTES',
 
     # Special types
-    'TIMESTAMP'
+    'TIMESTAMP',
+    'DURATION'
 ]
 
 MACRO_ARG_TYPES = ['TABLEORSUBQUERY', 'EXPR', 'COLUMNNAME']
