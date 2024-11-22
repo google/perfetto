@@ -26,7 +26,7 @@ CREATE PERFETTO TABLE chrome_gesture_scroll_updates(
   -- The start timestamp of the scroll.
   ts TIMESTAMP,
   -- The duration of the scroll.
-  dur LONG,
+  dur DURATION,
   -- Slice id for the scroll.
   id LONG,
   -- The id of the scroll update event.
@@ -79,7 +79,7 @@ CREATE PERFETTO TABLE chrome_presented_gesture_scrolls(
   -- The start timestamp for producing the frame.
   ts TIMESTAMP,
   -- The duration between producing and presenting the frame.
-  dur LONG,
+  dur DURATION,
   -- The timestamp of the last input that arrived and got presented in the frame.
   last_presented_input_ts TIMESTAMP,
   -- The id of the scroll update event, a unique identifier to the gesture.
@@ -157,7 +157,7 @@ CREATE PERFETTO TABLE chrome_full_frame_view(
   -- ID of the associated EventLatency.
   event_latency_id LONG,
   -- Duration of the associated EventLatency.
-  dur LONG,
+  dur DURATION,
   -- Frame presentation timestamp.
   presentation_timestamp LONG
 ) AS
@@ -195,7 +195,7 @@ CREATE PERFETTO TABLE chrome_full_frame_delta_view(
   -- ID of the associated EventLatency.
   event_latency_id LONG,
   -- Duration of the associated EventLatency.
-  dur LONG,
+  dur DURATION,
   -- Frame presentation timestamp.
   presentation_timestamp LONG
 ) AS
@@ -235,7 +235,7 @@ CREATE PERFETTO TABLE chrome_merged_frame_view(
   -- ID of the associated EventLatency.
   event_latency_id LONG,
   -- Maximum duration of the associated EventLatency.
-  dur LONG,
+  dur DURATION,
   -- Frame presentation timestamp.
   presentation_timestamp LONG
 ) AS
@@ -278,7 +278,7 @@ CREATE PERFETTO TABLE chrome_frame_info_with_delay(
   -- Event latency id of the presented frame.
   event_latency_id LONG,
   -- Duration of the EventLatency.
-  dur LONG,
+  dur DURATION,
   -- Timestamp at which the frame was shown on the screen.
   presentation_timestamp LONG,
   -- Time elapsed since the previous frame was presented, usually equals |VSYNC|

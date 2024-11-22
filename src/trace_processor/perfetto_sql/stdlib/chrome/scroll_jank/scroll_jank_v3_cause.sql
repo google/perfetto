@@ -14,7 +14,7 @@ RETURNS TABLE(
   -- Alias for `slice.ts`.
   ts TIMESTAMP,
   -- Alias for `slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias for `slice.category`.
   category LONG,
   -- Alias for `slice.name`.

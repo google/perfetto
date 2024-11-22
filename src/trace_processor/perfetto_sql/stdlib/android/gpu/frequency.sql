@@ -21,7 +21,7 @@ CREATE PERFETTO TABLE android_gpu_frequency(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
-  dur LONG,
+  dur DURATION,
   -- GPU id. Joinable with `gpu_counter_track.gpu_id`.
   gpu_id LONG,
   -- GPU frequency

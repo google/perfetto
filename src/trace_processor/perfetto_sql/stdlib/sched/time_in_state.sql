@@ -104,7 +104,7 @@ CREATE PERFETTO FUNCTION sched_time_in_state_for_thread_in_interval(
   -- The start of the interval.
   ts TIMESTAMP,
   -- The duration of the interval.
-  dur LONG,
+  dur DURATION,
   -- The utid of the thread.
   utid LONG
 )
@@ -126,7 +126,7 @@ RETURNS TABLE(
   blocked_function LONG,
   -- The duration of time the threads slice spent for each
   -- (state, io_wait, blocked_function) tuple.
-  dur LONG
+  dur DURATION
 ) AS
 SELECT
   state,
@@ -153,7 +153,7 @@ CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
   -- The start of the interval.
   ts TIMESTAMP,
   -- The duration of the interval.
-  dur LONG,
+  dur DURATION,
   -- The utid of the thread.
   utid LONG)
 RETURNS TABLE(
@@ -168,7 +168,7 @@ RETURNS TABLE(
   -- Some states can specify the blocked function. Usually NULL.
   blocked_function LONG,
   -- Total time spent with this state, cpu and blocked function.
-  dur LONG) AS
+  dur DURATION) AS
 SELECT
   state,
   io_wait,

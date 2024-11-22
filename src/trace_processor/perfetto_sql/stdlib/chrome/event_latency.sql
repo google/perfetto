@@ -82,7 +82,7 @@ CREATE PERFETTO TABLE chrome_event_latencies(
   -- The start timestamp of the scroll.
   ts TIMESTAMP,
   -- The duration of the scroll.
-  dur LONG,
+  dur DURATION,
   -- The id of the scroll update event.
   scroll_update_id LONG,
   -- Whether this input event was presented.
@@ -188,7 +188,7 @@ CREATE PERFETTO TABLE chrome_gesture_scroll_events(
   -- The start timestamp of the scroll.
   ts TIMESTAMP,
   -- The duration of the scroll.
-  dur LONG,
+  dur DURATION,
   -- The id of the scroll update event.
   scroll_update_id LONG,
   -- The id of the scroll.

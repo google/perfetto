@@ -117,12 +117,12 @@ SELECT
 -- by BatteryStats as a bitmap where each 'category' has a unique value at any
 -- given time.
 CREATE PERFETTO VIEW android_battery_stats_state(
-  -- Timestamp in nanoseconds.
+  -- Start of the new barrary state.
   ts TIMESTAMP,
-  -- The duration the state was active, may be negative for incomplete slices.
-  dur LONG,
+  -- The duration the state was active, -1 for incomplete slices.
+  dur DURATION,
   -- The same as `dur`, but extends to trace end for incomplete slices.
-  safe_dur LONG,
+  safe_dur DURATION,
   -- The name of the counter track.
   track_name STRING,
   -- The counter value as a number.
@@ -161,12 +161,12 @@ WHERE counter_track.name GLOB 'battery_stats.*';
 --     str_value='com.google.android.apps.nexuslauncher'
 --     int_value=10215
 CREATE PERFETTO VIEW android_battery_stats_event_slices(
-  -- Timestamp in nanoseconds.
+  -- Start of a new battery state.
   ts TIMESTAMP,
-  -- The duration the state was active, may be negative for incomplete slices.
-  dur LONG,
+  -- The duration the state was active, -1 for incomplete slices.
+  dur DURATION,
   -- The same as `dur`, but extends to trace end for incomplete slices.
-  safe_dur LONG,
+  safe_dur DURATION,
   -- The name of the counter track.
   track_name STRING,
   -- String value.

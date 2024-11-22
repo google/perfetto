@@ -27,7 +27,7 @@ RETURNS TABLE(
   -- Starting timestamp of the counter.
   ts TIMESTAMP,
   -- Duration in which counter is constant and frequency doesn't chamge.
-  dur LONG,
+  dur DURATION,
   -- Frequency in kHz of the device that corresponds to the counter.
   freq LONG
 ) AS
@@ -53,7 +53,7 @@ CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
   -- Starting timestamp of the counter.
   ts TIMESTAMP,
   -- Duration in which counter is constant and frequency doesn't chamge.
-  dur LONG,
+  dur DURATION,
   -- Frequency in kHz of the device that corresponds to the counter.
   dsu_freq LONG
 ) AS

@@ -97,10 +97,10 @@ CREATE PERFETTO TABLE android_cpu_time_per_frame(
     -- `Choreographer#doFrame`. See `android_app_vsync_delay_per_frame` table for more details.
     app_vsync_delay LONG,
     -- Duration of `Choreographer#doFrame` slice.
-    do_frame_dur LONG,
+    do_frame_dur DURATION,
     -- Duration of `DrawFrame` slice. Summed duration of all `DrawFrame`
     -- slices, if more than one. See `android_frames_draw_frame` for more details.
-    draw_frame_dur LONG,
+    draw_frame_dur DURATION,
     -- CPU time across the UI Thread + RenderThread.
     cpu_time LONG
 ) AS

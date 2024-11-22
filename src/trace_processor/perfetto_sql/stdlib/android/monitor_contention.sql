@@ -122,60 +122,60 @@ GROUP BY slice.id;
 
 -- Contains parsed monitor contention slices.
 CREATE PERFETTO TABLE android_monitor_contention(
--- Name of the method holding the lock.
-blocking_method STRING,
--- Blocked_method without arguments and return types.
-blocked_method STRING,
--- Blocking_method without arguments and return types.
-short_blocking_method STRING,
--- Blocked_method without arguments and return types.
-short_blocked_method STRING,
--- File location of blocking_method in form <filename:linenumber>.
-blocking_src STRING,
--- File location of blocked_method in form <filename:linenumber>.
-blocked_src STRING,
--- Zero indexed number of threads trying to acquire the lock.
-waiter_count LONG,
--- Utid of thread holding the lock.
-blocked_utid LONG,
--- Thread name of thread holding the lock.
-blocked_thread_name STRING,
--- Utid of thread holding the lock.
-blocking_utid LONG,
--- Thread name of thread holding the lock.
-blocking_thread_name STRING,
--- Tid of thread holding the lock.
-blocking_tid LONG,
--- Upid of process experiencing lock contention.
-upid LONG,
--- Process name of process experiencing lock contention.
-process_name STRING,
--- Slice id of lock contention.
-id LONG,
--- Timestamp of lock contention start.
-ts TIMESTAMP,
--- Wall clock duration of lock contention.
-dur LONG,
--- Monotonic clock duration of lock contention.
-monotonic_dur LONG,
--- Thread track id of blocked thread.
-track_id LONG,
--- Whether the blocked thread is the main thread.
-is_blocked_thread_main LONG,
--- Tid of the blocked thread
-blocked_thread_tid LONG,
--- Whether the blocking thread is the main thread.
-is_blocking_thread_main LONG,
--- Tid of thread holding the lock.
-blocking_thread_tid LONG,
--- Slice id of binder reply slice if lock contention was part of a binder txn.
-binder_reply_id LONG,
--- Timestamp of binder reply slice if lock contention was part of a binder txn.
-binder_reply_ts TIMESTAMP,
--- Tid of binder reply slice if lock contention was part of a binder txn.
-binder_reply_tid LONG,
--- Pid of process experiencing lock contention.
-pid LONG
+  -- Name of the method holding the lock.
+  blocking_method STRING,
+  -- Blocked_method without arguments and return types.
+  blocked_method STRING,
+  -- Blocking_method without arguments and return types.
+  short_blocking_method STRING,
+  -- Blocked_method without arguments and return types.
+  short_blocked_method STRING,
+  -- File location of blocking_method in form <filename:linenumber>.
+  blocking_src STRING,
+  -- File location of blocked_method in form <filename:linenumber>.
+  blocked_src STRING,
+  -- Zero indexed number of threads trying to acquire the lock.
+  waiter_count LONG,
+  -- Utid of thread holding the lock.
+  blocked_utid LONG,
+  -- Thread name of thread holding the lock.
+  blocked_thread_name STRING,
+  -- Utid of thread holding the lock.
+  blocking_utid LONG,
+  -- Thread name of thread holding the lock.
+  blocking_thread_name STRING,
+  -- Tid of thread holding the lock.
+  blocking_tid LONG,
+  -- Upid of process experiencing lock contention.
+  upid LONG,
+  -- Process name of process experiencing lock contention.
+  process_name STRING,
+  -- Slice id of lock contention.
+  id LONG,
+  -- Timestamp of lock contention start.
+  ts TIMESTAMP,
+  -- Wall clock duration of lock contention.
+  dur DURATION,
+  -- Monotonic clock duration of lock contention.
+  monotonic_dur DURATION,
+  -- Thread track id of blocked thread.
+  track_id LONG,
+  -- Whether the blocked thread is the main thread.
+  is_blocked_thread_main LONG,
+  -- Tid of the blocked thread
+  blocked_thread_tid LONG,
+  -- Whether the blocking thread is the main thread.
+  is_blocking_thread_main LONG,
+  -- Tid of thread holding the lock.
+  blocking_thread_tid LONG,
+  -- Slice id of binder reply slice if lock contention was part of a binder txn.
+  binder_reply_id LONG,
+  -- Timestamp of binder reply slice if lock contention was part of a binder txn.
+  binder_reply_ts TIMESTAMP,
+  -- Tid of binder reply slice if lock contention was part of a binder txn.
+  binder_reply_tid LONG,
+  -- Pid of process experiencing lock contention.
+  pid LONG
 ) AS
 SELECT
   android_extract_android_monitor_contention_blocking_method(slice.name) AS blocking_method,
@@ -261,64 +261,64 @@ SELECT * FROM android_monitor_contention JOIN isolated USING (id);
 
 -- Contains parsed monitor contention slices with the parent-child relationships.
 CREATE PERFETTO TABLE android_monitor_contention_chain(
--- Id of monitor contention slice blocking this contention.
-parent_id LONG,
--- Name of the method holding the lock.
-blocking_method STRING,
--- Blocked_method without arguments and return types.
-blocked_method STRING,
--- Blocking_method without arguments and return types.
-short_blocking_method STRING,
--- Blocked_method without arguments and return types.
-short_blocked_method STRING,
--- File location of blocking_method in form <filename:linenumber>.
-blocking_src STRING,
--- File location of blocked_method in form <filename:linenumber>.
-blocked_src STRING,
--- Zero indexed number of threads trying to acquire the lock.
-waiter_count LONG,
--- Utid of thread holding the lock.
-blocked_utid LONG,
--- Thread name of thread holding the lock.
-blocked_thread_name STRING,
--- Utid of thread holding the lock.
-blocking_utid LONG,
--- Thread name of thread holding the lock.
-blocking_thread_name STRING,
--- Tid of thread holding the lock.
-blocking_tid LONG,
--- Upid of process experiencing lock contention.
-upid LONG,
--- Process name of process experiencing lock contention.
-process_name STRING,
--- Slice id of lock contention.
-id LONG,
--- Timestamp of lock contention start.
-ts TIMESTAMP,
--- Wall clock duration of lock contention.
-dur LONG,
--- Monotonic clock duration of lock contention.
-monotonic_dur LONG,
--- Thread track id of blocked thread.
-track_id LONG,
--- Whether the blocked thread is the main thread.
-is_blocked_thread_main LONG,
--- Tid of the blocked thread
-blocked_thread_tid LONG,
--- Whether the blocking thread is the main thread.
-is_blocking_thread_main LONG,
--- Tid of thread holding the lock.
-blocking_thread_tid LONG,
--- Slice id of binder reply slice if lock contention was part of a binder txn.
-binder_reply_id LONG,
--- Timestamp of binder reply slice if lock contention was part of a binder txn.
-binder_reply_ts TIMESTAMP,
--- Tid of binder reply slice if lock contention was part of a binder txn.
-binder_reply_tid LONG,
--- Pid of process experiencing lock contention.
-pid LONG,
--- Id of monitor contention slice blocked by this contention.
-child_id LONG
+  -- Id of monitor contention slice blocking this contention.
+  parent_id LONG,
+  -- Name of the method holding the lock.
+  blocking_method STRING,
+  -- Blocked_method without arguments and return types.
+  blocked_method STRING,
+  -- Blocking_method without arguments and return types.
+  short_blocking_method STRING,
+  -- Blocked_method without arguments and return types.
+  short_blocked_method STRING,
+  -- File location of blocking_method in form <filename:linenumber>.
+  blocking_src STRING,
+  -- File location of blocked_method in form <filename:linenumber>.
+  blocked_src STRING,
+  -- Zero indexed number of threads trying to acquire the lock.
+  waiter_count LONG,
+  -- Utid of thread holding the lock.
+  blocked_utid LONG,
+  -- Thread name of thread holding the lock.
+  blocked_thread_name STRING,
+  -- Utid of thread holding the lock.
+  blocking_utid LONG,
+  -- Thread name of thread holding the lock.
+  blocking_thread_name STRING,
+  -- Tid of thread holding the lock.
+  blocking_tid LONG,
+  -- Upid of process experiencing lock contention.
+  upid LONG,
+  -- Process name of process experiencing lock contention.
+  process_name STRING,
+  -- Slice id of lock contention.
+  id LONG,
+  -- Timestamp of lock contention start.
+  ts TIMESTAMP,
+  -- Wall clock duration of lock contention.
+  dur DURATION,
+  -- Monotonic clock duration of lock contention.
+  monotonic_dur DURATION,
+  -- Thread track id of blocked thread.
+  track_id LONG,
+  -- Whether the blocked thread is the main thread.
+  is_blocked_thread_main LONG,
+  -- Tid of the blocked thread
+  blocked_thread_tid LONG,
+  -- Whether the blocking thread is the main thread.
+  is_blocking_thread_main LONG,
+  -- Tid of thread holding the lock.
+  blocking_thread_tid LONG,
+  -- Slice id of binder reply slice if lock contention was part of a binder txn.
+  binder_reply_id LONG,
+  -- Timestamp of binder reply slice if lock contention was part of a binder txn.
+  binder_reply_ts TIMESTAMP,
+  -- Tid of binder reply slice if lock contention was part of a binder txn.
+  binder_reply_tid LONG,
+  -- Pid of process experiencing lock contention.
+  pid LONG,
+  -- Id of monitor contention slice blocked by this contention.
+  child_id LONG
 ) AS
 SELECT NULL AS parent_id, *, NULL AS child_id FROM _isolated
 UNION ALL
@@ -365,18 +365,18 @@ USING
 -- This can be less than the duration the lock was 'waited on' when a different waiter acquired the
 -- lock earlier than the first waiter.
 CREATE PERFETTO TABLE android_monitor_contention_chain_thread_state(
--- Slice id of lock contention.
-id LONG,
--- Timestamp of lock contention start.
-ts TIMESTAMP,
--- Wall clock duration of lock contention.
-dur LONG,
--- Utid of the blocking |thread_state|.
-blocking_utid LONG,
--- Blocked kernel function of the blocking thread.
-blocked_function STRING,
--- Thread state of the blocking thread.
-state STRING
+  -- Slice id of lock contention.
+  id LONG,
+  -- Timestamp of lock contention start.
+  ts TIMESTAMP,
+  -- Wall clock duration of lock contention.
+  dur DURATION,
+  -- Utid of the blocking |thread_state|.
+  blocking_utid LONG,
+  -- Blocked kernel function of the blocking thread.
+  blocked_function STRING,
+  -- Thread state of the blocking thread.
+  state STRING
 ) AS
 SELECT
   id,
@@ -400,7 +400,7 @@ CREATE PERFETTO VIEW android_monitor_contention_chain_thread_state_by_txn(
   -- A |thread_state| that occurred in the blocking thread during the contention.
   thread_state STRING,
   -- Total time the blocking thread spent in the |thread_state| during contention.
-  thread_state_dur LONG,
+  thread_state_dur DURATION,
   -- Count of all times the blocking thread entered |thread_state| during the contention.
   thread_state_count LONG
 ) AS
@@ -424,7 +424,7 @@ CREATE PERFETTO VIEW android_monitor_contention_chain_blocked_functions_by_txn(
   -- Blocked kernel function in a thread state in the blocking thread during the contention.
   blocked_function STRING,
   -- Total time the blocking thread spent in the |blocked_function| during the contention.
-  blocked_function_dur LONG,
+  blocked_function_dur DURATION,
   -- Count of all times the blocking thread executed the |blocked_function| during the contention.
   blocked_function_count LONG
 ) AS

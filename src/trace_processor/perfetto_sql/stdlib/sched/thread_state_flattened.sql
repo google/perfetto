@@ -34,7 +34,7 @@ RETURNS
     -- Timestamp.
     ts TIMESTAMP,
     -- Duration.
-    dur LONG,
+    dur DURATION,
     -- Utid.
     utid LONG,
     -- Depth.
@@ -138,7 +138,7 @@ RETURNS TABLE(
   -- Time (ns) spent in Idle
   Idle LONG,
   -- Total duration of the slice
-  dur LONG,
+  dur DURATION,
   -- Depth of the slice in Perfetto
   depth LONG)
 AS

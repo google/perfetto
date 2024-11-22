@@ -26,7 +26,7 @@ RETURNS TABLE(
   -- Alias of `slice.ts`.
   ts TIMESTAMP,
   -- Alias of `slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias of `slice.track_id`.
   track_id LONG,
   -- Alias of `slice.category`.
@@ -66,7 +66,7 @@ RETURNS TABLE(
   -- Alias of `slice.ts`.
   ts TIMESTAMP,
   -- Alias of `slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias of `slice.track_id`.
   track_id LONG,
   -- Alias of `slice.category`.

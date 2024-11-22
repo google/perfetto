@@ -13,7 +13,7 @@ CREATE PERFETTO TABLE _chrome_input_pipeline_steps_no_input_type(
   -- The step timestamp.
   ts TIMESTAMP,
   -- Step duration.
-  dur LONG,
+  dur DURATION,
   -- Utid of the thread.
   utid LONG,
   -- Step name (ChromeLatencyInfo.step).
@@ -66,7 +66,7 @@ CREATE PERFETTO TABLE chrome_input_pipeline_steps(
   -- The step timestamp.
   ts TIMESTAMP,
   -- Step duration.
-  dur LONG,
+  dur DURATION,
   -- Utid of the thread.
   utid LONG,
   -- Step name (ChromeLatencyInfo.step).

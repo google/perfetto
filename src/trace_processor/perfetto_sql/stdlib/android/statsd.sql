@@ -22,10 +22,10 @@ CREATE PERFETTO VIEW android_statsd_atoms(
   id LONG,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
-  -- The timestamp at the start of the slice (in nanoseconds).
+  -- The timestamp at the start of the slice.
   ts TIMESTAMP,
-  -- The duration of the slice (in nanoseconds).
-  dur LONG,
+  -- The duration of the slice.
+  dur DURATION,
   -- The id of the argument set associated with this slice.
   arg_set_id LONG,
   -- The value of the CPU instruction counter at the start of the slice. This column will only be populated if thread instruction collection is enabled with track_event.

@@ -129,7 +129,7 @@ CREATE PERFETTO VIEW android_oom_adj_intervals (
   -- Timestamp the oom_adj score of the process changed
   ts TIMESTAMP,
   -- Duration until the next oom_adj score change of the process.
-  dur LONG,
+  dur DURATION,
   -- oom_adj score of the process.
   score LONG,
   -- oom_adj bucket of the process.
@@ -143,7 +143,7 @@ CREATE PERFETTO VIEW android_oom_adj_intervals (
   -- Timestamp of the latest oom_adj update in the system_server.
   oom_adj_ts TIMESTAMP,
   -- Duration of the latest oom_adj update in the system_server.
-  oom_adj_dur LONG,
+  oom_adj_dur DURATION,
   -- Track id of the latest oom_adj update in the system_server
   oom_adj_track_id LONG,
   -- Thread name of the latest oom_adj update in the system_server.

@@ -96,7 +96,7 @@ CREATE PERFETTO TABLE android_freezer_events (
   -- Timestamp process was frozen.
   ts TIMESTAMP,
   -- Duration process was frozen for.
-  dur LONG,
+  dur DURATION,
   -- Unfreeze reason Integer.
   unfreeze_reason_int LONG,
   -- Unfreeze reason String.
