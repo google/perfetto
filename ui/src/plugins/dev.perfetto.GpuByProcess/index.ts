@@ -88,8 +88,6 @@ export default class implements PerfettoPlugin {
         track: new GpuPidTrack(ctx, uri, upid),
       });
       const track = new TrackNode({uri, title});
-      track.uri = uri;
-      track.title = title;
       ctx.workspace.addChildInOrder(track);
     }
   }
