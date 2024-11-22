@@ -24,7 +24,7 @@ import {Time, TimeSpan} from '../base/time';
 import {TimeScale} from '../base/time_scale';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {TrackNode, TrackNodeContainer} from '../public/workspace';
+import {TrackNode} from '../public/workspace';
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {renderFlows} from './flow_events_renderer';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
@@ -354,7 +354,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
               ctx,
               size,
               panels,
-              attrs.trace.workspace.pinnedRoot,
+              attrs.trace.workspace.pinnedTracksNode,
             ),
           selectedYRange: this.getYRange('pinned-panel-container'),
         }),
@@ -373,7 +373,7 @@ export class ViewerPage implements m.ClassComponent<PageWithTraceImplAttrs> {
               ctx,
               size,
               panels,
-              attrs.trace.workspace,
+              attrs.trace.workspace.tracks,
             ),
           selectedYRange: this.getYRange('scrolling-panel-container'),
         }),
@@ -425,7 +425,7 @@ function renderOverlay(
   ctx: CanvasRenderingContext2D,
   canvasSize: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
-  trackContainer: TrackNodeContainer,
+  trackContainer: TrackNode,
 ): void {
   const size = {
     width: canvasSize.width - TRACK_SHELL_WIDTH,

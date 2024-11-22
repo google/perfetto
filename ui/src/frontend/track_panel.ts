@@ -233,7 +233,10 @@ export class TrackPanel implements Panel {
     if (searchIndex !== -1 && searchResults !== undefined) {
       const uri = searchResults.trackUris[searchIndex];
       // Highlight if this or any children match the search results
-      if (uri === node.uri || node.flatTracks.find((t) => t.uri === uri)) {
+      if (
+        uri === node.uri ||
+        node.flatTracksOrdered.find((t) => t.uri === uri)
+      ) {
         return true;
       }
     }
