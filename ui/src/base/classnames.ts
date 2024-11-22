@@ -15,17 +15,20 @@
 // It's common to want to have a class depending on a boolean flag, in which
 // case we use `flag && className` which evaluates to either false or a string,
 // which is why false is included in definition of ArgType.
-type ArgType = string | false | undefined | ArgType[];
+type ArgType = string | false | undefined;
 
 // Join class names together into valid HTML class attributes
 // Falsy elements are ignored
-// Nested arrays are flattened
 // If all elements are falsy, returns undefined
-export function classNames(...args: ArgType[]): string | undefined {
-  const filtered = args.flat().filter((x) => x);
-  if (filtered.length === 0) {
-    return undefined;
-  } else {
-    return filtered.join(' ');
+export function classNames(...args: ArgType[]) {
+  // NOTE: This function is optimized for efficiency. Be very careful when
+  // making changes & make sure to benchmark.
+  let result = '';
+  for (let i = 0; i < args.length; ++i) {
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    if (args[i]) {
+      result += result ? ' ' + args[i] : args[i];
+    }
   }
+  return result || undefined;
 }
