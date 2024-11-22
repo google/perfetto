@@ -83,7 +83,7 @@ export class FlowManager {
     );`);
   }
 
-  async queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
+  async queryFlowEvents(query: string): Promise<Flow[]> {
     const result = await this.engine.query(query);
     const flows: Flow[] = [];
 
@@ -309,7 +309,13 @@ export class FlowManager {
       }
     }
 
-    callback(flows);
+    // Fill in the track uris if available
+    flows.forEach((flow) => {
+      flow.begin.trackUri = trackIdToTrack.get(flow.begin.trackId)?.uri;
+      flow.end.trackUri = trackIdToTrack.get(flow.end.trackId)?.uri;
+    });
+
+    return flows;
   }
 
   sliceSelected(sliceId: number) {
@@ -360,9 +366,7 @@ export class FlowManager {
     left join process process_out on process_out.upid = thread_out.upid
     left join process process_in on process_in.upid = thread_in.upid
     `;
-    this.queryFlowEvents(query, (flows: Flow[]) =>
-      this.setConnectedFlows(flows),
-    );
+    this.queryFlowEvents(query).then((flows) => this.setConnectedFlows(flows));
   }
 
   private areaSelected(area: AreaSelection) {
@@ -423,9 +427,7 @@ export class FlowManager {
       (t2.track_id in ${tracks}
         and (t2.ts <= ${endNs} and t2.ts >= ${startNs}))
     `;
-    this.queryFlowEvents(query, (flows: Flow[]) =>
-      this.setSelectedFlows(flows),
-    );
+    this.queryFlowEvents(query).then((flows) => this.setSelectedFlows(flows));
   }
 
   private setConnectedFlows(connectedFlows: Flow[]) {

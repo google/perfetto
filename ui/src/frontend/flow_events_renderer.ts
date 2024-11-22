@@ -73,16 +73,9 @@ export function renderFlows(
   // Build a track index on trackIds. Note: We need to find the track nodes
   // specifically here (not just the URIs) because we might need to navigate up
   // the tree to find containing groups.
-
-  const sqlTrackIdToTrack = new Map<number, TrackNode>();
-  tracks.flatTracks.forEach((track) =>
-    track.uri
-      ? trace.tracks
-          .getTrack(track.uri)
-          ?.tags?.trackIds?.forEach((trackId) =>
-            sqlTrackIdToTrack.set(trackId, track),
-          )
-      : undefined,
+  const uriToTrackNode = new Map<string, TrackNode>();
+  tracks.flatTracks.forEach(
+    (track) => track.uri && uriToTrackNode.set(track.uri, track),
   );
 
   const drawFlow = (flow: Flow, hue: number) => {
@@ -123,11 +116,11 @@ export function renderFlows(
     }
 
     const start = getConnectionTarget(
-      flow.begin.trackId,
+      flow.begin.trackUri,
       flow.begin.depth,
       startX,
     );
-    const end = getConnectionTarget(flow.end.trackId, flow.end.depth, endX);
+    const end = getConnectionTarget(flow.end.trackUri, flow.end.depth, endX);
 
     if (start && end) {
       drawArrow(ctx, start, end, intensity, hue, width);
@@ -135,11 +128,15 @@ export function renderFlows(
   };
 
   const getConnectionTarget = (
-    trackId: number,
+    trackUri: string | undefined,
     depth: number,
     x: number,
   ): VerticalEdgeOrPoint | undefined => {
-    const track = sqlTrackIdToTrack.get(trackId);
+    if (trackUri === undefined) {
+      return undefined;
+    }
+
+    const track = uriToTrackNode.get(trackUri);
     if (!track) {
       return undefined;
     }
