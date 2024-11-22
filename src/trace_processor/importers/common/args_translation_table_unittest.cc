@@ -82,6 +82,18 @@ TEST(ArgsTranslationTable, TranslatesPerformanceMarkMarkHashes) {
             std::nullopt);
 }
 
+TEST(ArgsTranslationTable, TranslatesStudyHashes) {
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
+  table.AddChromeStudyTranslationRule(1, "hash1");
+  table.AddChromeStudyTranslationRule(10, "hash2");
+  EXPECT_EQ(table.TranslateChromeStudyHashForTesting(1),
+            std::optional<base::StringView>("hash1"));
+  EXPECT_EQ(table.TranslateChromeStudyHashForTesting(10),
+            std::optional<base::StringView>("hash2"));
+  EXPECT_EQ(table.TranslateChromeStudyHashForTesting(2), std::nullopt);
+}
+
 TEST(ArgsTranslationTable, TranslateClassName) {
   TraceStorage storage;
   StringId xyz_id = storage.InternString("xyz");

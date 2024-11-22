@@ -142,6 +142,35 @@ class ChromeMetrics(TestSuite):
         }
         """))
 
+  # Chrome study
+  def test_chrome_study_hashes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          chrome_trigger {
+            trigger_name_hash: 10
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          chrome_trigger {
+            trigger_name_hash: 20
+          }
+        }
+        """),
+        query=Metric('chrome_study_hashes'),
+        out=TextProto(r"""
+        [perfetto.protos.chrome_study_hashes]: {
+          hash: 10
+          hash: 20
+        }
+        """))
+
   # Chrome reliable range
   def test_chrome_reliable_range(self):
     return DiffTestBlueprint(

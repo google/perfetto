@@ -70,6 +70,10 @@ ArgsTranslationTable::ArgsTranslationTable(TraceStorage* storage)
           storage->InternString(kChromePerformanceMarkMarkHashKey)),
       interned_chrome_performance_mark_mark_key_(
           storage->InternString(kChromePerformanceMarkMarkKey)),
+      interned_chrome_trigger_hash_key_(
+          storage->InternString(kChromeTriggerHashKey)),
+      interned_chrome_trigger_name_key_(
+          storage->InternString(kChromeTriggerNameKey)),
       interned_mojo_method_mapping_id_(
           storage->InternString(kMojoMethodMappingIdKey)),
       interned_mojo_method_rel_pc_(storage->InternString(kMojoMethodRelPcKey)),
@@ -156,6 +160,17 @@ void ArgsTranslationTable::TranslateArgs(
         }
         break;
       }
+      case KeyType::kChromeTriggerHash: {
+        inserter.AddArg(interned_chrome_trigger_hash_key_, arg.value);
+        const std::optional<base::StringView> translated_value =
+            TranslateChromeStudyHash(arg.value.uint_value);
+        if (translated_value) {
+          inserter.AddArg(
+              interned_chrome_trigger_name_key_,
+              Variadic::String(storage_->InternString(*translated_value)));
+        }
+        break;
+      }
       case KeyType::kMojoMethodMappingId: {
         mapping_id = arg.value.uint_value;
         break;
@@ -191,6 +206,9 @@ ArgsTranslationTable::KeyIdAndTypeToEnum(StringId flat_key_id,
     }
     if (key_id == interned_mojo_method_rel_pc_) {
       return KeyType::kMojoMethodRelPc;
+    }
+    if (key_id == interned_chrome_trigger_hash_key_) {
+      return KeyType::kChromeTriggerHash;
     }
   } else if (type == Variadic::Type::kString) {
     if (flat_key_id == interned_obfuscated_view_dump_class_name_flat_key_) {
@@ -232,6 +250,15 @@ std::optional<base::StringView>
 ArgsTranslationTable::TranslateChromePerformanceMarkMarkHash(
     uint64_t hash) const {
   auto* value = chrome_performance_mark_mark_hash_to_name_.Find(hash);
+  if (!value) {
+    return std::nullopt;
+  }
+  return base::StringView(*value);
+}
+
+std::optional<base::StringView> ArgsTranslationTable::TranslateChromeStudyHash(
+    uint64_t hash) const {
+  auto* value = chrome_study_hash_to_name_.Find(hash);
   if (!value) {
     return std::nullopt;
   }
