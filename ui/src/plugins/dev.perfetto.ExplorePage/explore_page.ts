@@ -40,6 +40,10 @@ import {
   renderChartComponent,
 } from '../../frontend/widgets/charts/chart';
 import {AddChartMenuItem} from '../../frontend/widgets/charts/add_chart_menu';
+import {
+  CollapsiblePanel,
+  CollapsiblePanelVisibility,
+} from '../../frontend/widgets/collapsible_panel';
 
 interface ExploreTableState {
   sqlTableState?: SqlTableState;
@@ -55,10 +59,12 @@ interface ExplorableTable {
 export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
   private readonly state: ExploreTableState;
   private readonly charts: Chart[];
+  private visibility: CollapsiblePanelVisibility;
 
   constructor() {
     this.charts = [];
     this.state = {};
+    this.visibility = CollapsiblePanelVisibility.VISIBLE;
   }
 
   // Show menu with standard library tables
@@ -183,10 +189,20 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
 
   view({attrs}: m.CVnode<PageWithTraceAttrs>) {
     return m(
-      '.explore-page',
-      m(Menu, this.renderSelectableTablesMenuItems(attrs.trace)),
-      this.charts.map((chart) => renderChartComponent(chart)),
-      this.state.selectedTable && this.renderSqlTable(),
+      '.page.explore-page',
+      m(
+        '.chart-container',
+        m(Menu, this.renderSelectableTablesMenuItems(attrs.trace)),
+        this.charts.map((chart) => renderChartComponent(chart)),
+      ),
+      this.state.selectedTable &&
+        m(CollapsiblePanel, {
+          visibility: this.visibility,
+          setVisibility: (visibility) => {
+            this.visibility = visibility;
+          },
+          tabs: [this.renderSqlTable()],
+        }),
     );
   }
 }
