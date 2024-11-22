@@ -62,6 +62,10 @@ TEST(StringViewTest, BasicCases) {
     EXPECT_FALSE(x.CaseInsensitiveEq("ab"));
     EXPECT_FALSE(x.CaseInsensitiveEq("abcd"));
     EXPECT_FALSE(x.CaseInsensitiveEq(""));
+    EXPECT_FALSE(x.CaseInsensitiveOneOf({}));
+    EXPECT_FALSE(x.CaseInsensitiveOneOf({"AbCd", "ab", "abcd"}));
+    EXPECT_TRUE(x.CaseInsensitiveOneOf({"aBc", "AbC"}));
+    EXPECT_TRUE(x.CaseInsensitiveOneOf({"AbCd", "aBc"}));
   }
 
   // Test find(char).

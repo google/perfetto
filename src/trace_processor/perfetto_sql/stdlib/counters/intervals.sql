@@ -45,7 +45,7 @@ CREATE PERFETTO MACRO counter_leading_intervals(
   -- This table must have the columns "id" and "ts" and "track_id" and "value" corresponding
   -- to an id, timestamp, counter track_id and associated counter value.
   counter_table TableOrSubquery)
--- Table with the schema (id LONG, ts TIMESTAMP, dur LONG, track_id LONG,
+-- Table with the schema (id LONG, ts TIMESTAMP, dur DURATION, track_id LONG,
 -- value DOUBLE, next_value DOUBLE, delta_value DOUBLE).
 RETURNS TableOrSubquery AS
 (

@@ -163,7 +163,7 @@ CREATE PERFETTO TABLE android_startup_opinionated_breakdown(
   -- Timestamp of an exclusive interval during the app startup with a single latency reason.
   ts TIMESTAMP,
   -- Duration of an exclusive interval during the app startup with a single latency reason.
-  dur LONG,
+  dur DURATION,
   -- Cause of delay during an exclusive interval of the app startup.
   reason STRING
 )

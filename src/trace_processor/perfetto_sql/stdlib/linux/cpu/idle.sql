@@ -25,7 +25,7 @@ CREATE PERFETTO TABLE cpu_idle_counters(
   -- Starting timestamp of the counter.
   ts TIMESTAMP,
   -- Duration in which the counter is contant and idle state doesn't change.
-  dur LONG,
+  dur DURATION,
   -- Idle state of the CPU that corresponds to this counter. An idle state of -1
   -- is defined to be active state for the CPU, and the larger the integer, the
   -- deeper the idle state of the CPU. NULL if not found or undefined.

@@ -23,7 +23,7 @@ CREATE PERFETTO TABLE android_suspend_state(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
-  dur LONG,
+  dur DURATION,
   -- 'awake' or 'suspended'
   power_state STRING) AS
 WITH suspend_slice_from_minimal AS (
@@ -84,7 +84,7 @@ CREATE PERFETTO FUNCTION _extract_duration_without_suspend(
   -- Timestamp of event.
   ts TIMESTAMP,
   -- Duration of event.
-  dur LONG)
+  dur DURATION)
 RETURNS LONG
 AS
 SELECT to_monotonic($ts + $dur) - to_monotonic($ts);

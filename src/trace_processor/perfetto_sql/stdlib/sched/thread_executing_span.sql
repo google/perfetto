@@ -518,7 +518,7 @@ CREATE PERFETTO FUNCTION _thread_executing_span_critical_path(
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration.
-  dur LONG)
+  dur DURATION)
 RETURNS TABLE(
   -- Thread Utid the critical path was filtered to.
   root_utid LONG,
@@ -530,7 +530,7 @@ RETURNS TABLE(
   -- Timestamp of first thread_state in thread_executing_span.
   ts TIMESTAMP,
   -- Duration of thread_executing_span.
-  dur LONG,
+  dur DURATION,
   -- Utid of thread with thread_state.
   utid LONG
 ) AS

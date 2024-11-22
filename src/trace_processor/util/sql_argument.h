@@ -33,13 +33,16 @@ namespace sql_argument {
 // and, when lots of values are stored, reduced memory usage.
 enum class Type {
   kBool,
-  kInt,
-  kUint,
   kLong,
-  kFloat,
   kDouble,
   kString,
+
+  // Deprecated types.
+  // TODO(b/380259828): Remove.
+  kInt,
+  kUint,
   kProto,
+  kFloat,
   kBytes,
 };
 

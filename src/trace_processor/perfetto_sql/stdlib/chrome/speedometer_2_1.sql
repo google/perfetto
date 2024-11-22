@@ -82,7 +82,7 @@ CREATE PERFETTO TABLE chrome_speedometer_2_1_measure(
   -- Start timestamp of the measure slice
   ts TIMESTAMP,
   -- Duration of the measure slice
-  dur LONG,
+  dur DURATION,
   -- Full measure name
   name STRING,
   -- Speedometer iteration the slice belongs to.
@@ -176,7 +176,7 @@ CREATE PERFETTO TABLE chrome_speedometer_2_1_iteration(
   -- Start timestamp of the iteration
   ts TIMESTAMP,
   -- Duration of the iteration
-  dur LONG,
+  dur DURATION,
   -- Iteration name
   name STRING,
   -- Iteration number

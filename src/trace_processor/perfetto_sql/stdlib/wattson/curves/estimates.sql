@@ -23,7 +23,7 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 -- dependent on devfreq or a different CPU's frequency
 CREATE PERFETTO VIEW _curves_w_dependencies(
   ts TIMESTAMP,
-  dur LONG,
+  dur DURATION,
   freq_0 LONG,
   idle_0 LONG,
   freq_1 LONG,

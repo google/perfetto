@@ -28,7 +28,7 @@ CREATE PERFETTO VIEW chrome_cpu_power_slice(
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
-  dur LONG,
+  dur DURATION,
   -- The CPU on which the transition occurred
   cpu LONG,
   -- The power state that the CPU was in at time 'ts' for duration 'dur'.
@@ -100,7 +100,7 @@ CREATE PERFETTO TABLE chrome_cpu_power_first_sched_slice_after_powerup(
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
   -- The duration of the slice.
-  dur LONG,
+  dur DURATION,
   -- The cpu on which the slice executed.
   cpu LONG,
   -- Id for the sched_slice table.
@@ -156,22 +156,22 @@ USING
 -- A table holding the slices that executed within the scheduler
 -- slice that ran on a CPU immediately after power-up.
 CREATE PERFETTO TABLE chrome_cpu_power_post_powerup_slice(
--- Timestamp of the resulting slice
-ts TIMESTAMP,
--- Duration of the slice.
-dur LONG,
--- The CPU the sched slice ran on.
-cpu LONG,
--- Unique thread id for the slice.
-utid LONG,
--- 'id' field from the sched_slice table.
-sched_id LONG,
--- Id of the top-level slice for this (sched) slice.
-slice_id LONG,
--- Previous power state.
-previous_power_state LONG,
--- Id of the powerup.
-powerup_id LONG
+  -- Timestamp of the resulting slice
+  ts TIMESTAMP,
+  -- Duration of the slice.
+  dur DURATION,
+  -- The CPU the sched slice ran on.
+  cpu LONG,
+  -- Unique thread id for the slice.
+  utid LONG,
+  -- 'id' field from the sched_slice table.
+  sched_id LONG,
+  -- Id of the top-level slice for this (sched) slice.
+  slice_id LONG,
+  -- Previous power state.
+  previous_power_state LONG,
+  -- Id of the powerup.
+  powerup_id LONG
 ) AS
 SELECT * FROM _chrome_cpu_power_post_powerup_slice_sj;
 
