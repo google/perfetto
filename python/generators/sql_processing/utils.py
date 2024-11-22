@@ -33,7 +33,17 @@ OBJECT_NAME_ALLOWLIST = {
     'graphs/partition.sql': ['tree_structural_partition_by_group'],
 }
 
-COLUMN_TYPES = ['LONG', 'DOUBLE', 'STRING', 'BOOL', 'BYTES']
+COLUMN_TYPES = [
+    # Standard types
+    'LONG',
+    'DOUBLE',
+    'STRING',
+    'BOOL',
+    'BYTES',
+
+    # Special types
+    'TIMESTAMP'
+]
 
 MACRO_ARG_TYPES = ['TABLEORSUBQUERY', 'EXPR', 'COLUMNNAME']
 

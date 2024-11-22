@@ -23,7 +23,7 @@ CREATE PERFETTO VIEW android_statsd_atoms(
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The timestamp at the start of the slice (in nanoseconds).
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the slice (in nanoseconds).
   dur LONG,
   -- The id of the argument set associated with this slice.
@@ -47,7 +47,7 @@ CREATE PERFETTO VIEW android_statsd_atoms(
   -- The id of the parent (i.e. immediate ancestor) slice for this slice.
   parent_id LONG,
   -- The thread timestamp at the start of the slice. This column will only be populated if thread timestamp collection is enabled with track_event.
-  thread_ts LONG,
+  thread_ts TIMESTAMP,
   -- The thread time used by this slice. This column will only be populated if thread timestamp collection is enabled with track_event.
   thread_dur LONG
 ) AS
@@ -80,7 +80,7 @@ WHERE
 -- `ATOM_PERFETTO_TRIGGER` push atom to be configured.
 CREATE PERFETTO TABLE _android_statsd_perfetto_triggers(
   -- Timestamp of the trigger.
-  ts LONG,
+  ts TIMESTAMP,
   -- The name of the trigger.
   trigger_name STRING
 )

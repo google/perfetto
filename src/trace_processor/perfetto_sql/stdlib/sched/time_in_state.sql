@@ -102,7 +102,7 @@ GROUP BY utid;
 -- purpose instead.
 CREATE PERFETTO FUNCTION sched_time_in_state_for_thread_in_interval(
   -- The start of the interval.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the interval.
   dur LONG,
   -- The utid of the thread.
@@ -151,7 +151,7 @@ ORDER BY 4 DESC;
 -- Time the thread spent each state and cpu in a given interval.
 CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
   -- The start of the interval.
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the interval.
   dur LONG,
   -- The utid of the thread.
@@ -190,7 +190,7 @@ CREATE PERFETTO FUNCTION sched_time_in_state_for_cpu_in_interval(
     -- CPU id.
     cpu LONG,
     -- Interval start.
-    ts LONG,
+    ts TIMESTAMP,
     -- Interval duration.
     dur LONG
 ) RETURNS TABLE (

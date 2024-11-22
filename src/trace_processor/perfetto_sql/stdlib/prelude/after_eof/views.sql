@@ -22,7 +22,7 @@ CREATE PERFETTO VIEW counters(
   -- Alias of `counter.type`.
   type STRING,
   -- Alias of `counter.ts`.
-  ts LONG,
+  ts TIMESTAMP,
   -- Alias of `counter.track_id`.
   track_id LONG,
   -- Alias of `counter.value`.
@@ -49,7 +49,7 @@ CREATE PERFETTO VIEW slice(
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The timestamp at the start of the slice (in nanoseconds).
-  ts LONG,
+  ts TIMESTAMP,
   -- The duration of the slice (in nanoseconds).
   dur LONG,
   -- The id of the track this slice is located on.
@@ -74,7 +74,7 @@ CREATE PERFETTO VIEW slice(
   arg_set_id LONG,
   -- The thread timestamp at the start of the slice. This column will only be
   -- populated if thread timestamp collection is enabled with track_event.
-  thread_ts LONG,
+  thread_ts TIMESTAMP,
   -- The thread time used by this slice. This column will only be populated if
   -- thread timestamp collection is enabled with track_event.
   thread_dur LONG,
@@ -98,7 +98,7 @@ FROM __intrinsic_slice;
 -- single moment in time.
 CREATE PERFETTO VIEW instant(
   -- The timestamp of the instant (in nanoseconds).
-  ts LONG,
+  ts TIMESTAMP,
   -- The id of the track this instant is located on.
   track_id LONG,
   -- The name of the instant. The name describes what happened during the
@@ -118,7 +118,7 @@ CREATE PERFETTO VIEW slices(
   -- Alias of `slice.type`.
   type STRING,
   -- Alias of `slice.ts`.
-  ts LONG,
+  ts TIMESTAMP,
   -- Alias of `slice.dur`.
   dur LONG,
   -- Alias of `slice.track_id`.
@@ -138,7 +138,7 @@ CREATE PERFETTO VIEW slices(
   -- Alias of `slice.arg_set_id`.
   arg_set_id LONG,
   -- Alias of `slice.thread_ts`.
-  thread_ts LONG,
+  thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
   thread_dur LONG,
   -- Alias of `slice.thread_instruction_count`.
@@ -171,11 +171,11 @@ CREATE PERFETTO VIEW thread(
   -- The start timestamp of this thread (if known). Is null in most cases unless
   -- a thread creation event is enabled (e.g. task_newtask ftrace event on
   -- Linux/Android).
-  start_ts LONG,
+  start_ts TIMESTAMP,
   -- The end timestamp of this thread (if known). Is null in most cases unless
   -- a thread destruction event is enabled (e.g. sched_process_free ftrace event
   -- on Linux/Android).
-  end_ts LONG,
+  end_ts TIMESTAMP,
   -- The process hosting this thread.
   upid LONG,
   -- Boolean indicating if this thread is the main thread in the process.
@@ -205,11 +205,11 @@ CREATE PERFETTO VIEW process(
   -- The start timestamp of this process (if known). Is null in most cases
   -- unless a process creation event is enabled (e.g. task_newtask ftrace event
   -- on Linux/Android).
-  start_ts LONG,
+  start_ts TIMESTAMP,
   -- The end timestamp of this process (if known). Is null in most cases unless
   -- a process destruction event is enabled (e.g. sched_process_free ftrace
   -- event on Linux/Android).
-  end_ts LONG,
+  end_ts TIMESTAMP,
   -- The upid of the process which caused this process to be spawned.
   parent_upid LONG,
   -- The Unix user id of the process.

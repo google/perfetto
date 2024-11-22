@@ -127,7 +127,7 @@ WHERE track.name = 'oom_score_adj';
 -- All oom adj state intervals across all processes along with the reason for the state update.
 CREATE PERFETTO VIEW android_oom_adj_intervals (
   -- Timestamp the oom_adj score of the process changed
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration until the next oom_adj score change of the process.
   dur LONG,
   -- oom_adj score of the process.
@@ -141,7 +141,7 @@ CREATE PERFETTO VIEW android_oom_adj_intervals (
   -- Slice id of the latest oom_adj update in the system_server.
   oom_adj_id LONG,
   -- Timestamp of the latest oom_adj update in the system_server.
-  oom_adj_ts LONG,
+  oom_adj_ts TIMESTAMP,
   -- Duration of the latest oom_adj update in the system_server.
   oom_adj_dur LONG,
   -- Track id of the latest oom_adj update in the system_server

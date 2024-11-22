@@ -22,7 +22,7 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 -- One of the two tables will be empty, depending on whether the device is
 -- dependent on devfreq or a different CPU's frequency
 CREATE PERFETTO VIEW _curves_w_dependencies(
-  ts LONG,
+  ts TIMESTAMP,
   dur LONG,
   freq_0 LONG,
   idle_0 LONG,
@@ -157,7 +157,7 @@ SELECT
 FROM _system_state_curves;
 
 -- API to get power from each system state in an arbitrary time window
-CREATE PERFETTO FUNCTION _windowed_system_state_mw(ts LONG, dur LONG)
+CREATE PERFETTO FUNCTION _windowed_system_state_mw(ts TIMESTAMP, dur LONG)
 RETURNS TABLE(
   cpu0_mw DOUBLE,
   cpu1_mw DOUBLE,

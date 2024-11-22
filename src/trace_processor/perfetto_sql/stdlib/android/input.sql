@@ -212,13 +212,13 @@ CREATE PERFETTO TABLE android_input_events (
   -- Thread track id of input event dispatching thread.
   dispatch_track_id LONG,
   -- Timestamp input event was dispatched.
-  dispatch_ts LONG,
+  dispatch_ts TIMESTAMP,
   -- Duration of input event dispatch.
   dispatch_dur LONG,
   -- Thread track id of input event receiving thread.
   receive_track_id LONG,
   -- Timestamp input event was received.
-  receive_ts LONG,
+  receive_ts TIMESTAMP,
   -- Duration of input event receipt.
   receive_dur LONG,
   -- Vsync Id associated with the input. Null if an input event has no associated frame event.
@@ -298,7 +298,7 @@ CREATE PERFETTO VIEW android_key_events(
   -- by Android Framework, used to track the event through the input pipeline
   event_id LONG,
   -- The timestamp of when the input event was processed by the system
-  ts LONG,
+  ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
   arg_set_id LONG,
   -- Raw proto message encoded in base64
@@ -323,7 +323,7 @@ CREATE PERFETTO VIEW android_motion_events(
   -- by Android Framework, used to track the event through the input pipeline
   event_id LONG,
   -- The timestamp of when the input event was processed by the system
-  ts LONG,
+  ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
   arg_set_id LONG,
   -- Raw proto message encoded in base64

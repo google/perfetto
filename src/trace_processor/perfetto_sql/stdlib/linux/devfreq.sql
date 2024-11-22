@@ -25,7 +25,7 @@ RETURNS TABLE(
   -- Unique identifier for this counter.
   id LONG,
   -- Starting timestamp of the counter.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration in which counter is constant and frequency doesn't chamge.
   dur LONG,
   -- Frequency in kHz of the device that corresponds to the counter.
@@ -51,7 +51,7 @@ CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
   -- Unique identifier for this counter.
   id LONG,
   -- Starting timestamp of the counter.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration in which counter is constant and frequency doesn't chamge.
   dur LONG,
   -- Frequency in kHz of the device that corresponds to the counter.

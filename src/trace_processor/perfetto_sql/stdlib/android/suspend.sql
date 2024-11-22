@@ -21,7 +21,7 @@
 -- periods.
 CREATE PERFETTO TABLE android_suspend_state(
   -- Timestamp
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration
   dur LONG,
   -- 'awake' or 'suspended'
@@ -82,7 +82,7 @@ ORDER BY ts; -- Order by will cause Perfetto table to index by ts.
 -- If there was no CPU suspend, the result is same as |dur|.
 CREATE PERFETTO FUNCTION _extract_duration_without_suspend(
   -- Timestamp of event.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of event.
   dur LONG)
 RETURNS LONG

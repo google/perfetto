@@ -29,7 +29,7 @@ CREATE PERFETTO FUNCTION cpu_utilization_per_period(
   interval LONG)
 RETURNS TABLE (
   -- Timestamp of start of a second.
-  ts LONG,
+  ts TIMESTAMP,
   -- Sum of average utilization over period.
   -- Note: as the data is normalized, the values will be in the
   -- [0, 1] range.
@@ -51,7 +51,7 @@ FROM _cpu_avg_utilization_per_period!(
 -- utilization.
 CREATE PERFETTO TABLE cpu_utilization_per_second(
   -- Timestamp of start of a second.
-  ts LONG,
+  ts TIMESTAMP,
   -- Sum of average utilization over period.
   -- Note: as the data is normalized, the values will be in the
   -- [0, 1] range.
@@ -94,7 +94,7 @@ FROM _cpu_freq_per_thread;
 -- Aggregated CPU statistics in a provided interval. Results in one row.
 CREATE PERFETTO FUNCTION cpu_cycles_in_interval(
     -- Start of the interval.
-    ts LONG,
+    ts TIMESTAMP,
     -- Duration of the interval.
     dur LONG
 )
@@ -156,7 +156,7 @@ GROUP BY ucpu;
 -- Aggregated CPU statistics for each CPU in a provided interval.
 CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
     -- Start of the interval.
-    ts LONG,
+    ts TIMESTAMP,
     -- Duration of the interval.
     dur LONG
 )
