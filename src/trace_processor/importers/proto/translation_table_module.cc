@@ -57,6 +57,8 @@ ModuleResult TranslationTableModule::TokenizePacket(
     ParseSliceNameRules(translation_table.slice_name());
   } else if (translation_table.has_process_track_name()) {
     ParseProcessTrackNameRules(translation_table.process_track_name());
+  } else if (translation_table.has_chrome_study()) {
+    ParseChromeStudyRules(translation_table.chrome_study());
   }
   return ModuleResult::Handled();
 }
@@ -124,6 +126,18 @@ void TranslationTableModule::ParseProcessTrackNameRules(
     protos::pbzero::ProcessTrackNameTranslationTable::
         RawToDeobfuscatedNameEntry::Decoder entry(*it);
     context_->process_track_translation_table->AddNameTranslationRule(
+        entry.key(), entry.value());
+  }
+}
+
+void TranslationTableModule::ParseChromeStudyRules(
+    protozero::ConstBytes bytes) {
+  const auto chrome_study =
+      protos::pbzero::ChromeStudyTranslationTable::Decoder(bytes);
+  for (auto it = chrome_study.hash_to_name(); it; ++it) {
+    protos::pbzero::ChromeStudyTranslationTable::HashToNameEntry::Decoder entry(
+        *it);
+    context_->args_translation_table->AddChromeStudyTranslationRule(
         entry.key(), entry.value());
   }
 }

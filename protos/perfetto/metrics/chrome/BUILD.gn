@@ -35,6 +35,7 @@ perfetto_proto_library("@TYPE@") {
     "scroll_jank.proto",
     "scroll_jank_v3.proto",
     "slice_names.proto",
+    "study_hashes.proto",
     "test_chrome_metric.proto",
     "touch_jank.proto",
     "unsymbolized_args.proto",

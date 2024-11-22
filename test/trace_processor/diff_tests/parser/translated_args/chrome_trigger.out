@@ -1,0 +1,6 @@
+"flat_key","key","int_value","string_value"
+"chrome_trigger.name","chrome_trigger.name","[NULL]","study_name1"
+"chrome_trigger.name","chrome_trigger.name","[NULL]","study_name2"
+"chrome_trigger.name_hash","chrome_trigger.name_hash",10,"[NULL]"
+"chrome_trigger.name_hash","chrome_trigger.name_hash",20,"[NULL]"
+"chrome_trigger.name_hash","chrome_trigger.name_hash",30,"[NULL]"

@@ -42,7 +42,11 @@ MetadataModule::MetadataModule(TraceProcessorContext* context)
     : context_(context),
       producer_name_key_id_(context_->storage->InternString("producer_name")),
       trusted_producer_uid_key_id_(
-          context_->storage->InternString("trusted_producer_uid")) {
+          context_->storage->InternString("trusted_producer_uid")),
+      chrome_trigger_name_id_(
+          context_->storage->InternString("chrome_trigger.name")),
+      chrome_trigger_hash_id_(
+          context_->storage->InternString("chrome_trigger.name_hash")) {
   RegisterForField(TracePacket::kUiStateFieldNumber, context);
   RegisterForField(TracePacket::kTriggerFieldNumber, context);
   RegisterForField(TracePacket::kChromeTriggerFieldNumber, context);
@@ -133,11 +137,19 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   if (trigger.has_trigger_name()) {
     name_id = context_->storage->InternString(trigger.trigger_name());
   } else {
-    name_id = context_->storage->InternString(
-        base::StringView(base::IntToHexString(trigger.trigger_name_hash())));
+    name_id =
+        context_->storage->InternString(base::StringView("chrome_trigger"));
   }
-  context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
-                                  /* duration = */ 0);
+  context_->slice_tracker->Scoped(
+      ts, track_id, cat_id, name_id,
+      /* duration = */ 0, [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            chrome_trigger_hash_id_,
+            Variadic::UnsignedInteger(trigger.trigger_name_hash()));
+        if (trigger.has_trigger_name()) {
+          inserter->AddArg(chrome_trigger_name_id_, Variadic::String(name_id));
+        }
+      });
 
   MetadataTracker* metadata = context_->metadata_tracker.get();
   metadata->SetDynamicMetadata(
