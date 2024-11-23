@@ -5355,6 +5355,141 @@ TEST_F(TracingServiceImplTest, CloneSessionByName) {
   }
 }
 
+TEST_F(TracingServiceImplTest, CloneSnapshotTriggerProducesEvent) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  constexpr uid_t kMockProducerUid = 77777;
+  constexpr auto kMockProducerName = "mock_producer";
+  producer->Connect(svc.get(), kMockProducerName, kMockProducerUid);
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::CLONE_SNAPSHOT);
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+  auto* trigger = trigger_config->add_triggers();
+  static constexpr auto kCloneTriggerName = "clone_trigger_name";
+  trigger->set_name(kCloneTriggerName);
+  trigger->set_stop_delay_ms(1);
+
+  consumer->ObserveEvents(ObservableEvents::TYPE_CLONE_TRIGGER_HIT);
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  producer->endpoint()->ActivateTriggers({"clone_trigger_name"});
+
+  const auto events = consumer->WaitForObservableEvents();
+  ASSERT_TRUE(events.has_clone_trigger_hit());
+  const auto& trigger_hit_event = events.clone_trigger_hit();
+  EXPECT_EQ(trigger_hit_event.trigger_name(), kCloneTriggerName);
+  EXPECT_EQ(trigger_hit_event.producer_name(), kMockProducerName);
+  EXPECT_EQ(trigger_hit_event.producer_uid(), kMockProducerUid);
+  EXPECT_GT(trigger_hit_event.boot_time_ns(), 0ul);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // The consumer that clones and read the trace.
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+
+  static constexpr auto kTestPayload = "test_payload_string";
+  writer->NewTracePacket()->set_for_testing()->set_str(kTestPayload);
+
+  static constexpr auto kCloneTriggerName = "trigger_name";
+  static constexpr auto kCloneTriggerProducerName = "trigger_producer_name";
+  static constexpr uid_t kCloneTriggerProducerUid = 42;
+  static constexpr uint64_t kCloneTriggerTimestamp = 456789123;
+  {
+    auto clone_done = task_runner.CreateCheckpoint("clone_done");
+    EXPECT_CALL(*consumer2, OnSessionCloned(_))
+        .WillOnce(
+            Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
+              ASSERT_TRUE(args.success);
+              ASSERT_TRUE(args.error.empty());
+              clone_done();
+            }));
+    ConsumerEndpoint::CloneSessionArgs args;
+    args.tsid = GetLastTracingSessionId(consumer2.get());
+    args.clone_trigger_name = kCloneTriggerName;
+    args.clone_trigger_producer_name = kCloneTriggerProducerName;
+    args.clone_trigger_trusted_producer_uid = kCloneTriggerProducerUid;
+    args.clone_trigger_boot_time_ns = kCloneTriggerTimestamp;
+    consumer2->endpoint()->CloneSession(args);
+    // CloneSession() will implicitly issue a flush. Linearize with that.
+    producer->ExpectFlush(writer.get());
+    task_runner.RunUntilCheckpoint("clone_done");
+  }
+
+  // Disable the initial tracing session.
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+
+  // Read back the cloned trace and the original trace.
+  auto packets = consumer->ReadBuffers();
+  auto cloned_packets = consumer2->ReadBuffers();
+
+  const auto test_payload_matcher =
+      Property(&protos::gen::TracePacket::for_testing,
+               Property(&protos::gen::TestEvent::str, Eq(kTestPayload)));
+
+  EXPECT_THAT(packets, Contains(test_payload_matcher));
+  // Assert original trace doesn't contain "clone_snapshot_trigger" packet.
+  EXPECT_THAT(
+      packets,
+      Not(Contains(Property(
+          &protos::gen::TracePacket::has_clone_snapshot_trigger, Eq(true)))));
+
+  EXPECT_THAT(cloned_packets, Contains(test_payload_matcher));
+  std::vector<protos::gen::TracePacket> clone_trigger_packets;
+  for (const auto& packet : cloned_packets) {
+    if (packet.has_clone_snapshot_trigger()) {
+      clone_trigger_packets.push_back(packet);
+    }
+  }
+  ASSERT_EQ(clone_trigger_packets.size(), 1ul);
+  EXPECT_EQ(clone_trigger_packets[0].timestamp(), kCloneTriggerTimestamp);
+
+  const auto trigger = clone_trigger_packets[0].clone_snapshot_trigger();
+  EXPECT_EQ(trigger.trigger_name(), kCloneTriggerName);
+  EXPECT_EQ(trigger.producer_name(), kCloneTriggerProducerName);
+  EXPECT_EQ(trigger.trusted_producer_uid(),
+            static_cast<int32_t>(kCloneTriggerProducerUid));
+}
+
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
