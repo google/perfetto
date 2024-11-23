@@ -15672,7 +15672,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 113.
+// Next id: 114.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -15811,6 +15811,8 @@ message TracePacket {
 
     PixelModemEvents pixel_modem_events = 110;
     PixelModemTokenDatabase pixel_modem_token_database = 111;
+
+    Trigger clone_snapshot_trigger = 113;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
