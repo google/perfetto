@@ -16,7 +16,7 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {VegaView} from '../../widgets/vega_view';
+import {VegaView} from '../../components/widgets/vega_view';
 
 const INPUT_CATEGORY = 'Input';
 const PRESENTED_CATEGORY = 'Presented';

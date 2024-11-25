@@ -14,8 +14,8 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addDebugSliceTrack} from '../../public/debug_tracks';
-import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 
 const PERF_TRACE_COUNTERS_PRECONDITION = `
   SELECT

@@ -23,21 +23,18 @@ import {
 } from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../public/color';
-import {colorForThread} from '../../public/lib/colorizer';
-import {TrackData} from '../../common/track_data';
-import {TimelineFetcher} from '../../common/track_helper';
-import {checkerboardExcept} from '../../frontend/checkerboard';
+import {colorForThread} from '../../components/colorizer';
+import {TrackData} from '../../components/tracks/track_data';
+import {TimelineFetcher} from '../../components/tracks/track_helper';
+import {checkerboardExcept} from '../../components/checkerboard';
 import {Point2D} from '../../base/geom';
 import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {TrackEventDetails} from '../../public/selection';
-import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
-import {
-  getSched,
-  getSchedWakeupInfo,
-} from '../../trace_processor/sql_utils/sched';
+import {asSchedSqlId} from '../../components/sql_utils/core_types';
+import {getSched, getSchedWakeupInfo} from '../../components/sql_utils/sched';
 import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {exists} from '../../base/utils';

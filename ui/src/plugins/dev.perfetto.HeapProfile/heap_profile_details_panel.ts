@@ -19,9 +19,9 @@ import {
   QueryFlamegraph,
   QueryFlamegraphMetric,
   metricsFromTableOrSubquery,
-} from '../../public/lib/query_flamegraph';
+} from '../../components/query_flamegraph';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
-import {Timestamp} from '../../public/lib/widgets/timestamp';
+import {Timestamp} from '../../components/widgets/timestamp';
 import {
   TrackEventDetailsPanel,
   TrackEventDetailsPanelSerializeArgs,

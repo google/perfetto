@@ -17,7 +17,7 @@ import {TabDescriptor, TabManager} from '../public/tab';
 import {
   CollapsiblePanelVisibility,
   toggleVisibility,
-} from '../frontend/widgets/collapsible_panel';
+} from '../components/widgets/collapsible_panel';
 import {raf} from './raf_scheduler';
 
 export interface ResolvedTab {

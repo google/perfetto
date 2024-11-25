@@ -31,7 +31,7 @@ import {
 import {
   QueryFlamegraph,
   metricsFromTableOrSubquery,
-} from '../public/lib/query_flamegraph';
+} from '../components/query_flamegraph';
 import {DisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/logging';
 import {TraceImpl} from '../core/trace_impl';

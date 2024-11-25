@@ -16,7 +16,7 @@ import {createStore, Store} from '../../base/store';
 import {exists} from '../../base/utils';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 
 interface State {
   counter: number;

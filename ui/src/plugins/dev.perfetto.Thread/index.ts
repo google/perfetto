@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
+import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {getThreadTable} from './table';
-import {extensions} from '../../public/lib/extensions';
+import {extensions} from '../../components/extensions';
 import {ThreadDesc, ThreadMap} from '../dev.perfetto.Thread/threads';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';

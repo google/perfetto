@@ -16,7 +16,7 @@ import m from 'mithril';
 import {
   Details,
   DetailsSchema,
-} from '../../frontend/widgets/sql/details/details';
+} from '../../components/widgets/sql/details/details';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {TrackEventDetailsPanel} from '../../public/details_panel';

@@ -23,7 +23,7 @@ import {Tree, TreeNode} from '../widgets/tree';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Button} from '../widgets/button';
-import {CollapsiblePanel} from './widgets/collapsible_panel';
+import {CollapsiblePanel} from '../components/widgets/collapsible_panel';
 
 export type TabPanelAttrs = TraceImplAttrs;
 

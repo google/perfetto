@@ -41,10 +41,10 @@ import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
-import {VegaView} from '../../widgets/vega_view';
+import {VegaView} from '../../components/widgets/vega_view';
 import {PageAttrs} from '../../public/page';
 import {TableShowcase} from './table_showcase';
-import {TreeTable, TreeTableAttrs} from '../../frontend/widgets/treetable';
+import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {Intent} from '../../widgets/common';
 import {
   VirtualTable,

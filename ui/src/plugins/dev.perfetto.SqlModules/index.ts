@@ -19,7 +19,7 @@ import {Trace} from '../../public/trace';
 import {SqlModules} from './sql_modules';
 import {SQL_MODULES_DOCS_SCHEMA, SqlModulesImpl} from './sql_modules_impl';
 import {PromptOption} from '../../public/omnibox';
-import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
