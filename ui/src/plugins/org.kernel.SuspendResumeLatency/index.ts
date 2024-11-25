@@ -20,7 +20,7 @@ import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SuspendResumeDetailsPanel} from './suspend_resume_details';
 import {Slice} from '../../public/track';
-import {OnSliceClickArgs} from '../../frontend/base_slice_track';
+import {OnSliceClickArgs} from '../../components/tracks/base_slice_track';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import AsyncSlicesPlugin from '../dev.perfetto.AsyncSlices';

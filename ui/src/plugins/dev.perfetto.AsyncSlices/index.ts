@@ -23,9 +23,9 @@ import {AsyncSliceTrack} from './async_slice_track';
 import {exists} from '../../base/utils';
 import {assertExists, assertTrue} from '../../base/logging';
 import {SliceSelectionAggregator} from './slice_selection_aggregator';
-import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
+import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
 import {getSliceTable} from './table';
-import {extensions} from '../../public/lib/extensions';
+import {extensions} from '../../components/extensions';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 export default class implements PerfettoPlugin {

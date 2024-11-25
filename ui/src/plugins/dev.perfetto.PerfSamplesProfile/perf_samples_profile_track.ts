@@ -18,9 +18,9 @@ import {Slice} from '../../public/track';
 import {
   BaseSliceTrack,
   OnSliceClickArgs,
-} from '../../frontend/base_slice_track';
-import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
-import {getColorForSample} from '../../public/lib/colorizer';
+} from '../../components/tracks/base_slice_track';
+import {NAMED_ROW, NamedRow} from '../../components/tracks/named_slice_track';
+import {getColorForSample} from '../../components/colorizer';
 import {
   ProfileType,
   TrackEventDetails,
@@ -30,9 +30,9 @@ import {assertExists} from '../../base/logging';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
-} from '../../public/lib/query_flamegraph';
+} from '../../components/query_flamegraph';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Timestamp} from '../../public/lib/widgets/timestamp';
+import {Timestamp} from '../../components/widgets/timestamp';
 import {time} from '../../base/time';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {uuidv4Sql} from '../../base/uuid';
-import {generateSqlWithInternalLayout} from '../../trace_processor/sql_utils/layout';
+import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {EventLatencyTrack, JANKY_LATENCY_NAME} from './event_latency_track';

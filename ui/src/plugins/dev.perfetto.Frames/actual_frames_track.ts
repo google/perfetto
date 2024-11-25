@@ -13,10 +13,13 @@
 // limitations under the License.
 
 import {HSLColor} from '../../public/color';
-import {makeColorScheme} from '../../public/lib/colorizer';
+import {makeColorScheme} from '../../components/colorizer';
 import {ColorScheme} from '../../public/color_scheme';
-import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
+import {
+  NAMED_ROW,
+  NamedSliceTrack,
+} from '../../components/tracks/named_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_layout';
 import {STR_NULL} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';

@@ -14,12 +14,12 @@
 
 import {assertExists} from '../../base/logging';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
-import {getColorForSample} from '../../public/lib/colorizer';
+import {getColorForSample} from '../../components/colorizer';
 import {
   BaseSliceTrack,
   OnSliceClickArgs,
-} from '../../frontend/base_slice_track';
-import {NAMED_ROW, NamedRow} from '../../frontend/named_slice_track';
+} from '../../components/tracks/base_slice_track';
+import {NAMED_ROW, NamedRow} from '../../components/tracks/named_slice_track';
 import {NUM} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {CpuProfileSampleFlamegraphDetailsPanel} from './cpu_profile_details_panel';

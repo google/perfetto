@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {time, Time} from '../../base/time';
-import {colorForFtrace} from '../../public/lib/colorizer';
+import {colorForFtrace} from '../../components/colorizer';
 import {DetailsShell} from '../../widgets/details_shell';
 import {
   MultiSelectDiff,
@@ -22,7 +22,7 @@ import {
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
-import {Timestamp} from '../../public/lib/widgets/timestamp';
+import {Timestamp} from '../../components/widgets/timestamp';
 import {FtraceFilter, FtraceStat} from './common';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';

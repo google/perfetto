@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import {duration, Time, time} from '../../base/time';
-import {colorForFtrace} from '../../public/lib/colorizer';
-import {LIMIT} from '../../common/track_data';
-import {Store, TimelineFetcher} from '../../common/track_helper';
-import {checkerboardExcept} from '../../frontend/checkerboard';
-import {TrackData} from '../../common/track_data';
+import {colorForFtrace} from '../../components/colorizer';
+import {LIMIT} from '../../components/tracks/track_data';
+import {Store, TimelineFetcher} from '../../components/tracks/track_helper';
+import {checkerboardExcept} from '../../components/checkerboard';
+import {TrackData} from '../../components/tracks/track_data';
 import {Engine} from '../../trace_processor/engine';
 import {Track} from '../../public/track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';

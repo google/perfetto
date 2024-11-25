@@ -42,14 +42,14 @@ import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
-import {addSqlTableTab} from './sql_table_tab';
-import {configureExtensions} from '../public/lib/extensions';
+import {addSqlTableTab} from '../components/details/sql_table_tab';
+import {configureExtensions} from '../components/extensions';
 import {
   addDebugCounterTrack,
   addDebugSliceTrack,
-} from '../public/lib/tracks/debug_tracks';
-import {addVisualizedArgTracks} from './visualized_args_tracks';
-import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
+} from '../components/tracks/debug_tracks';
+import {addVisualizedArgTracks} from '../components/tracks/visualized_args_tracks';
+import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {assetSrc, initAssets} from '../base/assets';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({

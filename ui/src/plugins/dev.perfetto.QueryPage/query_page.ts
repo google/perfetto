@@ -15,14 +15,14 @@
 import m from 'mithril';
 import {SimpleResizeObserver} from '../../base/resize_observer';
 import {undoCommonChatAppReplacements} from '../../base/string_utils';
-import {QueryResponse, runQuery} from '../../public/lib/query_table/queries';
+import {QueryResponse, runQuery} from '../../components/query_table/queries';
 import {Callout} from '../../widgets/callout';
 import {Editor} from '../../widgets/editor';
 import {PageWithTraceAttrs} from '../../public/page';
 import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
 import {Trace, TraceAttrs} from '../../public/trace';
-import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
-import {QueryTable} from '../../public/lib/query_table/query_table';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import {QueryTable} from '../../components/query_table/query_table';
 
 interface QueryPageState {
   enteredText: string;

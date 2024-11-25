@@ -15,10 +15,10 @@
 import {BigintMath} from '../../base/bigint_math';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
-import {colorForTid} from '../../public/lib/colorizer';
-import {TrackData} from '../../common/track_data';
-import {TimelineFetcher} from '../../common/track_helper';
-import {checkerboardExcept} from '../../frontend/checkerboard';
+import {colorForTid} from '../../components/colorizer';
+import {TrackData} from '../../components/tracks/track_data';
+import {TimelineFetcher} from '../../components/tracks/track_helper';
+import {checkerboardExcept} from '../../components/checkerboard';
 import {Engine} from '../../trace_processor/engine';
 import {Track} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';

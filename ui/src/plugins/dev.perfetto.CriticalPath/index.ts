@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  getThreadInfo,
-  ThreadInfo,
-} from '../../trace_processor/sql_utils/thread';
-import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {getThreadInfo, ThreadInfo} from '../../components/sql_utils/thread';
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {Trace} from '../../public/trace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin} from '../../public/plugin';
-import {asUtid, Utid} from '../../trace_processor/sql_utils/core_types';
-import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {asUtid, Utid} from '../../components/sql_utils/core_types';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {showModal} from '../../widgets/modal';
 import {
   CRITICAL_PATH_CMD,

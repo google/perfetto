@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedRow} from '../../frontend/named_slice_track';
+import {NamedRow} from '../../components/tracks/named_slice_track';
 import {Slice} from '../../public/track';
 import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../../frontend/tracks/custom_sql_table_slice_track';
+} from '../../components/tracks/custom_sql_table_slice_track';
 import {JANK_COLOR} from './jank_colors';
-import {getColorForSlice} from '../../public/lib/colorizer';
+import {getColorForSlice} from '../../components/colorizer';
 import {TrackEventSelection} from '../../public/selection';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 

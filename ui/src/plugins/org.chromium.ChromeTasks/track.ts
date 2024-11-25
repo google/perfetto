@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Utid} from '../../trace_processor/sql_utils/core_types';
+import {Utid} from '../../components/sql_utils/core_types';
 import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../../frontend/tracks/custom_sql_table_slice_track';
+} from '../../components/tracks/custom_sql_table_slice_track';
 import {Trace} from '../../public/trace';
 import {TrackEventSelection} from '../../public/selection';
 import {ChromeTasksDetailsPanel} from './details';

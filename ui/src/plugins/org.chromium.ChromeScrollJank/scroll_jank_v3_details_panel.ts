@@ -15,10 +15,10 @@
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
-import {asSliceSqlId} from '../../trace_processor/sql_utils/core_types';
-import {DurationWidget} from '../../public/lib/widgets/duration';
-import {Timestamp} from '../../public/lib/widgets/timestamp';
+import {getSlice, SliceDetails} from '../../components/sql_utils/slice';
+import {asSliceSqlId} from '../../components/sql_utils/core_types';
+import {DurationWidget} from '../../components/widgets/duration';
+import {Timestamp} from '../../components/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';

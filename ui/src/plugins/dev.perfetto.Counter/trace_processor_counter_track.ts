@@ -16,7 +16,7 @@ import {Time} from '../../base/time';
 import {
   BaseCounterTrack,
   CounterOptions,
-} from '../../frontend/base_counter_track';
+} from '../../components/tracks/base_counter_track';
 import {TrackEventDetails} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {TrackMouseEvent} from '../../public/track';

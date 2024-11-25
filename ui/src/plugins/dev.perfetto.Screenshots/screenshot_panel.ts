@@ -15,8 +15,8 @@
 import m from 'mithril';
 import {assertTrue} from '../../base/logging';
 import {exists} from '../../base/utils';
-import {getSlice, SliceDetails} from '../../trace_processor/sql_utils/slice';
-import {asSliceSqlId} from '../../trace_processor/sql_utils/core_types';
+import {getSlice, SliceDetails} from '../../components/sql_utils/slice';
+import {asSliceSqlId} from '../../components/sql_utils/core_types';
 import {Engine} from '../../trace_processor/engine';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';

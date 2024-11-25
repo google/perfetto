@@ -14,25 +14,22 @@
 
 import m from 'mithril';
 import {Duration, duration, Time, time} from '../../base/time';
-import {hasArgs, renderArguments} from '../../frontend/slice_args';
-import {renderDetails} from '../../public/lib/details/slice_details';
+import {hasArgs, renderArguments} from '../../components/details/slice_args';
+import {renderDetails} from '../../components/details/slice_details';
 import {
   getDescendantSliceTree,
   getSlice,
   SliceDetails,
   SliceTreeNode,
-} from '../../trace_processor/sql_utils/slice';
-import {
-  asSliceSqlId,
-  SliceSqlId,
-} from '../../trace_processor/sql_utils/core_types';
+} from '../../components/sql_utils/slice';
+import {asSliceSqlId, SliceSqlId} from '../../components/sql_utils/core_types';
 import {
   ColumnDescriptor,
   Table,
   TableData,
   widgetColumn,
 } from '../../widgets/table';
-import {TreeTable, TreeTableAttrs} from '../../frontend/widgets/treetable';
+import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
@@ -47,7 +44,7 @@ import {
   getScrollJankCauseStage,
 } from './scroll_jank_cause_link_utils';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
-import {sliceRef} from '../../frontend/widgets/slice';
+import {sliceRef} from '../../components/widgets/slice';
 import {JANKS_TRACK_URI, renderSliceRef} from './selection_utils';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';

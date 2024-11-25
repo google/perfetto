@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Editor} from '../../widgets/editor';
-import {VegaView} from '../../widgets/vega_view';
+import {VegaView} from '../../components/widgets/vega_view';
 import {PageWithTraceAttrs} from '../../public/page';
 import {Engine} from '../../trace_processor/engine';
 

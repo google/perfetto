@@ -18,7 +18,7 @@ import {
   BaseSliceTrack,
   OnSliceClickArgs,
   OnSliceOverArgs,
-} from '../../frontend/base_slice_track';
+} from '../../components/tracks/base_slice_track';
 import {
   ProfileType,
   profileType,

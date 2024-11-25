@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Duration, Time, TimeSpan, duration, time} from '../base/time';
-import {colorForCpu} from '../public/lib/colorizer';
+import {colorForCpu} from '../components/colorizer';
 import {timestampFormat} from '../core/timestamp_format';
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,

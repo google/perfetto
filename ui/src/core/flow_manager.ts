@@ -15,7 +15,7 @@
 import {Time} from '../base/time';
 import {featureFlags} from './feature_flags';
 import {FlowDirection, Flow} from './flow_types';
-import {asSliceSqlId} from '../trace_processor/sql_utils/core_types';
+import {asSliceSqlId} from '../components/sql_utils/core_types';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
