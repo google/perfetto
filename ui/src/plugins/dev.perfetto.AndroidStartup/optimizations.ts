@@ -107,7 +107,7 @@ export async function optimizationsTrack(
         '${buildDetails(startup)}' AS details
       `;
     })
-    .join('UNION ALL');
+    .join('UNION ALL '); // The trailing space is important.
 
   const uri = '/android_startups_optimization_status';
   const title = 'Optimization Status';
