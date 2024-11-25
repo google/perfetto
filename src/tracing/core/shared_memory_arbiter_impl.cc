@@ -144,7 +144,6 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
         auto layout = SharedMemoryArbiterImpl::default_page_layout;
 
         if (shmem_abi_.is_page_free(page_idx_)) {
-          // TODO(primiano): Use the |size_hint| here to decide the layout.
           is_new_page = shmem_abi_.TryPartitionPage(page_idx_, layout);
         }
         uint32_t free_chunks;
@@ -195,8 +194,13 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     }
 
     if (stall_count == kAssertAtNStalls) {
+      Stats stats = GetStats();
       PERFETTO_FATAL(
-          "Shared memory buffer max stall count exceeded; possible deadlock");
+          "Shared memory buffer max stall count exceeded; possible deadlock "
+          "free=%zu bw=%zu br=%zu comp=%zu pages_free=%zu pages_err=%zu",
+          stats.chunks_free, stats.chunks_being_written,
+          stats.chunks_being_read, stats.chunks_complete, stats.pages_free,
+          stats.pages_unexpected);
     }
 
     // If the IPC thread itself is stalled because the current process has
@@ -744,6 +748,45 @@ void SharedMemoryArbiterImpl::BindStartupTargetBufferImpl(
   // |fully_bound_| again.
   if (should_flush)
     FlushPendingCommitDataRequests(flush_callback);
+}
+
+SharedMemoryArbiterImpl::Stats SharedMemoryArbiterImpl::GetStats() {
+  std::lock_guard<std::mutex> scoped_lock(lock_);
+  Stats res;
+
+  for (size_t page_idx = 0; page_idx < shmem_abi_.num_pages(); page_idx++) {
+    uint32_t bitmap = shmem_abi_.page_header(page_idx)->header_bitmap.load(
+        std::memory_order_relaxed);
+    SharedMemoryABI::PageLayout layout =
+        SharedMemoryABI::GetLayoutFromHeaderBitmap(bitmap);
+    if (layout == SharedMemoryABI::kPageNotPartitioned) {
+      res.pages_free++;
+    } else if (layout == SharedMemoryABI::kPageDivReserved1 ||
+               layout == SharedMemoryABI::kPageDivReserved2) {
+      res.pages_unexpected++;
+    }
+    // Free and unexpected pages have zero chunks.
+    const uint32_t num_chunks =
+        SharedMemoryABI::GetNumChunksFromHeaderBitmap(bitmap);
+    for (uint32_t i = 0; i < num_chunks; i++) {
+      switch (SharedMemoryABI::GetChunkStateFromHeaderBitmap(bitmap, i)) {
+        case SharedMemoryABI::kChunkFree:
+          res.chunks_free++;
+          break;
+        case SharedMemoryABI::kChunkBeingWritten:
+          res.chunks_being_written++;
+          break;
+        case SharedMemoryABI::kChunkBeingRead:
+          res.chunks_being_read++;
+          break;
+        case SharedMemoryABI::kChunkComplete:
+          res.chunks_complete++;
+          break;
+      }
+    }
+  }
+
+  return res;
 }
 
 std::function<void()>
