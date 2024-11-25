@@ -1531,7 +1531,8 @@ void PerfettoCmd::OnObservableEvents(
         observable_events.clone_trigger_hit().boot_time_ns(),
         observable_events.clone_trigger_hit().trigger_name(),
         observable_events.clone_trigger_hit().producer_name(),
-        observable_events.clone_trigger_hit().producer_uid()};
+        static_cast<uid_t>(
+            observable_events.clone_trigger_hit().producer_uid())};
     OnCloneSnapshotTriggerReceived(static_cast<TracingSessionID>(tsid),
                                    trigger);
   }
