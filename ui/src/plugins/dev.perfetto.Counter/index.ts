@@ -116,7 +116,7 @@ export default class implements PerfettoPlugin {
     await this.addThreadCounterTracks(ctx);
     await this.addProcessCounterTracks(ctx);
 
-    ctx.selection.registerAreaSelectionAggreagtor(
+    ctx.selection.registerAreaSelectionAggregator(
       new CounterSelectionAggregator(),
     );
   }
