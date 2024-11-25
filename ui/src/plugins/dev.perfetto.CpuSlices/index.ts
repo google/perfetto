@@ -32,10 +32,10 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [ThreadPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.selection.registerAreaSelectionAggreagtor(
+    ctx.selection.registerAreaSelectionAggregator(
       new CpuSliceSelectionAggregator(),
     );
-    ctx.selection.registerAreaSelectionAggreagtor(
+    ctx.selection.registerAreaSelectionAggregator(
       new CpuSliceByProcessSelectionAggregator(),
     );
 
