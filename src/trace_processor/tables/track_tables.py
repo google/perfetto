@@ -27,7 +27,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
-from src.trace_processor.tables.metadata_tables import CPU_TABLE, MACHINE_TABLE
+from src.trace_processor.tables.metadata_tables import MACHINE_TABLE
 
 TRACK_TABLE = Table(
     python_module=__file__,
@@ -138,7 +138,7 @@ CPU_TRACK_TABLE = Table(
     class_name='CpuTrackTable',
     sql_name='__intrinsic_cpu_track',
     columns=[
-        C('ucpu', CppTableId(CPU_TABLE)),
+        C('cpu', CppUint32()),
     ],
     wrapping_sql_view=WrappingSqlView('cpu_track'),
     parent=TRACK_TABLE,
@@ -146,7 +146,7 @@ CPU_TRACK_TABLE = Table(
         doc='Tracks which are associated to a single CPU',
         group='Tracks',
         columns={
-            'ucpu': 'The unique CPU identifier associated with this track.',
+            'cpu': 'The CPU associated with this track.',
         }))
 
 GPU_TRACK_TABLE = Table(
@@ -238,7 +238,7 @@ CPU_COUNTER_TRACK_TABLE = Table(
     class_name='CpuCounterTrackTable',
     sql_name='__intrinsic_cpu_counter_track',
     columns=[
-        C('ucpu', CppTableId(CPU_TABLE)),
+        C('cpu', CppUint32()),
     ],
     wrapping_sql_view=WrappingSqlView('cpu_counter_track'),
     parent=COUNTER_TRACK_TABLE,
@@ -246,7 +246,7 @@ CPU_COUNTER_TRACK_TABLE = Table(
         doc='Tracks containing counter-like events associated to a CPU.',
         group='Counter Tracks',
         columns={
-            'ucpu': 'The unique CPU identifier associated with this track.'
+            'cpu': 'The unique CPU identifier associated with this track.'
         }))
 
 GPU_COUNTER_TRACK_TABLE = Table(

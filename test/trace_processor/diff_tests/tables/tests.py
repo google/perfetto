@@ -461,11 +461,11 @@ class Tables(TestSuite):
         query="""
         SELECT
           ct.type,
-          ct.ucpu,
-          c.cpu,
-          ct.machine_id
+          c.ucpu,
+          ct.cpu,
+          c.machine_id
         FROM cpu_track AS ct
-        JOIN cpu AS c ON ct.ucpu = c.id
+        JOIN cpu AS c ON ct.machine_id IS c.machine_id AND ct.cpu = c.cpu
         ORDER BY ct.type, c.cpu
         """,
         out=Csv("""
