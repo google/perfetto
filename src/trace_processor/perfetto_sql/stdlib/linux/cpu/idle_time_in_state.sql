@@ -41,8 +41,10 @@ idle_states AS (
   SELECT
     c.ts,
     c.value,
+    c.track_id,
+    t.machine_id,
     EXTRACT_ARG(t.dimension_arg_set_id, 'cpu_idle_state') as state,
-    EXTRACT_ARG(t.dimension_arg_set_id, 'ucpu') as ucpu
+    EXTRACT_ARG(t.dimension_arg_set_id, 'cpu') as cpu
   FROM counter c
   JOIN track t on c.track_id = t.id
   WHERE t.classification = 'cpu_idle_state'
@@ -51,14 +53,15 @@ residency_deltas AS (
   SELECT
     ts,
     state,
-    ucpu,
-    value - (LAG(value) OVER (PARTITION BY state, ucpu ORDER BY ts)) as delta
+    cpu,
+    machine_id,
+    value - (LAG(value) OVER (PARTITION BY track_id ORDER BY ts)) as delta
   FROM idle_states
 ),
 total_residency_calc AS (
   SELECT
     ts,
-    cpu.machine_id,
+    residency_deltas.machine_id,
     state AS state_name,
     SUM(delta) as total_residency,
     -- Perfetto timestamp is in nanoseconds whereas sysfs cpuidle time
@@ -68,11 +71,11 @@ total_residency_calc AS (
       (time_to_us(ts - LAG(ts, 1) over (PARTITION BY state ORDER BY ts)))
     )  as time_slice
   FROM residency_deltas
-  JOIN cpu USING (ucpu)
   -- The use of `IS` instead of `=` is intentional because machine_id can be
   -- null and we still want this join to work in that case.
-  JOIN cpu_counts_per_machine ON cpu.machine_id IS cpu_counts_per_machine.machine_id
-  GROUP BY ts, cpu.machine_id, state
+  JOIN cpu_counts_per_machine
+    ON residency_deltas.machine_id IS cpu_counts_per_machine.machine_id
+  GROUP BY ts, residency_deltas.machine_id, state
 )
 SELECT
   ts,

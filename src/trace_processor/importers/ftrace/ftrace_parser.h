@@ -335,7 +335,6 @@ class FtraceParser {
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
-  const StringId ucpu_id_;
   const StringId linux_device_name_id_;
   const StringId suspend_resume_name_id_;
   const StringId suspend_resume_minimal_name_id_;
