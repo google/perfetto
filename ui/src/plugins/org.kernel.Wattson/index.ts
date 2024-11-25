@@ -73,16 +73,16 @@ export default class implements PerfettoPlugin {
     // Register selection aggregators.
     // NOTE: the registration order matters because the laste two aggregators
     // depend on views created by the first two.
-    ctx.selection.registerAreaSelectionAggreagtor(
+    ctx.selection.registerAreaSelectionAggregator(
       new WattsonEstimateSelectionAggregator(),
     );
-    ctx.selection.registerAreaSelectionAggreagtor(
+    ctx.selection.registerAreaSelectionAggregator(
       new WattsonThreadSelectionAggregator(),
     );
-    ctx.selection.registerAreaSelectionAggreagtor(
+    ctx.selection.registerAreaSelectionAggregator(
       new WattsonProcessSelectionAggregator(),
     );
-    ctx.selection.registerAreaSelectionAggreagtor(
+    ctx.selection.registerAreaSelectionAggregator(
       new WattsonPackageSelectionAggregator(),
     );
   }
