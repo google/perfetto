@@ -124,6 +124,7 @@ static_library("perfetto_trace_protos") {
 
 perfetto_proto_library("test_extensions_@TYPE@") {
   proto_generators = []
+  deps = [ "track_event:@TYPE@" ]
   sources = [ "test_extensions.proto" ]
   generate_descriptor = "test_extensions.descriptor"
   descriptor_root_source = "test_extensions.proto"
