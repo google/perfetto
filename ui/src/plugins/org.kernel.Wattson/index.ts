@@ -15,7 +15,7 @@
 import {
   BaseCounterTrack,
   CounterOptions,
-} from '../../frontend/base_counter_track';
+} from '../../components/tracks/base_counter_track';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';

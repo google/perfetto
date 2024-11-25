@@ -17,7 +17,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.GpuWorkPeriod';

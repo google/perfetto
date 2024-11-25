@@ -19,12 +19,12 @@ import {
   ThreadStateExtra,
   isEmptyData,
 } from '../public/aggregation';
-import {colorForState} from '../public/lib/colorizer';
-import {DurationWidget} from '../public/lib/widgets/duration';
+import {colorForState} from '../components/colorizer';
+import {DurationWidget} from '../components/widgets/duration';
 import {EmptyState} from '../widgets/empty_state';
 import {Anchor} from '../widgets/anchor';
 import {Icons} from '../base/semantic_icons';
-import {translateState} from '../trace_processor/sql_utils/thread_state';
+import {translateState} from '../components/sql_utils/thread_state';
 import {TraceImpl} from '../core/trace_impl';
 
 export interface AggregationPanelAttrs {

@@ -19,7 +19,7 @@ import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {AreaSelectionAggregator} from '../../public/selection';
-import {translateState} from '../../trace_processor/sql_utils/thread_state';
+import {translateState} from '../../components/sql_utils/thread_state';
 import {TrackDescriptor} from '../../public/track';
 
 export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {

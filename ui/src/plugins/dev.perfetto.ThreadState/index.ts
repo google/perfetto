@@ -20,10 +20,10 @@ import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadStateTrack} from './thread_state_track';
 import {removeFalsyValues} from '../../base/array_utils';
 import {getThreadStateTable} from './table';
-import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
+import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
 import {TrackNode} from '../../public/workspace';
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
-import {extensions} from '../../public/lib/extensions';
+import {extensions} from '../../components/extensions';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {

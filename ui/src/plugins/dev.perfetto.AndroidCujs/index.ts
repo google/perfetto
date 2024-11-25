@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 
 /**
  * Adds the Debug Slice Track for given Jank CUJ name

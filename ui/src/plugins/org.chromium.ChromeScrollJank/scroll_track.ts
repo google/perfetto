@@ -15,7 +15,7 @@
 import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../../frontend/tracks/custom_sql_table_slice_track';
+} from '../../components/tracks/custom_sql_table_slice_track';
 import {TrackEventSelection} from '../../public/selection';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 

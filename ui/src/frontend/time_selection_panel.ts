@@ -26,7 +26,7 @@ import {Panel} from './panel_container';
 import {canvasClip} from '../base/canvas_utils';
 import {TimeScale} from '../base/time_scale';
 import {TraceImpl} from '../core/trace_impl';
-import {formatDuration} from '../public/lib/time_utils';
+import {formatDuration} from '../components/time_utils';
 import {TimestampFormat} from '../public/timeline';
 import {assertUnreachable} from '../base/logging';
 

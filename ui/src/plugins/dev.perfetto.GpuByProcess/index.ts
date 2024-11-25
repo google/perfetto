@@ -20,7 +20,7 @@ import {
   NAMED_ROW,
   NamedRow,
   NamedSliceTrack,
-} from '../../frontend/named_slice_track';
+} from '../../components/tracks/named_slice_track';
 import {TrackNode} from '../../public/workspace';
 class GpuPidTrack extends NamedSliceTrack {
   constructor(

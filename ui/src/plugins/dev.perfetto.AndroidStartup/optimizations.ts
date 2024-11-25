@@ -14,7 +14,7 @@
 
 import {Trace} from '../../public/trace';
 import {STR, LONG, NUM} from '../../trace_processor/query_result';
-import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 
 // The metadata container that keeps track of optimizations for packages that have startup events.

@@ -15,7 +15,7 @@
 import {NUM, STR} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addDebugSliceTrack} from '../../public/debug_tracks';
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidClientServer';
