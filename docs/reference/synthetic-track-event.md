@@ -48,7 +48,6 @@ packet {
 packet {
   track_descriptor: {
     uuid: 49083589894                   # 64-bit random number.
-    parent_uuid: 894893984              # UUID from above.
     thread: {
       pid: 1234                         # PID for your process.
       tid: 5678                         # TID for your thread.
