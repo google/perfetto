@@ -19,7 +19,7 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {Time} from '../../base/time';
 import {RouteArgs} from '../../public/route_schema';
 import {App} from '../../public/app';

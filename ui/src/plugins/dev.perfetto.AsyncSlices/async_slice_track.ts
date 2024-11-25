@@ -14,8 +14,11 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
-import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
+import {
+  NAMED_ROW,
+  NamedSliceTrack,
+} from '../../components/tracks/named_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_layout';
 import {TrackEventDetails} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {Slice} from '../../public/track';

@@ -23,7 +23,7 @@ import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
-import {CounterOptions} from '../../frontend/base_counter_track';
+import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';

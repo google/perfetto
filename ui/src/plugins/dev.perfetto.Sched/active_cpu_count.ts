@@ -18,7 +18,7 @@ import {sqliteString} from '../../base/string_utils';
 import {
   BaseCounterTrack,
   CounterOptions,
-} from '../../frontend/base_counter_track';
+} from '../../components/tracks/base_counter_track';
 import {TrackContext} from '../../public/track';
 import {Button} from '../../widgets/button';
 import {Trace} from '../../public/trace';

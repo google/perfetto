@@ -15,7 +15,7 @@
 import {
   createQueryCounterTrack,
   SqlDataSource,
-} from '../../public/lib/tracks/query_counter_track';
+} from '../../components/tracks/query_counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';

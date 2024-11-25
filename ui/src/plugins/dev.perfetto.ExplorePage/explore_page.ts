@@ -21,15 +21,15 @@ import {
   StandardColumn,
   ThreadColumnSet,
   TimestampColumn,
-} from '../../frontend/widgets/sql/table/well_known_columns';
-import {SqlTableState} from '../../frontend/widgets/sql/table/state';
-import {SqlTable} from '../../frontend/widgets/sql/table/table';
+} from '../../components/widgets/sql/table/well_known_columns';
+import {SqlTableState} from '../../components/widgets/sql/table/state';
+import {SqlTable} from '../../components/widgets/sql/table/table';
 import {exists} from '../../base/utils';
 import {Menu, MenuItem, MenuItemAttrs} from '../../widgets/menu';
 import {
   TableColumn,
   TableColumnSet,
-} from '../../frontend/widgets/sql/table/column';
+} from '../../components/widgets/sql/table/column';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -38,12 +38,12 @@ import {
   ChartOption,
   createChartConfigFromSqlTableState,
   renderChartComponent,
-} from '../../frontend/widgets/charts/chart';
-import {AddChartMenuItem} from '../../frontend/widgets/charts/add_chart_menu';
+} from '../../components/widgets/charts/chart';
+import {AddChartMenuItem} from '../../components/widgets/charts/add_chart_menu';
 import {
   CollapsiblePanel,
   CollapsiblePanelVisibility,
-} from '../../frontend/widgets/collapsible_panel';
+} from '../../components/widgets/collapsible_panel';
 
 interface ExploreTableState {
   sqlTableState?: SqlTableState;

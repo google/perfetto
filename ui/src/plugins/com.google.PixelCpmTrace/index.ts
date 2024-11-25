@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createQueryCounterTrack} from '../../public/lib/tracks/query_counter_track';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -39,7 +39,7 @@ export default class implements PerfettoPlugin {
     `);
 
     const it = result.iter({trackId: NUM, trackName: STR});
-    for (let group_added = false; it.valid(); it.next()) {
+    for (let groupAdded = false; it.valid(); it.next()) {
       const {trackId, trackName} = it;
       const uri = `/cpm_trace_${trackName}`;
       const track = await createQueryCounterTrack({
@@ -65,9 +65,9 @@ export default class implements PerfettoPlugin {
         track,
       });
       group.addChildInOrder(new TrackNode({uri, title: trackName}));
-      if (!group_added) {
+      if (!groupAdded) {
         ctx.workspace.addChildInOrder(group);
-        group_added = true;
+        groupAdded = true;
       }
     }
   }

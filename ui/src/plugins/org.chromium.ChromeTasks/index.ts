@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {asUtid} from '../../trace_processor/sql_utils/core_types';
+import {asUtid} from '../../components/sql_utils/core_types';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 import {TrackNode} from '../../public/workspace';
-import {extensions} from '../../public/lib/extensions';
+import {extensions} from '../../components/extensions';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeTasks';

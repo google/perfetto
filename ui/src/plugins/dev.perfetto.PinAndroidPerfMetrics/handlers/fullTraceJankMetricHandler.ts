@@ -19,7 +19,7 @@ import {
   MetricHandler,
 } from './metricUtils';
 import {Trace} from '../../../public/trace';
-import {addDebugSliceTrack} from '../../../public/debug_tracks';
+import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 class FullTraceJankMetricHandler implements MetricHandler {
   /**

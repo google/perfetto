@@ -14,9 +14,9 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {CounterOptions} from '../../frontend/base_counter_track';
+import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {TrackNode} from '../../public/workspace';
-import {createQueryCounterTrack} from '../../public/lib/tracks/query_counter_track';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuidleTimeInState';

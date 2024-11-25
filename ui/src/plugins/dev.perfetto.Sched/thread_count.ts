@@ -15,7 +15,7 @@
 import {
   BaseCounterTrack,
   CounterOptions,
-} from '../../frontend/base_counter_track';
+} from '../../components/tracks/base_counter_track';
 import {Trace} from '../../public/trace';
 
 abstract class ThreadCountTrack extends BaseCounterTrack {

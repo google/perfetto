@@ -24,7 +24,7 @@ import {Trace} from '../../../public/trace';
 // TODO(primiano): make deps check stricter, we shouldn't allow plugins to
 // depend on each other.
 import {focusOnSlice} from '../../dev.perfetto.AndroidCujs/trackUtils';
-import {addDebugSliceTrack} from '../../../public/debug_tracks';
+import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 const ENABLE_FOCUS_ON_FIRST_JANK = true;
 

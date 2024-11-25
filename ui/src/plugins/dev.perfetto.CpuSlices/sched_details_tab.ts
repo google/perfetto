@@ -19,17 +19,17 @@ import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {DurationWidget} from '../../public/lib/widgets/duration';
-import {Timestamp} from '../../public/lib/widgets/timestamp';
-import {asSchedSqlId} from '../../trace_processor/sql_utils/core_types';
+import {DurationWidget} from '../../components/widgets/duration';
+import {Timestamp} from '../../components/widgets/timestamp';
+import {asSchedSqlId} from '../../components/sql_utils/core_types';
 import {
   getSched,
   getSchedWakeupInfo,
   Sched,
   SchedWakeupInfo,
-} from '../../trace_processor/sql_utils/sched';
+} from '../../components/sql_utils/sched';
 import {exists} from '../../base/utils';
-import {translateState} from '../../trace_processor/sql_utils/thread_state';
+import {translateState} from '../../components/sql_utils/thread_state';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
