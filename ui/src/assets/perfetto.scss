@@ -27,10 +27,6 @@
 @import "trace_info_page";
 @import "flags_page";
 @import "hiring_banner";
-@import "viz_page";
-@import "widgets_page";
-@import "plugins_page";
-@import "explore_page";
 
 // Widgets - keep these sorted (they should NOT have any inter-dependencies)
 @import "widgets/anchor";
@@ -67,3 +63,7 @@
 @import "widgets/vega_view";
 @import "widgets/virtual_scroll_container";
 @import "widgets/virtual_table";
+
+// Auto generated imports
+@import "../gen/all_plugins";
+@import "../gen/all_core_plugins";
