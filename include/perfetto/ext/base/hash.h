@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -33,7 +34,7 @@ namespace base {
 class Hasher {
  public:
   // Creates an empty hash object
-  Hasher() {}
+  constexpr Hasher() = default;
 
   // Hashes a numeric value.
   template <
@@ -43,14 +44,16 @@ class Hasher {
     Update(reinterpret_cast<const char*>(&data), sizeof(data));
   }
 
+  constexpr void Update(char c) { return Update(&c, 1); }
+
   // Using the loop instead of "Update(str, strlen(str))" to avoid looping twice
-  void Update(const char* str) {
+  constexpr void Update(const char* str) {
     for (const auto* p = str; *p; ++p)
       Update(*p);
   }
 
   // Hashes a byte array.
-  void Update(const char* data, size_t size) {
+  constexpr void Update(const char* data, size_t size) {
     for (size_t i = 0; i < size; i++) {
       result_ ^= static_cast<uint8_t>(data[i]);
       // Note: Arithmetic overflow of unsigned integers is well defined in C++
@@ -60,32 +63,47 @@ class Hasher {
     }
   }
 
-  // Allow hashing anything that has a |data| field, a |size| field,
-  // and has the kHashable trait (e.g., base::StringView).
+  // Allow hashing anything that has `data` and `size` and has the kHashable
+  // trait (e.g., base::StringView).
   template <typename T, typename = std::enable_if_t<T::kHashable>>
-  void Update(const T& t) {
-    Update(t.data(), t.size());
+  constexpr void Update(const T& t) {
+    if constexpr (std::is_member_function_pointer_v<decltype(&T::data)>) {
+      Update(t.data(), t.size());
+    } else {
+      Update(t.data, t.size);
+    }
   }
 
-  void Update(const std::string& s) { Update(s.data(), s.size()); }
+  constexpr void Update(std::string_view s) { Update(s.data(), s.size()); }
 
-  uint64_t digest() const { return result_; }
+  constexpr uint64_t digest() const { return result_; }
 
   // Usage:
   // uint64_t hashed_value = Hash::Combine(33, false, "ABC", 458L, 3u, 'x');
   template <typename... Ts>
-  static uint64_t Combine(Ts&&... args) {
+  static constexpr uint64_t Combine(Ts&&... args) {
     Hasher hasher;
     hasher.UpdateAll(std::forward<Ts>(args)...);
     return hasher.digest();
   }
 
+  // Creates a hasher with `args` already hashed.
+  //
+  // Usage:
+  // Hasher partial = Hash::CreatePartial(33, false, "ABC", 458L);
+  template <typename... Ts>
+  static constexpr Hasher CreatePartial(Ts&&... args) {
+    Hasher hasher;
+    hasher.UpdateAll(std::forward<Ts>(args)...);
+    return hasher;
+  }
+
   // `hasher.UpdateAll(33, false, "ABC")` is shorthand for:
   // `hasher.Update(33); hasher.Update(false); hasher.Update("ABC");`
-  void UpdateAll() {}
+  constexpr void UpdateAll() {}
 
   template <typename T, typename... Ts>
-  void UpdateAll(T&& arg, Ts&&... args) {
+  constexpr void UpdateAll(T&& arg, Ts&&... args) {
     Update(arg);
     UpdateAll(std::forward<Ts>(args)...);
   }
