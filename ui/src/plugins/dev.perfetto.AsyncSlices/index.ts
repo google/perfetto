@@ -71,7 +71,7 @@ export default class implements PerfettoPlugin {
       },
     });
 
-    ctx.selection.registerAreaSelectionAggreagtor(
+    ctx.selection.registerAreaSelectionAggregator(
       new SliceSelectionAggregator(),
     );
 

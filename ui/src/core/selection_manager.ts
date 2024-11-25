@@ -75,7 +75,7 @@ export class SelectionManagerImpl implements SelectionManager {
     );
   }
 
-  registerAreaSelectionAggreagtor(aggr: AreaSelectionAggregator): void {
+  registerAreaSelectionAggregator(aggr: AreaSelectionAggregator): void {
     this._aggregationManager.registerAggregator(aggr);
   }
 
