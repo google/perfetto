@@ -176,7 +176,7 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
     // table to JSON export.
     for (auto it = bundle.metadata(); it; ++it) {
       protos::pbzero::ChromeMetadata::Decoder metadata(*it);
-      Variadic value;
+      Variadic value = Variadic::Null();
       if (metadata.has_string_value()) {
         value =
             Variadic::String(storage->InternString(metadata.string_value()));

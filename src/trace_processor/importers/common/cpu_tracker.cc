@@ -16,10 +16,13 @@
 
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 
-#include "perfetto/base/logging.h"
-#include "perfetto/public/compiler.h"
+#include <cstdint>
+#include <optional>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 
 namespace perfetto::trace_processor {
 
@@ -38,8 +41,6 @@ CpuTracker::CpuTracker(TraceProcessorContext* context) : context_(context) {
     context_->storage->mutable_cpu_table()->Insert(cpu_row);
   }
 }
-
-CpuTracker::~CpuTracker() = default;
 
 tables::CpuTable::Id CpuTracker::SetCpuInfo(uint32_t cpu,
                                             base::StringView processor,

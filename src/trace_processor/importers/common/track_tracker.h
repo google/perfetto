@@ -63,8 +63,9 @@ class TrackTracker {
     explicit DimensionsBuilder(TrackTracker* tt) : tt_(tt) {}
 
     // Append CPU dimension of a track.
-    void AppendUcpu(tables::CpuTable::Id ucpu) {
-      AppendDimension(tt_->ucpu_id_, Variadic::Integer(ucpu.value));
+    void AppendCpu(uint32_t cpu) {
+      tt_->MarkCpuValid(cpu);
+      AppendDimension(tt_->cpu_id_, Variadic::Integer(cpu));
     }
 
     // Append Utid (unique tid) dimension of a track.
@@ -329,6 +330,8 @@ class TrackTracker {
   StringId StringIdFromTrackName(tracks::TrackClassification classification,
                                  const TrackTracker::TrackName& name);
 
+  void MarkCpuValid(uint32_t cpu);
+
   Dimensions SingleDimension(StringId key, const Variadic& val) {
     std::array args{GlobalArgsTracker::CompactArg{key, key, val}};
     return Dimensions{
@@ -352,7 +355,7 @@ class TrackTracker {
 
   const StringId utid_id_;
   const StringId upid_id_;
-  const StringId ucpu_id_;
+  const StringId cpu_id_;
   const StringId uid_id_;
   const StringId gpu_id_;
   const StringId name_id_;

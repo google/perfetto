@@ -953,12 +953,8 @@ class TraceStorage {
   Variadic GetArgValue(uint32_t row) const {
     auto rr = arg_table_[row];
 
-    Variadic v;
+    Variadic v = Variadic::Null();
     v.type = *GetVariadicTypeForId(rr.value_type());
-
-    // Force initialization of union to stop GCC complaining.
-    v.int_value = 0;
-
     switch (v.type) {
       case Variadic::Type::kBool:
         v.bool_value = static_cast<bool>(*rr.int_value());
