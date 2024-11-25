@@ -649,7 +649,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->cpu_counter_track_table()[0].ucpu().value, 10u);
+  EXPECT_EQ(context_.storage->cpu_counter_track_table()[0].cpu(), 10u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
@@ -672,10 +672,10 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
 
   auto row = context_.storage->cpu_counter_track_table().FindById(TrackId(0));
   EXPECT_EQ(context_.storage->GetString(row->name()), "cpufreq");
-  EXPECT_EQ(row->ucpu().value, 0u);
+  EXPECT_EQ(row->cpu(), 0u);
 
   row = context_.storage->cpu_counter_track_table().FindById(TrackId(1));
-  EXPECT_EQ(row->ucpu().value, 1u);
+  EXPECT_EQ(row->cpu(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuIdleStats) {

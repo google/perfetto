@@ -70,12 +70,16 @@ enum TrackClassification : size_t {
   PERFETTO_TP_TRACKS(PERFETTO_TP_TRACKS_CLASSIFICATION_ENUM)
 };
 
+namespace internal {
+
 #define PERFETTO_TP_TRACKS_CLASSIFICATION_STR(name) #name,
 constexpr std::array kTrackClassificationStr{
     PERFETTO_TP_TRACKS(PERFETTO_TP_TRACKS_CLASSIFICATION_STR)};
 
+}  // namespace internal
+
 constexpr const char* ToString(TrackClassification c) {
-  return kTrackClassificationStr[c];
+  return internal::kTrackClassificationStr[c];
 }
 
 }  // namespace perfetto::trace_processor::tracks

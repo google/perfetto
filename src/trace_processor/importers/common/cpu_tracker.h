@@ -43,7 +43,6 @@ class CpuTracker {
   static constexpr uint32_t kMaxCpusPerMachine = 4096;
 
   explicit CpuTracker(TraceProcessorContext*);
-  ~CpuTracker();
 
   tables::CpuTable::Id GetOrCreateCpu(uint32_t cpu) {
     // CPU core number is in the range of 0..kMaxCpusPerMachine-1.
@@ -57,6 +56,16 @@ class CpuTracker {
     auto& cpu_table = *context_->storage->mutable_cpu_table();
     cpu_table[ucpu].set_cpu(cpu);
     return tables::CpuTable::Id(ucpu);
+  }
+
+  void MarkCpuValid(uint32_t cpu) {
+    PERFETTO_CHECK(cpu < kMaxCpusPerMachine);
+    if (PERFETTO_LIKELY(cpu_ids_[cpu])) {
+      return;
+    }
+    auto ucpu = ucpu_offset_ + cpu;
+    auto& cpu_table = *context_->storage->mutable_cpu_table();
+    cpu_table[ucpu].set_cpu(cpu);
   }
 
   // Sets or updates the information for the specified CPU in the CpuTable.

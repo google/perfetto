@@ -344,7 +344,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
-      ucpu_id_(context->storage->InternString("ucpu")),
       linux_device_name_id_(
           context->storage->InternString("linux_device_name")),
       suspend_resume_name_id_(
@@ -3518,8 +3517,7 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
                          context_->process_tracker->GetOrCreateThread(tid)));
     inserter->AddArg(suspend_resume_event_type_arg_name_,
                      Variadic::String(suspend_resume_main_event_id_));
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-    inserter->AddArg(ucpu_id_, Variadic::UnsignedInteger(ucpu.value));
+    inserter->AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
 
     // These fields are set to null as this is not a device PM callback event.
     inserter->AddArg(suspend_resume_device_arg_name_,
@@ -3777,8 +3775,7 @@ void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
                          context_->process_tracker->GetOrCreateThread(tid)));
     inserter->AddArg(suspend_resume_event_type_arg_name_,
                      Variadic::String(suspend_resume_device_pm_event_id_));
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-    inserter->AddArg(ucpu_id_, Variadic::UnsignedInteger(ucpu.value));
+    inserter->AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
     inserter->AddArg(
         suspend_resume_device_arg_name_,
         Variadic::String(context_->storage->InternString(device_name.c_str())));

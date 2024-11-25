@@ -378,14 +378,13 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       continue;
     }
 
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(ct.cpu_id());
     auto intern_track =
         [&, this](TrackTracker::LegacyCharArrayName name) -> TrackId {
       auto builder = context_->track_tracker->CreateDimensionsBuilder();
       builder.AppendDimension(
           cpu_stat_counter_name_id_,
           Variadic::String(context_->storage->InternString(name.name)));
-      builder.AppendUcpu(ucpu);
+      builder.AppendCpu(ct.cpu_id());
       return context_->track_tracker->InternCounterTrack(
           tracks::cpu_stat, std::move(builder).Build(), name);
     };
@@ -527,7 +526,6 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::CpuIdleState::Decoder cpuidle_state(blob);
   uint32_t cpu_id = cpuidle_state.cpu_id();
-  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu_id);
   for (auto cpuidle_field = cpuidle_state.cpuidle_state_entry(); cpuidle_field;
        ++cpuidle_field) {
     protos::pbzero::SysStats::CpuIdleStateEntry::Decoder idle(*cpuidle_field);
@@ -537,7 +535,7 @@ void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
     dims_builder.AppendDimension(
         cpu_idle_state_id_,
         Variadic::String(context_->storage->InternString(idle.state())));
-    dims_builder.AppendUcpu(ucpu);
+    dims_builder.AppendCpu(cpu_id);
     TrackId track = context_->track_tracker->InternTrack(
         tracks::cpu_idle_state, std::move(dims_builder).Build());
 

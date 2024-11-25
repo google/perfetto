@@ -54,7 +54,7 @@ class ParsingSysStats(TestSuite):
           ts,
           EXTRACT_ARG(t.dimension_arg_set_id, 'cpu_idle_state') as state,
           value,
-          EXTRACT_ARG(t.dimension_arg_set_id, 'ucpu') as cpu
+          EXTRACT_ARG(t.dimension_arg_set_id, 'cpu') as cpu
         FROM counter c
         JOIN track t on c.track_id = t.id
         ORDER BY ts;
