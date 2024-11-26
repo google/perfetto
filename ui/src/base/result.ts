@@ -12,54 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export enum ResultStatus {
-  PENDING = 'pending',
-  SUCCESS = 'success',
-  ERROR = 'error',
-}
-
-export interface PendingResult {
-  status: ResultStatus.PENDING;
-}
+// Generic result type - similar to Rust's Result<T, E> or ABSL's StatusOr<T>.
 
 export interface ErrorResult {
-  status: ResultStatus.ERROR;
+  ok: false;
   error: string;
 }
 
-export interface SuccessResult<T> {
-  status: ResultStatus.SUCCESS;
-  data: T;
+export interface OkResult<T> {
+  ok: true;
+  value: T;
 }
 
-export type Result<T> = PendingResult | ErrorResult | SuccessResult<T>;
+export type Result<T> = ErrorResult | OkResult<T>;
 
-export function isError<T>(result: Result<T>): result is ErrorResult {
-  return result.status === ResultStatus.ERROR;
+export function errResult(message: string): ErrorResult {
+  return {ok: false, error: message};
 }
 
-export function isPending<T>(result: Result<T>): result is PendingResult {
-  return result.status === ResultStatus.PENDING;
-}
-
-export function isSuccess<T>(result: Result<T>): result is SuccessResult<T> {
-  return result.status === ResultStatus.SUCCESS;
-}
-
-export function pending(): PendingResult {
-  return {status: ResultStatus.PENDING};
-}
-
-export function error(message: string): ErrorResult {
-  return {
-    status: ResultStatus.ERROR,
-    error: message,
-  };
-}
-
-export function success<T>(data: T): SuccessResult<T> {
-  return {
-    status: ResultStatus.SUCCESS,
-    data,
-  };
+export function okResult<T>(value: T): OkResult<T> {
+  return {ok: true, value};
 }
