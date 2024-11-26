@@ -15,6 +15,31 @@
 
 INCLUDE PERFETTO MODULE prelude.after_eof.casts;
 
+-- Counters are values put into tracks during parsing of the trace.
+CREATE PERFETTO VIEW counter(
+  -- Unique id of a counter value
+  id ID,
+  -- Time of fetching the counter value.
+  ts TIMESTAMP,
+  -- Track this counter value belongs to.
+  track_id LONG,
+  -- Value.
+  value DOUBLE,
+  -- Additional information about the counter value.
+  arg_set_id LONG,
+  -- Legacy column, should no longer be used.
+  type STRING
+) AS
+SELECT
+  id,
+  ts,
+  track_id,
+  value,
+  arg_set_id,
+  type
+FROM __intrinsic_counter;
+
+
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters(
   -- Alias of `counter.id`.
@@ -45,7 +70,7 @@ ORDER BY ts;
 -- during the trace.
 CREATE PERFETTO VIEW slice(
   -- The id of the slice.
-  id LONG,
+  id ID,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The timestamp at the start of the slice.
@@ -155,13 +180,13 @@ SELECT * FROM slice;
 -- Contains information of threads seen during the trace.
 CREATE PERFETTO VIEW thread(
   -- The id of the thread. Prefer using `utid` instead.
-  id LONG,
+  id ID,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- Unique thread id. This is != the OS tid. This is a monotonic number
   -- associated to each thread. The OS thread id (tid) cannot be used as primary
   -- key because tids and pids are recycled by most kernels.
-  utid LONG,
+  utid ID,
   -- The OS id for this thread. Note: this is *not* unique over the lifetime of
   -- the trace so cannot be used as a primary key. Use |utid| instead.
   tid LONG,
@@ -189,7 +214,7 @@ FROM __intrinsic_thread;
 -- Contains information of processes seen during the trace.
 CREATE PERFETTO VIEW process(
   -- The id of the process. Prefer using `upid` instead.
-  id LONG,
+  id ID,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- Unique process id. This is != the OS pid. This is a monotonic number
@@ -232,7 +257,7 @@ FROM __intrinsic_process;
 -- will be non-null.
 CREATE PERFETTO VIEW args(
   -- The id of the arg.
-  id LONG,
+  id ID,
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The id for a single set of arguments.

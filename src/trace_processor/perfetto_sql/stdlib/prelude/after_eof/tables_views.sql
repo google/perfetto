@@ -200,7 +200,7 @@ FROM
 -- Shorter alias for table `sched_slice`.
 CREATE PERFETTO VIEW sched(
   -- Alias for `sched_slice.id`.
-  id LONG,
+  id ID,
   -- Alias for `sched_slice.type`.
   type STRING,
   -- Alias for `sched_slice.ts`.
