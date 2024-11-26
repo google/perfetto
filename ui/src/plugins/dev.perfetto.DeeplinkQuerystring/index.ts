@@ -48,7 +48,7 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace) {
-    trace.addEventListener('traceready', async () => {
+    trace.onTraceReady.addListener(async () => {
       const initialRouteArgs = routeArgsForFirstTrace;
       routeArgsForFirstTrace = undefined;
       if (initialRouteArgs === undefined) return;

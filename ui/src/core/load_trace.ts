@@ -253,9 +253,8 @@ async function loadTraceIntoEngine(
     }
   }
 
-  for (const callback of trace.getEventListeners('traceready')) {
-    await callback();
-  }
+  // notify() will await that all listeners' promises have resolved.
+  await trace.onTraceReady.notify();
 
   if (serializedAppState !== undefined) {
     // Wait that plugins have completed their actions and then proceed with
