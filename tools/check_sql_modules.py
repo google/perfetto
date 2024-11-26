@@ -131,9 +131,8 @@ def main():
     ]
 
     if errors:
-      sys.stderr.write(
-          f"\nFound {len(errors)} errors in file '{path.split(ROOT_DIR)[1]}':\n- "
-      )
+      sys.stderr.write(f"\nFound {len(errors)} errors in file "
+                       f"'{os.path.normpath(path)}':\n- ")
       sys.stderr.write("\n- ".join(errors))
       sys.stderr.write("\n\n")
 
