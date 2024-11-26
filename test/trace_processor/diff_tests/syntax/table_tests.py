@@ -68,7 +68,7 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_boot.pftrace'),
         query="""
-        SELECT * FROM perfetto_table_info('counter');
+        SELECT * FROM perfetto_table_info('__intrinsic_counter');
         """,
         out=Csv("""
         "id","type","name","col_type","nullable","sorted"

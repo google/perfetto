@@ -59,14 +59,14 @@ class AndroidParser(TestSuite):
         }
         """),
         query="""
-        SELECT t.type, t.name, c.id, c.ts, c.type, c.value
+        SELECT t.type, t.name, c.id, c.ts, c.value
         FROM counter_track t JOIN counter c ON t.id = c.track_id
         WHERE name = 'ScreenState';
         """,
         out=Csv("""
-        "type","name","id","ts","type","value"
-        "counter_track","ScreenState",0,1000,"counter",2.000000
-        "counter_track","ScreenState",1,2000,"counter",1.000000
+        "type","name","id","ts","value"
+        "counter_track","ScreenState",0,1000,2.000000
+        "counter_track","ScreenState",1,2000,1.000000
         """))
 
   def test_android_system_property_slice(self):
@@ -248,13 +248,13 @@ class AndroidParser(TestSuite):
         }
         """),
         query="""
-        SELECT t.type, t.name, c.id, c.ts, c.type, c.value
+        SELECT t.type, t.name, c.id, c.ts, c.value
         FROM counter_track t JOIN counter c ON t.id = c.track_id
         WHERE name = 'ScreenState'
           AND t.machine_id IS NOT NULL;
         """,
         out=Csv("""
-        "type","name","id","ts","type","value"
-        "counter_track","ScreenState",0,1000,"counter",2.000000
-        "counter_track","ScreenState",1,2000,"counter",1.000000
+        "type","name","id","ts","value"
+        "counter_track","ScreenState",0,1000,2.000000
+        "counter_track","ScreenState",1,2000,1.000000
         """))

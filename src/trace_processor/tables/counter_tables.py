@@ -29,7 +29,7 @@ from src.trace_processor.tables.track_tables import COUNTER_TRACK_TABLE
 COUNTER_TABLE = Table(
     python_module=__file__,
     class_name='CounterTable',
-    sql_name='counter',
+    sql_name='__intrinsic_counter',
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('track_id', CppTableId(COUNTER_TRACK_TABLE)),
