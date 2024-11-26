@@ -1667,8 +1667,8 @@ void TracingMuxerImpl::ClearDataSourceIncrementalState(
 
   // Make DataSource::TraceContext::GetIncrementalState() eventually notice that
   // the incremental state should be cleared.
-  ds.static_state->incremental_state_generation.fetch_add(
-      1, std::memory_order_relaxed);
+  ds.static_state->GetUnsafe(ds.instance_idx)
+      ->incremental_state_generation.fetch_add(1, std::memory_order_relaxed);
 }
 
 bool TracingMuxerImpl::FlushDataSource_AsyncBegin(
