@@ -67,7 +67,7 @@ export default class implements PerfettoPlugin {
     await this.addProcessGroups();
     await this.addThreadGroups();
 
-    ctx.addEventListener('traceready', () => {
+    ctx.onTraceReady.addListener(() => {
       // If, by the time the trace has finished loading, some of the process or
       // thread group tracks nodes have no children, just remove them.
       const removeIfEmpty = (g: TrackNode) => {

@@ -103,7 +103,7 @@ export default class implements PerfettoPlugin {
       group?.addChildInOrder(track);
     }
 
-    ctx.addEventListener('traceready', async () => {
+    ctx.onTraceReady.addListener(async () => {
       await selectFirstHeapProfile(ctx);
     });
   }

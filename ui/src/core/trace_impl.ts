@@ -16,7 +16,7 @@ import {DisposableStack} from '../base/disposable_stack';
 import {createStore, Migrate, Store} from '../base/store';
 import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
-import {EventListeners, Trace} from '../public/trace';
+import {Trace} from '../public/trace';
 import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
 import {TrackDescriptor} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
@@ -51,6 +51,7 @@ import {featureFlags} from './feature_flags';
 import {SerializedAppState} from './state_serialization_schema';
 import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
+import {EvtSource} from '../base/events';
 
 /**
  * Handles the per-trace state of the UI
@@ -78,7 +79,7 @@ export class TraceContext implements Disposable {
   readonly scrollHelper: ScrollHelper;
   readonly pivotTableMgr;
   readonly trash = new DisposableStack();
-  readonly eventListeners = new Map<keyof EventListeners, Array<unknown>>();
+  readonly onTraceReady = new EvtSource<void>();
 
   // List of errors that were encountered while loading the trace by the TS
   // code. These are on top of traceInfo.importErrors, which is a summary of
@@ -438,27 +439,8 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromBuffer(args);
   }
 
-  addEventListener<T extends keyof EventListeners>(
-    event: T,
-    callback: EventListeners[T],
-  ): void {
-    const listeners = getOrCreate(
-      this.traceCtx.eventListeners,
-      event,
-      () => [],
-    );
-    listeners.push(callback);
-  }
-
-  getEventListeners<T extends keyof EventListeners>(
-    event: T,
-  ): ReadonlyArray<EventListeners[T]> {
-    const listeners = this.traceCtx.eventListeners.get(event);
-    if (listeners) {
-      return listeners as ReadonlyArray<EventListeners[T]>;
-    } else {
-      return [];
-    }
+  get onTraceReady() {
+    return this.traceCtx.onTraceReady;
   }
 
   get perfDebugging(): PerfManager {
