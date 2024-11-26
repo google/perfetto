@@ -24,6 +24,7 @@ import {SelectionManager} from './selection';
 import {ScrollToArgs} from './scroll_helper';
 import {NoteManager} from './note';
 import {DisposableStack} from '../base/disposable_stack';
+import {Evt} from '../base/events';
 
 // Lists all the possible event listeners using the key as the event name and
 // the type as the type of the callback.
@@ -50,6 +51,9 @@ export interface Trace extends App {
   readonly workspaces: WorkspaceManager;
   readonly traceInfo: TraceInfo;
 
+  // Events.
+  onTraceReady: Evt<void>;
+
   // Scrolls to the given track and/or time. Does NOT change the current
   // selection.
   scrollTo(args: ScrollToArgs): void;
@@ -75,12 +79,6 @@ export interface Trace extends App {
 
   // Trace scoped disposables. Will be destroyed when the trace is unloaded.
   readonly trash: DisposableStack;
-
-  // Register event listeners for trace-level events, e.g. trace ready
-  addEventListener<T extends keyof EventListeners>(
-    event: T,
-    callback: EventListeners[T],
-  ): void;
 }
 
 /**

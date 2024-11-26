@@ -52,7 +52,7 @@ const MISC_GROUP = 'Misc Global Tracks';
 export default class implements PerfettoPlugin {
   static readonly id = 'perfetto.GlobalGroups';
   async onTraceLoad(trace: Trace): Promise<void> {
-    trace.addEventListener('traceready', () => {
+    trace.onTraceReady.addListener(() => {
       groupGlobalIonTracks(trace);
       groupGlobalIostatTracks(trace, F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
       groupGlobalIostatTracks(

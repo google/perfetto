@@ -84,7 +84,7 @@ export default class implements PerfettoPlugin {
      * TODO(stevegolton): Update this comment if the semantics of track adding
      * changes.
      */
-    trace.addEventListener('traceready', async () => {
+    trace.onTraceReady.addListener(async () => {
       console.log('SkeletonPlugin::traceready');
     });
   }
