@@ -35,7 +35,8 @@ import {
   WritableQueryResult,
 } from './query_result';
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
-import {exists, Result} from '../base/utils';
+import {exists} from '../base/utils';
+import {errResult, okResult, Result} from '../base/result';
 
 export type EngineMode = 'WASM' | 'HTTP_RPC';
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
@@ -82,7 +83,7 @@ export interface Engine {
    * @param sql The query to execute.
    * @param tag An optional tag used to trace the origin of the query.
    */
-  tryQuery(sql: string, tag?: string): Promise<Result<QueryResult, Error>>;
+  tryQuery(sql: string, tag?: string): Promise<Result<QueryResult>>;
 
   /**
    * Execute one or more metric and get the result.
@@ -440,16 +441,13 @@ export abstract class EngineBase implements Engine, Disposable {
     }
   }
 
-  async tryQuery(
-    sql: string,
-    tag?: string,
-  ): Promise<Result<QueryResult, Error>> {
+  async tryQuery(sql: string, tag?: string): Promise<Result<QueryResult>> {
     try {
       const result = await this.query(sql, tag);
-      return {success: true, result};
-    } catch (error: unknown) {
-      // We know we only throw Error type objects so we can type assert safely
-      return {success: false, error: error as Error};
+      return okResult(result);
+    } catch (error) {
+      const msg = 'message' in error ? `${error.message}` : `${error}`;
+      return errResult(msg);
     }
   }
 
@@ -561,15 +559,9 @@ export class EngineProxy implements Engine, Disposable {
     return await this.engine.query(query, tag);
   }
 
-  async tryQuery(
-    query: string,
-    tag?: string,
-  ): Promise<Result<QueryResult, Error>> {
+  async tryQuery(query: string, tag?: string): Promise<Result<QueryResult>> {
     if (!this._isAlive) {
-      return {
-        success: false,
-        error: new Error(`EngineProxy ${this.tag} was disposed.`),
-      };
+      return errResult(`EngineProxy ${this.tag} was disposed`);
     }
     return await this.engine.tryQuery(query, tag);
   }

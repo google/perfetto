@@ -48,8 +48,8 @@ export async function runQuery(
 
   const maybeResult = await engine.tryQuery(sqlQuery);
 
-  if (maybeResult.success) {
-    const queryRes = maybeResult.result;
+  if (maybeResult.ok) {
+    const queryRes = maybeResult.value;
     const convertNullsToString = params?.convertNullsToString ?? true;
 
     const durationMs = performance.now() - startMs;
@@ -86,7 +86,7 @@ export async function runQuery(
     return {
       query: sqlQuery,
       durationMs: performance.now() - startMs,
-      error: maybeResult.error.message,
+      error: maybeResult.error,
       totalRowCount: 0,
       columns: [],
       rows: [],
