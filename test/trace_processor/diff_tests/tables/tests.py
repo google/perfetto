@@ -305,18 +305,32 @@ class Tables(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE sched.thread_state_flattened;
-      select * from _get_flattened_thread_state_aggregated(11155, NULL);
-      """,
+          INCLUDE PERFETTO MODULE sched.thread_state_flattened;
+          select *
+          from _get_flattened_thread_state_aggregated(11155, NULL);
+        """,
         out=Path('thread_state_flattened_aggregated_csv.out'))
 
   def test_thread_state_flattened(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE sched.thread_state_flattened;
-      select * from _get_flattened_thread_state(11155, NULL);
-      """,
+          INCLUDE PERFETTO MODULE sched.thread_state_flattened;
+          SELECT
+            ts,
+            dur,
+            utid,
+            depth,
+            name,
+            slice_id,
+            cpu,
+            state,
+            io_wait,
+            blocked_function,
+            waker_utid,
+            irq_context
+          FROM _get_flattened_thread_state(11155, NULL);
+        """,
         out=Path('thread_state_flattened_csv.out'))
 
   def test_metadata(self):

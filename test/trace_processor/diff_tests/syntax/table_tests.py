@@ -349,64 +349,102 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        CREATE PERFETTO INDEX foo ON __intrinsic_slice(track_id, name);
+          CREATE PERFETTO INDEX foo ON __intrinsic_slice(track_id, name);
 
-        SELECT
-          MIN(track_id) AS min_track_id,
-          MAX(name) AS min_name
-        FROM __intrinsic_slice
-        WHERE track_id = 13 AND name > "c"
+          WITH
+            ttid AS (
+              SELECT thread_track.id
+              FROM thread_track
+              JOIN thread USING (utid)
+              WHERE thread.name = 'android.bg'
+              LIMIT 1
+            ),
+            agg AS MATERIALIZED (
+              SELECT
+                MIN(track_id) AS min_track_id,
+                MAX(name) AS min_name
+              FROM __intrinsic_slice
+              WHERE track_id = (SELECT id FROM ttid) AND name > "c"
+            )
+            SELECT
+              min_track_id = (SELECT id FROM ttid) AS is_correct_track_id,
+              min_name
+            FROM agg
         """,
         out=Csv("""
-        "min_track_id","min_name"
-        13,"virtual bool art::ElfOatFile::Load(const std::string &, bool, bool, bool, art::MemMap *, std::string *)"
+          "is_correct_track_id","min_name"
+          1,"virtual bool art::ElfOatFile::Load(const std::string &, bool, bool, bool, art::MemMap *, std::string *)"
         """))
 
   def test_create_perfetto_index_multiple_smoke(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
-        CREATE PERFETTO TABLE bar AS SELECT * FROM slice;
+          CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
+          CREATE PERFETTO TABLE bar AS SELECT * FROM slice;
 
-       SELECT (
-          SELECT count()
-          FROM bar
-          WHERE track_id = 13 AND dur > 1000 AND name > "b"
-        ) AS non_indexes_stats,
-        (
-          SELECT count()
-          FROM slice
-          WHERE track_id = 13 AND dur > 1000 AND name > "b"
-        ) AS indexed_stats
+          WITH ttid AS (
+            SELECT thread_track.id
+            FROM thread_track
+            JOIN thread USING (utid)
+            WHERE thread.name = 'android.bg'
+            LIMIT 1
+          )
+          SELECT (
+            SELECT count()
+            FROM bar
+            WHERE track_id = (SELECT id FROM ttid) AND dur > 1000 AND name > "b"
+          ) AS non_indexes_stats,
+          (
+            SELECT count()
+            FROM __intrinsic_slice
+            WHERE track_id = (SELECT id FROM ttid) AND dur > 1000 AND name > "b"
+          ) AS indexed_stats
         """,
         out=Csv("""
-        "non_indexes_stats","indexed_stats"
-        39,39
+          "non_indexes_stats","indexed_stats"
+          39,39
         """))
 
   def test_create_or_replace_perfetto_index(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
-        CREATE OR REPLACE PERFETTO INDEX idx ON __intrinsic_slice(name);
+          CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
+          CREATE OR REPLACE PERFETTO INDEX idx ON __intrinsic_slice(name);
 
-       SELECT MAX(id) FROM slice WHERE track_id = 13;
+          WITH ttid AS (
+            SELECT thread_track.id
+            FROM thread_track
+            JOIN thread USING (utid)
+            WHERE thread.name = 'android.bg'
+            LIMIT 1
+          )
+          SELECT MAX(id)
+          FROM __intrinsic_slice
+          WHERE track_id = (SELECT id FROM ttid);
         """,
         out=Csv("""
         "MAX(id)"
         20745
         """))
 
-  def test_create_or_replace_perfetto_index(self):
+  def test_create_and_drop_perfetto_index(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
         CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
         DROP PERFETTO INDEX idx ON __intrinsic_slice;
 
-        SELECT MAX(id) FROM slice WHERE track_id = 13;
+        WITH ttid AS (
+          SELECT thread_track.id
+          FROM thread_track
+          JOIN thread USING (utid)
+          WHERE thread.name = 'android.bg'
+          LIMIT 1
+        )
+        SELECT MAX(id) FROM __intrinsic_slice
+        WHERE track_id = (SELECT id FROM ttid);
         """,
         out=Csv("""
         "MAX(id)"
