@@ -3475,37 +3475,53 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   // processor_id and device could enter suspend/resume from different
   // processor.
   auto val = (action_name == "timekeeping_freeze") ? 0 : evt.val();
-  std::string cookie_key = std::to_string(val);
-  int64_t cookie = 0;
-  if (suspend_resume_cookie_map_.Find(cookie_key) == nullptr) {
-    cookie = static_cast<int64_t>(suspend_resume_cookie_map_.size());
-    suspend_resume_cookie_map_[cookie_key] = cookie;
-  } else {
-    cookie = suspend_resume_cookie_map_[cookie_key];
-  }
 
   base::StackString<64> str("%s(%" PRIu32 ")", action_name.c_str(), val);
   std::string current_action = str.ToStdString();
 
   StringId slice_name_id = context_->storage->InternString(str.string_view());
 
-  if (!evt.start()) {
+  int64_t cookie = slice_name_id.raw_id();
+
+  // Work around bug where the suspend_enter() slice never terminates if we
+  // see an error in suspend_prepare().
+  //
+  // We can detect this state if we
+  // a) End thaw_processes()
+  // b) While in freeze_processes()
+  // c) And in suspend_enter()
+  //
+  // since thaw_processes() is only called *from within freeze_processes()*
+  // in the error case, and should never overlap with suspend_enter().
+  //
+  // See b/381039361.
+  if (evt.start()) {
+    if (action_name == "suspend_enter") {
+      suspend_state_ = SUSPEND_STATE_ENTER;
+      suspend_enter_slice_cookie_ = cookie;
+
+    } else if (action_name == "freeze_processes" &&
+               suspend_state_ == SUSPEND_STATE_ENTER) {
+      suspend_state_ = SUSPEND_STATE_FREEZE;
+    }
+
+  } else {
     TrackId end_id =
         context_->async_track_set_tracker->End(async_track, cookie);
     context_->slice_tracker->End(timestamp, end_id);
-    ongoing_suspend_resume_actions[current_action] = false;
-    return;
-  }
 
-  // Complete the previous action before starting a new one.
-  if (ongoing_suspend_resume_actions[current_action]) {
-    TrackId end_id =
-        context_->async_track_set_tracker->End(async_track, cookie);
-    auto args_inserter = [this](ArgsTracker::BoundInserter* inserter) {
-      inserter->AddArg(replica_slice_id_, Variadic::Boolean(true));
-    };
-    context_->slice_tracker->End(timestamp, end_id, kNullStringId,
-                                 kNullStringId, args_inserter);
+    if (action_name == "suspend_enter") {
+      suspend_state_ = SUSPEND_STATE_INITIAL;
+    } else if (action_name == "thaw_processes" &&
+               suspend_state_ == SUSPEND_STATE_FREEZE) {
+      // We encountered the bug. Close the suspend_enter slice.
+      end_id = context_->async_track_set_tracker->End(
+          async_track, suspend_enter_slice_cookie_);
+      context_->slice_tracker->End(timestamp, end_id);
+
+      suspend_state_ = SUSPEND_STATE_INITIAL;
+    }
+    return;
   }
 
   TrackId start_id =
@@ -3529,7 +3545,6 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   };
   context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
                                  slice_name_id, args_inserter);
-  ongoing_suspend_resume_actions[current_action] = true;
 }
 
 void FtraceParser::ParseSuspendResumeMinimal(int64_t timestamp,
@@ -3749,21 +3764,15 @@ void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
   // Device here refers to anything managed by a Linux kernel driver.
   std::string device_name = dpm_event.device().ToStdString();
   std::string driver_name = dpm_event.driver().ToStdString();
-  int64_t cookie;
-  if (suspend_resume_cookie_map_.Find(device_name) == nullptr) {
-    cookie = static_cast<int64_t>(suspend_resume_cookie_map_.size());
-    suspend_resume_cookie_map_[device_name] = cookie;
-  } else {
-    cookie = suspend_resume_cookie_map_[device_name];
-  }
+
+  std::string slice_name = device_name + " " + driver_name;
+  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
+  int64_t cookie = slice_name_id.raw_id();
 
   auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
       suspend_resume_name_id_);
   TrackId track_id =
       context_->async_track_set_tracker->Begin(async_track, cookie);
-
-  std::string slice_name = device_name + " " + driver_name;
-  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
 
   std::string callback_phase = ConstructCallbackPhaseName(
       /*pm_ops=*/dpm_event.pm_ops().ToStdString(),
@@ -3800,11 +3809,16 @@ void FtraceParser::ParseDevicePmCallbackEnd(int64_t ts,
 
   // Device here refers to anything managed by a Linux kernel driver.
   std::string device_name = dpm_event.device().ToStdString();
+  std::string driver_name = dpm_event.driver().ToStdString();
+
+  std::string slice_name = device_name + " " + driver_name;
+  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
+  int64_t cookie = slice_name_id.raw_id();
 
   auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
       suspend_resume_name_id_);
-  TrackId track_id = context_->async_track_set_tracker->End(
-      async_track, suspend_resume_cookie_map_[device_name]);
+  TrackId track_id =
+      context_->async_track_set_tracker->End(async_track, cookie);
   context_->slice_tracker->End(ts, track_id);
 }
 
