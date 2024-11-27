@@ -156,6 +156,7 @@ class TracingServiceImpl : public TracingService {
       return std::nullopt;
     }
 
+    bool IsAndroidProcessFrozen();
     uid_t uid() const { return client_identity_.uid(); }
     pid_t pid() const { return client_identity_.pid(); }
     const ClientIdentity& client_identity() const { return client_identity_; }
