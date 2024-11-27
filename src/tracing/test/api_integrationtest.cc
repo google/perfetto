@@ -217,6 +217,7 @@ using ::testing::HasSubstr;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
+using ::testing::MockFunction;
 using ::testing::NiceMock;
 using ::testing::Not;
 using ::testing::Property;
@@ -243,6 +244,12 @@ class WaitableTestEvent {
   void Notify() {
     std::lock_guard<std::mutex> lock(mutex_);
     notified_ = true;
+    cv_.notify_one();
+  }
+
+  void Reset() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    notified_ = false;
     cv_.notify_one();
   }
 
@@ -398,7 +405,31 @@ class TestIncrementalDataSource
   void OnSetup(const SetupArgs&) override {}
   void OnStart(const StartArgs&) override {}
   void OnStop(const StopArgs&) override {}
+  void WillClearIncrementalState(
+      const ClearIncrementalStateArgs& args) override {
+    if (will_clear_incremental_state) {
+      (*will_clear_incremental_state)(args);
+    }
+  }
+
+  static void SetWillClearIncrementalStateCallback(
+      std::function<void(const DataSourceBase::ClearIncrementalStateArgs&)> cb) {
+    if (will_clear_incremental_state) {
+      delete will_clear_incremental_state;
+      will_clear_incremental_state = nullptr;
+    }
+    if (cb) {
+      will_clear_incremental_state = new decltype(cb)(cb);
+    }
+  }
+
+ private:
+  static std::function<void(const ClearIncrementalStateArgs&)>*
+      will_clear_incremental_state;
 };
+
+std::function<void(const perfetto::DataSourceBase::ClearIncrementalStateArgs&)>*
+    TestIncrementalDataSource::will_clear_incremental_state;
 
 // A convenience wrapper around TracingSession that allows to do block on
 //
@@ -1544,6 +1575,78 @@ TEST_P(PerfettoApiTest, ClearIncrementalState) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   tracing_session->get()->StopBlocking();
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<TestIncrementalDataSource>();
+}
+
+TEST_P(PerfettoApiTest, ClearIncrementalStateMultipleInstances) {
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("incr_data_source");
+  TestIncrementalDataSource::Register(dsd);
+  perfetto::test::SyncProducers();
+
+  // Setup the trace config with an incremental state clearing period.
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("incr_data_source");
+
+  WaitableTestEvent cleared;
+  NiceMock<MockFunction<void(const perfetto::DataSourceBase::ClearIncrementalStateArgs&)>> cb;
+  ON_CALL(cb, Call). WillByDefault([&]{
+    cleared.Notify();
+  });
+  TestIncrementalDataSource::SetWillClearIncrementalStateCallback(cb.AsStdFunction());
+  auto cleanup = MakeCleanup([&] {
+    TestIncrementalDataSource::SetWillClearIncrementalStateCallback({});
+  });
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  auto* is_cfg = cfg.mutable_incremental_state_config();
+  is_cfg->set_clear_period_ms(10);
+
+  // Create another tracing session that clear the incremental state
+  // periodically.
+  auto* tracing_session2 = NewTrace(cfg);
+  tracing_session2->get()->StartBlocking();
+
+  size_t count_instances = 0;
+  TestIncrementalDataSource::Trace(
+      [&](TestIncrementalDataSource::TraceContext ctx) {
+        count_instances++;
+        auto* incr_state = ctx.GetIncrementalState();
+        if (!incr_state->flag) {
+          incr_state->flag = true;
+        }
+      });
+  ASSERT_EQ(count_instances, 2u);
+
+  // Wait for two incremental state reset.
+  cleared.Reset();
+  cleared.Wait();
+  cleared.Reset();
+  cleared.Wait();
+
+  std::vector<bool> instances_incremental_states;
+  TestIncrementalDataSource::Trace(
+      [&](TestIncrementalDataSource::TraceContext ctx) {
+        auto* incr_state = ctx.GetIncrementalState();
+        instances_incremental_states.push_back(incr_state->flag);
+      });
+
+  // There are two instances.
+  EXPECT_EQ(instances_incremental_states.size(), 2u);
+  // One was cleared.
+  EXPECT_THAT(instances_incremental_states, Contains(false));
+  // The other one wasn't.
+  EXPECT_THAT(instances_incremental_states, Contains(true));
+
+  tracing_session->get()->StopBlocking();
+  tracing_session2->get()->StopBlocking();
+
   perfetto::test::TracingMuxerImplInternalsForTest::
       ClearDataSourceTlsStateOnReset<TestIncrementalDataSource>();
 }

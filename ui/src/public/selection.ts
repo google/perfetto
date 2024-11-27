@@ -62,7 +62,7 @@ export interface SelectionManager {
   selectArea(args: Area, opts?: SelectionOpts): void;
 
   scrollToCurrentSelection(): void;
-  registerAreaSelectionAggreagtor(aggr: AreaSelectionAggregator): void;
+  registerAreaSelectionAggregator(aggr: AreaSelectionAggregator): void;
 
   /**
    * Register a new SQL selection resolver.

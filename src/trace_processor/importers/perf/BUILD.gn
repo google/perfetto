@@ -41,22 +41,6 @@ source_set("record") {
   ]
 }
 
-source_set("tracker") {
-  sources = [
-    "dso_tracker.cc",
-    "dso_tracker.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
-    "../../../../protos/third_party/simpleperf:zero",
-    "../..//storage:storage",
-    "../..//tables:tables",
-    "../..//types:types",
-    "../common:common",
-  ]
-}
-
 source_set("perf") {
   sources = [
     "attrs_section_reader.cc",
@@ -71,8 +55,6 @@ source_set("perf") {
     "auxtrace_info_record.h",
     "auxtrace_record.cc",
     "auxtrace_record.h",
-    "etm_tokenizer.cc",
-    "etm_tokenizer.h",
     "features.cc",
     "features.h",
     "itrace_start_record.cc",
@@ -82,6 +64,8 @@ source_set("perf") {
     "perf_data_tokenizer.cc",
     "perf_data_tokenizer.h",
     "perf_file.h",
+    "perf_tracker.cc",
+    "perf_tracker.h",
     "record_parser.cc",
     "record_parser.h",
     "sample.cc",
@@ -98,7 +82,6 @@ source_set("perf") {
   ]
   public_deps = [ ":record" ]
   deps = [
-    ":tracker",
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",

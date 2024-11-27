@@ -1753,9 +1753,9 @@ void TracingServiceImpl::ActivateTriggers(
 
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
-      tracing_session.received_triggers.push_back(
-          {static_cast<uint64_t>(now_ns), iter->name(), producer->name_,
-           producer->uid()});
+      const TriggerInfo trigger = {static_cast<uint64_t>(now_ns), iter->name(),
+                                   producer->name_, producer->uid()};
+      tracing_session.received_triggers.push_back(trigger);
       auto weak_this = weak_ptr_factory_.GetWeakPtr();
       switch (trigger_mode) {
         case TraceConfig::TriggerConfig::START_TRACING:
@@ -1811,14 +1811,13 @@ void TracingServiceImpl::ActivateTriggers(
               tracing_session.config, tracing_session.trace_uuid,
               PerfettoStatsdAtom::kTracedTriggerCloneSnapshot, iter->name());
           task_runner_->PostDelayedTask(
-              [weak_this, tsid, trigger_name = iter->name()] {
+              [weak_this, tsid, trigger] {
                 if (!weak_this)
                   return;
                 auto* tsess = weak_this->GetTracingSession(tsid);
                 if (!tsess || !tsess->consumer_maybe_null)
                   return;
-                tsess->consumer_maybe_null->NotifyCloneSnapshotTrigger(
-                    trigger_name);
+                tsess->consumer_maybe_null->NotifyCloneSnapshotTrigger(trigger);
               },
               iter->stop_delay_ms());
           break;
@@ -2501,6 +2500,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
 
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
     MaybeEmitTraceConfig(tracing_session, &packets);
+    MaybeEmitCloneTrigger(tracing_session, &packets);
     MaybeEmitReceivedTriggers(tracing_session, &packets);
   }
   if (!tracing_session->did_emit_initial_packets) {
@@ -3909,6 +3909,24 @@ void TracingServiceImpl::MaybeEmitRemoteClockSync(
   tracing_session->did_emit_remote_clock_sync_ = true;
 }
 
+void TracingServiceImpl::MaybeEmitCloneTrigger(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  if (tracing_session->clone_trigger.has_value()) {
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    auto* trigger = packet->set_clone_snapshot_trigger();
+    const auto& info = tracing_session->clone_trigger.value();
+    trigger->set_trigger_name(info.trigger_name);
+    trigger->set_producer_name(info.producer_name);
+    trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
+
+    packet->set_timestamp(info.boot_time_ns);
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
+}
+
 void TracingServiceImpl::MaybeEmitReceivedTriggers(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
@@ -4059,6 +4077,12 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
       std::vector<std::unique_ptr<TraceBuffer>>(session->buffers_index.size());
   clone_op.weak_consumer = weak_consumer;
   clone_op.skip_trace_filter = args.skip_trace_filter;
+  if (!args.clone_trigger_name.empty()) {
+    clone_op.clone_trigger = {args.clone_trigger_boot_time_ns,
+                              args.clone_trigger_name,
+                              args.clone_trigger_producer_name,
+                              args.clone_trigger_trusted_producer_uid};
+  }
 
   // Issue separate flush requests for separate buffer groups. The buffer marked
   // as transfer_on_clone will be flushed and cloned separately: even if they're
@@ -4161,7 +4185,8 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
     if (clone_op.weak_consumer) {
       result = FinishCloneSession(
           &*clone_op.weak_consumer, tsid, std::move(clone_op.buffers),
-          clone_op.skip_trace_filter, !clone_op.flush_failed, &uuid);
+          clone_op.skip_trace_filter, !clone_op.flush_failed,
+          clone_op.clone_trigger, &uuid);
     }
   }  // if (result.ok())
 
@@ -4216,6 +4241,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
     std::vector<std::unique_ptr<TraceBuffer>> buf_snaps,
     bool skip_trace_filter,
     bool final_flush_outcome,
+    std::optional<TriggerInfo> clone_trigger,
     base::Uuid* new_uuid) {
   PERFETTO_DLOG("CloneSession(%" PRIu64
                 ", skip_trace_filter=%d) started, consumer uid: %d",
@@ -4282,6 +4308,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
   //    far back (see b/290799105).
   // 2. Bloating memory (see b/290798988).
   cloned_session->should_emit_stats = true;
+  cloned_session->clone_trigger = clone_trigger;
   cloned_session->received_triggers = std::move(src->received_triggers);
   src->received_triggers.clear();
   src->num_triggers_emitted_into_trace = 0;
@@ -4537,14 +4564,17 @@ void TracingServiceImpl::ConsumerEndpointImpl::OnAllDataSourcesStarted() {
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::NotifyCloneSnapshotTrigger(
-    const std::string& trigger_name) {
+    const TriggerInfo& trigger) {
   if (!(observable_events_mask_ & ObservableEvents::TYPE_CLONE_TRIGGER_HIT)) {
     return;
   }
   auto* observable_events = AddObservableEvents();
   auto* clone_trig = observable_events->mutable_clone_trigger_hit();
   clone_trig->set_tracing_session_id(static_cast<int64_t>(tracing_session_id_));
-  clone_trig->set_trigger_name(trigger_name);
+  clone_trig->set_trigger_name(trigger.trigger_name);
+  clone_trig->set_producer_name(trigger.producer_name);
+  clone_trig->set_producer_uid(trigger.producer_uid);
+  clone_trig->set_boot_time_ns(trigger.boot_time_ns);
 }
 
 ObservableEvents*

@@ -15,9 +15,9 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
-import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
-import {CounterOptions} from '../../frontend/base_counter_track';
-import {createQueryCounterTrack} from '../../public/lib/tracks/query_counter_track';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {CounterOptions} from '../../components/tracks/base_counter_track';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {TrackNode} from '../../public/workspace';
 
 interface ContainedTrace {

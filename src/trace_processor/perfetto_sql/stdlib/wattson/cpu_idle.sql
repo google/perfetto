@@ -91,4 +91,15 @@ SELECT
   idle
 FROM _cpu_idle
 -- Some durations are 0 post-adjustment and won't work with interval intersect
-WHERE dur > 0;
+WHERE dur > 0
+UNION ALL
+-- Add empty cpu idle counters for CPUs that are physically present, but did not
+-- have a single idle event register. The time region needs to be defined so
+-- that interval_intersect doesn't remove the undefined time region.
+SELECT
+  trace_start() as ts,
+  trace_dur() as dur,
+  cpu,
+  NULL as idle
+FROM _dev_cpu_policy_map
+WHERE cpu NOT IN (SELECT cpu FROM first_cpu_idle_slices);

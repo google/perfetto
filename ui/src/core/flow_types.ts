@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {time, duration} from '../base/time';
-import {SliceSqlId} from '../trace_processor/sql_utils/core_types';
+import {SliceSqlId} from '../components/sql_utils/core_types';
 
 export interface Flow {
   id: number;
@@ -31,6 +31,7 @@ export interface Flow {
 
 export interface FlowPoint {
   trackId: number;
+  trackUri?: string;
 
   sliceName: string;
   sliceCategory: string;

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {getCurrentChannel} from '../core/channels';
-import {TRACE_SUFFIX} from '../common/constants';
+import {TRACE_SUFFIX} from '../public/trace';
 import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
@@ -26,7 +26,7 @@ import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
-import {downloadData, downloadUrl} from './download_utils';
+import {downloadData, downloadUrl} from '../base/download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {shareTrace} from './trace_share_utils';
@@ -352,7 +352,9 @@ class HiringBanner implements m.ClassComponent {
 }
 
 export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
-  private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
+  private _redrawWhileAnimating = new Animation(() =>
+    raf.scheduleFullRedraw('force'),
+  );
   private _asyncJobPending = new Set<string>();
   private _sectionExpanded = new Map<string, boolean>();
 
@@ -523,7 +525,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
       raf.scheduleFullRedraw();
       res.finally(() => {
         this._asyncJobPending.delete(itemId);
-        raf.scheduleFullRedraw();
+        raf.scheduleFullRedraw('force');
       });
     };
   }
@@ -553,13 +555,6 @@ function registerGlobalSidebarEntries() {
   const app = AppImpl.instance;
   // TODO(primiano): The Open file / Open with legacy entries are registered by
   // the 'perfetto.CoreCommands' plugins. Make things consistent.
-  app.sidebar.addMenuItem({
-    section: 'navigation',
-    text: 'Record new trace',
-    href: '#!/record',
-    icon: 'fiber_smart_record',
-    sortOrder: 2,
-  });
   app.sidebar.addMenuItem({
     section: 'support',
     text: 'Keyboard shortcuts',

@@ -22,30 +22,30 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 -- One of the two tables will be empty, depending on whether the device is
 -- dependent on devfreq or a different CPU's frequency
 CREATE PERFETTO VIEW _curves_w_dependencies(
-  ts LONG,
-  dur LONG,
-  freq_0 INT,
-  idle_0 INT,
-  freq_1 INT,
-  idle_1 INT,
-  freq_2 INT,
-  idle_2 INT,
-  freq_3 INT,
-  idle_3 INT,
-  cpu0_curve FLOAT,
-  cpu1_curve FLOAT,
-  cpu2_curve FLOAT,
-  cpu3_curve FLOAT,
-  cpu4_curve FLOAT,
-  cpu5_curve FLOAT,
-  cpu6_curve FLOAT,
-  cpu7_curve FLOAT,
-  l3_hit_count INT,
-  l3_miss_count INT,
-  no_static INT,
-  all_cpu_deep_idle INT,
-  dependent_freq INT,
-  dependent_policy INT
+  ts TIMESTAMP,
+  dur DURATION,
+  freq_0 LONG,
+  idle_0 LONG,
+  freq_1 LONG,
+  idle_1 LONG,
+  freq_2 LONG,
+  idle_2 LONG,
+  freq_3 LONG,
+  idle_3 LONG,
+  cpu0_curve DOUBLE,
+  cpu1_curve DOUBLE,
+  cpu2_curve DOUBLE,
+  cpu3_curve DOUBLE,
+  cpu4_curve DOUBLE,
+  cpu5_curve DOUBLE,
+  cpu6_curve DOUBLE,
+  cpu7_curve DOUBLE,
+  l3_hit_count LONG,
+  l3_miss_count LONG,
+  no_static LONG,
+  all_cpu_deep_idle LONG,
+  dependent_freq LONG,
+  dependent_policy LONG
 ) AS
 -- Table that is dependent on differet CPU's frequency
 SELECT * FROM _w_cpu_dependence
@@ -157,17 +157,17 @@ SELECT
 FROM _system_state_curves;
 
 -- API to get power from each system state in an arbitrary time window
-CREATE PERFETTO FUNCTION _windowed_system_state_mw(ts LONG, dur LONG)
+CREATE PERFETTO FUNCTION _windowed_system_state_mw(ts TIMESTAMP, dur LONG)
 RETURNS TABLE(
-  cpu0_mw FLOAT,
-  cpu1_mw FLOAT,
-  cpu2_mw FLOAT,
-  cpu3_mw FLOAT,
-  cpu4_mw FLOAT,
-  cpu5_mw FLOAT,
-  cpu6_mw FLOAT,
-  cpu7_mw FLOAT,
-  dsu_scu_mw FLOAT
+  cpu0_mw DOUBLE,
+  cpu1_mw DOUBLE,
+  cpu2_mw DOUBLE,
+  cpu3_mw DOUBLE,
+  cpu4_mw DOUBLE,
+  cpu5_mw DOUBLE,
+  cpu6_mw DOUBLE,
+  cpu7_mw DOUBLE,
+  dsu_scu_mw DOUBLE
 ) AS
 SELECT
   SUM(ss.cpu0_mw * ss.dur) / SUM(ss.dur) AS cpu0_mw,

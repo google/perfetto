@@ -19,7 +19,7 @@ SELECT
   (SELECT int_value FROM args WHERE arg_set_id = c.arg_set_id AND key = 'inode') AS inode,
   tt.utid,
   c.ts,
-  CAST(c.value AS INT) AS buf_size
+  cast_int!(c.value) AS buf_size
 FROM thread_counter_track tt
   JOIN counter c ON c.track_id = tt.id
 WHERE tt.name = 'mem.dma_heap_change';
@@ -55,8 +55,8 @@ LEFT JOIN _gralloc_binders gb ON r.utid = gb.utid AND r.ts BETWEEN gb.ts AND gb.
 LEFT JOIN thread_track client_thread ON gb.client_slice_id = client_thread.id
 ORDER BY r.inode, r.ts;
 
-CREATE PERFETTO FUNCTION _alloc_source(is_alloc BOOL, inode INT, ts INT)
-RETURNS INT AS
+CREATE PERFETTO FUNCTION _alloc_source(is_alloc BOOL, inode LONG, ts TIMESTAMP)
+RETURNS LONG AS
 SELECT attr_utid
 FROM _attributed_dmabufs
 WHERE
@@ -72,23 +72,23 @@ LIMIT 1;
 -- (if binder transactions to gralloc are recorded).
 CREATE PERFETTO TABLE android_dmabuf_allocs (
   -- timestamp of the allocation
-  ts INT,
+  ts TIMESTAMP,
   -- allocation size (will be negative for release)
-  buf_size INT,
+  buf_size LONG,
   -- dmabuf inode
-  inode INT,
+  inode LONG,
   -- utid of thread responsible for the allocation
   -- if a dmabuf is allocated by gralloc we follow the binder transaction
   -- to the requesting thread (requires binder tracing)
-  utid INT,
+  utid LONG,
   -- tid of thread responsible for the allocation
-  tid INT,
+  tid LONG,
   -- thread name
   thread_name STRING,
   -- upid of process responsible for the allocation (matches utid)
-  upid INT,
+  upid LONG,
   -- pid of process responsible for the allocation
-  pid INT,
+  pid LONG,
   -- process name
   process_name STRING
 ) AS

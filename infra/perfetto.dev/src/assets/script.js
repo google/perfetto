@@ -21,26 +21,6 @@ const postLoadActions = [];
 let tocEventHandlersInstalled = false;
 let resizeObserver = undefined;
 
-// Handles redirects from the old docs.perfetto.dev.
-const legacyRedirectMap = {
-  '#/contributing': '/docs/contributing/getting-started#community',
-  '#/build-instructions': '/docs/contributing/build-instructions',
-  '#/testing': '/docs/contributing/testing',
-  '#/app-instrumentation': '/docs/instrumentation/tracing-sdk',
-  '#/recording-traces': '/docs/instrumentation/tracing-sdk#recording',
-  '#/running': '/docs/quickstart/android-tracing',
-  '#/long-traces': '/docs/concepts/config#long-traces',
-  '#/detached-mode': '/docs/concepts/detached-mode',
-  '#/heapprofd': '/docs/data-sources/native-heap-profiler',
-  '#/java-hprof': '/docs/data-sources/java-heap-profiler',
-  '#/trace-processor': '/docs/analysis/trace-processor',
-  '#/analysis': '/docs/analysis/trace-processor#annotations',
-  '#/metrics': '/docs/analysis/metrics',
-  '#/traceconv': '/docs/quickstart/traceconv',
-  '#/clock-sync': '/docs/concepts/clock-sync',
-  '#/architecture': '/docs/concepts/service-model',
-};
-
 function doAfterLoadEvent(action) {
   if (onloadFired) {
     return action();
@@ -89,7 +69,7 @@ function updateTOC() {
     toc.appendChild(li);
     doAfterLoadEvent(() => {
       tocAnchors.push(
-          {top: anchor.offsetTop + anchor.offsetHeight / 2, obj: link});
+        { top: anchor.offsetTop + anchor.offsetHeight / 2, obj: link });
     });
   }
   tocContainer.innerHTML = '';
@@ -101,7 +81,7 @@ function updateTOC() {
     return;
   tocEventHandlersInstalled = true;
   const doc = document.querySelector('.doc');
-  const passive = {passive: true};
+  const passive = { passive: true };
   if (doc) {
     const offY = doc.offsetTop;
     doc.addEventListener('mousemove', (e) => onMouseMove(offY, e), passive);
@@ -111,9 +91,9 @@ function updateTOC() {
   }
   window.addEventListener('scroll', () => onScroll(), passive);
   resizeObserver = new ResizeObserver(() => requestAnimationFrame(() => {
-                                        updateNav();
-                                        updateTOC();
-                                      }));
+    updateNav();
+    updateTOC();
+  }));
   resizeObserver.observe(doc);
 }
 
@@ -255,7 +235,7 @@ function initMermaid() {
 
 function setupSearch() {
   const URL =
-      'https://www.googleapis.com/customsearch/v1?key=AIzaSyBTD2XJkQkkuvDn76LSftsgWOkdBz9Gfwo&cx=007128963598137843411:8suis14kcmy&q='
+    'https://www.googleapis.com/customsearch/v1?key=AIzaSyBTD2XJkQkkuvDn76LSftsgWOkdBz9Gfwo&cx=007128963598137843411:8suis14kcmy&q='
   const searchContainer = document.getElementById('search');
   const searchBox = document.getElementById('search-box');
   const searchRes = document.getElementById('search-res')
@@ -345,7 +325,40 @@ window.addEventListener('load', () => {
   document.documentElement.style.setProperty('--anim-enabled', '1')
 });
 
+// Handles redirects from the old docs.perfetto.dev.
+const legacyRedirectMap = {
+  '#/contributing': '/docs/contributing/getting-started#community',
+  '#/build-instructions': '/docs/contributing/build-instructions',
+  '#/testing': '/docs/contributing/testing',
+  '#/app-instrumentation': '/docs/instrumentation/tracing-sdk',
+  '#/recording-traces': '/docs/instrumentation/tracing-sdk#recording',
+  '#/running': '/docs/quickstart/android-tracing',
+  '#/long-traces': '/docs/concepts/config#long-traces',
+  '#/detached-mode': '/docs/concepts/detached-mode',
+  '#/heapprofd': '/docs/data-sources/native-heap-profiler',
+  '#/java-hprof': '/docs/data-sources/java-heap-profiler',
+  '#/trace-processor': '/docs/analysis/trace-processor',
+  '#/analysis': '/docs/analysis/trace-processor#annotations',
+  '#/metrics': '/docs/analysis/metrics',
+  '#/traceconv': '/docs/quickstart/traceconv',
+  '#/clock-sync': '/docs/concepts/clock-sync',
+  '#/architecture': '/docs/concepts/service-model',
+};
+
 const fragment = location.hash.split('?')[0].replace('.md', '');
 if (fragment in legacyRedirectMap) {
   location.replace(legacyRedirectMap[fragment]);
+}
+
+// Pages which have been been removed/renamed/moved and need to be redirected
+// to their new home.
+const redirectMap = {
+  // stdlib docs is not a perfect replacement but is good enough until we write
+  // a proper, Android specific query codelab page.
+  // TODO(lalitm): switch to that page when it's ready.
+  '/docs/analysis/common-queries': '/docs/analysis/stdlib-docs',
+};
+
+if (location.pathname in redirectMap) {
+  location.replace(redirectMap[location.pathname]);
 }

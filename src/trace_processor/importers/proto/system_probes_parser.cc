@@ -166,6 +166,7 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       gpufreq_id(context->storage->InternString("gpufreq")),
       gpufreq_unit_id(context->storage->InternString("MHz")),
       cpu_stat_counter_name_id_(context->storage->InternString("counter_name")),
+      cpu_idle_state_id_(context_->storage->InternString("cpu_idle_state")),
       arm_cpu_implementer(
           context->storage->InternString("arm_cpu_implementer")),
       arm_cpu_architecture(
@@ -377,14 +378,13 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       continue;
     }
 
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(ct.cpu_id());
     auto intern_track =
         [&, this](TrackTracker::LegacyCharArrayName name) -> TrackId {
       auto builder = context_->track_tracker->CreateDimensionsBuilder();
       builder.AppendDimension(
           cpu_stat_counter_name_id_,
           Variadic::String(context_->storage->InternString(name.name)));
-      builder.AppendUcpu(ucpu);
+      builder.AppendCpu(ct.cpu_id());
       return context_->track_tracker->InternCounterTrack(
           tracks::cpu_stat, std::move(builder).Build(), name);
     };
@@ -530,8 +530,15 @@ void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
        ++cpuidle_field) {
     protos::pbzero::SysStats::CpuIdleStateEntry::Decoder idle(*cpuidle_field);
 
-    TrackId track = context_->track_tracker->LegacyInternCpuIdleStateTrack(
-        cpu_id, context_->storage->InternString(idle.state()));
+    TrackTracker::DimensionsBuilder dims_builder =
+        context_->track_tracker->CreateDimensionsBuilder();
+    dims_builder.AppendDimension(
+        cpu_idle_state_id_,
+        Variadic::String(context_->storage->InternString(idle.state())));
+    dims_builder.AppendCpu(cpu_id);
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::cpu_idle_state, std::move(dims_builder).Build());
+
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(idle.duration_us()), track);
   }

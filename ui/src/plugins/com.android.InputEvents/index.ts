@@ -15,7 +15,7 @@
 import {LONG} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 import {getOrCreateUserInteractionGroup} from '../../public/standard_groups';
 

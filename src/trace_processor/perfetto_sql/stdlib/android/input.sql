@@ -180,21 +180,21 @@ JOIN _input_read_time
 -- 4. Input ACk event received in OS.
 CREATE PERFETTO TABLE android_input_events (
   -- Duration from input dispatch to input received.
-  dispatch_latency_dur INT,
+  dispatch_latency_dur DURATION,
   -- Duration from input received to input ACK sent.
-  handling_latency_dur INT,
+  handling_latency_dur DURATION,
   -- Duration from input ACK sent to input ACK recieved.
-  ack_latency_dur INT,
+  ack_latency_dur DURATION,
   -- Duration from input dispatch to input event ACK received.
-  total_latency_dur INT,
+  total_latency_dur DURATION,
   -- Duration from input read to frame present time. Null if an input event has no associated frame event.
-  end_to_end_latency_dur INT,
+  end_to_end_latency_dur DURATION,
   -- Tid of thread receiving the input event.
-  tid INT,
+  tid LONG,
   -- Name of thread receiving the input event.
   thread_name STRING,
   -- Pid of process receiving the input event.
-  pid INT,
+  pid LONG,
   -- Name of process receiving the input event.
   process_name STRING,
   -- Input event type. See InputTransport.h: InputMessage#Type
@@ -208,21 +208,21 @@ CREATE PERFETTO TABLE android_input_events (
   -- Unique identifier for the input event.
   input_event_id STRING,
   -- Timestamp input event was read by InputReader.
-  read_time INT,
+  read_time LONG,
   -- Thread track id of input event dispatching thread.
-  dispatch_track_id INT,
+  dispatch_track_id LONG,
   -- Timestamp input event was dispatched.
-  dispatch_ts INT,
+  dispatch_ts TIMESTAMP,
   -- Duration of input event dispatch.
-  dispatch_dur INT,
+  dispatch_dur DURATION,
   -- Thread track id of input event receiving thread.
-  receive_track_id INT,
+  receive_track_id LONG,
   -- Timestamp input event was received.
-  receive_ts INT,
+  receive_ts TIMESTAMP,
   -- Duration of input event receipt.
-  receive_dur INT,
+  receive_dur DURATION,
   -- Vsync Id associated with the input. Null if an input event has no associated frame event.
-  frame_id INT
+  frame_id LONG
   )
 AS
 WITH dispatch AS MATERIALIZED (
@@ -293,18 +293,18 @@ LEFT JOIN _first_non_dropped_frame_after_input frame
 -- Key events processed by the Android framework (from android.input.inputevent data source).
 CREATE PERFETTO VIEW android_key_events(
   -- ID of the trace entry
-  id INT,
+  id LONG,
   -- The randomly-generated ID associated with each input event processed
   -- by Android Framework, used to track the event through the input pipeline
-  event_id INT,
+  event_id LONG,
   -- The timestamp of when the input event was processed by the system
-  ts INT,
+  ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id INT,
+  arg_set_id LONG,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
-  base64_proto_id INT
+  base64_proto_id LONG
 ) AS
 SELECT
   id,
@@ -318,18 +318,18 @@ FROM __intrinsic_android_key_events;
 -- Motion events processed by the Android framework (from android.input.inputevent data source).
 CREATE PERFETTO VIEW android_motion_events(
   -- ID of the trace entry
-  id INT,
+  id LONG,
   -- The randomly-generated ID associated with each input event processed
   -- by Android Framework, used to track the event through the input pipeline
-  event_id INT,
+  event_id LONG,
   -- The timestamp of when the input event was processed by the system
-  ts INT,
+  ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id INT,
+  arg_set_id LONG,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
-  base64_proto_id INT
+  base64_proto_id LONG
 ) AS
 SELECT
   id,
@@ -343,19 +343,19 @@ FROM __intrinsic_android_motion_events;
 -- Input event dispatching information in Android (from android.input.inputevent data source).
 CREATE PERFETTO VIEW android_input_event_dispatch(
   -- ID of the trace entry
-  id INT,
+  id LONG,
   -- Event ID of the input event that was dispatched
-  event_id INT,
+  event_id LONG,
   -- Details of the input event parsed from the proto message
-  arg_set_id INT,
+  arg_set_id LONG,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
-  base64_proto_id INT,
+  base64_proto_id LONG,
   -- Vsync ID that identifies the state of the windows during which the dispatch decision was made
-  vsync_id INT,
+  vsync_id LONG,
   -- Window ID of the window receiving the event
-  window_id INT
+  window_id LONG
 ) AS
 SELECT
   id,

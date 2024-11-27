@@ -16,16 +16,27 @@ import {ColumnDef, Sorting} from '../../public/aggregation';
 import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {UnionDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export class SliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'slice_aggregation';
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
-    const selectedTrackKeys = getSelectedTrackSqlIds(area);
-
-    if (selectedTrackKeys.length === 0) return false;
-
+    const desiredSchema = {
+      id: NUM,
+      name: STR,
+      ts: LONG,
+      dur: LONG,
+    };
+    const validDatasets = area.tracks
+      .map((track) => track.track.getDataset?.())
+      .filter((ds) => ds !== undefined)
+      .filter((ds) => ds.implements(desiredSchema));
+    if (validDatasets.length === 0) {
+      return false;
+    }
+    const unionDataset = new UnionDataset(validDatasets);
     await engine.query(`
       create or replace perfetto table ${this.id} as
       select
@@ -33,12 +44,13 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
         sum(dur) AS total_dur,
         sum(dur)/count() as avg_dur,
         count() as occurrences
-        from slices
-      where track_id in (${selectedTrackKeys})
-        and ts + dur > ${area.start}
+        from (${unionDataset.optimize().query()})
+      where
+        ts + dur > ${area.start}
         and ts < ${area.end}
       group by name
     `);
+
     return true;
   }
 
@@ -82,15 +94,4 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
       },
     ];
   }
-}
-
-function getSelectedTrackSqlIds(area: AreaSelection): number[] {
-  const selectedTrackKeys: number[] = [];
-  for (const trackInfo of area.tracks) {
-    if (trackInfo?.tags?.kind === SLICE_TRACK_KIND) {
-      trackInfo.tags.trackIds &&
-        selectedTrackKeys.push(...trackInfo.tags.trackIds);
-    }
-  }
-  return selectedTrackKeys;
 }

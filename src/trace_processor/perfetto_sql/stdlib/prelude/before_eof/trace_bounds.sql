@@ -20,18 +20,18 @@ SELECT 0 AS start_ts, 0 AS end_ts;
 
 -- Fetch start of the trace.
 CREATE PERFETTO FUNCTION trace_start()
--- Start of the trace in nanoseconds.
-RETURNS LONG AS
+-- Start of the trace.
+RETURNS TIMESTAMP AS
 SELECT start_ts FROM _trace_bounds;
 
 -- Fetch end of the trace.
 CREATE PERFETTO FUNCTION trace_end()
--- End of the trace in nanoseconds.
-RETURNS LONG AS
+-- End of the trace.
+RETURNS TIMESTAMP AS
 SELECT end_ts FROM _trace_bounds;
 
 -- Fetch duration of the trace.
 CREATE PERFETTO FUNCTION trace_dur()
--- Duration of the trace in nanoseconds.
-RETURNS LONG AS
+-- Duration of the trace.
+RETURNS DURATION AS
 SELECT trace_end() - trace_start();

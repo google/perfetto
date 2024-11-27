@@ -15,9 +15,9 @@
 --
 
 CREATE PERFETTO FUNCTION _extract_freezer_pid(name STRING)
-RETURNS INT
+RETURNS LONG
 AS
-SELECT CAST(reverse(str_split(reverse(str_split($name, ' ', 1)), ':', 0)) AS INT);
+SELECT cast_int!(reverse(str_split(reverse(str_split($name, ' ', 1)), ':', 0)));
 
 -- Converts a pid to a upid using the timestamp of occurence of an event from
 -- |pid| to disambiguate duplicate pids.
@@ -27,11 +27,11 @@ SELECT CAST(reverse(str_split(reverse(str_split($name, ' ', 1)), ':', 0)) AS INT
 -- it best effort returns the last upid.
 CREATE PERFETTO FUNCTION _pid_to_upid(
   -- Pid to convert from.
-  pid INT,
+  pid LONG,
   -- Timestamp of an event from the |pid|.
-  event_ts INT)
+  event_ts TIMESTAMP)
 -- Returns the converted upid.
-RETURNS INT
+RETURNS LONG
 AS
 WITH
   process_lifetime AS (
@@ -50,7 +50,7 @@ LIMIT 1;
 
 -- Translate unfreeze reason from INT to STRING.
 -- See: frameworks/proto_logging/stats/atoms.proto
-CREATE PERFETTO FUNCTION _translate_unfreeze_reason(reason INT)
+CREATE PERFETTO FUNCTION _translate_unfreeze_reason(reason LONG)
 RETURNS STRING
 AS
 SELECT
@@ -90,15 +90,15 @@ SELECT
 -- All frozen processes and their frozen duration.
 CREATE PERFETTO TABLE android_freezer_events (
   -- Upid of frozen process
-  upid INT,
+  upid LONG,
   -- Pid of frozen process
-  pid INT,
+  pid LONG,
   -- Timestamp process was frozen.
-  ts INT,
+  ts TIMESTAMP,
   -- Duration process was frozen for.
-  dur INT,
+  dur DURATION,
   -- Unfreeze reason Integer.
-  unfreeze_reason_int INT,
+  unfreeze_reason_int LONG,
   -- Unfreeze reason String.
   unfreeze_reason_str STRING
   )
@@ -130,7 +130,7 @@ WITH
       pid,
       ts,
       ifnull(lead(ts) OVER (PARTITION BY upid ORDER BY ts), trace_end()) - ts AS dur,
-      CAST(lead(unfreeze_reason) OVER (PARTITION BY upid ORDER BY ts) AS INT) AS unfreeze_reason
+      cast_int!(lead(unfreeze_reason) OVER (PARTITION BY upid ORDER BY ts)) AS unfreeze_reason
     FROM merged
   )
 SELECT

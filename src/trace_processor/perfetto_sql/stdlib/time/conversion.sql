@@ -18,70 +18,70 @@
 -- consistency with other functions.
 CREATE PERFETTO FUNCTION time_from_ns(
   -- Time duration in nanoseconds.
-  nanos INT
+  nanos LONG
 )
 -- Time duration in nanoseconds.
-RETURNS INT AS
+RETURNS TIMESTAMP AS
 SELECT $nanos;
 
 -- Converts a duration in microseconds to nanoseconds, which is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_from_us(
   -- Time duration in microseconds.
-  micros INT
+  micros LONG
 )
 -- Time duration in nanoseconds.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $micros * 1000;
 
 -- Converts a duration in millseconds to nanoseconds, which is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_from_ms(
   -- Time duration in milliseconds.
-  millis INT
+  millis LONG
 )
 -- Time duration in nanoseconds.
-RETURNS INT AS
+RETURNS TIMESTAMP AS
 SELECT $millis * 1000 * 1000;
 
 -- Converts a duration in seconds to nanoseconds, which is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_from_s(
   -- Time duration in seconds.
-  seconds INT
+  seconds LONG
 )
 -- Time duration in nanoseconds.
-RETURNS INT AS
+RETURNS TIMESTAMP AS
 SELECT $seconds * 1000 * 1000 * 1000;
 
 -- Converts a duration in minutes to nanoseconds, which is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_from_min(
   -- Time duration in minutes.
-  minutes INT
+  minutes LONG
 )
 -- Time duration in nanoseconds.
-RETURNS INT AS
+RETURNS TIMESTAMP AS
 SELECT $minutes * 60 * 1000 * 1000 * 1000;
 
 -- Converts a duration in hours to nanoseconds, which is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_from_hours(
   -- Time duration in hours.
-  hours INT
+  hours LONG
 )
 -- Time duration in nanoseconds.
-RETURNS INT AS
+RETURNS TIMESTAMP AS
 SELECT $hours * 60 * 60 * 1000 * 1000 * 1000;
 
 -- Converts a duration in days to nanoseconds, which is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_from_days(
   -- Time duration in days.
-  days INT
+  days LONG
 )
 -- Time duration in nanoseconds.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $days * 24 * 60 * 60 * 1000 * 1000 * 1000;
 
 -- Returns the provided nanosecond duration, which is the default
@@ -89,69 +89,69 @@ SELECT $days * 24 * 60 * 60 * 1000 * 1000 * 1000;
 -- consistency with other functions.
 CREATE PERFETTO FUNCTION time_to_ns(
   -- Time duration in nanoseconds.
-  nanos INT
+  nanos TIMESTAMP
 )
 -- Time duration in nanoseconds.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $nanos;
 
 -- Converts a duration in nanoseconds to microseconds. Nanoseconds is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_to_us(
 -- Time duration in nanoseconds.
-  nanos INT
+  nanos TIMESTAMP
 )
 -- Time duration in microseconds.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $nanos / 1000;
 
 -- Converts a duration in nanoseconds to millseconds. Nanoseconds is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_to_ms(
   -- Time duration in nanoseconds.
-  nanos INT
+  nanos TIMESTAMP
 )
 -- Time duration in milliseconds.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $nanos / (1000 * 1000);
 
 -- Converts a duration in nanoseconds to seconds. Nanoseconds is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_to_s(
   -- Time duration in nanoseconds.
-  nanos INT
+  nanos TIMESTAMP
 )
 -- Time duration in seconds.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $nanos / (1000 * 1000 * 1000);
 
 -- Converts a duration in nanoseconds to minutes. Nanoseconds is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_to_min(
   -- Time duration in nanoseconds.
-  nanos INT
+  nanos TIMESTAMP
 )
 -- Time duration in minutes.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $nanos / (60 * 1000 * 1000 * 1000);
 
 -- Converts a duration in nanoseconds to hours. Nanoseconds is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_to_hours(
   -- Time duration in nanoseconds.
-  nanos INT
+  nanos TIMESTAMP
 )
 -- Time duration in hours.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $nanos / (60 * 60 * 1000 * 1000 * 1000);
 
 -- Converts a duration in nanoseconds to days. Nanoseconds is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION time_to_days(
   -- Time duration in nanoseconds.
-  nanos INT
+  nanos TIMESTAMP
 )
 -- Time duration in days.
-RETURNS INT AS
+RETURNS LONG AS
 SELECT $nanos / (24 * 60 * 60 * 1000 * 1000 * 1000);
 

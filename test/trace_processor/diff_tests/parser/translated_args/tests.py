@@ -93,6 +93,12 @@ class TranslatedArgs(TestSuite):
         query=Path('chrome_args_test.sql'),
         out=Path('chrome_performance_mark.out'))
 
+  def test_chrome_trigger(self):
+    return DiffTestBlueprint(
+        trace=Path('chrome_trigger.textproto'),
+        query=Path('chrome_args_test.sql'),
+        out=Path('chrome_trigger.out'))
+
   def test_slice_name(self):
     return DiffTestBlueprint(
         trace=Path('slice_name.textproto'),

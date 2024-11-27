@@ -16,13 +16,13 @@
 -- Contains ARM Statistical Profiling Extension records
 CREATE PERFETTO VIEW linux_perf_spe_record(
   -- Timestap when the operation was sampled
-  ts LONG,
+  ts TIMESTAMP,
   -- Thread the operation executed in
-  utid INT,
+  utid LONG,
   -- Exception level the instruction was executed in
   exception_level STRING,
   -- Instruction virtual address
-  instruction_frame_id INT,
+  instruction_frame_id LONG,
   -- Type of operation sampled
   operation STRING,
   -- The virtual address accessed by the operation (0 if no memory access was
@@ -33,13 +33,13 @@ CREATE PERFETTO VIEW linux_perf_spe_record(
   data_physical_address LONG,
   -- Cycle count from the operation being dispatched for issue to the operation
   -- being complete.
-  total_latency INT,
+  total_latency LONG,
   -- Cycle count from the operation being dispatched for issue to the operation
   -- being issued for execution.
-  issue_latency INT,
+  issue_latency LONG,
   -- Cycle count from a virtual address being passed to the MMU for translation
   -- to the result of the translation being available.
-  translation_latency INT,
+  translation_latency LONG,
   -- Where the data returned for a load operation was sourced
   data_source STRING,
   -- Operation generated an exception

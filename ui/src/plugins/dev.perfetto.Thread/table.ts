@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTableDescription} from '../../frontend/widgets/sql/table/table_description';
+import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {
   ProcessColumnSet,
   StandardColumn,
   ThreadIdColumn,
   TimestampColumn,
-} from '../../frontend/widgets/sql/table/well_known_columns';
+} from '../../components/widgets/sql/table/well_known_columns';
 
 export function getThreadTable(): SqlTableDescription {
   return {

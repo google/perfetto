@@ -13,20 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  error,
-  isError,
-  isPending,
-  pending,
-  Result,
-  success,
-} from '../../base/result';
+import {errResult, Result, okResult} from '../../base/result';
 import {MetricVisualisation} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
-import {VegaView} from '../../widgets/vega_view';
+import {VegaView} from '../../components/widgets/vega_view';
 import {PageWithTraceAttrs} from '../../public/page';
 import {assertExists} from '../../base/logging';
 import {Trace} from '../../public/trace';
@@ -61,16 +54,15 @@ class MetricsController {
   private readonly engine: Engine;
   private _metrics: string[];
   private _selected?: string;
-  private _result: Result<string>;
+  private _result: Result<string> | 'pending';
   private _format: Format;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _json: any;
+  private _json: unknown;
 
   constructor(trace: Trace) {
     this.trace = trace;
     this.engine = trace.engine.getProxy('MetricsPage');
     this._metrics = [];
-    this._result = success('');
+    this._result = okResult('');
     this._json = {};
     this._format = 'json';
     getMetrics(this.engine).then((metrics) => {
@@ -112,7 +104,7 @@ class MetricsController {
     return this._format;
   }
 
-  get result(): Result<string> {
+  get result(): Result<string> | 'pending' {
     return this._result;
   }
 
@@ -125,15 +117,15 @@ class MetricsController {
     const selected = this._selected;
     const format = this._format;
     if (selected === undefined) {
-      this._result = success('');
+      this._result = okResult('');
       this._json = {};
     } else {
-      this._result = pending();
+      this._result = 'pending';
       this._json = {};
       getMetric(this.engine, selected, format)
         .then((result) => {
           if (this._selected === selected && this._format === format) {
-            this._result = success(result);
+            this._result = okResult(result);
             if (format === 'json') {
               this._json = JSON.parse(result);
             }
@@ -141,7 +133,7 @@ class MetricsController {
         })
         .catch((e) => {
           if (this._selected === selected && this._format === format) {
-            this._result = error(e);
+            this._result = errResult(e);
             this._json = {};
           }
         })
@@ -154,21 +146,21 @@ class MetricsController {
 }
 
 interface MetricResultAttrs {
-  result: Result<string>;
+  result: Result<string> | 'pending';
 }
 
 class MetricResultView implements m.ClassComponent<MetricResultAttrs> {
   view({attrs}: m.CVnode<MetricResultAttrs>) {
     const result = attrs.result;
-    if (isPending(result)) {
+    if (result === 'pending') {
       return m(Spinner);
     }
 
-    if (isError(result)) {
+    if (!result.ok) {
       return m('pre.metric-error', result.error);
     }
 
-    return m('pre', result.data);
+    return m('pre', result.value);
   }
 }
 

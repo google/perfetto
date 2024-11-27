@@ -24,7 +24,7 @@ Files inside the standard library have to be formatted in a very specific way, a
 
 - Running the file cannot generate any data. There can be only `CREATE PERFETTO {FUNCTION|TABLE|VIEW|MACRO}` statements inside.
 - The name of each standard library object needs to start with `{module_name}_` or be prefixed with an underscore(`_`) for internal objects.
-  The names must only contain lower and upper case letters and underscores. When a module is included (using the `INCLUDE PERFETTO MODULE`) the internal objects  should not be treated as an API. 
+  The names must only contain lower and upper case letters and underscores. When a module is included (using the `INCLUDE PERFETTO MODULE`) the internal objects  should not be treated as an API.
 - Every table or view should have [a schema](/docs/analysis/perfetto-sql-syntax.md#tableview-schema).
 
 ### Documentation
@@ -98,11 +98,11 @@ RETURNS TABLE(
   arg_set_id INT
 )
 AS
-SELECT 
-  slice_name, 
-  slice_ts, 
-  slice_dur, 
-  thread_name, 
+SELECT
+  slice_name,
+  slice_ts,
+  slice_dur,
+  thread_name,
   arg_set_id
 FROM thread_slices_for_all_launches
 WHERE launch_id = $launch_id AND slice_name GLOB $slice_name;
@@ -156,3 +156,17 @@ was built with we prompt the user to update.
 1. Go to `protos/perfetto/trace_processor/trace_processor.proto`
 2. Increment `TRACE_PROCESSOR_CURRENT_API_VERSION`
 3. Add a comment explaining what has changed.
+
+## Update statsd descriptor
+
+Perfetto has limited support for statsd atoms it does not know about.
+
+* Must be referred to using `raw_atom_id` in the config.
+* Show up as `atom_xxx.field_yyy` in trace processor.
+* Only top level messages are parsed.
+
+To update Perfetto's descriptor and handle new atoms from AOSP without these
+limitations:
+
+1. Run `tools/update-statsd-descriptor`.
+2. Upload and land your change as normal.

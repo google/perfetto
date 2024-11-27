@@ -18,18 +18,18 @@ include perfetto module android.statsd;
 
 -- Desktop Windows with durations they were open.
 CREATE PERFETTO TABLE android_desktop_mode_windows (
--- Window add timestamp; NULL if no add event in the trace.
-raw_add_ts INT,
--- Window remove timestamp; NULL if no remove event in the trace.
-raw_remove_ts INT,
--- timestamp that the window was added; or trace_start() if no add event in the trace.
-ts INT,
--- duration the window was open; or until trace_end() if no remove event in the trace.
-dur INT,
--- Desktop Window instance ID - unique per window.
-instance_id INT,
--- UID of the app running in the window.
-uid INT
+  -- Window add timestamp; NULL if no add event in the trace.
+  raw_add_ts TIMESTAMP,
+  -- Window remove timestamp; NULL if no remove event in the trace.
+  raw_remove_ts TIMESTAMP,
+  -- Timestamp that the window was added; or trace_start() if no add event in the trace.
+  ts TIMESTAMP,
+  -- Furation the window was open; or until trace_end() if no remove event in the trace.
+  dur DURATION,
+  -- Desktop Window instance ID - unique per window.
+  instance_id LONG,
+  -- UID of the app running in the window.
+  uid LONG
 ) AS
 WITH
   atoms AS (
@@ -51,12 +51,21 @@ WITH
   dw_statsd_events_update_by_instance AS (
     SELECT instance_id, session_id, min(uid) AS uid FROM atoms
     WHERE type = 'TASK_INFO_CHANGED' GROUP BY instance_id, session_id),
+  dw_statsd_reset_event AS (
+    SELECT ts FROM atoms
+    WHERE type = 'TASK_INIT_STATSD'
+    UNION
+    SELECT trace_end()),
   dw_windows AS (
     SELECT
       a.ts AS raw_add_ts,
       r.ts AS raw_remove_ts,
       ifnull(a.ts, trace_start()) AS ts,  -- Assume trace_start() if no add event found.
-      ifnull(r.ts, trace_end()) - ifnull(a.ts, trace_start()) AS dur,  -- Assume trace_end() if no remove event found.
+      ifnull(r.ts,
+        (
+          SELECT MIN(ts) FROM dw_statsd_reset_event
+          WHERE ts > ifnull(a.ts, trace_start())
+        )) - ifnull(a.ts, trace_start()) AS dur,  -- Assume next reset event or trace_end() if no remove event found.
       ifnull(a.instance_id, r.instance_id) AS instance_id,
       ifnull(a.uid, r.uid) AS uid
     FROM dw_statsd_events_add a

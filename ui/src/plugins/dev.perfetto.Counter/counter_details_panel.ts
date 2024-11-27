@@ -27,12 +27,12 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {Timestamp} from '../../frontend/widgets/timestamp';
-import {DurationWidget} from '../../frontend/widgets/duration';
+import {Timestamp} from '../../components/widgets/timestamp';
+import {DurationWidget} from '../../components/widgets/duration';
 import {TrackEventSelection} from '../../public/selection';
-import {hasArgs, renderArguments} from '../../frontend/slice_args';
-import {asArgSetId} from '../../trace_processor/sql_utils/core_types';
-import {Arg, getArgs} from '../../trace_processor/sql_utils/args';
+import {hasArgs, renderArguments} from '../../components/details/slice_args';
+import {asArgSetId} from '../../components/sql_utils/core_types';
+import {Arg, getArgs} from '../../components/sql_utils/args';
 
 interface CounterDetails {
   // The "left" timestamp of the counter sample T(N)

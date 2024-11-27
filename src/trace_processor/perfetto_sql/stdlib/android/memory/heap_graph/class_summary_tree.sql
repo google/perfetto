@@ -60,13 +60,13 @@ ORDER BY id;
 -- heap graph.
 CREATE PERFETTO TABLE android_heap_graph_class_summary_tree(
   -- The timestamp the heap graph was dumped at.
-  graph_sample_ts INT,
+  graph_sample_ts TIMESTAMP,
   -- The upid of the process.
-  upid INT,
+  upid LONG,
   -- The id of the node in the class tree.
-  id INT,
+  id LONG,
   -- The parent id of the node in the class tree or NULL if this is the root.
-  parent_id INT,
+  parent_id LONG,
   -- The name of the class.
   name STRING,
   -- A string describing the type of Java root if this node is a root or NULL
@@ -74,14 +74,14 @@ CREATE PERFETTO TABLE android_heap_graph_class_summary_tree(
   root_type STRING,
   -- The count of objects with the same class name and the same path to the
   -- root.
-  self_count INT,
+  self_count LONG,
   -- The size of objects with the same class name and the same path to the
   -- root.
-  self_size INT,
+  self_size LONG,
   -- The sum of `self_count` of this node and all descendants of this node.
-  cumulative_count INT,
+  cumulative_count LONG,
   -- The sum of `self_size` of this node and all descendants of this node.
-  cumulative_size INT
+  cumulative_size LONG
 ) AS
 SELECT
   t.graph_sample_ts,

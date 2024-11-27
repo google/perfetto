@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-CREATE PERFETTO VIEW perf_sample_in(ts INT, dur INT)
+CREATE PERFETTO VIEW perf_sample_in(ts TIMESTAMP, dur LONG)
 AS
 SELECT ts, 0 AS dur FROM perf_sample;
 

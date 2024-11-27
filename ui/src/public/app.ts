@@ -54,10 +54,18 @@ export interface App {
 
   // TODO(primiano): this should be needed in extremely rare cases. We should
   // probably switch to mithril auto-redraw at some point.
-  scheduleFullRedraw(): void;
+  scheduleFullRedraw(force?: 'force'): void;
 
   /**
    * Navigate to a new page.
    */
   navigate(newHash: string): void;
+
+  openTraceFromFile(file: File): void;
+  openTraceFromUrl(url: string): void;
+  openTraceFromBuffer(args: {
+    buffer: ArrayBuffer;
+    title: string;
+    fileName: string;
+  }): void;
 }

@@ -63,10 +63,241 @@ function createSessionUniqueId(): string {
  * If you find yourself using this as a Javascript class in external code, e.g.
  * `instance of TrackNodeContainer`, you're probably doing something wrong.
  */
-export abstract class TrackNodeContainer {
+
+export interface TrackNodeArgs {
+  title: string;
+  id: string;
+  uri: string;
+  headless: boolean;
+  sortOrder: number;
+  collapsed: boolean;
+  isSummary: boolean;
+  removable: boolean;
+}
+
+/**
+ * A base class for any node with children (i.e. a group or a workspace).
+ */
+export class TrackNode {
+  // Immutable unique (within the workspace) ID of this track node. Used for
+  // efficiently retrieving this node object from a workspace. Note: This is
+  // different to |uri| which is used to reference a track to render on the
+  // track. If this means nothing to you, don't bother using it.
+  public readonly id: string;
+
+  // A human readable string for this track - displayed in the track shell.
+  // TODO(stevegolton): Make this optional, so that if we implement a string for
+  // this track then we can implement it here as well.
+  public title: string;
+
+  // The URI of the track content to display here.
+  public uri?: string;
+
+  // Optional sort order, which workspaces may or may not take advantage of for
+  // sorting when displaying the workspace.
+  public sortOrder?: number;
+
+  // Don't show the header at all for this track, just show its un-nested
+  // children. This is helpful to group together tracks that logically belong to
+  // the same group (e.g. all ftrace cpu tracks) and ease the job of
+  // sorting/grouping plugins.
+  public headless: boolean;
+
+  // If true, this track is to be used as a summary for its children. When the
+  // group is expanded the track will become sticky to the top of the viewport
+  // to provide context for the tracks within, and the content of this track
+  // shall be omitted. It will also be squashed down to a smaller height to save
+  // vertical space.
+  public isSummary: boolean;
+
+  // If true, this node will be removable by the user. It will show a little
+  // close button in the track shell which the user can press to remove the
+  // track from the workspace.
+  public removable: boolean;
+
+  protected _collapsed = true;
   protected _children: Array<TrackNode> = [];
   protected readonly tracksById = new Map<string, TrackNode>();
-  protected abstract fireOnChangeListener(): void;
+  protected readonly tracksByUri = new Map<string, TrackNode>();
+  private _parent?: TrackNode;
+  public _workspace?: Workspace;
+
+  get parent(): TrackNode | undefined {
+    return this._parent;
+  }
+
+  constructor(args?: Partial<TrackNodeArgs>) {
+    const {
+      title = '',
+      id = createSessionUniqueId(),
+      uri,
+      headless = false,
+      sortOrder,
+      collapsed = true,
+      isSummary = false,
+      removable = false,
+    } = args ?? {};
+
+    this.id = id;
+    this.uri = uri;
+    this.headless = headless;
+    this.title = title;
+    this.sortOrder = sortOrder;
+    this.isSummary = isSummary;
+    this._collapsed = collapsed;
+    this.removable = removable;
+  }
+
+  /**
+   * Remove this track from it's parent & unpin from the workspace if pinned.
+   */
+  remove(): void {
+    this.workspace?.unpinTrack(this);
+    this.parent?.removeChild(this);
+  }
+
+  /**
+   * Add this track to the list of pinned tracks in its parent workspace.
+   *
+   * Has no effect if this track is not added to a workspace.
+   */
+  pin(): void {
+    this.workspace?.pinTrack(this);
+  }
+
+  /**
+   * Remove this track from the list of pinned tracks in its parent workspace.
+   *
+   * Has no effect if this track is not added to a workspace.
+   */
+  unpin(): void {
+    this.workspace?.unpinTrack(this);
+  }
+
+  /**
+   * Returns true if this node is added to a workspace as is in the pinned track
+   * list of that workspace.
+   */
+  get isPinned(): boolean {
+    return Boolean(this.workspace?.hasPinnedTrack(this));
+  }
+
+  /**
+   * Find the closest visible ancestor TrackNode.
+   *
+   * Given the path from the root workspace to this node, find the fist one,
+   * starting from the root, which is collapsed. This will be, from the user's
+   * point of view, the closest ancestor of this node.
+   *
+   * Returns undefined if this node is actually visible.
+   *
+   * TODO(stevegolton): Should it return itself in this case?
+   */
+  findClosestVisibleAncestor(): TrackNode {
+    // Build a path from the root workspace to this node
+    const path: TrackNode[] = [];
+    let node = this.parent;
+    while (node) {
+      path.unshift(node);
+      node = node.parent;
+    }
+
+    // Find the first collapsed track in the path starting from the root. This
+    // is effectively the closest we can get to this node without expanding any
+    // groups.
+    return path.find((node) => node.collapsed) ?? this;
+  }
+
+  /**
+   * Expand all ancestor nodes.
+   */
+  reveal(): void {
+    let parent = this.parent;
+    while (parent) {
+      parent.expand();
+      parent = parent.parent;
+    }
+  }
+
+  /**
+   * Find this node's root node - this may be a workspace or another node.
+   */
+  get rootNode(): TrackNode {
+    let node: TrackNode = this;
+    while (node.parent) {
+      node = node.parent;
+    }
+    return node;
+  }
+
+  /**
+   * Find this node's workspace if it is attached to one.
+   */
+  get workspace(): Workspace | undefined {
+    return this.rootNode._workspace;
+  }
+
+  /**
+   * Mark this node as un-collapsed, indicating its children should be rendered.
+   */
+  expand(): void {
+    this._collapsed = false;
+    this.fireOnChangeListener();
+  }
+
+  /**
+   * Mark this node as collapsed, indicating its children should not be
+   * rendered.
+   */
+  collapse(): void {
+    this._collapsed = true;
+    this.fireOnChangeListener();
+  }
+
+  /**
+   * Toggle the collapsed state.
+   */
+  toggleCollapsed(): void {
+    this._collapsed = !this._collapsed;
+    this.fireOnChangeListener();
+  }
+
+  /**
+   * Whether this node is collapsed, indicating its children should be rendered.
+   */
+  get collapsed(): boolean {
+    return this._collapsed;
+  }
+
+  /**
+   * Whether this node is expanded - i.e. not collapsed, indicating its children
+   * should be rendered.
+   */
+  get expanded(): boolean {
+    return !this._collapsed;
+  }
+
+  /**
+   * Returns the list of titles representing the full path from the root node to
+   * the current node. This path consists only of node titles, workspaces are
+   * omitted.
+   */
+  get fullPath(): ReadonlyArray<string> {
+    let fullPath = [this.title];
+    let parent = this.parent;
+    while (parent) {
+      // Ignore headless containers as they don't appear in the tree...
+      if (!parent.headless && parent.title !== '') {
+        fullPath = [parent.title, ...fullPath];
+      }
+      parent = parent.parent;
+    }
+    return fullPath;
+  }
+
+  protected fireOnChangeListener(): void {
+    this.workspace?.onchange(this.workspace);
+  }
 
   /**
    * True if this node has children, false otherwise.
@@ -170,18 +401,36 @@ export abstract class TrackNodeContainer {
    */
   removeChild(child: TrackNode): void {
     this._children = this.children.filter((x) => child !== x);
-    child.parent = undefined;
-    child.id && this.tracksById.delete(child.id);
+    child._parent = undefined;
+    this.removeFromIndex(child);
+    this.propagateRemoval(child);
     this.fireOnChangeListener();
   }
 
   /**
-   * The flattened list of all descendent nodes.
+   * The flattened list of all descendent nodes in depth first order.
+   *
+   * Use flatTracksUnordered if you don't care about track order, as it's more
+   * efficient.
+   */
+  get flatTracksOrdered(): ReadonlyArray<TrackNode> {
+    const tracks: TrackNode[] = [];
+    this.collectFlatTracks(tracks);
+    return tracks;
+  }
+
+  private collectFlatTracks(tracks: TrackNode[]): void {
+    for (let i = 0; i < this.children.length; ++i) {
+      tracks.push(this.children[i]); // Push the current node before its children
+      this.children[i].collectFlatTracks(tracks); // Recurse to collect child tracks
+    }
+  }
+
+  /**
+   * The flattened list of all descendent nodes in no particular order.
    */
   get flatTracks(): ReadonlyArray<TrackNode> {
-    return this.children.flatMap((node) => {
-      return [node, ...node.flatTracks];
-    });
+    return Array.from(this.tracksById.values());
   }
 
   /**
@@ -196,300 +445,107 @@ export abstract class TrackNodeContainer {
   /**
    * Find a track node by its id.
    *
-   * Node: This is an O(N) operation where N is the depth of the target node.
-   * I.e. this is more efficient than findTrackByURI().
+   * Node: This is an O(1) operation.
    *
    * @param id The id of the node we want to find.
    * @returns The node or undefined if no such node exists.
    */
   getTrackById(id: string): TrackNode | undefined {
-    const foundNode = this.tracksById.get(id);
-    if (foundNode) {
-      return foundNode;
-    } else {
-      // Recurse our children
-      for (const child of this._children) {
-        const foundNode = child.getTrackById(id);
-        if (foundNode) return foundNode;
-      }
-    }
-    return undefined;
+    return this.tracksById.get(id);
+  }
+
+  /**
+   * Find a track node via its URI.
+   *
+   * Node: This is an O(1) operation.
+   *
+   * @param uri The uri of the track to find.
+   * @returns The node or undefined if no such node exists with this URI.
+   */
+  findTrackByUri(uri: string): TrackNode | undefined {
+    return this.tracksByUri.get(uri);
   }
 
   private adopt(child: TrackNode): void {
     if (child.parent) {
       child.parent.removeChild(child);
     }
-    child.parent = this;
-    child.id && this.tracksById.set(child.id, child);
-  }
-}
-
-export interface TrackNodeArgs {
-  title: string;
-  id: string;
-  uri: string;
-  headless: boolean;
-  sortOrder: number;
-  collapsed: boolean;
-  isSummary: boolean;
-  removable: boolean;
-}
-
-/**
- * A base class for any node with children (i.e. a group or a workspace).
- */
-export class TrackNode extends TrackNodeContainer {
-  // Immutable unique (within the workspace) ID of this track node. Used for
-  // efficiently retrieving this node object from a workspace. Note: This is
-  // different to |uri| which is used to reference a track to render on the
-  // track. If this means nothing to you, don't bother using it.
-  public readonly id: string;
-
-  // Parent node - could be the workspace or another node.
-  public parent?: TrackNodeContainer;
-
-  // A human readable string for this track - displayed in the track shell.
-  // TODO(stevegolton): Make this optional, so that if we implement a string for
-  // this track then we can implement it here as well.
-  public title: string;
-
-  // The URI of the track content to display here.
-  public uri?: string;
-
-  // Optional sort order, which workspaces may or may not take advantage of for
-  // sorting when displaying the workspace.
-  public sortOrder?: number;
-
-  // Don't show the header at all for this track, just show its un-nested
-  // children. This is helpful to group together tracks that logically belong to
-  // the same group (e.g. all ftrace cpu tracks) and ease the job of
-  // sorting/grouping plugins.
-  public headless: boolean;
-
-  // If true, this track is to be used as a summary for its children. When the
-  // group is expanded the track will become sticky to the top of the viewport
-  // to provide context for the tracks within, and the content of this track
-  // shall be omitted. It will also be squashed down to a smaller height to save
-  // vertical space.
-  public isSummary: boolean;
-
-  // If true, this node will be removable by the user. It will show a little
-  // close button in the track shell which the user can press to remove the
-  // track from the workspace.
-  public removable: boolean;
-
-  protected _collapsed = true;
-
-  constructor(args?: Partial<TrackNodeArgs>) {
-    super();
-
-    const {
-      title = '',
-      id = createSessionUniqueId(),
-      uri,
-      headless = false,
-      sortOrder,
-      collapsed = true,
-      isSummary = false,
-      removable = false,
-    } = args ?? {};
-
-    this.id = id;
-    this.uri = uri;
-    this.headless = headless;
-    this.title = title;
-    this.sortOrder = sortOrder;
-    this.isSummary = isSummary;
-    this._collapsed = collapsed;
-    this.removable = removable;
+    child._parent = this;
+    this.addToIndex(child);
+    this.propagateAddition(child);
   }
 
-  /**
-   * Remove this track from it's parent & unpin from the workspace if pinned.
-   */
-  remove(): void {
-    this.workspace?.unpinTrack(this);
-    this.parent?.removeChild(this);
-  }
-
-  /**
-   * Add this track to the list of pinned tracks in its parent workspace.
-   *
-   * Has no effect if this track is not added to a workspace.
-   */
-  pin(): void {
-    this.workspace?.pinTrack(this);
-  }
-
-  /**
-   * Remove this track from the list of pinned tracks in its parent workspace.
-   *
-   * Has no effect if this track is not added to a workspace.
-   */
-  unpin(): void {
-    this.workspace?.unpinTrack(this);
-  }
-
-  /**
-   * Returns true if this node is added to a workspace as is in the pinned track
-   * list of that workspace.
-   */
-  get isPinned(): boolean {
-    return Boolean(this.workspace?.hasPinnedTrack(this));
-  }
-
-  /**
-   * Find the closest visible ancestor TrackNode.
-   *
-   * Given the path from the root workspace to this node, find the fist one,
-   * starting from the root, which is collapsed. This will be, from the user's
-   * point of view, the closest ancestor of this node.
-   *
-   * Returns undefined if this node is actually visible.
-   *
-   * TODO(stevegolton): Should it return itself in this case?
-   */
-  findClosestVisibleAncestor(): TrackNode {
-    // Build a path from the root workspace to this node
-    const path: TrackNode[] = [];
-    let node = this.parent;
-    while (node && node instanceof TrackNode) {
-      path.unshift(node);
-      node = node.parent;
+  private addToIndex(child: TrackNode) {
+    this.tracksById.set(child.id, child);
+    for (const [id, node] of child.tracksById) {
+      this.tracksById.set(id, node);
     }
 
-    // Find the first collapsed track in the path starting from the root. This
-    // is effectively the closest we can get to this node without expanding any
-    // groups.
-    return path.find((node) => node.collapsed) ?? this;
-  }
-
-  /**
-   * Expand all ancestor nodes.
-   */
-  reveal(): void {
-    let parent = this.parent;
-    while (parent && parent instanceof TrackNode) {
-      parent.expand();
-      parent = parent.parent;
+    child.uri && this.tracksByUri.set(child.uri, child);
+    for (const [uri, node] of child.tracksByUri) {
+      this.tracksByUri.set(uri, node);
     }
   }
 
-  /**
-   * Find this node's root node - this may be a workspace or another node.
-   */
-  get rootNode(): TrackNodeContainer | undefined {
-    // Travel upwards through the tree to find the root node.
-    let parent: TrackNodeContainer | undefined = this;
-    while (parent && parent instanceof TrackNode) {
-      parent = parent.parent;
+  private removeFromIndex(child: TrackNode) {
+    this.tracksById.delete(child.id);
+    for (const [id] of child.tracksById) {
+      this.tracksById.delete(id);
     }
-    return parent;
-  }
 
-  /**
-   * Find this node's parent workspace if it is attached to one.
-   */
-  get workspace(): Workspace | undefined {
-    // Find the root node and return it if it's a Workspace instance
-    const rootNode = this.rootNode;
-    if (rootNode instanceof Workspace) {
-      return rootNode;
+    child.uri && this.tracksByUri.delete(child.uri);
+    for (const [uri] of child.tracksByUri) {
+      this.tracksByUri.delete(uri);
     }
-    return undefined;
   }
 
-  /**
-   * Mark this node as un-collapsed, indicating its children should be rendered.
-   */
-  expand(): void {
-    this._collapsed = false;
-    this.fireOnChangeListener();
-  }
-
-  /**
-   * Mark this node as collapsed, indicating its children should not be
-   * rendered.
-   */
-  collapse(): void {
-    this._collapsed = true;
-    this.fireOnChangeListener();
-  }
-
-  /**
-   * Toggle the collapsed state.
-   */
-  toggleCollapsed(): void {
-    this._collapsed = !this._collapsed;
-    this.fireOnChangeListener();
-  }
-
-  /**
-   * Whether this node is collapsed, indicating its children should be rendered.
-   */
-  get collapsed(): boolean {
-    return this._collapsed;
-  }
-
-  /**
-   * Whether this node is expanded - i.e. not collapsed, indicating its children
-   * should be rendered.
-   */
-  get expanded(): boolean {
-    return !this._collapsed;
-  }
-
-  /**
-   * Returns the list of titles representing the full path from the root node to
-   * the current node. This path consists only of node titles, workspaces are
-   * omitted.
-   */
-  get fullPath(): ReadonlyArray<string> {
-    let fullPath = [this.title];
-    let parent = this.parent;
-    while (parent && parent instanceof TrackNode) {
-      // Ignore headless containers as they don't appear in the tree...
-      if (!parent.headless) {
-        fullPath = [parent.title, ...fullPath];
-      }
-      parent = parent.parent;
+  private propagateAddition(node: TrackNode): void {
+    if (this.parent) {
+      this.parent.addToIndex(node);
+      this.parent.propagateAddition(node);
     }
-    return fullPath;
   }
 
-  protected override fireOnChangeListener(): void {
-    this.workspace?.onchange(this.workspace);
+  private propagateRemoval(node: TrackNode): void {
+    if (this.parent) {
+      this.parent.removeFromIndex(node);
+      this.parent.propagateRemoval(node);
+    }
   }
 }
 
 /**
  * Defines a workspace containing a track tree and a pinned area.
  */
-export class Workspace extends TrackNodeContainer {
+export class Workspace {
   public title = '<untitled-workspace>';
   public readonly id: string;
   onchange: (w: Workspace) => void = () => {};
 
   // Dummy node to contain the pinned tracks
-  private pinnedRoot = new TrackNode();
+  public readonly pinnedTracksNode = new TrackNode();
+  public readonly tracks = new TrackNode();
 
   get pinnedTracks(): ReadonlyArray<TrackNode> {
-    return this.pinnedRoot.children;
+    return this.pinnedTracksNode.children;
   }
 
   constructor() {
-    super();
     this.id = createSessionUniqueId();
-    this.pinnedRoot.parent = this;
+    this.pinnedTracksNode._workspace = this;
+    this.tracks._workspace = this;
+
+    // Expanding these nodes makes the logic work
+    this.pinnedTracksNode.expand();
+    this.tracks.expand();
   }
 
   /**
    * Reset the entire workspace including the pinned tracks.
    */
-  override clear(): void {
-    super.clear();
-    this.pinnedRoot.clear();
+  clear(): void {
+    this.pinnedTracksNode.clear();
+    this.tracks.clear();
   }
 
   /**
@@ -502,16 +558,18 @@ export class Workspace extends TrackNodeContainer {
       title: track.title,
       removable: track.removable,
     });
-    this.pinnedRoot.addChildLast(cloned);
+    this.pinnedTracksNode.addChildLast(cloned);
   }
 
   /**
    * Removes a track node from this workspace's pinned area.
    */
   unpinTrack(track: TrackNode): void {
-    const foundNode = this.pinnedRoot.children.find((t) => t.uri === track.uri);
+    const foundNode = this.pinnedTracksNode.children.find(
+      (t) => t.uri === track.uri,
+    );
     if (foundNode) {
-      this.pinnedRoot.removeChild(foundNode);
+      this.pinnedTracksNode.removeChild(foundNode);
     }
   }
 
@@ -519,7 +577,7 @@ export class Workspace extends TrackNodeContainer {
    * Check if this workspace has a pinned track with the same URI as |track|.
    */
   hasPinnedTrack(track: TrackNode): boolean {
-    return this.pinnedTracks.some((p) => p.uri === track.uri);
+    return this.pinnedTracksNode.flatTracks.some((p) => p.uri === track.uri);
   }
 
   /**
@@ -533,18 +591,102 @@ export class Workspace extends TrackNodeContainer {
    * otherwise undefined.
    */
   findTrackByUri(uri: string): TrackNode | undefined {
-    return this.flatTracks.find((t) => t.uri === uri);
+    return this.tracks.flatTracks.find((t) => t.uri === uri);
   }
 
   /**
    * Find a track by ID, also searching pinned tracks.
    */
-  override getTrackById(id: string): TrackNode | undefined {
-    // Also search the pinned tracks
-    return this.pinnedRoot.getTrackById(id) || super.getTrackById(id);
+  getTrackById(id: string): TrackNode | undefined {
+    return (
+      this.tracks.getTrackById(id) || this.pinnedTracksNode.getTrackById(id)
+    );
   }
 
-  protected override fireOnChangeListener(): void {
-    this.onchange(this);
+  /**
+   * The ordered list of children belonging to this node.
+   */
+  get children(): ReadonlyArray<TrackNode> {
+    return this.tracks.children;
+  }
+
+  /**
+   * Inserts a new child node considering it's sortOrder.
+   *
+   * The child will be added before the first child whose |sortOrder| is greater
+   * than the child node's sort order, or at the end if one does not exist. If
+   * |sortOrder| is omitted on either node in the comparison it is assumed to be
+   * 0.
+   *
+   * @param child - The child node to add.
+   */
+  addChildInOrder(child: TrackNode): void {
+    this.tracks.addChildInOrder(child);
+  }
+
+  /**
+   * Add a new child node at the start of the list of children.
+   *
+   * @param child The new child node to add.
+   */
+  addChildLast(child: TrackNode): void {
+    this.tracks.addChildLast(child);
+  }
+
+  /**
+   * Add a new child node at the end of the list of children.
+   *
+   * @param child The child node to add.
+   */
+  addChildFirst(child: TrackNode): void {
+    this.tracks.addChildFirst(child);
+  }
+
+  /**
+   * Add a new child node before an existing child node.
+   *
+   * @param child The child node to add.
+   * @param referenceNode An existing child node. The new node will be added
+   * before this node.
+   */
+  addChildBefore(child: TrackNode, referenceNode: TrackNode): void {
+    this.tracks.addChildBefore(child, referenceNode);
+  }
+
+  /**
+   * Add a new child node after an existing child node.
+   *
+   * @param child The child node to add.
+   * @param referenceNode An existing child node. The new node will be added
+   * after this node.
+   */
+  addChildAfter(child: TrackNode, referenceNode: TrackNode): void {
+    this.tracks.addChildAfter(child, referenceNode);
+  }
+
+  /**
+   * Remove a child node from this node.
+   *
+   * @param child The child node to remove.
+   */
+  removeChild(child: TrackNode): void {
+    this.tracks.removeChild(child);
+  }
+
+  /**
+   * The flattened list of all descendent nodes in depth first order.
+   *
+   * Use flatTracksUnordered if you don't care about track order, as it's more
+   * efficient.
+   */
+  get flatTracksOrdered() {
+    return this.tracks.flatTracksOrdered;
+  }
+
+  /**
+   * The flattened list of all descendent nodes in no particular order.
+   */
+  get flatTracks() {
+    return this.tracks.flatTracks;
   }
 }

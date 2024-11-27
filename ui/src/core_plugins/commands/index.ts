@@ -23,7 +23,7 @@ import {
   openFileWithLegacyTraceViewer,
 } from '../../frontend/legacy_trace_viewer';
 import {AppImpl} from '../../core/app_impl';
-import {addQueryResultsTab} from '../../public/lib/query_table/query_result_tab';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)

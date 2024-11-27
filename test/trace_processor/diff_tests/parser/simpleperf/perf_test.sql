@@ -16,7 +16,7 @@ WITH
     FROM counter_delta_base
   )
 SELECT
-  CAST(SUM(c.delta) AS INTEGER) AS event_count,
+  cast_int!(SUM(c.delta)) AS event_count,
   thread.name AS command,
   pid,
   tid,

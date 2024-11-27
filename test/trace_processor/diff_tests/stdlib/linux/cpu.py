@@ -383,34 +383,33 @@ class LinuxCpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
         query=("""
-             INCLUDE PERFETTO MODULE linux.cpu.frequency;
-             select
-               track_id,
-               freq,
-               cpu,
-               sum(dur) as dur
-             from cpu_frequency_counters
-             GROUP BY freq, cpu
-             """),
+          INCLUDE PERFETTO MODULE linux.cpu.frequency;
+          select
+            freq,
+            cpu,
+            sum(dur) as dur
+          from cpu_frequency_counters
+          GROUP BY freq, cpu
+        """),
         out=Csv("""
-            "track_id","freq","cpu","dur"
-            33,614400,0,4755967239
-            34,614400,1,4755971561
-            35,614400,2,4755968228
-            36,614400,3,4755964320
-            33,864000,0,442371195
-            34,864000,1,442397134
-            35,864000,2,442417916
-            36,864000,3,442434530
-            33,1363200,0,897122398
-            34,1363200,1,897144167
-            35,1363200,2,897180154
-            36,1363200,3,897216772
-            33,1708800,0,2553979530
-            34,1708800,1,2553923073
-            35,1708800,2,2553866772
-            36,1708800,3,2553814688
-            """))
+          "freq","cpu","dur"
+          614400,0,4755967239
+          614400,1,4755971561
+          614400,2,4755968228
+          614400,3,4755964320
+          864000,0,442371195
+          864000,1,442397134
+          864000,2,442417916
+          864000,3,442434530
+          1363200,0,897122398
+          1363200,1,897144167
+          1363200,2,897180154
+          1363200,3,897216772
+          1708800,0,2553979530
+          1708800,1,2553923073
+          1708800,2,2553866772
+          1708800,3,2553814688
+        """))
 
   # Test CPU idle state counter grouping.
   def test_cpu_eos_counters_idle(self):
@@ -419,7 +418,6 @@ class LinuxCpu(TestSuite):
         query=("""
              INCLUDE PERFETTO MODULE linux.cpu.idle;
              select
-               track_id,
                idle,
                cpu,
                sum(dur) as dur
@@ -427,20 +425,20 @@ class LinuxCpu(TestSuite):
              GROUP BY idle, cpu
              """),
         out=Csv("""
-             "track_id","idle","cpu","dur"
-             0,-1,0,2839828332
-             37,-1,1,1977033843
-             32,-1,2,1800498713
-             1,-1,3,1884366297
-             0,0,0,1833971336
-             37,0,1,2285260950
-             32,0,2,1348416182
-             1,0,3,1338508968
-             0,1,0,4013820433
-             37,1,1,4386917600
-             32,1,2,5532102915
-             1,1,3,5462026920
-            """))
+          "idle","cpu","dur"
+          -1,0,2839828332
+          -1,1,1977033843
+          -1,2,1800498713
+          -1,3,1884366297
+          0,0,1833971336
+          0,1,2285260950
+          0,2,1348416182
+          0,3,1338508968
+          1,0,4013820433
+          1,1,4386917600
+          1,2,5532102915
+          1,3,5462026920
+        """))
 
   def test_linux_cpu_idle_stats(self):
     return DiffTestBlueprint(
@@ -566,9 +564,9 @@ class LinuxCpu(TestSuite):
          SELECT * FROM cpu_idle_time_in_state_counters;
          """,
         out=Csv("""
-         "ts","state_name","idle_percentage","total_residency","time_slice"
-          200001000000,"cpuidle.C8",10.000000,100.000000,1000
-          200002000000,"cpuidle.C8",10.000000,100.000000,1000
-          200001000000,"cpuidle.C0",90.000000,900.000000,1000
-          200002000000,"cpuidle.C0",90.000000,900.000000,1000
+          "ts","machine_id","state_name","idle_percentage","total_residency","time_slice"
+          200001000000,"[NULL]","C8",10.000000,100.000000,1000
+          200002000000,"[NULL]","C8",10.000000,100.000000,1000
+          200001000000,"[NULL]","C0",90.000000,900.000000,1000
+          200002000000,"[NULL]","C0",90.000000,900.000000,1000
          """))

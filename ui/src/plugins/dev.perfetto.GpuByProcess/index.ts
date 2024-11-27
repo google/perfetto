@@ -20,14 +20,15 @@ import {
   NAMED_ROW,
   NamedRow,
   NamedSliceTrack,
-} from '../../frontend/named_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
+} from '../../components/tracks/named_slice_track';
 import {TrackNode} from '../../public/workspace';
 class GpuPidTrack extends NamedSliceTrack {
-  upid: number;
-
-  constructor(args: NewTrackArgs, upid: number) {
-    super(args);
+  constructor(
+    trace: Trace,
+    uri: string,
+    protected readonly upid: number,
+  ) {
+    super(trace, uri);
     this.upid = upid;
   }
 
@@ -84,11 +85,9 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: new GpuPidTrack({trace: ctx, uri}, upid),
+        track: new GpuPidTrack(ctx, uri, upid),
       });
       const track = new TrackNode({uri, title});
-      track.uri = uri;
-      track.title = title;
       ctx.workspace.addChildInOrder(track);
     }
   }

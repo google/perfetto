@@ -111,7 +111,7 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
       chrome_source_(context->storage->InternString("chrome")),
       utid_id_(context->storage->InternString("utid")),
       upid_id_(context->storage->InternString("upid")),
-      ucpu_id_(context->storage->InternString("ucpu")),
+      cpu_id_(context->storage->InternString("cpu")),
       uid_id_(context->storage->InternString("uid")),
       gpu_id_(context->storage->InternString("gpu")),
       name_id_(context->storage->InternString("name")),
@@ -339,16 +339,16 @@ TrackId TrackTracker::LegacyInternThreadCounterTrack(StringId name,
 TrackId TrackTracker::InternCpuTrack(tracks::TrackClassification classification,
                                      uint32_t cpu,
                                      const TrackName& name) {
-  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-  Dimensions dims_id = SingleDimension(ucpu_id_, Variadic::Integer(ucpu.value));
+  MarkCpuValid(cpu);
 
+  Dimensions dims_id = SingleDimension(cpu_id_, Variadic::Integer(cpu));
   auto* it = tracks_.Find({classification, dims_id});
   if (it) {
     return *it;
   }
 
   tables::CpuTrackTable::Row row(StringIdFromTrackName(classification, name));
-  row.ucpu = ucpu;
+  row.cpu = cpu;
   row.machine_id = context_->machine_id();
   row.classification =
       context_->storage->InternString(tracks::ToString(classification));
@@ -435,14 +435,13 @@ TrackId TrackTracker::InternCpuCounterTrack(
     tracks::TrackClassification classification,
     uint32_t cpu,
     const TrackName& name) {
-  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
   StringId name_id = StringIdFromTrackName(classification, name);
 
   TrackMapKey key;
   key.classification = classification;
 
   DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendUcpu(ucpu);
+  dims_builder.AppendCpu(cpu);
   dims_builder.AppendName(name_id);
   key.dimensions = std::move(dims_builder).Build();
 
@@ -452,7 +451,7 @@ TrackId TrackTracker::InternCpuCounterTrack(
   }
 
   tables::CpuCounterTrackTable::Row row(name_id);
-  row.ucpu = ucpu;
+  row.cpu = cpu;
   row.machine_id = context_->machine_id();
   row.classification =
       context_->storage->InternString(tracks::ToString(classification));
@@ -461,40 +460,6 @@ TrackId TrackTracker::InternCpuCounterTrack(
   TrackId track_id =
       context_->storage->mutable_cpu_counter_track_table()->Insert(row).id;
   tracks_[key] = track_id;
-  return track_id;
-}
-
-TrackId TrackTracker::LegacyInternCpuIdleStateTrack(uint32_t cpu,
-                                                    StringId state) {
-  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
-  DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendDimension(
-      context_->storage->InternString("cpu_idle_state"),
-      Variadic::String(state));
-  dims_builder.AppendUcpu(ucpu);
-  Dimensions dims_id = std::move(dims_builder).Build();
-
-  tracks::TrackClassification classification = tracks::cpu_idle_state;
-
-  auto* it = tracks_.Find({classification, dims_id});
-  if (it) {
-    return *it;
-  }
-
-  std::string name =
-      "cpuidle." + context_->storage->GetString(state).ToStdString();
-
-  tables::CpuCounterTrackTable::Row row(
-      context_->storage->InternString(name.c_str()));
-  row.ucpu = ucpu;
-  row.machine_id = context_->machine_id();
-  row.classification =
-      context_->storage->InternString(tracks::ToString(classification));
-  row.dimension_arg_set_id = dims_id.arg_set_id;
-
-  TrackId track_id =
-      context_->storage->mutable_cpu_counter_track_table()->Insert(row).id;
-  tracks_[{classification, dims_id}] = track_id;
   return track_id;
 }
 
@@ -546,9 +511,8 @@ TrackId TrackTracker::LegacyCreatePerfCounterTrack(
     tables::PerfSessionTable::Id perf_session_id,
     uint32_t cpu,
     bool is_timebase) {
-  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
   DimensionsBuilder dims_builder = CreateDimensionsBuilder();
-  dims_builder.AppendUcpu(ucpu);
+  dims_builder.AppendCpu(cpu);
   dims_builder.AppendDimension(
       context_->storage->InternString("perf_session_id"),
       Variadic::Integer(perf_session_id.value));
@@ -653,6 +617,11 @@ StringId TrackTracker::StringIdFromTrackName(
       return std::get<FromTraceName>(name).id;
   }
   PERFETTO_FATAL("For GCC");
+}
+
+
+void TrackTracker::MarkCpuValid(uint32_t cpu) {
+  context_->cpu_tracker->MarkCpuValid(cpu);
 }
 
 }  // namespace perfetto::trace_processor

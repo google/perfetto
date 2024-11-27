@@ -12,39 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PerfStats} from './perf_stats';
 import m from 'mithril';
-import {
-  debugNow,
-  measure,
-  perfDebug,
-  perfDisplay,
-  PerfStatsSource,
-  RunningStatistics,
-  runningStatStr,
-} from './perf';
+import {featureFlags} from './feature_flags';
 
-function statTableHeader() {
-  return m(
-    'tr',
-    m('th', ''),
-    m('th', 'Last (ms)'),
-    m('th', 'Avg (ms)'),
-    m('th', 'Avg-10 (ms)'),
-  );
-}
+export type AnimationCallback = (lastFrameMs: number) => void;
+export type RedrawCallback = () => void;
 
-function statTableRow(title: string, stat: RunningStatistics) {
-  return m(
-    'tr',
-    m('td', title),
-    m('td', stat.last.toFixed(2)),
-    m('td', stat.mean.toFixed(2)),
-    m('td', stat.bufferMean.toFixed(2)),
-  );
-}
-
-export type ActionCallback = (nowMs: number) => void;
-export type RedrawCallback = (nowMs: number) => void;
+export const AUTOREDRAW_FLAG = featureFlags.register({
+  id: 'mithrilAutoredraw',
+  name: 'Enable Mithril autoredraw',
+  description: 'Turns calls to schedulefullRedraw() a no-op',
+  defaultValue: false,
+});
 
 // This class orchestrates all RAFs in the UI. It ensures that there is only
 // one animation frame handler overall and that callbacks are called in
@@ -54,146 +34,176 @@ export type RedrawCallback = (nowMs: number) => void;
 // - redraw callbacks that will repaint canvases.
 // This class guarantees that, on each frame, redraw callbacks are called after
 // all action callbacks.
-export class RafScheduler implements PerfStatsSource {
-  private actionCallbacks = new Set<ActionCallback>();
+export class RafScheduler {
+  // These happen at the beginning of any animation frame. Used by Animation.
+  private animationCallbacks = new Set<AnimationCallback>();
+
+  // These happen during any animaton frame, after the (optional) DOM redraw.
   private canvasRedrawCallbacks = new Set<RedrawCallback>();
-  private _syncDomRedraw: RedrawCallback = (_) => {};
+
+  // These happen at the end of full (DOM) animation frames.
+  private postRedrawCallbacks = new Array<RedrawCallback>();
   private hasScheduledNextFrame = false;
   private requestedFullRedraw = false;
   private isRedrawing = false;
   private _shutdown = false;
-  private _beforeRedraw: () => void = () => {};
-  private _afterRedraw: () => void = () => {};
-  private _pendingCallbacks: RedrawCallback[] = [];
+  private recordPerfStats = false;
+  private mounts = new Map<Element, m.ComponentTypes>();
 
-  private perfStats = {
-    rafActions: new RunningStatistics(),
-    rafCanvas: new RunningStatistics(),
-    rafDom: new RunningStatistics(),
-    rafTotal: new RunningStatistics(),
-    domRedraw: new RunningStatistics(),
+  readonly perfStats = {
+    rafActions: new PerfStats(),
+    rafCanvas: new PerfStats(),
+    rafDom: new PerfStats(),
+    rafTotal: new PerfStats(),
+    domRedraw: new PerfStats(),
   };
 
-  start(cb: ActionCallback) {
-    this.actionCallbacks.add(cb);
-    this.maybeScheduleAnimationFrame();
+  constructor() {
+    // Patch m.redraw() to our RAF full redraw.
+    const origSync = m.redraw.sync;
+    const redrawFn = () => this.scheduleFullRedraw('force');
+    redrawFn.sync = origSync;
+    m.redraw = redrawFn;
+
+    m.mount = this.mount.bind(this);
   }
 
-  stop(cb: ActionCallback) {
-    this.actionCallbacks.delete(cb);
-  }
-
-  addRedrawCallback(cb: RedrawCallback) {
-    this.canvasRedrawCallbacks.add(cb);
-  }
-
-  removeRedrawCallback(cb: RedrawCallback) {
-    this.canvasRedrawCallbacks.delete(cb);
-  }
-
-  addPendingCallback(cb: RedrawCallback) {
-    this._pendingCallbacks.push(cb);
+  // Schedule re-rendering of virtual DOM and canvas.
+  // If a callback is passed it will be executed after the DOM redraw has
+  // completed.
+  scheduleFullRedraw(force?: 'force', cb?: RedrawCallback) {
+    // If we are using autoredraw mode, make this function a no-op unless
+    // 'force' is passed.
+    if (AUTOREDRAW_FLAG.get() && force !== 'force') return;
+    this.requestedFullRedraw = true;
+    cb && this.postRedrawCallbacks.push(cb);
+    this.maybeScheduleAnimationFrame(true);
   }
 
   // Schedule re-rendering of canvas only.
-  scheduleRedraw() {
+  scheduleCanvasRedraw() {
     this.maybeScheduleAnimationFrame(true);
+  }
+
+  startAnimation(cb: AnimationCallback) {
+    this.animationCallbacks.add(cb);
+    this.maybeScheduleAnimationFrame();
+  }
+
+  stopAnimation(cb: AnimationCallback) {
+    this.animationCallbacks.delete(cb);
+  }
+
+  addCanvasRedrawCallback(cb: RedrawCallback): Disposable {
+    this.canvasRedrawCallbacks.add(cb);
+    const canvasRedrawCallbacks = this.canvasRedrawCallbacks;
+    return {
+      [Symbol.dispose]() {
+        canvasRedrawCallbacks.delete(cb);
+      },
+    };
+  }
+
+  mount(element: Element, component: m.ComponentTypes | null): void {
+    const mounts = this.mounts;
+    if (component === null) {
+      mounts.delete(element);
+    } else {
+      mounts.set(element, component);
+    }
+    this.syncDomRedrawMountEntry(element, component);
   }
 
   shutdown() {
     this._shutdown = true;
   }
 
-  set domRedraw(cb: RedrawCallback) {
-    this._syncDomRedraw = cb;
-  }
-
-  set beforeRedraw(cb: () => void) {
-    this._beforeRedraw = cb;
-  }
-
-  set afterRedraw(cb: () => void) {
-    this._afterRedraw = cb;
-  }
-
-  // Schedule re-rendering of virtual DOM and canvas.
-  scheduleFullRedraw() {
-    this.requestedFullRedraw = true;
-    this.maybeScheduleAnimationFrame(true);
-  }
-
-  // Schedule a full redraw to happen after a short delay (50 ms).
-  // This is done to prevent flickering / visual noise and allow the UI to fetch
-  // the initial data from the Trace Processor.
-  // There is a chance that someone else schedules a full redraw in the
-  // meantime, forcing the flicker, but in practice it works quite well and
-  // avoids a lot of complexity for the callers.
-  scheduleDelayedFullRedraw() {
-    // 50ms is half of the responsiveness threshold (100ms):
-    // https://web.dev/rail/#response-process-events-in-under-50ms
-    const delayMs = 50;
-    setTimeout(() => this.scheduleFullRedraw(), delayMs);
-  }
-
-  syncDomRedraw(nowMs: number) {
-    const redrawStart = debugNow();
-    this._syncDomRedraw(nowMs);
-    if (perfDebug()) {
-      this.perfStats.domRedraw.addValue(debugNow() - redrawStart);
-    }
+  setPerfStatsEnabled(enabled: boolean) {
+    this.recordPerfStats = enabled;
+    this.scheduleFullRedraw();
   }
 
   get hasPendingRedraws(): boolean {
     return this.isRedrawing || this.hasScheduledNextFrame;
   }
 
-  private syncCanvasRedraw(nowMs: number) {
-    const redrawStart = debugNow();
-    if (this.isRedrawing) return;
-    this._beforeRedraw();
-    this.isRedrawing = true;
-    for (const redraw of this.canvasRedrawCallbacks) redraw(nowMs);
-    this.isRedrawing = false;
-    this._afterRedraw();
-    for (const cb of this._pendingCallbacks) {
-      cb(nowMs);
+  private syncDomRedraw() {
+    const redrawStart = performance.now();
+
+    for (const [element, component] of this.mounts.entries()) {
+      this.syncDomRedrawMountEntry(element, component);
     }
-    this._pendingCallbacks.splice(0, this._pendingCallbacks.length);
-    if (perfDebug()) {
-      this.perfStats.rafCanvas.addValue(debugNow() - redrawStart);
+
+    if (this.recordPerfStats) {
+      this.perfStats.domRedraw.addValue(performance.now() - redrawStart);
+    }
+  }
+
+  private syncDomRedrawMountEntry(
+    element: Element,
+    component: m.ComponentTypes | null,
+  ) {
+    // Mithril's render() function takes a third argument which tells us if a
+    // further redraw is needed (e.g. due to managed event handler). This allows
+    // us to implement auto-redraw. The redraw argument is documented in the
+    // official Mithril docs but is just not part of the @types/mithril package.
+    const mithrilRender = m.render as (
+      el: Element,
+      vnodes: m.Children,
+      redraw?: () => void,
+    ) => void;
+
+    mithrilRender(
+      element,
+      component !== null ? m(component) : null,
+      AUTOREDRAW_FLAG.get() ? () => raf.scheduleFullRedraw('force') : undefined,
+    );
+  }
+
+  private syncCanvasRedraw() {
+    const redrawStart = performance.now();
+    if (this.isRedrawing) return;
+    this.isRedrawing = true;
+    this.canvasRedrawCallbacks.forEach((cb) => cb());
+    this.isRedrawing = false;
+    if (this.recordPerfStats) {
+      this.perfStats.rafCanvas.addValue(performance.now() - redrawStart);
     }
   }
 
   private maybeScheduleAnimationFrame(force = false) {
     if (this.hasScheduledNextFrame) return;
-    if (this.actionCallbacks.size !== 0 || force) {
+    if (this.animationCallbacks.size !== 0 || force) {
       this.hasScheduledNextFrame = true;
       window.requestAnimationFrame(this.onAnimationFrame.bind(this));
     }
   }
 
-  private onAnimationFrame(nowMs: number) {
+  private onAnimationFrame(lastFrameMs: number) {
     if (this._shutdown) return;
-    const rafStart = debugNow();
     this.hasScheduledNextFrame = false;
-
     const doFullRedraw = this.requestedFullRedraw;
     this.requestedFullRedraw = false;
 
-    const actionTime = measure(() => {
-      for (const action of this.actionCallbacks) action(nowMs);
-    });
+    const tStart = performance.now();
+    this.animationCallbacks.forEach((cb) => cb(lastFrameMs));
+    const tAnim = performance.now();
+    doFullRedraw && this.syncDomRedraw();
+    const tDom = performance.now();
+    this.syncCanvasRedraw();
+    const tCanvas = performance.now();
 
-    const domTime = measure(() => {
-      if (doFullRedraw) this.syncDomRedraw(nowMs);
-    });
-    const canvasTime = measure(() => this.syncCanvasRedraw(nowMs));
-
-    const totalRafTime = debugNow() - rafStart;
-    this.updatePerfStats(actionTime, domTime, canvasTime, totalRafTime);
-    perfDisplay.renderPerfStats(this);
-
+    const animTime = tAnim - tStart;
+    const domTime = tDom - tAnim;
+    const canvasTime = tCanvas - tDom;
+    const totalTime = tCanvas - tStart;
+    this.updatePerfStats(animTime, domTime, canvasTime, totalTime);
     this.maybeScheduleAnimationFrame();
+
+    if (doFullRedraw && this.postRedrawCallbacks.length > 0) {
+      const pendingCbs = this.postRedrawCallbacks.splice(0); // splice = clear.
+      pendingCbs.forEach((cb) => cb());
+    }
   }
 
   private updatePerfStats(
@@ -202,41 +212,11 @@ export class RafScheduler implements PerfStatsSource {
     canvasTime: number,
     totalRafTime: number,
   ) {
-    if (!perfDebug()) return;
+    if (!this.recordPerfStats) return;
     this.perfStats.rafActions.addValue(actionsTime);
     this.perfStats.rafDom.addValue(domTime);
     this.perfStats.rafCanvas.addValue(canvasTime);
     this.perfStats.rafTotal.addValue(totalRafTime);
-  }
-
-  renderPerfStats() {
-    return m(
-      'div',
-      m('div', [
-        m('button', {onclick: () => this.scheduleRedraw()}, 'Do Canvas Redraw'),
-        '   |   ',
-        m(
-          'button',
-          {onclick: () => this.scheduleFullRedraw()},
-          'Do Full Redraw',
-        ),
-      ]),
-      m('div', 'Raf Timing ' + '(Total may not add up due to imprecision)'),
-      m(
-        'table',
-        statTableHeader(),
-        statTableRow('Actions', this.perfStats.rafActions),
-        statTableRow('Dom', this.perfStats.rafDom),
-        statTableRow('Canvas', this.perfStats.rafCanvas),
-        statTableRow('Total', this.perfStats.rafTotal),
-      ),
-      m(
-        'div',
-        'Dom redraw: ' +
-          `Count: ${this.perfStats.domRedraw.count} | ` +
-          runningStatStr(this.perfStats.domRedraw),
-      ),
-    );
   }
 }
 

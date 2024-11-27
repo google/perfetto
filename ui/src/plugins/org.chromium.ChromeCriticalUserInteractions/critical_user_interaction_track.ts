@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NAMED_ROW} from '../../frontend/named_slice_track';
+import {NAMED_ROW} from '../../components/tracks/named_slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {
   CustomSqlImportConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../../frontend/tracks/custom_sql_table_slice_track';
+} from '../../components/tracks/custom_sql_table_slice_track';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Duration, Time} from '../../base/time';
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
 import {WebContentInteractionPanel} from './web_content_interaction_details_panel';
-import {GenericSliceDetailsTab} from '../../frontend/generic_slice_details_tab';
+import {GenericSliceDetailsTab} from './generic_slice_details_tab';
 
 export const CRITICAL_USER_INTERACTIONS_KIND =
   'org.chromium.CriticalUserInteraction.track';

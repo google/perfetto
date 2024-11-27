@@ -50,6 +50,7 @@ DEPS_ALLOWLIST = [
             '/frontend/*',
             '/core/*',
             '/common/*',
+            '/components/*',
             '/public/*',
             '/trace_processor/*',
             '/widgets/*',
@@ -59,10 +60,7 @@ DEPS_ALLOWLIST = [
     ),
 
     # /public (interfaces + lib) can depend only on a restricted surface.
-    ('/public/*', ['/base/*', '/trace_processor/*']),
-
-    # /public/lib can also depend on the plublic interface and widgets.
-    ('/public/lib/*', ['/public/*', '/frontend/widgets/*', '/widgets/*']),
+    ('/public/*', ['/base/*', '/trace_processor/*', '/widgets/*']),
 
     # /plugins (and core_plugins) can depend only on a restricted surface.
     (
@@ -72,7 +70,19 @@ DEPS_ALLOWLIST = [
             '/public/*',
             '/trace_processor/*',
             '/widgets/*',
-            '/frontend/widgets/*',
+            '/components/*'
+        ],
+    ),
+
+    # /components can depend on the 'base' packages & public
+    (
+        '/components/*',
+        [
+            '/base/*',
+            '/trace_processor/*',
+            '/widgets/*',
+            '/public/*',
+            '/components/*',
         ],
     ),
 
@@ -92,66 +102,29 @@ DEPS_ALLOWLIST = [
     ('/protos/index', '/gen/protos'),
 
     # ------ Technical debt that needs cleaning up below this point ------
-
-    # TODO(primiano): this dependency for BaseSliceTrack & co needs to be moved
-    # to /public/lib or something similar.
-    ('/*plugins/*', '/frontend/*track'),
-
-    # TODO(primiano): clean up generic_slice_details_tab.
-    ('/*plugins/*', '/frontend/generic_slice_details_tab'),
-
-    # TODO(primiano): these dependencies require a discussion with stevegolton@.
-    # unclear if they should be moved to public/lib/* or be part of the
-    # {Base/Named/Slice}Track overhaul.
-    ('/*plugins/*', [
-        '/frontend/slice_layout',
-        '/frontend/slice_args',
-        '/frontend/checkerboard',
-        '/common/track_helper',
-        '/common/track_data',
-    ]),
-
-    # TODO(primiano): clean up dependencies on feature flags.
-    (['/public/lib/colorizer'], '/core/feature_flags'),
-
-    # TODO(primiano): Record page-related technical debt.
-    ('/frontend/record*', '/controller/*'),
-    ('/frontend/permalink', '/controller/*'),
-    ('/common/*', '/controller/record_config_types'),
-    ('/controller/index', '/common/recordingV2/target_factories/index'),
-    ('/common/recordingV2/*', '/controller/*'),
-    ('/controller/record_controller*', '*'),
-    ('/controller/adb_*', '*'),
-    ('/chrome_extension/chrome_tracing_controller', '/controller/*'),
-    ('/chrome_extension/chrome_tracing_controller', '/core/trace_config_utils'),
-
-    # TODO(primiano): query-table tech debt.
+    # TODO(stevegolton): Remove these once we extract core types out of
+    # components.
     (
-        '/public/lib/query_table/query_table',
-        ['/frontend/*', '/core/app_impl', '/core/router'],
+        '/components/*',
+        [
+            '/core/trace_impl',
+            '/core/app_impl',
+            '/core/router',
+            '/core/flow_types',
+            '/core/fake_trace_impl',
+            '/core/raf_scheduler',
+            '/core/feature_flags',
+            '/frontend/css_constants',
+        ],
     ),
 
-    # TODO(primiano): tracks tech debt.
-    ('/public/lib/tracks/*', [
-        '/frontend/base_counter_track',
-        '/frontend/slice_args',
-        '/frontend/tracks/custom_sql_table_slice_track',
-        '/frontend/tracks/generic_slice_details_tab',
-    ]),
-
-    # TODO(primiano): controller-related tech debt.
-    ('/frontend/index', '/controller/*'),
-    ('/controller/*', ['/base/*', '/core/*', '/common/*']),
-
-    # TODO(primiano): check this with stevegolton@. Unclear if widgets should
-    # be allowed to depend on trace_processor.
-    ('/widgets/vega_view', '/trace_processor/*'),
+    # TODO(primiano): Record page-related technical debt.
+    ('/plugins/dev.perfetto.RecordTrace/*', '/frontend/globals'),
+    ('/chrome_extension/chrome_tracing_controller',
+     '/plugins/dev.perfetto.RecordTrace/*'),
 
     # Bigtrace deps.
     ('/bigtrace/*', ['/base/*', '/widgets/*', '/trace_processor/*']),
-
-    # TODO(primiano): rationalize recordingv2. RecordingV2 is a mess of subdirs.
-    ('/common/recordingV2/*', '/common/recordingV2/*'),
 
     # TODO(primiano): misc tech debt.
     ('/public/lib/extensions', '/frontend/*'),

@@ -15,7 +15,7 @@
 import {NUM} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 
 export default class implements PerfettoPlugin {

@@ -21,13 +21,13 @@ import {
   ConsumerPortResponse,
   GetTraceStatsResponse,
   ReadBuffersResponse,
-} from '../controller/consumer_port_types';
-import {RpcConsumerPort} from '../controller/record_controller_interfaces';
+} from '../plugins/dev.perfetto.RecordTrace/consumer_port_types';
+import {RpcConsumerPort} from '../plugins/dev.perfetto.RecordTrace/record_controller_interfaces';
 import {
   browserSupportsPerfettoConfig,
   extractTraceConfig,
   hasSystemDataSourceConfig,
-} from '../core/trace_config_utils';
+} from '../plugins/dev.perfetto.RecordTrace/trace_config_utils';
 import {ITraceStats, TraceConfig} from '../protos';
 
 import {DevToolsSocket} from './devtools_socket';

@@ -16,7 +16,7 @@
 -- Battery charge at timestamp.
 CREATE PERFETTO VIEW android_battery_charge(
   -- Timestamp.
-  ts INT,
+  ts TIMESTAMP,
   -- Current average micro ampers.
   current_avg_ua DOUBLE,
   -- Current capacity percentage.

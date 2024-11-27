@@ -65,6 +65,7 @@
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
 #include "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.h"
@@ -541,6 +542,9 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   Flush();
 
   RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
+  if (context_.perf_tracker) {
+    perf_importer::PerfTracker::GetOrCreate(&context_)->NotifyEndOfFile();
+  }
   context_.storage->ShrinkToFitTables();
 
   // Rebuild the bounds table once everything has been completed: we do this
@@ -992,6 +996,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_jit_frame_table());
 
   RegisterStaticTable(storage->mutable_spe_record_table());
+  RegisterStaticTable(storage->mutable_mmap_record_table());
 
   RegisterStaticTable(storage->mutable_inputmethod_clients_table());
   RegisterStaticTable(storage->mutable_inputmethod_manager_service_table());

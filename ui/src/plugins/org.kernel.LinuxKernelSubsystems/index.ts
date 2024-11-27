@@ -66,14 +66,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: new AsyncSliceTrack(
-          {
-            trace: ctx,
-            uri,
-          },
-          0,
-          [trackId],
-        ),
+        track: new AsyncSliceTrack(ctx, uri, 0, [trackId]),
         tags: {
           kind: SLICE_TRACK_KIND,
           trackIds: [trackId],

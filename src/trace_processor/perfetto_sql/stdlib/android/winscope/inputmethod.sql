@@ -16,15 +16,15 @@
 -- Android inputmethod clients state dumps (from android.inputmethod data source).
 CREATE PERFETTO VIEW android_inputmethod_clients(
   -- Dump id
-  id INT,
+  id LONG,
   -- Timestamp when the dump was triggered
-  ts INT,
+  ts TIMESTAMP,
   -- Extra args parsed from the proto message
-  arg_set_id INT,
+  arg_set_id LONG,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
-  base64_proto_id INT
+  base64_proto_id LONG
 ) AS
 SELECT
   id,
@@ -37,15 +37,15 @@ FROM __intrinsic_inputmethod_clients;
 -- Android inputmethod manager service state dumps (from android.inputmethod data source).
 CREATE PERFETTO VIEW android_inputmethod_manager_service(
   -- Dump id
-  id INT,
+  id LONG,
   -- Timestamp when the dump was triggered
-  ts INT,
+  ts TIMESTAMP,
   -- Extra args parsed from the proto message
-  arg_set_id INT,
+  arg_set_id LONG,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
-  base64_proto_id INT
+  base64_proto_id LONG
 ) AS
 SELECT
   id,
@@ -58,15 +58,15 @@ FROM __intrinsic_inputmethod_manager_service;
 -- Android inputmethod service state dumps (from android.inputmethod data source).
 CREATE PERFETTO VIEW android_inputmethod_service(
   -- Dump id
-  id INT,
+  id LONG,
   -- Timestamp when the dump was triggered
-  ts INT,
+  ts TIMESTAMP,
   -- Extra args parsed from the proto message
-  arg_set_id INT,
+  arg_set_id LONG,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
-  base64_proto_id INT
+  base64_proto_id LONG
 ) AS
 SELECT
   id,

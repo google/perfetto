@@ -16,21 +16,21 @@
 INCLUDE PERFETTO MODULE linux.cpu.frequency;
 
 -- Returns the timestamp of the start of the partition that contains the |ts|.
-CREATE PERFETTO FUNCTION _partition_start(ts INT, size INT) RETURNS INT AS
+CREATE PERFETTO FUNCTION _partition_start(ts TIMESTAMP, size LONG) RETURNS LONG AS
 -- Division of two ints would result in floor(ts/size).
 SELECT ($ts/$size)*$size;
 
 -- Returns the number of partitions required to cover all of the trace
 -- timestamps.
-CREATE PERFETTO FUNCTION _partition_count(size INT) RETURNS INT AS
+CREATE PERFETTO FUNCTION _partition_count(size LONG) RETURNS LONG AS
 SELECT
     (_partition_start(TRACE_END(), $size) -
     _partition_start(TRACE_START(), $size))/$size + 1;
 
 -- Returns a table of partitions with first partition containing the
 -- TRACE_START() and last one containing TRACE_END().
-CREATE PERFETTO FUNCTION _partitions(size INT)
-RETURNS TABLE (ts INT, ts_end INT) AS
+CREATE PERFETTO FUNCTION _partitions(size LONG)
+RETURNS TABLE (ts TIMESTAMP, ts_end LONG) AS
 WITH no_ends AS (
 SELECT
     _partition_start(TRACE_START(), $size) + (id * $size) AS ts
@@ -66,7 +66,7 @@ CREATE PERFETTO MACRO _cpu_avg_utilization_per_period(
   -- Either sched table or its filtered down version.
   sched_table TableOrSubquery
 )
--- The returned table has the schema (ts UINT32, utilization DOUBLE,
+-- The returned table has the schema (ts TIMESTAMP, utilization DOUBLE,
 -- unnormalized_utilization DOUBLE).
 RETURNS TableOrSubquery AS (
 SELECT

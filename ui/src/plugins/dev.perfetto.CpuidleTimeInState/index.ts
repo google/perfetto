@@ -14,9 +14,9 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {CounterOptions} from '../../frontend/base_counter_track';
+import {CounterOptions} from '../../components/tracks/base_counter_track';
 import {TrackNode} from '../../public/workspace';
-import {createQueryCounterTrack} from '../../public/lib/tracks/query_counter_track';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuidleTimeInState';
@@ -65,11 +65,13 @@ export default class implements PerfettoPlugin {
       this.addCounterTrack(
         ctx,
         it.state_name,
-        `select
+        `
+          select
             ts,
             idle_percentage as value
-        from cpu_idle_time_in_state_counters
-        where state_name='${it.state_name}'`,
+          from cpu_idle_time_in_state_counters
+          where state_name = '${it.state_name}'
+        `,
         group,
         {unit: 'percent'},
       );

@@ -21,20 +21,31 @@ import {
   StandardColumn,
   ThreadColumnSet,
   TimestampColumn,
-} from '../../frontend/widgets/sql/table/well_known_columns';
-import {SqlTableState} from '../../frontend/widgets/sql/table/state';
-import {SqlTable} from '../../frontend/widgets/sql/table/table';
+} from '../../components/widgets/sql/table/well_known_columns';
+import {SqlTableState} from '../../components/widgets/sql/table/state';
+import {SqlTable} from '../../components/widgets/sql/table/table';
 import {exists} from '../../base/utils';
 import {Menu, MenuItem, MenuItemAttrs} from '../../widgets/menu';
 import {
   TableColumn,
   TableColumnSet,
-} from '../../frontend/widgets/sql/table/column';
+} from '../../components/widgets/sql/table/column';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {DetailsShell} from '../../widgets/details_shell';
+import {
+  Chart,
+  ChartOption,
+  createChartConfigFromSqlTableState,
+  renderChartComponent,
+} from '../../components/widgets/charts/chart';
+import {AddChartMenuItem} from '../../components/widgets/charts/add_chart_menu';
+import {
+  CollapsiblePanel,
+  CollapsiblePanelVisibility,
+} from '../../components/widgets/collapsible_panel';
 
-interface ExplorePageState {
+interface ExploreTableState {
   sqlTableState?: SqlTableState;
   selectedTable?: ExplorableTable;
 }
@@ -46,13 +57,14 @@ interface ExplorableTable {
 }
 
 export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
-  private readonly state: ExplorePageState;
+  private readonly state: ExploreTableState;
+  private readonly charts: Chart[];
+  private visibility: CollapsiblePanelVisibility;
 
   constructor() {
-    this.state = {
-      sqlTableState: undefined,
-      selectedTable: undefined,
-    };
+    this.charts = [];
+    this.state = {};
+    this.visibility = CollapsiblePanelVisibility.VISIBLE;
   }
 
   // Show menu with standard library tables
@@ -115,7 +127,7 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
 
           this.state.selectedTable = table;
 
-          const sqlTableState = new SqlTableState(
+          this.state.sqlTableState = new SqlTableState(
             trace,
             {
               name: table.name,
@@ -123,7 +135,6 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
             },
             {imports: [table.module]},
           );
-          this.state.sqlTableState = sqlTableState;
         },
       });
     });
@@ -162,15 +173,36 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
       },
       m(SqlTable, {
         state: sqlTableState,
+        addColumnMenuItems: (column, columnAlias) =>
+          m(AddChartMenuItem, {
+            chartConfig: createChartConfigFromSqlTableState(
+              column,
+              columnAlias,
+              sqlTableState,
+            ),
+            chartOptions: [ChartOption.HISTOGRAM],
+            addChart: (chart) => this.charts.push(chart),
+          }),
       }),
     );
   }
 
   view({attrs}: m.CVnode<PageWithTraceAttrs>) {
     return m(
-      '.explore-page',
-      m(Menu, this.renderSelectableTablesMenuItems(attrs.trace)),
-      this.state.selectedTable && this.renderSqlTable(),
+      '.page.explore-page',
+      m(
+        '.chart-container',
+        m(Menu, this.renderSelectableTablesMenuItems(attrs.trace)),
+        this.charts.map((chart) => renderChartComponent(chart)),
+      ),
+      this.state.selectedTable &&
+        m(CollapsiblePanel, {
+          visibility: this.visibility,
+          setVisibility: (visibility) => {
+            this.visibility = visibility;
+          },
+          tabs: [this.renderSqlTable()],
+        }),
     );
   }
 }

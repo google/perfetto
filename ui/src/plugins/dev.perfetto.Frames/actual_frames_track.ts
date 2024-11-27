@@ -13,13 +13,17 @@
 // limitations under the License.
 
 import {HSLColor} from '../../public/color';
-import {makeColorScheme} from '../../public/lib/colorizer';
+import {makeColorScheme} from '../../components/colorizer';
 import {ColorScheme} from '../../public/color_scheme';
-import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
+import {
+  NAMED_ROW,
+  NamedSliceTrack,
+} from '../../components/tracks/named_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../components/tracks/slice_layout';
 import {STR_NULL} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {Trace} from '../../public/trace';
+import {TrackEventDetails} from '../../public/selection';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -54,7 +58,7 @@ export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
     uri: string,
     private trackIds: number[],
   ) {
-    super({trace, uri});
+    super(trace, uri);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
@@ -89,6 +93,26 @@ export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
       ...baseSlice,
       colorScheme: getColorSchemeForJank(row.jankTag, row.jankSeverityType),
     };
+  }
+
+  override async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const baseDetails = await super.getSelectionDetails(id);
+    if (!baseDetails) return undefined;
+    return {
+      ...baseDetails,
+      tableName: 'slice',
+    };
+  }
+
+  // Override dataset from base class NamedSliceTrack as we don't want these
+  // tracks to participate in generic area selection aggregation (frames tracks
+  // have their own dedicated aggregation panel).
+  // TODO(stevegolton): In future CLs this will be handled with aggregation keys
+  // instead, as this track will have to expose a dataset anyway.
+  override getDataset() {
+    return undefined;
   }
 }
 

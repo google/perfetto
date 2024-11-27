@@ -19,11 +19,13 @@ import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {CpuProfileTrack} from './cpu_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
-import {getOrCreateGroupForThread} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuProfile';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (
@@ -60,17 +62,13 @@ export default class implements PerfettoPlugin {
           utid,
           ...(exists(upid) && {upid}),
         },
-        track: new CpuProfileTrack(
-          {
-            trace: ctx,
-            uri,
-          },
-          utid,
-        ),
+        track: new CpuProfileTrack(ctx, uri, utid),
       });
-      const group = getOrCreateGroupForThread(ctx.workspace, utid);
+      const group = ctx.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForThread(utid);
       const track = new TrackNode({uri, title, sortOrder: -40});
-      group.addChildInOrder(track);
+      group?.addChildInOrder(track);
     }
   }
 }

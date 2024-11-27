@@ -32,7 +32,7 @@ import {AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {createProxy, getOrCreate} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {PageHandler} from '../public/page';
-import {setPerfHooks} from './perf';
+import {PerfManager} from './perf_manager';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {featureFlags} from './feature_flags';
@@ -59,6 +59,7 @@ export class AppContext {
   readonly pageMgr = new PageManagerImpl();
   readonly sidebarMgr: SidebarManagerImpl;
   readonly pluginMgr: PluginManagerImpl;
+  readonly perfMgr = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController: ServiceWorkerController;
   httpRpc = {
@@ -67,7 +68,6 @@ export class AppContext {
   };
   initialRouteArgs: RouteArgs;
   isLoadingTrace = false; // Set when calling openTrace().
-  perfDebugging = false; // Enables performance debugging of tracks/panels.
   readonly initArgs: AppInitArgs;
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
@@ -79,19 +79,31 @@ export class AppContext {
   // The currently open trace.
   currentTrace?: TraceContext;
 
+  private static _instance: AppContext;
+
+  static initialize(initArgs: AppInitArgs): AppContext {
+    assertTrue(AppContext._instance === undefined);
+    return (AppContext._instance = new AppContext(initArgs));
+  }
+
+  static get instance(): AppContext {
+    return assertExists(AppContext._instance);
+  }
+
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
-  constructor(initArgs: AppInitArgs) {
+  private constructor(initArgs: AppInitArgs) {
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;
-    this.sidebarMgr = new SidebarManagerImpl({
-      sidebarEnabled: !this.initialRouteArgs.hideSidebar,
-    });
     this.serviceWorkerController = new ServiceWorkerController();
     this.embeddedMode = this.initialRouteArgs.mode === 'embedded';
     this.testingMode =
       self.location !== undefined &&
       self.location.search.indexOf('testing=1') >= 0;
+    this.sidebarMgr = new SidebarManagerImpl({
+      disabled: this.embeddedMode,
+      hidden: this.initialRouteArgs.hideSidebar,
+    });
     this.analytics = initAnalytics(this.testingMode, this.embeddedMode);
     this.pluginMgr = new PluginManagerImpl({
       forkForPlugin: (pluginId) => this.forPlugin(pluginId),
@@ -143,19 +155,16 @@ export class AppImpl implements App {
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
 
+  // Invoked by frontend/index.ts.
+  static initialize(args: AppInitArgs) {
+    AppContext.initialize(args).forPlugin(CORE_PLUGIN_ID);
+  }
+
   // Gets access to the one instance that the core can use. Note that this is
   // NOT the only instance, as other AppImpl instance will be created for each
   // plugin.
-  private static _instance: AppImpl;
-
-  // Invoked by frontend/index.ts.
-  static initialize(args: AppInitArgs) {
-    assertTrue(AppImpl._instance === undefined);
-    AppImpl._instance = new AppContext(args).forPlugin(CORE_PLUGIN_ID);
-  }
-
   static get instance(): AppImpl {
-    return assertExists(AppImpl._instance);
+    return AppContext.instance.forPlugin(CORE_PLUGIN_ID);
   }
 
   // Only called by AppContext.forPlugin().
@@ -171,6 +180,10 @@ export class AppImpl implements App {
         });
       },
     });
+  }
+
+  forPlugin(pluginId: string): AppImpl {
+    return this.appCtx.forPlugin(pluginId);
   }
 
   get commands(): CommandManagerImpl {
@@ -201,8 +214,8 @@ export class AppImpl implements App {
     return this.appCtx.currentTrace?.forPlugin(this.pluginId);
   }
 
-  scheduleFullRedraw(): void {
-    raf.scheduleFullRedraw();
+  scheduleFullRedraw(force?: 'force'): void {
+    raf.scheduleFullRedraw(force);
   }
 
   get httpRpc() {
@@ -236,7 +249,6 @@ export class AppImpl implements App {
   }
 
   private async openTrace(src: TraceSource) {
-    assertTrue(this.pluginId === CORE_PLUGIN_ID);
     this.appCtx.closeCurrentTrace();
     this.appCtx.isLoadingTrace = true;
     try {
@@ -284,17 +296,8 @@ export class AppImpl implements App {
     return this.appCtx.extraSqlPackages;
   }
 
-  get perfDebugging(): boolean {
-    return this.appCtx.perfDebugging;
-  }
-
-  setPerfDebuggingEnabled(enabled: boolean) {
-    this.appCtx.perfDebugging = enabled;
-    setPerfHooks(
-      () => this.perfDebugging,
-      () => this.setPerfDebuggingEnabled(!this.perfDebugging),
-    );
-    raf.scheduleFullRedraw();
+  get perfDebugging(): PerfManager {
+    return this.appCtx.perfMgr;
   }
 
   get serviceWorkerController(): ServiceWorkerController {

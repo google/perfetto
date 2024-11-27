@@ -75,6 +75,8 @@ class PerfettoCmd : public Consumer {
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
  private:
+  struct SnapshotTriggerInfo;
+
   enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
 
   bool OpenOutputFile();
@@ -83,10 +85,11 @@ class PerfettoCmd : public Consumer {
   void PrintUsage(const char* argv0);
   void PrintServiceState(bool success, const TracingServiceState&);
   void CloneAllBugreportTraces(bool success, const TracingServiceState&);
+
   void CloneSessionOnThread(TracingSessionID,
                             const std::string& cmdline,  // \0 separated.
                             CloneThreadMode,
-                            std::string clone_trigger_name,
+                            const std::optional<SnapshotTriggerInfo>& trigger,
                             std::function<void()> on_clone_callback);
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
@@ -131,7 +134,7 @@ class PerfettoCmd : public Consumer {
   void NotifyBgProcessPipe(BgProcessStatus status);
 
   void OnCloneSnapshotTriggerReceived(TracingSessionID,
-                                      std::string trigger_name);
+                                      const SnapshotTriggerInfo& trigger);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
@@ -191,7 +194,18 @@ class PerfettoCmd : public Consumer {
   std::list<base::ThreadTaskRunner> snapshot_threads_;
   int snapshot_count_ = 0;
   std::string snapshot_config_;
-  std::string snapshot_trigger_name_;
+  // If the trigger caused the clone operation, we want to save the information
+  // about that trigger to the trace We may get multiple triggers with the same
+  // name, so we pass the entire structure to uniquely identify the trigger
+  // later. This structure is identical to the
+  // `TracingServiceImpl::TriggerInfo`.
+  struct SnapshotTriggerInfo {
+    uint64_t boot_time_ns = 0;
+    std::string trigger_name;
+    std::string producer_name;
+    uid_t producer_uid = 0;
+  };
+  std::optional<SnapshotTriggerInfo> snapshot_trigger_info_;
 
   base::WeakPtrFactory<PerfettoCmd> weak_factory_{this};
 };

@@ -67,7 +67,7 @@ SELECT
   IFNULL(lead(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts), trace_end()) - ts
     AS dur,
   process.upid,
-  CAST(c.value AS INT) AS value
+  cast_int!(c.value ) AS value
 FROM counter c
 JOIN process_counter_track t
   ON c.track_id = t.id
@@ -106,7 +106,10 @@ USING
 CREATE PERFETTO TABLE _gc_slice_heap
 AS
 SELECT
-  *,
+  gc_ts as ts,
+  gc_dur as dur,
+  upid, gc_id, gc_name, gc_ts, gc_dur, utid, tid, pid,
+  thread_name, process_name, last_value, value,
   CASE
     WHEN gc_name GLOB '*young*' THEN 'young'
     WHEN gc_name GLOB '*NativeAlloc*' THEN 'native_alloc'
@@ -129,13 +132,13 @@ USING
 -- All Garbage collection events with a breakdown of the time spent and heap reclaimed.
 CREATE PERFETTO TABLE android_garbage_collection_events (
   -- Tid of thread running garbage collection.
-  tid INT,
+  tid LONG,
   -- Pid of process running garbage collection.
-  pid INT,
+  pid LONG,
   -- Utid of thread running garbage collection.
-  utid INT,
+  utid LONG,
   -- Upid of process running garbage collection.
-  upid INT,
+  upid LONG,
   -- Name of thread running garbage collection.
   thread_name STRING,
   -- Name of process running garbage collection.
@@ -143,7 +146,7 @@ CREATE PERFETTO TABLE android_garbage_collection_events (
   -- Type of garbage collection.
   gc_type STRING,
   -- Whether gargage collection is mark compact or copying.
-  is_mark_compact INT,
+  is_mark_compact LONG,
   -- MB reclaimed after garbage collection.
   reclaimed_mb DOUBLE,
   -- Minimum heap size in MB during garbage collection.
@@ -151,21 +154,21 @@ CREATE PERFETTO TABLE android_garbage_collection_events (
   -- Maximum heap size in MB during garbage collection.
   max_heap_mb DOUBLE,
   -- Garbage collection id.
-  gc_id INT,
+  gc_id LONG,
   -- Garbage collection timestamp.
-  gc_ts INT,
+  gc_ts TIMESTAMP,
   -- Garbage collection wall duration.
-  gc_dur INT,
+  gc_dur DURATION,
   -- Garbage collection duration spent executing on CPU.
-  gc_running_dur INT,
+  gc_running_dur DURATION,
   -- Garbage collection duration spent waiting for CPU.
-  gc_runnable_dur INT,
+  gc_runnable_dur DURATION,
   -- Garbage collection duration spent waiting in the Linux kernel on IO.
-  gc_unint_io_dur INT,
+  gc_unint_io_dur DURATION,
   -- Garbage collection duration spent waiting in the Linux kernel without IO.
-  gc_unint_non_io_dur INT,
+  gc_unint_non_io_dur DURATION,
     -- Garbage collection duration spent waiting in interruptible sleep.
-  gc_int_dur INT
+  gc_int_dur LONG
   )
 AS
 WITH

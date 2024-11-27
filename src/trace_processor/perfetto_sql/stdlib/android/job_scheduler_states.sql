@@ -201,26 +201,26 @@ JOIN _screen_states s ON s.id = ii.id_1;
 -- table in the `android.job_scheduler` module and how to populate this table.
 CREATE PERFETTO TABLE android_job_scheduler_states(
   -- Unique identifier for row.
-  id INT,
+  id LONG,
   -- Timestamp of job state slice.
-  ts INT,
+  ts TIMESTAMP,
   -- Duration of job state slice.
-  dur INT,
+  dur DURATION,
   -- Id of the slice.
-  slice_id INT,
+  slice_id LONG,
   -- Name of the job (as named by the app).
   job_name STRING,
   -- Uid associated with job.
-  uid INT,
+  uid LONG,
   -- Id of job (assigned by app for T- builds and system generated in U+
   -- builds).
-  job_id INT,
+  job_id LONG,
   -- Package that the job belongs (ex: associated app).
   package_name STRING,
   -- Namespace of job.
   job_namespace STRING,
   -- Priority at which JobScheduler ran the job.
-  effective_priority INT,
+  effective_priority LONG,
   -- True if app requested job should run when the device battery is not low.
   has_battery_not_low_constraint BOOL,
   -- True if app requested job should run when the device is charging.
@@ -244,9 +244,9 @@ CREATE PERFETTO TABLE android_job_scheduler_states(
   -- The job is run as an expedited job.
   is_running_as_expedited_job BOOL,
   -- Number of previous attempts at running job.
-  num_previous_attempts INT,
+  num_previous_attempts TIMESTAMP,
   -- The requested priority at which the job should run.
-  requested_priority INT,
+  requested_priority LONG,
   -- The job's standby bucket (one of: Active, Working Set, Frequent, Rare,
   -- Never, Restricted, Exempt).
   standby_bucket STRING,
@@ -260,12 +260,12 @@ CREATE PERFETTO TABLE android_job_scheduler_states(
   is_running_as_user_initiated_job BOOL,
   -- Deadline that job has requested and valid if has_deadline_constraint is
   -- true.
-  deadline_ms INT,
+  deadline_ms LONG,
   -- The latency in ms between when a job is scheduled and when it actually
   -- starts.
-  job_start_latency_ms INT,
+  job_start_latency_ms LONG,
   -- Number of uncompleted job work items.
-  num_uncompleted_work_items INT,
+  num_uncompleted_work_items LONG,
   -- Process state of the process responsible for running the job.
   proc_state STRING,
   -- Internal stop reason for a job.
@@ -334,20 +334,20 @@ FROM _job_started;
 -- `ATOM_SCHEDULED_JOB_STATE_CHANGED` is available in a trace.
 CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Timestamp of job.
-  ts INT,
+  ts TIMESTAMP,
   -- Duration of slice in ns.
-  dur INT,
+  dur DURATION,
   -- Id of the slice.
-  slice_id INT,
+  slice_id LONG,
   -- Name of the job (as named by the app).
   job_name STRING,
   -- Id of job (assigned by app for T- builds and system generated in U+
   -- builds).
-  job_id INT,
+  job_id LONG,
   -- Uid associated with job.
-  uid INT,
+  uid LONG,
   -- Duration of entire job in ns.
-  job_dur INT,
+  job_dur DURATION,
   -- Package that the job belongs (ex: associated app).
   package_name STRING,
   -- Namespace of job.
@@ -359,7 +359,7 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- (doze), Unknown).
   screen_state STRING,
   -- Priority at which JobScheduler ran the job.
-  effective_priority INT,
+  effective_priority LONG,
   -- True if app requested job should run when the device battery is not low.
   has_battery_not_low_constraint BOOL,
   -- True if app requested job should run when the device is charging.
@@ -383,9 +383,9 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- The job is run as an expedited job.
   is_running_as_expedited_job BOOL,
   -- Number of previous attempts at running job.
-  num_previous_attempts INT,
+  num_previous_attempts TIMESTAMP,
   -- The requested priority at which the job should run.
-  requested_priority INT,
+  requested_priority LONG,
   -- The job's standby bucket (one of: Active, Working Set, Frequent, Rare,
   -- Never, Restricted, Exempt).
   standby_bucket STRING,
@@ -399,12 +399,12 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   is_running_as_user_initiated_job BOOL,
   -- Deadline that job has requested and valid if has_deadline_constraint is
   -- true.
-  deadline_ms INT,
+  deadline_ms LONG,
   -- The latency in ms between when a job is scheduled and when it actually
   -- starts.
-  job_start_latency_ms INT,
+  job_start_latency_ms LONG,
   -- Number of uncompleted job work items.
-  num_uncompleted_work_items INT,
+  num_uncompleted_work_items LONG,
   -- Process state of the process responsible for running the job.
   proc_state STRING,
   -- Internal stop reason for a job.

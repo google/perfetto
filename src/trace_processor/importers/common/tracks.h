@@ -34,6 +34,7 @@ namespace perfetto::trace_processor::tracks {
   F(android_energy_estimation_breakdown)         \
   F(android_gpu_work_period)                     \
   F(android_lmk)                                 \
+  F(block_io)                                    \
   F(chrome_process_instant)                      \
   F(cpu_capacity)                                \
   F(cpu_frequency_throttle)                      \
@@ -69,12 +70,16 @@ enum TrackClassification : size_t {
   PERFETTO_TP_TRACKS(PERFETTO_TP_TRACKS_CLASSIFICATION_ENUM)
 };
 
+namespace internal {
+
 #define PERFETTO_TP_TRACKS_CLASSIFICATION_STR(name) #name,
 constexpr std::array kTrackClassificationStr{
     PERFETTO_TP_TRACKS(PERFETTO_TP_TRACKS_CLASSIFICATION_STR)};
 
+}  // namespace internal
+
 constexpr const char* ToString(TrackClassification c) {
-  return kTrackClassificationStr[c];
+  return internal::kTrackClassificationStr[c];
 }
 
 }  // namespace perfetto::trace_processor::tracks

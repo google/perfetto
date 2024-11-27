@@ -1914,6 +1914,7 @@ message WebViewStartup {
     GET_DEFAULT_WEB_STORAGE = 7;
     GET_DEFAULT_WEBVIEW_DATABASE = 8;
     GET_TRACING_CONTROLLER = 9;
+    ASYNC_WEBVIEW_STARTUP = 10;
   }
   optional CallSite call_site = 2;
 }
@@ -2020,6 +2021,15 @@ message CurrentTask {
 
   // Timestamp in microseconds of the start of the task containing this slice.
   optional uint64 task_start_time_us = 2;
+
+  // t1 - t0, where t1 is the start timestamp of this slice and t0 is the
+  // timestamp of the time when the task containing this slice
+  // was queued.
+  optional uint64 task_queueing_time_us = 3;
+
+  // Timestamp in microseconds of the time when the task containing
+  // this slice was queued.
+  optional uint64 task_queued_time_us = 4;
 }
 
 message ChromeLatencyInfo2 {

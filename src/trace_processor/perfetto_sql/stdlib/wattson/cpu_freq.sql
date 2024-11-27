@@ -51,4 +51,16 @@ SELECT
   freq,
   cpu,
   policy
-FROM _cpu_freq;
+FROM _cpu_freq
+UNION ALL
+-- Add empty cpu freq counters for CPUs that are physically present, but did not
+-- have a single freq event register. The time region needs to be defined so
+-- that interval_intersect doesn't remove the undefined time region.
+SELECT
+  trace_start() as ts,
+  trace_dur() as dur,
+  NULL as freq,
+  cpu,
+  NULL as policy
+FROM _dev_cpu_policy_map
+WHERE cpu NOT IN (SELECT cpu FROM first_cpu_freq_slices);

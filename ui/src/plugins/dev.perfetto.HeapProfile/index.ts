@@ -17,9 +17,9 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {HeapProfileTrack} from './heap_profile_track';
-import {getOrCreateGroupForProcess} from '../../public/standard_groups';
 import {TrackNode} from '../../public/workspace';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 function getUriForTrack(upid: number): string {
   return `/process_${upid}/heap_profile`;
@@ -27,6 +27,8 @@ function getUriForTrack(upid: number): string {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     const it = await ctx.engine.query(`
       select value from stats
@@ -92,22 +94,16 @@ export default class implements PerfettoPlugin {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
-        track: new HeapProfileTrack(
-          {
-            trace: ctx,
-            uri,
-          },
-          tableName,
-          upid,
-          incomplete,
-        ),
+        track: new HeapProfileTrack(ctx, uri, tableName, upid, incomplete),
       });
-      const group = getOrCreateGroupForProcess(ctx.workspace, upid);
+      const group = ctx.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForProcess(upid);
       const track = new TrackNode({uri, title, sortOrder: -30});
-      group.addChildInOrder(track);
+      group?.addChildInOrder(track);
     }
 
-    ctx.addEventListener('traceready', async () => {
+    ctx.onTraceReady.addListener(async () => {
       await selectFirstHeapProfile(ctx);
     });
   }

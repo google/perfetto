@@ -21,7 +21,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -40,6 +39,7 @@
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/perf/attrs_section_reader.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
@@ -47,14 +47,13 @@
 #include "src/trace_processor/importers/perf/aux_stream_manager.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
-#include "src/trace_processor/importers/perf/dso_tracker.h"
-#include "src/trace_processor/importers/perf/etm_tokenizer.h"
 #include "src/trace_processor/importers/perf/features.h"
 #include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample_id.h"
@@ -478,7 +477,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
           std::move(data), [&](TraceBlobView blob) {
             third_party::simpleperf::proto::pbzero::FileFeature::Decoder file(
                 blob.data(), blob.length());
-            DsoTracker::GetOrCreate(context_).AddSimpleperfFile2(file);
+            PerfTracker::GetOrCreate(context_)->AddSimpleperfFile2(file);
           }));
 
       break;
@@ -538,6 +537,7 @@ PerfDataTokenizer::ParseAuxtraceData() {
 base::Status PerfDataTokenizer::ProcessItraceStartRecord(Record record) {
   ItraceStartRecord start;
   RETURN_IF_ERROR(start.Parse(record));
+  context_->process_tracker->UpdateThread(start.tid, start.pid);
   aux_manager_.OnItraceStartRecord(std::move(start));
   MaybePushRecord(std::move(record));
   return base::OkStatus();

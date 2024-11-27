@@ -19,13 +19,13 @@
 -- - previous "Runnable" (or runnable preempted) state.
 -- - previous uninterrupted "Runnable" state with a valid waker thread.
 CREATE PERFETTO TABLE sched_previous_runnable_on_thread(
-    -- `thread_state.id` id.
-    id INT,
-    -- Previous runnable `thread_state.id`.
-    prev_runnable_id INT,
-    -- Previous runnable `thread_state.id` with valid waker
-    -- thread.
-    prev_wakeup_runnable_id INT
+    -- Alias of `thread_state.id`.
+    id LONG,
+    -- Previous runnable thread state. Alias of `thread_state.id`.
+    prev_runnable_id LONG,
+    -- Previous runnable thread state with valid waker thread. Alias of
+    -- `thread_state.id`.
+    prev_wakeup_runnable_id LONG
 ) AS
 WITH running_and_runnable AS (
   SELECT

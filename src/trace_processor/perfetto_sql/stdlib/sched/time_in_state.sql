@@ -18,15 +18,15 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 -- The time a thread spent in each scheduling state during it's lifetime.
 CREATE PERFETTO TABLE sched_time_in_state_for_thread(
   -- Utid of the thread.
-  utid INT,
+  utid LONG,
   -- Total runtime of thread.
-  total_runtime INT,
+  total_runtime LONG,
   -- One of the scheduling states of kernel thread.
   state STRING,
   -- Total time spent in the scheduling state.
-  time_in_state INT,
+  time_in_state LONG,
   -- Percentage of time thread spent in scheduling state in [0-100] range.
-  percentage_in_state INT
+  percentage_in_state LONG
 ) AS
 WITH total_dur AS (
   SELECT
@@ -59,24 +59,24 @@ MAX(CASE WHEN state = $state THEN percentage_in_state END);
 -- are rounded down.
 CREATE PERFETTO TABLE sched_percentage_of_time_in_state(
   -- Utid of the thread.
-  utid INT,
+  utid LONG,
   -- Percentage of time thread spent in running ('Running') state in [0, 100]
   -- range.
-  running INT,
+  running LONG,
   -- Percentage of time thread spent in runnable ('R') state in [0, 100]
   -- range.
-  runnable INT,
+  runnable LONG,
   -- Percentage of time thread spent in preempted runnable ('R+') state in
   -- [0, 100] range.
-  runnable_preempted INT,
+  runnable_preempted LONG,
   -- Percentage of time thread spent in sleeping ('S') state in [0, 100] range.
-  sleeping INT,
+  sleeping LONG,
   -- Percentage of time thread spent in uninterruptible sleep ('D') state in
   -- [0, 100] range.
-  uninterruptible_sleep INT,
+  uninterruptible_sleep LONG,
   -- Percentage of time thread spent in other ('T', 't', 'X', 'Z', 'x', 'I',
   -- 'K', 'W', 'P', 'N') states in [0, 100] range.
-  other INT
+  other LONG
 ) AS
 SELECT
   utid,
@@ -102,11 +102,11 @@ GROUP BY utid;
 -- purpose instead.
 CREATE PERFETTO FUNCTION sched_time_in_state_for_thread_in_interval(
   -- The start of the interval.
-  ts INT,
+  ts TIMESTAMP,
   -- The duration of the interval.
-  dur INT,
+  dur DURATION,
   -- The utid of the thread.
-  utid INT
+  utid LONG
 )
 RETURNS TABLE(
   -- The scheduling state (from the `thread_state` table).
@@ -123,10 +123,10 @@ RETURNS TABLE(
   --
   -- Only available on Android when
   -- `sched/sched_blocked_reason` ftrace tracepoint is enabled.
-  blocked_function INT,
+  blocked_function LONG,
   -- The duration of time the threads slice spent for each
   -- (state, io_wait, blocked_function) tuple.
-  dur INT
+  dur DURATION
 ) AS
 SELECT
   state,
@@ -151,11 +151,11 @@ ORDER BY 4 DESC;
 -- Time the thread spent each state and cpu in a given interval.
 CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
   -- The start of the interval.
-  ts INT,
+  ts TIMESTAMP,
   -- The duration of the interval.
-  dur INT,
+  dur DURATION,
   -- The utid of the thread.
-  utid INT)
+  utid LONG)
 RETURNS TABLE(
   -- Thread state (from the `thread_state` table).
   -- Use `sched_state_to_human_readable_string` function to get full name.
@@ -164,11 +164,11 @@ RETURNS TABLE(
   -- sleep, if it was an IO sleep.
   io_wait BOOL,
   -- Id of the CPU.
-  cpu INT,
+  cpu LONG,
   -- Some states can specify the blocked function. Usually NULL.
-  blocked_function INT,
+  blocked_function LONG,
   -- Total time spent with this state, cpu and blocked function.
-  dur INT) AS
+  dur DURATION) AS
 SELECT
   state,
   io_wait,
@@ -188,16 +188,16 @@ ORDER BY 5 DESC;
 -- Time spent by CPU in each scheduling state in a provided interval.
 CREATE PERFETTO FUNCTION sched_time_in_state_for_cpu_in_interval(
     -- CPU id.
-    cpu INT,
+    cpu LONG,
     -- Interval start.
-    ts INT,
+    ts TIMESTAMP,
     -- Interval duration.
-    dur INT
+    dur LONG
 ) RETURNS TABLE (
     -- End state. From `sched.end_state`.
     end_state STRING,
     -- Duration in state.
-    dur INT
+    dur LONG
 ) AS
 WITH sched_for_cpu AS (
   SELECT id, ts, dur

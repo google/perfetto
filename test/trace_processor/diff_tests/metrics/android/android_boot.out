@@ -33,28 +33,28 @@ total_gc_count: 4
 num_of_processes_with_gc: 4
 num_of_threads_with_gc: 4
 avg_gc_duration: 260516077.75
-avg_running_gc_duration: 3902628.5
+avg_running_gc_duration: 20215729.0
 full_gc_count: 4
 collector_transition_gc_count: 0
 young_gc_count: 0
 native_alloc_gc_count: 0
 explicit_gc_count: 0
 alloc_gc_count: 0
-mb_per_ms_of_gc: 0.8829305684617432
+mb_per_ms_of_gc: 0.17044896080670652
 }
 post_boot_gc_aggregation {
 total_gc_count: 4
 num_of_processes_with_gc: 4
 num_of_threads_with_gc: 4
 avg_gc_duration: 260516077.75
-avg_running_gc_duration: 3902628.5
+avg_running_gc_duration: 20215729.0
 full_gc_count: 4
 collector_transition_gc_count: 0
 young_gc_count: 0
 native_alloc_gc_count: 0
 explicit_gc_count: 0
 alloc_gc_count: 0
-mb_per_ms_of_gc: 0.8829305684617432
+mb_per_ms_of_gc: 0.17044896080670652
 }
 post_boot_oom_adjuster_transition_counts_global {
 src_bucket: "cached_app"

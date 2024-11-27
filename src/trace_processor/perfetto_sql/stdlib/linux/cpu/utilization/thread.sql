@@ -23,13 +23,13 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_thread_utilization_per_period(
     -- Length of the period on which utilization should be averaged.
-    interval INT,
+    interval LONG,
     -- Utid of the thread.
-    utid INT
+    utid LONG
 )
 RETURNS TABLE(
   -- Timestamp of start of a second.
-  ts INT,
+  ts TIMESTAMP,
   -- Sum of average utilization over period.
   -- Note: as the data is normalized, the values will be in the
   -- [0, 1] range.
@@ -54,11 +54,11 @@ WITH sched_for_utid AS (
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_thread_utilization_per_second(
   -- Utid of the thread.
-  utid INT
+  utid LONG
 )
 RETURNS TABLE (
   -- Timestamp of start of a second.
-  ts INT,
+  ts TIMESTAMP,
   -- Sum of average utilization over period.
   -- Note: as the data is normalized, the values will be in the
   -- [0, 1] range.
@@ -73,19 +73,19 @@ SELECT * FROM cpu_thread_utilization_per_period(time_from_s(1), $utid);
 -- Aggregated CPU statistics for each thread.
 CREATE PERFETTO TABLE cpu_cycles_per_thread(
   -- Unique thread id
-  utid INT,
+  utid LONG,
   -- Sum of CPU millicycles
-  millicycles INT,
+  millicycles LONG,
   -- Sum of CPU megacycles
-  megacycles INT,
+  megacycles LONG,
   -- Total runtime duration
-  runtime INT,
+  runtime LONG,
   -- Minimum CPU frequency in kHz
-  min_freq INT,
+  min_freq LONG,
   -- Maximum CPU frequency in kHz
-  max_freq INT,
+  max_freq LONG,
   -- Average CPU frequency in kHz
-  avg_freq INT
+  avg_freq LONG
 ) AS
 SELECT
   utid,
@@ -101,25 +101,25 @@ GROUP BY utid;
 -- Aggregated CPU statistics for each thread in a provided interval.
 CREATE PERFETTO FUNCTION cpu_cycles_per_thread_in_interval(
     -- Start of the interval.
-    ts INT,
+    ts TIMESTAMP,
     -- Duration of the interval.
-    dur INT
+    dur LONG
 )
 RETURNS TABLE(
   -- Unique thread id. Joinable with `thread.id`.
-  utid INT,
+  utid LONG,
   -- Sum of CPU millicycles
-  millicycles INT,
+  millicycles LONG,
   -- Sum of CPU megacycles
-  megacycles INT,
+  megacycles LONG,
   -- Total runtime duration
-  runtime INT,
+  runtime LONG,
   -- Minimum CPU frequency in kHz
-  min_freq INT,
+  min_freq LONG,
   -- Maximum CPU frequency in kHz
-  max_freq INT,
+  max_freq LONG,
   -- Average CPU frequency in kHz
-  avg_freq INT
+  avg_freq LONG
 ) AS
 SELECT
   utid,

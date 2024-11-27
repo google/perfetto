@@ -106,7 +106,7 @@ export interface OmniboxAttrs {
   onInput?: (value: string, previousValue: string) => void;
 
   // Class or list of classes to append to the Omnibox element.
-  extraClasses?: string | string[];
+  extraClasses?: string;
 
   // Called on close.
   onClose?: () => void;
@@ -182,7 +182,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
         trigger: m(
           '.omnibox',
           {
-            class: classNames(extraClasses),
+            class: extraClasses,
           },
           m('input', {
             ref: inputRef,
@@ -328,7 +328,13 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     document.removeEventListener('mousedown', this.onMouseDown);
   }
 
+  // This is defined as an arrow function to have a single handler that can be
+  // added/remove while keeping `this` bound.
   private onMouseDown = (e: Event) => {
+    // We need to schedule a redraw manually as this event handler was added
+    // manually to the DOM and doesn't use Mithril's auto-redraw system.
+    raf.scheduleFullRedraw('force');
+
     // Don't close if the click was within ourselves or our popup.
     if (e.target instanceof Node) {
       if (this.popupElement && this.popupElement.contains(e.target)) {

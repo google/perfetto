@@ -20,6 +20,7 @@ import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {ColorScheme} from './color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
+import {Dataset} from '../trace_processor/dataset';
 
 export interface TrackManager {
   /**
@@ -173,6 +174,12 @@ export interface Track {
   onMouseMove?(event: TrackMouseEvent): void;
   onMouseClick?(event: TrackMouseEvent): boolean;
   onMouseOut?(): void;
+
+  /**
+   * Optional: Returns a dataset that represents the events displayed on this
+   * track.
+   */
+  getDataset?(): Dataset | undefined;
 
   /**
    * Optional: Get details of a track event given by eventId on this track.

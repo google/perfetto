@@ -81,8 +81,8 @@ WITH power_mw_counter AS (
 )
 SELECT * FROM counter_leading_intervals!(power_mw_counter);
 
-DROP TABLE IF EXISTS energy_usage_estimate;
-CREATE PERFETTO TABLE energy_usage_estimate AS
+DROP TABLE IF EXISTS charge_diff_mw;
+CREATE PERFETTO TABLE charge_diff_mw AS
 with energy_counters as (
 select
   ts,
@@ -92,20 +92,22 @@ select
  from android_battery_charge
 ), start_energy as (
   select
-  min(ts),
+  min(ts) as ts,
   energy
   from energy_counters
 ), end_energy as (
   select
-  max(ts),
+  max(ts) as ts,
   energy
   from energy_counters
 )
 select
-  -- If the battery is discharging, the start value will be greater than the end
-  -- and the estimate will report a positive value.
+  -- If the battery is discharging, the start energy value will be greater than
+  -- the end and the estimate will report a positive value.
   -- Battery energy is in watt hours, so multiply by 3600 to convert to joules.
-  (s.energy - e.energy) * 3600 as estimate
+  -- Convert perfetto timestamp from nanoseconds to seconds.
+  -- Divide energy by seconds and convert to milliwatts.
+  (s.energy - e.energy) * 3600 * 1e3 / ((e.ts - s.ts) / 1e9) as estimate
 from start_energy s, end_energy e;
 
 DROP VIEW IF EXISTS android_batt_output;
@@ -118,7 +120,8 @@ SELECT AndroidBatteryMetric(
         'charge_counter_uah', charge_uah,
         'capacity_percent', capacity_percent,
         'current_ua', current_ua,
-        'current_avg_ua', current_avg_ua
+        'current_avg_ua', current_avg_ua,
+        'voltage_uv', voltage_uv
       )
     )
     FROM android_battery_charge
@@ -143,8 +146,8 @@ SELECT AndroidBatteryMetric(
       (SELECT SUM(ts_end - ts) FROM android_batt_wakelocks_merged),
       'avg_power_mw',
       (SELECT SUM(value * dur) / SUM(dur) FROM power_mw_intervals),
-      'energy_usage_estimate',
-      (select estimate FROM energy_usage_estimate)
+      'avg_power_from_charge_diff_mw',
+      (select estimate FROM charge_diff_mw)
       ))
     FROM (
       SELECT dur, value AS state, 'total' AS tbl

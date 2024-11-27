@@ -27,29 +27,29 @@ USING SPAN_OUTER_JOIN(
 -- interval means that either the memory or OOM adjuster score of the process changed.
 CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
   -- Timestamp the oom_adj score or memory of the process changed
-  ts INT,
+  ts TIMESTAMP,
   -- Duration until the next oom_adj score or memory change of the process.
-  dur INT,
+  dur DURATION,
   -- oom adjuster score of the process.
-  score INT,
+  score LONG,
   -- oom adjuster bucket of the process.
   bucket STRING,
   -- Upid of the process having an oom_adj update.
-  upid INT,
+  upid LONG,
   -- Name of the process having an oom_adj update.
   process_name STRING,
   -- Pid of the process having an oom_adj update.
-  pid INT,
+  pid LONG,
   -- Slice of the latest oom_adj update in the system_server. Alias of
   -- `slice.id`.
-  oom_adj_id INT,
+  oom_adj_id LONG,
   -- Timestamp of the latest oom_adj update in the system_server.
-  oom_adj_ts INT,
+  oom_adj_ts TIMESTAMP,
   -- Duration of the latest oom_adj update in the system_server.
-  oom_adj_dur INT,
+  oom_adj_dur DURATION,
   -- Track of the latest oom_adj update in the system_server. Alias of
   -- `track.id`.
-  oom_adj_track_id INT,
+  oom_adj_track_id LONG,
   -- Thread name of the latest oom_adj update in the system_server.
   oom_adj_thread_name STRING,
   -- Reason for the latest oom_adj update in the system_server.
@@ -57,21 +57,21 @@ CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
   -- Trigger for the latest oom_adj update in the system_server.
   oom_adj_trigger STRING,
   -- Anon RSS counter value
-  anon_rss INT,
+  anon_rss LONG,
   -- File RSS counter value
-  file_rss INT,
+  file_rss LONG,
   -- Shared memory RSS counter value
-  shmem_rss INT,
+  shmem_rss LONG,
   -- Total RSS value. Sum of `anon_rss`, `file_rss` and `shmem_rss`. Returns
   -- value even if one of the values is NULL.
-  rss INT,
+  rss LONG,
   -- Swap counter value
-  swap INT,
+  swap LONG,
   -- Sum or `anon_rss` and `swap`. Returns value even if one of the values is
   -- NULL.
-  anon_rss_and_swap INT,
+  anon_rss_and_swap LONG,
   -- Sum or `rss` and `swap`. Returns value even if one of the values is NULL.
-  rss_and_swap INT
+  rss_and_swap LONG
 ) AS
 SELECT
   ts,

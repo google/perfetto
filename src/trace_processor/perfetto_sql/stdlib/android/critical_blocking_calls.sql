@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
 INCLUDE PERFETTO MODULE slices.with_context;
 
-CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth INT)
+CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth LONG)
 RETURNS BOOL AS SELECT
   $name = 'measure'
   OR $name = 'layout'
@@ -39,6 +39,8 @@ RETURNS BOOL AS SELECT
   OR $name GLOB 'NotificationStackScrollLayout#onMeasure'
   OR $name GLOB 'ExpNotRow#*'
   OR $name GLOB 'GC: Wait For*'
+  OR $name GLOB 'Recomposer:*'
+  OR $name GLOB 'Compose:*'
   OR (
     -- Some top level handler slices
     $depth = 0

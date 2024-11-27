@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlTableRegistry} from '../../frontend/widgets/sql/table/sql_table_registry';
+import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {getProcessTable} from './table';
-import {extensions} from '../../public/lib/extensions';
+import {extensions} from '../../components/extensions';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Process';

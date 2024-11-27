@@ -26,21 +26,21 @@ INCLUDE PERFETTO MODULE callstacks.stack_profile;
 --  * Profiling data in Gecko traces
 CREATE PERFETTO TABLE cpu_profiling_samples(
   -- The id of the sample.
-  id INT,
+  id LONG,
   -- The timestamp of the sample.
-  ts INT,
+  ts TIMESTAMP,
   -- The utid of the thread of the sample, if available.
-  utid INT,
+  utid LONG,
   -- The tid of the sample, if available.
-  tid INT,
+  tid LONG,
   -- The thread name of thread of the sample, if available.
   thread_name STRING,
   -- The ucpu of the sample, if available.
-  ucpu INT,
+  ucpu LONG,
   -- The cpu of the sample, if available.
-  cpu INT,
+  cpu LONG,
   -- The callsite id of the sample.
-  callsite_id INT
+  callsite_id LONG
 )
 AS
 WITH raw_samples AS (
@@ -87,9 +87,9 @@ ORDER BY id;
 CREATE PERFETTO TABLE cpu_profiling_summary_tree(
   -- The id of the callstack; by callstack we mean a unique set of frames up to
   -- the root frame.
-  id INT,
+  id LONG,
   -- The id of the parent callstack for this callstack. NULL if this is root.
-  parent_id INT,
+  parent_id LONG,
   -- The function name of the frame for this callstack.
   name STRING,
   -- The name of the mapping containing the frame. This can be a native binary,
@@ -98,12 +98,12 @@ CREATE PERFETTO TABLE cpu_profiling_summary_tree(
   -- The name of the file containing the function.
   source_file STRING,
   -- The line number in the file the function is located at.
-  line_number INT,
+  line_number LONG,
   -- The number of samples with this function as the leaf frame.
-  self_count INT,
+  self_count LONG,
   -- The number of samples with this function appearing anywhere on the
   -- callstack.
-  cumulative_count INT
+  cumulative_count LONG
 ) AS
 SELECT
   id,

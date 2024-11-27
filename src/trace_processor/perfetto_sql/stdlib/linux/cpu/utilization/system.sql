@@ -26,10 +26,10 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_utilization_per_period(
   -- Length of the period on which utilization should be averaged.
-  interval INT)
+  interval LONG)
 RETURNS TABLE (
   -- Timestamp of start of a second.
-  ts INT,
+  ts TIMESTAMP,
   -- Sum of average utilization over period.
   -- Note: as the data is normalized, the values will be in the
   -- [0, 1] range.
@@ -51,7 +51,7 @@ FROM _cpu_avg_utilization_per_period!(
 -- utilization.
 CREATE PERFETTO TABLE cpu_utilization_per_second(
   -- Timestamp of start of a second.
-  ts INT,
+  ts TIMESTAMP,
   -- Sum of average utilization over period.
   -- Note: as the data is normalized, the values will be in the
   -- [0, 1] range.
@@ -70,17 +70,17 @@ FROM cpu_utilization_per_period(time_from_s(1));
 -- Aggregated CPU statistics for whole trace. Results in only one row.
 CREATE PERFETTO TABLE cpu_cycles(
   -- Sum of CPU millicycles.
-  millicycles INT,
+  millicycles LONG,
   -- Sum of CPU megacycles.
-  megacycles INT,
+  megacycles LONG,
   -- Total runtime of all threads running on all CPUs.
-  runtime INT,
+  runtime LONG,
   -- Minimum CPU frequency in kHz.
-  min_freq INT,
+  min_freq LONG,
   -- Maximum CPU frequency in kHz.
-  max_freq INT,
+  max_freq LONG,
   -- Average CPU frequency in kHz.
-  avg_freq INT
+  avg_freq LONG
 ) AS
 SELECT
   cast_int!(SUM(dur * freq / 1000)) AS millicycles,
@@ -94,23 +94,23 @@ FROM _cpu_freq_per_thread;
 -- Aggregated CPU statistics in a provided interval. Results in one row.
 CREATE PERFETTO FUNCTION cpu_cycles_in_interval(
     -- Start of the interval.
-    ts INT,
+    ts TIMESTAMP,
     -- Duration of the interval.
-    dur INT
+    dur LONG
 )
 RETURNS TABLE(
   -- Sum of CPU millicycles.
-  millicycles INT,
+  millicycles LONG,
   -- Sum of CPU megacycles.
-  megacycles INT,
+  megacycles LONG,
   -- Total runtime of all threads running on all CPUs.
-  runtime INT,
+  runtime LONG,
   -- Minimum CPU frequency in kHz.
-  min_freq INT,
+  min_freq LONG,
   -- Maximum CPU frequency in kHz.
-  max_freq INT,
+  max_freq LONG,
   -- Average CPU frequency in kHz.
-  avg_freq INT
+  avg_freq LONG
 ) AS
 SELECT
   cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
@@ -125,21 +125,21 @@ JOIN _cpu_freq_per_thread USING (id);
 -- Aggregated CPU statistics for each CPU.
 CREATE PERFETTO TABLE cpu_cycles_per_cpu(
   -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu INT,
+  ucpu LONG,
   -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
-  cpu INT,
+  cpu LONG,
   -- Sum of CPU millicycles.
-  millicycles INT,
+  millicycles LONG,
   -- Sum of CPU megacycles.
-  megacycles INT,
+  megacycles LONG,
   -- Total runtime of all threads running on CPU.
-  runtime INT,
+  runtime LONG,
   -- Minimum CPU frequency in kHz.
-  min_freq INT,
+  min_freq LONG,
   -- Maximum CPU frequency in kHz.
-  max_freq INT,
+  max_freq LONG,
   -- Average CPU frequency in kHz.
-  avg_freq INT
+  avg_freq LONG
 ) AS
 SELECT
   ucpu,
@@ -156,27 +156,27 @@ GROUP BY ucpu;
 -- Aggregated CPU statistics for each CPU in a provided interval.
 CREATE PERFETTO FUNCTION cpu_cycles_per_cpu_in_interval(
     -- Start of the interval.
-    ts INT,
+    ts TIMESTAMP,
     -- Duration of the interval.
-    dur INT
+    dur LONG
 )
 RETURNS TABLE(
   -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu INT,
+  ucpu LONG,
   -- CPU number.
-  cpu INT,
+  cpu LONG,
   -- Sum of CPU millicycles.
-  millicycles INT,
+  millicycles LONG,
   -- Sum of CPU megacycles.
-  megacycles INT,
+  megacycles LONG,
   -- Total runtime of all threads running on CPU.
-  runtime INT,
+  runtime LONG,
   -- Minimum CPU frequency in kHz.
-  min_freq INT,
+  min_freq LONG,
   -- Maximum CPU frequency in kHz.
-  max_freq INT,
+  max_freq LONG,
   -- Average CPU frequency in kHz.
-  avg_freq INT
+  avg_freq LONG
 ) AS
 SELECT
   ucpu,

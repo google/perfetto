@@ -36,9 +36,7 @@ const SCREEN_CLIP = {
 test.beforeAll(async ({browser}, _testInfo) => {
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
-  await pth.openTraceFile('wattson_dsu_pmu.pb', {
-    enablePlugins: 'org.kernel.Wattson',
-  });
+  await pth.openTraceFile('wattson_dsu_pmu.pb');
 });
 
 test('wattson aggregations', async () => {

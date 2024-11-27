@@ -140,17 +140,17 @@ JOIN slice ON (slice.id = draw_frame_id);
 -- Googlers: see go/android-performance-metrics-glossary for details.
 CREATE PERFETTO TABLE android_startup_time_to_display(
   -- Startup id.
-  startup_id INT,
+  startup_id LONG,
   -- Time to initial display (TTID)
-  time_to_initial_display INT,
+  time_to_initial_display LONG,
   -- Time to full display (TTFD)
-  time_to_full_display INT,
+  time_to_full_display LONG,
   -- `android_frames.frame_id` of frame for initial display
-  ttid_frame_id INT,
+  ttid_frame_id LONG,
   -- `android_frames.frame_id` of frame for full display
-  ttfd_frame_id INT,
+  ttfd_frame_id LONG,
   -- `process.upid` of the startup
-  upid INT
+  upid LONG
 ) AS
 SELECT
   startup_id,

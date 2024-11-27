@@ -989,11 +989,11 @@ int PerfettoCmd::ConnectToServiceAndRun() {
   }
 
   if (is_clone()) {
-    if (snapshot_trigger_name_.empty()) {
+    if (!snapshot_trigger_info_.has_value()) {
       LogUploadEvent(PerfettoStatsdAtom::kCmdCloneTraceBegin);
     } else {
       LogUploadEvent(PerfettoStatsdAtom::kCmdCloneTriggerTraceBegin,
-                     snapshot_trigger_name_);
+                     snapshot_trigger_info_->trigger_name);
     }
   } else if (trace_config_->trigger_config().trigger_timeout_ms() == 0) {
     LogUploadEvent(PerfettoStatsdAtom::kTraceBegin);
@@ -1075,6 +1075,13 @@ void PerfettoCmd::OnConnect() {
       args.tsid = *clone_tsid_;
     } else if (!clone_name_.empty()) {
       args.unique_session_name = clone_name_;
+    }
+    if (snapshot_trigger_info_.has_value()) {
+      args.clone_trigger_name = snapshot_trigger_info_->trigger_name;
+      args.clone_trigger_producer_name = snapshot_trigger_info_->producer_name;
+      args.clone_trigger_trusted_producer_uid =
+          snapshot_trigger_info_->producer_uid;
+      args.clone_trigger_boot_time_ns = snapshot_trigger_info_->boot_time_ns;
     }
     consumer_endpoint_->CloneSession(std::move(args));
     return;
@@ -1384,11 +1391,11 @@ void PerfettoCmd::OnSessionCloned(const OnSessionClonedArgs& args) {
   uuid_ = args.uuid.ToString();
 
   // Log the new UUID with the clone tag.
-  if (snapshot_trigger_name_.empty()) {
+  if (!snapshot_trigger_info_.has_value()) {
     LogUploadEvent(PerfettoStatsdAtom::kCmdOnSessionClone);
   } else {
     LogUploadEvent(PerfettoStatsdAtom::kCmdOnTriggerSessionClone,
-                   snapshot_trigger_name_);
+                   snapshot_trigger_info_->trigger_name);
   }
   ReadbackTraceDataAndQuit(full_error);
 }
@@ -1520,15 +1527,20 @@ void PerfettoCmd::OnObservableEvents(
   }
   if (observable_events.has_clone_trigger_hit()) {
     int64_t tsid = observable_events.clone_trigger_hit().tracing_session_id();
-    std::string trigger_name =
-        observable_events.clone_trigger_hit().trigger_name();
+    SnapshotTriggerInfo trigger = {
+        observable_events.clone_trigger_hit().boot_time_ns(),
+        observable_events.clone_trigger_hit().trigger_name(),
+        observable_events.clone_trigger_hit().producer_name(),
+        static_cast<uid_t>(
+            observable_events.clone_trigger_hit().producer_uid())};
     OnCloneSnapshotTriggerReceived(static_cast<TracingSessionID>(tsid),
-                                   std::move(trigger_name));
+                                   trigger);
   }
 }
 
-void PerfettoCmd::OnCloneSnapshotTriggerReceived(TracingSessionID tsid,
-                                                 std::string trigger_name) {
+void PerfettoCmd::OnCloneSnapshotTriggerReceived(
+    TracingSessionID tsid,
+    const SnapshotTriggerInfo& trigger) {
   std::string cmdline;
   cmdline.reserve(128);
   ArgsAppend(&cmdline, "perfetto");
@@ -1546,15 +1558,14 @@ void PerfettoCmd::OnCloneSnapshotTriggerReceived(TracingSessionID tsid,
   } else {
     PERFETTO_FATAL("Cannot use CLONE_SNAPSHOT with the current cmdline args");
   }
-  CloneSessionOnThread(tsid, cmdline, kSingleExtraThread,
-                       std::move(trigger_name), nullptr);
+  CloneSessionOnThread(tsid, cmdline, kSingleExtraThread, trigger, nullptr);
 }
 
 void PerfettoCmd::CloneSessionOnThread(
     TracingSessionID tsid,
     const std::string& cmdline,
     CloneThreadMode thread_mode,
-    std::string trigger_name,
+    const std::optional<SnapshotTriggerInfo>& trigger,
     std::function<void()> on_clone_callback) {
   PERFETTO_DLOG("Creating snapshot for tracing session %" PRIu64, tsid);
 
@@ -1576,7 +1587,7 @@ void PerfettoCmd::CloneSessionOnThread(
   std::string trace_config_copy = trace_config_->SerializeAsString();
 
   snapshot_threads_.back().PostTask(
-      [tsid, cmdline, trace_config_copy, trigger_name, on_clone_callback] {
+      [tsid, cmdline, trace_config_copy, trigger, on_clone_callback] {
         int argc = 0;
         char* argv[32];
         // `splitter` needs to live on the stack for the whole scope as it owns
@@ -1588,7 +1599,7 @@ void PerfettoCmd::CloneSessionOnThread(
         }
         perfetto::PerfettoCmd cmd;
         cmd.snapshot_config_ = std::move(trace_config_copy);
-        cmd.snapshot_trigger_name_ = std::move(trigger_name);
+        cmd.snapshot_trigger_info_ = trigger;
         cmd.on_session_cloned_ = on_clone_callback;
         auto cmdline_res = cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
         PERFETTO_CHECK(!cmdline_res.has_value());  // No daemonization expected.
@@ -1680,7 +1691,8 @@ void PerfettoCmd::CloneAllBugreportTraces(
     ArgsAppend(&cmdline, "--clone-for-bugreport");
     ArgsAppend(&cmdline, "--out");
     ArgsAppend(&cmdline, out_path);
-    CloneSessionOnThread(it->tsid, cmdline, kNewThreadPerRequest, "", sync_fn);
+    CloneSessionOnThread(it->tsid, cmdline, kNewThreadPerRequest, std::nullopt,
+                         sync_fn);
   }  // for(sessions)
 
   PERFETTO_DLOG("Issuing %zu CloneSession requests", num_sessions);

@@ -132,7 +132,12 @@ std::string SqlSource::AsTraceback(uint32_t offset) const {
 std::string SqlSource::AsTracebackForSqliteOffset(
     std::optional<uint32_t> opt_offset) const {
   uint32_t offset = opt_offset.value_or(0);
-  PERFETTO_CHECK(offset <= sql().size());
+  // It's possible for SQLite in rare cases to return an out-of-bounds
+  // offset. This has been reported upstream; for now workaround this
+  // by using zero as the offset if it's out of bounds.
+  if (offset > sql().size()) {
+    offset = 0;
+  }
   return AsTraceback(offset);
 }
 

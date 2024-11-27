@@ -55,7 +55,7 @@ CREATE PERFETTO MACRO _critical_path(
   -- this criteria is not, can lead to enormous amounts of memory being
   -- allocated.
   root_table TableOrSubQuery)
-  -- The returned table has the schema (root_id UINT32, id UINT32, parent_id UINT32).
+  -- The returned table has the schema (root_id LONG, id LONG, parent_id LONG).
   -- |root_id| is the id of the root where the critical path computation started.
   -- |id| is the id of a node in the critical path and |parent_id| is the predecessor of |id|.
 RETURNS TableOrSubQuery
@@ -172,7 +172,7 @@ CREATE PERFETTO MACRO _critical_path_intervals(
   -- allocated.
   -- There should be one row for every node id encountered in the |graph_table|.
   interval_table TableOrSubQuery)
--- The returned table has the schema (id UINT32, ts INT64, dur INT64, idle_dur INT64).
+-- The returned table has the schema (id LONG, ts TIMESTAMP, dur DURATION, idle_dur LONG).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a DFS

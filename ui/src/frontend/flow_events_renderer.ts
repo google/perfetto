@@ -57,6 +57,7 @@ export function renderFlows(
   ctx: CanvasRenderingContext2D,
   size: Size2D,
   panels: ReadonlyArray<RenderedPanelInfo>,
+  trackRoot: TrackNode,
 ): void {
   const timescale = new TimeScale(trace.timeline.visibleWindow, {
     left: 0,
@@ -67,21 +68,6 @@ export function renderFlows(
   // a WeakMap because it's thrown away every render cycle.
   const panelsByTrackNode = new Map(
     panels.map((panel) => [panel.panel.trackNode, panel]),
-  );
-
-  // Build a track index on trackIds. Note: We need to find the track nodes
-  // specifically here (not just the URIs) because we might need to navigate up
-  // the tree to find containing groups.
-
-  const sqlTrackIdToTrack = new Map<number, TrackNode>();
-  trace.workspace.flatTracks.forEach((track) =>
-    track.uri
-      ? trace.tracks
-          .getTrack(track.uri)
-          ?.tags?.trackIds?.forEach((trackId) =>
-            sqlTrackIdToTrack.set(trackId, track),
-          )
-      : undefined,
   );
 
   const drawFlow = (flow: Flow, hue: number) => {
@@ -122,11 +108,11 @@ export function renderFlows(
     }
 
     const start = getConnectionTarget(
-      flow.begin.trackId,
+      flow.begin.trackUri,
       flow.begin.depth,
       startX,
     );
-    const end = getConnectionTarget(flow.end.trackId, flow.end.depth, endX);
+    const end = getConnectionTarget(flow.end.trackUri, flow.end.depth, endX);
 
     if (start && end) {
       drawArrow(ctx, start, end, intensity, hue, width);
@@ -134,11 +120,15 @@ export function renderFlows(
   };
 
   const getConnectionTarget = (
-    trackId: number,
+    trackUri: string | undefined,
     depth: number,
     x: number,
   ): VerticalEdgeOrPoint | undefined => {
-    const track = sqlTrackIdToTrack.get(trackId);
+    if (trackUri === undefined) {
+      return undefined;
+    }
+
+    const track = trackRoot.findTrackByUri(trackUri);
     if (!track) {
       return undefined;
     }

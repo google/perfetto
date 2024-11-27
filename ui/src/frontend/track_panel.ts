@@ -133,15 +133,15 @@ export class TrackPanel implements Panel {
           ...pos,
           timescale,
         });
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
       },
       onTrackContentMouseOut: () => {
         trackRenderer?.track.onMouseOut?.();
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
       },
       onTrackContentClick: (pos, bounds) => {
         const timescale = this.getTimescaleForBounds(bounds);
-        raf.scheduleRedraw();
+        raf.scheduleCanvasRedraw();
         return (
           trackRenderer?.track.onMouseClick?.({
             ...pos,
@@ -233,7 +233,10 @@ export class TrackPanel implements Panel {
     if (searchIndex !== -1 && searchResults !== undefined) {
       const uri = searchResults.trackUris[searchIndex];
       // Highlight if this or any children match the search results
-      if (uri === node.uri || node.flatTracks.find((t) => t.uri === uri)) {
+      if (
+        uri === node.uri ||
+        node.flatTracksOrdered.find((t) => t.uri === uri)
+      ) {
         return true;
       }
     }

@@ -27,9 +27,9 @@ export class SidebarManagerImpl implements SidebarManager {
 
   readonly menuItems = new Registry<SidebarMenuItemInternal>((m) => m.id);
 
-  constructor(args: {sidebarEnabled: boolean}) {
-    this.enabled = args.sidebarEnabled;
-    this._visible = args.sidebarEnabled;
+  constructor(args: {disabled?: boolean; hidden?: boolean}) {
+    this.enabled = !args.disabled;
+    this._visible = !args.hidden;
   }
 
   addMenuItem(item: SidebarMenuItem): Disposable {

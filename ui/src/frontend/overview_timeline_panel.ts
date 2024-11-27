@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {Duration, Time, TimeSpan, duration, time} from '../base/time';
-import {colorForCpu} from '../public/lib/colorizer';
-import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
+import {colorForCpu} from '../components/colorizer';
+import {timestampFormat} from '../core/timestamp_format';
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
   TRACK_SHELL_WIDTH,
@@ -39,6 +39,8 @@ import {TraceImpl} from '../core/trace_impl';
 import {LONG, NUM} from '../trace_processor/query_result';
 import {raf} from '../core/raf_scheduler';
 import {getOrCreate} from '../base/utils';
+import {assertUnreachable} from '../base/logging';
+import {TimestampFormat} from '../public/timeline';
 
 const tracesData = new WeakMap<TraceImpl, OverviewDataLoader>();
 
@@ -241,7 +243,7 @@ export class OverviewTimelinePanel implements Panel {
 
     const cb = (vizTime: HighPrecisionTimeSpan) => {
       this.trace.timeline.updateVisibleTimeHP(vizTime);
-      raf.scheduleRedraw();
+      raf.scheduleCanvasRedraw();
     };
     const pixelBounds = this.extractBounds(this.timeScale);
     const timeScale = this.timeScale;
@@ -299,15 +301,14 @@ function renderTimestamp(
     case TimestampFormat.Seconds:
       ctx.fillText(Time.formatSeconds(time), x, y, minWidth);
       break;
-    case TimestampFormat.Milliseoncds:
+    case TimestampFormat.Milliseconds:
       ctx.fillText(Time.formatMilliseconds(time), x, y, minWidth);
       break;
     case TimestampFormat.Microseconds:
       ctx.fillText(Time.formatMicroseconds(time), x, y, minWidth);
       break;
     default:
-      const z: never = fmt;
-      throw new Error(`Invalid timestamp ${z}`);
+      assertUnreachable(fmt);
   }
 }
 
@@ -445,6 +446,6 @@ class OverviewDataLoader {
         this.overviewData.get(key)!.push(value);
       }
     }
-    raf.scheduleRedraw();
+    raf.scheduleCanvasRedraw();
   }
 }

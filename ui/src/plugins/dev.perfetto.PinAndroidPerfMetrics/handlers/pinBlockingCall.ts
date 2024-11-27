@@ -19,7 +19,7 @@ import {
 } from './metricUtils';
 import {Trace} from '../../../public/trace';
 import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
-import {addDebugSliceTrack} from '../../../public/debug_tracks';
+import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**

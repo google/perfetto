@@ -19,6 +19,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -42,7 +43,11 @@ MetadataModule::MetadataModule(TraceProcessorContext* context)
     : context_(context),
       producer_name_key_id_(context_->storage->InternString("producer_name")),
       trusted_producer_uid_key_id_(
-          context_->storage->InternString("trusted_producer_uid")) {
+          context_->storage->InternString("trusted_producer_uid")),
+      chrome_trigger_name_id_(
+          context_->storage->InternString("chrome_trigger.name")),
+      chrome_trigger_hash_id_(
+          context_->storage->InternString("chrome_trigger.name_hash")) {
   RegisterForField(TracePacket::kUiStateFieldNumber, context);
   RegisterForField(TracePacket::kTriggerFieldNumber, context);
   RegisterForField(TracePacket::kChromeTriggerFieldNumber, context);
@@ -133,11 +138,24 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   if (trigger.has_trigger_name()) {
     name_id = context_->storage->InternString(trigger.trigger_name());
   } else {
-    name_id = context_->storage->InternString(
-        base::StringView(base::IntToHexString(trigger.trigger_name_hash())));
+    name_id =
+        context_->storage->InternString(base::StringView("chrome_trigger"));
   }
-  context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
-                                  /* duration = */ 0);
+  auto slice_id = context_->slice_tracker->Scoped(
+      ts, track_id, cat_id, name_id,
+      /* duration = */ 0, [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            chrome_trigger_hash_id_,
+            Variadic::UnsignedInteger(trigger.trigger_name_hash()));
+        if (trigger.has_trigger_name()) {
+          inserter->AddArg(chrome_trigger_name_id_, Variadic::String(name_id));
+        }
+      });
+  if (slice_id && trigger.has_flow_id() &&
+      context_->flow_tracker->IsActive(trigger.flow_id())) {
+    context_->flow_tracker->End(*slice_id, trigger.flow_id(),
+                                /* close_flow = */ true);
+  }
 
   MetadataTracker* metadata = context_->metadata_tracker.get();
   metadata->SetDynamicMetadata(

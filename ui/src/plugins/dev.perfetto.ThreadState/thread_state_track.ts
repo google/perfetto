@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {colorForState} from '../../public/lib/colorizer';
+import {colorForState} from '../../components/colorizer';
 import {
   BASE_ROW,
   BaseSliceTrack,
   OnSliceClickArgs,
-} from '../../frontend/base_slice_track';
+} from '../../components/tracks/base_slice_track';
 import {
   SLICE_LAYOUT_FLAT_DEFAULTS,
   SliceLayout,
-} from '../../frontend/slice_layout';
-import {NewTrackArgs} from '../../frontend/track';
+} from '../../components/tracks/slice_layout';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
-import {translateState} from '../../trace_processor/sql_utils/thread_state';
+import {translateState} from '../../components/sql_utils/thread_state';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
+import {Trace} from '../../public/trace';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,
@@ -41,10 +41,11 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
   protected sliceLayout: SliceLayout = {...SLICE_LAYOUT_FLAT_DEFAULTS};
 
   constructor(
-    args: NewTrackArgs,
+    trace: Trace,
+    uri: string,
     private utid: number,
   ) {
-    super(args);
+    super(trace, uri);
   }
 
   // This is used by the base class to call iter().

@@ -19,8 +19,8 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {Timestamp} from '../../frontend/widgets/timestamp';
-import {DurationWidget} from '../../frontend/widgets/duration';
+import {Timestamp} from '../../components/widgets/timestamp';
+import {DurationWidget} from '../../components/widgets/duration';
 import {Anchor} from '../../widgets/anchor';
 import {Engine} from '../../trace_processor/engine';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -135,17 +135,18 @@ async function loadSuspendResumeEventDetails(
   id: number,
 ): Promise<SuspendResumeEventDetails> {
   const suspendResumeDetailsQuery = `
-        SELECT ts,
-               dur,
-               EXTRACT_ARG(arg_set_id, 'utid') as utid,
-               EXTRACT_ARG(arg_set_id, 'ucpu') as ucpu,
-               EXTRACT_ARG(arg_set_id, 'event_type') as event_type,
-               EXTRACT_ARG(arg_set_id, 'device_name') as device_name,
-               EXTRACT_ARG(arg_set_id, 'driver_name') as driver_name,
-               EXTRACT_ARG(arg_set_id, 'callback_phase') as callback_phase
-        FROM slice
-        WHERE slice_id = ${id};
-    `;
+    SELECT
+      ts,
+      dur,
+      EXTRACT_ARG(arg_set_id, 'utid') as utid,
+      EXTRACT_ARG(arg_set_id, 'cpu') as cpu,
+      EXTRACT_ARG(arg_set_id, 'event_type') as event_type,
+      EXTRACT_ARG(arg_set_id, 'device_name') as device_name,
+      EXTRACT_ARG(arg_set_id, 'driver_name') as driver_name,
+      EXTRACT_ARG(arg_set_id, 'callback_phase') as callback_phase
+    FROM slice
+    WHERE slice_id = ${id};
+  `;
 
   const suspendResumeDetailsResult = await engine.query(
     suspendResumeDetailsQuery,
@@ -154,7 +155,7 @@ async function loadSuspendResumeEventDetails(
     ts: LONG,
     dur: LONG,
     utid: NUM,
-    ucpu: NUM,
+    cpu: NUM,
     event_type: STR_NULL,
     device_name: STR_NULL,
     driver_name: STR_NULL,
@@ -175,11 +176,12 @@ async function loadSuspendResumeEventDetails(
   }
 
   const threadStateQuery = `
-        SELECT t.id as threadStateId
-        FROM thread_state t
-        WHERE t.utid = ${suspendResumeEventRow.utid}
-              AND t.ts <= ${suspendResumeEventRow.ts}
-              AND t.ts + t.dur > ${suspendResumeEventRow.ts};
+    SELECT t.id as threadStateId
+    FROM thread_state t
+    WHERE
+      t.utid = ${suspendResumeEventRow.utid}
+      AND t.ts <= ${suspendResumeEventRow.ts}
+      AND t.ts + t.dur > ${suspendResumeEventRow.ts};
   `;
   const threadStateResult = await engine.query(threadStateQuery);
   let threadStateId = 0;
@@ -190,25 +192,11 @@ async function loadSuspendResumeEventDetails(
     threadStateId = threadStateRow.threadStateId;
   }
 
-  const cpuQuery = `
-        SELECT cpu
-        FROM cpu
-        WHERE cpu.id = ${suspendResumeEventRow.ucpu}
-  `;
-  const cpuResult = await engine.query(cpuQuery);
-  let cpu = 0;
-  if (cpuResult.numRows() > 0) {
-    const cpuRow = cpuResult.firstRow({
-      cpu: NUM,
-    });
-    cpu = cpuRow.cpu;
-  }
-
   return {
     ts: Time.fromRaw(suspendResumeEventRow.ts),
     dur: Duration.fromRaw(suspendResumeEventRow.dur),
     utid: suspendResumeEventRow.utid,
-    cpu: cpu,
+    cpu: suspendResumeEventRow.cpu,
     event_type:
       suspendResumeEventRow.event_type !== null
         ? suspendResumeEventRow.event_type

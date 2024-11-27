@@ -24,9 +24,9 @@ RETURNS TABLE(
   -- Alias of `slice.type`.
   type STRING,
   -- Alias of `slice.ts`.
-  ts LONG,
+  ts TIMESTAMP,
   -- Alias of `slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias of `slice.track_id`.
   track_id LONG,
   -- Alias of `slice.category`.
@@ -40,7 +40,7 @@ RETURNS TABLE(
   -- Alias of `slice.arg_set_id`.
   arg_set_id LONG,
   -- Alias of `slice.thread_ts`.
-  thread_ts LONG,
+  thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
   thread_dur LONG
 ) AS
@@ -64,9 +64,9 @@ RETURNS TABLE(
   -- Alias of `slice.type`.
   type STRING,
   -- Alias of `slice.ts`.
-  ts LONG,
+  ts TIMESTAMP,
   -- Alias of `slice.dur`.
-  dur LONG,
+  dur DURATION,
   -- Alias of `slice.track_id`.
   track_id LONG,
   -- Alias of `slice.category`.
@@ -80,7 +80,7 @@ RETURNS TABLE(
   -- Alias of `slice.arg_set_id`.
   arg_set_id LONG,
   -- Alias of `slice.thread_ts`.
-  thread_ts LONG,
+  thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
   thread_dur LONG
 ) AS
@@ -100,11 +100,11 @@ FROM descendant_slice($slice_id);
 -- allowing further graph analysis.
 CREATE PERFETTO MACRO _slice_remove_nulls_and_reparent(
   -- Table or subquery containing a subset of the slice table. Required columns are
-  -- (id INT64, parent_id INT64, depth UINT32, <column_name>).
+  -- (id LONG, parent_id LONG, depth LONG, <column_name>).
   slice_table TableOrSubQuery,
   -- Column name for which a NULL value indicates the row will be deleted.
   column_name ColumnName)
-  -- The returned table has the schema (id INT64, parent_id INT64, depth UINT32, <column_name>).
+  -- The returned table has the schema (id LONG, parent_id LONG, depth LONG, <column_name>).
 RETURNS TableOrSubQuery
 AS (
   WITH _slice AS (

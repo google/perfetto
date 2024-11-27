@@ -19,20 +19,18 @@ import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {
-  DurationPrecision,
   setDurationPrecision,
   setTimestampFormat,
-  TimestampFormat,
 } from '../core/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public/command';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog, showModal} from '../widgets/modal';
-import {CookieConsent} from './cookie_consent';
+import {CookieConsent} from '../core/cookie_consent';
 import {toggleHelp} from './help_modal';
 import {Omnibox, OmniboxOption} from './omnibox';
-import {addQueryResultsTab} from '../public/lib/query_table/query_result_tab';
+import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_share_utils';
@@ -46,15 +44,16 @@ import {AppImpl} from '../core/app_impl';
 import {NotesEditorTab} from './notes_panel';
 import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
+import {DurationPrecision, TimestampFormat} from '../public/timeline';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 
 // This wrapper creates a new instance of UiMainPerTrace for each new trace
 // loaded (including the case of no trace at the beginning).
 export class UiMain implements m.ClassComponent {
-  view({children}: m.CVnode) {
+  view() {
     const currentTraceId = AppImpl.instance.trace?.engine.engineId ?? '';
-    return [m(UiMainPerTrace, {key: currentTraceId}, children)];
+    return [m(UiMainPerTrace, {key: currentTraceId})];
   }
 }
 
@@ -132,7 +131,7 @@ export class UiMainPerTrace implements m.ClassComponent {
               displayName: 'Realtime (Trace TZ)',
             },
             {key: TimestampFormat.Seconds, displayName: 'Seconds'},
-            {key: TimestampFormat.Milliseoncds, displayName: 'Milliseconds'},
+            {key: TimestampFormat.Milliseconds, displayName: 'Milliseconds'},
             {key: TimestampFormat.Microseconds, displayName: 'Microseconds'},
             {key: TimestampFormat.TraceNs, displayName: 'Trace nanoseconds'},
             {
@@ -171,7 +170,8 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.TogglePerformanceMetrics',
         name: 'Toggle performance metrics',
-        callback: () => app.setPerfDebuggingEnabled(!app.perfDebugging),
+        callback: () =>
+          (app.perfDebugging.enabled = !app.perfDebugging.enabled),
       },
       {
         id: 'perfetto.ShareTrace',
@@ -628,12 +628,13 @@ export class UiMainPerTrace implements m.ClassComponent {
     this.maybeFocusOmnibar();
   }
 
-  view({children}: m.Vnode): m.Children {
+  view(): m.Children {
+    const app = AppImpl.instance;
     const hotkeys: HotkeyConfig[] = [];
-    for (const {id, defaultHotkey} of AppImpl.instance.commands.commands) {
+    for (const {id, defaultHotkey} of app.commands.commands) {
       if (defaultHotkey) {
         hotkeys.push({
-          callback: () => AppImpl.instance.commands.runCommand(id),
+          callback: () => app.commands.runCommand(id),
           hotkey: defaultHotkey,
         });
       }
@@ -649,10 +650,10 @@ export class UiMainPerTrace implements m.ClassComponent {
           omnibox: this.renderOmnibox(),
           trace: this.trace,
         }),
-        children,
+        app.pages.renderPageForCurrentRoute(app.trace),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
-        AppImpl.instance.perfDebugging && m('.perf-stats'),
+        app.perfDebugging.renderPerfStats(),
       ),
     );
   }

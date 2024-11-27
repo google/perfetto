@@ -41,11 +41,10 @@ import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
-import {VegaView} from '../../widgets/vega_view';
+import {VegaView} from '../../components/widgets/vega_view';
 import {PageAttrs} from '../../public/page';
-import {PopupMenuButton} from '../../widgets/popup_menu';
 import {TableShowcase} from './table_showcase';
-import {TreeTable, TreeTableAttrs} from '../../frontend/widgets/treetable';
+import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {Intent} from '../../widgets/common';
 import {
   VirtualTable,
@@ -686,6 +685,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             icon: arg(icon, 'send'),
             rightIcon: arg(rightIcon, 'arrow_forward'),
             label: arg(label, 'Button', ''),
+            onclick: () => alert('button pressed'),
             ...rest,
           }),
         initialOpts: {
@@ -901,30 +901,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           icon: true,
           showNumSelected: true,
           repeatCheckedItemsAtTop: false,
-        },
-      }),
-      m(WidgetShowcase, {
-        label: 'PopupMenu',
-        renderWidget: () => {
-          return m(PopupMenuButton, {
-            icon: 'description',
-            items: [
-              {itemType: 'regular', text: 'New', callback: () => {}},
-              {itemType: 'regular', text: 'Open', callback: () => {}},
-              {itemType: 'regular', text: 'Save', callback: () => {}},
-              {itemType: 'regular', text: 'Delete', callback: () => {}},
-              {
-                itemType: 'group',
-                text: 'Share',
-                itemId: 'foo',
-                children: [
-                  {itemType: 'regular', text: 'Friends', callback: () => {}},
-                  {itemType: 'regular', text: 'Family', callback: () => {}},
-                  {itemType: 'regular', text: 'Everyone', callback: () => {}},
-                ],
-              },
-            ],
-          });
         },
       }),
       m(WidgetShowcase, {

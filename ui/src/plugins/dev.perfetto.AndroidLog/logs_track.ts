@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {Time, duration, time} from '../../base/time';
-import {LIMIT, TrackData} from '../../common/track_data';
-import {TimelineFetcher} from '../../common/track_helper';
-import {checkerboardExcept} from '../../frontend/checkerboard';
+import {LIMIT, TrackData} from '../../components/tracks/track_data';
+import {TimelineFetcher} from '../../components/tracks/track_helper';
+import {checkerboardExcept} from '../../components/checkerboard';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {Track} from '../../public/track';
