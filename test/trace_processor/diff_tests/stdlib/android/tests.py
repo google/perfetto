@@ -255,93 +255,118 @@ class AndroidStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE android.monitor_contention;
-      SELECT
-        blocking_method,
-        blocked_method,
-        short_blocking_method,
-        short_blocked_method
-      FROM android_monitor_contention
-      WHERE binder_reply_id IS NOT NULL
-      ORDER BY dur DESC
-      LIMIT 1;
-      """,
+          INCLUDE PERFETTO MODULE android.monitor_contention;
+          SELECT
+            blocking_method,
+            blocked_method,
+            short_blocking_method,
+            short_blocked_method
+          FROM android_monitor_contention
+          WHERE binder_reply_id IS NOT NULL
+          ORDER BY dur DESC
+          LIMIT 1;
+        """,
         out=Csv("""
-        "blocking_method","blocked_method","short_blocking_method","short_blocked_method"
-        "boolean com.android.server.am.ActivityManagerService.forceStopPackageLocked(java.lang.String, int, boolean, boolean, boolean, boolean, boolean, int, java.lang.String)","boolean com.android.server.am.ActivityManagerService.isUidActive(int, java.lang.String)","com.android.server.am.ActivityManagerService.forceStopPackageLocked","com.android.server.am.ActivityManagerService.isUidActive"
-      """))
+          "blocking_method","blocked_method","short_blocking_method","short_blocked_method"
+          "boolean com.android.server.am.ActivityManagerService.forceStopPackageLocked(java.lang.String, int, boolean, boolean, boolean, boolean, boolean, int, java.lang.String)","boolean com.android.server.am.ActivityManagerService.isUidActive(int, java.lang.String)","com.android.server.am.ActivityManagerService.forceStopPackageLocked","com.android.server.am.ActivityManagerService.isUidActive"
+        """))
 
   def test_monitor_contention_chain_blocked_functions(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE android.monitor_contention;
-      SELECT
-        *
-      FROM android_monitor_contention_chain_blocked_functions_by_txn
-      WHERE id = 13934
-      ORDER BY blocked_function_dur;
-      """,
+          INCLUDE PERFETTO MODULE android.monitor_contention;
+          SELECT
+            *
+          FROM android_monitor_contention_chain_blocked_functions_by_txn
+          WHERE id = 13934
+          ORDER BY blocked_function_dur;
+        """,
         out=Csv("""
-        "id","blocked_function","blocked_function_dur","blocked_function_count"
-        13934,"blkdev_issue_flush",11950576,1
-      """))
+          "id","blocked_function","blocked_function_dur","blocked_function_count"
+          13934,"blkdev_issue_flush",11950576,1
+        """))
 
   def test_monitor_contention_chain_thread_states(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE android.monitor_contention;
-      SELECT
-        *
-      FROM android_monitor_contention_chain_thread_state_by_txn
-      WHERE id = 13934
-      ORDER BY thread_state_dur;
-      """,
+          INCLUDE PERFETTO MODULE android.monitor_contention;
+          SELECT
+            *
+          FROM android_monitor_contention_chain_thread_state_by_txn
+          WHERE id = 13934
+          ORDER BY thread_state_dur;
+        """,
         out=Csv("""
-        "id","thread_state","thread_state_dur","thread_state_count"
-        13934,"R+",7649,1
-        13934,"R",300606,3
-        13934,"Running",649961,3
-        13934,"D",11950576,1
-      """))
+          "id","thread_state","thread_state_dur","thread_state_count"
+          13934,"R+",7649,1
+          13934,"R",300606,3
+          13934,"Running",649961,3
+          13934,"D",11950576,1
+        """))
 
   def test_android_monitor_contention_chain_thread_state(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE android.monitor_contention;
-      SELECT
-        *
-      FROM android_monitor_contention_chain_thread_state
-      WHERE id = 13934;
-      """,
+          INCLUDE PERFETTO MODULE android.monitor_contention;
+          SELECT
+            *
+          FROM android_monitor_contention_chain_thread_state
+          WHERE id = 13934;
+        """,
         out=Csv("""
-        "id","ts","dur","blocking_utid","blocked_function","state"
-        13934,1739927671503,141874,557,"[NULL]","R"
-        13934,1739927813377,69101,557,"[NULL]","Running"
-        13934,1739927882478,7649,557,"[NULL]","R+"
-        13934,1739927890127,3306,557,"[NULL]","Running"
-        13934,1739927893433,11950576,557,"blkdev_issue_flush","D"
-        13934,1739939844009,76306,557,"[NULL]","R"
-        13934,1739939920315,577554,557,"[NULL]","Running"
-        13934,1739940497869,82426,557,"[NULL]","R"
-      """))
+          "id","ts","dur","blocking_utid","blocked_function","state"
+          13934,1739927671503,141874,557,"[NULL]","R"
+          13934,1739927813377,69101,557,"[NULL]","Running"
+          13934,1739927882478,7649,557,"[NULL]","R+"
+          13934,1739927890127,3306,557,"[NULL]","Running"
+          13934,1739927893433,11950576,557,"blkdev_issue_flush","D"
+          13934,1739939844009,76306,557,"[NULL]","R"
+          13934,1739939920315,577554,557,"[NULL]","Running"
+          13934,1739940497869,82426,557,"[NULL]","R"
+        """))
 
   def test_monitor_contention_chain_extraction(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE android.monitor_contention;
-      SELECT * FROM android_monitor_contention_chain
-        WHERE parent_id IS NOT NULL
-      ORDER BY dur DESC
-      LIMIT 1;
-      """,
+          INCLUDE PERFETTO MODULE android.monitor_contention;
+          SELECT
+            parent_id,
+            blocking_method,
+            blocked_method,
+            short_blocking_method,
+            short_blocked_method,
+            blocking_src,
+            blocked_src,
+            waiter_count,
+            blocked_thread_name,
+            blocking_thread_name,
+            blocking_tid,
+            process_name,
+            id,
+            ts,
+            dur,
+            monotonic_dur,
+            is_blocked_thread_main,
+            blocked_thread_tid,
+            is_blocking_thread_main,
+            blocking_thread_tid,
+            binder_reply_ts,
+            binder_reply_tid,
+            pid,
+            child_id
+          FROM android_monitor_contention_chain
+          WHERE parent_id IS NOT NULL
+          ORDER BY dur DESC
+          LIMIT 1;
+        """,
         out=Csv("""
-        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","blocking_tid","upid","process_name","id","ts","dur","monotonic_dur","track_id","is_blocked_thread_main","blocked_thread_tid","is_blocking_thread_main","blocking_thread_tid","binder_reply_id","binder_reply_ts","binder_reply_tid","pid","child_id"
-        949,"void com.android.server.am.ActivityManagerService$AppDeathRecipient.binderDied()","int com.android.server.am.ActivityManagerService.getMemoryTrimLevel()","com.android.server.am.ActivityManagerService$AppDeathRecipient.binderDied","com.android.server.am.ActivityManagerService.getMemoryTrimLevel","ActivityManagerService.java:1478","ActivityManagerService.java:9183",1,250,"system_server",656,"binder:642_12",2720,250,"system_server",956,1737123891932,17577143,17577143,1215,1,642,0,2720,"[NULL]","[NULL]","[NULL]",642,"[NULL]"
-      """))
+          "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_thread_name","blocking_thread_name","blocking_tid","process_name","id","ts","dur","monotonic_dur","is_blocked_thread_main","blocked_thread_tid","is_blocking_thread_main","blocking_thread_tid","binder_reply_ts","binder_reply_tid","pid","child_id"
+          949,"void com.android.server.am.ActivityManagerService$AppDeathRecipient.binderDied()","int com.android.server.am.ActivityManagerService.getMemoryTrimLevel()","com.android.server.am.ActivityManagerService$AppDeathRecipient.binderDied","com.android.server.am.ActivityManagerService.getMemoryTrimLevel","ActivityManagerService.java:1478","ActivityManagerService.java:9183",1,"system_server","binder:642_12",2720,"system_server",956,1737123891932,17577143,17577143,1,642,0,2720,"[NULL]","[NULL]",642,"[NULL]"
+        """))
 
   def test_monitor_contention_graph(self):
     return DiffTestBlueprint(
