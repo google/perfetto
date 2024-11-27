@@ -33,7 +33,7 @@ import {
   ReadBuffersRequest,
   ReadBuffersResponse,
   TraceConfig,
-} from '../../../protos';
+} from '../protos';
 import {RecordingError} from './recording_error_handling';
 import {
   ByteStream,

@@ -25,7 +25,7 @@ import {
   isWindowsTarget,
   RecordingTarget,
 } from './state';
-import {ConsumerPort, TraceConfig} from '../../protos';
+import {ConsumerPort, TraceConfig} from './protos';
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_shell_controller';
 import {AdbSocketConsumerPort} from './adb_socket_controller';

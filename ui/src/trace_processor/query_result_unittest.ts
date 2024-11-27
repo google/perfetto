@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryResult as QueryResultProto} from '../protos';
+import protos from '../protos';
 import {
   createQueryResult,
   decodeInt64Varint,
@@ -22,23 +22,23 @@ import {
   STR_NULL,
 } from './query_result';
 
-const T = QueryResultProto.CellsBatch.CellType;
+const T = protos.QueryResult.CellsBatch.CellType;
 
 test('QueryResult.SimpleOneRow', () => {
-  const batch = QueryResultProto.CellsBatch.create({
+  const batch = protos.QueryResult.CellsBatch.create({
     cells: [T.CELL_STRING, T.CELL_VARINT, T.CELL_STRING, T.CELL_FLOAT64],
     varintCells: [42],
     stringCells: ['the foo', 'the bar'].join('\0'),
     float64Cells: [42.42],
     isLastBatch: true,
   });
-  const resProto = QueryResultProto.create({
+  const resProto = protos.QueryResult.create({
     columnNames: ['a_str', 'b_int', 'c_str', 'd_float'],
     batch: [batch],
   });
 
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
   expect(qr.isComplete()).toBe(true);
   expect(qr.numRows()).toBe(1);
 
@@ -76,18 +76,18 @@ test('QueryResult.BigNumbers', () => {
     [Number.MAX_SAFE_INTEGER, '9007199254740991'],
     [Number.MIN_SAFE_INTEGER, '-9007199254740991'],
   ];
-  const batch = QueryResultProto.CellsBatch.create({
+  const batch = protos.QueryResult.CellsBatch.create({
     cells: new Array<number>(numAndExpectedStr.length).fill(T.CELL_VARINT),
     varintCells: numAndExpectedStr.map((x) => x[0]) as number[],
     isLastBatch: true,
   });
-  const resProto = QueryResultProto.create({
+  const resProto = protos.QueryResult.create({
     columnNames: ['n'],
     batch: [batch],
   });
 
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
   const actual: string[] = [];
   for (const iter = qr.iter({n: NUM}); iter.valid(); iter.next()) {
     actual.push(BigInt(iter.n).toString());
@@ -107,18 +107,18 @@ test('QueryResult.Floats', () => {
     Number.POSITIVE_INFINITY,
     Number.NaN,
   ];
-  const batch = QueryResultProto.CellsBatch.create({
+  const batch = protos.QueryResult.CellsBatch.create({
     cells: new Array<number>(floats.length).fill(T.CELL_FLOAT64),
     float64Cells: floats,
     isLastBatch: true,
   });
-  const resProto = QueryResultProto.create({
+  const resProto = protos.QueryResult.create({
     columnNames: ['n'],
     batch: [batch],
   });
 
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
   const actual: number[] = [];
   for (const iter = qr.iter({n: NUM}); iter.valid(); iter.next()) {
     actual.push(iter.n);
@@ -135,18 +135,18 @@ test('QueryResult.Strings', () => {
     'In einem Bächlein helle da schoß in froher Eil',
     '色は匂へど散りぬるを我が世誰ぞ常ならん有為の奥山今日越えて浅き夢見じ酔ひもせず',
   ];
-  const batch = QueryResultProto.CellsBatch.create({
+  const batch = protos.QueryResult.CellsBatch.create({
     cells: new Array<number>(strings.length).fill(T.CELL_STRING),
     stringCells: strings.join('\0'),
     isLastBatch: true,
   });
-  const resProto = QueryResultProto.create({
+  const resProto = protos.QueryResult.create({
     columnNames: ['s'],
     batch: [batch],
   });
 
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
   const actual: string[] = [];
   for (const iter = qr.iter({s: STR}); iter.valid(); iter.next()) {
     actual.push(iter.s);
@@ -159,19 +159,19 @@ test('QueryResult.NullChecks', () => {
   cells.push(T.CELL_VARINT, T.CELL_NULL);
   cells.push(T.CELL_NULL, T.CELL_STRING);
   cells.push(T.CELL_VARINT, T.CELL_STRING);
-  const batch = QueryResultProto.CellsBatch.create({
+  const batch = protos.QueryResult.CellsBatch.create({
     cells,
     varintCells: [1, 2],
     stringCells: ['a', 'b'].join('\0'),
     isLastBatch: true,
   });
-  const resProto = QueryResultProto.create({
+  const resProto = protos.QueryResult.create({
     columnNames: ['n', 's'],
     batch: [batch],
   });
 
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
   const actualNums = new Array<number | null>();
   const actualStrings = new Array<string | null>();
   for (
@@ -197,13 +197,13 @@ test('QueryResult.NullChecks', () => {
 });
 
 test('QueryResult.EarlyError', () => {
-  const resProto = QueryResultProto.create({
+  const resProto = protos.QueryResult.create({
     columnNames: [],
     batch: [{isLastBatch: true}],
     error: 'Oh dear, this SQL query is too complicated, I give up',
   });
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
   expect(qr.error()).toContain('Oh dear');
   expect(qr.isComplete()).toBe(true);
   const iter = qr.iter({});
@@ -211,7 +211,7 @@ test('QueryResult.EarlyError', () => {
 });
 
 test('QueryResult.LateError', () => {
-  const resProto = QueryResultProto.create({
+  const resProto = protos.QueryResult.create({
     columnNames: ['n'],
     batch: [
       {
@@ -227,7 +227,7 @@ test('QueryResult.LateError', () => {
     error: 'I tried, I was getting there, but then I failed',
   });
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
   expect(qr.error()).toContain('I failed');
   const rows: number[] = [];
   for (const iter = qr.iter({n: NUM}); iter.valid(); iter.next()) {
@@ -238,7 +238,7 @@ test('QueryResult.LateError', () => {
 });
 
 test('QueryResult.MultipleBatches', async () => {
-  const batch1 = QueryResultProto.create({
+  const batch1 = protos.QueryResult.create({
     columnNames: ['n'],
     batch: [
       {
@@ -248,7 +248,7 @@ test('QueryResult.MultipleBatches', async () => {
       },
     ],
   });
-  const batch2 = QueryResultProto.create({
+  const batch2 = protos.QueryResult.create({
     batch: [
       {
         cells: [T.CELL_VARINT],
@@ -261,8 +261,8 @@ test('QueryResult.MultipleBatches', async () => {
   const qr = createQueryResult({query: 'Some query'});
   expect(qr.isComplete()).toBe(false);
 
-  qr.appendResultBatch(QueryResultProto.encode(batch1).finish());
-  qr.appendResultBatch(QueryResultProto.encode(batch2).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(batch1).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(batch2).finish());
 
   const awaitRes = await qr;
 
@@ -275,7 +275,7 @@ test('QueryResult.MultipleBatches', async () => {
 
 // Regression test for b/194891824 .
 test('QueryResult.DuplicateColumnNames', () => {
-  const batch = QueryResultProto.CellsBatch.create({
+  const batch = protos.QueryResult.CellsBatch.create({
     cells: [
       T.CELL_VARINT,
       T.CELL_STRING,
@@ -288,13 +288,13 @@ test('QueryResult.DuplicateColumnNames', () => {
     float64Cells: [4.2],
     isLastBatch: true,
   });
-  const resProto = QueryResultProto.create({
+  const resProto = protos.QueryResult.create({
     columnNames: ['x', 'y', 'x', 'x', 'y'],
     batch: [batch],
   });
 
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
   expect(qr.isComplete()).toBe(true);
   expect(qr.numRows()).toBe(1);
   expect(qr.columns()).toEqual(['x', 'y', 'x_1', 'x_2', 'y_1']);
@@ -314,25 +314,25 @@ test('QueryResult.DuplicateColumnNames', () => {
 });
 
 test('QueryResult.WaitMoreRows', async () => {
-  const batchA = QueryResultProto.CellsBatch.create({
+  const batchA = protos.QueryResult.CellsBatch.create({
     cells: [T.CELL_VARINT],
     varintCells: [42],
     isLastBatch: false,
   });
-  const resProtoA = QueryResultProto.create({
+  const resProtoA = protos.QueryResult.create({
     columnNames: ['a_int'],
     batch: [batchA],
   });
 
   const qr = createQueryResult({query: 'Some query'});
-  qr.appendResultBatch(QueryResultProto.encode(resProtoA).finish());
+  qr.appendResultBatch(protos.QueryResult.encode(resProtoA).finish());
 
-  const batchB = QueryResultProto.CellsBatch.create({
+  const batchB = protos.QueryResult.CellsBatch.create({
     cells: [T.CELL_VARINT],
     varintCells: [43],
     isLastBatch: true,
   });
-  const resProtoB = QueryResultProto.create({
+  const resProtoB = protos.QueryResult.create({
     columnNames: [],
     batch: [batchB],
   });
@@ -340,7 +340,7 @@ test('QueryResult.WaitMoreRows', async () => {
   const waitPromise = qr.waitMoreRows();
   const appendPromise = new Promise<void>((resolve, _) => {
     setTimeout(() => {
-      qr.appendResultBatch(QueryResultProto.encode(resProtoB).finish());
+      qr.appendResultBatch(protos.QueryResult.encode(resProtoB).finish());
       resolve();
     }, 0);
   });

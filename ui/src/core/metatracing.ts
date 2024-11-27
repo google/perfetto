@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {featureFlags} from './feature_flags';
-import {MetatraceCategories, PerfettoMetatrace} from '../protos';
+import protos from '../protos';
 import protobuf from 'protobufjs/minimal';
 
 const METATRACING_BUFFER_SIZE = 100000;
@@ -41,18 +41,22 @@ const AOMT_DETAILED_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-function getInitialCategories(): MetatraceCategories | undefined {
+function getInitialCategories(): protos.MetatraceCategories | undefined {
   if (!AOMT_FLAG.get()) return undefined;
-  if (AOMT_DETAILED_FLAG.get()) return MetatraceCategories.ALL;
-  return MetatraceCategories.QUERY_TIMELINE | MetatraceCategories.API_TIMELINE;
+  if (AOMT_DETAILED_FLAG.get()) return protos.MetatraceCategories.ALL;
+  return (
+    protos.MetatraceCategories.QUERY_TIMELINE |
+    protos.MetatraceCategories.API_TIMELINE
+  );
 }
 
-let enabledCategories: MetatraceCategories | undefined = getInitialCategories();
+let enabledCategories: protos.MetatraceCategories | undefined =
+  getInitialCategories();
 
-export function enableMetatracing(categories?: MetatraceCategories) {
+export function enableMetatracing(categories?: protos.MetatraceCategories) {
   enabledCategories =
-    categories === undefined || categories === MetatraceCategories.NONE
-      ? MetatraceCategories.ALL
+    categories === undefined || categories === protos.MetatraceCategories.NONE
+      ? protos.MetatraceCategories.ALL
       : categories;
 }
 
@@ -66,7 +70,7 @@ export function isMetatracingEnabled(): boolean {
 }
 
 export function getEnabledMetatracingCategories():
-  | MetatraceCategories
+  | protos.MetatraceCategories
   | undefined {
   return enabledCategories;
 }
@@ -83,14 +87,14 @@ const traceEvents: TraceEvent[] = [];
 
 function readMetatrace(): Uint8Array {
   const eventToPacket = (e: TraceEvent): Uint8Array => {
-    const metatraceEvent = PerfettoMetatrace.create({
+    const metatraceEvent = protos.PerfettoMetatrace.create({
       eventName: e.eventName,
       threadId: e.track,
       eventDurationNs: e.durNs,
     });
     for (const [key, value] of Object.entries(e.args ?? {})) {
       metatraceEvent.args.push(
-        PerfettoMetatrace.Arg.create({
+        protos.PerfettoMetatrace.Arg.create({
           key,
           value,
         }),
@@ -111,7 +115,7 @@ function readMetatrace(): Uint8Array {
     wri.uint32(TRACE_PACKET_CLOCK_ID_TAG).int32(1);
     wri
       .uint32(TRACE_PACKET_METATRACE_TAG)
-      .bytes(PerfettoMetatrace.encode(metatraceEvent).finish());
+      .bytes(protos.PerfettoMetatrace.encode(metatraceEvent).finish());
     wri.ldelim();
     return wri.finish();
   };
