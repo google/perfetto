@@ -69,6 +69,72 @@ FROM _merged_events
 ORDER BY ts
 );
 
+-- Compute the distribution of the overlap of the given intervals over time from
+-- slices in a same group.
+--
+-- Each interval is a (ts, dur, group) triple and the overlap represented as a
+-- (ts, value, group) counter, with the value corresponding to the number of
+-- intervals that belong to the same group and overlap the given timestamp and
+-- interval until the next timestamp.
+CREATE PERFETTO MACRO intervals_overlap_count_by_group(
+    -- Table or subquery containing interval data.
+    segments TableOrSubquery,
+    -- Column containing interval starts (usually `ts`).
+    ts_column ColumnName,
+    -- Column containing interval durations (usually `dur`).
+    dur_column ColumnName,
+    -- Column containing group name for grouping.
+    group_column ColumnName)
+-- The returned table has the schema (ts INT64, value UINT32, group_name) where
+-- the type of group_name is the same as that in |segments|.
+-- |ts| is the timestamp when the number of open segments changed. |value| is
+-- the number of open segments. |group_name| is the name of a group used for the
+-- overlap calculation.
+RETURNS TableOrSubquery AS
+(
+-- Algorithm: for each segment, emit a +1 at the start and a -1 at the end.
+-- Then, merge events with the same timestamp and compute a cumulative sum for
+-- each group.
+WITH
+_starts AS (
+  SELECT
+    1 AS delta,
+    $ts_column AS ts,
+    $group_column AS group_name
+  FROM $segments
+),
+_ends AS (
+  SELECT
+    -1 AS delta,
+    $ts_column + $dur_column AS ts,
+    $group_column AS group_name
+  FROM $segments
+  WHERE $dur_column != -1
+),
+_events AS (
+  SELECT * FROM _starts
+  UNION ALL
+  SELECT * FROM _ends
+),
+-- Merge events with the same timestamp to avoid artifacts in the data.
+_merged_events AS (
+  SELECT ts, sum(delta) as delta,
+  group_name
+  FROM _events
+  GROUP BY ts, group_name
+)
+SELECT
+  ts,
+  sum(delta) OVER (
+    PARTITION BY group_name
+    ORDER BY ts
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) as value,
+  group_name
+FROM _merged_events
+ORDER BY ts
+);
+
 -- Returns whether |intervals| contains any overlapping intervals. Useful for
 -- checking if provided table/subquery can be used for intervals_intersect
 -- macro.
