@@ -413,9 +413,9 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- name of the client thread.
   client_thread STRING,
   -- Upid of the client process.
-  client_upid LONG,
+  client_upid JOINID(process.id),
   -- Utid of the client thread.
-  client_utid LONG,
+  client_utid JOINID(thread.id),
   -- Tid of the client thread.
   client_tid LONG,
   -- Pid of the client thread.
@@ -433,9 +433,9 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- name of the server thread.
   server_thread STRING,
   -- Upid of the server process.
-  server_upid LONG,
+  server_upid JOINID(process.id),
   -- Utid of the server thread.
-  server_utid LONG,
+  server_utid JOINID(thread.id),
   -- Tid of the server thread.
   server_tid LONG,
   -- Pid of the server thread.
@@ -486,7 +486,7 @@ LEFT JOIN android_process_metadata server_process_metadata
 -- The weights of each node represent the wall execution time in the server_process.
 CREATE PERFETTO FUNCTION android_binder_outgoing_graph(
   -- Upid of process to generate an outgoing graph for.
-  upid LONG)
+  upid JOINID(process.id))
 RETURNS TABLE(
   -- Pprof of outgoing binder txns.
   pprof BYTES) AS
@@ -517,7 +517,7 @@ WITH threads AS (
 -- The weights of each node represent the wall execution time in the server_process.
 CREATE PERFETTO FUNCTION android_binder_incoming_graph(
   -- Upid of process to generate an incoming graph for.
-  upid LONG)
+  upid JOINID(process.id))
 RETURNS TABLE(
   -- Pprof of incoming binder txns.
   pprof BYTES) AS

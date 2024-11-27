@@ -45,7 +45,7 @@ CREATE PERFETTO TABLE android_power_rails_counters (
     -- measurement in microwatt-seconds (uWs) (AKA micro-joules).
     energy_delta DOUBLE,
     -- Power rail track id. Alias of `counter_track.id`.
-    track_id LONG,
+    track_id JOINID(track.id),
     -- DEPRECATED. Use `energy_since_boot` instead.
     value DOUBLE
 ) AS

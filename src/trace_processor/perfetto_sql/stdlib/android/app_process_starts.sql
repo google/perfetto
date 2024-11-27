@@ -111,13 +111,13 @@ CREATE PERFETTO TABLE android_app_process_starts(
   -- Slice id of intent received in the app.
   id LONG,
   -- Track id of the intent received in the app.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Name of the process receiving the intent.
   process_name STRING,
   -- Pid of the process receiving the intent.
   pid LONG,
   -- Upid of the process receiving the intent.
-  upid LONG,
+  upid JOINID(process.id),
   -- Intent action or component responsible for the cold start.
   intent STRING,
   -- Process start reason: activity, broadcast, service or provider.

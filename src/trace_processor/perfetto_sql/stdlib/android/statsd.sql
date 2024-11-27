@@ -33,7 +33,7 @@ CREATE PERFETTO VIEW android_statsd_atoms(
   -- The change in value of the CPU instruction counter between the start and end of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
   thread_instruction_delta LONG,
   -- The id of the track this slice is located on.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- The "category" of the slice. If this slice originated with track_event, this column contains the category emitted. Otherwise, it is likely to be null (with limited exceptions).
   category STRING,
   -- The name of the slice. The name describes what was happening during the slice.

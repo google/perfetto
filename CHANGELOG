@@ -28,6 +28,14 @@ Unreleased:
       functionality has been moved into other packages. Notably, the time
       conversion functions can be found in `time.conversion` module, and
       `thread_slice` is available with `slices.with_context`.
+    * Deprecated UINT and INT integer types in Perfetto SQL. Please use LONG in
+      Perfetto SQL schema.
+    * Deprecated FLOAT flating type in Perfetto SQL. Please use DOUBLE in
+      Perfetto SQL schema.
+    * Added TIMESTAMP, DURATION, ID and JOINID types to Perfetto SQL schema.
+      TIMESTAMP and DURATION refers to time columns in nanoseconds. ID column
+      is a primary key for the column and JOINID is referencing ID
+      column of other table.
   Trace Processor:
     *
   UI:

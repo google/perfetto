@@ -91,7 +91,7 @@ CREATE PERFETTO TABLE chrome_scroll_input_offsets(
   scroll_id LONG,
   -- An ID for this particular EventLatency regardless of it being presented or
   -- not.
-  event_latency_slice_id LONG,
+  event_latency_slice_id JOINID(slice.id),
   -- An ID that ties this |event_latency_id| with the Trace Id (another
   -- event_latency_id) that it was presented with.
   scroll_update_id LONG,
@@ -123,7 +123,7 @@ CREATE PERFETTO TABLE chrome_presented_scroll_offsets(
   scroll_id LONG,
   -- An ID for this particular EventLatency regardless of it being presented or
   -- not.
-  event_latency_slice_id LONG,
+  event_latency_slice_id JOINID(slice.id),
   -- An ID that ties this |event_latency_id| with the Trace Id (another
   -- event_latency_id) that it was presented with.
   scroll_update_id LONG,

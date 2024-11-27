@@ -16,8 +16,8 @@
 -- All thread slices with data about thread, thread track and process.
 -- Where possible, use available view functions which filter this view.
 CREATE PERFETTO VIEW thread_slice(
-  -- Alias for `slice.id`.
-  id LONG,
+  -- Slice
+  id JOINID(slice.id),
   -- Alias for `slice.type`.
   type STRING,
   -- Alias for `slice.ts`.
@@ -29,13 +29,13 @@ CREATE PERFETTO VIEW thread_slice(
   -- Alias for `slice.name`.
   name STRING,
   -- Alias for `slice.track_id`.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Alias for `thread_track.name`.
   track_name STRING,
   -- Alias for `thread.name`.
   thread_name STRING,
   -- Alias for `thread.utid`.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Alias for `thread.tid`.
   tid LONG,
   -- Alias for `thread.is_main_thread`.
@@ -43,13 +43,13 @@ CREATE PERFETTO VIEW thread_slice(
   -- Alias for `process.name`.
   process_name STRING,
   -- Alias for `process.upid`.
-  upid LONG,
+  upid JOINID(process.id),
   -- Alias for `process.pid`.
   pid LONG,
   -- Alias for `slice.depth`.
   depth LONG,
   -- Alias for `slice.parent_id`.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Alias for `slice.arg_set_id`.
   arg_set_id LONG,
   -- Alias for `slice.thread_ts`.
@@ -86,8 +86,8 @@ LEFT JOIN process USING (upid);
 -- All process slices with data about process track and process.
 -- Where possible, use available view functions which filter this view.
 CREATE PERFETTO VIEW process_slice(
-  -- Alias for `slice.id`.
-  id LONG,
+  -- Slice
+  id JOINID(slice.id),
   -- Alias for `slice.type`.
   type STRING,
   -- Alias for `slice.ts`.
@@ -99,19 +99,19 @@ CREATE PERFETTO VIEW process_slice(
   -- Alias for `slice.name`.
   name STRING,
   -- Alias for `slice.track_id`.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Alias for `process_track.name`.
   track_name STRING,
   -- Alias for `process.name`.
   process_name STRING,
   -- Alias for `process.upid`.
-  upid LONG,
+  upid JOINID(process.id),
   -- Alias for `process.pid`.
   pid LONG,
   -- Alias for `slice.depth`.
   depth LONG,
   -- Alias for `slice.parent_id`.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Alias for `slice.arg_set_id`.
   arg_set_id LONG,
   -- Alias for `slice.thread_ts`.

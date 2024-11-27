@@ -22,7 +22,7 @@ CREATE PERFETTO TABLE android_gpu_memory_per_process(
   -- Duration
   dur DURATION,
   -- Upid of the process
-  upid LONG,
+  upid JOINID(process.id),
   -- GPU memory
   gpu_memory LONG
 ) AS

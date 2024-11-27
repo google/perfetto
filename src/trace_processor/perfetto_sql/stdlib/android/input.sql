@@ -210,13 +210,13 @@ CREATE PERFETTO TABLE android_input_events (
   -- Timestamp input event was read by InputReader.
   read_time LONG,
   -- Thread track id of input event dispatching thread.
-  dispatch_track_id LONG,
+  dispatch_track_id JOINID(track.id),
   -- Timestamp input event was dispatched.
   dispatch_ts TIMESTAMP,
   -- Duration of input event dispatch.
   dispatch_dur DURATION,
   -- Thread track id of input event receiving thread.
-  receive_track_id LONG,
+  receive_track_id JOINID(track.id),
   -- Timestamp input event was received.
   receive_ts TIMESTAMP,
   -- Duration of input event receipt.

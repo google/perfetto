@@ -64,7 +64,7 @@ FROM min_distance;
 -- Data about packages running on the process.
 CREATE PERFETTO TABLE android_process_metadata(
   -- Process upid.
-  upid LONG,
+  upid JOINID(process.id),
   -- Process pid.
   pid LONG,
   -- Process name.
