@@ -16,11 +16,11 @@
 -- Similar to `ancestor_slice`, but returns the slice itself in addition to strict ancestors.
 CREATE PERFETTO FUNCTION _slice_ancestor_and_self(
   -- Id of the slice.
-  slice_id LONG
+  slice_id JOINID(slice.id)
 )
 RETURNS TABLE(
-  -- Alias of `slice.id`.
-  id LONG,
+  -- Slice
+  id JOINID(slice.id),
   -- Alias of `slice.type`.
   type STRING,
   -- Alias of `slice.ts`.
@@ -28,7 +28,7 @@ RETURNS TABLE(
   -- Alias of `slice.dur`.
   dur DURATION,
   -- Alias of `slice.track_id`.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Alias of `slice.category`.
   category STRING,
   -- Alias of `slice.name`.
@@ -36,7 +36,7 @@ RETURNS TABLE(
   -- Alias of `slice.depth`.
   depth LONG,
   -- Alias of `slice.parent_id`.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Alias of `slice.arg_set_id`.
   arg_set_id LONG,
   -- Alias of `slice.thread_ts`.
@@ -56,19 +56,19 @@ FROM ancestor_slice($slice_id);
 -- Similar to `descendant_slice`, but returns the slice itself in addition to strict descendants.
 CREATE PERFETTO FUNCTION _slice_descendant_and_self(
   -- Id of the slice.
-  slice_id LONG
+  slice_id JOINID(slice.id)
 )
 RETURNS TABLE(
-  -- Alias of `slice.id`.
-  id LONG,
+  -- Slice
+  id JOINID(slice.id),
   -- Alias of `slice.type`.
   type STRING,
   -- Alias of `slice.ts`.
   ts TIMESTAMP,
   -- Alias of `slice.dur`.
   dur DURATION,
-  -- Alias of `slice.track_id`.
-  track_id LONG,
+  -- Track.
+  track_id JOINID(track.id),
   -- Alias of `slice.category`.
   category STRING,
   -- Alias of `slice.name`.
@@ -76,7 +76,7 @@ RETURNS TABLE(
   -- Alias of `slice.depth`.
   depth LONG,
   -- Alias of `slice.parent_id`.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Alias of `slice.arg_set_id`.
   arg_set_id LONG,
   -- Alias of `slice.thread_ts`.

@@ -90,7 +90,7 @@ SELECT
 -- All frozen processes and their frozen duration.
 CREATE PERFETTO TABLE android_freezer_events (
   -- Upid of frozen process
-  upid LONG,
+  upid JOINID(process.id),
   -- Pid of frozen process
   pid LONG,
   -- Timestamp process was frozen.

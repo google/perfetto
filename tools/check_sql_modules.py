@@ -17,7 +17,7 @@
 # '_' is documented with proper schema.
 
 import argparse
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import os
 import sys
 import re
@@ -86,9 +86,15 @@ def main():
             f"{len(parsed.table_views)} tables/views, "
             f"{len(parsed.macros)} macros.")
 
+  tables_with_id_cols = {}
+  for _, _, m in modules:
+    tables_with_id_cols.update(m.id_columns)
+
   all_errors = 0
   for path, sql, parsed in modules:
     errors = []
+
+    # Check for banned statements.
     lines = [l.strip() for l in sql.split('\n')]
     for line in lines:
       if line.startswith('--'):
@@ -98,7 +104,7 @@ def main():
       if 'insert into' in line.casefold():
         errors.append("INSERT INTO table is not allowed in standard library.")
 
-    # Validate includes
+    # Validate includes.
     package = parsed.package_name
     for include in parsed.includes:
       package = package.lower()
@@ -123,6 +129,22 @@ def main():
         errors.append(
             f"Modules from package 'android' can't include '{include.module}' "
             f"from package 'chrome'")
+
+    # Validate JOINID type.
+    # Verify if the JOINID references an ID column of a table.
+    for o in parsed.table_views:
+      for c, arg in o.joinid_cols.items():
+        [tab, id_col] = arg.joinid_column.split('.')
+        if tab not in tables_with_id_cols.keys():
+          errors.append(
+              f"JOINID column '{c}' of '{o.name}' references table '{tab}' that doesn't exist."
+          )
+          continue
+        if id_col not in tables_with_id_cols[tab]:
+          errors.append(
+              f"JOINID column '{c}' of '{o.name}' references ID column '{id_col}' in '{tab}' that doesn't exist."
+          )
+          continue
 
     errors += [
         *parsed.errors, *check_banned_words(sql),

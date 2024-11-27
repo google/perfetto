@@ -72,7 +72,9 @@ def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
 
 class Arg(NamedTuple):
   type: str
+  long_type: str
   description: str
+  joinid_column: Optional[str]
 
 
 class AbstractDocParser(ABC):
@@ -166,7 +168,12 @@ class AbstractDocParser(ABC):
       comment = '' if groups[0] is None else parse_comment(groups[0])
       name = groups[-3]
       type = groups[-2]
-      result[name] = Arg(type, comment)
+
+      m = re.match(r'JOINID\(([_A-Za-z\.]*)\)', type)
+      if m:
+        result[name] = Arg('JOINID', type, comment, m.groups()[0])
+      else:
+        result[name] = Arg(type, type, comment, None)
       # Strip whitespace and comma and parse the next arg.
       remaining_args = groups[-1].lstrip().lstrip(',').lstrip()
 
@@ -183,12 +190,16 @@ class TableOrView:
   type: str
   desc: str
   cols: Dict[str, Arg]
+  id_columns: List[str]
+  joinid_cols: Dict[str, Arg]
 
-  def __init__(self, name, type, desc, cols):
+  def __init__(self, name, type, desc, cols, id_columns, joinid_columns):
     self.name = name
     self.type = type
     self.desc = desc
     self.cols = cols
+    self.id_columns = id_columns
+    self.joinid_cols = joinid_columns
 
 
 class TableViewDocParser(AbstractDocParser):
@@ -229,12 +240,23 @@ class TableViewDocParser(AbstractDocParser):
       self._error(f'{type} "{self.name}": Virtual tables cannot be exposed.')
       return
 
+    cols = self._parse_columns(schema, ObjKind.table_view)
+    id_columns = []
+    joinid_cols = {}
+
+    for col_name, arg in cols.items():
+      if arg.type == "ID":
+        id_columns.append(col_name)
+      elif arg.type == "JOINID":
+        joinid_cols[col_name] = arg
+
     return TableOrView(
         name=self._parse_name(),
         type=type,
         desc=self._parse_desc_not_empty(doc.description),
         cols=self._parse_columns(schema, ObjKind.table_view),
-    )
+        id_columns=id_columns,
+        joinid_columns=joinid_cols)
 
 
 class Function:
@@ -426,6 +448,7 @@ class ParsedModule:
   table_functions: List[TableFunction] = []
   macros: List[Macro] = []
   includes: List[Include]
+  id_columns: Dict[str, List[str]]
 
   def __init__(self, package_name: str, module_as_list: List[str],
                errors: List[str], table_views: List[TableOrView],
@@ -440,6 +463,7 @@ class ParsedModule:
     self.table_functions = table_functions
     self.macros = macros
     self.includes = includes
+    self.id_columns = {o.name: o.id_columns for o in table_views}
 
 
 def parse_file(path: str, sql: str) -> Optional[ParsedModule]:

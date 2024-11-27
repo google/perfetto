@@ -18,7 +18,7 @@ CREATE PERFETTO VIEW linux_perf_spe_record(
   -- Timestap when the operation was sampled
   ts TIMESTAMP,
   -- Thread the operation executed in
-  utid LONG,
+  utid JOINID(thread.id),
   -- Exception level the instruction was executed in
   exception_level STRING,
   -- Instruction virtual address

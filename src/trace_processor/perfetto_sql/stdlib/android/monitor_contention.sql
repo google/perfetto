@@ -137,17 +137,17 @@ CREATE PERFETTO TABLE android_monitor_contention(
   -- Zero indexed number of threads trying to acquire the lock.
   waiter_count LONG,
   -- Utid of thread holding the lock.
-  blocked_utid LONG,
+  blocked_utid JOINID(thread.id),
   -- Thread name of thread holding the lock.
   blocked_thread_name STRING,
   -- Utid of thread holding the lock.
-  blocking_utid LONG,
+  blocking_utid JOINID(thread.id),
   -- Thread name of thread holding the lock.
   blocking_thread_name STRING,
   -- Tid of thread holding the lock.
   blocking_tid LONG,
   -- Upid of process experiencing lock contention.
-  upid LONG,
+  upid JOINID(process.id),
   -- Process name of process experiencing lock contention.
   process_name STRING,
   -- Slice id of lock contention.
@@ -159,7 +159,7 @@ CREATE PERFETTO TABLE android_monitor_contention(
   -- Monotonic clock duration of lock contention.
   monotonic_dur DURATION,
   -- Thread track id of blocked thread.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Whether the blocked thread is the main thread.
   is_blocked_thread_main LONG,
   -- Tid of the blocked thread
@@ -278,17 +278,17 @@ CREATE PERFETTO TABLE android_monitor_contention_chain(
   -- Zero indexed number of threads trying to acquire the lock.
   waiter_count LONG,
   -- Utid of thread holding the lock.
-  blocked_utid LONG,
+  blocked_utid JOINID(thread.id),
   -- Thread name of thread holding the lock.
   blocked_thread_name STRING,
   -- Utid of thread holding the lock.
-  blocking_utid LONG,
+  blocking_utid JOINID(thread.id),
   -- Thread name of thread holding the lock.
   blocking_thread_name STRING,
   -- Tid of thread holding the lock.
   blocking_tid LONG,
   -- Upid of process experiencing lock contention.
-  upid LONG,
+  upid JOINID(process.id),
   -- Process name of process experiencing lock contention.
   process_name STRING,
   -- Slice id of lock contention.
@@ -300,7 +300,7 @@ CREATE PERFETTO TABLE android_monitor_contention_chain(
   -- Monotonic clock duration of lock contention.
   monotonic_dur DURATION,
   -- Thread track id of blocked thread.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Whether the blocked thread is the main thread.
   is_blocked_thread_main LONG,
   -- Tid of the blocked thread
@@ -372,7 +372,7 @@ CREATE PERFETTO TABLE android_monitor_contention_chain_thread_state(
   -- Wall clock duration of lock contention.
   dur DURATION,
   -- Utid of the blocking |thread_state|.
-  blocking_utid LONG,
+  blocking_utid JOINID(thread.id),
   -- Blocked kernel function of the blocking thread.
   blocked_function STRING,
   -- Thread state of the blocking thread.
@@ -444,7 +444,7 @@ GROUP BY id, blocked_function;
 -- other nodes connected to it.
 CREATE PERFETTO FUNCTION android_monitor_contention_graph(
   -- Upid of process to generate a lock graph for.
-  upid LONG)
+  upid JOINID(process.id))
 RETURNS TABLE(
   -- Pprof of lock graph.
   pprof BYTES) AS

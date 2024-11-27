@@ -9,13 +9,13 @@
 --       TraceEvents and this table will be empty.
 CREATE PERFETTO TABLE chrome_vsync_intervals(
   -- Slice id of the vsync slice.
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- Timestamp of the vsync slice.
   ts TIMESTAMP,
   -- Duration of the vsync slice.
   dur DURATION,
   -- Track id of the vsync slice.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Duration until next vsync arrives.
   time_to_next_vsync LONG
 ) AS

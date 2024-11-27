@@ -23,14 +23,14 @@ CREATE PERFETTO FUNCTION _get_frame_table_with_id(
     -- String just before id.
     glob_str STRING
 ) RETURNS TABLE (
-    -- `slice.id` of the frame slice.
-    id LONG,
+    -- Frame slice.
+    id JOINID(slice.id),
     -- Parsed frame id.
     frame_id LONG,
     -- Utid.
-    utid LONG,
+    utid JOINID(thread.id),
     -- Upid.
-    upid LONG,
+    upid JOINID(process.id),
     -- Timestamp of the frame slice.
     ts TIMESTAMP
 ) AS
@@ -53,14 +53,16 @@ WHERE frame_id != 0;
 
 -- All of the `Choreographer#doFrame` slices with their frame id.
 CREATE PERFETTO TABLE android_frames_choreographer_do_frame(
-    -- `slice.id`
-    id LONG,
-    -- Frame id
+    -- Choreographer#doFrame slice. Slice with the name "Choreographer#doFrame
+    -- {frame id}".
+    id JOINID(slice.id),
+    -- Frame id. Taken as the value behind "Choreographer#doFrame" in slice
+    -- name.
     frame_id LONG,
     -- Utid of the UI thread
-    ui_thread_utid LONG,
+    ui_thread_utid JOINID(thread.id),
     -- Upid of application process
-    upid LONG,
+    upid JOINID(process.id),
     -- Timestamp of the slice.
     ts TIMESTAMP
 ) AS
@@ -79,14 +81,15 @@ FROM _get_frame_table_with_id('Choreographer#doFrame*');
 -- This happens when we are drawing multiple layers (e.g. status bar and
 -- notifications).
 CREATE PERFETTO TABLE android_frames_draw_frame(
-    -- `slice.id`
-    id LONG,
-    -- Frame id
+    -- DrawFrame slice. Slice with the name "DrawFrame {frame id}".
+    id JOINID(slice.id),
+    -- Frame id. Taken as the value behind "DrawFrame" in slice
+    -- name.
     frame_id LONG,
     -- Utid of the render thread
-    render_thread_utid LONG,
+    render_thread_utid JOINID(thread.id),
     -- Upid of application process
-    upid LONG
+    upid JOINID(process.id)
 ) AS
 SELECT
     id,
@@ -133,18 +136,20 @@ CREATE PERFETTO TABLE android_frames(
     -- `actual_frame_timeline_slice` or, if not present the time between the
     -- `ts` and the end of the final `DrawFrame`.
     dur DURATION,
-    -- `slice.id` of "Choreographer#doFrame" slice.
-    do_frame_id LONG,
-    -- `slice.id` of "DrawFrame" slice.
-    draw_frame_id LONG,
-    -- `slice.id` from `actual_frame_timeline_slice`
-    actual_frame_timeline_id LONG,
-    -- `slice.id` from `expected_frame_timeline_slice`
-    expected_frame_timeline_id LONG,
+    -- "Choreographer#doFrame" slice. The slice with name 
+    -- "Choreographer#doFrame" corresponding to this frame.
+    do_frame_id JOINID(slice.id),
+    -- "DrawFrame" slice. The slice with name "DrawFrame" corresponding to this
+    -- frame.
+    draw_frame_id JOINID(slice.id),
+    -- actual_frame_timeline_slice` slice related to this frame.
+    actual_frame_timeline_id JOINID(slice.id),
+    -- `expected_frame_timeline_slice` slice related to this frame.
+    expected_frame_timeline_id JOINID(slice.id),
     -- `utid` of the render thread.
-    render_thread_utid LONG,
+    render_thread_utid JOINID(thread.id),
     -- `utid` of the UI thread.
-    ui_thread_utid LONG,
+    ui_thread_utid JOINID(thread.id),
     -- Count of slices in `actual_frame_timeline_slice` related to this frame.
     actual_frame_timeline_count LONG,
     -- Count of slices in `expected_frame_timeline_slice` related to this frame.
@@ -222,18 +227,20 @@ RETURNS TABLE (
     ts TIMESTAMP,
     -- Duration of the frame.
     dur DURATION,
-    -- `slice.id` of "Choreographer#doFrame" slice.
-    do_frame_id LONG,
-    -- `slice.id` of "DrawFrame" slice.
-    draw_frame_id LONG,
-    -- `slice.id` from `actual_frame_timeline_slice`
-    actual_frame_timeline_id LONG,
-    -- `slice.id` from `expected_frame_timeline_slice`
-    expected_frame_timeline_id LONG,
+    -- "Choreographer#doFrame" slice. The slice with name 
+    -- "Choreographer#doFrame" corresponding to this frame.
+    do_frame_id JOINID(slice.id),
+    -- "DrawFrame" slice. The slice with name "DrawFrame" corresponding to this
+    -- frame.
+    draw_frame_id JOINID(slice.id),
+    -- actual_frame_timeline_slice` slice related to this frame.
+    actual_frame_timeline_id JOINID(slice.id),
+    -- `expected_frame_timeline_slice` slice related to this frame.
+    expected_frame_timeline_id JOINID(slice.id),
     -- `utid` of the render thread.
-    render_thread_utid LONG,
+    render_thread_utid JOINID(thread.id),
     -- `utid` of the UI thread.
-    ui_thread_utid LONG
+    ui_thread_utid JOINID(thread.id)
 ) AS
 SELECT
     frame_id,
