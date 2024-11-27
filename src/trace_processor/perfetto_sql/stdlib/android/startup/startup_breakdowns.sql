@@ -154,12 +154,12 @@ USING
 --
 -- Some helpful events to enables are binder transactions, ART, am and view.
 CREATE PERFETTO TABLE android_startup_opinionated_breakdown(
-  -- Startup id. Alias of `slice.id`
-  startup_id LONG,
-  -- Id of relevant slice blocking startup. Alias of `slice.id`.
-  slice_id LONG,
-  -- Id of thread_state blocking startup. Alias of `thread_state.id`.
-  thread_state_id LONG,
+  -- Startup id.
+  startup_id JOINID(android_startups.startup_id),
+  -- Id of relevant slice blocking startup.
+  slice_id JOINID(slice.id),
+  -- Id of thread_state blocking startup.
+  thread_state_id JOINID(thread_state.id),
   -- Timestamp of an exclusive interval during the app startup with a single latency reason.
   ts TIMESTAMP,
   -- Duration of an exclusive interval during the app startup with a single latency reason.

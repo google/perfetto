@@ -15,7 +15,7 @@ CREATE PERFETTO TABLE chrome_janky_event_latencies_v3(
   -- The duration of the slice.
   dur DURATION,
   -- The track_id for the slice.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- The name of the slice (EventLatency).
   name STRING,
   -- The stage of EventLatency that the caused the jank.

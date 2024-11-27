@@ -169,10 +169,10 @@ SELECT
 
 -- Server side binder breakdowns per transactions per txn.
 CREATE PERFETTO TABLE android_binder_server_breakdown(
-  -- Client side id of the binder txn. Alias of `slice.id`.
-  binder_txn_id LONG,
-  -- Server side id of the binder txn. Alias of `slice.id`.
-  binder_reply_id LONG,
+  -- Client side id of the binder txn.
+  binder_txn_id JOINID(slice.id),
+  -- Server side id of the binder txn.
+  binder_reply_id JOINID(slice.id),
   -- Timestamp of an exclusive interval during the binder reply with a single reason.
   ts TIMESTAMP,
   -- Duration of an exclusive interval during the binder reply with a single reason.
@@ -191,10 +191,10 @@ FROM _binder_server_flat_descendants_with_thread_state;
 
 -- Client side binder breakdowns per transactions per txn.
 CREATE PERFETTO TABLE android_binder_client_breakdown(
-  -- Client side id of the binder txn. Alias of `slice.id`.
-  binder_txn_id LONG,
-  -- Server side id of the binder txn. Alias of `slice.id`.
-  binder_reply_id LONG,
+  -- Client side id of the binder txn.
+  binder_txn_id JOINID(slice.id),
+  -- Server side id of the binder txn.
+  binder_reply_id JOINID(slice.id),
   -- Timestamp of an exclusive interval during the binder txn with a single latency reason.
   ts TIMESTAMP,
   -- Duration of an exclusive interval during the binder txn with a single latency reason.

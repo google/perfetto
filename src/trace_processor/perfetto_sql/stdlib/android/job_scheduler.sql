@@ -37,7 +37,7 @@ CREATE PERFETTO TABLE android_job_scheduler_events (
   -- Service component name of the scheduled job.
   job_service_name STRING,
   -- Thread track id of the job scheduler event slice.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Slice id of the job scheduler event slice.
   id LONG,
   -- Timestamp the job was scheduled.

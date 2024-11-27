@@ -21,16 +21,16 @@ INCLUDE PERFETTO MODULE slices.with_context;
 
 -- CPU cycles per each slice.
 CREATE PERFETTO TABLE cpu_cycles_per_thread_slice(
-  -- Id of a slice. Alias of `slice.id`.
-  id LONG,
+  -- Id of a slice.
+  id JOINID(slice.id),
   -- Name of the slice.
   name STRING,
-  -- Id of the thread the slice is running on. Alias of `thread.id`.
-  utid LONG,
+  -- Id of the thread the slice is running on.
+  utid JOINID(thread.id),
   -- Name of the thread.
   thread_name STRING,
-  -- Id of the process the slice is running on. Alias of `process.id`.
-  upid LONG,
+  -- Id of the process the slice is running on.
+  upid JOINID(process.id),
   -- Name of the process.
   process_name STRING,
   -- Sum of CPU millicycles. Null if frequency couldn't be fetched for any
@@ -74,16 +74,16 @@ CREATE PERFETTO FUNCTION cpu_cycles_per_thread_slice_in_interval(
   dur DURATION
 )
 RETURNS TABLE(
-  -- Id of a slice. Alias of `slice.id`.
-  id LONG,
+  -- Thread slice.
+  id JOINID(slice.id),
   -- Name of the slice.
   name STRING,
-  -- Id of the thread the slice is running on. Alias of `thread.id`.
-  utid LONG,
+  -- Thread the slice is running on.
+  utid JOINID(thread.id),
   -- Name of the thread.
   thread_name STRING,
-  -- Id of the process the slice is running on. Alias of `process.id`.
-  upid LONG,
+  -- Process the slice is running on.
+  upid JOINID(process.id),
   -- Name of the process.
   process_name STRING,
   -- Sum of CPU millicycles. Null if frequency couldn't be fetched for any
@@ -96,7 +96,7 @@ RETURNS TABLE(
 WITH cut_thread_slice AS (
   SELECT id, ii.ts, ii.dur, thread_slice.*
   FROM _interval_intersect_single!(
-    $ts, $dur, 
+    $ts, $dur,
     (SELECT * FROM thread_slice WHERE dur > 0 AND utid > 0)) ii
   JOIN thread_slice USING (id)
 ),

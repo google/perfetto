@@ -25,7 +25,7 @@ CREATE PERFETTO FUNCTION cpu_thread_utilization_per_period(
     -- Length of the period on which utilization should be averaged.
     interval LONG,
     -- Utid of the thread.
-    utid LONG
+    utid JOINID(thread.id)
 )
 RETURNS TABLE(
   -- Timestamp of start of a second.
@@ -54,7 +54,7 @@ WITH sched_for_utid AS (
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_thread_utilization_per_second(
   -- Utid of the thread.
-  utid LONG
+  utid JOINID(thread.id)
 )
 RETURNS TABLE (
   -- Timestamp of start of a second.
@@ -72,8 +72,8 @@ SELECT * FROM cpu_thread_utilization_per_period(time_from_s(1), $utid);
 
 -- Aggregated CPU statistics for each thread.
 CREATE PERFETTO TABLE cpu_cycles_per_thread(
-  -- Unique thread id
-  utid LONG,
+  -- Thread
+  utid JOINID(thread.id),
   -- Sum of CPU millicycles
   millicycles LONG,
   -- Sum of CPU megacycles
@@ -106,8 +106,8 @@ CREATE PERFETTO FUNCTION cpu_cycles_per_thread_in_interval(
     dur LONG
 )
 RETURNS TABLE(
-  -- Unique thread id. Joinable with `thread.id`.
-  utid LONG,
+  -- Thread with CPU cycles and frequency statistics.
+  utid JOINID(thread.id),
   -- Sum of CPU millicycles
   millicycles LONG,
   -- Sum of CPU megacycles

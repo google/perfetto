@@ -76,7 +76,7 @@ CREATE PERFETTO FUNCTION _get_process_id_by_type(
 )
 RETURNS TABLE (
     -- The process id for the process type.
-    upid LONG
+    upid JOINID(process.id)
 ) AS
 SELECT
   upid
@@ -108,7 +108,7 @@ CREATE PERFETTO FUNCTION _processes_by_type_for_event_latency(
   -- The slice id of an EventLatency slice.
   event_latency_id LONG)
 RETURNS TABLE (
-    upid LONG
+    upid JOINID(process.id)
 ) AS
 WITH all_upids AS (
   -- Renderer process upids
@@ -154,7 +154,7 @@ CREATE PERFETTO FUNCTION chrome_select_scroll_jank_cause_thread(
   thread_name STRING)
 RETURNS TABLE (
   -- The utid associated with |thread| on the process with |upid|.
-  utid LONG
+  utid JOINID(thread.id)
 ) AS
 WITH threads AS (
   SELECT

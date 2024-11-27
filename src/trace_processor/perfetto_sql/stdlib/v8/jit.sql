@@ -38,7 +38,7 @@ CREATE PERFETTO VIEW v8_isolate(
   -- Unique V8 isolate id.
   v8_isolate_id LONG,
   -- Process the isolate was created in.
-  upid LONG,
+  upid JOINID(process.id),
   -- Internal id used by the v8 engine. Unique in a process.
   internal_isolate_id LONG,
   -- Absolute start address of the embedded code blob.

@@ -27,7 +27,7 @@ CREATE PERFETTO TABLE chrome_graphics_pipeline_surface_frame_steps(
   -- Id of the graphics pipeline, pre-surface aggregation.
   surface_frame_trace_id LONG,
   -- Utid of the thread where this slice exists.
-  utid LONG)
+  utid JOINID(thread.id))
 AS
 SELECT
   id,
@@ -60,7 +60,7 @@ CREATE PERFETTO TABLE chrome_graphics_pipeline_display_frame_steps(
   -- Id of the graphics pipeline, post-surface aggregation.
   display_trace_id LONG,
   -- Utid of the thread where this slice exists.
-  utid LONG)
+  utid JOINID(thread.id))
 AS
 SELECT
   id,

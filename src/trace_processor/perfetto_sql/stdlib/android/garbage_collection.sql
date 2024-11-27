@@ -136,9 +136,9 @@ CREATE PERFETTO TABLE android_garbage_collection_events (
   -- Pid of process running garbage collection.
   pid LONG,
   -- Utid of thread running garbage collection.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Upid of process running garbage collection.
-  upid LONG,
+  upid JOINID(process.id),
   -- Name of thread running garbage collection.
   thread_name STRING,
   -- Name of process running garbage collection.

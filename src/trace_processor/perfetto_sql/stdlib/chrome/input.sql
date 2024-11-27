@@ -9,13 +9,13 @@ CREATE PERFETTO TABLE _chrome_input_pipeline_steps_no_input_type(
   -- Id of this Chrome input pipeline (LatencyInfo).
   latency_id LONG,
   -- Slice id
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- The step timestamp.
   ts TIMESTAMP,
   -- Step duration.
   dur DURATION,
   -- Utid of the thread.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Step name (ChromeLatencyInfo.step).
   step STRING,
   -- Input type.
@@ -62,13 +62,13 @@ CREATE PERFETTO TABLE chrome_input_pipeline_steps(
   -- Id of this Chrome input pipeline (LatencyInfo).
   latency_id LONG,
   -- Slice id
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- The step timestamp.
   ts TIMESTAMP,
   -- Step duration.
   dur DURATION,
   -- Utid of the thread.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Step name (ChromeLatencyInfo.step).
   step STRING,
   -- Input type.

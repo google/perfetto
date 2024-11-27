@@ -135,7 +135,7 @@ CREATE PERFETTO VIEW android_oom_adj_intervals (
   -- oom_adj bucket of the process.
   bucket STRING,
   -- Upid of the process having an oom_adj update.
-  upid LONG,
+  upid JOINID(process.id),
   -- Name of the process having an oom_adj update.
   process_name STRING,
   -- Slice id of the latest oom_adj update in the system_server.
@@ -145,7 +145,7 @@ CREATE PERFETTO VIEW android_oom_adj_intervals (
   -- Duration of the latest oom_adj update in the system_server.
   oom_adj_dur DURATION,
   -- Track id of the latest oom_adj update in the system_server
-  oom_adj_track_id LONG,
+  oom_adj_track_id JOINID(track.id),
   -- Thread name of the latest oom_adj update in the system_server.
   oom_adj_thread_name STRING,
   -- Reason for the latest oom_adj update in the system_server.

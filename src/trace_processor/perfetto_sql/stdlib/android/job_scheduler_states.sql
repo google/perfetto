@@ -200,14 +200,14 @@ JOIN _screen_states s ON s.id = ii.id_1;
 -- for how tables in this module differ from `android_job_scheduler_events`
 -- table in the `android.job_scheduler` module and how to populate this table.
 CREATE PERFETTO TABLE android_job_scheduler_states(
-  -- Unique identifier for row.
-  id LONG,
+  -- Unique identifier for job scheduler state.
+  id ID,
   -- Timestamp of job state slice.
   ts TIMESTAMP,
   -- Duration of job state slice.
   dur DURATION,
   -- Id of the slice.
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- Name of the job (as named by the app).
   job_name STRING,
   -- Uid associated with job.
@@ -338,7 +338,7 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Duration of slice in ns.
   dur DURATION,
   -- Id of the slice.
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- Name of the job (as named by the app).
   job_name STRING,
   -- Id of job (assigned by app for T- builds and system generated in U+

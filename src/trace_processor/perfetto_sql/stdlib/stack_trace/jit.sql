@@ -26,7 +26,7 @@ CREATE PERFETTO VIEW _jit_code (
   -- existing one.
   estimated_delete_ts TIMESTAMP,
   -- Thread that generated the code.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Start address for the generated code.
   start_address LONG,
   -- Size in bytes of the generated code.

@@ -21,7 +21,7 @@ CREATE PERFETTO TABLE cpu_frequency_counters(
   -- Counter id.
   id LONG,
   -- Joinable with 'counter_track.id'.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Starting timestamp of the counter
   ts TIMESTAMP,
   -- Duration in which counter is constant and frequency doesn't change.
