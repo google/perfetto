@@ -44,6 +44,10 @@ message TracingServiceState {
     // the build system and the repo (standalone vs AOSP).
     // This is intended for human debugging only.
     optional string sdk_version = 4;
+
+    // Returns true if the process appears to be frozen (Android only).
+    // Introduced in Perfetto V49 / Android 24Q4.
+    optional bool frozen = 6;
   }
 
   // Describes a data source registered by a producer. Data sources are listed
