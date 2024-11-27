@@ -123,7 +123,11 @@ function groupGlobalIonTracks(trace: Trace): void {
       [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.title)
     ) {
       // Create a new group that copies the details from this track
-      memGroupNode = new TrackNode({uri: track.uri, title: track.title});
+      memGroupNode = new TrackNode({
+        uri: track.uri,
+        title: track.title,
+        isSummary: true,
+      });
       // Remove it from the workspace as we're going to add the group later
       track.remove();
     } else {
