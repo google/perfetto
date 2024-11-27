@@ -19,7 +19,7 @@ import {Trace} from '../../public/trace';
 import {SqlModules} from './sql_modules';
 import {SQL_MODULES_DOCS_SCHEMA, SqlModulesImpl} from './sql_modules_impl';
 import {PromptOption} from '../../public/omnibox';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import {extensions} from '../../components/extensions';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
@@ -45,15 +45,18 @@ export default class implements PerfettoPlugin {
           'Choose a table...',
           promptOptions,
         );
+
         if (tableName === undefined) {
           return;
         }
         const module = sqlModules.getModuleForTable(tableName);
-        module &&
-          addQueryResultsTab(ctx, {
-            query: `INCLUDE PERFETTO MODULE ${module.includeKey};
-           SELECT * FROM ${tableName}`,
-            title: tableName,
+        if (module === undefined) {
+          return;
+        }
+        const sqlTable = module.getSqlTableDescription(tableName);
+        sqlTable &&
+          extensions.addSqlTableTab(ctx, {
+            table: sqlTable,
           });
       },
     });
