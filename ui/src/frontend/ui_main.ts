@@ -454,10 +454,11 @@ export class UiMainPerTrace implements m.ClassComponent {
       };
     });
 
-    // Sort by recentsIndex then by alphabetical order
+    // Sort recentsIndex first
     const sorted = commandsWithHeuristics.sort((a, b) => {
       if (b.recentsIndex === a.recentsIndex) {
-        return a.cmd.name.localeCompare(b.cmd.name);
+        // If recentsIndex is the same, retain original sort order
+        return 0;
       } else {
         return b.recentsIndex - a.recentsIndex;
       }
