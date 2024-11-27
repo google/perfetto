@@ -8,7 +8,7 @@
 -- into phases, where each subphase can happen only once.
 CREATE PERFETTO FUNCTION _descendant_slice_begin(
   -- Id of the parent slice.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Name of the child with the desired start TS.
   child_name STRING
 )
@@ -25,7 +25,7 @@ LIMIT 1;
 -- into phases, where each subphase can happen only once.
 CREATE PERFETTO FUNCTION _descendant_slice_end(
   -- Id of the parent slice.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Name of the child with the desired end TS.
   child_name STRING
 )
@@ -90,7 +90,7 @@ CREATE PERFETTO TABLE chrome_event_latencies(
   -- EventLatency event type.
   event_type STRING,
   -- Perfetto track this slice is found on.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Vsync interval (in milliseconds).
   vsync_interval_ms DOUBLE,
   -- Whether the corresponding frame is janky.
@@ -203,7 +203,7 @@ CREATE PERFETTO TABLE chrome_gesture_scroll_events(
   -- EventLatency event type.
   event_type STRING,
   -- Perfetto track this slice is found on.
-  track_id LONG
+  track_id JOINID(track.id)
 ) AS
 SELECT
   id,

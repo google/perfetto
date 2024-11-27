@@ -35,21 +35,20 @@ CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
   -- oom adjuster bucket of the process.
   bucket STRING,
   -- Upid of the process having an oom_adj update.
-  upid LONG,
+  upid JOINID(process.id),
   -- Name of the process having an oom_adj update.
   process_name STRING,
   -- Pid of the process having an oom_adj update.
   pid LONG,
-  -- Slice of the latest oom_adj update in the system_server. Alias of
-  -- `slice.id`.
-  oom_adj_id LONG,
+  -- Slice of the latest oom_adj update in the system_server.
+  oom_adj_id JOINID(slice.id),
   -- Timestamp of the latest oom_adj update in the system_server.
   oom_adj_ts TIMESTAMP,
   -- Duration of the latest oom_adj update in the system_server.
   oom_adj_dur DURATION,
   -- Track of the latest oom_adj update in the system_server. Alias of
   -- `track.id`.
-  oom_adj_track_id LONG,
+  oom_adj_track_id JOINID(track.id),
   -- Thread name of the latest oom_adj update in the system_server.
   oom_adj_thread_name STRING,
   -- Reason for the latest oom_adj update in the system_server.

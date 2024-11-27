@@ -21,16 +21,16 @@ INCLUDE PERFETTO MODULE slices.with_context;
 --
 -- Requires scheduling data to be available in the trace.
 CREATE PERFETTO TABLE thread_slice_time_in_state(
-  -- Id of a slice. Alias of `slice.id`.
-  id LONG,
+  -- Thread slice.
+  id JOINID(slice.id),
   -- Name of the slice.
   name STRING,
-  -- Id of the thread the slice is running on. Alias of `thread.id`.
-  utid LONG,
+  -- Thread the slice is running on.
+  utid JOINID(thread.id),
   -- Name of the thread.
   thread_name STRING,
-  -- Id of the process the slice is running on. Alias of `process.id`.
-  upid LONG,
+  -- Id of the process the slice is running on.
+  upid JOINID(process.id),
   -- Name of the process.
   process_name STRING,
   -- The scheduling state (from the `thread_state` table).

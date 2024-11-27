@@ -18,7 +18,7 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 -- The time a thread spent in each scheduling state during it's lifetime.
 CREATE PERFETTO TABLE sched_time_in_state_for_thread(
   -- Utid of the thread.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Total runtime of thread.
   total_runtime LONG,
   -- One of the scheduling states of kernel thread.
@@ -59,7 +59,7 @@ MAX(CASE WHEN state = $state THEN percentage_in_state END);
 -- are rounded down.
 CREATE PERFETTO TABLE sched_percentage_of_time_in_state(
   -- Utid of the thread.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Percentage of time thread spent in running ('Running') state in [0, 100]
   -- range.
   running LONG,
@@ -106,7 +106,7 @@ CREATE PERFETTO FUNCTION sched_time_in_state_for_thread_in_interval(
   -- The duration of the interval.
   dur DURATION,
   -- The utid of the thread.
-  utid LONG
+  utid JOINID(thread.id)
 )
 RETURNS TABLE(
   -- The scheduling state (from the `thread_state` table).
@@ -155,7 +155,7 @@ CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
   -- The duration of the interval.
   dur DURATION,
   -- The utid of the thread.
-  utid LONG)
+  utid JOINID(thread.id))
 RETURNS TABLE(
   -- Thread state (from the `thread_state` table).
   -- Use `sched_state_to_human_readable_string` function to get full name.

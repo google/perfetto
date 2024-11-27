@@ -34,7 +34,8 @@ std::optional<Type> ParseType(base::StringView str) {
   if (str.CaseInsensitiveEq("bool")) {
     return Type::kBool;
   }
-  if (str.CaseInsensitiveOneOf({"long", "timestamp", "duration", "id"})) {
+  if (str.CaseInsensitiveOneOf(
+          {"long", "timestamp", "duration", "id", "joinid"})) {
     return Type::kLong;
   }
   if (str.CaseInsensitiveEq("double")) {

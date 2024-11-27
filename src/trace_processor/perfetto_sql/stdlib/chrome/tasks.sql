@@ -21,7 +21,7 @@ SELECT EXISTS(
 -- argument of descendant ScopedSetIpcHash slice.
 -- This is relevant only for the older Chrome traces, where mojo IPC
 -- hash was reported in a separate ScopedSetIpcHash slice.
-CREATE PERFETTO FUNCTION _extract_mojo_ipc_hash(slice_id LONG)
+CREATE PERFETTO FUNCTION _extract_mojo_ipc_hash(slice_id JOINID(slice.id))
 RETURNS LONG AS
 SELECT EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash")
 FROM descendant_slice($slice_id)
@@ -31,7 +31,7 @@ LIMIT 1;
 
 -- Returns the frame type (main frame vs subframe) for key navigation tasks
 -- which capture the associated RenderFrameHost in an argument.
-CREATE PERFETTO FUNCTION _extract_frame_type(slice_id LONG)
+CREATE PERFETTO FUNCTION _extract_frame_type(slice_id JOINID(slice.id))
 RETURNS LONG AS
 SELECT EXTRACT_ARG(arg_set_id, "render_frame_host.frame_type")
 FROM descendant_slice($slice_id)
@@ -270,7 +270,7 @@ CREATE PERFETTO VIEW chrome_java_views(
   -- Whether this slice is a part of accelerated capture toolbar screenshot.
   is_hardware_screenshot BOOL,
   -- Slice id.
-  slice_id LONG
+  slice_id JOINID(slice.id)
 ) AS
 SELECT
   java_view.name AS filtered_name,
@@ -384,15 +384,15 @@ CREATE PERFETTO VIEW chrome_scheduler_tasks(
   -- Duration.
   dur DURATION,
   -- Utid of the thread this task run on.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Name of the thread this task run on.
   thread_name STRING,
   -- Upid of the process of this task.
-  upid LONG,
+  upid JOINID(process.id),
   -- Name of the process of this task.
   process_name STRING,
   -- Same as slice.track_id.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Same as slice.category.
   category STRING,
   -- Same as slice.depth.
@@ -437,7 +437,7 @@ ORDER BY task.id;
 -- Select the slice that might be the descendant mojo slice for the given task
 -- slice if it exists.
 CREATE PERFETTO FUNCTION _get_descendant_mojo_slice_candidate(
-  slice_id LONG
+  slice_id JOINID(slice.id)
 )
 RETURNS LONG AS
 SELECT
@@ -458,7 +458,7 @@ WHERE
 ORDER by depth, ts
 LIMIT 1;
 
-CREATE PERFETTO FUNCTION _descendant_mojo_slice(slice_id LONG)
+CREATE PERFETTO FUNCTION _descendant_mojo_slice(slice_id JOINID(slice.id))
 RETURNS TABLE(task_name STRING) AS
 SELECT
   printf("%s %s (hash=%d)",
@@ -601,17 +601,17 @@ CREATE PERFETTO VIEW chrome_tasks(
   -- Thread name.
   thread_name STRING,
   -- Utid.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Process name.
   process_name STRING,
   -- Upid.
-  upid LONG,
+  upid JOINID(process.id),
   -- Alias of |slice.ts|.
   ts TIMESTAMP,
   -- Alias of |slice.dur|.
   dur DURATION,
   -- Alias of |slice.track_id|.
-  track_id LONG,
+  track_id JOINID(track.id),
   -- Alias of |slice.category|.
   category STRING,
   -- Alias of |slice.arg_set_id|.

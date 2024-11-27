@@ -80,13 +80,13 @@ CREATE PERFETTO TABLE android_dmabuf_allocs (
   -- utid of thread responsible for the allocation
   -- if a dmabuf is allocated by gralloc we follow the binder transaction
   -- to the requesting thread (requires binder tracing)
-  utid LONG,
+  utid JOINID(thread.id),
   -- tid of thread responsible for the allocation
   tid LONG,
   -- thread name
   thread_name STRING,
   -- upid of process responsible for the allocation (matches utid)
-  upid LONG,
+  upid JOINID(process.id),
   -- pid of process responsible for the allocation
   pid LONG,
   -- process name

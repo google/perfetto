@@ -100,7 +100,7 @@ def main():
                 table.type,
             'cols': [{
                 'name': col_name,
-                'type': col.type,
+                'type': col.long_type,
                 'desc': col.description
             } for (col_name, col) in table.cols.items()]
         } for table in docs.table_views],
@@ -110,7 +110,7 @@ def main():
             'summary_desc': _summary_desc(function.desc),
             'args': [{
                 'name': arg_name,
-                'type': arg.type,
+                'type': arg.long_type,
                 'desc': arg.description,
             } for (arg_name, arg) in function.args.items()],
             'return_type': function.return_type,
@@ -125,12 +125,12 @@ def main():
                 _summary_desc(function.desc),
             'args': [{
                 'name': arg_name,
-                'type': arg.type,
+                'type': arg.long_type,
                 'desc': arg.description,
             } for (arg_name, arg) in function.args.items()],
             'cols': [{
                 'name': col_name,
-                'type': col.type,
+                'type': col.long_type,
                 'desc': col.description
             } for (col_name, col) in function.cols.items()]
         } for function in docs.table_functions],
@@ -147,7 +147,7 @@ def main():
                 macro.return_type,
             'args': [{
                 'name': arg_name,
-                'type': arg.type,
+                'type': arg.long_type,
                 'desc': arg.description,
             } for (arg_name, arg) in macro.args.items()],
         } for macro in docs.macros],

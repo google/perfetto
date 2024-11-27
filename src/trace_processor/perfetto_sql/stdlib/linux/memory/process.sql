@@ -89,7 +89,7 @@ CREATE PERFETTO VIEW memory_rss_and_swap_per_process(
   -- Duration
   dur DURATION,
   -- Upid of the process
-  upid LONG,
+  upid JOINID(process.id),
   -- Pid of the process
   pid LONG,
   -- Name of the process

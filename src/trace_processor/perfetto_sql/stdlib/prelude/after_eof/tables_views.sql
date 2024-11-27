@@ -169,7 +169,7 @@ CREATE PERFETTO VIEW sched_slice (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread's unique id in the trace.
-  utid LONG,
+  utid JOINID(thread.id),
   -- A string representing the scheduling state of the kernel
   -- thread at the end of the slice.  The individual characters in
   -- the string mean the following: R (runnable), S (awaiting a
@@ -210,7 +210,7 @@ CREATE PERFETTO VIEW sched(
   -- Alias for `sched_slice.cpu`.
   cpu LONG,
   -- Alias for `sched_slice.utid`.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Alias for `sched_slice.end_state`.
   end_state STRING,
   -- Alias for `sched_slice.priority`.
@@ -242,7 +242,7 @@ CREATE PERFETTO VIEW thread_state (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread's unique id in the trace.
-  utid LONG,
+  utid JOINID(thread.id),
   -- The scheduling state of the thread. Can be "Running" or any of the states
   -- described in |sched_slice.end_state|.
   state STRING,
@@ -251,7 +251,7 @@ CREATE PERFETTO VIEW thread_state (
   -- The function in the kernel this thread was blocked on.
   blocked_function STRING,
   -- The unique thread id of the thread which caused a wakeup of this thread.
-  waker_utid LONG,
+  waker_utid JOINID(thread.id),
   -- The unique thread state id which caused a wakeup of this thread.
   waker_id LONG,
   -- Whether the wakeup was from interrupt context or process context.
@@ -294,7 +294,7 @@ CREATE PERFETTO VIEW raw (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread this event was emitted on.
-  utid LONG,
+  utid JOINID(thread.id),
   -- The set of key/value pairs associated with this event.
   arg_set_id LONG,
   -- Ftrace event flags for this event. Currently only emitted for sched_waking
@@ -334,7 +334,7 @@ CREATE PERFETTO VIEW ftrace_event (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread this event was emitted on.
-  utid LONG,
+  utid JOINID(thread.id),
   -- The set of key/value pairs associated with this event.
   arg_set_id LONG,
   -- Ftrace event flags for this event. Currently only emitted for
@@ -371,7 +371,7 @@ CREATE PERFETTO VIEW experimental_sched_upid (
   -- CPU identifier of each machine.
   cpu LONG,
   -- The thread's unique id in the trace.
-  utid LONG,
+  utid JOINID(thread.id),
   -- A string representing the scheduling state of the kernel thread at the end
   -- of the slice. The individual characters in the string mean the following: R
   -- (runnable), S (awaiting a wakeup), D (in an uninterruptible sleep), T
@@ -384,7 +384,7 @@ CREATE PERFETTO VIEW experimental_sched_upid (
   -- The unique CPU identifier that the slice executed on.
   ucpu LONG,
   -- The process's unique id in the trace.
-  upid LONG
+  upid JOINID(process.id)
 ) AS
 SELECT
   id,

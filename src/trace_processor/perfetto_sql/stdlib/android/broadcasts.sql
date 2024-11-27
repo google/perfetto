@@ -38,17 +38,17 @@ CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
   -- Pid of the process the broadcast was sent to.
   pid LONG,
   -- Upid of the process the broadcast was sent to.
-  upid LONG,
+  upid JOINID(process.id),
   -- Id of the broacast queue the broadcast was dispatched from.
   queue_id LONG,
-  -- Slice id of the broadcast dispatch.
-  id LONG,
+  -- Broadcast dispatch slice.
+  id JOINID(slice.id),
   -- Timestamp the broadcast was dispatched.
   ts TIMESTAMP,
   -- Duration to dispatch the broadcast.
   dur DURATION,
   -- Track id the broadcast was dispatched from.
-  track_id LONG
+  track_id JOINID(track.id)
 ) AS
 WITH
   broadcast_queues AS (

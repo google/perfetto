@@ -23,7 +23,7 @@ INCLUDE PERFETTO MODULE android.version;
 -- Populated by different scripts depending on the platform version/contents.
 CREATE PERFETTO TABLE android_startups(
   -- Startup id.
-  startup_id LONG,
+  startup_id ID,
   -- Timestamp of startup start.
   ts TIMESTAMP,
   -- Timestamp of startup end.
@@ -75,7 +75,7 @@ WHERE name IN ('bindApplication', 'activityStart', 'activityResume');
 
 CREATE PERFETTO FUNCTION _startup_indicator_slice_count(start_ts TIMESTAMP,
                                                                 end_ts TIMESTAMP,
-                                                                utid LONG,
+                                                                utid JOINID(thread.id),
                                                                 name STRING)
 RETURNS LONG AS
 SELECT COUNT(1)
@@ -95,7 +95,7 @@ CREATE PERFETTO TABLE android_startup_processes(
   -- Startup id.
   startup_id LONG,
   -- Upid of process on which activity started.
-  upid LONG,
+  upid JOINID(process.id),
   -- Pid of process on which activity started.
   pid LONG,
   -- Type of the startup.
@@ -156,11 +156,11 @@ CREATE PERFETTO VIEW android_startup_threads(
   -- Duration of startup.
   dur DURATION,
   -- Upid of process involved in startup.
-  upid LONG,
+  upid JOINID(process.id),
   -- Pid if process involved in startup.
   pid LONG,
   -- Utid of the thread.
-  utid LONG,
+  utid JOINID(thread.id),
   -- Tid of the thread.
   tid LONG,
   -- Name of the thread.
@@ -198,7 +198,7 @@ CREATE PERFETTO VIEW android_thread_slices_for_all_startups(
   -- Startup id.
   startup_id LONG,
   -- UTID of thread with slice.
-  utid LONG,
+  utid JOINID(thread.id),
   --Tid of thread.
   tid LONG,
   -- Name of thread.
@@ -208,7 +208,7 @@ CREATE PERFETTO VIEW android_thread_slices_for_all_startups(
   -- Arg set id.
   arg_set_id LONG,
   -- Slice id.
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- Name of slice.
   slice_name STRING,
   -- Timestamp of slice start.
@@ -242,7 +242,7 @@ CREATE PERFETTO FUNCTION android_slices_for_startup_and_slice_name(
   slice_name STRING)
 RETURNS TABLE(
   -- Id of the slice.
-  slice_id LONG,
+  slice_id JOINID(slice.id),
   -- Name of the slice.
   slice_name STRING,
   -- Timestamp of start of the slice.
