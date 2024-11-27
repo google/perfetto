@@ -1426,12 +1426,13 @@ void PerfettoCmd::PrintServiceState(bool success,
 
 PRODUCER PROCESSES CONNECTED:
 
-ID         PID        UID        NAME                             SDK
-==         ===        ===        ====                             ===
+ID     PID      UID      FLAGS  NAME                                       SDK
+==     ===      ===      =====  ====                                       ===
 )");
   for (const auto& producer : svc_state.producers()) {
-    printf("%-10d %-10d %-10d %-32s %s\n", producer.id(), producer.pid(),
-           producer.uid(), producer.name().c_str(),
+    base::StackString<8> status("%s", producer.frozen() ? "F" : "");
+    printf("%-6d %-8d %-8d %-6s %-42s %s\n", producer.id(), producer.pid(),
+           producer.uid(), status.c_str(), producer.name().c_str(),
            producer.sdk_version().c_str());
   }
 

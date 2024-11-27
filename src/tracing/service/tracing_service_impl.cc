@@ -1417,7 +1417,19 @@ void TracingServiceImpl::StartDataSourceInstance(
     TracingSession* tracing_session,
     TracingServiceImpl::DataSourceInstance* instance) {
   PERFETTO_DCHECK(instance->state == DataSourceInstance::CONFIGURED);
-  if (instance->will_notify_on_start) {
+
+  bool start_immediately = !instance->will_notify_on_start;
+
+  if (producer->IsAndroidProcessFrozen()) {
+    PERFETTO_DLOG(
+        "skipping waiting of data source \"%s\" on producer \"%s\" (pid=%u) "
+        "because it is frozen",
+        instance->data_source_name.c_str(), producer->name_.c_str(),
+        producer->pid());
+    start_immediately = true;
+  }
+
+  if (!start_immediately) {
     instance->state = DataSourceInstance::STARTING;
   } else {
     instance->state = DataSourceInstance::STARTED;
@@ -2009,7 +2021,7 @@ void TracingServiceImpl::NotifyFlushDoneForProducer(
         it++;
       }
     }  // for (pending_flushes)
-  }  // for (tracing_session)
+  }    // for (tracing_session)
 }
 
 void TracingServiceImpl::OnFlushTimeout(TracingSessionID tsid,
@@ -2600,7 +2612,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       did_hit_threshold = packets_bytes >= threshold;
       packets.emplace_back(std::move(packet));
     }  // for(packets...)
-  }  // for(buffers...)
+  }    // for(buffers...)
 
   *has_more = did_hit_threshold;
 
@@ -3696,8 +3708,8 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
           wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
         }
       }  // for each sequence (writer).
-    }  // for each buffer.
-  }  // if (!disable_chunk_usage_histograms)
+    }    // for each buffer.
+  }      // if (!disable_chunk_usage_histograms)
 
   return trace_stats;
 }
@@ -4619,6 +4631,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     producer->set_sdk_version(kv.second->sdk_version_);
     producer->set_uid(static_cast<int32_t>(kv.second->uid()));
     producer->set_pid(static_cast<int32_t>(kv.second->pid()));
+    producer->set_frozen(kv.second->IsAndroidProcessFrozen());
   }
 
   for (const auto& kv : service_->data_sources_) {
@@ -5032,6 +5045,28 @@ void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
 void TracingServiceImpl::ProducerEndpointImpl::Sync(
     std::function<void()> callback) {
   task_runner_->PostTask(callback);
+}
+
+bool TracingServiceImpl::ProducerEndpointImpl::IsAndroidProcessFrozen() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (in_process_ || uid() == base::kInvalidUid || pid() == base::kInvalidPid)
+    return false;
+  base::StackString<255> path(
+      "/sys/fs/cgroup/uid_%" PRIu32 "/pid_%" PRIu32 "/cgroup.freeze",
+      static_cast<uint32_t>(uid()), static_cast<uint32_t>(pid()));
+  char frozen = '0';
+  auto fd = base::OpenFile(path.c_str(), O_RDONLY);
+  ssize_t rsize = 0;
+  if (fd) {
+    rsize = base::Read(*fd, &frozen, sizeof(frozen));
+    if (rsize > 0) {
+      return frozen == '1';
+    }
+  }
+  PERFETTO_DLOG("Failed to read %s (fd=%d, rsize=%d)", path.c_str(), !!fd,
+                static_cast<int>(rsize));
+#endif
+  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
