@@ -644,6 +644,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
         ":src_protozero_filtering_string_filter",
+        ":src_traced_service_builtin_producer",
         ":src_traced_service_service",
         ":src_tracing_common",
         ":src_tracing_core_core",
@@ -4025,12 +4026,19 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/service:builtin_producer
+perfetto_filegroup(
+    name = "src_traced_service_builtin_producer",
+    srcs = [
+        "src/traced/service/builtin_producer.cc",
+        "src/traced/service/builtin_producer.h",
+    ],
+)
+
 # GN target: //src/traced/service:service
 perfetto_filegroup(
     name = "src_traced_service_service",
     srcs = [
-        "src/traced/service/builtin_producer.cc",
-        "src/traced/service/builtin_producer.h",
         "src/traced/service/service.cc",
     ],
 )

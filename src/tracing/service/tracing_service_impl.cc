@@ -485,8 +485,6 @@ TracingServiceImpl::ConnectConsumer(Consumer* consumer, uid_t uid) {
                 reinterpret_cast<void*>(consumer), static_cast<uint64_t>(uid));
   std::unique_ptr<ConsumerEndpointImpl> endpoint(
       new ConsumerEndpointImpl(this, task_runner_, consumer, uid));
-  auto it_and_inserted = consumers_.emplace(endpoint.get());
-  PERFETTO_DCHECK(it_and_inserted.second);
   // Consumer might go away before we're able to send the connect notification,
   // if that is the case just bail out.
   auto weak_ptr = endpoint->weak_ptr_factory_.GetWeakPtr();
@@ -500,11 +498,9 @@ TracingServiceImpl::ConnectConsumer(Consumer* consumer, uid_t uid) {
 void TracingServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p disconnected", reinterpret_cast<void*>(consumer));
-  PERFETTO_DCHECK(consumers_.count(consumer));
 
   if (consumer->tracing_session_id_)
     FreeBuffers(consumer->tracing_session_id_);  // Will also DisableTracing().
-  consumers_.erase(consumer);
 
   // At this point no more pointers to |consumer| should be around.
   PERFETTO_DCHECK(!std::any_of(
@@ -518,7 +514,6 @@ bool TracingServiceImpl::DetachConsumer(ConsumerEndpointImpl* consumer,
                                         const std::string& key) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p detached", reinterpret_cast<void*>(consumer));
-  PERFETTO_DCHECK(consumers_.count(consumer));
 
   TracingSessionID tsid = consumer->tracing_session_id_;
   TracingSession* tracing_session;
@@ -561,7 +556,6 @@ bool TracingServiceImpl::AttachConsumer(ConsumerEndpointImpl* consumer,
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Consumer %p attaching to session %s",
                 reinterpret_cast<void*>(consumer), key.c_str());
-  PERFETTO_DCHECK(consumers_.count(consumer));
 
   if (consumer->tracing_session_id_) {
     PERFETTO_ELOG(
