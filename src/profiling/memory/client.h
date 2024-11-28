@@ -25,6 +25,9 @@
 #include <mutex>
 #include <vector>
 
+#include <unwindstack/Arch.h>
+
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "src/profiling/memory/sampler.h"
@@ -115,6 +118,15 @@ class Client {
   bool IsConnected();
 
  private:
+#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV) && \
+    !PERFETTO_HAS_BUILTIN_STACK_ADDRESS()
+  // For specific architectures, such as riscv, different calling conventions
+  // make a difference in the meaning of the frame pointer. (see comments in
+  // client.cc) So, we want to use other method to get the stack address for
+  // specific architectures such as riscv.
+  ssize_t GetStackRegister(unwindstack::ArchEnum arch);
+  uintptr_t GetStackAddress(char* reg_data, unwindstack::ArchEnum arch);
+#endif
   const char* GetStackEnd(const char* stacktop);
   bool SendControlSocketByte() PERFETTO_WARN_UNUSED_RESULT;
   int64_t SendWireMessageWithRetriesIfBlocking(const WireMessage&)
