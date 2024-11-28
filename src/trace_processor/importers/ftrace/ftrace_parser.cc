@@ -400,8 +400,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context->storage->InternString("direct_reclaim_gfp_flags")),
       vec_arg_id_(context->storage->InternString("vec")),
       gpu_mem_total_name_id_(context->storage->InternString("GPU Memory")),
-      gpu_mem_total_unit_id_(context->storage->InternString(
-          std::to_string(protos::pbzero::GpuCounterDescriptor::BYTE).c_str())),
+      gpu_mem_total_unit_id_(context->storage->InternString("bytes")),
       gpu_mem_total_global_desc_id_(context->storage->InternString(
           "Total GPU memory used by the entire system")),
       gpu_mem_total_proc_desc_id_(context->storage->InternString(
@@ -3900,12 +3899,14 @@ void FtraceParser::ParseBlockIoStart(int64_t ts, protozero::ConstBytes blob) {
                      Variadic::UnsignedInteger(event.sector()));
   };
 
-  TrackTracker::DimensionsBuilder dims = context_->track_tracker->CreateDimensionsBuilder();
-  dims.AppendDimension(block_io_device_id_, Variadic::UnsignedInteger(event.dev()));
-  TrackId track_id =
-      context_->track_tracker->InternTrack(tracks::block_io, std::move(dims).Build());
+  TrackTracker::DimensionsBuilder dims =
+      context_->track_tracker->CreateDimensionsBuilder();
+  dims.AppendDimension(block_io_device_id_,
+                       Variadic::UnsignedInteger(event.dev()));
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::block_io, std::move(dims).Build());
   context_->slice_tracker->Begin(ts, track_id, kNullStringId, block_io_id_,
-                                  args_inserter);
+                                 args_inserter);
 }
 
 void FtraceParser::ParseBlockIoDone(int64_t ts, protozero::ConstBytes blob) {
@@ -3916,12 +3917,14 @@ void FtraceParser::ParseBlockIoDone(int64_t ts, protozero::ConstBytes blob) {
                      Variadic::UnsignedInteger(event.sector()));
   };
 
-  TrackTracker::DimensionsBuilder dims = context_->track_tracker->CreateDimensionsBuilder();
-  dims.AppendDimension(block_io_device_id_, Variadic::UnsignedInteger(event.dev()));
-  TrackId track_id =
-      context_->track_tracker->InternTrack(tracks::block_io, std::move(dims).Build());
+  TrackTracker::DimensionsBuilder dims =
+      context_->track_tracker->CreateDimensionsBuilder();
+  dims.AppendDimension(block_io_device_id_,
+                       Variadic::UnsignedInteger(event.dev()));
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::block_io, std::move(dims).Build());
   context_->slice_tracker->End(ts, track_id, kNullStringId, block_io_id_,
-                                  args_inserter);
+                               args_inserter);
 }
 
 }  // namespace perfetto::trace_processor
