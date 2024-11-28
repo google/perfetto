@@ -2214,6 +2214,47 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   EXPECT_EQ(4, event_count);
 }
 
+TEST_P(PerfettoApiTest, CustomTrackDescriptorForParent) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  // SetTrackDescriptor before starting the tracing session.
+  auto parent_track = perfetto::NamedTrack("MyCustomParent");
+  auto desc = parent_track.Serialize();
+  perfetto::TrackEvent::SetTrackDescriptor(parent_track, std::move(desc));
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_INSTANT("bar", "AsyncEvent",
+                      perfetto::NamedTrack("MyCustomChild", 123, parent_track));
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  bool found_parent_desc = false;
+  bool found_child_desc = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor()) {
+      const auto& td = packet.track_descriptor();
+
+      if (td.static_name() == "MyCustomParent") {
+        found_parent_desc = true;
+      } else if (td.static_name() == "MyCustomChild") {
+        found_child_desc = true;
+      }
+    }
+  }
+  // SetTrackDescriptor for the parent happened before the tracing session was
+  // running, but when emitting the child, the parent should be emitted as well.
+  EXPECT_TRUE(found_parent_desc);
+  EXPECT_TRUE(found_child_desc);
+}
+
 TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"foo"});
@@ -2463,7 +2504,9 @@ TEST_P(PerfettoApiTest, TrackEventAnonymousCustomTrack) {
   for (const auto& packet : trace.packet()) {
     if (packet.has_track_descriptor() &&
         !packet.track_descriptor().has_process() &&
-        !packet.track_descriptor().has_thread()) {
+        !packet.track_descriptor().has_thread() &&
+        packet.track_descriptor().uuid() !=
+            perfetto::ThreadTrack::Current().uuid) {
       auto td = packet.track_descriptor();
       EXPECT_EQ(track.uuid, td.uuid());
       EXPECT_EQ(perfetto::ThreadTrack::Current().uuid, td.parent_uuid());
