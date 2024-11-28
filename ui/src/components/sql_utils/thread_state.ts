@@ -177,7 +177,7 @@ export async function getThreadStateFromConstraints(
       state: translateState(it.state ?? undefined, ioWait),
       blockedFunction: it.blocked_function ?? undefined,
       thread: await getThreadInfo(engine, asUtid(it.utid)),
-      wakerUtid: asUtid(it.waker_id ?? undefined),
+      wakerUtid: asUtid(it.waker_utid ?? undefined),
       wakerId: asThreadStateSqlId(it.waker_id ?? undefined),
       wakerInterruptCtx: fromNumNull(it.irq_context) as boolean | undefined,
       priority: fromNumNull(it.priority),
