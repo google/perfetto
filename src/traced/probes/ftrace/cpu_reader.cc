@@ -251,7 +251,8 @@ size_t CpuReader::ReadAndProcessBatch(
       // A sub-page read() is therefore not expected in practice. Kernel source
       // pointer: see usage of |info->read| within |tracing_buffers_read|.
       if (res == 0) {
-        // Very rare, but possible. Stop for now, should recover.
+        // Very rare, but possible. Stop for now, as this seems to occur when
+        // we've caught up to the writer.
         PERFETTO_DLOG("[cpu%zu]: 0-sized read from ftrace pipe.", cpu_);
         break;
       }
@@ -263,17 +264,23 @@ size_t CpuReader::ReadAndProcessBatch(
 
       pages_read += 1;
 
-      // Compare the amount of ftrace data read against an empirical threshold
-      // to make an educated guess on whether we should read more. To figure
-      // out the amount of ftrace data, we need to parse the page header (since
-      // the read always returns a page, zero-filled at the end). If we read
-      // fewer bytes than the threshold, it means that we caught up with the
-      // write pointer and we started consuming ftrace events in real-time.
-      // This cannot be just 4096 because it needs to account for
-      // fragmentation, i.e. for the fact that the last trace event didn't fit
-      // in the current page and hence the current page was terminated
-      // prematurely.
-      static const size_t kRoughlyAPage = sys_page_size - 512;
+      // Heuristic for detecting whether we've caught up to the writer, based on
+      // how much data is in this tracing page. To figure out the amount of
+      // ftrace data, we need to parse the page header (since the read always
+      // returns a page, zero-filled at the end). If we read fewer bytes than
+      // the threshold, it means that we caught up with the write pointer and we
+      // started consuming ftrace events in real-time. This cannot be just 4096
+      // because it needs to account for fragmentation, i.e. for the fact that
+      // the last trace event didn't fit in the current page and hence the
+      // current page was terminated prematurely. This threshold is quite
+      // permissive since Android userspace tracing can log >500 byte strings
+      // via ftrace/print events.
+      // It's still possible for false positives if events can be bigger than
+      // half a page, but we don't have a robust way of checking buffer
+      // occupancy with nonblocking reads. This can be revisited once all
+      // kernels can be assumed to have bug-free poll() or reliable
+      // tracefs/per_cpu/cpuX/stats values.
+      static const size_t kPageFillThreshold = sys_page_size / 2;
       const uint8_t* scratch_ptr = curr_page;
       std::optional<PageHeader> hdr =
           ParsePageHeader(&scratch_ptr, table_->page_header_size_len());
@@ -286,7 +293,7 @@ size_t CpuReader::ReadAndProcessBatch(
       // normal. It means that we're given the remainder of events from a
       // page that we've partially consumed during the last read of the previous
       // cycle (having caught up to the writer).
-      if (hdr->size < kRoughlyAPage &&
+      if (hdr->size < kPageFillThreshold &&
           !(first_batch_in_cycle && pages_read == 1)) {
         break;
       }
