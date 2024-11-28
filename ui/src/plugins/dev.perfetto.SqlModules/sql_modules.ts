@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TableColumn} from '../../components/widgets/sql/table/column';
+import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+
 // Handles the access to all of the Perfetto SQL modules accessible to Trace
 //  Processor.
 export interface SqlModules {
@@ -28,8 +31,15 @@ export interface SqlModules {
 export interface SqlPackage {
   readonly name: string;
   readonly modules: SqlModule[];
+
+  // Returns names of all tables/views in this package.
   listTables(): string[];
+
+  // Returns sqlModule containing table with provided name.
   getModuleForTable(tableName: string): SqlModule | undefined;
+
+  // Returns sqlTableDescription of the table with provided name.
+  getSqlTableDescription(tableName: string): SqlTableDescription | undefined;
 }
 
 // Handles the access to a specific Perfetto SQL module.
@@ -39,7 +49,12 @@ export interface SqlModule {
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
   readonly macros: SqlMacro[];
+
+  // Returns sqlTable with provided name.
   getTable(tableName: string): SqlTable | undefined;
+
+  // Returns sqlTableDescription of the table with provided name.
+  getSqlTableDescription(tableName: string): SqlTableDescription | undefined;
 }
 
 // The definition of Perfetto SQL table/view.
@@ -48,6 +63,9 @@ export interface SqlTable {
   readonly description: string;
   readonly type: string;
   readonly columns: SqlColumn[];
+
+  // Returns all columns as TableColumns.
+  getTableColumns(): TableColumn[];
 }
 
 // The definition of Perfetto SQL function.
@@ -80,6 +98,9 @@ export interface SqlColumn {
   readonly name: string;
   readonly description: string;
   readonly type: string;
+
+  // Translates this column to TableColumn.
+  asTableColumn(): TableColumn;
 }
 
 // The definition of Perfetto SQL argument. Can be used for functions, table
