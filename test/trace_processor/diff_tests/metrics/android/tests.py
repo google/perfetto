@@ -539,3 +539,9 @@ class AndroidMetrics(TestSuite):
           }
         }
         """))
+
+  def test_wattson_atrace_apps_rails_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_jank_cuj.pb'),
+        query=Metric("wattson_atrace_apps_rails"),
+        out=Path('wattson_atrace_apps_rails.out'))
