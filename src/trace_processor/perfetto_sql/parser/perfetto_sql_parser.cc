@@ -633,9 +633,11 @@ bool PerfettoSqlParser::ParseRawArguments(std::vector<RawArgument>& args) {
         // Start of complex argument.
         if (tok.token_type == TK_LP) {
           PERFETTO_CHECK(maybe_arg);
-          if (!ParseComplexArgumentType(
-                  *maybe_arg->complex_arg_table_and_column))
+          std::pair<SqliteTokenizer::Token, SqliteTokenizer::Token>
+              table_and_col;
+          if (!ParseComplexArgumentType(table_and_col))
             return false;
+          maybe_arg->complex_arg_table_and_column = table_and_col;
         }
       }
     }
