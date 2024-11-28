@@ -483,8 +483,20 @@ class FtraceParser {
   // with a give name
   std::unordered_map<std::string, uint32_t> active_wakelock_to_count_;
 
-  // Record whether a suspend resume action is ongoing.
-  std::unordered_map<std::string, bool> ongoing_suspend_resume_actions;
+  // Tiny state machine for tracking the suspend_enter bug.
+  enum SuspendEnterBugState {
+    // Nothing special.
+    SUSPEND_STATE_INITIAL,
+    // We are inside a suspend_enter slice.
+    SUSPEND_STATE_ENTER,
+    // We are inside a suspend_enter slice and a freeze_processes slice.
+    SUSPEND_STATE_FREEZE
+  };
+
+  SuspendEnterBugState suspend_state_ = SUSPEND_STATE_INITIAL;
+
+  // cookie for the current suspend_enter slice if any; needed to close it.
+  int64_t suspend_enter_slice_cookie_ = 0;
 
   bool has_seen_first_ftrace_packet_ = false;
 
@@ -507,17 +519,6 @@ class FtraceParser {
   // Tracks Linux devices with active runtime power management (RPM) status
   // slices.
   std::unordered_set<StringId> devices_with_active_rpm_slice_;
-
-  // Tracks unique identifiers ("cookies") to create separate async tracks for
-  // the Suspend/Resume UI track. The separation prevents unnestable slices from
-  // overlapping on a single trace processor track.
-  //
-  // For `suspend_resume` ftrace events, the key for this map is derived from
-  // the `val` field in the trace object.
-  //
-  // For `device_pm_callback_[start|end]` ftrace events, the key for this map is
-  // derived from the device name.
-  base::FlatHashMap<std::string, int64_t> suspend_resume_cookie_map_;
 
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
