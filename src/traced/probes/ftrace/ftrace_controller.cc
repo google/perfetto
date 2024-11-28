@@ -309,7 +309,7 @@ void FtraceController::ReadTick(int generation) {
   MaybeSnapshotFtraceClock();
 
   // Read all per-cpu buffers.
-  bool all_cpus_done = ReadPassForInstance(&primary_);
+  bool all_cpus_done = true;
   ForEachInstance([&](FtraceInstanceState* instance) {
     all_cpus_done &= ReadPassForInstance(instance);
   });
