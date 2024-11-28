@@ -608,6 +608,7 @@ cc_library_shared {
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
         ":perfetto_src_traced_probes_system_info_system_info",
+        ":perfetto_src_traced_service_builtin_producer",
         ":perfetto_src_traced_service_service",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
@@ -14749,11 +14750,18 @@ filegroup {
     ],
 }
 
+// GN: //src/traced/service:builtin_producer
+filegroup {
+    name: "perfetto_src_traced_service_builtin_producer",
+    srcs: [
+        "src/traced/service/builtin_producer.cc",
+    ],
+}
+
 // GN: //src/traced/service:service
 filegroup {
     name: "perfetto_src_traced_service_service",
     srcs: [
-        "src/traced/service/builtin_producer.cc",
         "src/traced/service/service.cc",
     ],
 }
@@ -15797,7 +15805,7 @@ cc_test {
         ":perfetto_src_traced_probes_unittests",
         ":perfetto_src_traced_relay_lib",
         ":perfetto_src_traced_relay_unittests",
-        ":perfetto_src_traced_service_service",
+        ":perfetto_src_traced_service_builtin_producer",
         ":perfetto_src_traced_service_unittests",
         ":perfetto_src_tracing_client_api_without_backends",
         ":perfetto_src_tracing_common",
@@ -15809,7 +15817,6 @@ cc_test {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_producer_relay",
-        ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_ipc_unittests",
         ":perfetto_src_tracing_platform_impl",
         ":perfetto_src_tracing_service_service",
