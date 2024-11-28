@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {AtomId, DataSourceDescriptor} from '../../protos';
+import {AtomId, DataSourceDescriptor} from './protos';
 import {Dropdown, Probe, Slider, Textarea, Toggle} from './record_widgets';
 import {RecordingSectionAttrs} from './recording_sections';
 import {RecordConfig} from './record_config_types';

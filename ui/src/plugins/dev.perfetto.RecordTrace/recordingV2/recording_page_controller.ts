@@ -21,7 +21,7 @@ import {
   DEFAULT_TRACED_WEBSOCKET_URL,
 } from '../recording_ui_utils';
 import {couldNotClaimInterface} from '../reset_interface_modal';
-import {TraceConfig} from '../../../protos';
+import {TraceConfig} from '../protos';
 import {TRACE_SUFFIX} from '../../../public/trace';
 import {genTraceConfig} from './recording_config_utils';
 import {RecordingError, showRecordingModal} from './recording_error_handling';

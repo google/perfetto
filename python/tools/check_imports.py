@@ -66,10 +66,7 @@ DEPS_ALLOWLIST = [
     (
         '/*plugins/*',
         [
-            '/base/*',
-            '/public/*',
-            '/trace_processor/*',
-            '/widgets/*',
+            '/base/*', '/public/*', '/trace_processor/*', '/widgets/*',
             '/components/*'
         ],
     ),
@@ -119,7 +116,8 @@ DEPS_ALLOWLIST = [
     ),
 
     # TODO(primiano): Record page-related technical debt.
-    ('/plugins/dev.perfetto.RecordTrace/*', '/frontend/globals'),
+    ('/plugins/dev.perfetto.RecordTrace/*',
+     ['/frontend/globals', '/gen/protos']),
     ('/chrome_extension/chrome_tracing_controller',
      '/plugins/dev.perfetto.RecordTrace/*'),
 
