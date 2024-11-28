@@ -206,6 +206,8 @@ class FtraceConfigMuxer {
     // Categories for which the perfetto SDK track_event should be enabled.
     std::vector<std::string> atrace_categories_prefer_sdk;
     bool saved_tracing_on;  // Backup for the original tracing_on.
+    // Set of kprobes that we've installed, to be cleaned up when tracing stops.
+    base::FlatSet<GroupAndName> installed_kprobes;
   };
 
   FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
