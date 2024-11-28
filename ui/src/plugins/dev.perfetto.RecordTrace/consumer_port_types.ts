@@ -18,7 +18,7 @@ import {
   IFreeBuffersResponse,
   IGetTraceStatsResponse,
   IReadBuffersResponse,
-} from '../../protos';
+} from './protos';
 
 export interface Typed {
   type: string;
