@@ -12,21 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import protos from '../protos';
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
-import {
-  ComputeMetricArgs,
-  ComputeMetricResult,
-  DisableAndReadMetatraceResult,
-  EnableMetatraceArgs,
-  MetatraceCategories,
-  QueryArgs,
-  QueryResult as ProtoQueryResult,
-  RegisterSqlPackageArgs,
-  ResetTraceProcessorArgs,
-  TraceProcessorRpc,
-  TraceProcessorRpcStream,
-} from '../protos';
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
@@ -34,7 +22,7 @@ import {
   QueryResult,
   WritableQueryResult,
 } from './query_result';
-import TPM = TraceProcessorRpc.TraceProcessorMethod;
+import TPM = protos.TraceProcessorRpc.TraceProcessorMethod;
 import {exists} from '../base/utils';
 import {errResult, okResult, Result} from '../base/result';
 
@@ -96,8 +84,8 @@ export interface Engine {
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array>;
 
-  enableMetatrace(categories?: MetatraceCategories): void;
-  stopAndGetMetatrace(): Promise<DisableAndReadMetatraceResult>;
+  enableMetatrace(categories?: protos.MetatraceCategories): void;
+  stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult>;
 
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
@@ -127,7 +115,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
-  private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
+  private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
   private pendingRegisterSqlPackage?: Deferred<void>;
   private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
@@ -163,7 +151,7 @@ export abstract class EngineBase implements Engine, Disposable {
     // Here we override the protobufjs-generated code to skip the parsing of the
     // new streaming QueryResult and instead passing it through like a buffer.
     // This is the overall problem: All trace processor responses are wrapped
-    // into a perfetto.protos.TraceProcessorRpc proto message. In all cases %
+    // into a TraceProcessorRpc proto message. In all cases %
     // TPM_QUERY_STREAMING, we want protobufjs to decode the proto bytes and
     // give us a structured object. In the case of TPM_QUERY_STREAMING, instead,
     // we want to deal with the proto parsing ourselves using the new
@@ -173,8 +161,8 @@ export abstract class EngineBase implements Engine, Disposable {
     // 1. We avoid protobufjs decoding the TraceProcessorRpc.query_result field.
     // 2. We stash (a view of) the original buffer into the |rawQueryResult| so
     //    the `case TPM_QUERY_STREAMING` below can take it.
-    ProtoQueryResult.decode = (reader: protobuf.Reader, length: number) => {
-      const res = ProtoQueryResult.create() as {} as QueryResultBypass;
+    protos.QueryResult.decode = (reader: protobuf.Reader, length: number) => {
+      const res = protos.QueryResult.create() as {} as QueryResultBypass;
       res.rawQueryResult = reader.buf.subarray(reader.pos, reader.pos + length);
       // All this works only if protobufjs returns the original ArrayBuffer
       // from |rpcMsgEncoded|. It should be always the case given the
@@ -185,10 +173,10 @@ export abstract class EngineBase implements Engine, Disposable {
       // is buffer-retention-friendly.
       assertTrue(res.rawQueryResult.buffer === rpcMsgEncoded.buffer);
       reader.pos += length;
-      return res as {} as ProtoQueryResult;
+      return res as {} as protos.QueryResult;
     };
 
-    const rpc = TraceProcessorRpc.decode(rpcMsgEncoded);
+    const rpc = protos.TraceProcessorRpc.decode(rpcMsgEncoded);
 
     if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
       this.fail(`${rpc.fatalError}`);
@@ -246,7 +234,9 @@ export abstract class EngineBase implements Engine, Disposable {
         }
         break;
       case TPM.TPM_COMPUTE_METRIC:
-        const metricRes = assertExists(rpc.metricResult) as ComputeMetricResult;
+        const metricRes = assertExists(
+          rpc.metricResult,
+        ) as protos.ComputeMetricResult;
         const pendingComputeMetric = assertExists(
           this.pendingComputeMetrics.shift(),
         );
@@ -270,7 +260,7 @@ export abstract class EngineBase implements Engine, Disposable {
       case TPM.TPM_DISABLE_AND_READ_METATRACE:
         const metatraceRes = assertExists(
           rpc.metatrace,
-        ) as DisableAndReadMetatraceResult;
+        ) as protos.DisableAndReadMetatraceResult;
         assertExists(this.pendingReadMetatrace).resolve(metatraceRes);
         this.pendingReadMetatrace = undefined;
         break;
@@ -307,7 +297,7 @@ export abstract class EngineBase implements Engine, Disposable {
   parse(data: Uint8Array): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingParses.push(asyncRes);
-    const rpc = TraceProcessorRpc.create();
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_APPEND_TRACE_DATA;
     rpc.appendTraceData = data;
     this.rpcSendRequest(rpc);
@@ -319,7 +309,7 @@ export abstract class EngineBase implements Engine, Disposable {
   notifyEof(): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingEOFs.push(asyncRes);
-    const rpc = TraceProcessorRpc.create();
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_FINALIZE_TRACE_DATA;
     this.rpcSendRequest(rpc);
     return asyncRes; // Linearize with the worker.
@@ -336,13 +326,14 @@ export abstract class EngineBase implements Engine, Disposable {
   }: TraceProcessorConfig): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingResetTraceProcessors.push(asyncRes);
-    const rpc = TraceProcessorRpc.create();
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_RESET_TRACE_PROCESSOR;
-    const args = (rpc.resetTraceProcessorArgs = new ResetTraceProcessorArgs());
+    const args = (rpc.resetTraceProcessorArgs =
+      new protos.ResetTraceProcessorArgs());
     args.dropTrackEventDataBefore = cropTrackEvents
-      ? ResetTraceProcessorArgs.DropTrackEventDataBefore
+      ? protos.ResetTraceProcessorArgs.DropTrackEventDataBefore
           .TRACK_EVENT_RANGE_OF_INTEREST
-      : ResetTraceProcessorArgs.DropTrackEventDataBefore.NO_DROP;
+      : protos.ResetTraceProcessorArgs.DropTrackEventDataBefore.NO_DROP;
     args.ingestFtraceInRawTable = ingestFtraceInRawTable;
     args.analyzeTraceProtoContent = analyzeTraceProtoContent;
     args.ftraceDropUntilAllCpusValid = ftraceDropUntilAllCpusValid;
@@ -355,7 +346,7 @@ export abstract class EngineBase implements Engine, Disposable {
   restoreInitialTables(): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingRestoreTables.push(asyncRes);
-    const rpc = TraceProcessorRpc.create();
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_RESTORE_INITIAL_TABLES;
     this.rpcSendRequest(rpc);
     return asyncRes; // Linearize with the worker.
@@ -368,16 +359,16 @@ export abstract class EngineBase implements Engine, Disposable {
   ): Promise<string | Uint8Array> {
     const asyncRes = defer<string | Uint8Array>();
     this.pendingComputeMetrics.push(asyncRes);
-    const rpc = TraceProcessorRpc.create();
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_COMPUTE_METRIC;
-    const args = (rpc.computeMetricArgs = new ComputeMetricArgs());
+    const args = (rpc.computeMetricArgs = new protos.ComputeMetricArgs());
     args.metricNames = metrics;
     if (format === 'json') {
-      args.format = ComputeMetricArgs.ResultFormat.JSON;
+      args.format = protos.ComputeMetricArgs.ResultFormat.JSON;
     } else if (format === 'prototext') {
-      args.format = ComputeMetricArgs.ResultFormat.TEXTPROTO;
+      args.format = protos.ComputeMetricArgs.ResultFormat.TEXTPROTO;
     } else if (format === 'proto') {
-      args.format = ComputeMetricArgs.ResultFormat.BINARY_PROTOBUF;
+      args.format = protos.ComputeMetricArgs.ResultFormat.BINARY_PROTOBUF;
     } else {
       throw new Error(`Unknown compute metric format ${format}`);
     }
@@ -408,9 +399,9 @@ export abstract class EngineBase implements Engine, Disposable {
     sqlQuery: string,
     tag?: string,
   ): Promise<QueryResult> & QueryResult {
-    const rpc = TraceProcessorRpc.create();
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
-    rpc.queryArgs = new QueryArgs();
+    rpc.queryArgs = new protos.QueryArgs();
     rpc.queryArgs.sqlQuery = sqlQuery;
     if (tag) {
       rpc.queryArgs.tag = tag;
@@ -455,26 +446,29 @@ export abstract class EngineBase implements Engine, Disposable {
     return this._isMetatracingEnabled;
   }
 
-  enableMetatrace(categories?: MetatraceCategories) {
-    const rpc = TraceProcessorRpc.create();
+  enableMetatrace(categories?: protos.MetatraceCategories) {
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_ENABLE_METATRACE;
-    if (categories !== undefined && categories !== MetatraceCategories.NONE) {
-      rpc.enableMetatraceArgs = new EnableMetatraceArgs();
+    if (
+      categories !== undefined &&
+      categories !== protos.MetatraceCategories.NONE
+    ) {
+      rpc.enableMetatraceArgs = new protos.EnableMetatraceArgs();
       rpc.enableMetatraceArgs.categories = categories;
     }
     this._isMetatracingEnabled = true;
     this.rpcSendRequest(rpc);
   }
 
-  stopAndGetMetatrace(): Promise<DisableAndReadMetatraceResult> {
+  stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult> {
     // If we are already finalising a metatrace, ignore the request.
     if (this.pendingReadMetatrace) {
       return Promise.reject(new Error('Already finalising a metatrace'));
     }
 
-    const result = defer<DisableAndReadMetatraceResult>();
+    const result = defer<protos.DisableAndReadMetatraceResult>();
 
-    const rpc = TraceProcessorRpc.create();
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_DISABLE_AND_READ_METATRACE;
     this._isMetatracingEnabled = false;
     this.pendingReadMetatrace = result;
@@ -482,7 +476,7 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
-  registerSqlPackages(p: {
+  registerSqlPackages(pkg: {
     name: string;
     modules: {name: string; sql: string}[];
   }): Promise<void> {
@@ -492,11 +486,12 @@ export abstract class EngineBase implements Engine, Disposable {
 
     const result = defer<void>();
 
-    const rpc = TraceProcessorRpc.create();
+    const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_REGISTER_SQL_PACKAGE;
-    const args = (rpc.registerSqlPackageArgs = new RegisterSqlPackageArgs());
-    args.packageName = p.name;
-    args.modules = p.modules;
+    const args = (rpc.registerSqlPackageArgs =
+      new protos.RegisterSqlPackageArgs());
+    args.packageName = pkg.name;
+    args.modules = pkg.modules;
     args.allowOverride = true;
     this.pendingRegisterSqlPackage = result;
     this.rpcSendRequest(rpc);
@@ -505,13 +500,13 @@ export abstract class EngineBase implements Engine, Disposable {
 
   // Marshals the TraceProcessorRpc request arguments and sends the request
   // to the concrete Engine (Wasm or HTTP).
-  private rpcSendRequest(rpc: TraceProcessorRpc) {
+  private rpcSendRequest(rpc: protos.TraceProcessorRpc) {
     rpc.seq = this.txSeqId++;
     // Each message is wrapped in a TraceProcessorRpcStream to add the varint
     // preamble with the size, which allows tokenization on the other end.
-    const outerProto = TraceProcessorRpcStream.create();
+    const outerProto = protos.TraceProcessorRpcStream.create();
     outerProto.msg.push(rpc);
-    const buf = TraceProcessorRpcStream.encode(outerProto).finish();
+    const buf = protos.TraceProcessorRpcStream.encode(outerProto).finish();
     ++this._numRequestsPending;
     this.rpcSendRequestBytes(buf);
   }
@@ -576,11 +571,11 @@ export class EngineProxy implements Engine, Disposable {
     return this.engine.computeMetric(metrics, format);
   }
 
-  enableMetatrace(categories?: MetatraceCategories): void {
+  enableMetatrace(categories?: protos.MetatraceCategories): void {
     this.engine.enableMetatrace(categories);
   }
 
-  stopAndGetMetatrace(): Promise<DisableAndReadMetatraceResult> {
+  stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult> {
     return this.engine.stopAndGetMetatrace();
   }
 
