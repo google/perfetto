@@ -402,9 +402,9 @@ bool SharedMemoryArbiterImpl::TryDirectPatchLocked(
   auto& chunks_to_move = commit_data_req_->chunks_to_move();
   for (auto ctm_it = chunks_to_move.rbegin(); ctm_it != chunks_to_move.rend();
        ++ctm_it) {
-    uint32_t layout = shmem_abi_.GetPageLayout(ctm_it->page());
-    auto chunk_state =
-        shmem_abi_.GetChunkStateFromLayout(layout, ctm_it->chunk());
+    uint32_t header_bitmap = shmem_abi_.GetPageHeaderBitmap(ctm_it->page());
+    auto chunk_state = shmem_abi_.GetChunkStateFromHeaderBitmap(
+        header_bitmap, ctm_it->chunk());
     // Note: the subset of |commit_data_req_| chunks that still need patching is
     // also the subset of chunks that are still being written to. The rest of
     // the chunks in |commit_data_req_| do not need patching and have already
@@ -412,8 +412,8 @@ bool SharedMemoryArbiterImpl::TryDirectPatchLocked(
     if (chunk_state != SharedMemoryABI::kChunkBeingWritten)
       continue;
 
-    chunk =
-        shmem_abi_.GetChunkUnchecked(ctm_it->page(), layout, ctm_it->chunk());
+    chunk = shmem_abi_.GetChunkUnchecked(ctm_it->page(), header_bitmap,
+                                         ctm_it->chunk());
     if (chunk.writer_id() == writer_id &&
         chunk.header()->chunk_id.load(std::memory_order_relaxed) ==
             patch.chunk_id) {
@@ -533,16 +533,16 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
       // not be possible to apply any more patches to them and we need to move
       // them to kChunkComplete - otherwise the service won't look at them.
       for (auto& ctm : *commit_data_req_->mutable_chunks_to_move()) {
-        uint32_t layout = shmem_abi_.GetPageLayout(ctm.page());
-        auto chunk_state =
-            shmem_abi_.GetChunkStateFromLayout(layout, ctm.chunk());
+        uint32_t header_bitmap = shmem_abi_.GetPageHeaderBitmap(ctm.page());
+        auto chunk_state = shmem_abi_.GetChunkStateFromHeaderBitmap(
+            header_bitmap, ctm.chunk());
         // Note: the subset of |commit_data_req_| chunks that still need
         // patching is also the subset of chunks that are still being written
         // to. The rest of the chunks in |commit_data_req_| do not need patching
         // and have already been marked as complete.
         if (chunk_state == SharedMemoryABI::kChunkBeingWritten) {
-          auto chunk =
-              shmem_abi_.GetChunkUnchecked(ctm.page(), layout, ctm.chunk());
+          auto chunk = shmem_abi_.GetChunkUnchecked(ctm.page(), header_bitmap,
+                                                    ctm.chunk());
           shmem_abi_.ReleaseChunkAsComplete(std::move(chunk));
         }
 
@@ -551,8 +551,8 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
           // 1. serialize the chunk data to |ctm| as we won't modify the chunk
           // anymore.
           // 2. free the chunk as the service won't be able to do this.
-          auto chunk =
-              shmem_abi_.GetChunkUnchecked(ctm.page(), layout, ctm.chunk());
+          auto chunk = shmem_abi_.GetChunkUnchecked(ctm.page(), header_bitmap,
+                                                    ctm.chunk());
           PERFETTO_CHECK(chunk.is_valid());
           ctm.set_data(chunk.begin(), chunk.size());
           shmem_abi_.ReleaseChunkAsFree(std::move(chunk));
