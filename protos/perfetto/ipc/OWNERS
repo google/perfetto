@@ -5,3 +5,6 @@
 set noparent
 eseckler@google.com
 primiano@google.com
+
+# For merges and refactorings only.
+lalitm@google.com
