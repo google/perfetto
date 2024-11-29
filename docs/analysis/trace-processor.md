@@ -126,38 +126,6 @@ threads and `upid` (_unique_ pid) for processes. All references to threads and
 processes (e.g. in CPU scheduling data, thread tracks) uses `utid` and `upid`
 instead of the system identifiers.
 
-## Object-oriented tables
-
-Modeling an object with many types is a common problem in trace processor. For
-example, tracks can come in many varieties (thread tracks, process tracks,
-counter tracks etc). Each type has a piece of data associated to it unique to
-that type; for example, thread tracks have a `utid` of the thread, counter
-tracks have the `unit` of the counter.
-
-To solve this problem in object-oriented languages, a `Track` class could be
-created and inheritance used for all subclasses (e.g. `ThreadTrack` and
-`CounterTrack` being subclasses of `Track`, `ProcessCounterTrack` being a
-subclass of `CounterTrack` etc).
-
-![Object-oriented table diagram](/docs/images/oop-table-inheritance.png)
-
-In trace processor, this "object-oriented" approach is replicated by having
-different tables for each type of object. For example, we have a `track` table
-as the "root" of the hierarchy with the `thread_track` and `counter_track`
-tables "inheriting from" the `track` table.
-
-NOTE: [The appendix below](#appendix-table-inheritance) gives the exact rules
-for inheritance between tables for interested readers.
-
-Inheritance between the tables works in the natural way (i.e. how it works in
-OO languages) and is best summarized by a diagram.
-
-![SQL table inheritance diagram](/docs/images/tp-table-inheritance.png)
-
-NOTE: For an up-to-date of how tables currently inherit from each other as well
-as a comprehensive reference of all the column and how they are inherited see
-the [SQL tables](/docs/analysis/sql-tables.autogen) reference page.
-
 ## Writing Queries
 
 ### Context using tracks
@@ -186,33 +154,6 @@ SELECT upid
 FROM counter
 JOIN process_counter_track ON process_counter_track.id = counter.track_id
 WHERE process_counter_track.name = 'mem.swap' AND value > 1000
-```
-
-If the source and type of the event is known beforehand (which is generally the
-case), the following can be used to find the `track` table to join with
-
-| Event type | Associated with    | Track table           | Constraint in WHERE clause |
-| :--------- | ------------------ | --------------------- | -------------------------- |
-| slice      | N/A (global scope) | track                 | `type = 'track'`           |
-| slice      | thread             | thread_track          | N/A                        |
-| slice      | process            | process_track         | N/A                        |
-| counter    | N/A (global scope) | counter_track         | `type = 'counter_track'`   |
-| counter    | thread             | thread_counter_track  | N/A                        |
-| counter    | process            | process_counter_track | N/A                        |
-| counter    | cpu                | cpu_counter_track     | N/A                        |
-
-On the other hand, sometimes the source is not known. In this case, joining with
-the `track `table and looking up the `type` column will give the exact track
-table to join with.
-
-For example, to find the type of track for `measure` events, the following query
-could be used.
-
-```sql
-SELECT track.type
-FROM slice
-JOIN track ON track.id = slice.track_id
-WHERE slice.name = 'measure'
 ```
 
 ### Thread and process tables
@@ -610,32 +551,3 @@ is to ensure the trace processor is correctly filtering/sorting important
 built-in tables.
 
 _Answer_: Add the test to the `parser/core_tables` folder.
-
-## Appendix: table inheritance
-
-Concretely, the rules for inheritance between tables works are as follows:
-
-* Every row in a table has an `id` which is unique for a hierarchy of tables.
-  * For example, every `track` will have an `id` which is unique among all
-    tracks (regardless of the type of track)
-* If a table C inherits from P, each row in C will also be in P _with the same
-  id_
-  * This allows for ids to act as "pointers" to rows; lookups by id can be
-    performed on any table which has that row
-  * For example, every `process_counter_track` row will have a matching row in
-    `counter_track` which will itself have matching rows in `track`
-* If a table C with columns `A` and `B` inherits from P with column `A`, `A`
-  will have the same data in both C and P
-  * For example, suppose
-    *  `process_counter_track` has columns `name`, `unit` and `upid`
-    *  `counter_track` has `name` and `unit`
-    *  `track` has `name`
-  * Every row in `process_counter_track` will have the same `name`  for the row
-    with the same id in  `track` and `counter_track`
-  * Similarly, every row in `process_counter_track` will have both the same
-    `name ` and `unit` for the row with the same id in `counter_track`
-* Every row in a table has a `type` column. This specifies the _most specific_
-  table this row belongs to.
-  * This allows _dynamic casting_ of a row to its most specific type
-  * For example, for if a row in the `track` is actually a
-    `process_counter_track`, it's type column will be `process_counter_track`.
