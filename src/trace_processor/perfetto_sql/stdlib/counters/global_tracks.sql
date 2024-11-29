@@ -12,21 +12,14 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+--
 
-CREATE PERFETTO TABLE _counter_track_summary AS
-WITH distinct_ids AS (
-  SELECT DISTINCT track_id as id
-  FROM counter
-)
-SELECT
-  distinct_ids.id,
-  COUNT(
-    args.key = 'upid'
-    OR args.key = 'utid'
-    OR args.key = 'cpu'
-    OR args.key = 'gpu'
-  ) = 0 AS is_legacy_global
-FROM distinct_ids
-JOIN counter_track USING (id)
-LEFT JOIN args ON counter_track.dimension_arg_set_id = args.arg_set_id
-GROUP BY distinct_ids.id;
+CREATE PERFETTO FUNCTION _counter_track_is_only_name_dimension(track_id LONG)
+RETURNS BOOL AS
+SELECT NOT EXISTS (
+  SELECT 1
+  FROM counter_track
+  JOIN args ON counter_track.dimension_arg_set_id = args.arg_set_id
+  WHERE counter_track.id = $track_id AND args.key != 'name'
+  LIMIT 1
+);

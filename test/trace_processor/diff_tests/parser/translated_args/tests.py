@@ -131,12 +131,13 @@ class TranslatedArgs(TestSuite):
     return DiffTestBlueprint(
         trace=Path('process_track_name.textproto'),
         query="""
-        SELECT
-          name
-        FROM track
-        WHERE
-          name IS NOT NULL
-          AND type in ('process_track', 'process_counter_track')
+        SELECT name
+        FROM process_track
+        WHERE name IS NOT NULL
+        UNION ALL
+        SELECT name
+        FROM process_counter_track
+        WHERE name IS NOT NULL
         ORDER BY name;
         """,
         out=Csv("""
