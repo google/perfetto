@@ -16,15 +16,25 @@
 
 #include "src/trace_processor/importers/proto/metadata_module.h"
 
+#include <cstdint>
+#include <string>
+
 #include "perfetto/ext/base/base64.h"
-#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/uuid.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/config.descriptor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 
@@ -34,10 +44,18 @@
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+
+namespace {
 
 using perfetto::protos::pbzero::TracePacket;
+
+constexpr auto kTriggerTrackBlueprint =
+    tracks::SliceBlueprint("triggers",
+                           tracks::DimensionBlueprints(),
+                           tracks::StaticNameBlueprint("Trace Triggers"));
+
+}  // namespace
 
 MetadataModule::MetadataModule(TraceProcessorContext* context)
     : context_(context),
@@ -109,8 +127,8 @@ void MetadataModule::ParseTracePacketData(
 void MetadataModule::ParseTrigger(int64_t ts, ConstBytes blob) {
   protos::pbzero::Trigger::Decoder trigger(blob.data, blob.size);
   StringId cat_id = kNullStringId;
-  TrackId track_id = context_->track_tracker->InternGlobalTrack(
-      tracks::triggers, TrackTracker::LegacyCharArrayName("Trace Triggers"));
+  TrackId track_id =
+      context_->track_tracker->InternTrack(kTriggerTrackBlueprint);
   StringId name_id = context_->storage->InternString(trigger.trigger_name());
   context_->slice_tracker->Scoped(
       ts, track_id, cat_id, name_id,
@@ -130,10 +148,10 @@ void MetadataModule::ParseTrigger(int64_t ts, ConstBytes blob) {
 }
 
 void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
-  protos::pbzero::ChromeTrigger::Decoder trigger(blob.data, blob.size);
+  protos::pbzero::ChromeTrigger::Decoder trigger(blob);
   StringId cat_id = kNullStringId;
   TrackId track_id =
-      context_->track_tracker->InternGlobalTrack(tracks::triggers);
+      context_->track_tracker->InternTrack(kTriggerTrackBlueprint);
   StringId name_id;
   if (trigger.has_trigger_name()) {
     name_id = context_->storage->InternString(trigger.trigger_name());
@@ -215,5 +233,4 @@ void MetadataModule::ParseTraceConfig(
                                           Variadic::String(id));
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
