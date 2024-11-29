@@ -17,12 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_RSS_STAT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_RSS_STAT_TRACKER_H_
 
+#include <cstdint>
+#include <optional>
+
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -49,11 +51,9 @@ class RssStatTracker {
                                            uint32_t pid);
 
   base::FlatHashMap<int64_t, UniqueTid> mm_id_to_utid_;
-  std::vector<StringId> rss_members_;
   TraceProcessorContext* const context_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_RSS_STAT_TRACKER_H_
