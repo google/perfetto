@@ -14,60 +14,44 @@
  * limitations under the License.
  */
 
-#include "src/perfetto_cmd/pbtxt_to_pb.h"
+#include "src/trace_config_utils/txt_to_pb.h"
 
 #include <memory>
 #include <string>
 
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/trace_config.h"
-
+#include "protos/perfetto/config/data_source_config.gen.h"
 #include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 #include "protos/perfetto/config/test_config.gen.h"
+#include "protos/perfetto/config/trace_config.gen.h"
 
 namespace perfetto {
 namespace {
 
 using ::testing::Contains;
 using ::testing::ElementsAre;
+using ::testing::HasSubstr;
 using ::testing::StrictMock;
-
-class MockErrorReporter : public ErrorReporter {
- public:
-  MockErrorReporter() {}
-  ~MockErrorReporter() override = default;
-  MOCK_METHOD(void,
-              AddError,
-              (size_t line,
-               size_t column_start,
-               size_t column_end,
-               const std::string& message),
-              (override));
-};
+using TraceConfig = ::perfetto::protos::gen::TraceConfig;
 
 TraceConfig ToProto(const std::string& input) {
-  StrictMock<MockErrorReporter> reporter;
-  std::vector<uint8_t> output = PbtxtToPb(input, &reporter);
-  EXPECT_FALSE(output.empty());
+  base::StatusOr<std::vector<uint8_t>> output = TraceConfigTxtToPb(input);
+  EXPECT_TRUE(output.ok());
+  EXPECT_FALSE(output->empty());
   TraceConfig config;
-  config.ParseFromArray(output.data(), output.size());
+  config.ParseFromArray(output->data(), output->size());
   return config;
 }
 
-void ToErrors(const std::string& input, MockErrorReporter* reporter) {
-  std::vector<uint8_t> output = PbtxtToPb(input, reporter);
-}
-
-TEST(PbtxtToPb, OneField) {
+TEST(TxtToPbTest, OneField) {
   TraceConfig config = ToProto(R"(
     duration_ms: 1234
   )");
   EXPECT_EQ(config.duration_ms(), 1234u);
 }
 
-TEST(PbtxtToPb, TwoFields) {
+TEST(TxtToPbTest, TwoFields) {
   TraceConfig config = ToProto(R"(
     duration_ms: 1234
     file_write_period_ms: 5678
@@ -76,14 +60,14 @@ TEST(PbtxtToPb, TwoFields) {
   EXPECT_EQ(config.file_write_period_ms(), 5678u);
 }
 
-TEST(PbtxtToPb, Enum) {
+TEST(TxtToPbTest, Enum) {
   TraceConfig config = ToProto(R"(
 compression_type: COMPRESSION_TYPE_DEFLATE
 )");
   EXPECT_EQ(config.compression_type(), 1);
 }
 
-TEST(PbtxtToPb, LastCharacters) {
+TEST(TxtToPbTest, LastCharacters) {
   EXPECT_EQ(ToProto(R"(
 duration_ms: 123;)")
                 .duration_ms(),
@@ -121,7 +105,7 @@ compression_type: COMPRESSION_TYPE_DEFLATE
             1);
 }
 
-TEST(PbtxtToPb, Semicolons) {
+TEST(TxtToPbTest, Semicolons) {
   TraceConfig config = ToProto(R"(
     duration_ms: 1234;
     file_write_period_ms: 5678;
@@ -130,7 +114,7 @@ TEST(PbtxtToPb, Semicolons) {
   EXPECT_EQ(config.file_write_period_ms(), 5678u);
 }
 
-TEST(PbtxtToPb, NestedMessage) {
+TEST(TxtToPbTest, NestedMessage) {
   TraceConfig config = ToProto(R"(
     buffers: {
       size_kb: 123
@@ -140,7 +124,7 @@ TEST(PbtxtToPb, NestedMessage) {
   EXPECT_EQ(config.buffers()[0].size_kb(), 123u);
 }
 
-TEST(PbtxtToPb, SplitNested) {
+TEST(TxtToPbTest, SplitNested) {
   TraceConfig config = ToProto(R"(
     buffers: {
       size_kb: 1
@@ -156,7 +140,7 @@ TEST(PbtxtToPb, SplitNested) {
   EXPECT_EQ(config.duration_ms(), 1000u);
 }
 
-TEST(PbtxtToPb, MultipleNestedMessage) {
+TEST(TxtToPbTest, MultipleNestedMessage) {
   TraceConfig config = ToProto(R"(
     buffers: {
       size_kb: 1
@@ -170,7 +154,7 @@ TEST(PbtxtToPb, MultipleNestedMessage) {
   EXPECT_EQ(config.buffers()[1].size_kb(), 2u);
 }
 
-TEST(PbtxtToPb, NestedMessageCrossFile) {
+TEST(TxtToPbTest, NestedMessageCrossFile) {
   TraceConfig config = ToProto(R"(
 data_sources {
   config {
@@ -186,7 +170,7 @@ data_sources {
   ASSERT_EQ(ftrace_config.drain_period_ms(), 42u);
 }
 
-TEST(PbtxtToPb, Booleans) {
+TEST(TxtToPbTest, Booleans) {
   TraceConfig config = ToProto(R"(
     write_into_file: false; deferred_start: true;
   )");
@@ -194,7 +178,7 @@ TEST(PbtxtToPb, Booleans) {
   EXPECT_EQ(config.deferred_start(), true);
 }
 
-TEST(PbtxtToPb, Comments) {
+TEST(TxtToPbTest, Comments) {
   TraceConfig config = ToProto(R"(
     write_into_file: false # deferred_start: true;
     buffers# 1
@@ -218,7 +202,7 @@ TEST(PbtxtToPb, Comments) {
   EXPECT_EQ(config.deferred_start(), false);
 }
 
-TEST(PbtxtToPb, Enums) {
+TEST(TxtToPbTest, Enums) {
   TraceConfig config = ToProto(R"(
     buffers: {
       fill_policy: RING_BUFFER
@@ -228,7 +212,7 @@ TEST(PbtxtToPb, Enums) {
   EXPECT_EQ(config.buffers()[0].fill_policy(), kRingBuffer);
 }
 
-TEST(PbtxtToPb, AllFieldTypes) {
+TEST(TxtToPbTest, AllFieldTypes) {
   TraceConfig config = ToProto(R"(
 data_sources {
   config {
@@ -271,7 +255,7 @@ data_sources {
   ASSERT_EQ(fields.field_bytes(), "14");
 }
 
-TEST(PbtxtToPb, LeadingDots) {
+TEST(TxtToPbTest, LeadingDots) {
   TraceConfig config = ToProto(R"(
 data_sources {
   config {
@@ -290,7 +274,7 @@ data_sources {
   ASSERT_FLOAT_EQ(fields.field_float(), .2f);
 }
 
-TEST(PbtxtToPb, NegativeNumbers) {
+TEST(TxtToPbTest, NegativeNumbers) {
   TraceConfig config = ToProto(R"(
 data_sources {
   config {
@@ -325,17 +309,17 @@ data_sources {
   ASSERT_EQ(fields.field_sint32(), -10);
 }
 
-TEST(PbtxtToPb, EofEndsNumeric) {
+TEST(TxtToPbTest, EofEndsNumeric) {
   TraceConfig config = ToProto(R"(duration_ms: 1234)");
   EXPECT_EQ(config.duration_ms(), 1234u);
 }
 
-TEST(PbtxtToPb, EofEndsIdentifier) {
+TEST(TxtToPbTest, EofEndsIdentifier) {
   TraceConfig config = ToProto(R"(enable_extra_guardrails: true)");
   EXPECT_EQ(config.enable_extra_guardrails(), true);
 }
 
-TEST(PbtxtToPb, ExampleConfig) {
+TEST(TxtToPbTest, ExampleConfig) {
   TraceConfig config = ToProto(R"(
 buffers {
   size_kb: 100024
@@ -394,7 +378,7 @@ duration_ms: 10000
   EXPECT_EQ(config.producers()[0].producer_name(), "perfetto.traced_probes");
 }
 
-TEST(PbtxtToPb, Strings) {
+TEST(TxtToPbTest, Strings) {
   TraceConfig config = ToProto(R"(
 data_sources {
   config {
@@ -423,155 +407,139 @@ data_sources {
   EXPECT_THAT(events, Contains("\0127_\03422.\177"));
 }
 
-TEST(PbtxtToPb, UnknownField) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter,
-              AddError(2, 5, 11,
-                       "No field named \"not_a_label\" in proto TraceConfig"));
-  ToErrors(R"(
+TEST(TxtToPbTest, UnknownField) {
+  auto res = TraceConfigTxtToPb(R"(
     not_a_label: false
-  )",
-           &reporter);
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              HasSubstr("No field named \"not_a_label\" in proto TraceConfig"));
 }
 
-TEST(PbtxtToPb, UnknownNestedField) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(
-      reporter,
-      AddError(
-          4, 5, 16,
-          "No field named \"not_a_field_name\" in proto DataSourceConfig"));
-  ToErrors(R"(
+TEST(TxtToPbTest, UnknownNestedField) {
+  auto res = TraceConfigTxtToPb(R"(
 data_sources {
   config {
     not_a_field_name {
     }
   }
 }
-  )",
-           &reporter);
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(
+      res.status().message(),
+      HasSubstr(
+          "No field named \"not_a_field_name\" in proto DataSourceConfig"));
 }
 
-TEST(PbtxtToPb, BadBoolean) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter, AddError(2, 22, 3,
-                                 "Expected 'true' or 'false' for boolean field "
-                                 "write_into_file in proto TraceConfig instead "
-                                 "saw 'foo'"));
-  ToErrors(R"(
+TEST(TxtToPbTest, BadBoolean) {
+  auto res = TraceConfigTxtToPb(R"(
     write_into_file: foo;
-  )",
-           &reporter);
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              HasSubstr("Expected 'true' or 'false' for boolean field "
+                        "write_into_file in proto TraceConfig instead "
+                        "saw 'foo'"));
 }
 
-TEST(PbtxtToPb, MissingBoolean) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter, AddError(3, 3, 0, "Unexpected end of input"));
-  ToErrors(R"(
+TEST(TxtToPbTest, MissingBoolean) {
+  auto res = TraceConfigTxtToPb(R"(
     write_into_file:
-  )",
-           &reporter);
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(), HasSubstr("Unexpected end of input"));
 }
 
-TEST(PbtxtToPb, RootProtoMustNotEndWithBrace) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter, AddError(2, 5, 0, "Unmatched closing brace"));
-  ToErrors(R"(
-    }
-  )",
-           &reporter);
+TEST(TxtToPbTest, RootProtoMustNotEndWithBrace) {
+  auto res = TraceConfigTxtToPb("  }");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(), HasSubstr("Unmatched closing brace"));
 }
 
-TEST(PbtxtToPb, SawNonRepeatedFieldTwice) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(
-      reporter,
-      AddError(3, 5, 15,
-               "Saw non-repeating field 'write_into_file' more than once"));
-  ToErrors(R"(
+TEST(TxtToPbTest, SawNonRepeatedFieldTwice) {
+  auto res = TraceConfigTxtToPb(R"(
     write_into_file: true;
     write_into_file: true;
-  )",
-           &reporter);
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(
+      res.status().message(),
+      HasSubstr("Saw non-repeating field 'write_into_file' more than once"));
 }
 
-TEST(PbtxtToPb, WrongTypeBoolean) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter,
-              AddError(2, 18, 4,
-                       "Expected value of type uint32 for field duration_ms in "
-                       "proto TraceConfig instead saw 'true'"));
-  ToErrors(R"(
+TEST(TxtToPbTest, WrongTypeBoolean) {
+  auto res = TraceConfigTxtToPb(R"(
     duration_ms: true;
-  )",
-           &reporter);
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(
+      res.status().message(),
+      HasSubstr("Expected value of type uint32 for field duration_ms in "
+                "proto TraceConfig instead saw 'true'"));
 }
 
-TEST(PbtxtToPb, WrongTypeNumber) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter,
-              AddError(2, 14, 3,
-                       "Expected value of type message for field buffers in "
-                       "proto TraceConfig instead saw '100'"));
-  ToErrors(R"(
+TEST(TxtToPbTest, WrongTypeNumber) {
+  auto res = TraceConfigTxtToPb(R"(
     buffers: 100;
-  )",
-           &reporter);
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              HasSubstr("Expected value of type message for field buffers in "
+                        "proto TraceConfig instead saw '100'"));
 }
 
-TEST(PbtxtToPb, NestedMessageDidNotTerminate) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter, AddError(2, 15, 0, "Nested message not closed"));
-  ToErrors(R"(
-    buffers: {)",
-           &reporter);
+TEST(TxtToPbTest, NestedMessageDidNotTerminate) {
+  auto res = TraceConfigTxtToPb(R"(
+    buffers: {
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(), HasSubstr("Nested message not closed"));
 }
 
-TEST(PbtxtToPb, BadEscape) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter, AddError(5, 23, 2,
-                                 "Unknown string escape in ftrace_events in "
-                                 "proto FtraceConfig: '\\p'"));
-  ToErrors(R"(
-data_sources {
-  config {
-    ftrace_config {
-      ftrace_events: "\p"
+TEST(TxtToPbTest, BadEscape) {
+  auto res = TraceConfigTxtToPb(R"(
+  data_sources {
+    config {
+      ftrace_config {
+        ftrace_events: "\p"
+      }
     }
-  }
-})",
-           &reporter);
+  })");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              HasSubstr("Unknown string escape in ftrace_events in "
+                        "proto FtraceConfig: '\\p'"));
 }
 
-TEST(PbtxtToPb, BadEnumValue) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter, AddError(1, 18, 3,
-                                 "Unexpected value 'FOO' for enum field "
-                                 "compression_type in proto TraceConfig"));
-  ToErrors(R"(compression_type: FOO)", &reporter);
+TEST(TxtToPbTest, BadEnumValue) {
+  auto res = TraceConfigTxtToPb("compression_type: FOO");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              HasSubstr("Unexpected value 'FOO' for enum field "
+                        "compression_type in proto TraceConfig"));
 }
 
-TEST(PbtxtToPb, UnexpectedBracket) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter, AddError(1, 0, 0, "Unexpected character '{'"));
-  ToErrors(R"({)", &reporter);
+TEST(TxtToPbTest, UnexpectedBracket) {
+  auto res = TraceConfigTxtToPb("{");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(), HasSubstr("Unexpected character '{'"));
 }
 
-TEST(PbtxtToPb, UnknownNested) {
-  MockErrorReporter reporter;
-  EXPECT_CALL(reporter, AddError(1, 0, 3,
-                                 "No field named \"foo\" in "
-                                 "proto TraceConfig"));
-  ToErrors(R"(foo {}; bar: 42)", &reporter);
+TEST(TxtToPbTest, UnknownNested) {
+  auto res = TraceConfigTxtToPb("foo {}; bar: 42");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(), HasSubstr("No field named \"foo\" in "
+                                                "proto TraceConfig"));
 }
 
 // TODO(hjd): Add these tests.
-// TEST(PbtxtToPb, WrongTypeString)
-// TEST(PbtxtToPb, OverflowOnIntegers)
-// TEST(PbtxtToPb, NegativeNumbersForUnsignedInt)
-// TEST(PbtxtToPb, UnterminatedString) {
-// TEST(PbtxtToPb, NumberIsEof)
-// TEST(PbtxtToPb, OneOf)
+// TEST(TxtToPbTest, WrongTypeString)
+// TEST(TxtToPbTest, OverflowOnIntegers)
+// TEST(TxtToPbTest, NegativeNumbersForUnsignedInt)
+// TEST(TxtToPbTest, UnterminatedString) {
+// TEST(TxtToPbTest, NumberIsEof)
+// TEST(TxtToPbTest, OneOf)
 
 }  // namespace
 }  // namespace perfetto

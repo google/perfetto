@@ -22,6 +22,7 @@ nodejs_bin = rebase_path("../tools/node", root_build_dir)
 group("ui") {
   deps = [
     ":ui_build($host_toolchain)",
+    "../src/trace_config_utils:trace_config_utils.wasm($wasm_toolchain)",
     "../src/trace_processor:trace_processor.wasm($wasm_toolchain)",
     "../src/traceconv:traceconv.wasm($wasm_toolchain)",
   ]
