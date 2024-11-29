@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
-import("../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../gn/proto_library.gni")
 import("../../gn/test.gni")
 
@@ -50,8 +49,6 @@ source_set("perfetto_cmd") {
   ]
   deps = [
     ":bugreport_path",
-    ":gen_cc_config_descriptor",
-    ":pbtxt_to_pb",
     ":trigger_producer",
     "../../gn:default_deps",
     "../../protos/perfetto/common:cpp",
@@ -62,6 +59,7 @@ source_set("perfetto_cmd") {
     "../base",
     "../base:version",
     "../protozero",
+    "../trace_config_utils:txt_to_pb",
     "../tracing/ipc/consumer",
   ]
   sources = [
@@ -72,6 +70,8 @@ source_set("perfetto_cmd") {
     "perfetto_cmd.cc",
     "perfetto_cmd.h",
   ]
+  assert_no_deps = [ "../trace_processor/*" ]
+
   if (is_android) {
     deps += [ "../android_internal:lazy_library_loader" ]
     sources += [ "perfetto_cmd_android.cc" ]
@@ -85,25 +85,6 @@ source_set("bugreport_path") {
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
   ]
-}
-
-source_set("pbtxt_to_pb") {
-  deps = [
-    ":gen_cc_config_descriptor",
-    "../../gn:default_deps",
-    "../../protos/perfetto/common:cpp",
-    "../base",
-    "../protozero",
-  ]
-  sources = [
-    "pbtxt_to_pb.cc",
-    "pbtxt_to_pb.h",
-  ]
-}
-
-perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
-  descriptor_name = "config.descriptor"
-  descriptor_target = "../../protos/perfetto/config:descriptor"
 }
 
 source_set("trigger_perfetto_cmd") {
@@ -143,7 +124,6 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   public_deps = []
   deps = [
-    ":pbtxt_to_pb",
     ":perfetto_cmd",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
@@ -157,6 +137,5 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "config_unittest.cc",
     "packet_writer_unittest.cc",
-    "pbtxt_to_pb_unittest.cc",
   ]
 }

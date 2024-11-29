@@ -57,7 +57,10 @@ if (enable_perfetto_trace_processor) {
 }
 
 if (enable_perfetto_traceconv) {
-  all_targets += [ "src/traceconv" ]
+  all_targets += [
+    "src/traceconv",
+    "src/trace_config_utils",
+  ]
   if (is_cross_compiling) {
     # In many cross-compilation scenarios (typically Android) developers expect
     # the host version of traceconv to be available somewhere in out/, so
@@ -66,7 +69,10 @@ if (enable_perfetto_traceconv) {
     # cc_binary_host("traceconv") target in Android.bp.
     # Note that when cross-compiling the host executable will be available in
     # out/xxx/gcc_like_host/traceconv NOT just out/xxx/traceconv.
-    all_targets += [ "src/traceconv($host_toolchain)" ]
+    all_targets += [
+      "src/traceconv($host_toolchain)",
+      "src/trace_config_utils($host_toolchain)",
+    ]
   }
 }
 
