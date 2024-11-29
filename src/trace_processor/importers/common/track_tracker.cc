@@ -115,7 +115,8 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
       uid_id_(context->storage->InternString("uid")),
       gpu_id_(context->storage->InternString("gpu")),
       name_id_(context->storage->InternString("name")),
-      context_(context) {}
+      context_(context),
+      args_tracker_(context) {}
 
 TrackId TrackTracker::CreateTrack(tracks::TrackClassification classification,
                                   std::optional<Dimensions> dimensions,
@@ -234,8 +235,9 @@ TrackId TrackTracker::InternTrack(tracks::TrackClassification classification,
   TrackId id = CreateTrack(classification, dimensions, name);
   tracks_[{classification, dimensions}] = id;
   if (callback) {
-    ArgsTracker::BoundInserter inserter = context_->args_tracker->AddArgsTo(id);
+    ArgsTracker::BoundInserter inserter = args_tracker_.AddArgsTo(id);
     callback(inserter);
+    args_tracker_.Flush();
   }
   return id;
 }
@@ -424,10 +426,10 @@ TrackId TrackTracker::LegacyInternGlobalCounterTrack(TrackTracker::Group group,
   tracks_[key] = track;
 
   if (callback) {
-    auto inserter = context_->args_tracker->AddArgsTo(track);
+    auto inserter = args_tracker_.AddArgsTo(track);
     callback(inserter);
+    args_tracker_.Flush();
   }
-
   return track;
 }
 
@@ -590,12 +592,13 @@ TrackId TrackTracker::LegacyInternLegacyChromeAsyncTrack(
       context_->storage->mutable_process_track_table()->Insert(track).id;
   tracks_[key] = id;
 
-  context_->args_tracker->AddArgsTo(id)
+  args_tracker_.AddArgsTo(id)
       .AddArg(source_key_, Variadic::String(chrome_source_))
       .AddArg(trace_id_key_, Variadic::Integer(trace_id))
       .AddArg(trace_id_is_process_scoped_key_,
               Variadic::Boolean(trace_id_is_process_scoped))
       .AddArg(source_scope_key_, Variadic::String(source_scope));
+  args_tracker_.Flush();
 
   return id;
 }
@@ -645,8 +648,9 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
   row.counter_unit = counter_unit;
   TrackId id = context_->storage->mutable_track_table()->Insert(row).id;
   if (args) {
-    auto inserter = context_->args_tracker->AddArgsTo(id);
+    auto inserter = args_tracker_.AddArgsTo(id);
     args(inserter);
+    args_tracker_.Flush();
   }
   return id;
 }

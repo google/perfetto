@@ -15,21 +15,29 @@
  */
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 
-#include <stdio.h>
-
 #include <cinttypes>
+#include <cstdint>
+#include <optional>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 // Follow perf tool naming convention.
@@ -144,6 +152,10 @@ std::vector<StringId> InternFollowersCounterName(
 }
 }  // namespace
 
+PerfSampleTracker::PerfSampleTracker(TraceProcessorContext* context)
+    : is_timebase_id_(context->storage->InternString("is_timebase")),
+      context_(context) {}
+
 PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
     uint32_t seq_id,
     uint32_t cpu,
@@ -177,18 +189,29 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
         StringifyCounter(protos::pbzero::PerfEvents::SW_CPU_CLOCK));
   }
 
-  TrackId timebase_track_id =
-      context_->track_tracker->LegacyCreatePerfCounterTrack(
-          name_id, session_id, cpu, /*is_timebase=*/true);
+  base::StringView name = context_->storage->GetString(name_id);
+  TrackId timebase_track_id = context_->track_tracker->InternTrack(
+      tracks::kPerfCounterBlueprint,
+      tracks::Dimensions(cpu, session_id.value, name),
+      tracks::DynamicName(name_id),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(is_timebase_id_, Variadic::Boolean(true));
+      });
 
   std::vector<TrackId> follower_track_ids;
   if (perf_defaults.has_value()) {
     auto name_ids = InternFollowersCounterName(perf_defaults.value(), context_);
     follower_track_ids.reserve(name_ids.size());
     for (const auto& follower_name_id : name_ids) {
-      follower_track_ids.push_back(
-          context_->track_tracker->LegacyCreatePerfCounterTrack(
-              follower_name_id, session_id, cpu, /*is_timebase=*/true));
+      base::StringView follower_name =
+          context_->storage->GetString(follower_name_id);
+      follower_track_ids.push_back(context_->track_tracker->InternTrack(
+          tracks::kPerfCounterBlueprint,
+          tracks::Dimensions(cpu, session_id.value, follower_name),
+          tracks::DynamicName(follower_name_id),
+          [this](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(is_timebase_id_, Variadic::Boolean(true));
+          }));
     }
   }
 
@@ -216,5 +239,4 @@ tables::PerfSessionTable::Id PerfSampleTracker::CreatePerfSession() {
   return context_->storage->mutable_perf_session_table()->Insert({}).id;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

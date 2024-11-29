@@ -494,6 +494,7 @@ class TrackTracker {
   const StringId name_id_;
 
   TraceProcessorContext* const context_;
+  ArgsTracker args_tracker_;
 };
 
 }  // namespace perfetto::trace_processor

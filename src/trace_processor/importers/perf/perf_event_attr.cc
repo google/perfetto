@@ -24,11 +24,17 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -152,19 +158,16 @@ PerfCounter& PerfEventAttr::GetOrCreateCounter(uint32_t cpu) {
 }
 
 PerfCounter PerfEventAttr::CreateCounter(uint32_t cpu) const {
-  tables::PerfCounterTrackTable::Row row;
-  row.name = context_->storage->InternString(base::StringView(event_name_));
-  row.unit = context_->storage->InternString(base::StringView(""));
-  row.description = context_->storage->InternString(base::StringView(""));
-  row.perf_session_id = perf_session_id_;
-  row.cpu = cpu;
-  row.is_timebase = is_timebase();
-  const auto counter_track_ref =
-      context_->storage->mutable_perf_counter_track_table()
-          ->Insert(row)
-          .row_reference;
-  return PerfCounter(context_->storage->mutable_counter_table(),
-                     counter_track_ref);
+  base::StringView name(event_name_);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::kPerfCounterBlueprint,
+      tracks::Dimensions(cpu, perf_session_id_.value, name),
+      tracks::DynamicName(context_->storage->InternString(name)),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(context_->storage->InternString("is_timebase"),
+                        Variadic::Boolean(is_timebase()));
+      });
+  return {context_->storage->mutable_counter_table(), track_id, is_timebase()};
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
