@@ -19,68 +19,168 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <string_view>
+#include <tuple>
+
+#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/tracks_internal.h"
 
 namespace perfetto::trace_processor::tracks {
 
-// The classification of a track indicates the "type of data" the track
-// contains.
-//
-// Every track is uniquely identified by the the combination of the
-// classification and a set of dimensions: classifications allow identifying a
-// set of tracks with the same type of data within the whole universe of tracks
-// while dimensions allow distinguishing between different tracks in that set.
-#define PERFETTO_TP_TRACKS(F)                    \
-  F(android_energy_estimation_breakdown_per_uid) \
-  F(android_energy_estimation_breakdown)         \
-  F(android_gpu_work_period)                     \
-  F(android_lmk)                                 \
-  F(block_io)                                    \
-  F(chrome_process_instant)                      \
-  F(cpu_capacity)                                \
-  F(cpu_frequency_throttle)                      \
-  F(cpu_frequency)                               \
-  F(cpu_funcgraph)                               \
-  F(cpu_idle_state)                              \
-  F(cpu_idle)                                    \
-  F(cpu_irq)                                     \
-  F(cpu_nr_running)                              \
-  F(cpu_mali_irq)                                \
-  F(cpu_max_frequency_limit)                     \
-  F(cpu_min_frequency_limit)                     \
-  F(cpu_napi_gro)                                \
-  F(cpu_softirq)                                 \
-  F(cpu_stat)                                    \
-  F(cpu_utilization)                             \
-  F(gpu_frequency)                               \
-  F(interconnect_events)                         \
-  F(irq_counter)                                 \
-  F(legacy_chrome_global_instants)               \
-  F(linux_device_frequency)                      \
-  F(linux_rpm)                                   \
-  F(pixel_cpm_trace)                             \
-  F(pkvm_hypervisor)                             \
-  F(softirq_counter)                             \
-  F(thread)                                      \
-  F(track_event)                                 \
-  F(triggers)                                    \
-  F(unknown)
+// This file contains the "public API" for creating track blueprints.
+// See TrackTracker::InternTrack for usages of the functions in this file.
 
-#define PERFETTO_TP_TRACKS_CLASSIFICATION_ENUM(name) name,
-enum TrackClassification : size_t {
-  PERFETTO_TP_TRACKS(PERFETTO_TP_TRACKS_CLASSIFICATION_ENUM)
-};
+// Start of blueprint functions.
 
-namespace internal {
-
-#define PERFETTO_TP_TRACKS_CLASSIFICATION_STR(name) #name,
-constexpr std::array kTrackClassificationStr{
-    PERFETTO_TP_TRACKS(PERFETTO_TP_TRACKS_CLASSIFICATION_STR)};
-
-}  // namespace internal
-
-constexpr const char* ToString(TrackClassification c) {
-  return internal::kTrackClassificationStr[c];
+// Creates a blueprint for a slice track.
+// See TrackTracker::InternTrack for usage of this function.
+template <typename NB = NameBlueprintT::Auto, typename... D>
+constexpr auto SliceBlueprint(const char classification[],
+                              DimensionBlueprintsT<D...> dimensions = {},
+                              NB name = NB{}) {
+  static_assert(sizeof...(D) < 8, "At most 8 dimensions are supported");
+  auto dims_array = std::apply(
+      [](auto&&... x) { return std::array<DimensionBlueprintBase, 8>{x...}; },
+      dimensions);
+  return BlueprintT<NB, UnitBlueprintT::Unknown, D...>{
+      {
+          "slice",
+          classification,
+          base::Hasher::CreatePartial(classification),
+          dims_array,
+      },
+      name,
+      UnitBlueprintT::Unknown{},
+  };
 }
+
+// Creates a blueprint for a counter track.
+// See TrackTracker::InternTrack for usage on this function.
+template <typename NB = NameBlueprintT::Auto,
+          typename UB = UnitBlueprintT::Unknown,
+          typename... D>
+constexpr auto CounterBlueprint(const char classification[],
+                                UB unit,
+                                DimensionBlueprintsT<D...> dimensions = {},
+                                NB name = NB{}) {
+  static_assert(sizeof...(D) < 8, "At most 8 dimensions are supported");
+  auto dims_array = std::apply(
+      [](auto&&... x) { return std::array<DimensionBlueprintBase, 8>{x...}; },
+      dimensions);
+  return BlueprintT<NB, UB, D...>{
+      {
+          "counter",
+          classification,
+          base::Hasher::CreatePartial(classification),
+          dims_array,
+      },
+      name,
+      unit,
+  };
+}
+
+// Wraps all the dimension blueprints before passing them to SliceBlueprint()
+// or CounterBlueprint().
+template <typename... DimensionBlueprint>
+constexpr auto DimensionBlueprints(DimensionBlueprint... dimensions) {
+  return DimensionBlueprintsT<DimensionBlueprint...>{dimensions...};
+}
+
+// Adds a unit32_t dimension with the given name.
+constexpr auto UintDimensionBlueprint(const char name[]) {
+  return DimensionBlueprintT<uint32_t>{{name, std::string_view(name) == "cpu"}};
+}
+
+// Adds a string dimension with the given name.
+constexpr auto StringDimensionBlueprint(const char name[]) {
+  return DimensionBlueprintT<base::StringView>{{name, false}};
+}
+
+// Adds a int64_t dimension with the given name.
+constexpr auto LongDimensionBlueprint(const char name[]) {
+  return DimensionBlueprintT<int64_t>{{name, false}};
+}
+
+// Indicates the name should be automatically determined by trace processor.
+constexpr auto AutoNameBlueprint() {
+  return NameBlueprintT::Auto{};
+}
+
+// Indicates the name of the track should be given by a static string. This
+// should really only be used when the track has no dimensions as it's quite
+// confusing in queries otherwise.
+constexpr auto StaticNameBlueprint(const char name[]) {
+  return NameBlueprintT::Static{name};
+}
+
+// Indicates the name of the track is dynamic and will be provided at runtime to
+// InternTrack.
+constexpr auto DynamicNameBlueprint() {
+  return NameBlueprintT::Dynamic{};
+}
+
+// Indicates the name of the track is a function which accepts as input the
+// dimensions of the track and returns a base::StackString containing the
+// results of transforming the dimensions.
+template <typename F>
+constexpr auto FnNameBlueprint(F fn) {
+  return NameBlueprintT::Fn<F>{{}, fn};
+}
+
+// Indicates that the unit of this track is given by a static string.
+constexpr auto StaticUnitBlueprint(const char unit[]) {
+  return UnitBlueprintT::Static{unit};
+}
+
+// Indicates the unit of this track is dynamic and will be provided at
+// InternTrack time.
+constexpr auto DynamicUnitBlueprint() {
+  return UnitBlueprintT::Dynamic{};
+}
+
+// Indicates that the units of the counter are unknown. Should not be used, is
+// only intended for counter tracks which predate the introduction of track
+// blueprints.
+constexpr auto UnknownUnitBlueprint() {
+  return UnitBlueprintT::Unknown{};
+}
+
+// End of blueprint functions.
+
+// Start of InternTrack helper functions.
+
+// Wraps all the dimensions for a track before passing them to InternTrack.
+template <typename... D>
+constexpr auto Dimensions(D... dimensions) {
+  return DimensionsT<D...>{dimensions...};
+}
+
+// Indicates that the name of the track was provided in the blueprint.
+constexpr nullptr_t BlueprintName() {
+  return nullptr;
+}
+
+// Indicates that the name of the track should be `id`. Only valid if
+// `DynamicNameBlueprint()` was passed when creating the blueprint.
+constexpr StringPool::Id DynamicName(StringPool::Id id) {
+  return id;
+}
+
+// Indicates that the unit of the track was provided in the blueprint.
+constexpr nullptr_t BlueprintUnit() {
+  return nullptr;
+}
+
+// Indicates that the unit of the track should be `id`. Only valid if
+// `DynamicUnitBlueprint()` was passed when creating the blueprint.
+constexpr StringPool::Id DynamicUnit(StringPool::Id id) {
+  return id;
+}
+
+// End of InternTrack helper functions.
 
 }  // namespace perfetto::trace_processor::tracks
 

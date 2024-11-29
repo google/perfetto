@@ -72,6 +72,8 @@ source_set("common") {
     "track_tracker.cc",
     "track_tracker.h",
     "tracks.h",
+    "tracks_common.h",
+    "tracks_internal.h",
     "virtual_memory_mapping.cc",
     "virtual_memory_mapping.h",
   ]
@@ -89,6 +91,7 @@ source_set("common") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
+    "../../containers",
     "../../db:minimal",
     "../../storage",
     "../../tables:tables",
