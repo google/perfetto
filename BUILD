@@ -1806,6 +1806,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/track_tracker.cc",
         "src/trace_processor/importers/common/track_tracker.h",
         "src/trace_processor/importers/common/tracks.h",
+        "src/trace_processor/importers/common/tracks_common.h",
+        "src/trace_processor/importers/common/tracks_internal.h",
         "src/trace_processor/importers/common/virtual_memory_mapping.cc",
         "src/trace_processor/importers/common/virtual_memory_mapping.h",
     ],

@@ -619,6 +619,37 @@ StringId TrackTracker::StringIdFromTrackName(
   PERFETTO_FATAL("For GCC");
 }
 
+TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
+                               StringId name,
+                               StringId counter_unit,
+                               GlobalArgsTracker::CompactArg* d_args,
+                               uint32_t d_size,
+                               const SetArgsCallback& args) {
+  const auto* dims = blueprint.dimension_blueprints.data();
+  for (uint32_t i = 0; i < d_size; ++i) {
+    StringId key = context_->storage->InternString(
+        base::StringView(dims[i].name.data(), dims[i].name.size()));
+    d_args[i].key = key;
+    d_args[i].flat_key = key;
+  }
+
+  tables::TrackTable::Row row(name);
+  row.machine_id = context_->machine_id();
+  row.classification = context_->storage->InternString(base::StringView(
+      blueprint.classification.data(), blueprint.classification.size()));
+  if (d_size > 0) {
+    row.dimension_arg_set_id =
+        context_->global_args_tracker->AddArgSet(d_args, 0, d_size);
+  }
+  row.event_type = context_->storage->InternString(blueprint.event_type);
+  row.counter_unit = counter_unit;
+  TrackId id = context_->storage->mutable_track_table()->Insert(row).id;
+  if (args) {
+    auto inserter = context_->args_tracker->AddArgsTo(id);
+    args(inserter);
+  }
+  return id;
+}
 
 void TrackTracker::MarkCpuValid(uint32_t cpu) {
   context_->cpu_tracker->MarkCpuValid(cpu);
