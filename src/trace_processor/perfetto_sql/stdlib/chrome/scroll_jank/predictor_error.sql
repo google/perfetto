@@ -108,7 +108,7 @@ CREATE PERFETTO TABLE chrome_predictor_error(
   scroll_id LONG,
   -- An ID for this particular EventLatency regardless of it being presented or
   -- not.
-  event_latency_slice_id JOINID(slice.id),
+  event_latency_slice_id LONG,
   -- An ID that ties this |event_latency_id| with the Trace Id (another
   -- event_latency_id) that it was presented with.
   scroll_update_id LONG,
