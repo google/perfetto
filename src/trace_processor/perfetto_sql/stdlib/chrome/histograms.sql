@@ -14,13 +14,13 @@ CREATE PERFETTO TABLE chrome_histograms(
   -- Thread name.
   thread_name STRING,
   -- Utid of the thread.
-  utid JOINID(thread.id),
+  utid LONG,
   -- Tid of the thread.
   tid LONG,
   -- Process name.
   process_name STRING,
   -- Upid of the process.
-  upid JOINID(process.id),
+  upid LONG,
   -- Pid of the process.
   pid LONG
 ) AS

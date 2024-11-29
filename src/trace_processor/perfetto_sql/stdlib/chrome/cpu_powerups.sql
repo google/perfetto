@@ -104,9 +104,9 @@ CREATE PERFETTO TABLE chrome_cpu_power_first_sched_slice_after_powerup(
   -- The cpu on which the slice executed.
   cpu LONG,
   -- Id for the sched_slice table.
-  sched_id JOINID(sched.id),
+  sched_id LONG,
   -- Unique id for the thread that ran within the slice.
-  utid JOINID(thread.id),
+  utid LONG,
   -- The CPU's power state before this slice.
   previous_power_state LONG,
   -- A unique ID for the CPU power-up.
@@ -163,11 +163,11 @@ CREATE PERFETTO TABLE chrome_cpu_power_post_powerup_slice(
   -- The CPU the sched slice ran on.
   cpu LONG,
   -- Unique thread id for the slice.
-  utid JOINID(thread.id),
+  utid LONG,
   -- 'id' field from the sched_slice table.
-  sched_id JOINID(sched.id),
+  sched_id LONG,
   -- Id of the top-level slice for this (sched) slice.
-  slice_id JOINID(slice.id),
+  slice_id LONG,
   -- Previous power state.
   previous_power_state LONG,
   -- Id of the powerup.
@@ -178,7 +178,7 @@ SELECT * FROM _chrome_cpu_power_post_powerup_slice_sj;
 -- The first top-level slice that ran after a CPU power-up.
 CREATE PERFETTO VIEW chrome_cpu_power_first_toplevel_slice_after_powerup(
   -- ID of the slice in the slice table.
-  slice_id JOINID(slice.id),
+  slice_id LONG,
   -- The power state of the CPU prior to power-up.
   previous_power_state LONG
 ) AS
