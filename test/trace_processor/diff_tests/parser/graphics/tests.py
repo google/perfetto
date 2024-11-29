@@ -39,26 +39,40 @@ class GraphicsParser(TestSuite):
   def test_gpu_mem_total(self):
     return DiffTestBlueprint(
         trace=Path('gpu_mem_total.py'),
-        query=Path('gpu_mem_total_test.sql'),
+        query='''
+          SELECT ct.name, ct.unit, c.ts, p.pid, cast_int!(c.value) AS value
+          FROM counter_track ct
+          LEFT JOIN process_counter_track pct USING (id)
+          LEFT JOIN process p USING (upid)
+          LEFT JOIN counter c ON c.track_id = ct.id
+          ORDER BY ts;
+        ''',
         out=Csv("""
-        "name","unit","description","ts","pid","value"
-        "GPU Memory","7","Total GPU memory used by the entire system",0,"[NULL]",123
-        "GPU Memory","7","Total GPU memory used by this process",0,1,100
-        "GPU Memory","7","Total GPU memory used by the entire system",5,"[NULL]",256
-        "GPU Memory","7","Total GPU memory used by this process",5,1,233
-        "GPU Memory","7","Total GPU memory used by the entire system",10,"[NULL]",123
-        "GPU Memory","7","Total GPU memory used by this process",10,1,0
+          "name","unit","ts","pid","value"
+          "GPU Memory","bytes",0,"[NULL]",123
+          "GPU Memory","bytes",0,1,100
+          "GPU Memory","bytes",5,"[NULL]",256
+          "GPU Memory","bytes",5,1,233
+          "GPU Memory","bytes",10,"[NULL]",123
+          "GPU Memory","bytes",10,1,0
         """))
 
   def test_gpu_mem_total_after_free_gpu_mem_total(self):
     return DiffTestBlueprint(
         trace=Path('gpu_mem_total_after_free.py'),
-        query=Path('gpu_mem_total_test.sql'),
+        query='''
+          SELECT ct.name, ct.unit, c.ts, p.pid, cast_int!(c.value) AS value
+          FROM counter_track ct
+          LEFT JOIN process_counter_track pct USING (id)
+          LEFT JOIN process p USING (upid)
+          LEFT JOIN counter c ON c.track_id = ct.id
+          ORDER BY ts;
+        ''',
         out=Csv("""
-        "name","unit","description","ts","pid","value"
-        "GPU Memory","7","Total GPU memory used by this process",0,1,100
-        "GPU Memory","7","Total GPU memory used by this process",5,1,233
-        "GPU Memory","7","Total GPU memory used by this process",10,1,50
+          "name","unit","ts","pid","value"
+          "GPU Memory","bytes",0,1,100
+          "GPU Memory","bytes",5,1,233
+          "GPU Memory","bytes",10,1,50
         """))
 
   # Clock sync

@@ -130,8 +130,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       vk_event_scope_id_(context->storage->InternString("vulkan_events")),
       vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")),
       gpu_mem_total_name_id_(context->storage->InternString("GPU Memory")),
-      gpu_mem_total_unit_id_(context->storage->InternString(
-          std::to_string(protos::pbzero::GpuCounterDescriptor::BYTE).c_str())),
+      gpu_mem_total_unit_id_(context->storage->InternString("bytes")),
       gpu_mem_total_global_desc_id_(context->storage->InternString(
           "Total GPU memory used by the entire system")),
       gpu_mem_total_proc_desc_id_(context->storage->InternString(
