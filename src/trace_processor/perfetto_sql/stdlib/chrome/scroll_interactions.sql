@@ -28,7 +28,7 @@ CREATE PERFETTO TABLE chrome_scroll_interactions(
   -- has applied its scroll prediction algorithm.
   predictor_janky_frame_count LONG,
   -- The process id this event occurred on.
-  renderer_upid JOINID(process.id)
+  renderer_upid LONG
 ) AS
 WITH scroll_metrics AS (
   SELECT

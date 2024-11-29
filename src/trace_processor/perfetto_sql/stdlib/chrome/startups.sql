@@ -83,7 +83,7 @@ CREATE PERFETTO TABLE chrome_startups(
   -- Launch cause. See Startup.LaunchCauseType in chrome_track_event.proto.
   launch_cause STRING,
   -- Process ID of the Browser where the startup occurred.
-  browser_upid JOINID(process.id)
+  browser_upid LONG
 ) AS
 SELECT
   ROW_NUMBER() OVER (ORDER BY start_events.startup_begin_ts) AS id,

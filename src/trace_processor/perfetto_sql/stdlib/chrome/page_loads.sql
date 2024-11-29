@@ -24,7 +24,7 @@ RETURNS TABLE(
   ts TIMESTAMP,
   dur DURATION,
   navigation_id LONG,
-  browser_upid JOINID(process.id)
+  browser_upid LONG
 ) AS
 SELECT
   ts,
@@ -75,7 +75,7 @@ CREATE PERFETTO TABLE chrome_page_loads(
   -- URL at the page load event.
   url STRING,
   -- The unique process id (upid) of the browser process where the page load occurred.
-  browser_upid JOINID(process.id)
+  browser_upid LONG
 ) AS
 SELECT
   ROW_NUMBER() OVER(ORDER BY fcp.ts) AS id,
