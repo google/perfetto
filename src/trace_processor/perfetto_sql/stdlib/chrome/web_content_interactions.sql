@@ -28,7 +28,7 @@ CREATE PERFETTO TABLE chrome_web_content_interactions(
   -- The total duration of all events that occurred for the same interaction.
   total_duration_ms LONG,
   -- The process id this event occurred on.
-  renderer_upid JOINID(process.id)
+  renderer_upid LONG
 ) AS
 SELECT
   id,
