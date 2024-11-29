@@ -14,13 +14,15 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE counters.global_tracks;
+
 DROP VIEW IF EXISTS {{table_name}}_span;
 CREATE PERFETTO VIEW {{table_name}}_span AS
 SELECT
   ts,
   LEAD(ts, 1, trace_end()) OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
   value AS {{table_name}}_val
-FROM counter c JOIN counter_track t
-  ON t.id = c.track_id
-WHERE t.type = 'counter_track'
+FROM counter c
+JOIN counter_track t ON t.id = c.track_id
+WHERE _counter_track_is_only_name_dimension(t.id)
   AND name = '{{counter_name}}';

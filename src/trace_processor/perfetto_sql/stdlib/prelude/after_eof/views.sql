@@ -39,33 +39,6 @@ SELECT
   type
 FROM __intrinsic_counter;
 
-
--- Alias of the `counter` table.
-CREATE PERFETTO VIEW counters(
-  -- Alias of `counter.id`.
-  id LONG,
-  -- Alias of `counter.type`.
-  type STRING,
-  -- Alias of `counter.ts`.
-  ts TIMESTAMP,
-  -- Alias of `counter.track_id`.
-  track_id JOINID(track.id),
-  -- Alias of `counter.value`.
-  value DOUBLE,
-  -- Alias of `counter.arg_set_id`.
-  arg_set_id LONG,
-  -- Legacy column, should no longer be used.
-  name STRING,
-  -- Legacy column, should no longer be used.
-  unit STRING,
-  -- Legacy column, should no longer be used.
-  description STRING
-) AS
-SELECT v.*, t.name, t.unit, t.description
-FROM counter v
-JOIN counter_track t ON v.track_id = t.id
-ORDER BY ts;
-
 -- Contains slices from userspace which explains what threads were doing
 -- during the trace.
 CREATE PERFETTO VIEW slice(

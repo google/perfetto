@@ -175,23 +175,22 @@ class Fuchsia(TestSuite):
         query="""
         SELECT
           id,
-          name,
-          type
+          name
         FROM track
         LIMIT 10;
         """,
         out=Csv("""
-        "id","name","type"
-        0,"[NULL]","thread_track"
-        1,"[NULL]","thread_track"
-        2,"[NULL]","thread_track"
-        3,"[NULL]","thread_track"
-        4,"[NULL]","thread_track"
-        5,"cpu_usage:average_cpu_percentage:0","process_counter_track"
-        6,"[NULL]","thread_track"
-        7,"[NULL]","thread_track"
-        8,"[NULL]","thread_track"
-        9,"[NULL]","thread_track"
+        "id","name"
+        0,"[NULL]"
+        1,"[NULL]"
+        2,"[NULL]"
+        3,"[NULL]"
+        4,"[NULL]"
+        5,"cpu_usage:average_cpu_percentage:0"
+        6,"[NULL]"
+        7,"[NULL]"
+        8,"[NULL]"
+        9,"[NULL]"
         """))
 
   # Smoke test a high-CPU trace.
