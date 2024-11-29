@@ -59,14 +59,14 @@ class AndroidParser(TestSuite):
         }
         """),
         query="""
-        SELECT t.type, t.name, c.id, c.ts, c.value
+        SELECT t.name, c.id, c.ts, c.value
         FROM counter_track t JOIN counter c ON t.id = c.track_id
         WHERE name = 'ScreenState';
         """,
         out=Csv("""
-        "type","name","id","ts","value"
-        "counter_track","ScreenState",0,1000,2.000000
-        "counter_track","ScreenState",1,2000,1.000000
+        "name","id","ts","value"
+        "ScreenState",0,1000,2.000000
+        "ScreenState",1,2000,1.000000
         """))
 
   def test_android_system_property_slice(self):
@@ -106,14 +106,14 @@ class AndroidParser(TestSuite):
         }
         """),
         query="""
-        SELECT t.name, s.id, s.ts, s.dur, s.type, s.name
+        SELECT t.name, s.id, s.ts, s.dur, s.name
         FROM track t JOIN slice s ON s.track_id = t.id
         WHERE t.name = 'DeviceStateChanged';
         """,
         out=Csv("""
-        "name","id","ts","dur","type","name"
-        "DeviceStateChanged",0,1000,0,"__intrinsic_slice","some_state_from_sysprops"
-        "DeviceStateChanged",1,3000,0,"__intrinsic_slice","some_state_from_atrace"
+        "name","id","ts","dur","name"
+        "DeviceStateChanged",0,1000,0,"some_state_from_sysprops"
+        "DeviceStateChanged",1,3000,0,"some_state_from_atrace"
         """))
 
   def test_binder_txn_sync_good(self):
@@ -248,13 +248,13 @@ class AndroidParser(TestSuite):
         }
         """),
         query="""
-        SELECT t.type, t.name, c.id, c.ts, c.value
+        SELECT t.name, c.id, c.ts, c.value
         FROM counter_track t JOIN counter c ON t.id = c.track_id
         WHERE name = 'ScreenState'
           AND t.machine_id IS NOT NULL;
         """,
         out=Csv("""
-        "type","name","id","ts","value"
-        "counter_track","ScreenState",0,1000,2.000000
-        "counter_track","ScreenState",1,2000,1.000000
+          "name","id","ts","value"
+          "ScreenState",0,1000,2.000000
+          "ScreenState",1,2000,1.000000
         """))

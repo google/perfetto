@@ -128,7 +128,7 @@ export default class implements PerfettoPlugin {
         select name, id, unit
         from counter_track
         join _counter_track_summary using (id)
-        where type = 'counter_track'
+        where is_legacy_global
         union
         select name, id, unit
         from gpu_counter_track

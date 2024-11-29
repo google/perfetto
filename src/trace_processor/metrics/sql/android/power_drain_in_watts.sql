@@ -86,5 +86,4 @@ SELECT name,
   ) * 1e3 AS drain_w
 FROM counter
 JOIN counter_track ON (counter.track_id = counter_track.id)
-WHERE counter_track.type = 'counter_track'
-  AND name GLOB "power.*";
+WHERE name GLOB "power.*";

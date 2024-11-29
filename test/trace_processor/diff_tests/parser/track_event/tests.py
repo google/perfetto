@@ -889,13 +889,13 @@ class TrackEvent(TestSuite):
             ['track_descriptor', 'track_event', 'trace_packet_defaults'],
             {'machine_id': 1001}),
         query="""
-        SELECT type, name, machine_id
+        SELECT name, machine_id
         FROM thread_counter_track
         WHERE machine_id IS NOT NULL
         """,
         out=Csv("""
-        "type","name","machine_id"
-        "thread_counter_track","thread_time",1
-        "thread_counter_track","thread_time",1
-        "thread_counter_track","thread_instruction_count",1
+        "name","machine_id"
+        "thread_time",1
+        "thread_time",1
+        "thread_instruction_count",1
         """))
