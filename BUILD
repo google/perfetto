@@ -266,13 +266,13 @@ perfetto_cc_binary(
         ":include_perfetto_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
-        ":src_perfetto_cmd_pbtxt_to_pb",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_generator",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_filter_util",
         ":src_protozero_filtering_message_filter",
         ":src_protozero_filtering_string_filter",
+        ":src_trace_config_utils_txt_to_pb",
         "src/tools/proto_filter/proto_filter.cc",
     ],
     deps = [
@@ -293,7 +293,7 @@ perfetto_cc_binary(
         ":protozero",
         ":src_base_base",
         ":src_base_version",
-        ":src_perfetto_cmd_gen_cc_config_descriptor",
+        ":src_trace_config_utils_gen_cc_config_descriptor",
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
@@ -1412,26 +1412,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/perfetto_cmd:gen_cc_config_descriptor
-perfetto_cc_proto_descriptor(
-    name = "src_perfetto_cmd_gen_cc_config_descriptor",
-    deps = [
-        ":protos_perfetto_config_descriptor",
-    ],
-    outs = [
-        "src/perfetto_cmd/config.descriptor.h",
-    ],
-)
-
-# GN target: //src/perfetto_cmd:pbtxt_to_pb
-perfetto_filegroup(
-    name = "src_perfetto_cmd_pbtxt_to_pb",
-    srcs = [
-        "src/perfetto_cmd/pbtxt_to_pb.cc",
-        "src/perfetto_cmd/pbtxt_to_pb.h",
-    ],
-)
-
 # GN target: //src/perfetto_cmd:perfetto_cmd
 perfetto_filegroup(
     name = "src_perfetto_cmd_perfetto_cmd",
@@ -1579,6 +1559,26 @@ perfetto_filegroup(
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
         "src/shared_lib/track_event.cc",
+    ],
+)
+
+# GN target: //src/trace_config_utils:gen_cc_config_descriptor
+perfetto_cc_proto_descriptor(
+    name = "src_trace_config_utils_gen_cc_config_descriptor",
+    deps = [
+        ":protos_perfetto_config_descriptor",
+    ],
+    outs = [
+        "src/trace_config_utils/config.descriptor.h",
+    ],
+)
+
+# GN target: //src/trace_config_utils:txt_to_pb
+perfetto_filegroup(
+    name = "src_trace_config_utils_txt_to_pb",
+    srcs = [
+        "src/trace_config_utils/txt_to_pb.cc",
+        "src/trace_config_utils/txt_to_pb.h",
     ],
 )
 
@@ -6484,9 +6484,9 @@ perfetto_cc_binary(
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
         ":src_perfetto_cmd_bugreport_path",
-        ":src_perfetto_cmd_pbtxt_to_pb",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
+        ":src_trace_config_utils_txt_to_pb",
         ":src_tracing_common",
         ":src_tracing_core_core",
         ":src_tracing_ipc_common",
@@ -6554,8 +6554,8 @@ perfetto_cc_binary(
         ":protozero",
         ":src_base_base",
         ":src_base_version",
-        ":src_perfetto_cmd_gen_cc_config_descriptor",
         ":src_perfetto_cmd_protos_cpp",
+        ":src_trace_config_utils_gen_cc_config_descriptor",
     ],
 )
 

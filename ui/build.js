@@ -86,7 +86,7 @@ const cfg = {
   startHttpServer: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
-  wasmModules: ['trace_processor', 'traceconv'],
+  wasmModules: ['trace_processor', 'traceconv', 'trace_config_utils'],
   crossOriginIsolation: false,
   testFilter: '',
   noOverrideGnArgs: false,

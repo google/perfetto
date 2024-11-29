@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/perfetto_cmd/pbtxt_to_pb.h"
+#include "src/trace_config_utils/txt_to_pb.h"
 
 #include <ctype.h>
 #include <limits>
@@ -32,9 +32,9 @@
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/perfetto_cmd/config.descriptor.h"
 
 #include "protos/perfetto/common/descriptor.gen.h"
+#include "src/trace_config_utils/config.descriptor.h"
 
 namespace perfetto {
 constexpr char kConfigProtoName[] = ".perfetto.protos.TraceConfig";
@@ -141,6 +141,58 @@ struct ParserDelegateContext {
   const DescriptorProto* descriptor;
   protozero::Message* message;
   std::set<std::string> seen_fields;
+};
+
+class ErrorReporter {
+ public:
+  ErrorReporter(std::string file_name, const char* config)
+      : file_name_(std::move(file_name)), config_(config) {}
+
+  void AddError(size_t row,
+                size_t column,
+                size_t length,
+                const std::string& message) {
+    // Protobuf uses 1-indexed for row and column. Although in some rare cases
+    // they can be 0 if it can't locate the error.
+    row = row > 0 ? row - 1 : 0;
+    column = column > 0 ? column - 1 : 0;
+    parsed_successfully_ = false;
+    std::string line = ExtractLine(row).ToStdString();
+    if (!line.empty() && line[line.length() - 1] == '\n') {
+      line.erase(line.length() - 1);
+    }
+
+    std::string guide(column + length, ' ');
+    for (size_t i = column; i < column + length; i++) {
+      guide[i] = i == column ? '^' : '~';
+    }
+    error_ += file_name_ + ":" + std::to_string(row+1) + ":" +
+              std::to_string(column + 1) + " error: " + message + "\n";
+    error_ += line + "\n";
+    error_ += guide + "\n";
+  }
+
+  bool success() const { return parsed_successfully_; }
+  const std::string& error() const { return error_; }
+
+ private:
+  base::StringView ExtractLine(size_t line) {
+    const char* start = config_;
+    const char* end = config_;
+
+    for (size_t i = 0; i < line + 1; i++) {
+      start = end;
+      char c;
+      while ((c = *end++) && c != '\n')
+        ;
+    }
+    return base::StringView(start, static_cast<size_t>(end - start));
+  }
+
+  bool parsed_successfully_ = true;
+  std::string file_name_;
+  std::string error_;
+  const char* config_;
 };
 
 class ParserDelegate {
@@ -704,11 +756,9 @@ void AddNestedDescriptors(
 
 }  // namespace
 
-ErrorReporter::ErrorReporter() = default;
-ErrorReporter::~ErrorReporter() = default;
-
-std::vector<uint8_t> PbtxtToPb(const std::string& input,
-                               ErrorReporter* reporter) {
+perfetto::base::StatusOr<std::vector<uint8_t>> TraceConfigTxtToPb(
+    const std::string& input,
+    const std::string& file_name) {
   std::map<std::string, const DescriptorProto*> name_to_descriptor;
   std::map<std::string, const EnumDescriptorProto*> name_to_enum;
   FileDescriptorSet file_descriptor_set;
@@ -736,10 +786,13 @@ std::vector<uint8_t> PbtxtToPb(const std::string& input,
   PERFETTO_CHECK(descriptor);
 
   protozero::HeapBuffered<protozero::Message> message;
-  ParserDelegate delegate(descriptor, message.get(), reporter,
+  ErrorReporter reporter(file_name, input.c_str());
+  ParserDelegate delegate(descriptor, message.get(), &reporter,
                           std::move(name_to_descriptor),
                           std::move(name_to_enum));
   Parse(input, &delegate);
+  if (!reporter.success())
+    return base::ErrStatus("%s", reporter.error().c_str());
   return message.SerializeAsArray();
 }
 
