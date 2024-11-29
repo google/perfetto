@@ -15,40 +15,58 @@
  */
 
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
+
+#include <cstdint>
+#include <string>
+
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/ftrace/f2fs.pbzero.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
-static constexpr char kF2fsIostatTag[] = "f2fs_iostat";
-static constexpr char kF2fsIostatLatencyTag[] = "f2fs_iostat_latency";
+namespace {
+
+std::string GetRawDeviceName(uint64_t dev_num) {
+  return std::to_string((dev_num & 0xFF00) >> 8) + ":" +
+         std::to_string(dev_num & 0xFF);
+}
+
+}  // namespace
 
 IostatTracker::IostatTracker(TraceProcessorContext* context)
     : context_(context) {}
 
-std::string IostatTracker::GetDeviceName(uint64_t dev_num) {
-  std::string dev_name = std::to_string((dev_num & 0xFF00) >> 8) + ":" +
-                         std::to_string(dev_num & 0xFF);
-  return "[" + dev_name + "]";
-}
-
 void IostatTracker::ParseF2fsIostat(int64_t timestamp,
                                     protozero::ConstBytes blob) {
-  protos::pbzero::F2fsIostatFtraceEvent::Decoder evt(blob.data, blob.size);
-  std::string tagPrefix =
-      std::string(kF2fsIostatTag) + "." + GetDeviceName(evt.dev());
-  auto push_counter = [this, timestamp, tagPrefix](const char* counter_name,
-                                                   uint64_t value) {
-    std::string track_name = tagPrefix + "." + std::string(counter_name);
-    StringId string_id = context_->storage->InternString(track_name.c_str());
-    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-        TrackTracker::Group::kIo, string_id);
+  protos::pbzero::F2fsIostatFtraceEvent::Decoder evt(blob);
+
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "f2fs_iostat", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(
+          tracks::kLinuxDeviceDimensionBlueprint,
+          tracks::StringDimensionBlueprint("counter_key")),
+      tracks::FnNameBlueprint(
+          [](base::StringView device, base::StringView name) {
+            return base::StackString<1024>("f2fs_iostat.[%.*s].%.*s",
+                                           int(device.size()), device.data(),
+                                           int(name.size()), name.data());
+          }));
+
+  auto push_counter = [&, this](const char* counter_name, uint64_t value) {
+    TrackId track = context_->track_tracker->InternTrack(
+        kBlueprint,
+        tracks::DimensionBlueprints(
+            base::StringView(GetRawDeviceName(evt.dev())), counter_name));
     context_->event_tracker->PushCounter(timestamp, static_cast<double>(value),
                                          track);
   };
-
   push_counter("write_app_total", evt.app_wio());
   push_counter("write_app_direct", evt.app_dio());
   push_counter("write_app_buffered", evt.app_bio());
@@ -77,18 +95,27 @@ void IostatTracker::ParseF2fsIostatLatency(int64_t timestamp,
                                            protozero::ConstBytes blob) {
   protos::pbzero::F2fsIostatLatencyFtraceEvent::Decoder evt(blob.data,
                                                             blob.size);
-  std::string tagPrefix =
-      std::string(kF2fsIostatLatencyTag) + "." + GetDeviceName(evt.dev());
-  auto push_counter = [this, timestamp, tagPrefix](const char* counter_name,
-                                                   uint64_t value) {
-    std::string track_name = tagPrefix + "." + std::string(counter_name);
-    StringId string_id = context_->storage->InternString(track_name.c_str());
-    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-        TrackTracker::Group::kIo, string_id);
+
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "f2fs_iostat_latency", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(
+          tracks::kLinuxDeviceDimensionBlueprint,
+          tracks::StringDimensionBlueprint("counter_key")),
+      tracks::FnNameBlueprint(
+          [](base::StringView device, base::StringView name) {
+            return base::StackString<1024>("f2fs_iostat_latency.[%.*s].%.*s",
+                                           int(device.size()), device.data(),
+                                           int(name.size()), name.data());
+          }));
+
+  auto push_counter = [&, this](const char* counter_name, uint64_t value) {
+    TrackId track = context_->track_tracker->InternTrack(
+        kBlueprint,
+        tracks::DimensionBlueprints(
+            base::StringView(GetRawDeviceName(evt.dev())), counter_name));
     context_->event_tracker->PushCounter(timestamp, static_cast<double>(value),
                                          track);
   };
-
   push_counter("read_data_peak", evt.d_rd_peak());
   push_counter("read_data_avg", evt.d_rd_avg());
   push_counter("read_data_cnt", evt.d_rd_cnt());
@@ -118,5 +145,4 @@ void IostatTracker::ParseF2fsIostatLatency(int64_t timestamp,
   push_counter("write_async_meta_cnt", evt.m_wr_as_cnt());
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
