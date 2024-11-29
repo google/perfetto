@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PERFETTO_CMD_PBTXT_TO_PB_H_
-#define SRC_PERFETTO_CMD_PBTXT_TO_PB_H_
+#ifndef SRC_TRACE_CONFIG_UTILS_TXT_TO_PB_H_
+#define SRC_TRACE_CONFIG_UTILS_TXT_TO_PB_H_
+
+#include "perfetto/ext/base/status_or.h"
 
 #include <stdint.h>
 
@@ -24,19 +26,10 @@
 
 namespace perfetto {
 
-class ErrorReporter {
- public:
-  ErrorReporter();
-  virtual ~ErrorReporter();
-  virtual void AddError(size_t row,
-                        size_t column,
-                        size_t size,
-                        const std::string& message) = 0;
-};
-
-std::vector<uint8_t> PbtxtToPb(const std::string& input,
-                               ErrorReporter* reporter);
+base::StatusOr<std::vector<uint8_t>> TraceConfigTxtToPb(
+    const std::string& input,
+    const std::string& file_name = "-");
 
 }  // namespace perfetto
 
-#endif  // SRC_PERFETTO_CMD_PBTXT_TO_PB_H_
+#endif  // SRC_TRACE_CONFIG_UTILS_TXT_TO_PB_H_
