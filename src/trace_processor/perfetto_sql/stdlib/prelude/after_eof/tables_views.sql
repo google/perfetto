@@ -432,7 +432,7 @@ FROM
   __intrinsic_cpu_track;
 
 -- Tracks containing counter-like events.
-CREATE PERFETTO TABLE counter_track (
+CREATE PERFETTO VIEW counter_track (
   -- Unique identifier for this cpu counter track.
   id ID,
   -- The name of the "most-specific" child table containing this row.
@@ -477,20 +477,7 @@ SELECT
   counter_unit AS unit,
   EXTRACT_ARG(source_arg_set_id, 'description') AS description
 FROM __intrinsic_track
-WHERE event_type = 'counter'
-UNION ALL
-SELECT
-  id,
-  type,
-  name,
-  parent_id,
-  classification,
-  dimension_arg_set_id,
-  source_arg_set_id,
-  machine_id,
-  unit,
-  description
-FROM __intrinsic_counter_track;
+WHERE event_type = 'counter';
 
 -- Tracks containing counter-like events associated to a CPU.
 CREATE PERFETTO TABLE cpu_counter_track (

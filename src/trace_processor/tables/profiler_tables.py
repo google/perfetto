@@ -26,7 +26,7 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import WrappingSqlView
 
-from src.trace_processor.tables.track_tables import TRACK_TABLE, COUNTER_TRACK_TABLE
+from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 PROFILER_SMAPS_TABLE = Table(
     python_module=__file__,
@@ -633,31 +633,6 @@ GPU_COUNTER_GROUP_TABLE = Table(
             'track_id': ''''''
         }))
 
-PERF_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='PerfCounterTrackTable',
-    sql_name='__intrinsic_perf_counter_track',
-    columns=[
-        C('perf_session_id', CppTableId(PERF_SESSION_TABLE)),
-        C('cpu', CppUint32()),
-        C('is_timebase', CppUint32()),
-    ],
-    parent=COUNTER_TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='Sampled counters\' values for samples in the perf_sample table.',
-        group='Counter Tracks',
-        columns={
-            'perf_session_id':
-                'id of a distict profiling stream',
-            'cpu':
-                'the core the sample was taken on',
-            'is_timebase':
-                '''
-                  If true, indicates this counter was the sampling timebase for
-                  this perf_session_id
-                '''
-        }))
-
 # Keep this list sorted.
 ALL_TABLES = [
     CPU_PROFILE_STACK_SAMPLE_TABLE,
@@ -677,5 +652,4 @@ ALL_TABLES = [
     STACK_PROFILE_MAPPING_TABLE,
     SYMBOL_TABLE,
     VULKAN_MEMORY_ALLOCATIONS_TABLE,
-    PERF_COUNTER_TRACK_TABLE,
 ]

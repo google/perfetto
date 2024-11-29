@@ -111,12 +111,6 @@ ProcessTrackTable::~ProcessTrackTable() = default;
 ThreadTrackTable::~ThreadTrackTable() = default;
 CpuTrackTable::~CpuTrackTable() = default;
 GpuTrackTable::~GpuTrackTable() = default;
-CounterTrackTable::~CounterTrackTable() = default;
-ThreadCounterTrackTable::~ThreadCounterTrackTable() = default;
-ProcessCounterTrackTable::~ProcessCounterTrackTable() = default;
-CpuCounterTrackTable::~CpuCounterTrackTable() = default;
-GpuCounterTrackTable::~GpuCounterTrackTable() = default;
-PerfCounterTrackTable::~PerfCounterTrackTable() = default;
 
 // trace_proto_tables_py.h
 ExperimentalProtoPathTable::~ExperimentalProtoPathTable() = default;

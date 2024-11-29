@@ -113,62 +113,11 @@ GPU_TRACK_TABLE = Table(
                 'The context id for the GPU this track is associated to.'
         }))
 
-COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='CounterTrackTable',
-    sql_name='__intrinsic_counter_track',
-    columns=[
-        C('unit', CppString()),
-        C('description', CppString()),
-    ],
-    parent=TRACK_TABLE)
-
-THREAD_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='ThreadCounterTrackTable',
-    sql_name='__intrinsic_thread_counter_track',
-    columns=[
-        C('utid', CppUint32()),
-    ],
-    parent=COUNTER_TRACK_TABLE)
-
-PROCESS_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='ProcessCounterTrackTable',
-    sql_name='__intrinsic_process_counter_track',
-    columns=[
-        C('upid', CppUint32()),
-    ],
-    parent=COUNTER_TRACK_TABLE)
-
-CPU_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='CpuCounterTrackTable',
-    sql_name='__intrinsic_cpu_counter_track',
-    columns=[
-        C('cpu', CppUint32()),
-    ],
-    parent=COUNTER_TRACK_TABLE)
-
-GPU_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='GpuCounterTrackTable',
-    sql_name='__intrinsic_gpu_counter_track',
-    columns=[
-        C('gpu_id', CppUint32()),
-    ],
-    parent=COUNTER_TRACK_TABLE)
-
 # Keep this list sorted.
 ALL_TABLES = [
-    COUNTER_TRACK_TABLE,
-    CPU_COUNTER_TRACK_TABLE,
     CPU_TRACK_TABLE,
-    GPU_COUNTER_TRACK_TABLE,
     GPU_TRACK_TABLE,
-    PROCESS_COUNTER_TRACK_TABLE,
     PROCESS_TRACK_TABLE,
-    THREAD_COUNTER_TRACK_TABLE,
     THREAD_TRACK_TABLE,
     TRACK_TABLE,
 ]
