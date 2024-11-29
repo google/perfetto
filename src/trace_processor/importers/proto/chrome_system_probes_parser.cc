@@ -16,71 +16,68 @@
 
 #include "src/trace_processor/importers/proto/chrome_system_probes_parser.h"
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
+#include <cstdint>
+
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
-#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
-#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 ChromeSystemProbesParser::ChromeSystemProbesParser(
     TraceProcessorContext* context)
     : context_(context),
       is_peak_rss_resettable_id_(
-          context->storage->InternString("is_peak_rss_resettable")) {
-  using ProcessStats = protos::pbzero::ProcessStats;
-  proc_stats_process_names_
-      [ProcessStats::Process::kChromePrivateFootprintKbFieldNumber] =
-          context->storage->InternString("chrome.private_footprint_kb");
-  proc_stats_process_names_
-      [ProcessStats::Process::kChromePeakResidentSetKbFieldNumber] =
-          context->storage->InternString("chrome.peak_resident_set_kb");
-}
+          context->storage->InternString("is_peak_rss_resettable")) {}
 
 void ChromeSystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::ProcessStats::Decoder stats(blob.data, blob.size);
   for (auto it = stats.processes(); it; ++it) {
     protozero::ProtoDecoder proc(*it);
-    uint32_t pid = 0;
-    for (auto fld = proc.ReadField(); fld.valid(); fld = proc.ReadField()) {
-      if (fld.id() == protos::pbzero::ProcessStats::Process::kPidFieldNumber) {
-        pid = fld.as_uint32();
-        break;
-      }
-    }
+    auto pid_field =
+        proc.FindField(protos::pbzero::ProcessStats::Process::kPidFieldNumber);
+    uint32_t pid = pid_field.as_uint32();
 
     for (auto fld = proc.ReadField(); fld.valid(); fld = proc.ReadField()) {
-      if (fld.id() == protos::pbzero::ProcessStats::Process::
-                          kIsPeakRssResettableFieldNumber) {
+      using ProcessStats = protos::pbzero::ProcessStats;
+      if (fld.id() == ProcessStats::Process::kIsPeakRssResettableFieldNumber) {
         UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
         context_->process_tracker->AddArgsTo(upid).AddArg(
             is_peak_rss_resettable_id_, Variadic::Boolean(fld.as_bool()));
         continue;
       }
-
-      if (fld.id() >= proc_stats_process_names_.size())
+      if (fld.id() ==
+          ProcessStats::Process::kChromePrivateFootprintKbFieldNumber) {
+        UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+        TrackId track = context_->track_tracker->InternTrack(
+            tracks::kChromeProcessStatsBlueprint,
+            tracks::Dimensions(upid, "private_footprint_kb"));
+        int64_t value = fld.as_int64() * 1024;
+        context_->event_tracker->PushCounter(ts, static_cast<double>(value),
+                                             track);
         continue;
-      const StringId& name = proc_stats_process_names_[fld.id()];
-      if (name == StringId::Null())
+      }
+      if (fld.id() ==
+          ProcessStats::Process::kChromePeakResidentSetKbFieldNumber) {
+        UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+        TrackId track = context_->track_tracker->InternTrack(
+            tracks::kChromeProcessStatsBlueprint,
+            tracks::Dimensions(upid, "peak_resident_set_kb"));
+        int64_t value = fld.as_int64() * 1024;
+        context_->event_tracker->PushCounter(ts, static_cast<double>(value),
+                                             track);
         continue;
-      UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-      TrackId track =
-          context_->track_tracker->LegacyInternProcessCounterTrack(name, upid);
-      int64_t value = fld.as_int64() * 1024;
-      context_->event_tracker->PushCounter(ts, static_cast<double>(value),
-                                           track);
+      }
     }
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

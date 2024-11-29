@@ -41,7 +41,9 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/export_json.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -1556,15 +1558,26 @@ class JsonExporter {
 
       // Export OS dump events for processes with relevant data.
       const auto& process_table = storage_->process_table();
+      const auto& track_table = storage_->track_table();
       for (auto pit = process_table.IterateRows(); pit; ++pit) {
         Json::Value event = FillInProcessEventDetails(event_base, pit.pid());
         Json::Value& totals = event["args"]["dumps"]["process_totals"];
 
-        const auto& process_counters = storage_->process_counter_track_table();
-
-        for (auto it = process_counters.IterateRows(); it; ++it) {
-          if (it.upid() != pit.id().value)
+        Query q;
+        q.constraints = {
+            track_table.classification().eq("chrome_process_stats"),
+        };
+        for (auto it = track_table.FilterToIterator(q); it; ++it) {
+          auto arg_set_id = it.dimension_arg_set_id();
+          if (!arg_set_id) {
             continue;
+          }
+          std::optional<Variadic> upid;
+          RETURN_IF_ERROR(storage_->ExtractArg(*arg_set_id, "upid", &upid));
+          PERFETTO_DCHECK(upid->type == Variadic::kInt);
+          if (upid->int_value != pit.id().value) {
+            continue;
+          }
           TrackId track_id = it.id();
           if (private_footprint_id && (it.name() == private_footprint_id)) {
             totals["private_footprint_bytes"] = base::Uint64ToHexStringNoPrefix(

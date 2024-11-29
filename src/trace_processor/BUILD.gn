@@ -57,6 +57,8 @@ source_set("export_json") {
     "../../include/perfetto/ext/trace_processor:export_json",
     "../base",
     "containers",
+    "db/column",
+    "importers/common",
     "importers/json:minimal",
     "storage",
     "tables",
