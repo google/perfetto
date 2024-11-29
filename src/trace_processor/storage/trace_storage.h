@@ -235,6 +235,9 @@ class TraceStorage {
   virtual StringId InternString(const std::string& str) {
     return InternString(base::StringView(str));
   }
+  virtual StringId InternString(std::string_view str) {
+    return InternString(base::StringView(str.data(), str.size()));
+  }
 
   // Example usage: SetStats(stats::android_log_num_failed, 42);
   void SetStats(size_t key, int64_t value) {
