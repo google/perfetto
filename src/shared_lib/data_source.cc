@@ -18,6 +18,7 @@
 
 #include <bitset>
 
+#include "perfetto/base/thread_annotations.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/basic_types.h"
@@ -68,8 +69,8 @@ struct PerfettoDsImpl {
   DataSourceType cpp_type;
   std::atomic<bool> enabled{false};
   std::mutex mu;
-  // Guarded by mu
-  std::bitset<perfetto::internal::kMaxDataSourceInstances> enabled_instances;
+  std::bitset<perfetto::internal::kMaxDataSourceInstances> enabled_instances
+      PERFETTO_GUARDED_BY(mu);
 
   bool IsRegistered() {
     return cpp_type.static_state()->index !=
