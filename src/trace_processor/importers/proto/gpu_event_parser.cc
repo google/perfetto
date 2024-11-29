@@ -34,6 +34,8 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -128,13 +130,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
                              "UNKNOWN_SEVERITY") /* must be last */}},
       vk_event_track_id_(context->storage->InternString("Vulkan Events")),
       vk_event_scope_id_(context->storage->InternString("vulkan_events")),
-      vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")),
-      gpu_mem_total_name_id_(context->storage->InternString("GPU Memory")),
-      gpu_mem_total_unit_id_(context->storage->InternString("bytes")),
-      gpu_mem_total_global_desc_id_(context->storage->InternString(
-          "Total GPU memory used by the entire system")),
-      gpu_mem_total_proc_desc_id_(context->storage->InternString(
-          "Total GPU memory used by this process")) {}
+      vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
 void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
@@ -181,8 +177,14 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
 
       auto name_id = context_->storage->InternString(name);
       auto desc_id = context_->storage->InternString(desc);
-      auto track_id = context_->track_tracker->LegacyCreateGpuCounterTrack(
-          name_id, 0 /* gpu_id */, desc_id, unit_id);
+      auto track_id = context_->track_tracker->InternTrack(
+          tracks::kGpuCounterBlueprint,
+          tracks::Dimensions(0 /* gpu_id */, name),
+          tracks::DynamicName(name_id),
+          [&, this](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(description_id_, Variadic::String(desc_id));
+          },
+          tracks::DynamicUnit(unit_id));
       gpu_counter_track_ids_.emplace(counter_id, track_id);
       if (spec.has_groups()) {
         for (auto group = spec.groups(); group; ++group) {
@@ -757,22 +759,20 @@ void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
 }
 
 void GpuEventParser::ParseGpuMemTotalEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::GpuMemTotalEvent::Decoder gpu_mem_total(blob.data, blob.size);
+  protos::pbzero::GpuMemTotalEvent::Decoder gpu_mem_total(blob);
 
   TrackId track = kInvalidTrackId;
   const uint32_t pid = gpu_mem_total.pid();
   if (pid == 0) {
     // Pid 0 is used to indicate the global total
-    track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-        TrackTracker::Group::kMemory, gpu_mem_total_name_id_, {},
-        gpu_mem_total_unit_id_, gpu_mem_total_global_desc_id_);
+    track =
+        context_->track_tracker->InternTrack(tracks::kGlobalGpuMemoryBlueprint);
   } else {
     // Process emitting the packet can be different from the pid in the event.
     UniqueTid utid = context_->process_tracker->UpdateThread(pid, pid);
     UniquePid upid = context_->storage->thread_table()[utid].upid().value_or(0);
-    track = context_->track_tracker->LegacyInternProcessCounterTrack(
-        gpu_mem_total_name_id_, upid, gpu_mem_total_unit_id_,
-        gpu_mem_total_proc_desc_id_);
+    track = context_->track_tracker->InternTrack(
+        tracks::kProcessGpuMemoryBlueprint, tracks::Dimensions(upid));
   }
   context_->event_tracker->PushCounter(
       ts, static_cast<double>(gpu_mem_total.size()), track);
