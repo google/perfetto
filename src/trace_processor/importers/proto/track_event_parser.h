@@ -125,10 +125,7 @@ class TrackEventParser {
   const StringId event_name_key_id_;
 
   ChromeStringLookup chrome_string_lookup_;
-  std::array<StringId, 4> counter_unit_ids_;
-
   std::vector<uint32_t> reflect_fields_;
-
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
 };
 

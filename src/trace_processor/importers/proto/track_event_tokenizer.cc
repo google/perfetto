@@ -73,7 +73,10 @@ TrackEventTokenizer::TrackEventTokenizer(TraceProcessorContext* context,
       counter_name_thread_time_id_(
           context_->storage->InternString("thread_time")),
       counter_name_thread_instruction_count_id_(
-          context_->storage->InternString("thread_instruction_count")) {}
+          context_->storage->InternString("thread_instruction_count")),
+      counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
+                         context_->storage->InternString("count"),
+                         context_->storage->InternString("bytes")}} {}
 
 ModuleResult TrackEventTokenizer::TokenizeRangeOfInterestPacket(
     RefPtr<PacketSequenceStateGeneration> /*state*/,
@@ -227,18 +230,32 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     reservation.is_counter = true;
+    reservation.counter_details =
+        TrackEventTracker::DescriptorTrackReservation::CounterDetails{};
 
-    TrackEventTracker::DescriptorTrackReservation::CounterDetails
-        counter_details;
+    auto& counter_details = *reservation.counter_details;
     counter_details.category = category_id;
     counter_details.is_incremental = counter.is_incremental();
     counter_details.unit_multiplier = counter.unit_multiplier();
 
-    // Incrementally encoded counters are only valid on a single sequence.
-    if (counter.is_incremental())
-      counter_details.packet_sequence_id = packet.trusted_packet_sequence_id();
+    auto unit = static_cast<uint32_t>(counter.unit());
+    if (counter.type() == CounterDescriptor::COUNTER_THREAD_TIME_NS) {
+      counter_details.unit = counter_unit_ids_[CounterDescriptor::UNIT_TIME_NS];
+    } else if (counter.type() ==
+               CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT) {
+      counter_details.unit = counter_unit_ids_[CounterDescriptor::UNIT_COUNT];
+    } else if (unit < counter_unit_ids_.size() &&
+               unit != CounterDescriptor::COUNTER_UNSPECIFIED) {
+      counter_details.unit = counter_unit_ids_[unit];
+    } else {
+      counter_details.unit =
+          context_->storage->InternString(counter.unit_name());
+    }
 
-    reservation.counter_details = std::move(counter_details);
+    // Incrementally encoded counters are only valid on a single sequence.
+    if (counter.is_incremental()) {
+      counter_details.packet_sequence_id = packet.trusted_packet_sequence_id();
+    }
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
     return ModuleResult::Ignored();

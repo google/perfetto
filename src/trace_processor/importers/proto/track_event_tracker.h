@@ -25,9 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -47,11 +45,12 @@ class TrackEventTracker {
       kExplicit = 3,
     };
     struct CounterDetails {
-      StringId category;
+      StringId category = kNullStringId;
       int64_t unit_multiplier = 1;
       bool is_incremental = false;
       uint32_t packet_sequence_id = 0;
       double latest_value = 0;
+      StringId unit = kNullStringId;
 
       bool operator==(const CounterDetails& o) const {
         return std::tie(category, unit_multiplier, is_incremental,
@@ -189,7 +188,10 @@ class TrackEventTracker {
   std::optional<TrackId> GetDescriptorTrackImpl(
       uint64_t uuid,
       std::optional<uint32_t> packet_sequence_id = std::nullopt);
-  TrackId CreateTrackFromResolved(const ResolvedDescriptorTrack&);
+  TrackId CreateTrackFromResolved(uint64_t uuid,
+                                  std::optional<uint32_t> packet_sequence_id,
+                                  const DescriptorTrackReservation&,
+                                  const ResolvedDescriptorTrack&);
   std::optional<ResolvedDescriptorTrack> ResolveDescriptorTrack(
       uint64_t uuid,
       std::vector<uint64_t>* descendent_uuids);
@@ -197,6 +199,12 @@ class TrackEventTracker {
       uint64_t uuid,
       const DescriptorTrackReservation&,
       std::vector<uint64_t>* descendent_uuids);
+
+  void AddTrackArgs(uint64_t uuid,
+                    std::optional<uint32_t> packet_sequence_id,
+                    const DescriptorTrackReservation&,
+                    const ResolvedDescriptorTrack&,
+                    ArgsTracker::BoundInserter&);
 
   static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 
