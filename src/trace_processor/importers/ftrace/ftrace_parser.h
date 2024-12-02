@@ -17,14 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_PARSER_H_
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
-
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
@@ -41,8 +47,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class FtraceParser {
  public:
@@ -164,10 +169,6 @@ class FtraceParser {
   void ParseClockSetRate(int64_t timestamp, protozero::ConstBytes);
   void ParseClockEnable(int64_t timestamp, protozero::ConstBytes);
   void ParseClockDisable(int64_t timestamp, protozero::ConstBytes);
-  void ClockRate(int64_t timestamp,
-                 base::StringView clock_name,
-                 base::StringView subtitle,
-                 uint64_t rate);
   void ParseScmCallStart(int64_t timestamp,
                          uint32_t pid,
                          protozero::ConstBytes);
@@ -335,29 +336,14 @@ class FtraceParser {
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
-  const StringId linux_device_name_id_;
   const StringId suspend_resume_name_id_;
   const StringId suspend_resume_minimal_name_id_;
   const StringId suspend_resume_minimal_slice_name_id_;
-  const StringId kfree_skb_name_id_;
   const StringId ion_total_id_;
   const StringId ion_change_id_;
   const StringId ion_buffer_id_;
-  const StringId dma_heap_total_id_;
-  const StringId dma_heap_change_id_;
   const StringId dma_buffer_id_;
   const StringId inode_arg_id_;
-  const StringId ion_total_unknown_id_;
-  const StringId ion_change_unknown_id_;
-  const StringId bcl_irq_id_;
-  const StringId bcl_irq_throttle_;
-  const StringId bcl_irq_cpu0_;
-  const StringId bcl_irq_cpu1_;
-  const StringId bcl_irq_cpu2_;
-  const StringId bcl_irq_tpu_;
-  const StringId bcl_irq_gpu_;
-  const StringId bcl_irq_voltage_;
-  const StringId bcl_irq_capacity_;
   const StringId signal_generate_id_;
   const StringId signal_deliver_id_;
   const StringId oom_score_adj_id_;
@@ -379,18 +365,12 @@ class FtraceParser {
   const StringId direct_reclaim_may_writepage_id_;
   const StringId direct_reclaim_gfp_flags_id_;
   const StringId vec_arg_id_;
-  const StringId gpu_mem_total_name_id_;
-  const StringId gpu_mem_total_unit_id_;
-  const StringId gpu_mem_total_global_desc_id_;
-  const StringId gpu_mem_total_proc_desc_id_;
   const StringId io_wait_id_;
   const StringId function_id_;
   const StringId waker_utid_id_;
   const StringId cros_ec_arg_num_id_;
   const StringId cros_ec_arg_ec_id_;
   const StringId cros_ec_arg_sample_ts_id_;
-  const StringId ufs_clkgating_id_;
-  const StringId ufs_command_count_id_;
   const StringId shrink_slab_id_;
   const StringId shrink_name_id_;
   const StringId shrink_total_scan_id_;
@@ -434,7 +414,6 @@ class FtraceParser {
   const StringId suspend_resume_event_type_arg_name_;
   const StringId device_name_id_;
   const StringId block_io_id_;
-  const StringId block_io_device_id_;
   const StringId block_io_arg_sector_id_;
 
   std::vector<StringId> syscall_arg_name_ids_;
@@ -456,19 +435,15 @@ class FtraceParser {
     StringId avg_lat = kNullStringId;
   };
 
-  static constexpr size_t kFastRpcCounterSize = 4;
-  std::array<StringId, kFastRpcCounterSize> fast_rpc_delta_names_;
-  std::array<StringId, kFastRpcCounterSize> fast_rpc_total_names_;
-
   // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.
   static constexpr size_t kMmEventCounterSize = 7;
   std::array<MmEventCounterNames, kMmEventCounterSize> mm_event_counter_names_;
 
   // Record number of received bytes from the network interface card.
-  std::unordered_map<StringId, uint64_t> nic_received_bytes_;
+  std::unordered_map<std::string, uint64_t> nic_received_bytes_;
 
   // Record number of transmitted bytes to the network interface card.
-  std::unordered_map<StringId, uint64_t> nic_transmitted_bytes_;
+  std::unordered_map<std::string, uint64_t> nic_transmitted_bytes_;
 
   // Record number of kfree_skb with ip protocol.
   uint64_t num_of_kfree_skb_ip_prot = 0;
@@ -518,7 +493,7 @@ class FtraceParser {
 
   // Tracks Linux devices with active runtime power management (RPM) status
   // slices.
-  std::unordered_set<StringId> devices_with_active_rpm_slice_;
+  std::unordered_set<TrackId> active_rpm_tracks_;
 
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
@@ -533,7 +508,6 @@ class FtraceParser {
       inode_offset_thread_map_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_PARSER_H_
