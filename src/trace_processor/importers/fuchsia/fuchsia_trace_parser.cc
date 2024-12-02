@@ -15,17 +15,30 @@
  */
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 // Record Types
@@ -55,6 +68,13 @@ constexpr uint32_t kString = 6;
 constexpr uint32_t kPointer = 7;
 constexpr uint32_t kKoid = 8;
 constexpr uint32_t kBool = 9;
+
+constexpr auto kCounterBlueprint = tracks::CounterBlueprint(
+    "fuchsia_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
+                                tracks::kNameFromTraceDimensionBlueprint),
+    tracks::DynamicNameBlueprint());
 
 }  // namespace
 
@@ -329,11 +349,13 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
                 break;
             }
             if (is_valid_value) {
-              StringId counter_name_id = context_->storage->InternString(
-                  base::StringView(counter_name_str));
-              TrackId track =
-                  context_->track_tracker->LegacyInternProcessCounterTrack(
-                      counter_name_id, upid);
+              base::StringView counter_name_str_view(counter_name_str);
+              StringId counter_name_id =
+                  context_->storage->InternString(counter_name_str_view);
+              TrackId track = context_->track_tracker->InternTrack(
+                  kCounterBlueprint,
+                  tracks::Dimensions(upid, counter_name_str_view),
+                  tracks::DynamicName(counter_name_id));
               context_->event_tracker->PushCounter(ts, counter_value, track);
             }
           }
@@ -470,5 +492,4 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

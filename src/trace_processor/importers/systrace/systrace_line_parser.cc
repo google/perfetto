@@ -19,23 +19,30 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
+#include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/task_state.h"
 
 #include <cctype>
-#include <cinttypes>
+#include <cstdint>
+#include <cstdlib>
+#include <optional>
 #include <string>
+#include <utility>
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
     : context_(ctx),
@@ -136,9 +143,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
       return util::Status("Could not convert state");
     }
 
-    TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_frequency, event_cpu.value(),
-        TrackTracker::LegacyCharArrayName{"cpufreq"});
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::kCpuFrequencyBlueprint, tracks::Dimensions(event_cpu.value()));
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "cpu_idle") {
     std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
@@ -150,8 +156,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
       return util::Status("Could not convert state");
     }
 
-    TrackId track = context_->track_tracker->InternCpuCounterTrack(
-        tracks::cpu_idle, event_cpu.value());
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::kCpuIdleBlueprint, tracks::Dimensions(event_cpu.value()));
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "binder_transaction") {
     auto id = base::StringToInt32(args["transaction"]);
@@ -217,20 +223,24 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
     BinderTracker::GetOrCreate(context_)->TransactionAllocBuf(
         line.ts, line.pid, data_size.value(), offsets_size.value());
-  } else if (line.event_name == "clock_set_rate" ||
-             line.event_name == "clock_enable" ||
-             line.event_name == "clock_disable") {
-    std::string subtitle =
-        line.event_name == "clock_set_rate" ? " Frequency" : " State";
+  } else if (line.event_name == "clock_set_rate") {
     auto rate = base::StringToUInt32(args["state"]);
     if (!rate.has_value()) {
       return util::Status("Could not convert state");
     }
-    std::string clock_name_str = args["name"] + subtitle;
-    StringId clock_name =
-        context_->storage->InternString(base::StringView(clock_name_str));
-    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-        TrackTracker::Group::kClockFrequency, clock_name);
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::kClockFrequencyBlueprint,
+        tracks::Dimensions(base::StringView(args["name"])));
+    context_->event_tracker->PushCounter(line.ts, rate.value(), track);
+  } else if (line.event_name == "clock_enable" ||
+             line.event_name == "clock_disable") {
+    auto rate = base::StringToUInt32(args["state"]);
+    if (!rate.has_value()) {
+      return util::Status("Could not convert state");
+    }
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::kClockStateBlueprint,
+        tracks::Dimensions(base::StringView(args["name"])));
     context_->event_tracker->PushCounter(line.ts, rate.value(), track);
   } else if (line.event_name == "workqueue_execute_start") {
     auto split = base::SplitString(line.args_str, "function ");
@@ -242,22 +252,18 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     TrackId track = context_->track_tracker->InternThreadTrack(utid);
     context_->slice_tracker->End(line.ts, track, workqueue_name_id_);
   } else if (line.event_name == "thermal_temperature") {
-    std::string thermal_zone = args["thermal_zone"] + " Temperature";
-    StringId track_name =
-        context_->storage->InternString(base::StringView(thermal_zone));
-    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-        TrackTracker::Group::kThermals, track_name);
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::kThermalTemperatureBlueprint,
+        tracks::Dimensions(base::StringView(args["thermal_zone"])));
     auto temp = base::StringToInt32(args["temp"]);
     if (!temp.has_value()) {
       return util::Status("Could not convert temp");
     }
     context_->event_tracker->PushCounter(line.ts, temp.value(), track);
   } else if (line.event_name == "cdev_update") {
-    std::string type = args["type"] + " Cooling Device";
-    StringId track_name =
-        context_->storage->InternString(base::StringView(type));
-    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-        TrackTracker::Group::kThermals, track_name);
+    TrackId track = context_->track_tracker->InternTrack(
+        tracks::kCoolingDeviceCounterBlueprint,
+        tracks::Dimensions(base::StringView(args["type"])));
     auto target = base::StringToDouble(args["target"]);
     if (!target.has_value()) {
       return util::Status("Could not convert target");
@@ -300,5 +306,4 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   return util::OkStatus();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
