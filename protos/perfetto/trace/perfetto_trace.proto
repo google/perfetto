@@ -582,7 +582,7 @@ message AndroidSdkSyspropGuardConfig {
   //   - debug.tracing.ctl.renderengine.skia_use_perfetto_track_events
   //
   // Does not affect actual track_event data *collection*, which must be
-  // configured seperately.
+  // configured separately.
   optional bool surfaceflinger_skia_track_events = 1;
 
   // If true, configures HWUI apps to initialize Skia's Perfetto integration
@@ -603,7 +603,7 @@ message AndroidSdkSyspropGuardConfig {
   //   - debug.tracing.ctl.hwui.skia_use_perfetto_track_events.<package.name>
   //
   // Does not affect actual track_event data *collection*, which must be
-  // configured seperately.
+  // configured separately.
   optional bool hwui_skia_track_events = 2;
 
   // If non-empty, hwui_skia_track_events applies to only the packages listed.
@@ -3819,7 +3819,7 @@ message TraceConfig {
     // that case we don't want to retain another in-memory copy of the buffer.
     optional bool transfer_on_clone = 5;
 
-    // Used in conjuction with transfer_on_clone. When true the buffer is
+    // Used in conjunction with transfer_on_clone. When true the buffer is
     // cleared before issuing the Flush(reason=kTraceClone). This is to ensure
     // that if the data source took too long to write the data in a previous
     // clone-related flush, we don't end up with a mixture of leftovers from
