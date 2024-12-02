@@ -26,7 +26,7 @@ CREATE PERFETTO VIEW counter(
   -- Value.
   value DOUBLE,
   -- Additional information about the counter value.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Legacy column, should no longer be used.
   type STRING
 ) AS
@@ -67,9 +67,9 @@ CREATE PERFETTO VIEW slice(
   -- The stack_id for the parent of this slice. Rarely useful.
   parent_stack_id LONG,
   -- The id of the parent (i.e. immediate ancestor) slice for this slice.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- The id of the argument set associated with this slice.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- The thread timestamp at the start of the slice. This column will only be
   -- populated if thread timestamp collection is enabled with track_event.
   thread_ts TIMESTAMP,
@@ -103,7 +103,7 @@ CREATE PERFETTO VIEW instant(
   -- instant.
   name STRING,
   -- The id of the argument set associated with this instant.
-  arg_set_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT ts, track_id, name, arg_set_id
 FROM slice
@@ -134,7 +134,7 @@ CREATE PERFETTO VIEW slices(
   -- Alias of `slice.parent_id`.
   parent_id JOINID(slice.id),
   -- Alias of `slice.arg_set_id`.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Alias of `slice.thread_ts`.
   thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
@@ -217,7 +217,7 @@ CREATE PERFETTO VIEW process(
   -- /proc/cmdline for this process.
   cmdline STRING,
   -- Extra args for this process.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Machine identifier, non-null for processes on a remote machine.
   machine_id LONG
 ) AS
@@ -234,7 +234,7 @@ CREATE PERFETTO VIEW args(
   -- The name of the "most-specific" child table containing this row.
   type STRING,
   -- The id for a single set of arguments.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- The "flat key" of the arg: this is the key without any array indexes.
   flat_key STRING,
   -- The key for the arg.

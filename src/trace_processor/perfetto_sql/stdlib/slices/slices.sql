@@ -49,9 +49,9 @@ CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
   -- Alias for `slice.depth`.
   depth LONG,
   -- Alias for `slice.parent_id`.
-  parent_id LONG,
+  parent_id JOINID(slice.id),
   -- Alias for `slice.arg_set_id`.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Alias for `slice.thread_ts`.
   thread_ts TIMESTAMP,
   -- Alias for `slice.thread_dur`.

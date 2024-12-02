@@ -206,7 +206,7 @@ CREATE PERFETTO VIEW android_thread_slices_for_all_startups(
   -- Whether it is main thread.
   is_main_thread BOOL,
   -- Arg set id.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Slice id.
   slice_id JOINID(slice.id),
   -- Name of slice.
@@ -254,7 +254,7 @@ RETURNS TABLE(
   -- Tid of the thread with the slice.
   tid  LONG,
   -- Arg set id.
-  arg_set_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT slice_id, slice_name, slice_ts, slice_dur, thread_name, tid, arg_set_id
 FROM android_thread_slices_for_all_startups
@@ -276,7 +276,7 @@ RETURNS TABLE(
   -- Name of the process with slice.
   process STRING,
   -- Arg set id.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Whether is main thread.
   is_main_thread BOOL
 ) AS
