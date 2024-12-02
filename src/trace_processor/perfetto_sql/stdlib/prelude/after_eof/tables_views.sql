@@ -61,15 +61,15 @@ CREATE PERFETTO VIEW track (
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
-  dimension_arg_set_id LONG,
+  dimension_arg_set_id ARGSETID,
   -- The track which is the "parent" of this track. Only non-null for tracks
   -- created using Perfetto's track_event API.
-  parent_id LONG,
+  parent_id JOINID(track.id),
   -- Generic key-value pairs containing extra information about the track.
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG
 ) AS
@@ -108,7 +108,7 @@ CREATE PERFETTO VIEW cpu (
   -- https://www.kernel.org/doc/Documentation/devicetree/bindings/arm/cpu-capacity.txt
   capacity LONG,
   -- Extra key/value pairs associated with this cpu.
-  arg_set_id LONG
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
@@ -253,7 +253,7 @@ CREATE PERFETTO VIEW thread_state (
   -- The unique thread id of the thread which caused a wakeup of this thread.
   waker_utid JOINID(thread.id),
   -- The unique thread state id which caused a wakeup of this thread.
-  waker_id LONG,
+  waker_id JOINID(thread_state.id),
   -- Whether the wakeup was from interrupt context or process context.
   irq_context LONG,
   -- The unique CPU identifier that the thread executed on.
@@ -296,7 +296,7 @@ CREATE PERFETTO VIEW raw (
   -- The thread this event was emitted on.
   utid JOINID(thread.id),
   -- The set of key/value pairs associated with this event.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Ftrace event flags for this event. Currently only emitted for sched_waking
   -- events.
   common_flags LONG,
@@ -336,7 +336,7 @@ CREATE PERFETTO VIEW ftrace_event (
   -- The thread this event was emitted on.
   utid JOINID(thread.id),
   -- The set of key/value pairs associated with this event.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Ftrace event flags for this event. Currently only emitted for
   -- sched_waking events.
   common_flags LONG,
@@ -414,7 +414,7 @@ CREATE PERFETTO VIEW cpu_track (
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The CPU that the track is associated with.
@@ -453,14 +453,11 @@ CREATE PERFETTO TABLE counter_track (
   classification STRING,
   -- The dimensions of the track which uniquely identify the track within a
   -- given classification.
-  --
-  -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
-  -- expand the args.
-  dimension_arg_set_id LONG,
+  dimension_arg_set_id ARGSETID,
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The units of the counter. This column is rarely filled.
@@ -509,7 +506,7 @@ CREATE PERFETTO TABLE cpu_counter_track (
   -- Args for this track which store information about "source" of this track in
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
-  source_arg_set_id LONG,
+  source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
   machine_id LONG,
   -- The units of the counter. This column is rarely filled.

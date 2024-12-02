@@ -51,7 +51,7 @@ CREATE PERFETTO VIEW thread_slice(
   -- Alias for `slice.parent_id`.
   parent_id JOINID(slice.id),
   -- Alias for `slice.arg_set_id`.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Alias for `slice.thread_ts`.
   thread_ts TIMESTAMP,
   -- Alias for `slice.thread_dur`.
@@ -113,7 +113,7 @@ CREATE PERFETTO VIEW process_slice(
   -- Alias for `slice.parent_id`.
   parent_id JOINID(slice.id),
   -- Alias for `slice.arg_set_id`.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Alias for `slice.thread_ts`.
   thread_ts TIMESTAMP,
   -- Alias for `slice.thread_dur`.

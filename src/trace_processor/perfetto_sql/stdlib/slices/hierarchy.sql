@@ -38,7 +38,7 @@ RETURNS TABLE(
   -- Alias of `slice.parent_id`.
   parent_id JOINID(slice.id),
   -- Alias of `slice.arg_set_id`.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Alias of `slice.thread_ts`.
   thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
@@ -78,7 +78,7 @@ RETURNS TABLE(
   -- Alias of `slice.parent_id`.
   parent_id JOINID(slice.id),
   -- Alias of `slice.arg_set_id`.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Alias of `slice.thread_ts`.
   thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
