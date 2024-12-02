@@ -31,6 +31,7 @@ source_set("systrace_parser") {
     "../../../../gn:default_deps",
     "../../containers",
     "../../storage",
+    "../../tables",
     "../../types",
     "../common",
   ]

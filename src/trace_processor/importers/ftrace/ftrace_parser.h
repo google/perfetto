@@ -346,7 +346,6 @@ class FtraceParser {
   const StringId inode_arg_id_;
   const StringId signal_generate_id_;
   const StringId signal_deliver_id_;
-  const StringId oom_score_adj_id_;
   const StringId lmk_id_;
   const StringId comm_name_id_;
   const StringId signal_name_id_;

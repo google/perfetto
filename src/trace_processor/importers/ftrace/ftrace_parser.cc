@@ -329,6 +329,27 @@ std::string ConstructCallbackPhaseName(const std::string& pm_ops,
   return callback_phase;
 }
 
+const char* GetMmEventTypeStr(uint32_t type) {
+  switch (type) {
+    case 0:
+      return "min_flt";
+    case 1:
+      return "maj_flt";
+    case 2:
+      return "read_io";
+    case 3:
+      return "compaction";
+    case 4:
+      return "reclaim";
+    case 5:
+      return "swp_flt";
+    case 6:
+      return "kern_alloc";
+    default:
+      return nullptr;
+  }
+}
+
 }  // namespace
 
 FtraceParser::FtraceParser(TraceProcessorContext* context)
@@ -358,7 +379,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       inode_arg_id_(context->storage->InternString("inode")),
       signal_generate_id_(context->storage->InternString("signal_generate")),
       signal_deliver_id_(context->storage->InternString("signal_deliver")),
-      oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       lmk_id_(context->storage->InternString("mem.lmk")),
       comm_name_id_(context->storage->InternString("comm")),
       signal_name_id_(context_->storage->InternString("signal.sig")),
@@ -2133,15 +2153,14 @@ void FtraceParser::ParseSignalDeliver(int64_t timestamp,
 }
 
 void FtraceParser::ParseOOMScoreAdjUpdate(int64_t timestamp, ConstBytes blob) {
-  protos::pbzero::OomScoreAdjUpdateFtraceEvent::Decoder evt(blob.data,
-                                                            blob.size);
+  protos::pbzero::OomScoreAdjUpdateFtraceEvent::Decoder evt(blob);
   // The int16_t static cast is because older version of the on-device tracer
   // had a bug on negative varint encoding (b/120618641).
-  int16_t oom_adj = static_cast<int16_t>(evt.oom_score_adj());
-  uint32_t tid = static_cast<uint32_t>(evt.pid());
+  auto oom_adj = static_cast<int16_t>(evt.oom_score_adj());
+  auto tid = static_cast<uint32_t>(evt.pid());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  context_->event_tracker->PushProcessCounterForThread(timestamp, oom_adj,
-                                                       oom_score_adj_id_, utid);
+  context_->event_tracker->PushProcessCounterForThread(
+      EventTracker::OomScoreAdj(), timestamp, oom_adj, utid);
 }
 
 void FtraceParser::ParseOOMKill(int64_t timestamp, ConstBytes blob) {
@@ -2156,22 +2175,24 @@ void FtraceParser::ParseOOMKill(int64_t timestamp, ConstBytes blob) {
 void FtraceParser::ParseMmEventRecord(int64_t timestamp,
                                       uint32_t pid,
                                       ConstBytes blob) {
-  protos::pbzero::MmEventRecordFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::MmEventRecordFtraceEvent::Decoder evt(blob);
+
   uint32_t type = evt.type();
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  if (type >= mm_event_counter_names_.size()) {
+  const char* type_str = GetMmEventTypeStr(type);
+  if (!type_str) {
     context_->storage->IncrementStats(stats::mm_unknown_type);
     return;
   }
-
-  const auto& counter_names = mm_event_counter_names_[type];
   context_->event_tracker->PushProcessCounterForThread(
-      timestamp, evt.count(), counter_names.count, utid);
+      EventTracker::MmEvent{type_str, "count"}, timestamp, evt.count(), utid);
   context_->event_tracker->PushProcessCounterForThread(
-      timestamp, evt.max_lat(), counter_names.max_lat, utid);
+      EventTracker::MmEvent{type_str, "max_lat"}, timestamp, evt.max_lat(),
+      utid);
   context_->event_tracker->PushProcessCounterForThread(
-      timestamp, evt.avg_lat(), counter_names.avg_lat, utid);
+      EventTracker::MmEvent{type_str, "avg_lat"}, timestamp, evt.avg_lat(),
+      utid);
 }
 
 void FtraceParser::ParseSysEnterEvent(int64_t timestamp,
