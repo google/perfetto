@@ -322,16 +322,17 @@ export default class implements PerfettoPlugin {
 
   async addProcessCounterTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
-    select
-      process_counter_track.id as trackId,
-      process_counter_track.name as trackName,
-      upid,
-      process.pid,
-      process.name as processName
-    from process_counter_track
-    join _counter_track_summary using (id)
-    join process using(upid);
-  `);
+      select
+        process_counter_track.id as trackId,
+        process_counter_track.name as trackName,
+        upid,
+        process.pid,
+        process.name as processName
+      from process_counter_track
+      join _counter_track_summary using (id)
+      join process using(upid)
+      order by trackName;
+    `);
     const it = result.iter({
       trackId: NUM,
       trackName: STR_NULL,
