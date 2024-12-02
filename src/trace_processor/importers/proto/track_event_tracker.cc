@@ -33,12 +33,38 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
+
+namespace {
+
+constexpr auto kThreadCounterTrackBlueprint = tracks::CounterBlueprint(
+    "thread_counter_track_event",
+    tracks::DynamicUnitBlueprint(),
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint,
+                                tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kProcessCounterTrackBlueprint = tracks::CounterBlueprint(
+    "process_counter_track_event",
+    tracks::DynamicUnitBlueprint(),
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
+                                tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kGlobalCounterTrackBlueprint = tracks::CounterBlueprint(
+    "global_track_event",
+    tracks::DynamicUnitBlueprint(),
+    tracks::DimensionBlueprints(tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+}  // namespace
 
 TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
@@ -135,58 +161,31 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
     parent_id = GetDescriptorTrackImpl(reservation.parent_uuid);
   }
 
-  TrackId track_id = CreateTrackFromResolved(*resolved_track);
+  TrackId track_id = CreateTrackFromResolved(uuid, packet_sequence_id,
+                                             reservation, *resolved_track);
   descriptor_tracks_[uuid] = track_id;
 
-  auto args = context_->args_tracker->AddArgsTo(track_id);
-  args.AddArg(source_key_, Variadic::String(descriptor_source_))
-      .AddArg(source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)))
-      .AddArg(is_root_in_scope_key_,
-              Variadic::Boolean(resolved_track->is_root_in_scope()));
-  if (reservation.counter_details &&
-      !reservation.counter_details->category.is_null())
-    args.AddArg(category_key_,
-                Variadic::String(reservation.counter_details->category));
-  if (packet_sequence_id &&
-      sequences_with_first_packet_.find(*packet_sequence_id) !=
-          sequences_with_first_packet_.end()) {
-    args.AddArg(has_first_packet_on_sequence_key_id_, Variadic::Boolean(true));
-  }
-
-  switch (reservation.ordering) {
-    case DescriptorTrackReservation::ChildTracksOrdering::kLexicographic:
-      args.AddArg(child_ordering_key_, Variadic::String(lexicographic_id_));
-      break;
-    case DescriptorTrackReservation::ChildTracksOrdering::kChronological:
-      args.AddArg(child_ordering_key_, Variadic::String(chronological_id_));
-      break;
-    case DescriptorTrackReservation::ChildTracksOrdering::kExplicit:
-      args.AddArg(child_ordering_key_, Variadic::String(explicit_id_));
-      break;
-    case DescriptorTrackReservation::ChildTracksOrdering::kUnknown:
-      break;
-  }
-
-  if (reservation.sibling_order_rank) {
-    args.AddArg(sibling_order_rank_key_,
-                Variadic::Integer(*reservation.sibling_order_rank));
-  }
-
   auto row_ref = *context_->storage->mutable_track_table()->FindById(track_id);
+  if (!row_ref.source_arg_set_id().has_value()) {
+    auto inserter = context_->args_tracker->AddArgsTo(track_id);
+    AddTrackArgs(uuid, packet_sequence_id, reservation, *resolved_track,
+                 inserter);
+  }
   if (parent_id) {
     row_ref.set_parent_id(*parent_id);
   }
-
-  if (reservation.name.is_null())
-    return track_id;
-
-  // Initialize the track name here, so that, if a name was given in the
-  // reservation, it is set immediately after resolution takes place.
-  row_ref.set_name(reservation.name);
+  if (!reservation.name.is_null()) {
+    // Initialize the track name here, so that, if a name was given in the
+    // reservation, it is set immediately after resolution takes place.
+    row_ref.set_name(reservation.name);
+  }
   return track_id;
 }
 
 TrackId TrackEventTracker::CreateTrackFromResolved(
+    uint64_t uuid,
+    std::optional<uint32_t> packet_sequence_id,
+    const DescriptorTrackReservation& reservation,
     const ResolvedDescriptorTrack& track) {
   if (track.is_root_in_scope()) {
     switch (track.scope()) {
@@ -215,15 +214,35 @@ TrackId TrackEventTracker::CreateTrackFromResolved(
   if (track.is_counter()) {
     switch (track.scope()) {
       case ResolvedDescriptorTrack::Scope::kThread:
-        return context_->track_tracker->CreateThreadCounterTrack(
-            tracks::track_event, track.utid(), TrackTracker::AutoName());
+        return context_->track_tracker->InternTrack(
+            kThreadCounterTrackBlueprint,
+            tracks::Dimensions(track.utid(), static_cast<int64_t>(uuid)),
+            tracks::DynamicName(kNullStringId),
+            [&, this](ArgsTracker::BoundInserter& inserter) {
+              AddTrackArgs(uuid, packet_sequence_id, reservation, track,
+                           inserter);
+            },
+            tracks::DynamicUnit(reservation.counter_details->unit));
       case ResolvedDescriptorTrack::Scope::kProcess:
-        return context_->track_tracker->CreateProcessCounterTrack(
-            tracks::track_event, track.upid(), std::nullopt,
-            TrackTracker::AutoName());
+        return context_->track_tracker->InternTrack(
+            kProcessCounterTrackBlueprint,
+            tracks::Dimensions(track.upid(), static_cast<int64_t>(uuid)),
+            tracks::DynamicName(kNullStringId),
+            [&, this](ArgsTracker::BoundInserter& inserter) {
+              AddTrackArgs(uuid, packet_sequence_id, reservation, track,
+                           inserter);
+            },
+            tracks::DynamicUnit(reservation.counter_details->unit));
       case ResolvedDescriptorTrack::Scope::kGlobal:
-        return context_->track_tracker->CreateCounterTrack(
-            tracks::track_event, std::nullopt, TrackTracker::AutoName());
+        return context_->track_tracker->InternTrack(
+            kGlobalCounterTrackBlueprint,
+            tracks::Dimensions(static_cast<int64_t>(uuid)),
+            tracks::DynamicName(kNullStringId),
+            [&, this](ArgsTracker::BoundInserter& inserter) {
+              AddTrackArgs(uuid, packet_sequence_id, reservation, track,
+                           inserter);
+            },
+            tracks::DynamicUnit(reservation.counter_details->unit));
     }
   }
 
@@ -518,6 +537,46 @@ void TrackEventTracker::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
 
 void TrackEventTracker::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
   sequences_with_first_packet_.insert(packet_sequence_id);
+}
+
+void TrackEventTracker::AddTrackArgs(
+    uint64_t uuid,
+    std::optional<uint32_t> packet_sequence_id,
+    const DescriptorTrackReservation& reservation,
+    const ResolvedDescriptorTrack& track,
+    ArgsTracker::BoundInserter& args) {
+  args.AddArg(source_key_, Variadic::String(descriptor_source_))
+      .AddArg(source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)))
+      .AddArg(is_root_in_scope_key_,
+              Variadic::Boolean(track.is_root_in_scope()));
+  if (reservation.counter_details &&
+      !reservation.counter_details->category.is_null())
+    args.AddArg(category_key_,
+                Variadic::String(reservation.counter_details->category));
+  if (packet_sequence_id &&
+      sequences_with_first_packet_.find(*packet_sequence_id) !=
+          sequences_with_first_packet_.end()) {
+    args.AddArg(has_first_packet_on_sequence_key_id_, Variadic::Boolean(true));
+  }
+
+  switch (reservation.ordering) {
+    case DescriptorTrackReservation::ChildTracksOrdering::kLexicographic:
+      args.AddArg(child_ordering_key_, Variadic::String(lexicographic_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kChronological:
+      args.AddArg(child_ordering_key_, Variadic::String(chronological_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kExplicit:
+      args.AddArg(child_ordering_key_, Variadic::String(explicit_id_));
+      break;
+    case DescriptorTrackReservation::ChildTracksOrdering::kUnknown:
+      break;
+  }
+
+  if (reservation.sibling_order_rank) {
+    args.AddArg(sibling_order_rank_key_,
+                Variadic::Integer(*reservation.sibling_order_rank));
+  }
 }
 
 TrackEventTracker::ResolvedDescriptorTrack
