@@ -27,7 +27,7 @@ CREATE PERFETTO VIEW android_statsd_atoms(
   -- The duration of the slice.
   dur DURATION,
   -- The id of the argument set associated with this slice.
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- The value of the CPU instruction counter at the start of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
   thread_instruction_count LONG,
   -- The change in value of the CPU instruction counter between the start and end of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
