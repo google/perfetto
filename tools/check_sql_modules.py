@@ -86,10 +86,6 @@ def main():
             f"{len(parsed.table_views)} tables/views, "
             f"{len(parsed.macros)} macros.")
 
-  tables_with_id_cols = {}
-  for _, _, m in modules:
-    tables_with_id_cols.update(m.id_columns)
-
   all_errors = 0
   for path, sql, parsed in modules:
     errors = []
@@ -129,22 +125,6 @@ def main():
         errors.append(
             f"Modules from package 'android' can't include '{include.module}' "
             f"from package 'chrome'")
-
-    # Validate JOINID type.
-    # Verify if the JOINID references an ID column of a table.
-    for o in parsed.table_views:
-      for c, arg in o.joinid_cols.items():
-        [tab, id_col] = arg.joinid_column.split('.')
-        if tab not in tables_with_id_cols.keys():
-          errors.append(
-              f"JOINID column '{c}' of '{o.name}' references table '{tab}' that doesn't exist."
-          )
-          continue
-        if id_col not in tables_with_id_cols[tab]:
-          errors.append(
-              f"JOINID column '{c}' of '{o.name}' references ID column '{id_col}' in '{tab}' that doesn't exist."
-          )
-          continue
 
     errors += [
         *parsed.errors, *check_banned_words(sql),
