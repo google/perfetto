@@ -713,11 +713,11 @@ TEST_F(ProtoTraceParserTest, LoadGpuFreqStats) {
   auto* bundle = packet->set_sys_stats();
   bundle->add_gpufreq_mhz(300);
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
-                                   static_cast<double>(300), TrackId{1u}));
+                                   static_cast<double>(300), TrackId{0u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
@@ -731,11 +731,11 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   meminfo->set_value(value);
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
-                                   DoubleEq(value * 1024.0), TrackId{1u}));
+                                   DoubleEq(value * 1024.0), TrackId{0u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadVmStats) {
@@ -749,11 +749,11 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   meminfo->set_value(value);
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value),
-                                   TrackId{1u}));
+                                   TrackId{0u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadThermal) {
@@ -768,11 +768,11 @@ TEST_F(ProtoTraceParserTest, LoadThermal) {
 
   EXPECT_CALL(*event_,
               PushCounter(static_cast<int64_t>(ts),
-                          DoubleEq(static_cast<double>(temp)), TrackId{1u}));
+                          DoubleEq(static_cast<double>(temp)), TrackId{0u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadProcessPacket) {

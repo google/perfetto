@@ -16,16 +16,21 @@
 
 #include "src/trace_processor/importers/common/event_tracker.h"
 
-#include "perfetto/base/logging.h"
+#include <cstdint>
+#include <memory>
+
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using ::testing::_;
@@ -35,15 +40,15 @@ using ::testing::Invoke;
 class EventTrackerTest : public ::testing::Test {
  public:
   EventTrackerTest() {
-    context.storage.reset(new TraceStorage());
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
-    context.args_tracker.reset(new ArgsTracker(&context));
-    context.process_tracker.reset(new ProcessTracker(&context));
-    context.event_tracker.reset(new EventTracker(&context));
-    context.track_tracker.reset(new TrackTracker(&context));
-    context.machine_tracker.reset(new MachineTracker(&context, 0));
-    context.cpu_tracker.reset(new CpuTracker(&context));
+    context.storage = std::make_shared<TraceStorage>();
+    context.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context.storage.get());
+    context.args_tracker = std::make_unique<ArgsTracker>(&context);
+    context.process_tracker = std::make_unique<ProcessTracker>(&context);
+    context.event_tracker = std::make_unique<EventTracker>(&context);
+    context.track_tracker = std::make_unique<TrackTracker>(&context);
+    context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+    context.cpu_tracker = std::make_unique<CpuTracker>(&context);
   }
 
  protected:
@@ -54,14 +59,14 @@ TEST_F(EventTrackerTest, CounterDuration) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
 
-  TrackId track =
-      context.track_tracker->InternCpuCounterTrack(tracks::cpu_frequency, cpu);
+  TrackId track = context.track_tracker->InternTrack(
+      tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu));
   context.event_tracker->PushCounter(timestamp, 1000, track);
   context.event_tracker->PushCounter(timestamp + 1, 4000, track);
   context.event_tracker->PushCounter(timestamp + 3, 5000, track);
   context.event_tracker->PushCounter(timestamp + 9, 1000, track);
 
-  ASSERT_EQ(context.storage->counter_track_table().row_count(), 1ul);
+  ASSERT_EQ(context.storage->track_table().row_count(), 1ul);
 
   const auto& counter = context.storage->counter_table();
   ASSERT_EQ(counter.row_count(), 4ul);
@@ -80,5 +85,4 @@ TEST_F(EventTrackerTest, CounterDuration) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
