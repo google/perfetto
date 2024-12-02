@@ -42,6 +42,9 @@
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
@@ -515,8 +518,9 @@ class TrackEventParser::EventImporter {
             }
             break;
           case LegacyEvent::SCOPE_GLOBAL:
-            track_id_ = context_->track_tracker->InternGlobalTrack(
-                tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
+            track_id_ = context_->track_tracker->InternTrack(
+                tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
+                tracks::BlueprintName(),
                 [this](ArgsTracker::BoundInserter& inserter) {
                   inserter.AddArg(
                       context_->storage->InternString("source"),
@@ -570,7 +574,7 @@ class TrackEventParser::EventImporter {
   base::Status ParseCounterEvent() {
     // Tokenizer ensures that TYPE_COUNTER events are associated with counter
     // tracks and have values.
-    PERFETTO_DCHECK(storage_->counter_track_table().FindById(track_id_));
+    PERFETTO_DCHECK(storage_->track_table().FindById(track_id_));
     PERFETTO_DCHECK(event_.has_counter_value() ||
                     event_.has_double_counter_value());
 
@@ -590,16 +594,25 @@ class TrackEventParser::EventImporter {
     // EventTracker expects counters to be pushed in order of their timestamps.
     // One more reason to switch to split begin/end events.
     if (thread_timestamp_) {
-      TrackId track_id =
-          context_->track_tracker->LegacyInternThreadCounterTrack(
-              parser_->counter_name_thread_time_id_, *utid_);
+      static constexpr auto kBlueprint = tracks::CounterBlueprint(
+          "thread_time", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+          tracks::DynamicNameBlueprint());
+      TrackId track_id = context_->track_tracker->InternTrack(
+          kBlueprint, tracks::Dimensions(*utid_),
+          tracks::DynamicName(parser_->counter_name_thread_time_id_));
       context_->event_tracker->PushCounter(
           ts_, static_cast<double>(*thread_timestamp_), track_id);
     }
     if (thread_instruction_count_) {
-      TrackId track_id =
-          context_->track_tracker->LegacyInternThreadCounterTrack(
-              parser_->counter_name_thread_instruction_count_id_, *utid_);
+      static constexpr auto kBlueprint = tracks::CounterBlueprint(
+          "thread_instructions", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+          tracks::DynamicNameBlueprint());
+      TrackId track_id = context_->track_tracker->InternTrack(
+          kBlueprint, tracks::Dimensions(*utid_),
+          tracks::DynamicName(
+              parser_->counter_name_thread_instruction_count_id_));
       context_->event_tracker->PushCounter(
           ts_, static_cast<double>(*thread_instruction_count_), track_id);
     }
@@ -648,7 +661,7 @@ class TrackEventParser::EventImporter {
 
     std::optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
         *track_uuid_it, kNullStringId, packet_sequence_id_);
-    auto counter_row = storage_->counter_track_table().FindById(*track_id);
+    auto counter_row = storage_->track_table().FindById(*track_id);
 
     double value = event_data_->extra_counter_values[index];
     context_->event_tracker->PushCounter(ts_, value, *track_id);
@@ -1453,9 +1466,6 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       event_category_key_id_(context_->storage->InternString("event.category")),
       event_name_key_id_(context_->storage->InternString("event.name")),
       chrome_string_lookup_(context->storage.get()),
-      counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
-                         context_->storage->InternString("count"),
-                         context_->storage->InternString("bytes")}},
       active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(
       "chrome_mojo_event_info.mojo_interface_method_iid",
@@ -1541,8 +1551,6 @@ void TrackEventParser::ParseTrackDescriptor(
         ParseProcessDescriptor(packet_timestamp, decoder.process());
     if (decoder.has_chrome_process())
       ParseChromeProcessDescriptor(upid, decoder.chrome_process());
-  } else if (decoder.has_counter()) {
-    ParseCounterDescriptor(track_id, decoder.counter());
   }
 
   // Override the name with the most recent name seen (after sorting by ts).
@@ -1655,40 +1663,6 @@ void TrackEventParser::ParseChromeThreadDescriptor(
   StringId name_id = chrome_string_lookup_.GetThreadName(decoder.thread_type());
   context_->process_tracker->UpdateThreadNameByUtid(
       utid, name_id, ThreadNamePriority::kTrackDescriptorThreadType);
-}
-
-void TrackEventParser::ParseCounterDescriptor(
-    TrackId track_id,
-    protozero::ConstBytes counter_descriptor) {
-  using protos::pbzero::CounterDescriptor;
-
-  CounterDescriptor::Decoder decoder(counter_descriptor);
-  auto* counter_tracks = context_->storage->mutable_counter_track_table();
-
-  size_t unit_index = static_cast<size_t>(decoder.unit());
-  if (unit_index >= counter_unit_ids_.size())
-    unit_index = CounterDescriptor::UNIT_UNSPECIFIED;
-
-  auto opt_rr = counter_tracks->FindById(track_id);
-  if (!opt_rr) {
-    context_->storage->IncrementStats(stats::track_event_parser_errors);
-    return;
-  }
-
-  auto& rr = *opt_rr;
-  switch (decoder.type()) {
-    case CounterDescriptor::COUNTER_UNSPECIFIED:
-      break;
-    case CounterDescriptor::COUNTER_THREAD_TIME_NS:
-      unit_index = CounterDescriptor::UNIT_TIME_NS;
-      rr.set_name(counter_name_thread_time_id_);
-      break;
-    case CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT:
-      unit_index = CounterDescriptor::UNIT_COUNT;
-      rr.set_name(counter_name_thread_instruction_count_id_);
-      break;
-  }
-  rr.set_unit(counter_unit_ids_[unit_index]);
 }
 
 void TrackEventParser::ParseTrackEvent(int64_t ts,
