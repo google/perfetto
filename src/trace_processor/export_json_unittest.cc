@@ -15,10 +15,6 @@
  */
 
 #include "perfetto/ext/trace_processor/export_json.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/string_view.h"
-#include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/export_json.h"
 
 #include <json/config.h>
 #include <json/reader.h>
@@ -34,8 +30,11 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -45,6 +44,8 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -769,9 +770,9 @@ TEST_F(ExportJsonTest, InstantEvent) {
   const char* kName = "name";
 
   // Global legacy track.
-  TrackId track = context_.track_tracker->InternGlobalTrack(
-      tracks::legacy_chrome_global_instants, TrackTracker::AutoName(),
-      [this](ArgsTracker::BoundInserter& inserter) {
+  TrackId track = context_.track_tracker->InternTrack(
+      tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
+      tracks::BlueprintName(), [this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(
             context_.storage->InternString("source"),
             Variadic::String(context_.storage->InternString("chrome")));
@@ -1822,19 +1823,15 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
                          ->Insert({kTimestamp, track, level_of_detail_id})
                          .id;
 
-  StringId peak_resident_set_size_id =
-      context_.storage->InternString("chrome.peak_resident_set_kb");
-  TrackId peak_resident_set_size_counter =
-      context_.track_tracker->LegacyInternProcessCounterTrack(
-          peak_resident_set_size_id, upid);
+  TrackId peak_resident_set_size_counter = context_.track_tracker->InternTrack(
+      tracks::kChromeProcessStatsBlueprint,
+      tracks::Dimensions(upid, "peak_resident_set_kb"));
   context_.event_tracker->PushCounter(kTimestamp, kPeakResidentSetSize,
                                       peak_resident_set_size_counter);
 
-  StringId private_footprint_bytes_id =
-      context_.storage->InternString("chrome.private_footprint_kb");
-  TrackId private_footprint_bytes_counter =
-      context_.track_tracker->LegacyInternProcessCounterTrack(
-          private_footprint_bytes_id, upid);
+  TrackId private_footprint_bytes_counter = context_.track_tracker->InternTrack(
+      tracks::kChromeProcessStatsBlueprint,
+      tracks::Dimensions(upid, "private_footprint_kb"));
   context_.event_tracker->PushCounter(kTimestamp, kPrivateFootprintBytes,
                                       private_footprint_bytes_counter);
 
