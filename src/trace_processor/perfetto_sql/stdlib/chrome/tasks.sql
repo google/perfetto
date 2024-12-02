@@ -293,7 +293,7 @@ FROM slice
 WHERE name GLOB "Looper.dispatch: android.view.Choreographer$FrameHandler*";
 
 -- Extract task's posted_from information from task's arguments.
-CREATE PERFETTO FUNCTION _get_posted_from(arg_set_id ARGSETID)
+CREATE PERFETTO FUNCTION _get_posted_from(arg_set_id LONG)
 RETURNS STRING AS
 WITH posted_from as (
   SELECT
@@ -400,7 +400,7 @@ CREATE PERFETTO VIEW chrome_scheduler_tasks(
   -- Same as slice.parent_id.
   parent_id LONG,
   -- Same as slice.arg_set_id.
-  arg_set_id ARGSETID,
+  arg_set_id LONG,
   -- Same as slice.thread_ts.
   thread_ts TIMESTAMP,
   -- Same as slice.thread_dur.
@@ -615,7 +615,7 @@ CREATE PERFETTO VIEW chrome_tasks(
   -- Alias of |slice.category|.
   category STRING,
   -- Alias of |slice.arg_set_id|.
-  arg_set_id ARGSETID,
+  arg_set_id LONG,
   -- Alias of |slice.thread_ts|.
   thread_ts TIMESTAMP,
   -- Alias of |slice.thread_dur|.
