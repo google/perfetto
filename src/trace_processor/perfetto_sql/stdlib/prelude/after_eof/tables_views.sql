@@ -647,6 +647,49 @@ FROM counter_track AS ct
 JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
 WHERE args.key = 'utid';
 
+-- Tracks containing counter-like events collected from Linux perf.
+CREATE PERFETTO TABLE perf_counter_track (
+  -- Unique identifier for this thread counter track.
+  id ID,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- Name of the track.
+  name STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id LONG,
+  -- Machine identifier, non-null for tracks on a remote machine.
+  machine_id LONG,
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The id of the perf session this counter was captured on.
+  perf_session_id LONG,
+  -- The CPU the counter is associated with.
+  cpu LONG,
+  -- Whether this counter is the sampling timebase for the session.
+  is_timebase BOOL
+) AS
+SELECT
+  ct.id,
+  ct.type,
+  ct.name,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  extract_arg(ct.dimension_arg_set_id, 'perf_session_id') AS perf_session_id,
+  extract_arg(ct.dimension_arg_set_id, 'cpu') AS cpu,
+  extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
+FROM counter_track AS ct
+WHERE ct.classification = 'perf_counter';
+
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters(
   -- Alias of `counter.id`.

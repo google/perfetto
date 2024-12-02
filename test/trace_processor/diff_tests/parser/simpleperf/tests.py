@@ -70,11 +70,11 @@ class Simpleperf(TestSuite):
         ORDER BY perf_session_id, name, cpu;
         ''',
         out=Csv('''
-        "name","unit","description","cpu","is_timebase"
-        "","","",2,1
-        "","","",6,1
-        "","","",7,1
-        "","","",16,1
+          "name","unit","description","cpu","is_timebase"
+          "","[NULL]","[NULL]",2,1
+          "","[NULL]","[NULL]",6,1
+          "","[NULL]","[NULL]",7,1
+          "","[NULL]","[NULL]",16,1
         '''))
 
   def test_perf_with_add_counter_tracks(self):
@@ -91,9 +91,9 @@ class Simpleperf(TestSuite):
         ORDER BY perf_session_id, name, cpu;
         ''',
         out=Csv('''
-        "name","unit","description","cpu","is_timebase"
-        "cpu-cycles","","",40,1
-        "instructions","","",40,0
+          "name","unit","description","cpu","is_timebase"
+          "cpu-cycles","[NULL]","[NULL]",40,1
+          "instructions","[NULL]","[NULL]",40,0
         '''))
 
   # simpleperf report -i perf.data --print-event-count --csv

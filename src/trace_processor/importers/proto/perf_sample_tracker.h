@@ -17,20 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PERF_SAMPLE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PERF_SAMPLE_TRACKER_H_
 
-#include <stdint.h>
-
 #include <cstdint>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto {
-namespace protos {
-namespace pbzero {
+
+namespace protos::pbzero {
 class TracePacketDefaults_Decoder;
-}  // namespace pbzero
-}  // namespace protos
+}  // namespace protos::pbzero
+
 namespace trace_processor {
 class TraceProcessorContext;
 
@@ -49,8 +50,7 @@ class PerfSampleTracker {
           follower_track_ids(std::move(_follower_track_ids)) {}
   };
 
-  explicit PerfSampleTracker(TraceProcessorContext* context)
-      : context_(context) {}
+  explicit PerfSampleTracker(TraceProcessorContext* context);
 
   SamplingStreamInfo GetSamplingStreamInfo(
       uint32_t seq_id,
@@ -79,7 +79,7 @@ class PerfSampleTracker {
   tables::PerfSessionTable::Id CreatePerfSession();
 
   std::unordered_map<uint32_t, SequenceState> seq_state_;
-
+  const StringId is_timebase_id_;
   TraceProcessorContext* const context_;
 };
 
