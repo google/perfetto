@@ -16,15 +16,33 @@
 
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 
-#include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/string_writer.h"
+#include <cinttypes>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
+#include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
@@ -34,8 +52,7 @@
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 const char* MapToFriendlyPowerRailName(base::StringView raw) {
@@ -113,9 +130,11 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   // need to be handled at the tokenization phase.
   if (field_id == TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber) {
     return ParseEnergyDescriptor(decoder.android_energy_estimation_breakdown());
-  } else if (field_id == TracePacket::kPackagesListFieldNumber) {
+  }
+  if (field_id == TracePacket::kPackagesListFieldNumber) {
     return ParseAndroidPackagesList(decoder.packages_list());
-  } else if (field_id == TracePacket::kEntityStateResidencyFieldNumber) {
+  }
+  if (field_id == TracePacket::kEntityStateResidencyFieldNumber) {
     ParseEntityStateDescriptor(decoder.entity_state_residency());
     // Ignore so that we get a go at parsing any actual residency data that
     // should also be in the packet.
@@ -135,7 +154,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   // in a special way. Therefore, we just forge new packets and sort them as if
   // they came from the underlying trace.
   auto power_rails = decoder.power_rails();
-  protos::pbzero::PowerRails::Decoder evt(power_rails.data, power_rails.size);
+  protos::pbzero::PowerRails::Decoder evt(power_rails);
 
   for (auto it = evt.rail_descriptor(); it; ++it) {
     protos::pbzero::PowerRails::RailDescriptor::Decoder desc(*it);
@@ -145,27 +164,37 @@ ModuleResult AndroidProbesModule::TokenizePacket(
                     idx);
       continue;
     }
-    base::StackString<255> counter_name("overwritten");
+    static constexpr auto kPowerBlueprint = tracks::CounterBlueprint(
+        "power_rails", tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint),
+        tracks::DynamicNameBlueprint());
     const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
-    if (friendly_name) {
-      counter_name = base::StackString<255>("power.rails.%s", friendly_name);
-    } else {
-      counter_name = base::StackString<255>(
-          "power.%s_uws", desc.rail_name().ToStdString().c_str());
-    }
-    StringId counter_name_id =
-        context_->storage->InternString(counter_name.string_view());
-    TrackId track = context_->track_tracker->LegacyInternGlobalCounterTrack(
-        TrackTracker::Group::kPower, counter_name_id,
-        [this, &desc](ArgsTracker::BoundInserter& inserter) {
-          StringId raw_name = context_->storage->InternString(desc.rail_name());
-          inserter.AddArg(power_rail_raw_name_id_, Variadic::String(raw_name));
+    TrackId track;
+    auto args_fn = [this, &desc](ArgsTracker::BoundInserter& inserter) {
+      StringId raw_name = context_->storage->InternString(desc.rail_name());
+      inserter.AddArg(power_rail_raw_name_id_, Variadic::String(raw_name));
 
-          StringId subsys_name =
-              context_->storage->InternString(desc.subsys_name());
-          inserter.AddArg(power_rail_subsys_name_arg_id_,
-                          Variadic::String(subsys_name));
-        });
+      StringId subsys_name =
+          context_->storage->InternString(desc.subsys_name());
+      inserter.AddArg(power_rail_subsys_name_arg_id_,
+                      Variadic::String(subsys_name));
+    };
+    if (friendly_name) {
+      StringId id = context_->storage->InternString(
+          base::StackString<255>("power.rails.%s", friendly_name)
+              .string_view());
+      track = context_->track_tracker->InternTrack(
+          kPowerBlueprint, tracks::Dimensions(desc.rail_name()),
+          tracks::DynamicName(id), args_fn);
+    } else {
+      StringId id = context_->storage->InternString(
+          base::StackString<255>("power.%.*s_uws", int(desc.rail_name().size),
+                                 desc.rail_name().data)
+              .string_view());
+      track = context_->track_tracker->InternTrack(
+          kPowerBlueprint, tracks::Dimensions(desc.rail_name()),
+          tracks::DynamicName(id), args_fn);
+    }
     AndroidProbesTracker::GetOrCreate(context_)->SetPowerRailTrack(desc.index(),
                                                                    track);
   }
@@ -174,8 +203,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   // making sure its timestamp is consistent between the packet level and
   // the EnergyData level.
   for (auto it = evt.energy_data(); it; ++it) {
-    protozero::ConstBytes bytes = *it;
-    protos::pbzero::PowerRails_EnergyData_Decoder data(bytes.data, bytes.size);
+    protos::pbzero::PowerRails::EnergyData::Decoder data(*it);
     int64_t actual_ts =
         data.has_timestamp_ms()
             ? static_cast<int64_t>(data.timestamp_ms()) * 1000000
@@ -197,7 +225,6 @@ ModuleResult AndroidProbesModule::TokenizePacket(
                                       TraceBlobView(std::move(blob)),
                                       context_->machine_id());
   }
-
   return ModuleResult::Handled();
 }
 
@@ -307,7 +334,6 @@ void AndroidProbesModule::ParseEntityStateDescriptor(
       context_->storage->IncrementStats(stats::energy_descriptor_invalid);
       continue;
     }
-
     AndroidProbesTracker::GetOrCreate(context_)->SetEntityStateDescriptor(
         entity_state.entity_index(), entity_state.state_index(),
         context_->storage->InternString(entity_state.entity_name()),
@@ -315,5 +341,4 @@ void AndroidProbesModule::ParseEntityStateDescriptor(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

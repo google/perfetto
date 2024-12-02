@@ -17,11 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_IOSTAT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_IOSTAT_TRACKER_H_
 
-#include "perfetto/protozero/field.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include <cstdint>
 
-namespace perfetto {
-namespace trace_processor {
+#include "perfetto/protozero/field.h"
+
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -34,11 +34,8 @@ class IostatTracker {
 
  private:
   TraceProcessorContext* const context_;
-
-  std::string GetDeviceName(uint64_t dev_num);
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_IOSTAT_TRACKER_H_
