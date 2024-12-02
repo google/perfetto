@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -23,7 +24,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -33,12 +33,13 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
@@ -246,12 +247,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
 }
 
 void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::PerfettoMetatrace::Decoder event(blob.data, blob.size);
+  protos::pbzero::PerfettoMetatrace::Decoder event(blob);
   auto utid = context_->process_tracker->GetOrCreateThread(event.thread_id());
 
   StringId cat_id = metatrace_id_;
-  StringId name_id = kNullStringId;
-
   for (auto it = event.interned_strings(); it; ++it) {
     protos::pbzero::PerfettoMetatrace::InternedString::Decoder interned_string(
         it->data(), it->size());
@@ -324,6 +323,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
   if (event.has_event_id() || event.has_event_name() ||
       event.has_event_name_iid()) {
+    StringId name_id;
     if (event.has_event_id()) {
       auto eid = event.event_id();
       if (eid < metatrace::EVENTS_MAX) {
@@ -342,8 +342,16 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         ts, track_id, cat_id, name_id,
         static_cast<int64_t>(event.event_duration_ns()), args_fn);
   } else if (event.has_counter_id() || event.has_counter_name()) {
+    static constexpr auto kBlueprint = tracks::CounterBlueprint(
+        "metatrace_counter", tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(
+            tracks::kThreadDimensionBlueprint,
+            tracks::StringDimensionBlueprint("counter_name")),
+        tracks::DynamicNameBlueprint());
+    TrackId track;
     if (event.has_counter_id()) {
       auto cid = event.counter_id();
+      StringId name_id;
       if (cid < metatrace::COUNTERS_MAX) {
         name_id =
             context_->storage->InternString(metatrace::kCounterNames[cid]);
@@ -351,11 +359,16 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         base::StackString<64> fallback("Counter %d", cid);
         name_id = context_->storage->InternString(fallback.string_view());
       }
+      track = context_->track_tracker->InternTrack(
+          kBlueprint,
+          tracks::Dimensions(utid, context_->storage->GetString(name_id)),
+          tracks::DynamicName(name_id));
     } else {
-      name_id = context_->storage->InternString(event.counter_name());
+      track = context_->track_tracker->InternTrack(
+          kBlueprint, tracks::Dimensions(utid, event.counter_name()),
+          tracks::DynamicName(
+              context_->storage->InternString(event.counter_name())));
     }
-    TrackId track =
-        context_->track_tracker->LegacyInternThreadCounterTrack(name_id, utid);
     auto opt_id =
         context_->event_tracker->PushCounter(ts, event.counter_value(), track);
     if (opt_id) {
