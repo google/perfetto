@@ -41,7 +41,7 @@ FROM counter_leading_intervals!((
   FROM counter c
   JOIN track t ON t.id = c.track_id
   WHERE t.classification = 'linux_device_frequency'
-    AND EXTRACT_ARG(t.dimension_arg_set_id, 'device_name') = $device_name
+    AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
 )) AS count_w_dur;
 
 -- ARM DSU device frequency counters. This table will only be populated on
@@ -59,4 +59,4 @@ CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
 ) AS
 SELECT
   id, ts, dur, freq as dsu_freq
-FROM _get_devfreq_counters("dsufreq");
+FROM _get_devfreq_counters("*devfreq_dsu");

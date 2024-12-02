@@ -20,12 +20,12 @@ WITH distinct_ids AS (
 )
 SELECT
   distinct_ids.id,
-  COUNT(
+  COALESCE(SUM(
     args.key = 'upid'
     OR args.key = 'utid'
     OR args.key = 'cpu'
     OR args.key = 'gpu'
-  ) = 0 AS is_legacy_global
+  ), 0) = 0 AS is_legacy_global
 FROM distinct_ids
 JOIN counter_track USING (id)
 LEFT JOIN args ON counter_track.dimension_arg_set_id = args.arg_set_id
