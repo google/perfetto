@@ -300,7 +300,7 @@ CREATE PERFETTO VIEW android_key_events(
   -- The timestamp of when the input event was processed by the system
   ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
@@ -325,7 +325,7 @@ CREATE PERFETTO VIEW android_motion_events(
   -- The timestamp of when the input event was processed by the system
   ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
@@ -347,7 +347,7 @@ CREATE PERFETTO VIEW android_input_event_dispatch(
   -- Event ID of the input event that was dispatched
   event_id LONG,
   -- Details of the input event parsed from the proto message
-  arg_set_id LONG,
+  arg_set_id ARGSETID,
   -- Raw proto message encoded in base64
   base64_proto STRING,
   -- String id for raw proto message
