@@ -60,6 +60,8 @@ perfetto_component("base") {
     "virtual_destructors.cc",
     "waitable_event.cc",
     "watchdog_posix.cc",
+    "weak_runner.cc",
+    "weak_runner.h",
   ]
 
   if (!is_nacl) {
