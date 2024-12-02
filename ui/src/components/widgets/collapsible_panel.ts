@@ -18,6 +18,7 @@ import {DragGestureHandler} from '../../base/drag_gesture_handler';
 import {raf} from '../../core/raf_scheduler';
 import {assertExists} from '../../base/logging';
 import {Button} from '../../widgets/button';
+import {toHTMLElement} from '../../base/dom_utils';
 
 export enum CollapsiblePanelVisibility {
   VISIBLE,
@@ -92,9 +93,13 @@ export class CollapsiblePanel
     let dragStartY = 0;
     let heightWhenDragStarted = 0;
 
+    const handle = toHTMLElement(
+      assertExists(vnode.dom.querySelector('.handle')),
+    );
+
     this.trash.use(
       new DragGestureHandler(
-        vnode.dom as HTMLElement,
+        handle,
         /* onDrag */ (_x, y) => {
           const deltaYSinceDragStart = dragStartY - y;
           this.resizableHeight = heightWhenDragStarted + deltaYSinceDragStart;
