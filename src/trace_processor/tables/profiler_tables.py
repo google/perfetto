@@ -636,7 +636,7 @@ GPU_COUNTER_GROUP_TABLE = Table(
 PERF_COUNTER_TRACK_TABLE = Table(
     python_module=__file__,
     class_name='PerfCounterTrackTable',
-    sql_name='perf_counter_track',
+    sql_name='__intrinsic_perf_counter_track',
     columns=[
         C('perf_session_id', CppTableId(PERF_SESSION_TABLE)),
         C('cpu', CppUint32()),

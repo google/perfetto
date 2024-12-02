@@ -20,7 +20,7 @@
 #include <cstdint>
 
 #include "src/trace_processor/tables/counter_tables_py.h"
-#include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -29,10 +29,11 @@ namespace perfetto::trace_processor::perf_importer {
 class PerfCounter {
  public:
   PerfCounter(tables::CounterTable* counter_table,
-              const tables::PerfCounterTrackTable::ConstRowReference& track)
+              tables::TrackTable::Id track_id,
+              bool is_timebase)
       : counter_table_(*counter_table),
-        track_id_(track.id()),
-        is_timebase_(track.is_timebase()) {}
+        track_id_(track_id),
+        is_timebase_(is_timebase) {}
 
   bool is_timebase() const { return is_timebase_; }
 
@@ -41,7 +42,7 @@ class PerfCounter {
 
  private:
   tables::CounterTable& counter_table_;
-  tables::PerfCounterTrackTable::Id track_id_;
+  tables::TrackTable::Id track_id_;
   const bool is_timebase_;
   double last_count_{0};
 };
