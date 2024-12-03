@@ -24,7 +24,7 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 
 from src.trace_processor.tables.metadata_tables import MACHINE_TABLE
-from src.trace_processor.tables.track_tables import COUNTER_TRACK_TABLE
+from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 COUNTER_TABLE = Table(
     python_module=__file__,
@@ -32,7 +32,7 @@ COUNTER_TABLE = Table(
     sql_name='__intrinsic_counter',
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
-        C('track_id', CppTableId(COUNTER_TRACK_TABLE)),
+        C('track_id', CppTableId(TRACK_TABLE)),
         C('value', CppDouble()),
         C('arg_set_id', CppOptional(CppUint32())),
     ],

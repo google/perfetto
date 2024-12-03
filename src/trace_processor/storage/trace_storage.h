@@ -28,6 +28,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -365,46 +366,11 @@ class TraceStorage {
   const tables::TrackTable& track_table() const { return track_table_; }
   tables::TrackTable* mutable_track_table() { return &track_table_; }
 
-  const tables::CounterTrackTable& counter_track_table() const {
-    return counter_track_table_;
-  }
-  tables::CounterTrackTable* mutable_counter_track_table() {
-    return &counter_track_table_;
-  }
-
-  const tables::CpuCounterTrackTable& cpu_counter_track_table() const {
-    return cpu_counter_track_table_;
-  }
-  tables::CpuCounterTrackTable* mutable_cpu_counter_track_table() {
-    return &cpu_counter_track_table_;
-  }
-
   const tables::GpuCounterGroupTable& gpu_counter_group_table() const {
     return gpu_counter_group_table_;
   }
   tables::GpuCounterGroupTable* mutable_gpu_counter_group_table() {
     return &gpu_counter_group_table_;
-  }
-
-  const tables::GpuCounterTrackTable& gpu_counter_track_table() const {
-    return gpu_counter_track_table_;
-  }
-  tables::GpuCounterTrackTable* mutable_gpu_counter_track_table() {
-    return &gpu_counter_track_table_;
-  }
-
-  const tables::PerfCounterTrackTable& perf_counter_track_table() const {
-    return perf_counter_track_table_;
-  }
-  tables::PerfCounterTrackTable* mutable_perf_counter_track_table() {
-    return &perf_counter_track_table_;
-  }
-
-  const tables::ProcessCounterTrackTable& process_counter_track_table() const {
-    return process_counter_track_table_;
-  }
-  tables::ProcessCounterTrackTable* mutable_process_counter_track_table() {
-    return &process_counter_track_table_;
   }
 
   const tables::ProcessTrackTable& process_track_table() const {
@@ -426,13 +392,6 @@ class TraceStorage {
   }
   tables::ThreadStateTable* mutable_thread_state_table() {
     return &thread_state_table_;
-  }
-
-  const tables::ThreadCounterTrackTable& thread_counter_track_table() const {
-    return thread_counter_track_table_;
-  }
-  tables::ThreadCounterTrackTable* mutable_thread_counter_track_table() {
-    return &thread_counter_track_table_;
   }
 
   const tables::SchedSliceTable& sched_slice_table() const {
@@ -1036,18 +995,7 @@ class TraceStorage {
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
 
   // Track tables for counter events.
-  tables::CounterTrackTable counter_track_table_{&string_pool_, &track_table_};
-  tables::ThreadCounterTrackTable thread_counter_track_table_{
-      &string_pool_, &counter_track_table_};
-  tables::ProcessCounterTrackTable process_counter_track_table_{
-      &string_pool_, &counter_track_table_};
-  tables::CpuCounterTrackTable cpu_counter_track_table_{&string_pool_,
-                                                        &counter_track_table_};
-  tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
-                                                        &counter_track_table_};
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_};
-  tables::PerfCounterTrackTable perf_counter_track_table_{
-      &string_pool_, &counter_track_table_};
 
   // Args for all other tables.
   tables::ArgTable arg_table_{&string_pool_};
