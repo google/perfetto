@@ -90,13 +90,13 @@ first_non_swapper_slice AS (
   GROUP BY idle_group
 )
 SELECT
-  ts,
-  dur,
-  cpu,
-  utid,
-  upid
-FROM first_non_swapper_slice
-JOIN first_swapper_slice USING (idle_group);
+  swapper_info.ts,
+  swapper_info.dur,
+  swapper_info.cpu,
+  thread_info.utid,
+  thread_info.upid
+FROM first_non_swapper_slice thread_info
+JOIN first_swapper_slice swapper_info USING (idle_group);
 
 -- Interval intersect with the estimate power track, so that each slice can be
 -- attributed to the power of the CPU in that time duration
