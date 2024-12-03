@@ -96,7 +96,7 @@ const SHOW_OPEN_WITH_LEGACY_UI_BUTTON = featureFlags.register({
   id: 'showOpenWithLegacyUiButton',
   name: 'Show "Open with legacy UI" button',
   description: 'Show "Open with legacy UI" button in the sidebar',
-  defaultValue: true,
+  defaultValue: false,
 });
 
 export default class implements PerfettoPlugin {
