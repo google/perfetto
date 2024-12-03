@@ -247,6 +247,30 @@ class AndroidMetrics(TestSuite):
         query=Metric('android_garbage_collection_unagg'),
         out=Path('android_garbage_collection_unagg.out'))
 
+  def test_android_garbage_collection_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric('android_garbage_collection_stats'),
+        out=TextProto(r"""
+          android_garbage_collection_stats {
+            ts: 37574228004                                                                 dur: 2590476076
+            heap_size_mbs: 545.245650252069
+            heap_size_mb: 210.4808669354679
+            heap_allocated_mb: 157.435
+            heap_allocation_rate: 60.77454312687503
+            heap_live_mbs: 21.891720379191
+            heap_total_mbs: 53.434635626237
+            heap_utilization: 0.4096915815486898
+            gc_running_dur: 80862916
+            gc_running_rate: 0.031215465276506957
+            gc_running_efficiency: 1351.232098555335
+            gc_during_android_startup_dur: 177436890
+            total_android_startup_dur: 675663737
+            gc_during_android_startup_rate: 0.2626112373409793
+            gc_during_android_startup_efficiency: 160.61513239126643
+          }
+         """))
+
   def test_android_auto_multiuser_switch(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

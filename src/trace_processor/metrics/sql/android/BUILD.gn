@@ -39,6 +39,7 @@ perfetto_sql_source_set("android") {
     "android_dvfs.sql",
     "android_fastrpc.sql",
     "android_frame_timeline_metric.sql",
+    "android_garbage_collection_stats.sql",
     "android_garbage_collection_unagg.sql",
     "android_gpu.sql",
     "android_hwcomposer.sql",
