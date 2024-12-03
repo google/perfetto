@@ -91,6 +91,7 @@ source_set("common") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
+    "../../../protozero",
     "../../containers",
     "../../db:minimal",
     "../../storage",
