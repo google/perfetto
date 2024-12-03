@@ -61,7 +61,6 @@ perfetto_component("base") {
     "waitable_event.cc",
     "watchdog_posix.cc",
     "weak_runner.cc",
-    "weak_runner.h",
   ]
 
   if (!is_nacl) {
