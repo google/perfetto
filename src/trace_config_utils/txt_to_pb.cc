@@ -209,7 +209,7 @@ class ParserDelegate {
     ctx_.push(ParserDelegateContext{descriptor, message, {}});
   }
 
-  void NumericField(Token key, Token value) {
+  void NumericField(const Token& key, const Token& value) {
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
@@ -264,7 +264,7 @@ class ParserDelegate {
     }
   }
 
-  void StringField(Token key, Token value) {
+  void StringField(const Token& key, const Token& value) {
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
@@ -375,7 +375,7 @@ class ParserDelegate {
     msg()->AppendBytes(field_id, s.get(), j);
   }
 
-  void IdentifierField(Token key, Token value) {
+  void IdentifierField(const Token& key, const Token& value) {
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
@@ -428,7 +428,7 @@ class ParserDelegate {
     }
   }
 
-  bool BeginNestedMessage(Token key, Token value) {
+  bool BeginNestedMessage(const Token& key, const Token& value) {
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
@@ -461,7 +461,7 @@ class ParserDelegate {
     reporter_->AddError(row, column, 0, Format(fmt, args));
   }
 
-  void AddError(Token token,
+  void AddError(const Token& token,
                 const char* fmt,
                 const std::map<std::string, std::string>& args) {
     reporter_->AddError(token.row, token.column, token.size(),
@@ -483,7 +483,7 @@ class ParserDelegate {
   }
 
   template <typename T>
-  void FixedField(const FieldDescriptorProto* field, Token t) {
+  void FixedField(const FieldDescriptorProto* field, const Token& t) {
     uint32_t field_id = static_cast<uint32_t>(field->number());
     uint64_t n = 0;
     PERFETTO_CHECK(ParseInteger(t.txt, &n));
@@ -491,7 +491,7 @@ class ParserDelegate {
   }
 
   template <typename T>
-  void FixedFloatField(const FieldDescriptorProto* field, Token t) {
+  void FixedFloatField(const FieldDescriptorProto* field, const Token& t) {
     uint32_t field_id = static_cast<uint32_t>(field->number());
     std::optional<double> opt_n = base::StringToDouble(t.ToStdString());
     msg()->AppendFixed<T>(field_id, static_cast<T>(opt_n.value_or(0l)));
@@ -507,8 +507,8 @@ class ParserDelegate {
   }
 
   const FieldDescriptorProto* FindFieldByName(
-      Token key,
-      Token value,
+      const Token& key,
+      const Token& value,
       std::set<FieldDescriptorProto::Type> valid_field_types) {
     const std::string field_name = key.ToStdString();
     const FieldDescriptorProto* field_descriptor = nullptr;
