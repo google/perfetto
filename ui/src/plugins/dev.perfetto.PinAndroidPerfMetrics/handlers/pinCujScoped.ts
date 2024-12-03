@@ -126,7 +126,7 @@ class PinCujScopedJank implements MetricHandler {
 
   private async focusOnFirstJank(ctx: Trace, tableWithJankyFramesName: string) {
     const queryForFirstJankyFrame = `
-      SELECT slice_id, track_id
+      SELECT id as slice_id, track_id
       FROM actual_frame_timeline_slice
       WHERE name = cast_string!(
         (SELECT id FROM ${tableWithJankyFramesName} LIMIT 1)
