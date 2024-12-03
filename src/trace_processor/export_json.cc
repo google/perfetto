@@ -41,9 +41,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/export_json.h"
-#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -1541,6 +1539,9 @@ class JsonExporter {
     std::optional<StringId> peak_resident_set_id =
         storage_->string_pool().GetId("chrome.peak_resident_set_kb");
 
+    std::optional<StringId> process_stats =
+        storage_->string_pool().GetId("chrome_process_stats");
+
     for (auto sit = memory_snapshots.IterateRows(); sit; ++sit) {
       Json::Value event_base;
 
@@ -1563,13 +1564,12 @@ class JsonExporter {
         Json::Value event = FillInProcessEventDetails(event_base, pit.pid());
         Json::Value& totals = event["args"]["dumps"]["process_totals"];
 
-        Query q;
-        q.constraints = {
-            track_table.classification().eq("chrome_process_stats"),
-        };
-        for (auto it = track_table.FilterToIterator(q); it; ++it) {
+        for (auto it = track_table.IterateRows(); it; ++it) {
           auto arg_set_id = it.dimension_arg_set_id();
           if (!arg_set_id) {
+            continue;
+          }
+          if (it.classification() != process_stats) {
             continue;
           }
           std::optional<Variadic> upid;
