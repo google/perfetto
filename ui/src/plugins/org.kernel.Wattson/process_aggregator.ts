@@ -59,6 +59,10 @@ export class WattsonProcessSelectionAggregator
         ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
         COALESCE(idle_cost_mws, 0) as idle_cost_mws,
+        ROUND(
+          COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
+          2
+        ) as total_mws,
         pid,
         process_name
       FROM _unioned_per_cpu_total
@@ -102,6 +106,13 @@ export class WattsonProcessSelectionAggregator
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'idle_cost_mws',
+        sum: true,
+      },
+      {
+        title: 'Total energy (estimated mWs)',
+        kind: 'NUMBER',
+        columnConstructor: Float64Array,
+        columnId: 'total_mws',
         sum: true,
       },
     ];
