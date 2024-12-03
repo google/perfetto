@@ -231,7 +231,7 @@ def check_banned_drop(sql: str) -> List[str]:
   errors = []
   for _, matches in match_pattern(DROP_TABLE_VIEW_PATTERN, sql).items():
     sql_type = matches[0]
-    name = matches[2]
+    name = matches[1]
     errors.append(f"Dropping object {sql_type} '{name}' is banned.")
   return errors
 
