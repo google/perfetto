@@ -290,7 +290,7 @@ is to use the `createQuerySliceTrack` and `createQueryCounterTrack` helpers.
 
 Example:
 ```ts
-import {createQuerySliceTrack} from '../../public/lib/tracks/query_slice_track';
+import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 
 default export class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
@@ -312,22 +312,22 @@ default export class implements PerfettoPlugin {
     trace.tracks.registerTrack({uri, title, track});
 
     // Create a track node that references the track renderer using its uri
-    const track = new TrackNode({uri, title});
+    const trackNode = new TrackNode({uri, title});
 
     // Add the track node to the current workspace
-    trace.workspace.addChildInOrder(track);
+    trace.workspace.addChildInOrder(trackNode);
   }
 }
 ```
 
-See [the source](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public/lib/tracks/query_slice_track.ts)
+See [the source](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/components/tracks/query_slice_track.ts)
 for detailed usage.
 
 You can also add a counter track using `createQueryCounterTrack` which works in
 a similar way.
 
 ```ts
-import {createQueryCounterTrack} from '../../public/lib/tracks/query_counter_track';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 
 default export class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
@@ -349,15 +349,15 @@ default export class implements PerfettoPlugin {
     trace.tracks.registerTrack({uri, title, track});
 
     // Create a track node that references the track renderer using its uri
-    const track = new TrackNode({uri, title});
+    const trackNode = new TrackNode({uri, title});
 
     // Add the track node to the current workspace
-    trace.workspace.addChildInOrder(track);
+    trace.workspace.addChildInOrder(trackNode);
   }
 }
 ```
 
-See [the source](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/public/lib/tracks/query_counter_track.ts)
+See [the source](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/components/tracks/query_counter_track.ts)
 for detailed usage.
 
 #### Grouping Tracks
