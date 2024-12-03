@@ -11,16 +11,29 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {VizPage} from './viz_page';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.VizPage';
+  private spec = '';
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    trace.pages.registerPage({route: '/viz', page: VizPage});
+    trace.pages.registerPage({
+      route: '/viz',
+      page: {
+        view: ({attrs}) =>
+          m(VizPage, {
+            ...attrs,
+            spec: this.spec,
+            setSpec: (spec) => {
+              this.spec = spec;
+            },
+          }),
+      },
+    });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       text: 'Viz',
