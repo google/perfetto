@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_BASE_WEAK_RUNNER_H_
-#define SRC_BASE_WEAK_RUNNER_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_WEAK_RUNNER_H_
+#define INCLUDE_PERFETTO_EXT_BASE_WEAK_RUNNER_H_
 
 #include <functional>
 #include <memory>
@@ -57,4 +57,4 @@ class WeakRunner {
 
 }  // namespace perfetto::base
 
-#endif  // SRC_BASE_WEAK_RUNNER_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_WEAK_RUNNER_H_

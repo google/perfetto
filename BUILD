@@ -843,6 +843,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/watchdog_noop.h",
         "include/perfetto/ext/base/watchdog_posix.h",
         "include/perfetto/ext/base/weak_ptr.h",
+        "include/perfetto/ext/base/weak_runner.h",
     ],
 )
 
@@ -1279,7 +1280,6 @@ perfetto_cc_library(
         "src/base/waitable_event.cc",
         "src/base/watchdog_posix.cc",
         "src/base/weak_runner.cc",
-        "src/base/weak_runner.h",
     ],
     hdrs = [
         ":include_perfetto_base_base",

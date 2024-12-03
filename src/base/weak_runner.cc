@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/base/weak_runner.h"
+#include "perfetto/ext/base/weak_runner.h"
 
 #include "perfetto/base/task_runner.h"
 

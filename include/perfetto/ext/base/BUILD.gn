@@ -61,6 +61,7 @@ source_set("base") {
     "watchdog_noop.h",
     "watchdog_posix.h",
     "weak_ptr.h",
+    "weak_runner.h",
   ]
   if (enable_perfetto_ipc) {
     sources += [ "unix_socket.h" ]
