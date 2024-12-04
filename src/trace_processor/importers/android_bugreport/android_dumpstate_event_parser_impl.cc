@@ -274,6 +274,16 @@ base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
             base::StringView(std::string("battery_stats.").append(item_name))));
     context_->event_tracker->PushCounter(ts, (key.at(0) == '+') ? 1.0 : 0.0,
                                          track);
+    // Also add a screen events to the screen state track
+    if (item_name == "screen") {
+      track = context_->track_tracker->InternTrack(
+          tracks::kAndroidScreenStateBlueprint);
+      // battery_stats.screen event is 0 for off and 1 for on, but the
+      // ScreenState track uses the convention 1 for off and 2 for on, so add
+      // 1 to the current counter value.
+      context_->event_tracker->PushCounter(
+          ts, static_cast<double>((key.at(0) == '+') ? 2.0 : 1.0), track);
+    }
     return base::OkStatus();
   } else if (!key.StartsWith("+") && !key.StartsWith("-") && !value.empty()) {
     // process history state of form "state=12345" or "state=abcde"
