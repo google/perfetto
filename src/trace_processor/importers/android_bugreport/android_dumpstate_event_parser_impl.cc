@@ -325,6 +325,56 @@ base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
       // battery stats gives us charge in milli-volts, but the track
       // expects the value to be in micro-volts
       counter_value *= 1000;
+    } else if (key == "Bs") {
+      static constexpr auto kBatteryStatusBlueprint = tracks::CounterBlueprint(
+          "battery_status", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(),
+          tracks::StaticNameBlueprint("BatteryStatus"));
+      counter_track =
+          context_->track_tracker->InternTrack(kBatteryStatusBlueprint);
+      switch (value.at(0)) {
+        case '?':
+          counter_value = 1;  // BatteryManager.BATTERY_STATUS_UNKNOWN
+          break;
+        case 'c':
+          counter_value = 2;  // BatteryManager.BATTERY_STATUS_CHARGING
+          break;
+        case 'd':
+          counter_value = 3;  // BatteryManager.BATTERY_STATUS_DISCHARGING
+          break;
+        case 'n':
+          counter_value = 4;  // BatteryManager.BATTERY_STATUS_NOT_CHARGING
+          break;
+        case 'f':
+          counter_value = 5;  // BatteryManager.BATTERY_STATUS_FULL
+          break;
+        default:
+          PERFETTO_ELOG("unknown battery status: %c", value.at(0));
+          counter_value = 0;  // not a valid enum
+      }
+    } else if (key == "Bp") {
+      static constexpr auto kPluggedStatusBluePrint = tracks::CounterBlueprint(
+          "battery_plugged_status", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(),
+          tracks::StaticNameBlueprint("PlugType"));
+      counter_track =
+          context_->track_tracker->InternTrack(kPluggedStatusBluePrint);
+      switch (value.at(0)) {
+        case 'n':
+          counter_value = 0;  // BatteryManager.BATTERY_PLUGGED_NONE
+          break;
+        case 'a':
+          counter_value = 1;  // BatteryManager.BATTERY_PLUGGED_AC
+          break;
+        case 'u':
+          counter_value = 2;  // BatteryManager.BATTERY_PLUGGED_USB
+          break;
+        case 'w':
+          counter_value = 4;  // BatteryManager.BATTERY_PLUGGED_WIRELESS
+          break;
+        default:
+          counter_value = 0;  // BatteryManager.BATTERY_PLUGGED_NONE
+      }
     } else {
       return base::ErrStatus("Unhandled event");
     }
