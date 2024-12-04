@@ -2942,8 +2942,9 @@ message AndroidWattsonTimePeriodMetric {
 
 message AndroidWattsonEstimateInfo {
   optional int32 period_id = 1;
-  optional int64 period_dur = 2;
-  optional AndroidWattsonCpuSubsystemEstimate cpu_subsystem = 3;
+  optional string period_name = 2;
+  optional int64 period_dur = 3;
+  optional AndroidWattsonCpuSubsystemEstimate cpu_subsystem = 4;
 }
 
 message AndroidWattsonCpuSubsystemEstimate {

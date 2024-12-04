@@ -3,6 +3,7 @@ wattson_atrace_apps_rails {
   power_model_version: 1
   period_info {
     period_id: 3
+    period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand"
     period_dur: 1033882989
     cpu_subsystem {
       estimated_mw: 588.551453
@@ -59,6 +60,7 @@ wattson_atrace_apps_rails {
   }
   period_info {
     period_id: 4
+    period_name: "NOTIFICATION_SHADE_QS_EXPAND_COLLAPSE"
     period_dur: 1102956461
     cpu_subsystem {
       estimated_mw: 495.969849
@@ -115,6 +117,7 @@ wattson_atrace_apps_rails {
   }
   period_info {
     period_id: 5
+    period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Collapse"
     period_dur: 1102797607
     cpu_subsystem {
       estimated_mw: 495.587769
