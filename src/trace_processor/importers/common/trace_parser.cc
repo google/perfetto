@@ -18,6 +18,7 @@
 
 namespace perfetto::trace_processor {
 
+AndroidDumpstateEventParser::~AndroidDumpstateEventParser() = default;
 AndroidLogEventParser::~AndroidLogEventParser() = default;
 FuchsiaRecordParser::~FuchsiaRecordParser() = default;
 InstrumentsRowParser::~InstrumentsRowParser() = default;
