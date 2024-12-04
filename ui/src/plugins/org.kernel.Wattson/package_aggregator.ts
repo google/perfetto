@@ -53,6 +53,10 @@ export class WattsonPackageSelectionAggregator
       SELECT
         ROUND(SUM(total_pws) / ${duration}, 2) as active_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as active_mws,
+        ROUND(
+          COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
+          2
+        ) as total_mws,
         ROUND(SUM(dur) / 1000000.0, 2) as dur_ms,
         uid,
         package_name
@@ -95,6 +99,13 @@ export class WattsonPackageSelectionAggregator
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'active_mws',
+        sum: true,
+      },
+      {
+        title: 'Total energy (estimated mWs)',
+        kind: 'NUMBER',
+        columnConstructor: Float64Array,
+        columnId: 'total_mws',
         sum: true,
       },
     ];
