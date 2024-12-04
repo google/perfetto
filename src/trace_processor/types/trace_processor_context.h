@@ -165,6 +165,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> protolog_message_decoder;               // ProtoLogMessageDecoder
   std::unique_ptr<Destructible> instruments_row_data_tracker;           // RowDataTracker
   std::unique_ptr<Destructible> perf_tracker;                           // PerfTracker
+  std::unique_ptr<Destructible> etm_tracker;                            // EtmTracker
   // clang-format on
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;

@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
+#include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
@@ -47,6 +48,11 @@ AndroidInputEventDispatchTable::~AndroidInputEventDispatchTable() = default;
 
 // counter_tables_py.h
 CounterTable::~CounterTable() = default;
+
+// etm_tables.py
+EtmV4ConfigurationTable::~EtmV4ConfigurationTable() = default;
+EtmV4SessionTable::~EtmV4SessionTable() = default;
+EtmV4TraceTable::~EtmV4TraceTable() = default;
 
 // jit_tables.py
 JitCodeTable::~JitCodeTable() = default;

@@ -151,6 +151,7 @@ external_deps = {
     '//gn:expat': ['PERFETTO_CONFIG.deps.expat'],
     '//gn:jsoncpp': ['PERFETTO_CONFIG.deps.jsoncpp'],
     '//gn:linenoise': ['PERFETTO_CONFIG.deps.linenoise'],
+    '//gn:open_csd': ['PERFETTO_CONFIG.deps.open_csd'],
     '//gn:protobuf_full': ['PERFETTO_CONFIG.deps.protobuf_full'],
     '//gn:protobuf_lite': ['PERFETTO_CONFIG.deps.protobuf_lite'],
     '//gn:protoc_lib': ['PERFETTO_CONFIG.deps.protoc_lib'],

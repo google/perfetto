@@ -1624,3 +1624,86 @@ if (enable_perfetto_grpc) {
     deps = [ "//gn:default_deps" ]
   }
 }
+
+if (enable_perfetto_etm_importer) {
+  config("open_csd_config") {
+    visibility = _buildtools_visibility
+    cflags = [
+      # Using -isystem instead of include_dirs (-I), so we don't need to
+      # suppress warnings coming from third-party headers. Doing so would mask
+      # warnings in our own code.
+      perfetto_isystem_cflag,
+      rebase_path("open_csd/decoder/include", root_build_dir),
+    ]
+    defines = [ "ENABLE_LARGE_TRACE_SOURCES" ]
+  }
+
+  source_set("open_csd") {
+    visibility = _buildtools_visibility
+    sources = [
+      "open_csd/decoder/source/c_api/ocsd_c_api.cpp",
+      "open_csd/decoder/source/c_api/ocsd_c_api_custom_obj.cpp",
+      "open_csd/decoder/source/c_api/ocsd_c_api_custom_obj.h",
+      "open_csd/decoder/source/c_api/ocsd_c_api_obj.h",
+      "open_csd/decoder/source/ete/trc_cmp_cfg_ete.cpp",
+      "open_csd/decoder/source/etmv3/trc_cmp_cfg_etmv3.cpp",
+      "open_csd/decoder/source/etmv3/trc_pkt_decode_etmv3.cpp",
+      "open_csd/decoder/source/etmv3/trc_pkt_elem_etmv3.cpp",
+      "open_csd/decoder/source/etmv3/trc_pkt_proc_etmv3.cpp",
+      "open_csd/decoder/source/etmv3/trc_pkt_proc_etmv3_impl.cpp",
+      "open_csd/decoder/source/etmv3/trc_pkt_proc_etmv3_impl.h",
+      "open_csd/decoder/source/etmv4/trc_cmp_cfg_etmv4.cpp",
+      "open_csd/decoder/source/etmv4/trc_etmv4_stack_elem.cpp",
+      "open_csd/decoder/source/etmv4/trc_pkt_decode_etmv4i.cpp",
+      "open_csd/decoder/source/etmv4/trc_pkt_elem_etmv4i.cpp",
+      "open_csd/decoder/source/etmv4/trc_pkt_proc_etmv4i.cpp",
+      "open_csd/decoder/source/i_dec/trc_i_decode.cpp",
+      "open_csd/decoder/source/i_dec/trc_idec_arminst.cpp",
+      "open_csd/decoder/source/mem_acc/trc_mem_acc_base.cpp",
+      "open_csd/decoder/source/mem_acc/trc_mem_acc_bufptr.cpp",
+      "open_csd/decoder/source/mem_acc/trc_mem_acc_cache.cpp",
+      "open_csd/decoder/source/mem_acc/trc_mem_acc_cb.cpp",
+      "open_csd/decoder/source/mem_acc/trc_mem_acc_file.cpp",
+      "open_csd/decoder/source/mem_acc/trc_mem_acc_mapper.cpp",
+      "open_csd/decoder/source/ocsd_code_follower.cpp",
+      "open_csd/decoder/source/ocsd_dcd_tree.cpp",
+      "open_csd/decoder/source/ocsd_error.cpp",
+      "open_csd/decoder/source/ocsd_error_logger.cpp",
+      "open_csd/decoder/source/ocsd_gen_elem_list.cpp",
+      "open_csd/decoder/source/ocsd_gen_elem_stack.cpp",
+      "open_csd/decoder/source/ocsd_lib_dcd_register.cpp",
+      "open_csd/decoder/source/ocsd_msg_logger.cpp",
+      "open_csd/decoder/source/ocsd_version.cpp",
+      "open_csd/decoder/source/pkt_printers/gen_elem_printer.cpp",
+      "open_csd/decoder/source/pkt_printers/raw_frame_printer.cpp",
+      "open_csd/decoder/source/pkt_printers/trc_print_fact.cpp",
+      "open_csd/decoder/source/ptm/trc_cmp_cfg_ptm.cpp",
+      "open_csd/decoder/source/ptm/trc_pkt_decode_ptm.cpp",
+      "open_csd/decoder/source/ptm/trc_pkt_elem_ptm.cpp",
+      "open_csd/decoder/source/ptm/trc_pkt_proc_ptm.cpp",
+      "open_csd/decoder/source/stm/trc_pkt_decode_stm.cpp",
+      "open_csd/decoder/source/stm/trc_pkt_elem_stm.cpp",
+      "open_csd/decoder/source/stm/trc_pkt_proc_stm.cpp",
+      "open_csd/decoder/source/trc_component.cpp",
+      "open_csd/decoder/source/trc_core_arch_map.cpp",
+      "open_csd/decoder/source/trc_frame_deformatter.cpp",
+      "open_csd/decoder/source/trc_frame_deformatter_impl.h",
+      "open_csd/decoder/source/trc_gen_elem.cpp",
+      "open_csd/decoder/source/trc_printable_elem.cpp",
+      "open_csd/decoder/source/trc_ret_stack.cpp",
+    ]
+
+    cflags = [
+      "-Wno-switch",
+      "-Wno-deprecated-declarations",
+    ]
+
+    configs -= [
+      "//gn/standalone:extra_warnings",
+      "//gn/standalone:no_exceptions",
+      "//gn/standalone:no_rtti",
+    ]
+    include_dirs = [ "open_csd/decoder/include" ]
+    public_configs = [ ":open_csd_config" ]
+  }
+}
