@@ -45,7 +45,7 @@ import {
   CollapsiblePanelVisibility,
 } from '../../components/widgets/collapsible_panel';
 
-interface ExploreTableState {
+export interface ExploreTableState {
   sqlTableState?: SqlTableState;
   selectedTable?: ExplorableTable;
 }
@@ -56,20 +56,18 @@ interface ExplorableTable {
   columns: (TableColumn | TableColumnSet)[];
 }
 
-export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
-  private readonly state: ExploreTableState;
-  private readonly charts: Chart[];
-  private visibility: CollapsiblePanelVisibility;
+interface ExplorePageAttrs extends PageWithTraceAttrs {
+  readonly state: ExploreTableState;
+  readonly charts: Chart[];
+}
 
-  constructor() {
-    this.charts = [];
-    this.state = {};
-    this.visibility = CollapsiblePanelVisibility.VISIBLE;
-  }
+export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
+  private visibility = CollapsiblePanelVisibility.VISIBLE;
 
   // Show menu with standard library tables
   private renderSelectableTablesMenuItems(
     trace: Trace,
+    state: ExploreTableState,
   ): m.Vnode<MenuItemAttrs, unknown>[] {
     // TODO (lydiatse@): The following is purely for prototyping and
     // should be derived from the actual stdlib itself rather than
@@ -118,16 +116,13 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
       return m(MenuItem, {
         label: table.name,
         onclick: () => {
-          if (
-            this.state.selectedTable &&
-            table.name === this.state.selectedTable.name
-          ) {
+          if (state.selectedTable && table.name === state.selectedTable.name) {
             return;
           }
 
-          this.state.selectedTable = table;
+          state.selectedTable = table;
 
-          this.state.sqlTableState = new SqlTableState(
+          state.sqlTableState = new SqlTableState(
             trace,
             {
               name: table.name,
@@ -140,8 +135,8 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
     });
   }
 
-  private renderSqlTable() {
-    const sqlTableState = this.state.sqlTableState;
+  private renderSqlTable(state: ExploreTableState, charts: Chart[]) {
+    const sqlTableState = state.sqlTableState;
 
     if (sqlTableState === undefined) return;
 
@@ -181,27 +176,29 @@ export class ExplorePage implements m.ClassComponent<PageWithTraceAttrs> {
               sqlTableState,
             ),
             chartOptions: [ChartOption.HISTOGRAM],
-            addChart: (chart) => this.charts.push(chart),
+            addChart: (chart) => charts.push(chart),
           }),
       }),
     );
   }
 
-  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
+  view({attrs}: m.CVnode<ExplorePageAttrs>) {
+    const {trace, state, charts} = attrs;
+
     return m(
       '.page.explore-page',
       m(
         '.chart-container',
-        m(Menu, this.renderSelectableTablesMenuItems(attrs.trace)),
-        this.charts.map((chart) => renderChartComponent(chart)),
+        m(Menu, this.renderSelectableTablesMenuItems(trace, state)),
+        charts.map((chart) => renderChartComponent(chart)),
       ),
-      this.state.selectedTable &&
+      state.selectedTable &&
         m(CollapsiblePanel, {
           visibility: this.visibility,
           setVisibility: (visibility) => {
             this.visibility = visibility;
           },
-          tabs: [this.renderSqlTable()],
+          tabs: [this.renderSqlTable(state, charts)],
         }),
     );
   }
