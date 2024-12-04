@@ -31,6 +31,8 @@ SELECT SUBSTR(pid_and_name.value, start.value) FROM pid_and_name, start;
 -- Provides a list of broadcast names and processes they were sent to by the
 -- system_server process on U+ devices.
 CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
+  -- Broadcast record id.
+  record_id STRING,
   -- Intent action of the broadcast.
   intent_action STRING,
   -- Name of the process the broadcast was sent to.
@@ -39,6 +41,8 @@ CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
   pid LONG,
   -- Upid of the process the broadcast was sent to.
   upid JOINID(process.id),
+  -- Id of the broacast process queue the broadcast was dispatched from.
+  process_queue_id STRING,
   -- Id of the broacast queue the broadcast was dispatched from.
   queue_id LONG,
   -- Broadcast dispatch slice.
@@ -67,6 +71,7 @@ WITH
       slice.id AS id,
       slice.ts,
       slice.dur,
+      str_split(slice.name, ' ', 0) AS process_queue_id,
       broadcast_queues.queue_id,
       _extract_broadcast_process_name(slice.name) AS process_name,
       cast_int!(str_split(str_split(str_split(slice.name, '/', 0), ' ', 1), ':', 0)) AS pid,
@@ -79,6 +84,7 @@ WITH
   broadcast_intent_action AS (
     SELECT
       str_split(str_split(slice.name, '/', 0), ' ', 1) AS intent_action,
+      str_split(slice.name, ' ', 0) AS record_id,
       slice.parent_id,
       slice.id AS intent_id,
       slice.ts AS intent_ts,
@@ -88,10 +94,12 @@ WITH
     WHERE slice.name GLOB '* scheduled'
   )
   SELECT
+    broadcast_intent_action.record_id,
     broadcast_intent_action.intent_action,
     broadcast_process_running.process_name,
     broadcast_process_running.pid,
     _pid_to_upid(broadcast_process_running.pid, broadcast_intent_action.intent_ts) AS upid,
+    broadcast_process_running.process_queue_id,
     broadcast_process_running.queue_id,
     broadcast_intent_action.intent_id AS id,
     broadcast_intent_action.intent_ts AS ts,
