@@ -34,6 +34,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -130,6 +131,15 @@ class TraceSorter {
 
   void AddMachineContext(TraceProcessorContext* context) {
     sorter_data_by_machine_.emplace_back(context);
+  }
+
+  void PushAndroidDumpstateEvent(
+      int64_t timestamp,
+      const AndroidDumpstateEvent& event,
+      std::optional<MachineId> machine_id = std::nullopt) {
+    AppendNonFtraceEvent(timestamp,
+                         TimestampedEvent::Type::kAndroidDumpstateEvent, event,
+                         machine_id);
   }
 
   void PushAndroidLogEvent(int64_t timestamp,
@@ -338,6 +348,7 @@ class TraceSorter {
  private:
   struct TimestampedEvent {
     enum class Type : uint8_t {
+      kAndroidDumpstateEvent,
       kAndroidLogEvent,
       kEtwEvent,
       kFtraceEvent,

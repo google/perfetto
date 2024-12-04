@@ -27,6 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -256,6 +257,10 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
       context.json_trace_parser->ParseSystraceLine(
           event.ts, token_buffer_.Extract<SystraceLine>(id));
       return;
+    case TimestampedEvent::Type::kAndroidDumpstateEvent:
+      context.android_dumpstate_event_parser->ParseAndroidDumpstateEvent(
+          event.ts, token_buffer_.Extract<AndroidDumpstateEvent>(id));
+      return;
     case TimestampedEvent::Type::kAndroidLogEvent:
       context.android_log_event_parser->ParseAndroidLogEvent(
           event.ts, token_buffer_.Extract<AndroidLogEvent>(id));
@@ -307,6 +312,7 @@ void TraceSorter::ParseEtwPacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kJsonValue:
     case TimestampedEvent::Type::kJsonValueWithDur:
     case TimestampedEvent::Type::kFuchsiaRecord:
+    case TimestampedEvent::Type::kAndroidDumpstateEvent:
     case TimestampedEvent::Type::kAndroidLogEvent:
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
     case TimestampedEvent::Type::kGeckoEvent:
@@ -344,6 +350,7 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
     case TimestampedEvent::Type::kJsonValue:
     case TimestampedEvent::Type::kJsonValueWithDur:
     case TimestampedEvent::Type::kFuchsiaRecord:
+    case TimestampedEvent::Type::kAndroidDumpstateEvent:
     case TimestampedEvent::Type::kAndroidLogEvent:
     case TimestampedEvent::Type::kLegacyV8CpuProfileEvent:
     case TimestampedEvent::Type::kGeckoEvent:
@@ -392,6 +399,9 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
       return;
     case TimestampedEvent::Type::kInstrumentsRow:
       base::ignore_result(token_buffer_.Extract<instruments_importer::Row>(id));
+      return;
+    case TimestampedEvent::Type::kAndroidDumpstateEvent:
+      base::ignore_result(token_buffer_.Extract<AndroidDumpstateEvent>(id));
       return;
     case TimestampedEvent::Type::kAndroidLogEvent:
       base::ignore_result(token_buffer_.Extract<AndroidLogEvent>(id));
