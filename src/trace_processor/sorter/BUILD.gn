@@ -29,6 +29,7 @@ source_set("sorter") {
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor:storage",
     "../../base",
+    "../importers/android_bugreport:android_dumpstate_event",
     "../importers/android_bugreport:android_log_event",
     "../importers/art_method:art_method_event",
     "../importers/common:parser_types",

@@ -279,6 +279,7 @@ source_set("trace_type") {
     "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace:non_minimal_zero",
     "../../protozero",
+    "../importers/android_bugreport:android_dumpstate_event",
     "../importers/android_bugreport:android_log_event",
     "../importers/perf_text:perf_text_sample_line_parser",
   ]
