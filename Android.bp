@@ -849,6 +849,7 @@ cc_library_shared {
         ":perfetto_src_tracing_system_backend",
     ],
     host_supported: true,
+    vendor_available: true,
     export_include_dirs: [
         "include",
     ],
