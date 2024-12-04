@@ -1447,18 +1447,20 @@ destBucket
 avg_duration (RavgDuration!
 max_duration (RmaxDuration!
 sum_duration (RsumDuration
-Å
+¢
 <protos/perfetto/metrics/android/wattson_in_time_period.protoperfetto.protos"≈
 AndroidWattsonTimePeriodMetric%
 metric_version (RmetricVersion.
 power_model_version (RpowerModelVersionL
 period_info (2+.perfetto.protos.AndroidWattsonEstimateInfoR
-periodInfo"≤
+periodInfo"”
 AndroidWattsonEstimateInfo
-	period_id (RperiodId
+	period_id (RperiodId
+period_name (	R
+periodName
 
-period_dur (R	periodDurX
-cpu_subsystem (23.perfetto.protos.AndroidWattsonCpuSubsystemEstimateRcpuSubsystem"¸
+period_dur (R	periodDurX
+cpu_subsystem (23.perfetto.protos.AndroidWattsonCpuSubsystemEstimateRcpuSubsystem"¸
 "AndroidWattsonCpuSubsystemEstimate!
 estimated_mw (RestimatedMw#
 estimated_mws (RestimatedMwsG
