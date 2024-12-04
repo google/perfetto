@@ -1572,10 +1572,8 @@ class JsonExporter {
           if (it.classification() != process_stats) {
             continue;
           }
-          std::optional<Variadic> upid;
-          RETURN_IF_ERROR(storage_->ExtractArg(*arg_set_id, "upid", &upid));
-          PERFETTO_DCHECK(upid->type == Variadic::kInt);
-          if (upid->int_value != pit.id().value) {
+          uint64_t upid = args_builder_.GetArgs(*arg_set_id)["upid"].asUInt64();
+          if (upid != pit.id().value) {
             continue;
           }
           TrackId track_id = it.id();
