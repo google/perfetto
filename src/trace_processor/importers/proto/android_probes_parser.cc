@@ -72,30 +72,17 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
 
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob);
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "battery_counter", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(
-          tracks::StringDimensionBlueprint("battery_name"),
-          tracks::StringDimensionBlueprint("counter_name")),
-      tracks::FnNameBlueprint([](base::StringView battery_name,
-                                 base::StringView counter_name) {
-        if (battery_name.size() > 0) {
-          return base::StackString<1024>(
-              "batt.%.*s.%.*s", int(battery_name.size()), battery_name.data(),
-              int(counter_name.size()), counter_name.data());
-        }
-        return base::StackString<1024>("batt.%.*s", int(counter_name.size()),
-                                       counter_name.data());
-      }));
   if (evt.has_charge_counter_uah()) {
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(evt.name(), "charge_uah"));
+        tracks::kBatteryCounterBlueprint,
+        tracks::Dimensions(evt.name(), "charge_uah"));
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.charge_counter_uah()), track);
   } else if (evt.has_energy_counter_uwh() && evt.has_voltage_uv()) {
     // Calculate charge counter from energy counter and voltage.
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(evt.name(), "charge_uah"));
+        tracks::kBatteryCounterBlueprint,
+        tracks::Dimensions(evt.name(), "charge_uah"));
     auto energy = evt.energy_counter_uwh();
     auto voltage = evt.voltage_uv();
     if (voltage > 0) {
@@ -105,32 +92,37 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   }
   if (evt.has_capacity_percent()) {
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(evt.name(), "capacity_pct"));
+        tracks::kBatteryCounterBlueprint,
+        tracks::Dimensions(evt.name(), "capacity_pct"));
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.capacity_percent()), track);
   }
   if (evt.has_current_ua()) {
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(evt.name(), "current_ua"));
+        tracks::kBatteryCounterBlueprint,
+        tracks::Dimensions(evt.name(), "current_ua"));
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_ua()), track);
   }
   if (evt.has_current_avg_ua()) {
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(evt.name(), "current.avg_ua"));
+        tracks::kBatteryCounterBlueprint,
+        tracks::Dimensions(evt.name(), "current.avg_ua"));
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_avg_ua()), track);
   }
   if (evt.has_voltage_uv()) {
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(evt.name(), "voltage_uv"));
+        tracks::kBatteryCounterBlueprint,
+        tracks::Dimensions(evt.name(), "voltage_uv"));
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.voltage_uv()), track);
   }
   if (evt.has_current_ua() && evt.has_voltage_uv()) {
     // Calculate power from current and voltage.
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(evt.name(), "power_mw"));
+        tracks::kBatteryCounterBlueprint,
+        tracks::Dimensions(evt.name(), "power_mw"));
     auto current = evt.current_ua();
     auto voltage = evt.voltage_uv();
     // Current is negative when discharging, but we want the power counter to
