@@ -13495,6 +13495,7 @@ python_binary_host {
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/counter_tables.py",
+        "src/trace_processor/tables/etm_tables.py",
         "src/trace_processor/tables/flow_tables.py",
         "src/trace_processor/tables/jit_tables.py",
         "src/trace_processor/tables/memory_tables.py",
@@ -13898,6 +13899,7 @@ genrule {
     srcs: [
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/counter_tables.py",
+        "src/trace_processor/tables/etm_tables.py",
         "src/trace_processor/tables/flow_tables.py",
         "src/trace_processor/tables/jit_tables.py",
         "src/trace_processor/tables/memory_tables.py",
@@ -13918,6 +13920,7 @@ genrule {
     out: [
         "src/trace_processor/tables/android_tables_py.h",
         "src/trace_processor/tables/counter_tables_py.h",
+        "src/trace_processor/tables/etm_tables_py.h",
         "src/trace_processor/tables/flow_tables_py.h",
         "src/trace_processor/tables/jit_tables_py.h",
         "src/trace_processor/tables/memory_tables_py.h",
@@ -13942,6 +13945,7 @@ python_binary_host {
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/counter_tables.py",
+        "src/trace_processor/tables/etm_tables.py",
         "src/trace_processor/tables/flow_tables.py",
         "src/trace_processor/tables/jit_tables.py",
         "src/trace_processor/tables/memory_tables.py",

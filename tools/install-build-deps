@@ -324,6 +324,10 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
         '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8',
         'darwin', 'all'),
+
+    Dependency('buildtools/open_csd',
+            'https://android.googlesource.com/platform/external/OpenCSD.git',
+            '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
 ]
 
 # Dependencies required to build Android code.

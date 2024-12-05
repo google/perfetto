@@ -106,7 +106,23 @@ MMAP_RECORD = Table(
         C('ts', CppInt64()),
         C('upid', CppOptional(CppUint32())),
         C('mapping_id', CppTableId(STACK_PROFILE_MAPPING_TABLE)),
-    ])
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          This table has a row for each mmap or mmap2 record in a perf trace.
+          It allows us to determine when mappings are created and what process
+          created them.
+        ''',
+        group='Perf',
+        columns={
+            'ts':
+                'Time the mapping was created.',
+            'upid':
+                'Process that created the mapping',
+            'mapping_id':
+                ColumnDoc('Mapping', joinable='stack_profile_mapping.id'),
+        },
+    ))
 
 ALL_TABLES = [
     SPE_RECORD_TABLE,
