@@ -102,6 +102,14 @@ def perfetto_deps():
         ]
     )
 
+    _add_repo_if_not_existing(
+        new_git_repository,
+        name = "perfetto_dep_open_csd",
+        remote = "https://android.googlesource.com/platform/external/OpenCSD.git",
+        commit = "0ce01e934f95efb6a216a6efa35af1245151c779",
+        build_file = "//bazel:open_csd.BUILD",
+    )
+
 def _add_repo_if_not_existing(repo_rule, name, **kwargs):
     if name not in native.existing_rules():
         repo_rule(name = name, **kwargs)

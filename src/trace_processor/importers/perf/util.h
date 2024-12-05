@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -30,6 +31,26 @@ inline bool SafeAdd(A a, B b, Res* result) {
 template <typename A, typename B, typename Res>
 inline bool SafeMultiply(A a, B b, Res* result) {
   return !__builtin_mul_overflow(a, b, result);
+}
+
+template <typename A,
+          typename Res,
+          typename = std::enable_if_t<std::is_integral<A>::value &&
+                                      std::is_integral<Res>::value>>
+bool SafeCast(A a, Res* res) {
+  *res = static_cast<Res>(a);
+
+  // Was the value clamped?
+  if (static_cast<A>(*res) != a) {
+    return false;
+  }
+
+  // Did the sign change?
+  if ((a < 0) != (*res < 0)) {
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

@@ -67,6 +67,7 @@ from diff_tests.parser.chrome.tests import ChromeParser
 from diff_tests.parser.chrome.tests_memory_snapshots import ChromeMemorySnapshots
 from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.cros.tests import Cros
+from diff_tests.parser.etm.tests import Etm
 from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
@@ -175,6 +176,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ChromeParser(index_path, 'parser/chrome', 'ChromeParser').fetch(),
       *ChromeV8Parser(index_path, 'parser/chrome', 'ChromeV8Parser').fetch(),
       *Cros(index_path, 'parser/cros', 'Cros').fetch(),
+      *Etm(index_path, 'parser/etm', 'Etm').fetch(),
       *Fs(index_path, 'parser/fs', 'Fs').fetch(),
       *Fuchsia(index_path, 'parser/fuchsia', 'Fuchsia').fetch(),
       *GraphicsDrmRelatedFtraceEvents(index_path, 'parser/graphics',
