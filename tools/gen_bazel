@@ -56,6 +56,7 @@ gn_args_base = {
     'enable_perfetto_traced_perf': 'false',
     'perfetto_force_dcheck': '"off"',
     'enable_perfetto_llvm_demangle': 'true',
+    'enable_perfetto_etm_importer': 'false',
 }
 gn_args = ' '.join((map(lambda x:'='.join(x), gn_args_base.items())))
 
