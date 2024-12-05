@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/etm/storage_handle.h"
+#include <opencsd/etmv4/trc_cmp_cfg_etmv4.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -29,10 +30,10 @@ void StorageHandle::StoreEtmV4Config(tables::EtmV4ConfigurationTable::Id id,
   storage_->mutable_etm_v4_configuration_data()->push_back(std::move(config));
 }
 
-const Configuration* StorageHandle::GetEtmV4Config(
+const Configuration& StorageHandle::GetEtmV4Config(
     tables::EtmV4ConfigurationTable::Id id) const {
   PERFETTO_CHECK(id.value < storage_->etm_v4_configuration_data().size());
-  return static_cast<const Configuration*>(
+  return *static_cast<const Configuration*>(
       storage_->etm_v4_configuration_data()[id.value].get());
 }
 
@@ -40,6 +41,12 @@ void StorageHandle::StoreTrace(tables::EtmV4TraceTable::Id id,
                                TraceBlobView trace) {
   PERFETTO_CHECK(id.value == storage_->etm_v4_trace_data().size());
   storage_->mutable_etm_v4_trace_data()->push_back(std::move(trace));
+}
+
+const TraceBlobView& StorageHandle::GetTrace(
+    tables::EtmV4TraceTable::Id id) const {
+  PERFETTO_CHECK(id.value < storage_->etm_v4_trace_data().size());
+  return storage_->etm_v4_trace_data()[id.value];
 }
 
 }  // namespace perfetto::trace_processor::etm
