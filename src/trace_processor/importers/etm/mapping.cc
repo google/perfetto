@@ -14,20 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETM_UTIL_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ETM_UTIL_H_
+#include "src/trace_processor/importers/etm/mapping.h"
 
-#include "src/trace_processor/importers/etm/opencsd.h"
 namespace perfetto::trace_processor::etm {
-
-const char* ToString(ocsd_gen_trc_elem_t type);
-std::optional<ocsd_gen_trc_elem_t> FromString(const char* type_str);
-const char* ToString(ocsd_isa isa);
-const char* ToString(ocsd_instr_type type);
-const char* ToString(ocsd_instr_subtype sub_type);
-const char* ToString(ocsd_core_profile_t profile);
-const char* ToString(ocsd_arch_version_t ver);
-
 }  // namespace perfetto::trace_processor::etm
-
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ETM_UTIL_H_

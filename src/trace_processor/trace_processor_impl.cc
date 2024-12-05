@@ -145,6 +145,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #endif
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -892,6 +893,11 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->sqlite_engine()->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine_.get()));
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  engine_->sqlite_engine()
+      ->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
+          "__intrinsic_etm_decode_trace", storage);
+#endif
 
   // Register stdlib packages.
   auto packages = GetStdlibPackages();
