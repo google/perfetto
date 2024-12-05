@@ -17,9 +17,11 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {ExplorePage, ExploreTableState} from './explore_page';
 import {Chart} from '../../components/widgets/charts/chart';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
+  static readonly dependencies = [SqlModulesPlugin];
 
   // The following allows us to have persistent
   // state/charts for the lifecycle of a single
@@ -32,7 +34,11 @@ export default class implements PerfettoPlugin {
       route: '/explore',
       page: {
         view: ({attrs}) =>
-          m(ExplorePage, {...attrs, state: this.state, charts: this.charts}),
+          m(ExplorePage, {
+            ...attrs,
+            state: this.state,
+            charts: this.charts,
+          }),
       },
     });
     trace.sidebar.addMenuItem({
