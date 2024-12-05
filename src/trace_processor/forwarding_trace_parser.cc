@@ -68,6 +68,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kFuchsiaTraceType:
     case kZipFile:
     case kTarTraceType:
+    case kAndroidDumpstateTraceType:
     case kAndroidLogcatTraceType:
     case kGeckoTraceType:
     case kArtMethodTraceType:
@@ -78,7 +79,6 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kSymbolsTraceType:
       return ConvertSortingMode(context.config.sorting_mode);
 
-    case kAndroidDumpstateTraceType:
     case kAndroidBugreportTraceType:
       PERFETTO_FATAL(
           "This trace type should be handled at the ZipParser level");
