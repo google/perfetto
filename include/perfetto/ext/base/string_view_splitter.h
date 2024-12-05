@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_STRING_SPLITTER_H_
-#define INCLUDE_PERFETTO_EXT_BASE_STRING_SPLITTER_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_STRING_VIEW_SPLITTER_H_
+#define INCLUDE_PERFETTO_EXT_BASE_STRING_VIEW_SPLITTER_H_
 
 #include "perfetto/ext/base/string_view.h"
 
@@ -74,4 +74,4 @@ class StringViewSplitter {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_STRING_SPLITTER_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_STRING_VIEW_SPLITTER_H_
