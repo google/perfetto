@@ -45,6 +45,7 @@ source_set("base") {
     "string_splitter.h",
     "string_utils.h",
     "string_view.h",
+    "string_view_splitter.h",
     "string_writer.h",
     "subprocess.h",
     "sys_types.h",
