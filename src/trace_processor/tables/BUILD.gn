@@ -19,6 +19,7 @@ perfetto_tp_tables("tables_python") {
   sources = [
     "android_tables.py",
     "counter_tables.py",
+    "etm_tables.py",
     "flow_tables.py",
     "jit_tables.py",
     "memory_tables.py",

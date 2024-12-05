@@ -143,6 +143,10 @@
 #include "src/trace_processor/importers/instruments/row_parser.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+#include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
+#endif
+
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
@@ -470,6 +474,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.content_analyzer =
         std::make_unique<ProtoContentAnalyzer>(&context_);
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  perf_importer::PerfTracker::GetOrCreate(&context_)->RegisterAuxTokenizer(
+      PERF_AUXTRACE_CS_ETM, etm::CreateEtmV4StreamDemultiplexer);
+#endif
 
   // Add metrics to descriptor pool
   const std::vector<std::string> sanitized_extension_paths =
@@ -992,6 +1001,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   RegisterStaticTable(storage->mutable_jit_code_table());
   RegisterStaticTable(storage->mutable_jit_frame_table());
+
+  RegisterStaticTable(storage->mutable_etm_v4_configuration_table());
+  RegisterStaticTable(storage->mutable_etm_v4_session_table());
+  RegisterStaticTable(storage->mutable_etm_v4_trace_table());
 
   RegisterStaticTable(storage->mutable_spe_record_table());
   RegisterStaticTable(storage->mutable_mmap_record_table());

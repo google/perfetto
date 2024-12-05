@@ -246,25 +246,6 @@ class Simpleperf(TestSuite):
         "main,E"
         '''))
 
-  def test_etm_dummy_parsing(self):
-    return DiffTestBlueprint(
-        trace=DataPath('simpleperf/etm.perf.data.zip'),
-        query='''
-        SELECT name, value
-        FROM stats
-        WHERE name IN (
-          'perf_aux_missing', 'perf_aux_ignored', 'perf_aux_lost',
-          'perf_auxtrace_missing')
-        ORDER BY name
-        ''',
-        out=Csv('''
-        "name","value"
-        "perf_aux_ignored",463744
-        "perf_aux_lost",0
-        "perf_aux_missing",0
-        "perf_auxtrace_missing",0
-        '''))
-
   def test_spe_operation(self):
     return DiffTestBlueprint(
         trace=DataPath('simpleperf/spe.trace.zip'),

@@ -340,6 +340,12 @@ declare_args() {
   # BigTrace and even then only to build the final ready-to-ship binary, don't
   # enable this by default.
   enable_perfetto_grpc = false
+
+  # Enables the ETM importer in trace_processor. This feature is experimental at
+  # this point and it requires extra libraries so we only enable it in selected
+  # builds.
+  enable_perfetto_etm_importer =
+      is_linux && enable_perfetto_trace_processor && perfetto_build_standalone
 }
 
 declare_args() {
