@@ -418,9 +418,10 @@ perfetto_cc_library(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
-            ":src_profiling_symbolizer_symbolizer",
             ":src_trace_processor_importers_etm_etm_impl",
             ":src_trace_processor_importers_etm_public_hdr",
+            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
+            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
         ],
     }),
     hdrs = [
@@ -1858,18 +1859,26 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_etm_etm_impl",
     srcs = [
+        "src/trace_processor/importers/etm/element_cursor.cc",
+        "src/trace_processor/importers/etm/element_cursor.h",
         "src/trace_processor/importers/etm/error_logger.cc",
         "src/trace_processor/importers/etm/error_logger.h",
         "src/trace_processor/importers/etm/etm_tracker.cc",
         "src/trace_processor/importers/etm/etm_tracker.h",
+        "src/trace_processor/importers/etm/etm_v4_decoder.cc",
+        "src/trace_processor/importers/etm/etm_v4_decoder.h",
         "src/trace_processor/importers/etm/etm_v4_stream.cc",
         "src/trace_processor/importers/etm/etm_v4_stream.h",
         "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.cc",
         "src/trace_processor/importers/etm/frame_decoder.cc",
         "src/trace_processor/importers/etm/frame_decoder.h",
+        "src/trace_processor/importers/etm/mapping.cc",
+        "src/trace_processor/importers/etm/mapping.h",
         "src/trace_processor/importers/etm/opencsd.h",
         "src/trace_processor/importers/etm/storage_handle.cc",
         "src/trace_processor/importers/etm/storage_handle.h",
+        "src/trace_processor/importers/etm/target_memory_reader.cc",
+        "src/trace_processor/importers/etm/target_memory_reader.h",
         "src/trace_processor/importers/etm/types.cc",
         "src/trace_processor/importers/etm/types.h",
         "src/trace_processor/importers/etm/util.cc",
@@ -2822,6 +2831,22 @@ perfetto_cc_tp_tables(
     ],
     outs = [
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/intrinsics/operators:etm_hdr
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
+    srcs = [
+        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/intrinsics/operators:etm_impl
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
+    srcs = [
+        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.cc",
     ],
 )
 
@@ -6719,9 +6744,10 @@ perfetto_cc_library(
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
-            ":src_profiling_symbolizer_symbolizer",
             ":src_trace_processor_importers_etm_etm_impl",
             ":src_trace_processor_importers_etm_public_hdr",
+            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
+            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
         ],
     }),
     hdrs = [
@@ -6938,6 +6964,8 @@ perfetto_cc_binary(
         "//conditions:default": [
             ":src_trace_processor_importers_etm_etm_impl",
             ":src_trace_processor_importers_etm_public_hdr",
+            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
+            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
         ],
     }),
     visibility = [
@@ -7139,6 +7167,8 @@ perfetto_cc_binary(
         "//conditions:default": [
             ":src_trace_processor_importers_etm_etm_impl",
             ":src_trace_processor_importers_etm_public_hdr",
+            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
+            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
         ],
     }),
     visibility = [

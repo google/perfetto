@@ -35,40 +35,48 @@ source_set("public_hdr") {
 }
 
 source_set("etm_impl") {
-  visibility = [ ":etm" ]
+  visibility = [
+    ":etm",
+    "../../perfetto_sql/intrinsics/operators:etm_impl",
+  ]
   sources = [
+    "element_cursor.cc",
+    "element_cursor.h",
     "error_logger.cc",
     "error_logger.h",
     "etm_tracker.cc",
     "etm_tracker.h",
+    "etm_v4_decoder.cc",
+    "etm_v4_decoder.h",
     "etm_v4_stream.cc",
     "etm_v4_stream.h",
     "etm_v4_stream_demultiplexer.cc",
     "frame_decoder.cc",
     "frame_decoder.h",
+    "mapping.cc",
+    "mapping.h",
     "opencsd.h",
     "storage_handle.cc",
     "storage_handle.h",
+    "target_memory_reader.cc",
+    "target_memory_reader.h",
     "types.cc",
     "types.h",
     "util.cc",
     "util.h",
   ]
+
+  public_deps = [ "../../../../gn:open_csd" ]
+
   deps = [
     ":public_hdr",
     "../../../../gn:default_deps",
-    "../../../../gn:open_csd",
     "../../../../include/perfetto/base:base",
-    "../../../../include/perfetto/ext/base:base",
-    "../../../profiling/symbolizer",
-    "../../../trace_processor:storage_minimal",
-    "../../containers:containers",
-    "../../importers/common:common",
-    "../../importers/perf",
-    "../../storage:storage",
+    "../../storage",
     "../../tables:tables_python",
-    "../../types:types",
-    "../../util:trace_blob_view_reader",
-    "../../util:trace_blob_view_reader",
+    "../../types",
+    "../common",
+    "../perf",
+    "../perf:record",
   ]
 }

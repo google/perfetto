@@ -16,52 +16,157 @@
  */
 
 #include "src/trace_processor/importers/etm/util.h"
+
+#include <optional>
+
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/importers/etm/element_cursor.h"
 
 namespace perfetto::trace_processor::etm {
 
 const char* ToString(ocsd_gen_trc_elem_t type) {
+  // This switch also makes sure the range of values for type is compatible with
+  // `ElementTypeMask`.
   switch (type) {
     case OCSD_GEN_TRC_ELEM_UNKNOWN:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_UNKNOWN));
       return "UNKNOWN";
     case OCSD_GEN_TRC_ELEM_NO_SYNC:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_NO_SYNC));
       return "NO_SYNC";
     case OCSD_GEN_TRC_ELEM_TRACE_ON:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_TRACE_ON));
       return "TRACE_ON";
     case OCSD_GEN_TRC_ELEM_EO_TRACE:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_EO_TRACE));
       return "EO_TRACE";
     case OCSD_GEN_TRC_ELEM_PE_CONTEXT:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_PE_CONTEXT));
       return "PE_CONTEXT";
     case OCSD_GEN_TRC_ELEM_INSTR_RANGE:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_INSTR_RANGE));
       return "INSTR_RANGE";
     case OCSD_GEN_TRC_ELEM_I_RANGE_NOPATH:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_I_RANGE_NOPATH));
       return "I_RANGE_NOPATH";
     case OCSD_GEN_TRC_ELEM_ADDR_NACC:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_ADDR_NACC));
       return "ADDR_NACC";
     case OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN));
       return "ADDR_UNKNOWN";
     case OCSD_GEN_TRC_ELEM_EXCEPTION:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_EXCEPTION));
       return "EXCEPTION";
     case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_EXCEPTION_RET));
       return "EXCEPTION_RET";
     case OCSD_GEN_TRC_ELEM_TIMESTAMP:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_TIMESTAMP));
       return "TIMESTAMP";
     case OCSD_GEN_TRC_ELEM_CYCLE_COUNT:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_CYCLE_COUNT));
       return "CYCLE_COUNT";
     case OCSD_GEN_TRC_ELEM_EVENT:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_EVENT));
       return "EVENT";
     case OCSD_GEN_TRC_ELEM_SWTRACE:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_SWTRACE));
       return "SWTRACE";
     case OCSD_GEN_TRC_ELEM_SYNC_MARKER:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_SYNC_MARKER));
       return "SYNC_MARKER";
     case OCSD_GEN_TRC_ELEM_MEMTRANS:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_MEMTRANS));
       return "MEMTRANS";
     case OCSD_GEN_TRC_ELEM_INSTRUMENTATION:
+      static_assert(ElementTypeMask::IsCompatibleValue(
+          OCSD_GEN_TRC_ELEM_INSTRUMENTATION));
       return "INSTRUMENTATION";
     case OCSD_GEN_TRC_ELEM_CUSTOM:
+      static_assert(
+          ElementTypeMask::IsCompatibleValue(OCSD_GEN_TRC_ELEM_CUSTOM));
       return "CUSTOM";
   }
   PERFETTO_CHECK(false);  // For GCC.
+}
+
+std::optional<ocsd_gen_trc_elem_t> FromString(const char* type_str) {
+  if (strcmp(type_str, "UNKNOWN") == 0) {
+    return OCSD_GEN_TRC_ELEM_UNKNOWN;
+  }
+  if (strcmp(type_str, "NO_SYNC") == 0) {
+    return OCSD_GEN_TRC_ELEM_NO_SYNC;
+  }
+  if (strcmp(type_str, "TRACE_ON") == 0) {
+    return OCSD_GEN_TRC_ELEM_TRACE_ON;
+  }
+  if (strcmp(type_str, "EO_TRACE") == 0) {
+    return OCSD_GEN_TRC_ELEM_EO_TRACE;
+  }
+  if (strcmp(type_str, "PE_CONTEXT") == 0) {
+    return OCSD_GEN_TRC_ELEM_PE_CONTEXT;
+  }
+  if (strcmp(type_str, "INSTR_RANGE") == 0) {
+    return OCSD_GEN_TRC_ELEM_INSTR_RANGE;
+  }
+  if (strcmp(type_str, "I_RANGE_NOPATH") == 0) {
+    return OCSD_GEN_TRC_ELEM_I_RANGE_NOPATH;
+  }
+  if (strcmp(type_str, "ADDR_NACC") == 0) {
+    return OCSD_GEN_TRC_ELEM_ADDR_NACC;
+  }
+  if (strcmp(type_str, "ADDR_UNKNOWN") == 0) {
+    return OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN;
+  }
+  if (strcmp(type_str, "EXCEPTION") == 0) {
+    return OCSD_GEN_TRC_ELEM_EXCEPTION;
+  }
+  if (strcmp(type_str, "EXCEPTION_RET") == 0) {
+    return OCSD_GEN_TRC_ELEM_EXCEPTION_RET;
+  }
+  if (strcmp(type_str, "TIMESTAMP") == 0) {
+    return OCSD_GEN_TRC_ELEM_TIMESTAMP;
+  }
+  if (strcmp(type_str, "CYCLE_COUNT") == 0) {
+    return OCSD_GEN_TRC_ELEM_CYCLE_COUNT;
+  }
+  if (strcmp(type_str, "EVENT") == 0) {
+    return OCSD_GEN_TRC_ELEM_EVENT;
+  }
+  if (strcmp(type_str, "SWTRACE") == 0) {
+    return OCSD_GEN_TRC_ELEM_SWTRACE;
+  }
+  if (strcmp(type_str, "SYNC_MARKER") == 0) {
+    return OCSD_GEN_TRC_ELEM_SYNC_MARKER;
+  }
+  if (strcmp(type_str, "MEMTRANS") == 0) {
+    return OCSD_GEN_TRC_ELEM_MEMTRANS;
+  }
+  if (strcmp(type_str, "INSTRUMENTATION") == 0) {
+    return OCSD_GEN_TRC_ELEM_INSTRUMENTATION;
+  }
+  if (strcmp(type_str, "CUSTOM") == 0) {
+    return OCSD_GEN_TRC_ELEM_CUSTOM;
+  }
+  return std::nullopt;
 }
 
 const char* ToString(ocsd_isa isa) {

@@ -42,10 +42,11 @@ class StorageHandle {
 
   void StoreEtmV4Config(tables::EtmV4ConfigurationTable::Id id,
                         std::unique_ptr<Configuration> config);
-  const Configuration* GetEtmV4Config(
+  const Configuration& GetEtmV4Config(
       tables::EtmV4ConfigurationTable::Id) const;
 
   void StoreTrace(tables::EtmV4TraceTable::Id id, TraceBlobView trace);
+  const TraceBlobView& GetTrace(tables::EtmV4TraceTable::Id id) const;
 
  private:
   TraceStorage* storage_;

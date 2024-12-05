@@ -51,3 +51,59 @@ class Etm(TestSuite):
           21076978919593,8,238
           21076989801225,8,356
         '''))
+
+  def test_decode_all(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/cs_etm_u.perf'),
+        query='''
+          SELECT count(*)
+          FROM
+            __intrinsic_etm_v4_trace t,
+            __intrinsic_etm_decode_trace d
+            ON t.id = d.trace_id
+        ''',
+        out=Csv('''
+          "count(*)"
+          5871
+        '''))
+
+  def test_decode_trace(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/cs_etm_u.perf'),
+        query='''
+          SELECT *
+          FROM
+            __intrinsic_etm_decode_trace
+          WHERE trace_id = 0
+        ''',
+        out=Csv('''
+          "trace_index","element_index","element_type","timestamp","cycle_count","exception_level","context_id","isa","start_address","end_address","mapping_id"
+          12,0,"NO_SYNC","[NULL]","[NULL]","[NULL]","[NULL]","UNKNOWN",-1,-1,"[NULL]"
+          40,1,"TRACE_ON","[NULL]","[NULL]","[NULL]","[NULL]","UNKNOWN",-1,-1,"[NULL]"
+          40,2,"PE_CONTEXT","[NULL]","[NULL]",0,315,"AARCH64",-1,-1,"[NULL]"
+          40,3,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487860616,-1,"[NULL]"
+          50,4,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487537936,-1,"[NULL]"
+          60,5,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",434500225096,-1,"[NULL]"
+          70,6,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487560912,-1,"[NULL]"
+          76,7,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487493696,-1,"[NULL]"
+          85,8,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487561064,-1,"[NULL]"
+          91,9,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487412480,-1,"[NULL]"
+          97,10,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487818588,-1,"[NULL]"
+          107,11,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487819616,-1,"[NULL]"
+          112,12,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487821296,-1,"[NULL]"
+          130,13,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487386304,-1,"[NULL]"
+          137,14,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487799440,-1,"[NULL]"
+          144,15,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487387072,-1,"[NULL]"
+          152,16,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487799592,-1,"[NULL]"
+          159,17,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487386304,-1,"[NULL]"
+          166,18,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487799440,-1,"[NULL]"
+          173,19,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487387072,-1,"[NULL]"
+          180,20,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487799592,-1,"[NULL]"
+          187,21,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487827048,-1,"[NULL]"
+          199,22,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487386304,-1,"[NULL]"
+          206,23,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487799440,-1,"[NULL]"
+          213,24,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487387072,-1,"[NULL]"
+          221,25,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487799592,-1,"[NULL]"
+          229,26,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487548832,-1,"[NULL]"
+          235,27,"ADDR_NACC","[NULL]","[NULL]",0,315,"AARCH64",523487677904,-1,"[NULL]"
+        '''))
