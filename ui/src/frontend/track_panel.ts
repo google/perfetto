@@ -34,26 +34,6 @@ import {
 import {getActiveVsyncData, renderVsyncColumns} from './vsync_helper';
 import {SCROLLING_TRACK_GROUP, getContainingTrackIds} from '../common/state';
 
-function getTitleSize(title: string): string|undefined {
-  const length = title.length;
-  if (length > 55) {
-    return '9px';
-  }
-  if (length > 50) {
-    return '10px';
-  }
-  if (length > 45) {
-    return '11px';
-  }
-  if (length > 40) {
-    return '12px';
-  }
-  if (length > 35) {
-    return '13px';
-  }
-  return undefined;
-}
-
 function isPinned(id: string) {
   return globals.state.pinnedTracks.indexOf(id) !== -1;
 }
@@ -170,9 +150,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       getContainingTrackIds(globals.state, attrs.trackState.id)?.length ?? 0) +
       1;
     const trackTitle = attrs.trackState.title ?? attrs.trackState.name;
-    const titleStyling: Record<string, string|undefined> = {
-      fontSize: getTitleSize(trackTitle),
-    };
+    const titleStyling: Record<string, string|undefined> = {};
       titleStyling.marginLeft = `${depth/2}rem`;
 
     const dragClass = this.dragging ? `drag` : '';
