@@ -34,6 +34,7 @@ import {
 } from '../../components/widgets/collapsible_panel';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {scheduleFullRedraw} from '../../widgets/raf';
 
 export interface ExploreTableState {
   sqlTableViewState?: SqlTableViewState;
@@ -42,7 +43,7 @@ export interface ExploreTableState {
 
 interface ExplorePageAttrs extends PageWithTraceAttrs {
   readonly state: ExploreTableState;
-  readonly charts: Chart[];
+  readonly charts: Set<Chart>;
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
@@ -90,7 +91,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     });
   }
 
-  private renderSqlTable(state: ExploreTableState, charts: Chart[]) {
+  private renderSqlTable(state: ExploreTableState, charts: Set<Chart>) {
     const sqlTableViewState = state.sqlTableViewState;
 
     if (sqlTableViewState === undefined) return;
@@ -131,9 +132,26 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               sqlTableViewState,
             ),
             chartOptions: [ChartOption.HISTOGRAM],
-            addChart: (chart) => charts.push(chart),
+            addChart: (chart) => charts.add(chart),
           }),
       }),
+    );
+  }
+
+  private renderRemovableChart(chart: Chart, charts: Set<Chart>) {
+    return m(
+      '.chart-card',
+      {
+        key: `${chart.option}-${chart.config.columnTitle}`,
+      },
+      m(Button, {
+        icon: Icons.Close,
+        onclick: () => {
+          charts.delete(chart);
+          scheduleFullRedraw();
+        },
+      }),
+      renderChartComponent(chart),
     );
   }
 
@@ -148,7 +166,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ),
       m(
         '.chart-container',
-        charts.map((chart) => renderChartComponent(chart)),
+        Array.from(charts.values()).map((chart) =>
+          this.renderRemovableChart(chart, charts),
+        ),
       ),
       state.selectedTableName &&
         m(CollapsiblePanel, {
