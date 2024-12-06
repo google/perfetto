@@ -31,9 +31,10 @@ class AndroidDumpstateReader : public ChunkedLineReader {
  public:
   // Create a reader that will only forward events that are not present in the
   // given list.
-  AndroidDumpstateReader(TraceProcessorContext* context,
-                         int32_t year,
-                         std::vector<TimestampedAndroidLogEvent> logcat_events);
+  AndroidDumpstateReader(
+      TraceProcessorContext* context,
+      int32_t year = 0,
+      std::vector<TimestampedAndroidLogEvent> logcat_events = {});
   ~AndroidDumpstateReader() override;
 
   base::Status ParseLine(base::StringView line) override;
