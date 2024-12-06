@@ -277,7 +277,26 @@ CREATE PERFETTO VIEW perf_session(
   perf_session_id LONG,
   -- Command line used to collect the data.
   cmdline STRING
-)
-AS
+) AS
 SELECT *, id AS perf_session_id
 FROM __intrinsic_perf_session;
+
+-- Log entries from Android logcat.
+--
+-- NOTE: this table is not sorted by timestamp.
+CREATE PERFETTO VIEW android_logs(
+-- Which row in the table the log corresponds to.
+id ID,
+-- Timestamp of log entry.
+ts TIMESTAMP,
+-- Thread writing the log entry.
+utid JOINID(thread.id),
+-- Priority of the log. 3=DEBUG, 4=INFO, 5=WARN, 6=ERROR.
+prio LONG,
+-- Tag of the log entry.
+tag STRING,
+-- Content of the log entry
+msg STRING
+) AS
+SELECT id, ts, utid, prio, tag, msg
+FROM __intrinsic_android_logs;
