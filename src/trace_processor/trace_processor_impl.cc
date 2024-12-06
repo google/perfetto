@@ -144,6 +144,7 @@
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+#include "src/trace_processor/importers/etm/etm_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #endif
@@ -554,6 +555,12 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
 
   // Last opportunity to flush all pending data.
   Flush();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  if (context_.etm_tracker) {
+    RETURN_IF_ERROR(etm::EtmTracker::GetOrCreate(&context_)->Finalize());
+  }
+#endif
 
   RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
   if (context_.perf_tracker) {
