@@ -698,10 +698,9 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::ProcessStats::Decoder stats(blob);
   for (auto it = stats.processes(); it; ++it) {
     protozero::ProtoDecoder proc(*it);
-    uint32_t pid = 0;
+    uint32_t pid = proc.FindField(Process::kPidFieldNumber).as_uint32();
     for (auto fld = proc.ReadField(); fld.valid(); fld = proc.ReadField()) {
       if (fld.id() == Process::kPidFieldNumber) {
-        pid = fld.as_uint32();
         continue;
       }
       if (fld.id() == Process::kThreadsFieldNumber) {
