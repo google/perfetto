@@ -31,7 +31,7 @@ from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 ANDROID_LOG_TABLE = Table(
     python_module=__file__,
     class_name="AndroidLogTable",
-    sql_name="android_logs",
+    sql_name="__intrinsic_android_logs",
     columns=[
         C("ts", CppInt64()),
         C("utid", CppTableId(THREAD_TABLE)),
