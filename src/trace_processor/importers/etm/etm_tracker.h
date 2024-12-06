@@ -18,14 +18,19 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETM_ETM_TRACKER_H_
 
 #include "perfetto/base/flat_set.h"
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/etm/types.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
 namespace etm {
+
+class Configuration;
+
+using PerCpuConfiguration =
+    base::FlatHashMap<uint32_t, std::unique_ptr<Configuration>>;
 
 class EtmTracker : public Destructible {
  public:
@@ -37,6 +42,8 @@ class EtmTracker : public Destructible {
   }
 
   ~EtmTracker() override;
+
+  base::Status Finalize();
 
   void AddSessionData(tables::EtmV4SessionTable::Id session_id,
                       std::vector<TraceBlobView> traces);

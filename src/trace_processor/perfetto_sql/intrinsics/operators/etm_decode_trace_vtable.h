@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_ETM_DECODE_TRACE_VTABLE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_ETM_DECODE_TRACE_VTABLE_H_
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
 namespace perfetto::trace_processor {
@@ -28,6 +26,7 @@ namespace etm {
 struct EtmDecodeTraceVtable : sqlite::Module<EtmDecodeTraceVtable> {
   using Context = TraceStorage;
   struct Vtab : sqlite::Module<EtmDecodeTraceVtable>::Vtab {
+    explicit Vtab(TraceStorage* in_storage) : storage(in_storage) {}
     TraceStorage* storage;
   };
   class Cursor;

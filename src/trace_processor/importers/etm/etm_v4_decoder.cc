@@ -22,8 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/importers/common/address_range.h"
-#include "src/trace_processor/importers/etm/mapping.h"
+#include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
 #include "src/trace_processor/importers/etm/target_memory_reader.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -78,14 +77,13 @@ base::Status EtmV4Decoder::Init(const EtmV4Config& config) {
 ocsd_datapath_resp_t EtmV4Decoder::TraceElemIn(const ocsd_trc_index_t index_sop,
                                                const uint8_t trc_chan_id,
                                                const OcsdTraceElement& elem) {
+  const MappingVersion* content = nullptr;
   if (elem.getType() == OCSD_GEN_TRC_ELEM_PE_CONTEXT) {
     memory_reader_->SetPeContext(elem.getContext());
-  }
-  const Mapping* content = nullptr;
-  if (elem.getType() == OCSD_GEN_TRC_ELEM_INSTR_RANGE) {
-    AddressRange range(elem.st_addr, elem.en_addr);
-    content = memory_reader_->FindMapping(range);
-    if (!content) {
+  } else if (elem.getType() == OCSD_GEN_TRC_ELEM_INSTR_RANGE) {
+    content = memory_reader_->FindMapping(elem.st_addr);
+    PERFETTO_CHECK(content);
+    if (!content->Contains(elem.en_addr)) {
       // Sometimes (very very rarely) we get huge instruction ranges that can
       // span multiple adjacent mappings caused by runaway decoding.
       // Some libraries get their code modified at load time (e.g. linux kernel
@@ -96,8 +94,9 @@ ocsd_datapath_resp_t EtmV4Decoder::TraceElemIn(const ocsd_trc_index_t index_sop,
           "Mapping does not contain full instruction range. st_addr=%" PRIu64
           "en_addr=%" PRIu64,
           elem.st_addr, elem.en_addr);
-      content = nullptr;
     }
+  } else if (elem.getType() == OCSD_GEN_TRC_ELEM_ADDR_NACC) {
+    content = memory_reader_->FindMapping(elem.st_addr);
   }
   return delegate_->TraceElemIn(index_sop, trc_chan_id, elem, content);
 }
