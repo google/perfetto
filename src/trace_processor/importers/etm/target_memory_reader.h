@@ -24,11 +24,12 @@
 #include "src/trace_processor/importers/etm/opencsd.h"
 namespace perfetto::trace_processor::etm {
 
-class Mapping;
+class MappingVersion;
+class TargetMemory;
 
 class TargetMemoryReader : public ITargetMemAccess {
  public:
-  TargetMemoryReader() {}
+  explicit TargetMemoryReader(const TargetMemory* memory) : memory_(memory) {}
 
   ocsd_err_t ReadTargetMemory(const ocsd_vaddr_t address,
                               const uint8_t cs_trace_id,
@@ -37,12 +38,18 @@ class TargetMemoryReader : public ITargetMemAccess {
                               uint8_t* p_buffer) override;
   void InvalidateMemAccCache(const uint8_t cs_trace_id) override;
 
-  void SetTs(std::optional<int64_t> ts);
+  void SetTs(int64_t ts);
   void SetPeContext(const ocsd_pe_context&);
 
-  Mapping* FindMapping(const AddressRange& range) const;
+  const MappingVersion* FindMapping(uint64_t address) const;
 
  private:
+  const TargetMemory* memory_;
+
+  std::optional<uint32_t> tid_;
+  int64_t ts_;
+  // Cache last mapping to speedup lookups.
+  mutable const MappingVersion* cached_mapping_;
 };
 
 }  // namespace perfetto::trace_processor::etm

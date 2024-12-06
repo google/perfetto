@@ -28,7 +28,7 @@
 
 namespace perfetto::trace_processor::etm {
 
-class Mapping;
+class MappingVersion;
 class TargetMemoryReader;
 
 // Wrapper around the open_csd packet processor. This class will take ETM traces
@@ -41,7 +41,7 @@ class EtmV4Decoder : private ITrcGenElemIn {
     virtual ocsd_datapath_resp_t TraceElemIn(const ocsd_trc_index_t index_sop,
                                              const uint8_t trc_chan_id,
                                              const OcsdTraceElement& elem,
-                                             const Mapping* mapping) = 0;
+                                             const MappingVersion* mapping) = 0;
   };
 
   static base::StatusOr<std::unique_ptr<EtmV4Decoder>> Create(
