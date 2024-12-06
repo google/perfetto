@@ -118,6 +118,21 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
         RETURN_IF_ERROR(ProcessBatteryStatsHistoryEvent(item));
       }
     }
+  } else if (possible_event_type == "0") {
+    const base::StringView metadata_type =
+        (splitter.Next() ? base::StringView(splitter.cur_token()) : "");
+    if (metadata_type == "i") {
+      const base::StringView info_type =
+          (splitter.Next() ? base::StringView(splitter.cur_token()) : "");
+      if (info_type == "vers") {
+        ASSIGN_OR_RETURN(uint64_t battery_stats_version,
+                         StringToStatusOrUInt64(
+                             splitter.Next() ? splitter.cur_token() : ""));
+        AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_)
+            ->battery_stats_version(
+                static_cast<uint32_t>(battery_stats_version));
+      }
+    }
   } else {
     // TODO Implement UID parsing and other kinds of events.
   }

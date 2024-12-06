@@ -262,7 +262,7 @@ base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
     // Process a history state of the form "+state" or "-state"
 
     // To match behavior of the battery stats atrace implementation, avoid
-    // including Wakelock events in the trace
+    // including Wakelock events in the trace as counters.
     if (key == "+w" || key == "-w") {
       return base::OkStatus();
     }
@@ -382,6 +382,29 @@ base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
 
     context_->event_tracker->PushCounter(ts, static_cast<double>(counter_value),
                                          counter_track);
+    return base::OkStatus();
+  } else if ((key == "+w" || key == "-w") && !value.empty() &&
+             history_string_tracker->battery_stats_version() >= 36) {
+    // We can only support wakeup parsing on battery stats ver 36+ since on
+    // older versions the "-w" event does not have a history string
+    // associated with it. This history sting is needed, since we use the
+    // HSP index as the "cookie" to disambiguate overlapping wakelocks.
+
+    ASSIGN_OR_RETURN(uint64_t hsp_index, StringToStatusOrUInt64(value));
+    StringId track_name_id = context_->storage->InternString("WakeLocks");
+    AsyncTrackSetTracker::TrackSetId track_set_id =
+        context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
+    if (key.at(0) == '+') {
+      StringId name_id = context_->storage->InternString(
+          history_string_tracker->GetString(hsp_index));
+      TrackId track_id = context_->async_track_set_tracker->Begin(
+          track_set_id, static_cast<int64_t>(hsp_index));
+      context_->slice_tracker->Begin(ts, track_id, kNullStringId, name_id);
+    } else {
+      TrackId track_id = context_->async_track_set_tracker->End(
+          track_set_id, static_cast<int64_t>(hsp_index));
+      context_->slice_tracker->End(ts, track_id);
+    }
     return base::OkStatus();
   } else {
     return base::ErrStatus("Unhandled event");
