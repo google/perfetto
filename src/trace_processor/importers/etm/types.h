@@ -46,9 +46,6 @@ class Configuration : public Destructible {
   std::variant<EtmV4Config, ETEConfig> config_;
 };
 
-using PerCpuConfiguration =
-    base::FlatHashMap<uint32_t, std::unique_ptr<Configuration>>;
-
 }  // namespace perfetto::trace_processor::etm
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ETM_TYPES_H_

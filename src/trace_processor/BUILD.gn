@@ -347,6 +347,9 @@ perfetto_unittest_source_set("unittests") {
       "sqlite:unittests",
     ]
   }
+  if (enable_perfetto_etm_importer) {
+    deps += [ "importers/etm:unittests" ]
+  }
 }
 
 perfetto_cc_proto_descriptor("gen_cc_test_messages_descriptor") {

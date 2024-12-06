@@ -19,9 +19,11 @@
 #include <cstdint>
 #include <memory>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/etm/storage_handle.h"
+#include "src/trace_processor/importers/etm/target_memory.h"
 #include "src/trace_processor/importers/etm/types.h"
 #include "src/trace_processor/importers/etm/util.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -86,6 +88,11 @@ EtmTracker::InsertEtmV4Config(PerCpuConfiguration per_cpu_configs) {
     StorageHandle(context_).StoreEtmV4Config(id, std::move(config));
   }
   return res;
+}
+
+base::Status EtmTracker::Finalize() {
+  TargetMemory::InitStorage(context_);
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::etm
