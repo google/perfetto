@@ -112,10 +112,23 @@ bindAppDur
 
 intent_dur (R	intentDur
 	total_dur (RtotalDur
-î
-Mprotos/perfetto/metrics/android/android_garbage_collection_unagg_metric.protoperfetto.protos"±
+˝
+6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"±
+AndroidProcessMetadata
+name (	Rname
+uid (RuidI
+package (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackage
+pid	 (Rpidv
+Package!
+package_name (	RpackageName(
+apk_version_code (RapkVersionCode
+
+debuggable (R
+debuggableJJJJJ	
+è
+Mprotos/perfetto/metrics/android/android_garbage_collection_unagg_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ù
 #AndroidGarbageCollectionUnaggMetrich
-	gc_events (2K.perfetto.protos.AndroidGarbageCollectionUnaggMetric.GarbageCollectionEventRgcEventsü
+	gc_events (2K.perfetto.protos.AndroidGarbageCollectionUnaggMetric.GarbageCollectionEventRgcEvents‚
 GarbageCollectionEvent
 thread_name (	R
 threadName!
@@ -138,7 +151,8 @@ gc_int_dur (RgcIntDur
 gc_ts (RgcTs
 pid (Rpid
 tid (Rtid(
-gc_monotonic_dur (RgcMonotonicDur
+gc_monotonic_dur (RgcMonotonicDurA
+process (2'.perfetto.protos.AndroidProcessMetadataRprocess
 ‹
 8protos/perfetto/metrics/android/android_boot_unagg.protoperfetto.protos?protos/perfetto/metrics/android/app_process_starts_metric.protoMprotos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto"˛
 AndroidBootUnaggv
@@ -194,19 +208,6 @@ Rprotos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.pr
 name (	Rname
 dur_ms (RdurMs
 dur_ns (RdurNs
-˝
-6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"±
-AndroidProcessMetadata
-name (	Rname
-uid (RuidI
-package (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackage
-pid	 (Rpidv
-Package!
-package_name (	RpackageName(
-apk_version_code (RapkVersionCode
-
-debuggable (R
-debuggableJJJJJ	
 Ÿ
 Cprotos/perfetto/metrics/android/android_frame_timeline_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"»
 AndroidFrameTimelineMetric!
