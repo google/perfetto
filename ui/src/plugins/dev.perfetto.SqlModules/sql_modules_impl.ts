@@ -25,10 +25,21 @@ import {
   SqlTableFunction,
 } from './sql_modules';
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
-import {TableColumn} from '../../components/widgets/sql/table/column';
 import {
+  TableColumn,
+  TableColumnSet,
+} from '../../components/widgets/sql/table/column';
+import {
+  ArgSetColumnSet,
   DurationColumn,
+  ProcessColumn,
+  ProcessIdColumn,
+  SchedIdColumn,
+  SliceIdColumn,
   StandardColumn,
+  ThreadColumn,
+  ThreadIdColumn,
+  ThreadStateIdColumn,
   TimestampColumn,
 } from '../../components/widgets/sql/table/well_known_columns';
 
@@ -199,8 +210,8 @@ class StdlibDataObjectImpl implements SqlTable {
     this.columns = docs.cols.map((json) => new StdlibColumnImpl(json));
   }
 
-  getTableColumns(): TableColumn[] {
-    return this.columns.map((col) => col.asTableColumn());
+  getTableColumns(): (TableColumn | TableColumnSet)[] {
+    return this.columns.map((col) => col.asTableColumn(this.name));
   }
 }
 
@@ -215,13 +226,50 @@ class StdlibColumnImpl implements SqlColumn {
     this.name = docs.name;
   }
 
-  asTableColumn(): TableColumn {
-    // TODO(mayzner): Support JOINID and ID columns.
+  asTableColumn(tableName: string): TableColumn | TableColumnSet {
     if (this.type === 'TIMESTAMP') {
       return new TimestampColumn(this.name);
     }
     if (this.type === 'DURATION') {
       return new DurationColumn(this.name);
+    }
+    if (this.type === 'ARGSETID') {
+      return new ArgSetColumnSet(this.name);
+    }
+
+    if (this.name === 'ID') {
+      if (tableName === 'slice') {
+        return new SliceIdColumn(this.name);
+      }
+      if (tableName === 'thread') {
+        return new ThreadIdColumn(this.name);
+      }
+      if (tableName === 'process') {
+        return new ProcessIdColumn(this.name);
+      }
+      if (tableName === 'thread_state') {
+        return new ThreadStateIdColumn(this.name);
+      }
+      if (tableName === 'sched') {
+        return new SchedIdColumn(this.name);
+      }
+      return new StandardColumn(this.name);
+    }
+
+    if (this.type === 'JOINID(slice.id)') {
+      return new SliceIdColumn(this.name);
+    }
+    if (this.type === 'JOINID(thread.id)') {
+      return new ThreadColumn(this.name);
+    }
+    if (this.type === 'JOINID(process.id)') {
+      return new ProcessColumn(this.name);
+    }
+    if (this.type === 'JOINID(thread_state.id)') {
+      return new ThreadStateIdColumn(this.name);
+    }
+    if (this.type === 'JOINID(sched.id)') {
+      return new SchedIdColumn(this.name);
     }
     return new StandardColumn(this.name);
   }
