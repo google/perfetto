@@ -155,6 +155,84 @@ TEST(StringUtilsTest, StringToDouble) {
   EXPECT_EQ(StringToDouble(" - 42"), std::nullopt);
 }
 
+TEST(StringUtilsTest, StringViewToUInt32) {
+  EXPECT_EQ(StringViewToUInt32("0"), std::make_optional<uint32_t>(0U));
+  EXPECT_EQ(StringViewToUInt32("1"), std::make_optional<uint32_t>(1U));
+  EXPECT_EQ(StringViewToUInt32("42"), std::make_optional<uint32_t>(42U));
+  EXPECT_EQ(StringViewToUInt32("a", 16), std::make_optional<uint32_t>(10U));
+  EXPECT_EQ(StringViewToUInt32("fffffff0", 16),
+            std::make_optional<uint32_t>(0xfffffff0));
+  EXPECT_EQ(StringViewToUInt32(""), std::nullopt);
+  EXPECT_EQ(StringViewToUInt32("!?"), std::nullopt);
+  EXPECT_EQ(StringViewToUInt32("abc"), std::nullopt);
+  EXPECT_EQ(StringViewToUInt32("123 abc"), std::nullopt);
+  EXPECT_EQ(StringViewToUInt32("beefz", 16), std::nullopt);
+}
+
+TEST(StringUtilsTest, StringViewToInt32) {
+  EXPECT_EQ(StringViewToInt32("0"), std::make_optional<int32_t>(0));
+  EXPECT_EQ(StringViewToInt32("1"), std::make_optional<int32_t>(1));
+  EXPECT_EQ(StringViewToInt32("+42"), std::make_optional<int32_t>(42));
+  EXPECT_EQ(StringViewToInt32("+0042"), std::make_optional<int32_t>(42));
+  EXPECT_EQ(StringViewToInt32("-42"), std::make_optional<int32_t>(-42));
+  EXPECT_EQ(StringViewToInt32("42", 16), std::make_optional<int32_t>(0x42));
+  EXPECT_EQ(StringViewToInt32("7ffffffe", 16),
+            std::make_optional<int32_t>(0x7ffffffe));
+  EXPECT_EQ(StringViewToInt32(""), std::nullopt);
+  EXPECT_EQ(StringViewToInt32("!?"), std::nullopt);
+  EXPECT_EQ(StringViewToInt32("abc"), std::nullopt);
+  EXPECT_EQ(StringViewToInt32("123 abc"), std::nullopt);
+  EXPECT_EQ(StringViewToInt32("beefz", 16), std::nullopt);
+}
+
+TEST(StringUtilsTest, StringViewToUInt64) {
+  EXPECT_EQ(StringViewToUInt64("0"), std::make_optional<uint64_t>(0u));
+  EXPECT_EQ(StringViewToUInt64("1"), std::make_optional<uint64_t>(1u));
+  EXPECT_EQ(StringViewToUInt64("5000000000"),
+            std::make_optional<uint64_t>(5000000000ULL));
+  EXPECT_EQ(StringViewToUInt64("7ffffffffffffffe", 16),
+            std::make_optional<uint64_t>(0x7ffffffffffffffeULL));
+  EXPECT_EQ(StringViewToUInt64("9ffffffffffffffe", 16),
+            std::make_optional<uint64_t>(0x9ffffffffffffffeULL));
+  EXPECT_EQ(StringViewToUInt64(""), std::nullopt);
+  EXPECT_EQ(StringViewToUInt64("abc"), std::nullopt);
+  EXPECT_EQ(StringViewToUInt64("beefz", 16), std::nullopt);
+}
+
+TEST(StringUtilsTest, StringViewToInt64) {
+  EXPECT_EQ(StringViewToInt64("0"), std::make_optional<int64_t>(0));
+  EXPECT_EQ(StringViewToInt64("1"), std::make_optional<int64_t>(1));
+  EXPECT_EQ(StringViewToInt64("-5000000000"),
+            std::make_optional<int64_t>(-5000000000LL));
+  EXPECT_EQ(StringViewToInt64("5000000000"),
+            std::make_optional<int64_t>(5000000000LL));
+  EXPECT_EQ(StringViewToInt64("7ffffffffffffffe", 16),
+            std::make_optional<int64_t>(0x7ffffffffffffffeLL));
+  EXPECT_EQ(StringViewToInt64("9ffffffe", 16),
+            std::make_optional<int64_t>(0x9ffffffeLL));
+  EXPECT_EQ(StringViewToInt64(""), std::nullopt);
+  EXPECT_EQ(StringViewToInt64("abc"), std::nullopt);
+  EXPECT_EQ(StringViewToInt64("beefz", 16), std::nullopt);
+}
+
+// TODO: As of Clang 19.0 std::from_chars is unimplemented for type double
+// despite being part of C++17 standard, and already being supported by GCC and
+// MSVC. Enable this once we have double support in Clang.
+// TEST(StringUtilsTest, StringViewToDouble) {
+//   EXPECT_DOUBLE_EQ(StringViewToDouble("0").value(), 0l);
+//   EXPECT_DOUBLE_EQ(StringViewToDouble("1").value(), 1l);
+//   EXPECT_DOUBLE_EQ(StringViewToDouble("-42").value(), -42l);
+//   EXPECT_DOUBLE_EQ(StringViewToDouble("-42.5").value(), -42.5l);
+//   EXPECT_DOUBLE_EQ(StringViewToDouble("0.5").value(), .5l);
+//   EXPECT_DOUBLE_EQ(StringViewToDouble(".5").value(), .5l);
+//   EXPECT_EQ(StringViewToDouble(""), std::nullopt);
+//   EXPECT_EQ(StringViewToDouble("!?"), std::nullopt);
+//   EXPECT_EQ(StringViewToDouble("abc"), std::nullopt);
+//   EXPECT_EQ(StringViewToDouble("123 abc"), std::nullopt);
+//   EXPECT_EQ(StringViewToDouble("124,456"), std::nullopt);
+//   EXPECT_EQ(StringViewToDouble("4 2"), std::nullopt);
+//   EXPECT_EQ(StringViewToDouble(" - 42"), std::nullopt);
+
 TEST(StringUtilsTest, StartsWith) {
   EXPECT_TRUE(StartsWith("", ""));
   EXPECT_TRUE(StartsWith("abc", ""));
