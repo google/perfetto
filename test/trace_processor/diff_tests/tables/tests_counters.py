@@ -232,3 +232,17 @@ class TablesCounters(TestSuite):
         "count(*)"
         98688
         """))
+
+  def test_counters_utid_arg_set_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('memory_counters.pb'),
+        trace_modifier=TraceInjector(
+            ['ftrace_events', 'sys_stats', 'process_stats', 'process_tree'],
+            {'machine_id': 1001}),
+        query="""
+        SELECT COUNT(DISTINCT extract_arg(arg_set_id, 'utid')) AS utid_count FROM counter
+        """,
+        out=Csv("""
+        "utid_count"
+        141
+        """))
