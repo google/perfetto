@@ -28,8 +28,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/no_destructor.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view_splitter.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
@@ -60,12 +60,11 @@ AndroidBatteryStatsReader::AndroidBatteryStatsReader(
 AndroidBatteryStatsReader::~AndroidBatteryStatsReader() = default;
 
 util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
-  // TODO: migrate to future StringViewSplitter when availabile.
-  base::StringSplitter splitter(line.ToStdString(), ',');
+  base::StringViewSplitter splitter(line, ',');
 
   // consume the legacy version number which we expect to be at the start of
   // every line.
-  if ((splitter.Next() ? std::string(splitter.cur_token()) : "") != "9") {
+  if (!splitter.Next() || splitter.cur_token() != "9") {
     return base::ErrStatus("Unexpected start of battery stats checkin line");
   }
 
@@ -76,14 +75,13 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
     ASSIGN_OR_RETURN(
         uint64_t index,
         StringToStatusOrUInt64(splitter.Next() ? splitter.cur_token() : ""));
-    const std::optional<int32_t> possible_uid =
-        base::StringToInt32(splitter.Next() ? splitter.cur_token() : "");
+    const std::optional<int32_t> possible_uid = base::StringToInt32(
+        splitter.Next() ? splitter.cur_token().ToStdString() : "");
     // the next element is quoted and can contain commas. Instead of
     // implementing general logic to parse quoted CSV elements just grab the
     // rest of the line, which is possible since this element should be the
     // last one on the line.
-    base::StringView remainder =
-        base::StringView(splitter.remainder(), splitter.remainder_size());
+    base::StringView remainder = splitter.remainder();
     // remove the leading and trailing quotes from the hsp string
     size_t substr_start = remainder.find('"') + 1;
     size_t substr_end = remainder.rfind('"');

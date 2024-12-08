@@ -22,8 +22,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view_splitter.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
@@ -220,12 +220,11 @@ void AndroidDumpstateEventParserImpl::ParseAndroidDumpstateEvent(
 base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
     int64_t ts,
     const std::string& raw_event) {
-  // TODO: migrate to future StringViewSplitter when availabile.
-  base::StringSplitter splitter(raw_event, '=');
+  base::StringViewSplitter splitter(base::StringView(raw_event), '=');
   TokenizedBatteryStatsHistoryItem item;
   item.ts = ts;
-  item.key = base::StringView(splitter.Next() ? splitter.cur_token() : "");
-  item.value = base::StringView(splitter.Next() ? splitter.cur_token() : "");
+  item.key = splitter.Next() ? splitter.cur_token() : "";
+  item.value = splitter.Next() ? splitter.cur_token() : "";
   item.prefix = "";
   if (item.key.size() > 0 && (item.key.at(0) == '+' || item.key.at(0) == '-')) {
     item.prefix = item.key.substr(0, 1);

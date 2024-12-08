@@ -58,6 +58,10 @@ class StringViewSplitter {
   // false) returns the empty string.
   base::StringView cur_token() { return cur_; }
 
+  // Returns the remainder of the current input string that has not yet been
+  // tokenized.
+  base::StringView remainder() { return next_; }
+
  private:
   StringViewSplitter(const StringViewSplitter&) = delete;
   StringViewSplitter& operator=(const StringViewSplitter&) = delete;
