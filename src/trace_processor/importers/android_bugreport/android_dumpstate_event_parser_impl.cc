@@ -248,8 +248,9 @@ base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
                                        .append(item_name)
                                        .append("=")
                                        .append(std::to_string(uid))
-                                       .append(":")
-                                       .append(event_str);
+                                       .append(":\"")
+                                       .append(event_str)
+                                       .append("\"");
     StringId name_id = context_->storage->InternString(slice_name);
     AsyncTrackSetTracker::TrackSetId track_set_id =
         context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
