@@ -16,24 +16,14 @@ import {asUtid} from '../../components/sql_utils/core_types';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 import {TrackNode} from '../../public/workspace';
-import {extensions} from '../../components/extensions';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeTasks';
+
   async onTraceLoad(ctx: Trace) {
     await this.createTracks(ctx);
-
-    ctx.commands.registerCommand({
-      id: 'org.chromium.ChromeTasks.ShowChromeTasksTable',
-      name: 'Show chrome_tasks table',
-      callback: () =>
-        extensions.addSqlTableTab(ctx, {
-          table: chromeTasksTable,
-        }),
-    });
   }
 
   async createTracks(ctx: Trace) {

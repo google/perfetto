@@ -68,6 +68,7 @@ export const defaultPlugins = [
   'dev.perfetto.TraceMetadata',
   'dev.perfetto.VizPage',
   'org.chromium.CriticalUserInteraction',
+  'org.Chromium.OpenTableCommands',
   'org.kernel.LinuxKernelSubsystems',
   'org.kernel.SuspendResumeLatency',
   'org.kernel.Wattson',

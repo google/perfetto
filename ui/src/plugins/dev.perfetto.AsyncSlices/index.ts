@@ -23,9 +23,6 @@ import {AsyncSliceTrack} from './async_slice_track';
 import {exists} from '../../base/utils';
 import {assertExists, assertTrue} from '../../base/logging';
 import {SliceSelectionAggregator} from './slice_selection_aggregator';
-import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
-import {getSliceTable} from './table';
-import {extensions} from '../../components/extensions';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 export default class implements PerfettoPlugin {
@@ -74,18 +71,6 @@ export default class implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionAggregator(
       new SliceSelectionAggregator(),
     );
-
-    sqlTableRegistry['slice'] = getSliceTable();
-
-    ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.slice',
-      name: 'Open table: slice',
-      callback: () => {
-        extensions.addSqlTableTab(ctx, {
-          table: getSliceTable(),
-        });
-      },
-    });
   }
 
   async addGlobalAsyncTracks(
