@@ -39,7 +39,7 @@ export class Histogram implements m.ClassComponent<ChartConfig> {
     return m(
       'figure',
       {
-        className: 'pf-histogram-view',
+        className: 'chart',
       },
       m(VegaView, {
         spec: stringifyJsonWithBigints(this.state.spec),
