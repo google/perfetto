@@ -12,32 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {exists} from '../../base/utils';
 import {ColumnDef, Sorting, ThreadStateExtra} from '../../public/aggregation';
 import {AreaSelection} from '../../public/selection';
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {AreaSelectionAggregator} from '../../public/selection';
+import {UnionDataset} from '../../trace_processor/dataset';
 import {translateState} from '../../components/sql_utils/thread_state';
 import {TrackDescriptor} from '../../public/track';
 
 export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'thread_state_aggregation';
-  private utids?: number[];
-
-  setThreadStateUtids(tracks: ReadonlyArray<TrackDescriptor>) {
-    this.utids = [];
-    for (const trackInfo of tracks) {
-      if (trackInfo?.tags?.kind === THREAD_STATE_TRACK_KIND) {
-        exists(trackInfo.tags.utid) && this.utids.push(trackInfo.tags.utid);
-      }
-    }
-  }
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
-    this.setThreadStateUtids(area.tracks);
-    if (this.utids === undefined || this.utids.length === 0) return false;
+    const dataset = this.getDatasetFromTracks(area.tracks);
+    if (dataset === undefined) return false;
 
     await engine.query(`
       create or replace perfetto table ${this.id} as
@@ -50,15 +45,15 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
         sum(tstate.dur) AS total_dur,
         sum(tstate.dur) / count() as avg_dur,
         count() as occurrences
-      from thread_state tstate
+      from (${dataset.query()}) tstate
       join thread using (utid)
       left join process using (upid)
       where
-        utid in (${this.utids})
-        and ts + dur > ${area.start}
+        ts + dur > ${area.start}
         and ts < ${area.end}
       group by utid, concat_state
     `);
+
     return true;
   }
 
@@ -66,19 +61,18 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
     engine: Engine,
     area: AreaSelection,
   ): Promise<ThreadStateExtra | void> {
-    this.setThreadStateUtids(area.tracks);
-    if (this.utids === undefined || this.utids.length === 0) return;
+    const dataset = this.getDatasetFromTracks(area.tracks);
+    if (dataset === undefined) return;
 
     const query = `
       select
         state,
         io_wait as ioWait,
         sum(dur) as totalDur
-      from thread
-      join thread_state using (utid)
-      where utid in (${this.utids})
-        and thread_state.ts + thread_state.dur > ${area.start}
-        and thread_state.ts < ${area.end}
+      from (${dataset.query()}) tstate
+      join thread using (utid)
+      where tstate.ts + tstate.dur > ${area.start}
+        and tstate.ts < ${area.end}
       group by state, io_wait
     `;
     const result = await engine.query(query);
@@ -169,5 +163,25 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
 
   getDefaultSorting(): Sorting {
     return {column: 'total_dur', direction: 'DESC'};
+  }
+
+  // Creates an optimized dataset containing the thread state events within a
+  // given list of tracks, or returns undefined if no compatible tracks are
+  // present in the list.
+  private getDatasetFromTracks(tracks: ReadonlyArray<TrackDescriptor>) {
+    const desiredSchema = {
+      dur: LONG,
+      io_wait: NUM_NULL,
+      state: STR,
+      utid: NUM,
+    };
+    const validDatasets = tracks
+      .map((track) => track.track.getDataset?.())
+      .filter((ds) => ds !== undefined)
+      .filter((ds) => ds.implements(desiredSchema));
+    if (validDatasets.length === 0) {
+      return undefined;
+    }
+    return new UnionDataset(validDatasets).optimize();
   }
 }
