@@ -44,8 +44,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
-  std::optional<int64_t> possible_result =
-      base::StringToInt64(str.ToStdString());
+  std::optional<int64_t> possible_result = base::StringViewToInt64(str);
   if (!possible_result.has_value()) {
     return base::ErrStatus("Failed to convert string to int64_t");
   }
@@ -75,8 +74,8 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
     ASSIGN_OR_RETURN(
         int64_t index,
         StringToStatusOrInt64(splitter.Next() ? splitter.cur_token() : ""));
-    const std::optional<int32_t> possible_uid = base::StringToInt32(
-        splitter.Next() ? splitter.cur_token().ToStdString() : "");
+    const std::optional<int32_t> possible_uid =
+        base::StringViewToInt32(splitter.Next() ? splitter.cur_token() : "");
     // the next element is quoted and can contain commas. Instead of
     // implementing general logic to parse quoted CSV elements just grab the
     // rest of the line, which is possible since this element should be the
