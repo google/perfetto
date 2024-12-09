@@ -27,7 +27,7 @@ export default class implements PerfettoPlugin {
   // state/charts for the lifecycle of a single
   // trace.
   private readonly state: ExploreTableState = {};
-  private readonly charts: Chart[] = [];
+  private charts: Set<Chart> = new Set();
 
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
