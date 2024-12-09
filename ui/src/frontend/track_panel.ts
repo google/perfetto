@@ -95,8 +95,9 @@ export class TrackPanel implements Panel {
         renderTrackDetailsButton(node, trackRenderer?.desc),
       trackRenderer?.track.getTrackShellButtons?.(),
       node.removable && renderCloseButton(node),
-      // Can't pin groups.. yet!
-      !node.hasChildren && renderPinButton(node),
+      // We don't want summary tracks to be pinned as they rarely have
+      // useful information.
+      !node.isSummary && renderPinButton(node),
       this.renderAreaSelectionCheckbox(node),
       error && renderCrashButton(error, trackRenderer?.desc.pluginId),
     ];
