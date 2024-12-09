@@ -234,6 +234,16 @@ export class UiMainPerTrace implements m.ClassComponent {
               end: range.end,
               id: '__temp__',
             });
+
+            // Also select an area for this span
+            const selection = trace.selection.selection;
+            if (selection.kind === 'track_event') {
+              trace.selection.selectArea({
+                start: range.start,
+                end: range.end,
+                trackUris: [selection.trackUri],
+              });
+            }
           }
         },
         defaultHotkey: 'M',
