@@ -71,14 +71,24 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
 
   const base::StringView possible_event_type =
       splitter.Next() ? splitter.cur_token() : "";
+
   if (possible_event_type == "hsp") {
     ASSIGN_OR_RETURN(
         uint64_t index,
         StringToStatusOrUInt64(splitter.Next() ? splitter.cur_token() : ""));
     const std::optional<int32_t> possible_uid =
         base::StringToInt32(splitter.Next() ? splitter.cur_token() : "");
-    const base::StringView hsp_string =
-        splitter.Next() ? splitter.cur_token() : "";
+    // the next element is quoted and can contain commas. Instead of
+    // implementing general logic to parse quoted CSV elements just grab the
+    // rest of the line, which is possible since this element should be the
+    // last one on the line.
+    base::StringView remainder =
+        base::StringView(splitter.remainder(), splitter.remainder_size());
+    // remove the leading and trailing quotes from the hsp string
+    size_t substr_start = remainder.find('"') + 1;
+    size_t substr_end = remainder.rfind('"');
+    base::StringView hsp_string =
+        remainder.substr(substr_start, substr_end - substr_start);
     AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_)
         ->SetStringPoolItem(index, possible_uid.value(),
                             hsp_string.ToStdString());

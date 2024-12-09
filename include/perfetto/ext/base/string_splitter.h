@@ -70,6 +70,13 @@ class StringSplitter {
   // Returns the length of the current token (excluding the null terminator).
   size_t cur_token_size() const { return cur_size_; }
 
+  // Return the untokenized remainder of the input string that occurs after the
+  // current token.
+  char* remainder() { return next_; }
+
+  // Returns the size of the untokenized input
+  size_t remainder_size() { return static_cast<size_t>(end_ - next_); }
+
  private:
   StringSplitter(const StringSplitter&) = delete;
   StringSplitter& operator=(const StringSplitter&) = delete;
