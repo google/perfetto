@@ -22,12 +22,13 @@ import {
   SLICE_LAYOUT_FLAT_DEFAULTS,
   SliceLayout,
 } from '../../components/tracks/slice_layout';
-import {NUM_NULL, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
 import {translateState} from '../../components/sql_utils/thread_state';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 import {Trace} from '../../public/trace';
+import {Dataset, SourceDataset} from '../../trace_processor/dataset';
 
 export const THREAD_STATE_ROW = {
   ...BASE_ROW,
@@ -69,6 +70,25 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
         utid = ${this.utid} and
         state not in ('S', 'I')
     `;
+  }
+
+  getDataset(): Dataset | undefined {
+    return new SourceDataset({
+      src: 'thread_state',
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        cpu: NUM,
+        state: STR,
+        io_wait: NUM_NULL,
+        utid: NUM,
+      },
+      filter: {
+        col: 'utid',
+        eq: this.utid,
+      },
+    });
   }
 
   rowToSlice(row: ThreadStateRow): Slice {
