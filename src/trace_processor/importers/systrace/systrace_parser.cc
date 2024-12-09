@@ -305,11 +305,19 @@ void SystraceParser::ParseSystracePoint(
       // This affects both userspace and kernel counters.
       UniquePid upid =
           context_->process_tracker->GetOrCreateProcess(point.tgid);
+      auto opt_utid = context_->process_tracker->GetThreadOrNull(pid);
       TrackId track_id = context_->track_tracker->InternTrack(
           tracks::kAndroidAtraceCounterBlueprint,
           tracks::Dimensions(upid, point.name));
       context_->event_tracker->PushCounter(
-          ts, static_cast<double>(point.int_value), track_id);
+          ts, static_cast<double>(point.int_value), track_id,
+          [this, opt_utid](ArgsTracker::BoundInserter* inserter) {
+            if (opt_utid) {
+              inserter->AddArg(context_->storage->InternString("utid"),
+                               Variadic::UnsignedInteger(*opt_utid),
+                               ArgsTracker::UpdatePolicy::kSkipIfExists);
+            }
+          });
     }
   }
 }
