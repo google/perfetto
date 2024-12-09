@@ -228,7 +228,7 @@ FROM sched_slice;
 --
 -- The rows in this table which have |state| = 'Running', will have a
 -- corresponding row in the |sched_slice| table.
-CREATE PERFETTO VIEW thread_state (
+CREATE PERFETTO VIEW thread_state(
   -- Unique identifier for this thread state.
   id ID,
   -- The name of the "most-specific" child table containing this row.

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -21,8 +20,6 @@ import {
   RunnableThreadCountTrack,
   UninterruptibleSleepThreadCountTrack,
 } from './thread_count';
-import {getSchedTable} from './table';
-import {extensions} from '../../components/extensions';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Sched';
@@ -88,17 +85,6 @@ export default class implements PerfettoPlugin {
         callback: () => addPinnedTrack(ctx, uri, title),
       });
     }
-
-    sqlTableRegistry['sched'] = getSchedTable();
-    ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.sched',
-      name: 'Open table: sched',
-      callback: () => {
-        extensions.addSqlTableTab(ctx, {
-          table: getSchedTable(),
-        });
-      },
-    });
   }
 }
 
