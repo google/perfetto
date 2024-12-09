@@ -18,7 +18,6 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SqlModules} from './sql_modules';
 import {SQL_MODULES_DOCS_SCHEMA, SqlModulesImpl} from './sql_modules_impl';
-import {PromptOption} from '../../public/omnibox';
 import {extensions} from '../../components/extensions';
 
 export default class implements PerfettoPlugin {
@@ -37,15 +36,7 @@ export default class implements PerfettoPlugin {
       name: 'Open table...',
       callback: async () => {
         const tables = sqlModules.listTables();
-        const promptOptions: PromptOption[] = tables.map((s) => ({
-          key: s,
-          displayName: s,
-        }));
-        const tableName = await ctx.omnibox.prompt(
-          'Choose a table...',
-          promptOptions,
-        );
-
+        const tableName = await ctx.omnibox.prompt('Choose a table...', tables);
         if (tableName === undefined) {
           return;
         }

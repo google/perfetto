@@ -291,15 +291,10 @@ export default class implements PerfettoPlugin {
       callback: async () => {
         const workspaces = AppImpl.instance.trace?.workspaces;
         if (workspaces === undefined) return; // No trace loaded.
-        const options = workspaces.all.map((ws) => {
-          return {key: ws.id, displayName: ws.title};
+        const workspace = await ctx.omnibox.prompt('Choose a workspace...', {
+          values: workspaces.all,
+          getName: (ws) => ws.title,
         });
-        const workspaceId = await ctx.omnibox.prompt(
-          'Choose a workspace...',
-          options,
-        );
-        if (workspaceId === undefined) return;
-        const workspace = workspaces.all.find((ws) => ws.id === workspaceId);
         if (workspace) {
           workspaces.switchWorkspace(workspace);
         }

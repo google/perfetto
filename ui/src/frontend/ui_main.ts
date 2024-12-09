@@ -36,7 +36,6 @@ import {Topbar} from './topbar';
 import {shareTrace} from './trace_share_utils';
 import {AggregationsTabs} from './aggregation_tab';
 import {OmniboxMode} from '../core/omnibox_manager';
-import {PromptOption} from '../public/omnibox';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
 import {TraceImpl} from '../core/trace_impl';
@@ -123,28 +122,24 @@ export class UiMainPerTrace implements m.ClassComponent {
         id: 'perfetto.SetTimestampFormat',
         name: 'Set timestamp and duration format',
         callback: async () => {
-          const options: PromptOption[] = [
-            {key: TimestampFormat.Timecode, displayName: 'Timecode'},
-            {key: TimestampFormat.UTC, displayName: 'Realtime (UTC)'},
-            {
-              key: TimestampFormat.TraceTz,
-              displayName: 'Realtime (Trace TZ)',
-            },
-            {key: TimestampFormat.Seconds, displayName: 'Seconds'},
-            {key: TimestampFormat.Milliseconds, displayName: 'Milliseconds'},
-            {key: TimestampFormat.Microseconds, displayName: 'Microseconds'},
-            {key: TimestampFormat.TraceNs, displayName: 'Trace nanoseconds'},
-            {
-              key: TimestampFormat.TraceNsLocale,
-              displayName:
-                'Trace nanoseconds (with locale-specific formatting)',
-            },
-          ];
-          const promptText = 'Select format...';
-
-          const result = await app.omnibox.prompt(promptText, options);
-          if (result === undefined) return;
-          setTimestampFormat(result as TimestampFormat);
+          const TF = TimestampFormat;
+          const result = await app.omnibox.prompt('Select format...', {
+            values: [
+              {format: TF.Timecode, name: 'Timecode'},
+              {format: TF.UTC, name: 'Realtime (UTC)'},
+              {format: TF.TraceTz, name: 'Realtime (Trace TZ)'},
+              {format: TF.Seconds, name: 'Seconds'},
+              {format: TF.Milliseconds, name: 'Milliseconds'},
+              {format: TF.Microseconds, name: 'Microseconds'},
+              {format: TF.TraceNs, name: 'Trace nanoseconds'},
+              {
+                format: TF.TraceNsLocale,
+                name: 'Trace nanoseconds (with locale-specific formatting)',
+              },
+            ],
+            getName: (x) => x.name,
+          });
+          result && setTimestampFormat(result.format);
           raf.scheduleFullRedraw();
         },
       },
@@ -152,18 +147,18 @@ export class UiMainPerTrace implements m.ClassComponent {
         id: 'perfetto.SetDurationPrecision',
         name: 'Set duration precision',
         callback: async () => {
-          const options: PromptOption[] = [
-            {key: DurationPrecision.Full, displayName: 'Full'},
+          const DF = DurationPrecision;
+          const result = await app.omnibox.prompt(
+            'Select duration precision mode...',
             {
-              key: DurationPrecision.HumanReadable,
-              displayName: 'Human readable',
+              values: [
+                {format: DF.Full, name: 'Full'},
+                {format: DF.HumanReadable, name: 'Human readable'},
+              ],
+              getName: (x) => x.name,
             },
-          ];
-          const promptText = 'Select duration precision mode...';
-
-          const result = await app.omnibox.prompt(promptText, options);
-          if (result === undefined) return;
-          setDurationPrecision(result as DurationPrecision);
+          );
+          result && setDurationPrecision(result.format);
           raf.scheduleFullRedraw();
         },
       },
