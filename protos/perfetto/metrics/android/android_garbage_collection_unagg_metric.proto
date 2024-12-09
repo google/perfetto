@@ -18,6 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/metrics/android/process_metadata.proto";
+
 message AndroidGarbageCollectionUnaggMetric {
   message GarbageCollectionEvent {
     // Name of thread running garbage collection.
@@ -58,6 +60,8 @@ message AndroidGarbageCollectionUnaggMetric {
     optional int64 tid = 18;
     // monotonic duration of event.
     optional int64 gc_monotonic_dur = 19;
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 20;
   }
   repeated GarbageCollectionEvent gc_events = 1;
 }
