@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {getThreadTable} from './table';
-import {extensions} from '../../components/extensions';
 import {ThreadDesc, ThreadMap} from '../dev.perfetto.Thread/threads';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
@@ -61,16 +58,6 @@ export default class implements PerfettoPlugin {
   private threads?: ThreadMap;
 
   async onTraceLoad(ctx: Trace) {
-    sqlTableRegistry['thread'] = getThreadTable();
-    ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.thread',
-      name: 'Open table: thread',
-      callback: () => {
-        extensions.addSqlTableTab(ctx, {
-          table: getThreadTable(),
-        });
-      },
-    });
     this.threads = await listThreads(ctx);
   }
 

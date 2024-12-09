@@ -19,11 +19,8 @@ import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {ThreadStateTrack} from './thread_state_track';
 import {removeFalsyValues} from '../../base/array_utils';
-import {getThreadStateTable} from './table';
-import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
 import {TrackNode} from '../../public/workspace';
 import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregator';
-import {extensions} from '../../components/extensions';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
@@ -95,17 +92,6 @@ export default class implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: 10});
       group?.addChildInOrder(track);
     }
-
-    sqlTableRegistry['thread_state'] = getThreadStateTable();
-    ctx.commands.registerCommand({
-      id: 'perfetto.ShowTable.thread_state',
-      name: 'Open table: thread_state',
-      callback: () => {
-        extensions.addSqlTableTab(ctx, {
-          table: getThreadStateTable(),
-        });
-      },
-    });
 
     ctx.selection.registerSqlSelectionResolver({
       sqlTableName: 'thread_state',
