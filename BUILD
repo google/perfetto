@@ -3146,6 +3146,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/pixel:pixel
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_pixel_pixel",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/pixel/camera.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/pkvm:pkvm
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
@@ -3310,6 +3318,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_linux_linux",
         ":src_trace_processor_perfetto_sql_stdlib_linux_memory_memory",
         ":src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
+        ":src_trace_processor_perfetto_sql_stdlib_pixel_pixel",
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_after_eof_after_eof",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_before_eof_before_eof",
