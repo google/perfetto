@@ -215,7 +215,7 @@ CPU_PROFILE_STACK_SAMPLE_TABLE = Table(
     class_name='CpuProfileStackSampleTable',
     sql_name='cpu_profile_stack_sample',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
+        C('ts', CppInt64()),
         C('callsite_id', CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
         C('utid', CppUint32()),
         C('process_priority', CppInt32()),
