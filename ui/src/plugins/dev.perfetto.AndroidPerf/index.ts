@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import {
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+  addPivotedTracks,
+} from '../../components/tracks/debug_tracks';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidPerf';
@@ -214,6 +218,85 @@ export default class implements PerfettoPlugin {
         for (const reason of startReason) {
           await this.addAppProcessStartsDebugTrack(ctx, reason, 'intent');
         }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AndroidPerf#CounterByFtraceEventArgs',
+      name: 'Add counter tracks by ftrace event arguments',
+      callback: async (event, value, filter, filterValue) => {
+        if (event === undefined) {
+          event = prompt('Enter the name of the targeted ftrace event', '');
+          if (event === null) return;
+          const resp = await ctx.engine.query(`
+            SELECT * FROM ftrace_event WHERE name = '${event}' LIMIT 1
+          `);
+          if (resp.numRows() === 0) {
+            alert(`Can not find ${event} ftrace event in this trace`);
+            return;
+          }
+        }
+        if (value === undefined) {
+          value = prompt('Enter the name of arguments as counter value', '');
+          if (value === null) return;
+          const resp = await ctx.engine.query(`
+            SELECT *
+            FROM ftrace_event
+            JOIN args
+              USING (arg_set_id)
+            WHERE name = '${event}' AND key = '${value}'
+            LIMIT 1
+          `);
+          if (resp.numRows() === 0) {
+            alert(`The ${event} ftrace event does not have argument ${value}`);
+            return;
+          }
+        }
+        if (filter === undefined) {
+          filter = prompt('Enter the name of arguments to pivot', '');
+          if (filter === null) return;
+          const resp = await ctx.engine.query(`
+            SELECT *
+            FROM ftrace_event
+            JOIN args
+              USING (arg_set_id)
+            WHERE name = '${event}' AND key = '${filter}'
+            LIMIT 1
+          `);
+          if (resp.numRows() === 0) {
+            alert(`The ${event} ftrace event does not have argument ${filter}`);
+            return;
+          }
+        }
+        if (filterValue === undefined) {
+          filterValue = prompt(
+            'List the target pivot values (separate by comma) to present\n' +
+              'ex1: 123,456 \n' +
+              'ex2: "task_name1","task_name2"\n',
+            '',
+          );
+          if (filterValue === null) return;
+        }
+        await addPivotedTracks(
+          ctx,
+          {
+            sqlSource: `
+              SELECT
+                ts,
+                EXTRACT_ARG(arg_set_id, '${value}') AS value,
+                EXTRACT_ARG(arg_set_id, '${filter}') AS pivot
+              FROM ftrace_event
+                WHERE name = '${event}' AND pivot IN (${filterValue})`,
+          },
+          event + '#' + value + '@' + filter,
+          'pivot',
+          async (ctx, data, trackName) =>
+            addDebugCounterTrack({
+              trace: ctx,
+              data,
+              title: trackName,
+            }),
+        );
       },
     });
   }
