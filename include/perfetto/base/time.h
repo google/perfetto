@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_BASE_TIME_H_
 #define INCLUDE_PERFETTO_BASE_TIME_H_
 
+#include <stdint.h>
 #include <time.h>
 
 #include <chrono>

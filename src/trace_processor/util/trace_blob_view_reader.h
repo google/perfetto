@@ -23,6 +23,7 @@
 #include <cstring>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"

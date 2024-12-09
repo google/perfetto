@@ -25,6 +25,7 @@
 #include <cinttypes>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
