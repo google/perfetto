@@ -20,8 +20,21 @@ from python.generators.diff_tests.testing import TestSuite
 
 EXAMPLE_CHECKIN = """9,0,i,vers,36,214,AP1A.240305.019.A1,AP2A.240805.005.S4
 9,hsp,0,10216,"com.android.chrome"
+9,hsp,1,1001,"*telephony-radio*"
+9,hsp,2,10238,"*alarm*"
+9,hsp,3,1002,"*telephony-radio*"
 9,h,0:RESET:TIME:1732816430344
 9,h,0,Bl=100,Bs=d,Bh=g,Bp=n,Bt=251,Bv=4395,Bcc=4263,Mrc=0,Wrc=0,+r,+w,+s,+Wr,+S,+BP,Pcn=lte,Pss=3,+W,Wss=4,Wsp=compl,+Chtp,Gss=none,nrs=1,Etp=0
+9,h,10,+w=1
+9,h,10,-w=1
+9,h,10,+w=1
+9,h,10,+w=2
+9,h,10,-w=1
+9,h,10,-w=2
+9,h,10,+w=1
+9,h,10,+w=3
+9,h,10,-w=1
+9,h,10,-w=3
 """
 
 
@@ -41,4 +54,26 @@ class AndroidDumpstate(TestSuite):
         out=Csv("""
         "name","ts","value"
         "ScreenState",1732816430344000000,2.000000
+        """))
+
+  def test_standalone_battery_stats_checkin_wakelocks(self):
+    return DiffTestBlueprint(
+        trace=Csv(EXAMPLE_CHECKIN),
+        query="""
+        SELECT
+          ts, slice.name, dur
+        FROM slice
+        JOIN track ON slice.track_id = track.id
+        WHERE
+          track.name = 'WakeLocks'
+        ORDER BY
+          ts, slice.name
+        """,
+        out=Csv("""
+        "ts","name","dur"
+        1732816430354000000,"*telephony-radio*",10000000
+        1732816430374000000,"*telephony-radio*",20000000
+        1732816430384000000,"*alarm*",20000000
+        1732816430414000000,"*telephony-radio*",20000000
+        1732816430424000000,"*telephony-radio*",20000000
         """))
