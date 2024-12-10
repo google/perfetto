@@ -43,11 +43,11 @@ namespace perfetto::trace_processor {
 
 namespace {
 
-base::StatusOr<uint64_t> StringToStatusOrUInt64(base::StringView str) {
-  std::optional<uint64_t> possible_result =
-      base::StringToUInt64(str.ToStdString());
+base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
+  std::optional<int64_t> possible_result =
+      base::StringToInt64(str.ToStdString());
   if (!possible_result.has_value()) {
-    return base::ErrStatus("Failed to convert string to uint64_t");
+    return base::ErrStatus("Failed to convert string to int64_t");
   }
   return possible_result.value();
 }
@@ -73,8 +73,8 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
 
   if (possible_event_type == "hsp") {
     ASSIGN_OR_RETURN(
-        uint64_t index,
-        StringToStatusOrUInt64(splitter.Next() ? splitter.cur_token() : ""));
+        int64_t index,
+        StringToStatusOrInt64(splitter.Next() ? splitter.cur_token() : ""));
     const std::optional<int32_t> possible_uid = base::StringToInt32(
         splitter.Next() ? splitter.cur_token().ToStdString() : "");
     // the next element is quoted and can contain commas. Instead of
@@ -98,7 +98,7 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
     if (time_marker_index != base::StringView::npos) {
       // Special case timestamp adjustment event.
       ASSIGN_OR_RETURN(current_timestamp_ms_,
-                       StringToStatusOrUInt64(possible_timestamp.substr(
+                       StringToStatusOrInt64(possible_timestamp.substr(
                            time_marker_index + time_adjustment_marker.size())));
       return base::OkStatus();
     } else if (possible_timestamp.find(":START") != base::StringView::npos) {
@@ -108,8 +108,8 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
       // Ignore line
       return base::OkStatus();
     } else {
-      ASSIGN_OR_RETURN(uint64_t parsed_timestamp_delta,
-                       StringToStatusOrUInt64(possible_timestamp));
+      ASSIGN_OR_RETURN(int64_t parsed_timestamp_delta,
+                       StringToStatusOrInt64(possible_timestamp));
       current_timestamp_ms_ += parsed_timestamp_delta;
       for (base::StringView item = splitter.Next() ? splitter.cur_token() : "";
            !item.empty(); item = splitter.Next() ? splitter.cur_token() : "") {
@@ -123,9 +123,9 @@ util::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
       const base::StringView info_type =
           (splitter.Next() ? base::StringView(splitter.cur_token()) : "");
       if (info_type == "vers") {
-        ASSIGN_OR_RETURN(uint64_t battery_stats_version,
-                         StringToStatusOrUInt64(
-                             splitter.Next() ? splitter.cur_token() : ""));
+        ASSIGN_OR_RETURN(
+            int64_t battery_stats_version,
+            StringToStatusOrInt64(splitter.Next() ? splitter.cur_token() : ""));
         AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_)
             ->battery_stats_version(
                 static_cast<uint32_t>(battery_stats_version));

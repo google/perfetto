@@ -71,13 +71,13 @@ base::StatusOr<std::string> GetEventFromShortName(base::StringView short_name) {
 
 struct StateStringTranslationInfo {
   const std::string long_name;
-  const std::unordered_map<base::StringView, uint64_t> short_string_to_value;
+  const std::unordered_map<base::StringView, int64_t> short_string_to_value;
 };
 
 base::StatusOr<std::string> GetStateAndValueFromShortName(
     base::StringView state_short_name,
     base::StringView value_short_name,
-    uint64_t* value_out) {
+    int64_t* value_out) {
   // Mappings of all the state checkin names from BatteryStats.java and their
   // corresponding value mappings
   static const base::NoDestructor<
@@ -181,8 +181,8 @@ base::StatusOr<std::string> GetStateAndValueFromShortName(
   }
 
   // If the value short name is already a number, just do a direct conversion
-  std::optional<uint64_t> possible_int_value =
-      base::StringToUInt64(value_short_name.ToStdString());
+  std::optional<int64_t> possible_int_value =
+      base::StringToInt64(value_short_name.ToStdString());
   if (possible_int_value.has_value()) {
     *value_out = possible_int_value.value();
     return translation_info.long_name;
@@ -197,11 +197,11 @@ base::StatusOr<std::string> GetStateAndValueFromShortName(
   return translation_info.long_name;
 }
 
-base::StatusOr<uint64_t> StringToStatusOrUInt64(base::StringView str) {
-  std::optional<uint64_t> possible_result =
-      base::StringToUInt64(str.ToStdString());
+base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
+  std::optional<int64_t> possible_result =
+      base::StringToInt64(str.ToStdString());
   if (!possible_result.has_value()) {
-    return base::ErrStatus("Failed to convert string to uint64_t");
+    return base::ErrStatus("Failed to convert string to int64_t");
   }
   return possible_result.value();
 }
@@ -277,7 +277,7 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryEvent(
       AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_);
   // Process a history event
   ASSIGN_OR_RETURN(std::string item_name, GetEventFromShortName(item.key));
-  ASSIGN_OR_RETURN(uint64_t hsp_index, StringToStatusOrUInt64(item.value));
+  ASSIGN_OR_RETURN(int64_t hsp_index, StringToStatusOrInt64(item.value));
   const int32_t uid = history_string_tracker->GetUid(hsp_index);
   const std::string& event_str = history_string_tracker->GetString(hsp_index);
 
@@ -330,7 +330,7 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryState(
           track);
     }
   } else if (item.prefix.empty() && !item.value.empty()) {
-    uint64_t counter_value;
+    int64_t counter_value;
     base::StatusOr<std::string> possible_history_state_item =
         GetStateAndValueFromShortName(item.key, item.value, &counter_value);
     if (possible_history_state_item.ok()) {
@@ -363,17 +363,17 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryBatteryCounter(
 
   // process history state of form "state=12345" or "state=abcde"
   TrackId counter_track;
-  uint64_t counter_value;
+  int64_t counter_value;
   if (item.key == "Bl") {
     counter_track = context_->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "capacity_pct"));
-    ASSIGN_OR_RETURN(counter_value, StringToStatusOrUInt64(item.value));
+    ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
   } else if (item.key == "Bcc") {
     counter_track = context_->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "charge_uah"));
-    ASSIGN_OR_RETURN(counter_value, StringToStatusOrUInt64(item.value));
+    ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
     // battery stats gives us charge in milli-amp-hours, but the track
     // expects the value to be in micro-amp-hours
     counter_value *= 1000;
@@ -381,7 +381,7 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryBatteryCounter(
     counter_track = context_->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "voltage_uv"));
-    ASSIGN_OR_RETURN(counter_value, StringToStatusOrUInt64(item.value));
+    ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
     // battery stats gives us charge in milli-volts, but the track
     // expects the value to be in micro-volts
     counter_value *= 1000;
@@ -459,19 +459,19 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryWakeLocks(
     return base::ErrStatus("Wakelocks unsupported on batterystats ver < 36");
   }
 
-  ASSIGN_OR_RETURN(uint64_t hsp_index, StringToStatusOrUInt64(item.value));
+  ASSIGN_OR_RETURN(int64_t hsp_index, StringToStatusOrInt64(item.value));
   StringId track_name_id = context_->storage->InternString("WakeLocks");
   AsyncTrackSetTracker::TrackSetId track_set_id =
       context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
   if (item.prefix == "+") {
     StringId name_id = context_->storage->InternString(
         history_string_tracker->GetString(hsp_index));
-    TrackId track_id = context_->async_track_set_tracker->Begin(
-        track_set_id, static_cast<int64_t>(hsp_index));
+    TrackId track_id =
+        context_->async_track_set_tracker->Begin(track_set_id, hsp_index);
     context_->slice_tracker->Begin(item.ts, track_id, kNullStringId, name_id);
   } else {
-    TrackId track_id = context_->async_track_set_tracker->End(
-        track_set_id, static_cast<int64_t>(hsp_index));
+    TrackId track_id =
+        context_->async_track_set_tracker->End(track_set_id, hsp_index);
     context_->slice_tracker->End(item.ts, track_id);
   }
   return true;
