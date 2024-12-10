@@ -18,14 +18,17 @@
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_TRACE_PROCESSOR_H_
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/status.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 
 namespace perfetto {
@@ -143,6 +146,14 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // functionality to |RegisterSqlModule()| and the only difference is in
   // the argument, which is directly translatable to |SqlPackage|.
   virtual base::Status RegisterSqlModule(SqlModule) = 0;
+
+  // Registers the contents of a file.
+  // This method can be used to pass out of band data to the trace processor
+  // which can be used by importers to do some advanced processing. For example
+  // if you pass binaries these are used to decode ETM traces.
+  // Registering the same file twice will return an error.
+  virtual base::Status RegisterFileContent(const std::string& path,
+                                           TraceBlobView content) = 0;
 };
 
 }  // namespace trace_processor

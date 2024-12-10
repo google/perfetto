@@ -794,6 +794,10 @@ class TraceStorage {
   std::vector<TraceBlobView>* mutable_etm_v4_trace_data() {
     return &etm_v4_trace_data_;
   }
+  const tables::FileTable& file_table() const { return file_table_; }
+  tables::FileTable* mutable_file_table() { return &file_table_; }
+  const tables::ElfFileTable& elf_file_table() const { return elf_file_table_; }
+  tables::ElfFileTable* mutable_elf_file_table() { return &elf_file_table_; }
 
   const tables::JitCodeTable& jit_code_table() const { return jit_code_table_; }
   tables::JitCodeTable* mutable_jit_code_table() { return &jit_code_table_; }
@@ -1164,6 +1168,8 @@ class TraceStorage {
   // Indexed by tables::EtmV4TraceTable::Id
   std::vector<TraceBlobView> etm_v4_trace_data_;
   std::unique_ptr<Destructible> etm_target_memory_;
+  tables::FileTable file_table_{&string_pool_};
+  tables::ElfFileTable elf_file_table_{&string_pool_};
 
   // Perf tables
   tables::MmapRecordTable mmap_record_table_{&string_pool_};

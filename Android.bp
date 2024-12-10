@@ -2454,6 +2454,7 @@ cc_test {
         ":perfetto_src_profiling_memory_ring_buffer",
         ":perfetto_src_profiling_memory_scoped_spinlock",
         ":perfetto_src_profiling_memory_wire_protocol",
+        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_generator",
         ":perfetto_src_protozero_filtering_bytecode_parser",
@@ -11567,6 +11568,14 @@ filegroup {
     ],
 }
 
+// GN: //src/profiling/symbolizer:binary_info
+filegroup {
+    name: "perfetto_src_profiling_symbolizer_binary_info",
+    srcs: [
+        "src/profiling/symbolizer/binary_info.cc",
+    ],
+}
+
 // GN: //src/profiling/symbolizer:symbolize_database
 filegroup {
     name: "perfetto_src_profiling_symbolizer_symbolize_database",
@@ -15655,6 +15664,7 @@ cc_test {
         ":perfetto_src_profiling_perf_producer_unittests",
         ":perfetto_src_profiling_perf_regs_parsing",
         ":perfetto_src_profiling_perf_unwinding",
+        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_profiling_symbolizer_unittests",
         ":perfetto_src_profiling_unittests",
@@ -16761,6 +16771,7 @@ cc_binary {
         ":perfetto_src_base_version",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_profiling_deobfuscator",
+        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_protozero_proto_ring_buffer",
@@ -17018,6 +17029,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_base_base",
+        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_column_column",
@@ -17191,6 +17203,7 @@ cc_binary_host {
         ":perfetto_src_base_version",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_profiling_deobfuscator",
+        ":perfetto_src_profiling_symbolizer_binary_info",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_protozero_proto_ring_buffer",
