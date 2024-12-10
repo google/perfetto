@@ -277,14 +277,10 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryEvent(
   const std::string& event_str = history_string_tracker->GetString(hsp_index);
   StringId track_name_id = context_->storage->InternString(
       std::string("battery_stats.").append(item_name));
-  const std::string slice_name = item.prefix.ToStdString()
-                                     .append(item_name)
-                                     .append("=")
-                                     .append(std::to_string(uid))
-                                     .append(":\"")
-                                     .append(event_str)
-                                     .append("\"");
-  StringId name_id = context_->storage->InternString(slice_name);
+  base::StackString<255> slice_name(
+      "%s%s=%d:\"%s\"", item.prefix.ToStdString().c_str(), item_name.c_str(),
+      uid, event_str.c_str());
+  StringId name_id = context_->storage->InternString(slice_name.c_str());
   AsyncTrackSetTracker::TrackSetId track_set_id =
       context_->async_track_set_tracker->InternGlobalTrackSet(track_name_id);
   TrackId track_id =
