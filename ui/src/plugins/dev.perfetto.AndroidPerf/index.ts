@@ -21,6 +21,7 @@ import {
   addDebugSliceTrack,
   addPivotedTracks,
 } from '../../components/tracks/debug_tracks';
+import {STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidPerf';
@@ -223,57 +224,57 @@ export default class implements PerfettoPlugin {
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.AndroidPerf#CounterByFtraceEventArgs',
-      name: 'Add counter tracks by ftrace event arguments',
+      name: 'Add tracks: counter by ftrace event arguments',
       callback: async (event, value, filter, filterValue) => {
         if (event === undefined) {
-          event = prompt('Enter the name of the targeted ftrace event', '');
-          if (event === null) return;
-          const resp = await ctx.engine.query(`
-            SELECT * FROM ftrace_event WHERE name = '${event}' LIMIT 1
+          const result = await ctx.engine.query(`
+            SELECT DISTINCT name FROM ftrace_event
           `);
-          if (resp.numRows() === 0) {
-            alert(`Can not find ${event} ftrace event in this trace`);
+          const ftraceEvents: string[] = [];
+          const it = result.iter({name: STR});
+          for (; it.valid(); it.next()) {
+            ftraceEvents.push(it.name);
+          }
+          event = await ctx.omnibox.prompt(
+            'Choose a ftrace event...',
+            ftraceEvents,
+          );
+          if (event === undefined) {
             return;
           }
         }
         if (value === undefined) {
-          value = prompt('Enter the name of arguments as counter value', '');
-          if (value === null) return;
-          const resp = await ctx.engine.query(`
-            SELECT *
-            FROM ftrace_event
-            JOIN args
-              USING (arg_set_id)
-            WHERE name = '${event}' AND key = '${value}'
-            LIMIT 1
+          const result = await ctx.engine.query(`
+            SELECT DISTINCT
+              key
+            FROM ftrace_event JOIN args USING(arg_set_id)
+            WHERE name = '${event}'
           `);
-          if (resp.numRows() === 0) {
-            alert(`The ${event} ftrace event does not have argument ${value}`);
+          const args: string[] = [];
+          const it = result.iter({key: STR});
+          for (; it.valid(); it.next()) {
+            args.push(it.key);
+          }
+          value = await ctx.omnibox.prompt(
+            'Choose a argument as counter value...',
+            args,
+          );
+          if (value === undefined) {
             return;
           }
-        }
-        if (filter === undefined) {
-          filter = prompt('Enter the name of arguments to pivot', '');
-          if (filter === null) return;
-          const resp = await ctx.engine.query(`
-            SELECT *
-            FROM ftrace_event
-            JOIN args
-              USING (arg_set_id)
-            WHERE name = '${event}' AND key = '${filter}'
-            LIMIT 1
-          `);
-          if (resp.numRows() === 0) {
-            alert(`The ${event} ftrace event does not have argument ${filter}`);
+          filter = await ctx.omnibox.prompt(
+            'Choose a argument as pivot key...',
+            args,
+          );
+          if (filter === undefined) {
             return;
           }
         }
         if (filterValue === undefined) {
-          filterValue = prompt(
+          filterValue = await ctx.omnibox.prompt(
             'List the target pivot values (separate by comma) to present\n' +
               'ex1: 123,456 \n' +
               'ex2: "task_name1","task_name2"\n',
-            '',
           );
           if (filterValue === null) return;
         }
