@@ -402,7 +402,7 @@ def CheckTestData(input_api, output_api):
   if subprocess.call([tool, 'status', '--quiet']):
     return [
         output_api.PresubmitError(
-            '//test/data is out of sync. Run ' + tool + ' status for more. \n'
+            '//test/data is out of sync. Run `' + tool + ' status` for more. \n'
             'If you rebaselined UI tests or added a new test trace, run:'
             '`tools/test_data upload`. Otherwise run `tools/install-build-deps`'
             ' or `tools/test_data download --overwrite` to sync local test_data'
