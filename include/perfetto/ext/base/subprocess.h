@@ -20,6 +20,7 @@
 #include <condition_variable>
 #include <functional>
 #include <initializer_list>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>

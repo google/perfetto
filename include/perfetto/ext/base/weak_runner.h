@@ -17,6 +17,8 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_WEAK_RUNNER_H_
 #define INCLUDE_PERFETTO_EXT_BASE_WEAK_RUNNER_H_
 
+#include <stdint.h>
+
 #include <functional>
 #include <memory>
 

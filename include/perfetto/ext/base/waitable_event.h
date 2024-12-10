@@ -19,6 +19,8 @@
 
 #include "perfetto/base/thread_annotations.h"
 
+#include <stdint.h>
+
 #include <condition_variable>
 #include <mutex>
 
