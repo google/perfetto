@@ -60,6 +60,14 @@ config("extra_warnings") {
       "-Wextra",
       "-Wpedantic",
     ]
+    # Apple Clang tends to lag upstream Clang by several major versions, so add
+    # additional warnings on Mac to get warning behavior that more closely
+    # mimics the newer Clang used in Perfetto CI on Linux.
+    if (is_mac && is_clang) {
+      cflags += [
+        "-Wsign-conversion"
+      ]
+    }
   }
 
   # Disable variadic macro warning as we make extensive use of them in trace
