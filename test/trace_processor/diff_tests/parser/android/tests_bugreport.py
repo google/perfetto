@@ -24,36 +24,61 @@ class AndroidBugreport(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('bugreport-crosshatch-SPB5.zip'),
         query="""
-        WITH battery_stats_history_events AS (
+        WITH first_100_events AS (
           SELECT ts, slice.name, dur
           FROM slice
           JOIN track on slice.track_id = track.id
           WHERE track.name LIKE 'battery_stats.%'
+          ORDER BY 1, 2, 3 ASC
+          LIMIT 100
         ),
-        battery_stats_history_states AS (
+        first_100_states AS (
           SELECT ts, name, value
           FROM counter
           JOIN counter_track on counter.track_id = counter_track.id
           WHERE name LIKE 'battery_stats.%'
-        ),
-        first_100_events AS (
-          SELECT (select count(*) from battery_stats_history_events), *
-          FROM battery_stats_history_events
-          ORDER BY 1, 2, 3, 4 ASC
-          LIMIT 100
-        ),
-        first_100_states AS (
-          SELECT (select count(*) from battery_stats_history_states), *
-          FROM battery_stats_history_states
-          ORDER BY 1, 2, 3, 4 ASC
+          ORDER BY 1, 2, 3 ASC
           LIMIT 100
         )
-
         SELECT * FROM first_100_events
         UNION ALL
         SELECT * FROM first_100_states;
         """,
         out=Path('android_bugreport_battery_stats_test.out'))
+
+  def test_android_bugreport_battery_stats_counts(self):
+    return DiffTestBlueprint(
+        trace=DataPath('bugreport-crosshatch-SPB5.zip'),
+        query="""
+        WITH event_counts(type, count) AS ( VALUES
+          ('battery_stats_history_events', (
+              SELECT
+                  COUNT(1)
+              FROM slice
+              JOIN track
+                  ON slice.track_id = track.id
+              WHERE
+                  track.name LIKE 'battery_stats.%'
+            )
+          ),
+          ('battery_stats_history_states', (
+              SELECT
+                  COUNT(1)
+              FROM counter
+              JOIN counter_track
+                  ON counter.track_id = counter_track.id
+              WHERE
+                  name LIKE 'battery_stats.%'
+            )
+          )
+        )
+        SELECT * FROM event_counts
+        """,
+        out=Csv("""
+        "type","count"
+        "battery_stats_history_events",4237
+        "battery_stats_history_states",12245
+        """))
 
   def test_android_bugreport_logs(self):
     return DiffTestBlueprint(
