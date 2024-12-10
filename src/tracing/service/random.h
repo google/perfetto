@@ -17,6 +17,8 @@
 #ifndef SRC_TRACING_SERVICE_RANDOM_H_
 #define SRC_TRACING_SERVICE_RANDOM_H_
 
+#include <stdint.h>
+
 #include <random>
 
 namespace perfetto::tracing_service {
