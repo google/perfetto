@@ -52,7 +52,7 @@ enum Status {
   Empty,
   // Currently loading the visualisation.
   Loading,
-  // Failed to load or render the visualisation. The reson is
+  // Failed to load or render the visualisation. The reason is
   // retrievable via |error|.
   Error,
   // Displaying a visualisation:
