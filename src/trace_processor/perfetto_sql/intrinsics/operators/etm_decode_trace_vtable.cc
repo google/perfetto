@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/etm/element_cursor.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
+#include "src/trace_processor/importers/etm/sql_values.h"
 #include "src/trace_processor/importers/etm/util.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -82,7 +83,8 @@ static constexpr char kSchema[] = R"(
       isa TEXT,
       start_address INTEGER,
       end_address INTEGER,
-      mapping_id INTEGER
+      mapping_id INTEGER,
+      instruction_range BLOB HIDDEN
     )
   )";
 
@@ -98,7 +100,8 @@ enum class ColumnIndex {
   kIsa,
   kStartAddress,
   kEndAddress,
-  kMappingId
+  kMappingId,
+  kInstructionRange
 };
 
 constexpr char kTraceIdEqArg = 't';
@@ -235,6 +238,12 @@ int EtmDecodeTraceVtable::Cursor::Column(sqlite3_context* ctx, int raw_n) {
     case ColumnIndex::kMappingId:
       if (cursor_.mapping()) {
         sqlite::result::Long(ctx, cursor_.mapping()->id().value);
+      }
+      break;
+    case ColumnIndex::kInstructionRange:
+      if (cursor_.has_instruction_range()) {
+        sqlite::result::UniquePointer(ctx, cursor_.GetInstructionRange(),
+                                      InstructionRangeSqlValue::kPtrType);
       }
       break;
   }
