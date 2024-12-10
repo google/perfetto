@@ -17,6 +17,7 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 import {SortDirection} from '../../../../base/comparison_utils';
 import {arrayEquals} from '../../../../base/array_utils';
 import {Trace} from '../../../../public/trace';
+import {SimpleColumn} from '../table/table';
 
 // We are dealing with two types of columns here:
 // - Column, which is shown to a user in table (high-level, ColumnTable).
@@ -94,7 +95,7 @@ function sqlColumnName(column: SqlColumn): string {
 }
 
 // Interface which allows TableColumn and TableColumnSet to interact with the table (e.g. add filters, or run the query).
-export interface TableManager {
+export interface LegacyTableManager {
   addFilter(filter: Filter): void;
 
   trace: Trace;
@@ -116,7 +117,7 @@ export interface AggregationConfig {
 
 // Class which represents a column in a table, which can be displayed to the user.
 // It is based on the primary SQL column, but also contains additional information needed for displaying it as a part of a table.
-export abstract class TableColumn {
+export abstract class LegacyTableColumn {
   constructor(params?: TableColumnParams) {
     this.tag = params?.tag;
     this.alias = params?.alias;
@@ -152,7 +153,7 @@ export abstract class TableColumn {
   // Render a table cell. `value` corresponds to the fetched SQL value for the primary column, `dependentColumns` are the fetched values for the dependent columns.
   abstract renderCell(
     value: SqlValue,
-    tableManager: TableManager,
+    tableManager: LegacyTableManager,
     dependentColumns: {[key: string]: SqlValue},
   ): m.Children;
 
@@ -162,8 +163,29 @@ export abstract class TableColumn {
   aggregation?(): AggregationConfig;
 }
 
+export class FromSimpleColumn extends LegacyTableColumn {
+  readonly simpleCol: SimpleColumn;
+
+  primaryColumn(): SqlColumn {
+    return this.simpleCol.name;
+  }
+
+  renderCell(
+    value: SqlValue,
+    tableManager: LegacyTableManager,
+    _dependentColumns: {[key: string]: SqlValue},
+  ): m.Children {
+    return this.simpleCol.renderCell(value, tableManager);
+  }
+
+  constructor(simpleCol: SimpleColumn, params?: TableColumnParams) {
+    super(params);
+    this.simpleCol = simpleCol;
+  }
+}
+
 // Returns a unique identifier for the table column.
-export function tableColumnId(column: TableColumn): string {
+export function tableColumnId(column: LegacyTableColumn): string {
   const primaryColumnName = sqlColumnId(column.primaryColumn());
   if (column.tag) {
     return `${primaryColumnName}#${column.tag}`;
@@ -171,7 +193,7 @@ export function tableColumnId(column: TableColumn): string {
   return primaryColumnName;
 }
 
-export function tableColumnAlias(column: TableColumn): string {
+export function tableColumnAlias(column: LegacyTableColumn): string {
   return column.alias ?? sqlColumnName(column.primaryColumn());
 }
 
@@ -179,18 +201,18 @@ export function tableColumnAlias(column: TableColumn): string {
 // Two examples of canonical TableColumnSet usage are:
 // - Argument sets, where the set of arguments can be arbitrary large (and can change when the user changes filters on the table).
 // - Dependent columns, where the id.
-export abstract class TableColumnSet {
+export abstract class LegacyTableColumnSet {
   // TODO(altimin): This should return m.Children, same comment as in TableColumn.getTitle applies here.
   abstract getTitle(): string;
 
   // Returns a list of columns from this TableColumnSet which should be displayed by default.
-  initialColumns?(): TableColumn[];
+  initialColumns?(): LegacyTableColumn[];
 
   // Returns a list of columns which can be added to the table from the current TableColumnSet.
-  abstract discover(manager: TableManager): Promise<
+  abstract discover(manager: LegacyTableManager): Promise<
     {
       key: string;
-      column: TableColumn | TableColumnSet;
+      column: LegacyTableColumn | LegacyTableColumnSet;
     }[]
   >;
 }

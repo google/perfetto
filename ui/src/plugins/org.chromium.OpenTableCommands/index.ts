@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlTableRegistry} from '../../components/widgets/sql/table/sql_table_registry';
+import {sqlTableRegistry} from '../../components/widgets/sql/legacy_table/sql_table_registry';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {
@@ -34,7 +34,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.ShowTable.slice',
       name: 'Open table: slice',
       callback: () => {
-        extensions.addSqlTableTab(ctx, {
+        extensions.addLegacySqlTableTab(ctx, {
           table: getSliceTable(),
         });
       },
@@ -45,7 +45,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.ShowTable.thread',
       name: 'Open table: thread',
       callback: () => {
-        extensions.addSqlTableTab(ctx, {
+        extensions.addLegacySqlTableTab(ctx, {
           table: getThreadTable(),
         });
       },
@@ -56,7 +56,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.ShowTable.process',
       name: 'Open table: process',
       callback: () => {
-        extensions.addSqlTableTab(ctx, {
+        extensions.addLegacySqlTableTab(ctx, {
           table: getProcessTable(),
         });
       },
@@ -67,7 +67,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.ShowTable.sched',
       name: 'Open table: sched',
       callback: () => {
-        extensions.addSqlTableTab(ctx, {
+        extensions.addLegacySqlTableTab(ctx, {
           table: getSchedTable(),
         });
       },
@@ -78,7 +78,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.ShowTable.thread_state',
       name: 'Open table: thread_state',
       callback: () => {
-        extensions.addSqlTableTab(ctx, {
+        extensions.addLegacySqlTableTab(ctx, {
           table: getThreadStateTable(),
         });
       },
@@ -89,7 +89,7 @@ export default class implements PerfettoPlugin {
       id: 'perfetto.ShowTable.android_logs',
       name: 'Open table: android_logs',
       callback: () => {
-        extensions.addSqlTableTab(ctx, {
+        extensions.addLegacySqlTableTab(ctx, {
           table: getAndroidLogsTable(),
         });
       },

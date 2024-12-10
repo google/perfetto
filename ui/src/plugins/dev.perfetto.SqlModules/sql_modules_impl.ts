@@ -24,24 +24,23 @@ import {
   SqlTable,
   SqlTableFunction,
 } from './sql_modules';
-import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
 import {
-  TableColumn,
-  TableColumnSet,
-} from '../../components/widgets/sql/table/column';
+  FromSimpleColumn,
+  LegacyTableColumn,
+  LegacyTableColumnSet,
+} from '../../components/widgets/sql/legacy_table/column';
 import {
-  ArgSetColumnSet,
-  DurationColumn,
-  ProcessColumn,
-  ProcessIdColumn,
-  SchedIdColumn,
-  SliceIdColumn,
-  StandardColumn,
-  ThreadColumn,
-  ThreadIdColumn,
-  ThreadStateIdColumn,
-  TimestampColumn,
-} from '../../components/widgets/sql/table/well_known_columns';
+  createDurationColumn,
+  createProcessIdColumn,
+  createSchedIdColumn,
+  createSliceIdColumn,
+  createStandardColumn,
+  createThreadIdColumn,
+  createThreadStateIdColumn,
+  createTimestampColumn,
+  SimpleColumn,
+} from '../../components/widgets/sql/table/table';
 
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
@@ -124,6 +123,7 @@ export class StdlibModuleImpl implements SqlModule {
     );
     this.macros = docs.macros.map((json) => new StdlibMacroImpl(json));
   }
+
   getTable(tableName: string): SqlTable | undefined {
     for (const obj of this.dataObjects) {
       if (obj.name == tableName) {
@@ -210,8 +210,10 @@ class StdlibDataObjectImpl implements SqlTable {
     this.columns = docs.cols.map((json) => new StdlibColumnImpl(json));
   }
 
-  getTableColumns(): (TableColumn | TableColumnSet)[] {
-    return this.columns.map((col) => col.asTableColumn(this.name));
+  getTableColumns(): (LegacyTableColumn | LegacyTableColumnSet)[] {
+    return this.columns.map(
+      (col) => new FromSimpleColumn(col.asSimpleColumn(this.name)),
+    );
   }
 }
 
@@ -226,52 +228,49 @@ class StdlibColumnImpl implements SqlColumn {
     this.name = docs.name;
   }
 
-  asTableColumn(tableName: string): TableColumn | TableColumnSet {
+  asSimpleColumn(tableName: string): SimpleColumn {
     if (this.type === 'TIMESTAMP') {
-      return new TimestampColumn(this.name);
+      return createTimestampColumn(this.name);
     }
     if (this.type === 'DURATION') {
-      return new DurationColumn(this.name);
-    }
-    if (this.type === 'ARGSETID') {
-      return new ArgSetColumnSet(this.name);
+      return createDurationColumn(this.name);
     }
 
     if (this.name === 'ID') {
       if (tableName === 'slice') {
-        return new SliceIdColumn(this.name);
+        return createSliceIdColumn(this.name);
       }
       if (tableName === 'thread') {
-        return new ThreadIdColumn(this.name);
+        return createThreadIdColumn(this.name);
       }
       if (tableName === 'process') {
-        return new ProcessIdColumn(this.name);
+        return createProcessIdColumn(this.name);
       }
       if (tableName === 'thread_state') {
-        return new ThreadStateIdColumn(this.name);
+        return createThreadStateIdColumn(this.name);
       }
       if (tableName === 'sched') {
-        return new SchedIdColumn(this.name);
+        return createSchedIdColumn(this.name);
       }
-      return new StandardColumn(this.name);
+      return createStandardColumn(this.name);
     }
 
     if (this.type === 'JOINID(slice.id)') {
-      return new SliceIdColumn(this.name);
+      return createSliceIdColumn(this.name);
     }
     if (this.type === 'JOINID(thread.id)') {
-      return new ThreadColumn(this.name);
+      return createThreadIdColumn(this.name);
     }
     if (this.type === 'JOINID(process.id)') {
-      return new ProcessColumn(this.name);
+      return createProcessIdColumn(this.name);
     }
     if (this.type === 'JOINID(thread_state.id)') {
-      return new ThreadStateIdColumn(this.name);
+      return createThreadStateIdColumn(this.name);
     }
     if (this.type === 'JOINID(sched.id)') {
-      return new SchedIdColumn(this.name);
+      return createSchedIdColumn(this.name);
     }
-    return new StandardColumn(this.name);
+    return createStandardColumn(this.name);
   }
 }
 

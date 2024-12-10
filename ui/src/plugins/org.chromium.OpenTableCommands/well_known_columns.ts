@@ -13,47 +13,56 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Icons} from '../../../../base/semantic_icons';
-import {sqliteString} from '../../../../base/string_utils';
-import {Duration, Time} from '../../../../base/time';
-import {SqlValue, STR} from '../../../../trace_processor/query_result';
+import {Icons} from '../../base/semantic_icons';
+import {sqliteString} from '../../base/string_utils';
+import {Duration, Time} from '../../base/time';
+import {SqlValue, STR} from '../../trace_processor/query_result';
 import {
   asSchedSqlId,
   asSliceSqlId,
   asThreadStateSqlId,
   asUpid,
   asUtid,
-} from '../../../sql_utils/core_types';
-import {getProcessName} from '../../../sql_utils/process';
-import {getThreadName} from '../../../sql_utils/thread';
-import {Anchor} from '../../../../widgets/anchor';
-import {renderError} from '../../../../widgets/error';
-import {MenuDivider, MenuItem, PopupMenu2} from '../../../../widgets/menu';
-import {DurationWidget} from '../../../widgets/duration';
-import {processRefMenuItems, showProcessDetailsMenuItem} from '../../process';
-import {SchedRef} from '../../sched';
-import {SliceRef} from '../../slice';
+} from '../../components/sql_utils/core_types';
+import {getProcessName} from '../../components/sql_utils/process';
+import {getThreadName} from '../../components/sql_utils/thread';
+import {Anchor} from '../../widgets/anchor';
+import {renderError} from '../../widgets/error';
+import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {DurationWidget} from '../../components/widgets/duration';
+import {
+  processRefMenuItems,
+  showProcessDetailsMenuItem,
+} from '../../components/widgets/process';
+import {SchedRef} from '../../components/widgets/sched';
+import {SliceRef} from '../../components/widgets/slice';
 import {
   showThreadDetailsMenuItem,
   threadRefMenuItems,
-} from '../../../widgets/thread';
-import {ThreadStateRef} from '../../thread_state';
-import {Timestamp} from '../../timestamp';
+} from '../../components/widgets/thread';
+import {ThreadStateRef} from '../../components/widgets/thread_state';
+import {Timestamp} from '../../components/widgets/timestamp';
 import {
   AggregationConfig,
   SourceTable,
   SqlColumn,
   sqlColumnId,
-  TableColumn,
-  TableColumnSet,
-  TableManager,
-} from './column';
+  LegacyTableColumn,
+  LegacyTableColumnSet,
+  LegacyTableManager,
+} from '../../components/widgets/sql/legacy_table/column';
 import {
   displayValue,
   getStandardContextMenuItems,
   getStandardFilters,
   renderStandardCell,
-} from './render_cell_utils';
+} from '../../components/widgets/sql/legacy_table/render_cell_utils';
+
+function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
+  return renderError(
+    `Wrong type for ${type} column ${sqlColumnId(name)}: bigint expected, ${typeof value} found`,
+  );
+}
 
 export type ColumnParams = {
   alias?: string;
@@ -76,7 +85,7 @@ type ColumnSetParams = {
   startsHidden?: boolean;
 };
 
-export class StandardColumn extends TableColumn {
+export class StandardColumn extends LegacyTableColumn {
   constructor(
     private column: SqlColumn,
     private params?: StandardColumnParams,
@@ -96,12 +105,12 @@ export class StandardColumn extends TableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, tableManager: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager: LegacyTableManager): m.Children {
     return renderStandardCell(value, this.column, tableManager);
   }
 }
 
-export class TimestampColumn extends TableColumn {
+export class TimestampColumn extends LegacyTableColumn {
   constructor(
     private column: SqlColumn,
     private params?: ColumnParams,
@@ -117,7 +126,7 @@ export class TimestampColumn extends TableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, tableManager: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager: LegacyTableManager): m.Children {
     if (typeof value !== 'bigint') {
       return renderStandardCell(value, this.column, tableManager);
     }
@@ -132,7 +141,7 @@ export class TimestampColumn extends TableColumn {
   }
 }
 
-export class DurationColumn extends TableColumn {
+export class DurationColumn extends LegacyTableColumn {
   constructor(
     private column: SqlColumn,
     private params?: ColumnParams,
@@ -148,7 +157,7 @@ export class DurationColumn extends TableColumn {
     return this.params?.title;
   }
 
-  renderCell(value: SqlValue, tableManager: TableManager): m.Children {
+  renderCell(value: SqlValue, tableManager: LegacyTableManager): m.Children {
     if (typeof value !== 'bigint') {
       return renderStandardCell(value, this.column, tableManager);
     }
@@ -164,13 +173,7 @@ export class DurationColumn extends TableColumn {
   }
 }
 
-function wrongTypeError(type: string, name: SqlColumn, value: SqlValue) {
-  return renderError(
-    `Wrong type for ${type} column ${sqlColumnId(name)}: bigint expected, ${typeof value} found`,
-  );
-}
-
-export class SliceIdColumn extends TableColumn {
+export class SliceIdColumn extends LegacyTableColumn {
   private columns: {ts: SqlColumn; dur: SqlColumn; trackId: SqlColumn};
 
   constructor(
@@ -216,7 +219,7 @@ export class SliceIdColumn extends TableColumn {
 
   renderCell(
     value: SqlValue,
-    manager: TableManager,
+    manager: LegacyTableManager,
     data: {[key: string]: SqlValue},
   ): m.Children {
     const id = value;
@@ -249,7 +252,7 @@ export class SliceIdColumn extends TableColumn {
   }
 }
 
-export class SliceColumnSet extends TableColumnSet {
+export class SliceColumnSet extends LegacyTableColumnSet {
   constructor(
     private id: SqlColumn,
     private params?: ColumnSetParams,
@@ -262,7 +265,7 @@ export class SliceColumnSet extends TableColumnSet {
   }
 
   async discover(): Promise<
-    {key: string; column: TableColumn | TableColumnSet}[]
+    {key: string; column: LegacyTableColumn | LegacyTableColumnSet}[]
   > {
     const column: (name: string) => SqlColumn = (name) => {
       return {
@@ -302,13 +305,13 @@ export class SliceColumnSet extends TableColumnSet {
     ];
   }
 
-  initialColumns(): TableColumn[] {
+  initialColumns(): LegacyTableColumn[] {
     if (this.params?.startsHidden) return [];
     return [new SliceIdColumn(this.id)];
   }
 }
 
-export class SchedIdColumn extends TableColumn {
+export class SchedIdColumn extends LegacyTableColumn {
   private columns: {ts: SqlColumn; dur: SqlColumn; cpu: SqlColumn};
 
   constructor(
@@ -358,7 +361,7 @@ export class SchedIdColumn extends TableColumn {
 
   renderCell(
     value: SqlValue,
-    manager: TableManager,
+    manager: LegacyTableManager,
     data: {[key: string]: SqlValue},
   ): m.Children {
     const id = value;
@@ -391,7 +394,7 @@ export class SchedIdColumn extends TableColumn {
   }
 }
 
-export class ThreadStateIdColumn extends TableColumn {
+export class ThreadStateIdColumn extends LegacyTableColumn {
   private columns: {ts: SqlColumn; dur: SqlColumn; utid: SqlColumn};
 
   constructor(
@@ -441,7 +444,7 @@ export class ThreadStateIdColumn extends TableColumn {
 
   renderCell(
     value: SqlValue,
-    manager: TableManager,
+    manager: LegacyTableManager,
     data: {[key: string]: SqlValue},
   ): m.Children {
     const id = value;
@@ -474,7 +477,7 @@ export class ThreadStateIdColumn extends TableColumn {
   }
 }
 
-export class ThreadColumn extends TableColumn {
+export class ThreadColumn extends LegacyTableColumn {
   private columns: {name: SqlColumn; tid: SqlColumn};
 
   constructor(
@@ -522,7 +525,7 @@ export class ThreadColumn extends TableColumn {
 
   renderCell(
     value: SqlValue,
-    manager: TableManager,
+    manager: LegacyTableManager,
     data: {[key: string]: SqlValue},
   ): m.Children {
     const utid = value;
@@ -599,7 +602,7 @@ export class ThreadColumn extends TableColumn {
 
 // ThreadIdColumn is a column type for displaying primary key of the `thread` table.
 // All other references (foreign keys) should use `ThreadColumn` instead.
-export class ThreadIdColumn extends TableColumn {
+export class ThreadIdColumn extends LegacyTableColumn {
   private columns: {tid: SqlColumn};
 
   constructor(private utid: SqlColumn) {
@@ -635,7 +638,7 @@ export class ThreadIdColumn extends TableColumn {
 
   renderCell(
     value: SqlValue,
-    manager: TableManager,
+    manager: LegacyTableManager,
     data: {[key: string]: SqlValue},
   ): m.Children {
     const utid = value;
@@ -670,7 +673,7 @@ export class ThreadIdColumn extends TableColumn {
   }
 }
 
-export class ThreadColumnSet extends TableColumnSet {
+export class ThreadColumnSet extends LegacyTableColumnSet {
   constructor(
     private id: SqlColumn,
     private params: ColumnSetParams & {
@@ -684,7 +687,7 @@ export class ThreadColumnSet extends TableColumnSet {
     return `${this.params.title} (thread)`;
   }
 
-  initialColumns(): TableColumn[] {
+  initialColumns(): LegacyTableColumn[] {
     if (this.params.startsHidden === true) return [];
     return [new ThreadColumn(this.id)];
   }
@@ -738,7 +741,7 @@ export class ThreadColumnSet extends TableColumnSet {
   }
 }
 
-export class ProcessColumn extends TableColumn {
+export class ProcessColumn extends LegacyTableColumn {
   private columns: {name: SqlColumn; pid: SqlColumn};
 
   constructor(
@@ -783,7 +786,7 @@ export class ProcessColumn extends TableColumn {
 
   renderCell(
     value: SqlValue,
-    manager: TableManager,
+    manager: LegacyTableManager,
     data: {[key: string]: SqlValue},
   ): m.Children {
     const upid = value;
@@ -860,7 +863,7 @@ export class ProcessColumn extends TableColumn {
 
 // ProcessIdColumn is a column type for displaying primary key of the `process` table.
 // All other references (foreign keys) should use `ProcessColumn` instead.
-export class ProcessIdColumn extends TableColumn {
+export class ProcessIdColumn extends LegacyTableColumn {
   private columns: {pid: SqlColumn};
 
   constructor(private upid: SqlColumn) {
@@ -896,7 +899,7 @@ export class ProcessIdColumn extends TableColumn {
 
   renderCell(
     value: SqlValue,
-    manager: TableManager,
+    manager: LegacyTableManager,
     data: {[key: string]: SqlValue},
   ): m.Children {
     const upid = value;
@@ -931,7 +934,7 @@ export class ProcessIdColumn extends TableColumn {
   }
 }
 
-export class ProcessColumnSet extends TableColumnSet {
+export class ProcessColumnSet extends LegacyTableColumnSet {
   constructor(
     private id: SqlColumn,
     private params: ColumnSetParams & {
@@ -945,7 +948,7 @@ export class ProcessColumnSet extends TableColumnSet {
     return `${this.params.title} (process)`;
   }
 
-  initialColumns(): TableColumn[] {
+  initialColumns(): LegacyTableColumn[] {
     if (this.params.startsHidden === true) return [];
     return [new ProcessColumn(this.id)];
   }
@@ -1013,7 +1016,7 @@ export class ProcessColumnSet extends TableColumnSet {
   }
 }
 
-class ArgColumn extends TableColumn {
+class ArgColumn extends LegacyTableColumn {
   private displayValue: SqlColumn;
   private stringValue: SqlColumn;
   private intValue: SqlColumn;
@@ -1073,7 +1076,7 @@ class ArgColumn extends TableColumn {
 
   renderCell(
     value: SqlValue,
-    tableManager: TableManager,
+    tableManager: LegacyTableManager,
     dependentColumns: {[key: string]: SqlValue},
   ): m.Children {
     const strValue = dependentColumns['stringValue'];
@@ -1116,7 +1119,7 @@ class ArgColumn extends TableColumn {
   }
 }
 
-export class ArgSetColumnSet extends TableColumnSet {
+export class ArgSetColumnSet extends LegacyTableColumnSet {
   constructor(
     private column: SqlColumn,
     private title?: string,
@@ -1129,8 +1132,8 @@ export class ArgSetColumnSet extends TableColumnSet {
   }
 
   async discover(
-    manager: TableManager,
-  ): Promise<{key: string; column: TableColumn}[]> {
+    manager: LegacyTableManager,
+  ): Promise<{key: string; column: LegacyTableColumn}[]> {
     const queryResult = await manager.trace.engine.query(`
       -- Encapsulate the query in a CTE to avoid clashes between filters
       -- and columns of the 'args' table.

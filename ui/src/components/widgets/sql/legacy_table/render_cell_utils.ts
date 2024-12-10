@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TableManager, SqlColumn} from './column';
+import {LegacyTableManager, SqlColumn} from './column';
 import {MenuItem, PopupMenu2} from '../../../../widgets/menu';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {isString} from '../../../../base/object_utils';
@@ -75,7 +75,7 @@ function filterOptionMenuItem(
   label: string,
   column: SqlColumn,
   filterOp: (cols: string[]) => string,
-  tableManager: TableManager,
+  tableManager: LegacyTableManager,
 ): m.Child {
   return m(MenuItem, {
     label,
@@ -89,7 +89,7 @@ function filterOptionMenuItem(
 export function getStandardFilters(
   value: SqlValue,
   c: SqlColumn,
-  tableManager: TableManager,
+  tableManager: LegacyTableManager,
 ): m.Child[] {
   if (value === null) {
     return NULL_FILTER_OPTIONS.map((option) =>
@@ -139,7 +139,7 @@ function copyMenuItem(label: string, value: string): m.Child {
 export function getStandardContextMenuItems(
   value: SqlValue,
   column: SqlColumn,
-  tableManager: TableManager,
+  tableManager: LegacyTableManager,
 ): m.Child[] {
   const result: m.Child[] = [];
 
@@ -167,7 +167,7 @@ export function displayValue(value: SqlValue): m.Child {
 export function renderStandardCell(
   value: SqlValue,
   column: SqlColumn,
-  tableManager: TableManager,
+  tableManager: LegacyTableManager,
 ): m.Children {
   const contextMenuItems: m.Child[] = getStandardContextMenuItems(
     value,
