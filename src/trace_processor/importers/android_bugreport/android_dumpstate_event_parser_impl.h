@@ -20,6 +20,7 @@
 #include <cstdint>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 
@@ -38,8 +39,27 @@ class AndroidDumpstateEventParserImpl : public AndroidDumpstateEventParser {
  private:
   TraceProcessorContext* const context_;
 
+  struct TokenizedBatteryStatsHistoryItem {
+    // absolute timestamp of the event.
+    int64_t ts;
+    // in the event "+w=123" prefix would hold "+""
+    base::StringView prefix;
+    // in the event "+w=123" key would hold "w"
+    base::StringView key;
+    // in the event "+w=123" value would hold "123"
+    base::StringView value;
+  };
+
   base::Status ProcessBatteryStatsHistoryItem(int64_t ts,
                                               const std::string& raw_event);
+  base::StatusOr<bool> ProcessBatteryStatsHistoryEvent(
+      const TokenizedBatteryStatsHistoryItem& item);
+  base::StatusOr<bool> ProcessBatteryStatsHistoryState(
+      const TokenizedBatteryStatsHistoryItem& item);
+  base::StatusOr<bool> ProcessBatteryStatsHistoryBatteryCounter(
+      const TokenizedBatteryStatsHistoryItem& item);
+  base::StatusOr<bool> ProcessBatteryStatsHistoryWakeLocks(
+      const TokenizedBatteryStatsHistoryItem& item);
 };
 
 }  // namespace perfetto::trace_processor

@@ -67,6 +67,12 @@ class AndroidBatteryStatsHistoryStringTracker : public Destructible {
                                  int32_t uid,
                                  const std::string& str);
 
+  // Set the current version of the battery stats file being parsed.
+  void battery_stats_version(uint32_t ver) { battery_stats_version_ = ver; }
+
+  // Get the current version of the battery stats file being parsed.
+  uint32_t battery_stats_version() { return battery_stats_version_; }
+
  private:
   struct HistoryStringPoolItem {
     // The linux User ID (UID) associated with the item.
@@ -80,6 +86,7 @@ class AndroidBatteryStatsHistoryStringTracker : public Destructible {
   // Use a vector to store the hsp items internally since these strings indices
   // start from zero and are consecutive.
   std::vector<HistoryStringPoolItem> hsp_items_;
+  uint32_t battery_stats_version_ = 0;
 };
 
 }  // namespace perfetto::trace_processor
