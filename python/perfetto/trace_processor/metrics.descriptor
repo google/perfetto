@@ -1032,8 +1032,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-ÚJ
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ØI
+¾J
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¼I
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -1050,7 +1050,7 @@ maxRuntime$
 unknown (Runknown5
 Slice
 dur_ns (RdurNs
-dur_ms (RdurMs¡
+dur_ms (RdurMs…
 ToFirstFrame
 dur_ns (RdurNs
 dur_ms (RdurMsr
@@ -1074,12 +1074,12 @@ maxRuntime$
 toPostForkb
 to_activity_thread_main (2+.perfetto.protos.AndroidStartupMetric.SliceRtoActivityThreadMain[
 to_bind_application (2+.perfetto.protos.AndroidStartupMetric.SliceRtoBindApplicationQ
-time_post_fork (2+.perfetto.protos.AndroidStartupMetric.SliceRtimePostForkg
-time_class_initialization$ (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeClassInitializationO
+time_post_fork (2+.perfetto.protos.AndroidStartupMetric.SliceRtimePostForkY
+time_class_loading$ (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeClassLoadingO
 time_dex_open (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDexOpenW
 time_verify_class (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeVerifyClass0
-jit_compiled_methods (RjitCompiledMethods<
-class_initialization_count% (RclassInitializationCounth
+jit_compiled_methods (RjitCompiledMethods.
+class_loading_count% (RclassLoadingCounth
 time_jit_thread_pool_on_cpu (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeJitThreadPoolOnCpuO
 time_gc_total (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeGcTotalP
 time_gc_on_cpu (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeGcOnCpus
