@@ -15,10 +15,7 @@
 import m from 'mithril';
 import {NUM} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
-import {
-  BaseSliceTrack,
-  OnSliceClickArgs,
-} from '../../components/tracks/base_slice_track';
+import {BaseSliceTrack} from '../../components/tracks/base_slice_track';
 import {NAMED_ROW, NamedRow} from '../../components/tracks/named_slice_track';
 import {getColorForSample} from '../../components/colorizer';
 import {
@@ -65,11 +62,6 @@ abstract class BasePerfSamplesProfileTrack extends BaseSliceTrack<
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
-  }
-
-  onSliceClick(args: OnSliceClickArgs<Slice>): void {
-    // TODO(stevegolton): Perhaps we could just move this to BaseSliceTrack?
-    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 }
 
