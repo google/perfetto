@@ -50,9 +50,11 @@ AndroidInputEventDispatchTable::~AndroidInputEventDispatchTable() = default;
 CounterTable::~CounterTable() = default;
 
 // etm_tables.py
+ElfFileTable::~ElfFileTable() = default;
 EtmV4ConfigurationTable::~EtmV4ConfigurationTable() = default;
 EtmV4SessionTable::~EtmV4SessionTable() = default;
 EtmV4TraceTable::~EtmV4TraceTable() = default;
+FileTable::~FileTable() = default;
 
 // jit_tables.py
 JitCodeTable::~JitCodeTable() = default;

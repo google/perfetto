@@ -16,6 +16,9 @@
 
 #include "src/trace_processor/importers/etm/target_memory_reader.h"
 
+#include <cstddef>
+#include <cstdint>
+
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
@@ -23,13 +26,25 @@
 #include "src/trace_processor/importers/etm/target_memory.h"
 
 namespace perfetto::trace_processor::etm {
+namespace {
+uint32_t Read(const MappingVersion& mapping,
+              const AddressRange& range,
+              uint8_t* dest) {
+  if (!mapping.data()) {
+    return 0;
+  }
+  memcpy(dest, mapping.data() + (range.start() - mapping.start()),
+         range.size());
+  return static_cast<uint32_t>(range.size());
+}
+}  // namespace
 
 ocsd_err_t TargetMemoryReader::ReadTargetMemory(
     const ocsd_vaddr_t address,
     const uint8_t,
     const ocsd_mem_space_acc_t mem_space,
     uint32_t* num_bytes,
-    uint8_t*) {
+    uint8_t* dest) {
   if (mem_space != OCSD_MEM_SPACE_EL1N || *num_bytes == 0) {
     *num_bytes = 0;
     return OCSD_OK;
@@ -42,7 +57,12 @@ ocsd_err_t TargetMemoryReader::ReadTargetMemory(
     cached_mapping_ = memory_->FindMapping(ts_, *tid_, range);
   }
 
-  *num_bytes = 0;
+  if (!cached_mapping_) {
+    *num_bytes = 0;
+    return OCSD_OK;
+  }
+
+  *num_bytes = Read(*cached_mapping_, range, dest);
   return OCSD_OK;
 }
 
@@ -61,6 +81,7 @@ const MappingVersion* TargetMemoryReader::FindMapping(uint64_t address) const {
     return cached_mapping_;
   }
   PERFETTO_CHECK(tid_);
+
   return memory_->FindMapping(ts_, *tid_, address);
 }
 

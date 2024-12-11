@@ -47,6 +47,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -55,6 +56,8 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/read_trace.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/profiling/deobfuscator.h"
 #include "src/profiling/symbolizer/local_symbolizer.h"
@@ -733,6 +736,7 @@ struct CommandLineOptions {
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
   std::vector<std::string> dev_flags;
+  std::string register_files_dir;
 };
 
 void PrintUsage(char** argv) {
@@ -793,6 +797,12 @@ Feature flags:
  --extra-checks                       Enables additional checks which can catch
                                       more SQL errors, but which incur
                                       additional runtime overhead.
+ --register-files-dir PATH            The contents of all files in this
+                                      directory and subdirectories will be made
+                                      available to the trace processor runtime.
+                                      Some importers can use this data to
+                                      augment trace data (e.g. decode ETM
+                                      instruction streams).
 
 Standard library:
  --add-sql-module MODULE_PATH         Files from the directory will be treated
@@ -857,6 +867,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_CROP_TRACK_EVENTS,
     OPT_DEV_FLAG,
     OPT_STDIOD,
+    OPT_REGISTER_FILES_DIR,
   };
 
   static const option long_options[] = {
@@ -892,6 +903,9 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
       {"dev-flag", required_argument, nullptr, OPT_DEV_FLAG},
+      {"register-files-dir", required_argument, nullptr,
+       OPT_REGISTER_FILES_DIR},
+
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -1042,6 +1056,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_DEV_FLAG) {
       command_line_options.dev_flags.push_back(optarg);
+      continue;
+    }
+
+    if (option == OPT_REGISTER_FILES_DIR) {
+      command_line_options.register_files_dir = optarg;
       continue;
     }
 
@@ -1618,6 +1637,22 @@ base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
   return base::OkStatus();
 }
 
+base::Status RegisterAllFilesInFolder(const std::string& path,
+                                      TraceProcessor& tp) {
+  std::vector<std::string> files;
+  RETURN_IF_ERROR(base::ListFilesRecursive(path, files));
+  for (std::string file : files) {
+    file = path + "/" + file;
+    base::ScopedMmap mmap = base::ReadMmapWholeFile(file.c_str());
+    if (!mmap.IsValid()) {
+      return base::ErrStatus("Failed to mmap file: %s", file.c_str());
+    }
+    RETURN_IF_ERROR(tp.RegisterFileContent(
+        file, TraceBlobView(TraceBlob::FromMmap(std::move(mmap)))));
+  }
+  return base::OkStatus();
+}
+
 base::Status TraceProcessorMain(int argc, char** argv) {
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
@@ -1672,6 +1707,10 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     metatrace_config.override_buffer_size = options.metatrace_buffer_capacity;
     metatrace_config.categories = options.metatrace_categories;
     tp->EnableMetatrace(metatrace_config);
+  }
+
+  if (!options.register_files_dir.empty()) {
+    RETURN_IF_ERROR(RegisterAllFilesInFolder(options.register_files_dir, *tp));
   }
 
   // Descriptor pool used for printing output as textproto. Building on top of
