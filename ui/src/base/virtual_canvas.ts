@@ -32,8 +32,8 @@
  * using the "floating" canvas technique described above.
  */
 
-import {DisposableStack} from '../base/disposable_stack';
-import {Bounds2D, Rect2D, Size2D} from '../base/geom';
+import {DisposableStack} from './disposable_stack';
+import {Bounds2D, Rect2D, Size2D} from './geom';
 
 export type LayoutShiftListener = (
   canvas: HTMLCanvasElement,
@@ -47,15 +47,23 @@ export type CanvasResizeListener = (
 ) => void;
 
 export interface VirtualCanvasOpts {
-  // How much buffer to add above and below the visible window.
-  overdrawPx: number;
+  // How much buffer to add around the visible window in the scrollable axes.
+  // The larger this number, the more we can scroll before triggering a move and
+  // update which reduces thrashing when scrolling quickly, but the more canvas
+  // will need to be drawn each render cycle.
+  readonly overdrawPx: number;
 
-  // If true, the canvas will remain within the bounds on the target element at
-  // all times.
-  //
-  // If false, the canvas is allowed to overflow the bounds of the target
-  // element to avoid resizing unnecessarily.
-  avoidOverflowingContainer: boolean;
+  // This figure controls how close we can get to the edge of the drawn canvas
+  // before moving it and triggering a redraw. If 0, we can get all the way to
+  // the edge of the canvas before moving it. Larger values will result in more
+  // frequent redraws but less chance of seeing blank bits of canvas when
+  // scrolling quickly.
+  readonly tolerancePx?: number;
+
+  // Which axes should we overdraw? Typically we only want to overdraw in the
+  // axes we expect to scroll in. So if we only expect the container to be
+  // vertically scrolled, choose 'y'.
+  readonly overdrawAxes?: 'none' | 'x' | 'y' | 'both';
 }
 
 export class VirtualCanvas implements Disposable {
@@ -65,6 +73,7 @@ export class VirtualCanvas implements Disposable {
 
   // Describes the offset of the canvas w.r.t. the "target" container
   private _canvasRect: Rect2D;
+  private _viewportLimits: Rect2D;
   private _layoutShiftListener?: LayoutShiftListener;
   private _canvasResizeListener?: CanvasResizeListener;
 
@@ -82,10 +91,16 @@ export class VirtualCanvas implements Disposable {
     containerElement: Element,
     opts?: Partial<VirtualCanvasOpts>,
   ) {
-    const {overdrawPx = 100, avoidOverflowingContainer} = opts ?? {};
+    const {
+      overdrawPx = 200,
+      tolerancePx = 100,
+      overdrawAxes: scrollAxes = 'none',
+    } = opts ?? {};
 
-    // Returns what the canvas rect should look like
-    const getCanvasRect = () => {
+    const viewportOversize = overdrawPx - tolerancePx;
+
+    // Returns the rect of the container's viewport W.R.T the target element.
+    function getViewportRect() {
       const containerRect = new Rect2D(
         containerElement.getBoundingClientRect(),
       );
@@ -94,15 +109,29 @@ export class VirtualCanvas implements Disposable {
       // Calculate the intersection of the container's viewport and the target
       const intersection = containerRect.intersect(targetElementRect);
 
-      // Pad the intersection by the overdraw amount
-      const intersectionExpanded = intersection.expand(overdrawPx);
+      return intersection.reframe(targetElementRect);
+    }
 
-      // Intersect with the original target rect unless we want to avoid resizes
-      const canvasTargetRect = avoidOverflowingContainer
-        ? intersectionExpanded.intersect(targetElementRect)
-        : intersectionExpanded;
+    const getCanvasRect = () => {
+      const viewport = getViewportRect();
 
-      return canvasTargetRect.reframe(targetElementRect);
+      if (this._viewportLimits.contains(viewport)) {
+        return this._canvasRect;
+      } else {
+        const canvasRect = viewport.expand({
+          height: scrollAxes === 'both' || scrollAxes === 'y' ? overdrawPx : 0,
+          width: scrollAxes === 'both' || scrollAxes === 'x' ? overdrawPx : 0,
+        });
+
+        this._viewportLimits = viewport.expand({
+          height:
+            scrollAxes === 'both' || scrollAxes === 'y' ? viewportOversize : 0,
+          width:
+            scrollAxes === 'both' || scrollAxes === 'x' ? viewportOversize : 0,
+        });
+
+        return canvasRect;
+      }
     };
 
     const updateCanvas = () => {
@@ -146,8 +175,8 @@ export class VirtualCanvas implements Disposable {
       containerElement.removeEventListener('scroll', updateCanvas),
     );
 
-    // Resize observer callbacks are called once immediately
-    const resizeObserver = new ResizeObserver(() => {
+    // Resize observer callbacks are called once immediately after registration
+    const resizeObserver = new ResizeObserver((_cb) => {
       updateCanvas();
     });
 
@@ -175,6 +204,7 @@ export class VirtualCanvas implements Disposable {
       bottom: 0,
       right: 0,
     });
+    this._viewportLimits = this._canvasRect;
   }
 
   /**
