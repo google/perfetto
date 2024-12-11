@@ -19,8 +19,6 @@ import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SuspendResumeDetailsPanel} from './suspend_resume_details';
-import {Slice} from '../../public/track';
-import {OnSliceClickArgs} from '../../components/tracks/base_slice_track';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import AsyncSlicesPlugin from '../dev.perfetto.AsyncSlices';
@@ -37,10 +35,6 @@ class SuspendResumeSliceTrack extends AsyncSliceTrack {
     private readonly threads: ThreadMap,
   ) {
     super(trace, uri, maxDepth, trackIds);
-  }
-
-  onSliceClick(args: OnSliceClickArgs<Slice>) {
-    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 
   override detailsPanel() {

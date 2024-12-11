@@ -15,10 +15,7 @@
 import {assertExists} from '../../base/logging';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {getColorForSample} from '../../components/colorizer';
-import {
-  BaseSliceTrack,
-  OnSliceClickArgs,
-} from '../../components/tracks/base_slice_track';
+import {BaseSliceTrack} from '../../components/tracks/base_slice_track';
 import {NAMED_ROW, NamedRow} from '../../components/tracks/named_slice_track';
 import {NUM} from '../../trace_processor/query_result';
 import {Slice} from '../../public/track';
@@ -68,10 +65,6 @@ export class CpuProfileTrack extends BaseSliceTrack<Slice, CpuProfileRow> {
       where utid = ${this.utid}
       order by ts
     `;
-  }
-
-  onSliceClick({slice}: OnSliceClickArgs<Slice>) {
-    this.trace.selection.selectTrackEvent(this.uri, slice.id);
   }
 
   async getSelectionDetails(
