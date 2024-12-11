@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TableColumn, TableColumnSet} from './column';
+import {LegacyTableColumn, LegacyTableColumnSet} from './column';
 
 export interface SqlTableDescription {
   readonly imports?: string[];
   name: string;
   // In some cases, the name of the table we are querying is different from the name of the table we want to display to the user -- typically because the underlying table is wrapped into a view.
   displayName?: string;
-  columns: (TableColumn | TableColumnSet)[];
+  columns: (LegacyTableColumn | LegacyTableColumnSet)[];
 }

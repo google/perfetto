@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {PageWithTraceAttrs} from '../../public/page';
-import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/table/state';
-import {SqlTable as SqlTableView} from '../../components/widgets/sql/table/table';
+import {SqlTableState as SqlTableViewState} from '../../components/widgets/sql/legacy_table/state';
+import {SqlTable as SqlTableView} from '../../components/widgets/sql/legacy_table/table';
 import {exists} from '../../base/utils';
 import {Menu, MenuItem, MenuItemAttrs} from '../../widgets/menu';
 import {Button} from '../../widgets/button';

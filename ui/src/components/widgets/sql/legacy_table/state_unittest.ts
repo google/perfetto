@@ -13,39 +13,24 @@
 // limitations under the License.
 
 import {createFakeTraceImpl} from '../../../../core/fake_trace_impl';
-import {tableColumnId} from './column';
+import {FromSimpleColumn, tableColumnId} from './column';
 import {SqlTableState} from './state';
 import {SqlTableDescription} from './table_description';
-import {
-  ArgSetColumnSet,
-  StandardColumn,
-  TimestampColumn,
-} from './well_known_columns';
+import {createStandardColumn, createTimestampColumn} from '../table/table';
 
-const idColumn = new StandardColumn('id');
-const nameColumn = new StandardColumn('name', {title: 'Name'});
-const tsColumn = new TimestampColumn('ts', {
-  title: 'Timestamp',
-  startsHidden: true,
-});
+const idColumn = new FromSimpleColumn(createStandardColumn('id'));
+const nameColumn = new FromSimpleColumn(createStandardColumn('name'));
+const tsColumn = new FromSimpleColumn(createTimestampColumn('ts'));
 
 const table: SqlTableDescription = {
   name: 'table',
   displayName: 'Table',
-  columns: [idColumn, nameColumn, tsColumn, new ArgSetColumnSet('arg_set_id')],
+  columns: [idColumn, nameColumn, tsColumn],
 };
 
 test('sqlTableState: columnManupulation', () => {
   const trace = createFakeTraceImpl({allowQueries: true});
   const state = new SqlTableState(trace, table);
-
-  // The initial set of columns should include "id" and "name",
-  // but not "ts" (as it is marked as startsHidden) and not "arg_set_id"
-  // (as it is a special column).
-  expect(state.getSelectedColumns().map((c) => tableColumnId(c))).toEqual([
-    'id',
-    'name',
-  ]);
 
   state.addColumn(tsColumn, 0);
 
@@ -53,6 +38,7 @@ test('sqlTableState: columnManupulation', () => {
     'id',
     'ts',
     'name',
+    'ts',
   ]);
 
   state.hideColumnAtIndex(0);
@@ -60,6 +46,7 @@ test('sqlTableState: columnManupulation', () => {
   expect(state.getSelectedColumns().map((c) => tableColumnId(c))).toEqual([
     'ts',
     'name',
+    'ts',
   ]);
 });
 
@@ -67,11 +54,12 @@ test('sqlTableState: sortedColumns', () => {
   const trace = createFakeTraceImpl({allowQueries: true});
   const state = new SqlTableState(trace, table);
 
-  // Verify that we have two columns: "id" and "name" and
-  // save references to them.
+  // Verify that we have three columns: "id", "name" and "ts" and save
+  // references to them.
   expect(state.getSelectedColumns().map((c) => tableColumnId(c))).toEqual([
     'id',
     'name',
+    'ts',
   ]);
 
   // Sort by name column and verify that it is sorted by.
@@ -119,6 +107,6 @@ test('sqlTableState: sqlStatement', () => {
 
   // Check the generated SQL statement.
   expect(normalize(state.getCurrentRequest().query)).toBe(
-    'SELECT table_0.id AS id, table_0.name AS name FROM table AS table_0 LIMIT 101 OFFSET 0',
+    'SELECT table_0.id AS id, table_0.name AS name, table_0.ts AS ts FROM table AS table_0 LIMIT 101 OFFSET 0',
   );
 });
