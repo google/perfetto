@@ -55,6 +55,12 @@ describe('Rect2D', () => {
     expect(result).toMatchObject({left: 0, top: 0, right: 4, bottom: 4});
   });
 
+  test('expand 2d', () => {
+    const rect = new Rect2D({left: 1, top: 1, right: 3, bottom: 3});
+    const result = rect.expand({width: 1, height: 2});
+    expect(result).toMatchObject({left: 0, top: -1, right: 4, bottom: 5});
+  });
+
   test('reframe', () => {
     const rect = new Rect2D({left: 2, top: 2, right: 5, bottom: 5});
     const result = rect.reframe({x: 1, y: 1});
