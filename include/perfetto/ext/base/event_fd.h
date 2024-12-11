@@ -49,7 +49,10 @@ class EventFd {
   // the pipe for fallback mode.
   ScopedPlatformHandle event_handle_;
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) &&   \
+// QNX is specified because it is a non-Linux UNIX platform but it
+// still sets the PERFETTO_OS_LINUX flag to be as compatible as possible
+// with the Linux build.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) &&   \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // On Mac and other non-Linux UNIX platforms a pipe-based fallback is used.

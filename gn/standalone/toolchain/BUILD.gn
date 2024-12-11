@@ -149,6 +149,8 @@ declare_args() {
     _target_triplet = "i686-linux-android"
   } else if (target_os == "android" && target_cpu == "x64") {
     _target_triplet = "x86_64-linux-android"
+  } else if (target_os == "qnx" && target_cpu == "arm64") {
+    _target_triplet = "ntoaarch64"
   } else {
     assert(
         false,
@@ -160,6 +162,9 @@ declare_args() {
   if (sysroot != "") {
     # If the user specifies a sysroot, use that for both host and target.
     target_sysroot = sysroot
+  } else if (is_qnx) {
+    # Do not set any sysroot for QNX.
+    target_sysroot = ""
   } else {
     # If no explicit sysroot has been set, use the guessed sysroot from the ones
     # pulled by //tools/install-build-deps (only for Linux).
@@ -190,6 +195,12 @@ declare_args() {
       target_cxx = "$android_llvm_dir/bin/clang++"
       target_linker = "$android_llvm_dir/bin/ld.lld"
       target_strip = "$android_llvm_dir/bin/llvm-strip"
+    } else if (is_qnx) {
+      target_ar = "${_target_triplet}-ar"
+      target_cc = "qcc -V8.3.0,gcc_${_target_triplet}le"
+      target_cxx = "q++ -V8.3.0,gcc_${_target_triplet}le_cxx"
+      target_linker = "${_target_triplet}-ld"
+      target_strip = "${_target_triplet}-strip"
     } else {
       assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")
@@ -207,6 +218,7 @@ declare_args() {
         target_ar = "${_target_triplet}-ar"
         target_cc = "${_target_triplet}-gcc"
         target_cxx = "${_target_triplet}-g++"
+        target_strip = "${_target_triplet}-strip"
       }
     }
   }
@@ -253,7 +265,12 @@ template("gcc_like_toolchain") {
 
     tool("cc") {
       depfile = "{{output}}.d"
-      command = "$cc_wrapper $cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${external_cflags} -c {{source}} -o {{output}}"
+      if (is_qnx) {
+        depfile_args = "-Wp,-MMD,$depfile -Wp,-MF,$depfile"
+      } else {
+        depfile_args = "-MMD -MF $depfile"
+      }
+      command = "$cc_wrapper $cc $depfile_args {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${external_cflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
       outputs =
           [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
@@ -262,7 +279,12 @@ template("gcc_like_toolchain") {
 
     tool("cxx") {
       depfile = "{{output}}.d"
-      command = "$cc_wrapper $cxx -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}}  ${external_cflags} ${external_cxxflags} -c {{source}} -o {{output}}"
+      if (is_qnx) {
+        depfile_args = "-Wp,-MMD,$depfile -Wp,-MF,$depfile"
+      } else {
+        depfile_args = "-MMD -MF $depfile"
+      }
+      command = "$cc_wrapper $cxx $depfile_args {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}}  ${external_cflags} ${external_cxxflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
       outputs =
           [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
@@ -271,7 +293,12 @@ template("gcc_like_toolchain") {
 
     tool("asm") {
       depfile = "{{output}}.d"
-      command = "$cc_wrapper $cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{asmflags}} -c {{source}} -o {{output}}"
+      if (is_qnx) {
+        depfile_args = "-Wp,-MMD,$depfile -Wp,-MF,$depfile"
+      } else {
+        depfile_args = "-MMD -MF $depfile"
+      }
+      command = "$cc_wrapper $cc $depfile_args {{defines}} {{include_dirs}} {{asmflags}} -c {{source}} -o {{output}}"
       depsformat = "gcc"
       outputs =
           [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]

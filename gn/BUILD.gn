@@ -51,9 +51,14 @@ action("gen_buildflags") {
   # We can't just use (is_linux || is_android) in perfetto.gni because that
   # doesn't work in Android Mac host builds. We lose the GN notion of OS once
   # we run the tools/gen_xxx generators.
+  #
+  # Currently, QNX has the OS_LINUX flag enabled to remain as compatible as
+  # possible. Watchdog is an exception where it uses Linux-specific system
+  # calls. Therefore we skip enabling the watchdog in QNX.
   if (enable_perfetto_watchdog) {
-    perfetto_watchdog = "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_ANDROID() || " +
-                        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX()"
+    perfetto_watchdog =
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_ANDROID() || " +
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX_BUT_NOT_QNX()"
   } else {
     perfetto_watchdog = "0"
   }
