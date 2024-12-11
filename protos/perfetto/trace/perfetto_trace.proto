@@ -13742,7 +13742,7 @@ message PerfettoMetatrace {
 // Begin of protos/perfetto/trace/perfetto/tracing_service_event.proto
 
 // Events emitted by the tracing service.
-// Next id: 11.
+// Next id: 12.
 message TracingServiceEvent {
   message DataSources {
     message DataSource {
@@ -13809,6 +13809,10 @@ message TracingServiceEvent {
     // If this was a cloned tracing session, emitted when the tracing serice
     // started the clone operation.
     bool clone_started = 10;
+
+    // If this was a cloned tracing session, emitted when the tracing service
+    // finished the clone operation (for a specific buffer).
+    uint32 buffer_cloned = 11;
   }
 }
 

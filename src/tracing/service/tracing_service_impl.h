@@ -485,6 +485,7 @@ class TracingServiceImpl : public TracingService {
     // This vector might not be populated all at once. Some buffers might be
     // nullptr while flushing is not done.
     std::vector<std::unique_ptr<TraceBuffer>> buffers;
+    std::vector<int64_t> buffer_cloned_timestamps;
     bool flush_failed = false;
     base::WeakPtr<ConsumerEndpointImpl> weak_consumer;
     bool skip_trace_filter = false;
@@ -684,6 +685,10 @@ class TracingServiceImpl : public TracingService {
 
     std::vector<ArbitraryLifecycleEvent> last_flush_events;
 
+    // If this is a cloned tracing session, the timestamp at which each buffer
+    // was cloned.
+    std::vector<int64_t> buffer_cloned_timestamps;
+
     using ClockSnapshotData = base::ClockSnapshotVector;
 
     // Initial clock snapshot, captured at trace start time (when state goes to
@@ -834,12 +839,13 @@ class TracingServiceImpl : public TracingService {
   std::map<ProducerID, std::vector<DataSourceInstanceID>>
   GetFlushableDataSourceInstancesForBuffers(TracingSession*,
                                             const std::set<BufferID>&);
-  bool DoCloneBuffers(TracingSession*,
+  bool DoCloneBuffers(const TracingSession&,
                       const std::set<BufferID>&,
-                      std::vector<std::unique_ptr<TraceBuffer>>*);
+                      PendingClone*);
   base::Status FinishCloneSession(ConsumerEndpointImpl*,
                                   TracingSessionID,
                                   std::vector<std::unique_ptr<TraceBuffer>>,
+                                  std::vector<int64_t> buf_cloned_timestamps,
                                   bool skip_filter,
                                   bool final_flush_outcome,
                                   std::optional<TriggerInfo> clone_trigger,
