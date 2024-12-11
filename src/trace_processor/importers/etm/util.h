@@ -17,7 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETM_UTIL_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETM_UTIL_H_
 
+#include <optional>
+
 #include "src/trace_processor/importers/etm/opencsd.h"
+
 namespace perfetto::trace_processor::etm {
 
 const char* ToString(ocsd_gen_trc_elem_t type);
