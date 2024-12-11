@@ -790,9 +790,10 @@ class TracingServiceImpl : public TracingService {
   void PeriodicSnapshotTask(TracingSessionID);
   void MaybeSnapshotClocksIntoRingBuffer(TracingSession*);
   bool SnapshotClocks(TracingSession::ClockSnapshotData*);
-  void SnapshotLifecyleEvent(TracingSession*,
-                             uint32_t field_id,
-                             bool snapshot_clocks);
+  // Records a lifecycle event of type |field_id| with the current timestamp.
+  void SnapshotLifecycleEvent(TracingSession*,
+                              uint32_t field_id,
+                              bool snapshot_clocks);
   void EmitClockSnapshot(TracingSession*,
                          TracingSession::ClockSnapshotData,
                          std::vector<TracePacket>*);
