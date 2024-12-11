@@ -345,8 +345,9 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
   setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
 #endif
 
-  if (family == SockFamily::kInet || family == SockFamily::kInet6 ||
-      family == SockFamily::kVsock) {
+// QNX doesn't support setting SO_REUSEADDR option when using vsocks.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  if (family == SockFamily::kVsock) {
     int flag = 1;
     // The reinterpret_cast<const char*> is needed for Windows, where the 4th
     // arg is a const char* (on other POSIX system is a const void*).
@@ -354,9 +355,15 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
                                reinterpret_cast<const char*>(&flag),
                                sizeof(flag)));
   }
+#endif
 
   if (family == SockFamily::kInet || family == SockFamily::kInet6) {
     int flag = 1;
+    // The reinterpret_cast<const char*> is needed for Windows, where the 4th
+    // arg is a const char* (on other POSIX system is a const void*).
+    PERFETTO_CHECK(!setsockopt(*fd_, SOL_SOCKET, SO_REUSEADDR,
+                               reinterpret_cast<const char*>(&flag),
+                               sizeof(flag)));
     // Disable Nagle's algorithm, optimize for low-latency.
     // See https://github.com/google/perfetto/issues/70.
     setsockopt(*fd_, IPPROTO_TCP, TCP_NODELAY,
@@ -674,6 +681,13 @@ bool UnixSocketRaw::SetTxTimeout(uint32_t timeout_ms) {
   timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(
       (timeout_ms - (timeout_sec * 1000)) * 1000);
 #endif
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  if (family() == SockFamily::kVsock) {
+      // QNX doesn't support SO_SNDTIMEO for vsocks.
+      return true;
+  }
+#endif
+
   return setsockopt(*fd_, SOL_SOCKET, SO_SNDTIMEO,
                     reinterpret_cast<const char*>(&timeout),
                     sizeof(timeout)) == 0;
@@ -922,13 +936,10 @@ void UnixSocket::ReadPeerCredentialsPosix() {
   PERFETTO_CHECK(peer_cred_mode_ != SockPeerCredMode::kIgnore);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
-  struct sockcred user_cred;
-  socklen_t len = sizeof(user_cred);
   int fd = sock_raw_.fd();
-  int res = getsockopt(fd, AF_UNIX, LOCAL_CREDS, &user_cred, &len);
+  int res = getpeereid(fd, &peer_uid_, nullptr);
   PERFETTO_CHECK(res == 0);
-  peer_uid_ = user_cred.sc_uid;
-  // There is no pid in the LOCAL_CREDS for QNX
+  // There is no pid when obtaining peer credentials for QNX
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   struct ucred user_cred;
