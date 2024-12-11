@@ -16,7 +16,6 @@ import {colorForState} from '../../components/colorizer';
 import {
   BASE_ROW,
   BaseSliceTrack,
-  OnSliceClickArgs,
 } from '../../components/tracks/base_slice_track';
 import {
   SLICE_LAYOUT_FLAT_DEFAULTS,
@@ -103,10 +102,6 @@ export class ThreadStateTrack extends BaseSliceTrack<Slice, ThreadStateRow> {
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
-  }
-
-  onSliceClick(args: OnSliceClickArgs<Slice>) {
-    this.trace.selection.selectTrackEvent(this.uri, args.slice.id);
   }
 
   // Add utid to selection details
