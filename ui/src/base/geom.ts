@@ -158,16 +158,28 @@ export class Rect2D implements Bounds2D, Size2D {
    * Expands the rectangle by the given amount on all sides and returns a new
    * rectangle.
    *
-   * @param amount - The amount to expand the rectangle by.
+   * @param amount - The amount to expand the rectangle by. This can be a number
+   * which is applied evenly to each side, or it can be a Size2D object which
+   * applies a different expansion amount in the x and y dimensions.
    * @returns A new Rect2D instance representing the expanded rectangle.
    */
-  expand(amount: number): Rect2D {
-    return new Rect2D({
-      top: this.top - amount,
-      left: this.left - amount,
-      bottom: this.bottom + amount,
-      right: this.right + amount,
-    });
+  expand(amount: number | Size2D): Rect2D {
+    if (typeof amount === 'number') {
+      return new Rect2D({
+        top: this.top - amount,
+        left: this.left - amount,
+        bottom: this.bottom + amount,
+        right: this.right + amount,
+      });
+    } else {
+      const {width, height} = amount;
+      return new Rect2D({
+        top: this.top - height,
+        left: this.left - width,
+        bottom: this.bottom + height,
+        right: this.right + width,
+      });
+    }
   }
 
   /**

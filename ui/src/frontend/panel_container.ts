@@ -25,14 +25,15 @@ import {SimpleResizeObserver} from '../base/resize_observer';
 import {canvasClip} from '../base/canvas_utils';
 import {SELECTION_STROKE_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {Bounds2D, Size2D, VerticalBounds} from '../base/geom';
-import {VirtualCanvas} from './virtual_canvas';
+import {VirtualCanvas} from '../base/virtual_canvas';
 import {DisposableStack} from '../base/disposable_stack';
 import {TimeScale} from '../base/time_scale';
 import {TrackNode} from '../public/workspace';
 import {HTMLAttrs} from '../widgets/common';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 
-const CANVAS_OVERDRAW_PX = 100;
+const CANVAS_OVERDRAW_PX = 300;
+const CANVAS_TOLERANCE_PX = 100;
 
 export interface Panel {
   readonly kind: 'panel';
@@ -212,7 +213,9 @@ export class PanelContainer
     );
 
     const virtualCanvas = new VirtualCanvas(overlayElement, dom, {
+      overdrawAxes: 'y',
       overdrawPx: CANVAS_OVERDRAW_PX,
+      tolerancePx: CANVAS_TOLERANCE_PX,
     });
     this.trash.use(virtualCanvas);
     this.virtualCanvas = virtualCanvas;
