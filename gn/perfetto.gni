@@ -197,7 +197,7 @@ declare_args() {
   enable_perfetto_integration_tests =
       perfetto_build_standalone || perfetto_build_with_android
 
-  enable_perfetto_benchmarks = perfetto_build_standalone && !is_win
+  enable_perfetto_benchmarks = perfetto_build_standalone && !is_win && !is_qnx
 
   enable_perfetto_fuzzers =
       perfetto_build_standalone && defined(is_fuzzer) && is_fuzzer
@@ -237,7 +237,7 @@ declare_args() {
   # the stack and prints the stack trace on stderr. Requires a dependency on
   # libbacktrace when enabled.
   enable_perfetto_stderr_crash_dump =
-      is_debug && perfetto_build_standalone && !is_wasm && !is_win
+      is_debug && perfetto_build_standalone && !is_wasm && !is_win && !is_qnx
 
   # Enables more aggressive compiler flags that assume recent Intel CPUs.
   # Runtime checks during initialization will print an error message and exit
@@ -269,12 +269,13 @@ declare_args() {
 
   # The traced_probes daemon is very Linux-specific, as it depends on ftrace and
   # various /proc interfaces. There is no point making its code platform-neutral
-  # as it won't do anything useful on Windows.
+  # as it won't do anything useful on Windows or QNX.
   # The only reason why we still build it on Mac OS is to be able to run the
   # unittests there and making dev on mac less cumbersome. The traced_probes
   # code happens to build cleanly and for now the mainteinance cost on Mac is
   # extremely low.
-  enable_perfetto_traced_probes = enable_perfetto_platform_services && !is_win
+  enable_perfetto_traced_probes =
+      enable_perfetto_platform_services && !is_win && !is_qnx
 
   # The relay service is enabled when platform services are enabled.
   # TODO(chinglinyu) check if we can enable on Windows.

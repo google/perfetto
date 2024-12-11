@@ -126,6 +126,10 @@ bool PagedMemory::AdviseDontNeed(void* p, size_t size) {
   // Discarding pages on Windows has more CPU cost than is justified for the
   // possible memory savings.
   return false;
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  int res = posix_madvise(p, size, POSIX_MADV_DISCARD_NP);
+  PERFETTO_DCHECK(res == 0);
+  return true;
 #else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) ||
         // PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   // http://man7.org/linux/man-pages/man2/madvise.2.html

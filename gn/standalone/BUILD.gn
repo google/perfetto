@@ -194,7 +194,7 @@ config("default") {
   ldflags = []
   libs = []
 
-  if ((is_android || is_linux) && !is_wasm) {
+  if ((is_android || is_linux || is_qnx) && !is_wasm) {
     ldflags += [
       "-Wl,--build-id",
       "-Wl,-z,max-page-size=16384",
@@ -335,6 +335,16 @@ config("default") {
     ]
   }
 
+  if (is_qnx) {
+    cflags += [
+      "-D_QNX_SOURCE",
+      "-D_FILE_OFFSET_BITS=64",
+      "-D_LARGEFILE_SOURCE",
+      "-D_LARGEFILE64_SOURCE",
+    ]
+    libs += [ "socket" ]
+  }
+
   if (is_win && !is_clang) {
     # When using MSVC we need to manually pass the include dirs. clang-cl.exe
     # doesn't need them because it's smart enough to figure out the right path
@@ -352,7 +362,7 @@ config("default") {
         cflags += [ "-gcodeview-ghash" ]
         ldflags = [ "/DEBUG:GHASH" ]
       }
-    } else {
+    } else if (!is_qnx) {
       libs += [ "dl" ]
     }
   }
@@ -431,6 +441,12 @@ config("release") {
     ]
   } else if (is_mac) {
     ldflags = [ "-dead_strip" ]
+  } else if (is_qnx) {
+    # QNX doesn't support the --icf linker option
+    ldflags = [
+      "-Wl,--gc-sections",
+      "-Wl,-O1",
+    ]
   } else if (!is_win && !is_wasm) {
     ldflags = [
       "-Wl,--gc-sections",

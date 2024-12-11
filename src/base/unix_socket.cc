@@ -64,6 +64,10 @@
 #include "src/base/vm_sockets.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+#include <sys/time.h>
+#endif
+
 namespace perfetto {
 namespace base {
 
@@ -917,7 +921,15 @@ void UnixSocket::ReadPeerCredentialsPosix() {
     return;
   PERFETTO_CHECK(peer_cred_mode_ != SockPeerCredMode::kIgnore);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  struct sockcred user_cred;
+  socklen_t len = sizeof(user_cred);
+  int fd = sock_raw_.fd();
+  int res = getsockopt(fd, AF_UNIX, LOCAL_CREDS, &user_cred, &len);
+  PERFETTO_CHECK(res == 0);
+  peer_uid_ = user_cred.sc_uid;
+  // There is no pid in the LOCAL_CREDS for QNX
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   struct ucred user_cred;
   socklen_t len = sizeof(user_cred);
