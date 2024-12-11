@@ -190,7 +190,7 @@ Helper functions are functions built into C++ which reduce the amount of
 boilerplate which needs to be written in SQL.
 
 ### Extract args
-`EXTRACT_ARG` is a helper function which retreives a property of an
+`EXTRACT_ARG` is a helper function which retrieves a property of an
 event (e.g. slice or counter) from the `args` table.
 
 It takes an `arg_set_id` and `key` as input and returns the value looked
