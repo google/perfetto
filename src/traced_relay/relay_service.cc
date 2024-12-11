@@ -253,7 +253,7 @@ void RelayService::OnNewIncomingConnection(
   // connecting producer (while instead we are just forging it). The host traced
   // will only accept only one SetPeerIdentity request pre-queued here.
   int32_t pid = base::kInvalidPid;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   pid = server_conn->peer_pid_linux();
 #endif
