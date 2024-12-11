@@ -52,15 +52,26 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
     RawMachineId raw_machine_id) {
   TraceProcessorContext::InitArgs args{
       default_context_->config, default_context_->storage, raw_machine_id};
-  auto ctx = std::make_unique<TraceProcessorContext>(args);
+  auto new_context = std::make_unique<TraceProcessorContext>(args);
 
   // Register default and additional modules (if enabled).
-  RegisterDefaultModules(ctx.get());
+  RegisterDefaultModules(new_context.get());
   // Register addtional modules through the registered function pointer.
   if (additional_modules_factory_)
-    additional_modules_factory_(ctx.get());
+    additional_modules_factory_(new_context.get());
 
-  return ctx;
+  // Set up shared member fields:
+  // arg_set_id is a monotonically increasing ID.
+  // Share |global_args_tracker| between contexts.
+  new_context->global_args_tracker = default_context_->global_args_tracker;
+  // Share the sorter, but enable for the parser.
+  new_context->sorter = default_context_->sorter;
+  new_context->sorter->AddMachineContext(new_context.get());
+  new_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  new_context->proto_trace_parser.reset(
+      new ProtoTraceParserImpl(new_context.get()));
+
+  return new_context;
 }
 
 void MultiMachineTraceManager::EnableAdditionalModules(
@@ -74,16 +85,11 @@ ProtoTraceReader* MultiMachineTraceManager::GetOrCreateReader(
   if (remote_ctx)
     return remote_ctx->reader.get();
 
-  auto context = CreateContext(raw_machine_id);
-  // Share the sorter, but enable for the parser.
-  context->sorter = default_context_->sorter;
-  context->sorter->AddMachineContext(context.get());
-  context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
-  context->proto_trace_parser.reset(new ProtoTraceParserImpl(context.get()));
+  auto new_context = CreateContext(raw_machine_id);
 
-  auto new_reader = std::make_unique<ProtoTraceReader>(context.get());
+  auto new_reader = std::make_unique<ProtoTraceReader>(new_context.get());
   remote_machine_contexts_[raw_machine_id] =
-      RemoteMachineContext{std::move(context), std::move(new_reader)};
+      RemoteMachineContext{std::move(new_context), std::move(new_reader)};
   return remote_machine_contexts_[raw_machine_id].reader.get();
 }
 
