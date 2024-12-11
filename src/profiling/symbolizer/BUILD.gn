@@ -15,15 +15,30 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/test.gni")
 
+source_set("binary_info") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base:base",
+    "../../../include/perfetto/ext/base",
+  ]
+  sources = [
+    "binary_info.cc",
+    "binary_info.h",
+    "elf.h",
+  ]
+}
+
 source_set("symbolizer") {
   public_deps = [ "../../../include/perfetto/ext/base" ]
-  deps = [ "../../../gn:default_deps" ]
+  deps = [
+    ":binary_info",
+    "../../../gn:default_deps",
+  ]
   sources = [
     "breakpad_parser.cc",
     "breakpad_parser.h",
     "breakpad_symbolizer.cc",
     "breakpad_symbolizer.h",
-    "elf.h",
     "filesystem.h",
     "filesystem_posix.cc",
     "filesystem_windows.cc",
@@ -61,6 +76,7 @@ if (enable_perfetto_trace_processor) {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":binary_info",
     ":symbolizer",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
