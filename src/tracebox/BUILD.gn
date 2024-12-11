@@ -22,10 +22,12 @@ executable("tracebox") {
     "../base",
     "../perfetto_cmd",
     "../perfetto_cmd:trigger_perfetto_cmd",
-    "../traced/probes",
     "../traced/service",
     "../websocket_bridge:lib",
   ]
+  if (enable_perfetto_traced_probes) {
+    deps += [ "../traced/probes" ]
+  }
   if (enable_perfetto_traced_perf) {
     deps += [ "../profiling/perf:traced_perf_main" ]
   }

@@ -14,9 +14,11 @@
 
 declare_args() {
   is_debug = true
-  is_clang = true
   is_system_compiler = false
   is_lto = false
+
+  # Currently QNX is only supported via their gcc-compatible compiler.
+  is_clang = target_os != "qnx"
 
   # This is defined here because it's needed below for determining the value of
   # |is_cross_compiling|.
@@ -39,6 +41,7 @@ is_mac = current_os == "mac"
 is_mac_host = host_os == "mac"
 is_win = current_os == "win"
 is_win_host = host_os == "win"
+is_qnx = current_os == "qnx"
 
 # Building with Windows/Fuchsia/nacl is currently only supported in the Chromium
 # tree so always set this to false.
