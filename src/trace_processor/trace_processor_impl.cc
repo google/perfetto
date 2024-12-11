@@ -149,6 +149,7 @@
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #include "src/trace_processor/importers/etm/file_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
 #endif
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -908,6 +909,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->sqlite_engine()
       ->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
           "__intrinsic_etm_decode_trace", storage);
+  engine_->sqlite_engine()
+      ->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
+          "__intrinsic_etm_iterate_instruction_range", storage);
 #endif
 
   // Register stdlib packages.
