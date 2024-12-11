@@ -104,7 +104,7 @@ uid_t HostImpl::ClientConnection::GetPosixPeerUid() const {
 }
 
 pid_t HostImpl::ClientConnection::GetLinuxPeerPid() const {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (sock->family() == base::SockFamily::kUnix)
     return sock->peer_pid_linux();
