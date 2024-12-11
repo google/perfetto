@@ -1940,7 +1940,14 @@ void TracingServiceImpl::FlushDataSourceInstances(
   for (const auto& [producer_id, data_sources] : data_source_instances) {
     ProducerEndpointImpl* producer = GetProducer(producer_id);
     producer->Flush(flush_request_id, data_sources, flush_flags);
-    pending_flush.producers.insert(producer_id);
+    if (!producer->IsAndroidProcessFrozen()) {
+      pending_flush.producers.insert(producer_id);
+    } else {
+      PERFETTO_DLOG(
+          "skipping waiting flush for on producer \"%s\" (pid=%" PRIu32
+          ") because it is frozen",
+          producer->name_.c_str(), static_cast<uint32_t>(producer->pid()));
+    }
   }
 
   // If there are no producers to flush (realistically this happens only in
@@ -2902,6 +2909,14 @@ void TracingServiceImpl::StopDataSourceInstance(ProducerEndpointImpl* producer,
                                                 DataSourceInstance* instance,
                                                 bool disable_immediately) {
   const DataSourceInstanceID ds_inst_id = instance->instance_id;
+  if (producer->IsAndroidProcessFrozen()) {
+    PERFETTO_DLOG(
+        "skipping waiting of data source \"%s\" on producer \"%s\" (pid=%u) "
+        "because it is frozen",
+        instance->data_source_name.c_str(), producer->name_.c_str(),
+        producer->pid());
+    disable_immediately = true;
+  }
   if (instance->will_notify_on_stop && !disable_immediately) {
     instance->state = DataSourceInstance::STOPPING;
   } else {
