@@ -26,10 +26,10 @@ SELECT
   freq_1, idle_1,
   freq_2, idle_2,
   freq_3, idle_3,
-  lut4.curve_value as cpu4_curve,
-  lut5.curve_value as cpu5_curve,
-  lut6.curve_value as cpu6_curve,
-  lut7.curve_value as cpu7_curve,
+  cpu4_curve,
+  cpu5_curve,
+  cpu6_curve,
+  cpu7_curve,
   l3_hit_count, l3_miss_count,
   no_static,
   MIN(
@@ -41,19 +41,7 @@ SELECT
   ) as all_cpu_deep_idle
 FROM _w_independent_cpus_calc as base
 -- _use_devfreq_for_calc short circuits this table if devfreq isn't needed
-JOIN _use_devfreq_for_calc
-LEFT JOIN _filtered_curves_1d lut4 ON
-  base.freq_4 = lut4.freq_khz AND
-  base.idle_4 = lut4.idle
-LEFT JOIN _filtered_curves_1d lut5 ON
-  base.freq_5 = lut5.freq_khz AND
-  base.idle_5 = lut5.idle
-LEFT JOIN _filtered_curves_1d lut6 ON
-  base.freq_6 = lut6.freq_khz AND
-  base.idle_6 = lut6.idle
-LEFT JOIN _filtered_curves_1d lut7 ON
-  base.freq_7 = lut7.freq_khz AND
-  base.idle_7 = lut7.idle;
+JOIN _use_devfreq_for_calc;
 
 -- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
 -- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
