@@ -241,7 +241,7 @@ SELECT
       dur_sum_slice_proto_for_launch(launches.startup_id, 'inflate'),
       'time_get_resources',
       dur_sum_slice_proto_for_launch(launches.startup_id, 'ResourcesManager#getResources'),
-      'time_class_initialization',
+      'time_class_loading',
       dur_sum_slice_proto_for_launch(launches.startup_id, 'L*/*;'),
       'time_dex_open',
       dur_sum_slice_proto_for_launch(launches.startup_id, 'OpenDexFilesFromOat*'),
@@ -295,7 +295,7 @@ SELECT
         FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launches.startup_id, 'JIT compiling*')
         WHERE thread_name = 'Jit thread pool'
       ),
-      'class_initialization_count', (
+      'class_loading_count', (
         SELECT IIF(COUNT(1) = 0, NULL, COUNT(1))
         FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launches.startup_id, 'L*/*;')
       ),
