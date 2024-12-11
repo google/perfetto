@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {sqlColumnId} from './column';
+import {sqlColumnId} from '../../components/widgets/sql/legacy_table/column';
 import {argSqlColumn} from './well_known_columns';
 
 test('sql_column_id.basic', () => {

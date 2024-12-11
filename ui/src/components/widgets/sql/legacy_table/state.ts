@@ -20,7 +20,7 @@ import {
   isSqlColumnEqual,
   SqlColumn,
   sqlColumnId,
-  TableColumn,
+  LegacyTableColumn,
   tableColumnId,
 } from './column';
 import {buildSqlQuery} from './query_builder';
@@ -75,10 +75,10 @@ export class SqlTableState {
   private readonly additionalImports: string[];
 
   // Columns currently displayed to the user. All potential columns can be found `this.table.columns`.
-  private columns: TableColumn[];
+  private columns: LegacyTableColumn[];
   private filters: Filter[];
   private orderBy: {
-    column: TableColumn;
+    column: LegacyTableColumn;
     direction: SortDirection;
   }[];
   private offset = 0;
@@ -90,12 +90,12 @@ export class SqlTableState {
     readonly trace: Trace,
     readonly config: SqlTableDescription,
     private readonly args?: {
-      initialColumns?: TableColumn[];
-      additionalColumns?: TableColumn[];
+      initialColumns?: LegacyTableColumn[];
+      additionalColumns?: LegacyTableColumn[];
       imports?: string[];
       filters?: Filter[];
       orderBy?: {
-        column: TableColumn;
+        column: LegacyTableColumn;
         direction: SortDirection;
       }[];
     },
@@ -113,7 +113,7 @@ export class SqlTableState {
       this.columns.push(...args.initialColumns);
     } else {
       for (const column of this.config.columns) {
-        if (column instanceof TableColumn) {
+        if (column instanceof LegacyTableColumn) {
           if (column.startsHidden !== true) {
             this.columns.push(column);
           }
@@ -181,8 +181,11 @@ export class SqlTableState {
     // To avoid collisions, we append a number to the column name if there are multiple columns with the same name.
     const columnNameCount: {[key: string]: number} = {};
 
-    const tableColumns: {column: TableColumn; name: string; alias: string}[] =
-      [];
+    const tableColumns: {
+      column: LegacyTableColumn;
+      name: string;
+      alias: string;
+    }[] = [];
 
     for (const column of this.columns) {
       // If TableColumn has an alias, use it. Otherwise, use the column name.
@@ -388,7 +391,7 @@ export class SqlTableState {
     return this.filters;
   }
 
-  sortBy(clause: {column: TableColumn; direction: SortDirection}) {
+  sortBy(clause: {column: LegacyTableColumn; direction: SortDirection}) {
     // Remove previous sort by the same column.
     this.orderBy = this.orderBy.filter(
       (c) => tableColumnId(c.column) != tableColumnId(clause.column),
@@ -404,7 +407,7 @@ export class SqlTableState {
     this.reload();
   }
 
-  isSortedBy(column: TableColumn): SortDirection | undefined {
+  isSortedBy(column: LegacyTableColumn): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
     if (tableColumnId(this.orderBy[0].column) !== tableColumnId(column)) {
       return undefined;
@@ -425,7 +428,7 @@ export class SqlTableState {
     return result;
   }
 
-  addColumn(column: TableColumn, index: number) {
+  addColumn(column: LegacyTableColumn, index: number) {
     this.columns.splice(index + 1, 0, column);
     this.reload({offset: 'keep'});
   }
@@ -454,7 +457,7 @@ export class SqlTableState {
     raf.scheduleFullRedraw();
   }
 
-  getSelectedColumns(): TableColumn[] {
+  getSelectedColumns(): LegacyTableColumn[] {
     return this.columns;
   }
 }

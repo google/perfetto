@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
+import {SqlTableDescription} from '../../components/widgets/sql/legacy_table/table_description';
 import {
   ArgSetColumnSet,
   DurationColumn,
@@ -27,7 +27,7 @@ import {
   ThreadIdColumn,
   ThreadStateIdColumn,
   TimestampColumn,
-} from '../../components/widgets/sql/table/well_known_columns';
+} from './well_known_columns';
 
 export function getThreadTable(): SqlTableDescription {
   return {

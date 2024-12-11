@@ -16,10 +16,10 @@ import m from 'mithril';
 import {raf} from '../../../../core/raf_scheduler';
 import {Spinner} from '../../../../widgets/spinner';
 import {
-  TableColumn,
+  LegacyTableColumn,
   tableColumnId,
-  TableColumnSet,
-  TableManager,
+  LegacyTableColumnSet,
+  LegacyTableManager,
 } from './column';
 import {TextInput} from '../../../../widgets/text_input';
 import {scheduleFullRedraw} from '../../../../widgets/raf';
@@ -30,10 +30,10 @@ import {uuidv4} from '../../../../base/uuid';
 const MAX_ARGS_TO_DISPLAY = 15;
 
 interface ArgumentSelectorAttrs {
-  tableManager: TableManager;
-  columnSet: TableColumnSet;
+  tableManager: LegacyTableManager;
+  columnSet: LegacyTableColumnSet;
   alreadySelectedColumnIds: Set<string>;
-  onArgumentSelected: (column: TableColumn) => void;
+  onArgumentSelected: (column: LegacyTableColumn) => void;
 }
 
 // This class is responsible for rendering a menu which allows user to select which column out of ColumnSet to add.
@@ -41,7 +41,7 @@ export class ArgumentSelector
   implements m.ClassComponent<ArgumentSelectorAttrs>
 {
   searchText = '';
-  columns?: {key: string; column: TableColumn | TableColumnSet}[];
+  columns?: {key: string; column: LegacyTableColumn | LegacyTableColumnSet}[];
 
   constructor({attrs}: m.Vnode<ArgumentSelectorAttrs>) {
     this.load(attrs);
@@ -59,7 +59,7 @@ export class ArgumentSelector
     // Candidates are the columns which have not been selected yet.
     const candidates = columns.filter(
       ({column}) =>
-        column instanceof TableColumnSet ||
+        column instanceof LegacyTableColumnSet ||
         !attrs.alreadySelectedColumnIds.has(tableColumnId(column)),
     );
 
@@ -112,7 +112,7 @@ export class ArgumentSelector
             id: index === 0 ? firstButtonUuid : undefined,
             label: key,
             onclick: (event) => {
-              if (column instanceof TableColumnSet) return;
+              if (column instanceof LegacyTableColumnSet) return;
               attrs.onArgumentSelected(column);
               // For Control-Click, we don't want to close the menu to allow the user
               // to select multiple items in one go.
@@ -122,7 +122,7 @@ export class ArgumentSelector
               // Otherwise this popup will be closed.
             },
           },
-          column instanceof TableColumnSet &&
+          column instanceof LegacyTableColumnSet &&
             m(ArgumentSelector, {
               columnSet: column,
               alreadySelectedColumnIds: attrs.alreadySelectedColumnIds,
