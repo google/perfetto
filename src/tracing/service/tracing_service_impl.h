@@ -489,6 +489,7 @@ class TracingServiceImpl : public TracingService {
     base::WeakPtr<ConsumerEndpointImpl> weak_consumer;
     bool skip_trace_filter = false;
     std::optional<TriggerInfo> clone_trigger;
+    int64_t clone_started_timestamp_ns = 0;
   };
 
   // Holds the state of a tracing session. A tracing session is uniquely bound
@@ -794,6 +795,11 @@ class TracingServiceImpl : public TracingService {
   void SnapshotLifecycleEvent(TracingSession*,
                               uint32_t field_id,
                               bool snapshot_clocks);
+  // Deletes all the lifecycle events of type |field_id| and records just one,
+  // that happened at time |boot_time_ns|.
+  void SetSingleLifecycleEvent(TracingSession*,
+                               uint32_t field_id,
+                               int64_t boot_time_ns);
   void EmitClockSnapshot(TracingSession*,
                          TracingSession::ClockSnapshotData,
                          std::vector<TracePacket>*);
@@ -837,7 +843,8 @@ class TracingServiceImpl : public TracingService {
                                   bool skip_filter,
                                   bool final_flush_outcome,
                                   std::optional<TriggerInfo> clone_trigger,
-                                  base::Uuid*);
+                                  base::Uuid*,
+                                  int64_t clone_started_timestamp_ns);
   void OnFlushDoneForClone(TracingSessionID src_tsid,
                            PendingCloneID clone_id,
                            const std::set<BufferID>& buf_ids,

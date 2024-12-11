@@ -13742,6 +13742,7 @@ message PerfettoMetatrace {
 // Begin of protos/perfetto/trace/perfetto/tracing_service_event.proto
 
 // Events emitted by the tracing service.
+// Next id: 11.
 message TracingServiceEvent {
   message DataSources {
     message DataSource {
@@ -13804,6 +13805,10 @@ message TracingServiceEvent {
     // Emitted when the last flush request has failed. Lists data sources that
     // did not reply on time.
     DataSources last_flush_slow_data_sources = 8;
+
+    // If this was a cloned tracing session, emitted when the tracing serice
+    // started the clone operation.
+    bool clone_started = 10;
   }
 }
 

@@ -3453,6 +3453,30 @@ void TracingServiceImpl::SnapshotLifecycleEvent(TracingSession* tracing_session,
   event->timestamps.emplace_back(clock_->GetBootTimeNs().count());
 }
 
+void TracingServiceImpl::SetSingleLifecycleEvent(
+    TracingSession* tracing_session,
+    uint32_t field_id,
+    int64_t boot_timestamp_ns) {
+  // field_id should be an id of a field in TracingServiceEvent.
+  auto& lifecycle_events = tracing_session->lifecycle_events;
+  auto event_it =
+      std::find_if(lifecycle_events.begin(), lifecycle_events.end(),
+                   [field_id](const TracingSession::LifecycleEvent& event) {
+                     return event.field_id == field_id;
+                   });
+
+  TracingSession::LifecycleEvent* event;
+  if (event_it == lifecycle_events.end()) {
+    lifecycle_events.emplace_back(field_id);
+    event = &lifecycle_events.back();
+  } else {
+    event = &*event_it;
+  }
+
+  event->timestamps.clear();
+  event->timestamps.emplace_back(boot_timestamp_ns);
+}
+
 void TracingServiceImpl::MaybeSnapshotClocksIntoRingBuffer(
     TracingSession* tracing_session) {
   if (tracing_session->config.builtin_data_sources()
@@ -4075,6 +4099,7 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
       session, protos::pbzero::TracingServiceEvent::kFlushStartedFieldNumber,
       false /* snapshot_clocks */);
   clone_op.pending_flush_cnt = bufs_groups.size();
+  clone_op.clone_started_timestamp_ns = clock_->GetBootTimeNs().count();
   for (const std::set<BufferID>& buf_group : bufs_groups) {
     FlushDataSourceInstances(
         session, 0,
@@ -4154,7 +4179,7 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
       result = FinishCloneSession(
           &*clone_op.weak_consumer, tsid, std::move(clone_op.buffers),
           clone_op.skip_trace_filter, !clone_op.flush_failed,
-          clone_op.clone_trigger, &uuid);
+          clone_op.clone_trigger, &uuid, clone_op.clone_started_timestamp_ns);
     }
   }  // if (result.ok())
 
@@ -4210,7 +4235,8 @@ base::Status TracingServiceImpl::FinishCloneSession(
     bool skip_trace_filter,
     bool final_flush_outcome,
     std::optional<TriggerInfo> clone_trigger,
-    base::Uuid* new_uuid) {
+    base::Uuid* new_uuid,
+    int64_t clone_started_timestamp_ns) {
   PERFETTO_DLOG("CloneSession(%" PRIu64
                 ", skip_trace_filter=%d) started, consumer uid: %d",
                 src_tsid, skip_trace_filter, static_cast<int>(consumer->uid_));
@@ -4296,6 +4322,11 @@ base::Status TracingServiceImpl::FinishCloneSession(
     cloned_session->trace_filter.reset(
         new protozero::MessageFilter(src->trace_filter->config()));
   }
+
+  SetSingleLifecycleEvent(
+      cloned_session,
+      protos::pbzero::TracingServiceEvent::kCloneStartedFieldNumber,
+      clone_started_timestamp_ns);
 
   SnapshotLifecycleEvent(
       cloned_session,
