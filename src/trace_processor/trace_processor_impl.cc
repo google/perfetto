@@ -147,6 +147,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
 #include "src/trace_processor/importers/etm/etm_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
+#include "src/trace_processor/importers/etm/file_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #endif
 
@@ -1021,6 +1022,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_etm_v4_configuration_table());
   RegisterStaticTable(storage->mutable_etm_v4_session_table());
   RegisterStaticTable(storage->mutable_etm_v4_trace_table());
+  RegisterStaticTable(storage->mutable_elf_file_table());
+  RegisterStaticTable(storage->mutable_file_table());
 
   RegisterStaticTable(storage->mutable_spe_record_table());
   RegisterStaticTable(storage->mutable_mmap_record_table());
@@ -1226,6 +1229,17 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
       });
   *trace_proto = trace.SerializeAsArray();
   return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::RegisterFileContent(
+    [[maybe_unused]] const std::string& path,
+    [[maybe_unused]] TraceBlobView content) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  return etm::FileTracker::GetOrCreate(&context_)->AddFile(path,
+                                                           std::move(content));
+#else
+  return base::OkStatus();
+#endif
 }
 
 }  // namespace perfetto::trace_processor

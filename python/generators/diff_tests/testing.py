@@ -16,7 +16,7 @@
 import inspect
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Union, Callable
+from typing import Any, Dict, List, Union, Callable, Tuple
 from enum import Enum
 import re
 
@@ -123,6 +123,7 @@ class DiffTestBlueprint:
   query: Union[str, Path, DataPath, Metric]
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
   trace_modifier: Union[TraceInjector, None] = None
+  register_files_dir: DataPath = None
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)
@@ -209,6 +210,18 @@ class TestCase:
           f"Out file ({path}) for test '{self.name}' does not exist.")
     return path
 
+  def __get_register_files_dir(self) -> str:
+    if not self.blueprint.register_files_dir:
+      return None
+
+    path = os.path.join(self.test_data_dir,
+                        self.blueprint.register_files_dir.filename)
+
+    if not os.path.exists(path):
+      raise AssertionError(
+          f"Out file ({path}) for test '{self.name}' does not exist.")
+    return path
+
   def __init__(self, name: str, blueprint: DiffTestBlueprint, index_dir: str,
                test_data_dir: str) -> None:
     self.name = name
@@ -224,6 +237,7 @@ class TestCase:
     self.query_path = self.__get_query_path()
     self.trace_path = self.__get_trace_path()
     self.expected_path = self.__get_out_path()
+    self.register_files_dir = self.__get_register_files_dir()
 
   # Verifies that the test should be in test suite. If False, test will not be
   # executed.
