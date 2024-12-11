@@ -37,10 +37,9 @@ import {
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from '../components/widgets/duration';
-import {getSqlTableDescription} from '../components/widgets/sql/table/sql_table_registry';
+import {getSqlTableDescription} from '../components/widgets/sql/legacy_table/sql_table_registry';
 import {assertExists, assertFalse} from '../base/logging';
-import {Filter, SqlColumn} from '../components/widgets/sql/table/column';
-import {argSqlColumn} from '../components/widgets/sql/table/well_known_columns';
+import {Filter, SqlColumn} from '../components/widgets/sql/legacy_table/column';
 import {TraceImpl} from '../core/trace_impl';
 import {PivotTableManager} from '../core/pivot_table_manager';
 import {extensions} from '../components/extensions';
@@ -66,7 +65,16 @@ interface DrillFilter {
 function drillFilterColumnName(column: TableColumn): SqlColumn {
   switch (column.kind) {
     case 'argument':
-      return argSqlColumn('arg_set_id', column.argument);
+      return {
+        column: 'display_value',
+        source: {
+          table: 'args',
+          joinOn: {
+            arg_set_id: 'arg_set_id',
+            key: sqliteString(column.argument),
+          },
+        },
+      };
     case 'regular':
       return `${column.column}`;
   }
@@ -134,7 +142,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             if (this.pivotState.constrainToArea) {
               queryFilters.push(...areaFilters(attrs.selectionArea));
             }
-            extensions.addSqlTableTab(attrs.trace, {
+            extensions.addLegacySqlTableTab(attrs.trace, {
               table: assertExists(getSqlTableDescription('slice')),
               // TODO(altimin): this should properly reference the required columns, but it works for now (until the pivot table is going to be rewritten to be more flexible).
               filters: queryFilters,

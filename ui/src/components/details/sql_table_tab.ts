@@ -20,10 +20,10 @@ import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
-import {Filter} from '../widgets/sql/table/column';
-import {SqlTableState} from '../widgets/sql/table/state';
-import {SqlTable} from '../widgets/sql/table/table';
-import {SqlTableDescription} from '../widgets/sql/table/table_description';
+import {Filter} from '../widgets/sql/legacy_table/column';
+import {SqlTableState} from '../widgets/sql/legacy_table/state';
+import {SqlTable} from '../widgets/sql/legacy_table/table';
+import {SqlTableDescription} from '../widgets/sql/legacy_table/table_description';
 import {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
 import {addEphemeralTab} from './add_ephemeral_tab';
@@ -41,7 +41,7 @@ export interface AddSqlTableTabParams {
   imports?: string[];
 }
 
-export function addSqlTableTab(
+export function addLegacyTableTab(
   trace: Trace,
   config: AddSqlTableTabParams,
 ): void {
@@ -54,10 +54,10 @@ export function addSqlTableTab(
 }
 
 function addSqlTableTabWithState(state: SqlTableState) {
-  addEphemeralTab('sqlTable', new SqlTableTab(state));
+  addEphemeralTab('sqlTable', new LegacySqlTableTab(state));
 }
 
-class SqlTableTab implements Tab {
+class LegacySqlTableTab implements Tab {
   constructor(private readonly state: SqlTableState) {}
 
   render() {

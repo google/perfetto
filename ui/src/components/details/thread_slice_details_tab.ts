@@ -35,7 +35,7 @@ import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {SliceRef} from '../widgets/slice';
 import {BasicTable} from '../../widgets/basic_table';
-import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
+import {getSqlTableDescription} from '../widgets/sql/legacy_table/sql_table_registry';
 import {assertExists} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -90,7 +90,7 @@ const ITEMS: ContextMenuItem[] = [
     name: 'Ancestor slices',
     shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
     run: (slice: SliceDetails, trace: Trace) =>
-      extensions.addSqlTableTab(trace, {
+      extensions.addLegacySqlTableTab(trace, {
         table: assertExists(getSqlTableDescription('slice')),
         filters: [
           {
@@ -106,7 +106,7 @@ const ITEMS: ContextMenuItem[] = [
     name: 'Descendant slices',
     shouldDisplay: () => true,
     run: (slice: SliceDetails, trace: Trace) =>
-      extensions.addSqlTableTab(trace, {
+      extensions.addLegacySqlTableTab(trace, {
         table: assertExists(getSqlTableDescription('slice')),
         filters: [
           {
