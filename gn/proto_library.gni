@@ -182,14 +182,14 @@ template("ipc_library") {
     } else {
       link_deps += [ "$perfetto_root_path/src/ipc:common" ]
     }
-    if (is_win) {
-      # TODO(primiano): investigate this. In Windows standalone builds, some
-      # executable targets end up in a state where no code pulls a dep on the
-      # ipc:client (in turn that seems a subtle consequence of not having
-      # traced_probes on Windows). This dep here is effectively needed because
-      # the client-side code in the generated .ipc.cc effectively depends on the
-      # client-side IPC library. Perhaps we just should do this unconditionally
-      # on all platforms?
+    if (is_win || is_qnx) {
+      # TODO(primiano): investigate this. In Windows and QNX standalone builds,
+      # some executable targets end up in a state where no code pulls a dep on
+      # the ipc:client (in turn that seems a subtle consequence of not having
+      # traced_probes on Windows or QNX). This dep here is effectively needed
+      # because the client-side code in the generated .ipc.cc effectively
+      # depends on the client-side IPC library. Perhaps we just should do this
+      # unconditionally on all platforms?
       if (perfetto_component_type == "static_library") {
         link_deps += [ "$perfetto_root_path/src/ipc:perfetto_ipc" ]
       } else {
