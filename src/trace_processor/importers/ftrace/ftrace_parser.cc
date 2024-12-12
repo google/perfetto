@@ -368,8 +368,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_id_(context->storage->InternString("cpu")),
       suspend_resume_name_id_(
           context->storage->InternString("Suspend/Resume Latency")),
-      suspend_resume_minimal_name_id_(
-          context->storage->InternString("Suspend/Resume Minimal")),
       suspend_resume_minimal_slice_name_id_(
           context->storage->InternString("Suspended")),
       ion_total_id_(context->storage->InternString("mem.ion")),
@@ -389,8 +387,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       tcp_event_id_(context_->storage->InternString("tcp_event")),
       protocol_arg_id_(context_->storage->InternString("protocol")),
       napi_gro_id_(context_->storage->InternString("napi_gro")),
-      tcp_retransmited_name_id_(
-          context_->storage->InternString("TCP Retransmit Skb")),
       ret_arg_id_(context_->storage->InternString("ret")),
       len_arg_id_(context->storage->InternString("len")),
       direct_reclaim_nr_reclaimed_id_(
@@ -2957,17 +2953,16 @@ void FtraceParser::ParseInetSockSetState(int64_t timestamp,
 
 void FtraceParser::ParseTcpRetransmitSkb(int64_t timestamp,
                                          protozero::ConstBytes blob) {
-  protos::pbzero::TcpRetransmitSkbFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
+  protos::pbzero::TcpRetransmitSkbFtraceEvent::Decoder evt(blob);
 
-  // Push event as instant to async task set tracker.
-  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
-      tcp_retransmited_name_id_);
+  static constexpr auto kBlueprint = tracks::SliceBlueprint(
+      "net_tcp_retransmit_skb", tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("TCP Retransmit Skb"));
+
   base::StackString<64> str("sport=%" PRIu32 ",dport=%" PRIu32 "", evt.sport(),
                             evt.dport());
   StringId slice_name_id = context_->storage->InternString(str.string_view());
-  TrackId track_id =
-      context_->async_track_set_tracker->Scoped(async_track, timestamp, 0);
+  TrackId track_id = context_->track_tracker->InternTrack(kBlueprint);
   context_->slice_tracker->Scoped(timestamp, track_id, tcp_event_id_,
                                   slice_name_id, 0);
 }
@@ -3434,67 +3429,76 @@ void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
                                       protozero::ConstBytes blob) {
   protos::pbzero::UfshcdCommandFtraceEvent::Decoder evt(blob);
 
-  // Parse occupied ufs command queue
-  uint32_t num = evt.doorbell() > 0
-                     ? static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell()))
-                     : (evt.str_t() == 1 ? 0 : 1);
-
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+  static constexpr auto kCounterBlueprint = tracks::CounterBlueprint(
       "ufs_command_count", tracks::UnknownUnitBlueprint(),
       tracks::DimensionBlueprints(),
       tracks::StaticNameBlueprint("io.ufs.command.count"));
 
-  TrackId track = context_->track_tracker->InternTrack(kBlueprint);
+  // Parse occupied ufs command queue
+  uint32_t num = evt.doorbell() > 0
+                     ? static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell()))
+                     : (evt.str_t() == 1 ? 0 : 1);
+  TrackId track = context_->track_tracker->InternTrack(kCounterBlueprint);
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(num),
                                        track);
 
+  static constexpr auto kTagBlueprint = tracks::SliceBlueprint(
+      "ufs_command_tag",
+      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("ufs_tag")),
+      tracks::FnNameBlueprint([](uint32_t tag) {
+        return base::StackString<32>("io.ufs.command.tag[%03d]", tag);
+      }));
+
   // Parse ufs command tag
-  base::StackString<32> cmd_track_name("io.ufs.command.tag[%03d]", evt.tag());
-  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
-      context_->storage->InternString(cmd_track_name.string_view()));
+  TrackId tag_track_id = context_->track_tracker->InternTrack(
+      kTagBlueprint, tracks::Dimensions(evt.tag()));
   if (evt.str_t() == 0) {
     std::string ufs_op_str = GetUfsCmdString(evt.opcode(), evt.group_id());
     StringId ufs_slice_name =
         context_->storage->InternString(base::StringView(ufs_op_str));
-    TrackId start_id = context_->async_track_set_tracker->Begin(async_track, 0);
-    context_->slice_tracker->Begin(timestamp, start_id, kNullStringId,
+    context_->slice_tracker->Begin(timestamp, tag_track_id, kNullStringId,
                                    ufs_slice_name);
   } else {
-    TrackId end_id = context_->async_track_set_tracker->End(async_track, 0);
-    context_->slice_tracker->End(timestamp, end_id);
+    context_->slice_tracker->End(timestamp, tag_track_id);
   }
 }
 
+namespace {
+
+constexpr auto kWakesourceBlueprint = tracks::SliceBlueprint(
+    "wakesource_wakelock",
+    tracks::DimensionBlueprints(
+        tracks::StringDimensionBlueprint("wakelock_event")),
+    tracks::FnNameBlueprint([](base::StringView event_name) {
+      return base::StackString<32>("Wakelock(%.*s)", int(event_name.size()),
+                                   event_name.data());
+    }));
+
+}  // namespace
+
 void FtraceParser::ParseWakeSourceActivate(int64_t timestamp,
                                            protozero::ConstBytes blob) {
-  protos::pbzero::WakeupSourceActivateFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
+  protos::pbzero::WakeupSourceActivateFtraceEvent::Decoder evt(blob);
+
   std::string event_name = evt.name().ToStdString();
-
   uint32_t count = active_wakelock_to_count_[event_name];
-
   active_wakelock_to_count_[event_name] += 1;
 
-  // There is already an active track with this name, don't create another.
+  // There is already an active slice with this name, don't create another.
   if (count > 0) {
     return;
   }
 
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kWakesourceBlueprint, tracks::Dimensions(evt.name()));
   base::StackString<32> str("Wakelock(%s)", event_name.c_str());
   StringId stream_id = context_->storage->InternString(str.string_view());
-
-  auto async_track =
-      context_->async_track_set_tracker->InternGlobalTrackSet(stream_id);
-
-  TrackId start_id = context_->async_track_set_tracker->Begin(async_track, 0);
-
-  context_->slice_tracker->Begin(timestamp, start_id, kNullStringId, stream_id);
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, stream_id);
 }
 
 void FtraceParser::ParseWakeSourceDeactivate(int64_t timestamp,
                                              protozero::ConstBytes blob) {
-  protos::pbzero::WakeupSourceDeactivateFtraceEvent::Decoder evt(blob.data,
-                                                                 blob.size);
+  protos::pbzero::WakeupSourceDeactivateFtraceEvent::Decoder evt(blob);
 
   std::string event_name = evt.name().ToStdString();
   uint32_t count = active_wakelock_to_count_[event_name];
@@ -3503,13 +3507,9 @@ void FtraceParser::ParseWakeSourceDeactivate(int64_t timestamp,
     return;
   }
 
-  base::StackString<32> str("Wakelock(%s)", event_name.c_str());
-  StringId stream_id = context_->storage->InternString(str.string_view());
-  auto async_track =
-      context_->async_track_set_tracker->InternGlobalTrackSet(stream_id);
-
-  TrackId end_id = context_->async_track_set_tracker->End(async_track, 0);
-  context_->slice_tracker->End(timestamp, end_id);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kWakesourceBlueprint, tracks::Dimensions(evt.name()));
+  context_->slice_tracker->End(timestamp, track_id);
 }
 
 void FtraceParser::ParseSuspendResume(int64_t timestamp,
@@ -3601,21 +3601,17 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
 
 void FtraceParser::ParseSuspendResumeMinimal(int64_t timestamp,
                                              protozero::ConstBytes blob) {
-  protos::pbzero::SuspendResumeMinimalFtraceEvent::Decoder evt(blob.data,
-                                                               blob.size);
-  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
-      suspend_resume_minimal_name_id_);
+  protos::pbzero::SuspendResumeMinimalFtraceEvent::Decoder evt(blob);
 
+  static constexpr auto kBlueprint = tracks::SliceBlueprint(
+      "suspend_resume_minimal", tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("Suspend/Resume Minimal"));
+  TrackId track_id = context_->track_tracker->InternTrack(kBlueprint);
   if (evt.start()) {
-    TrackId start_id = context_->async_track_set_tracker->Begin(
-        async_track, static_cast<int64_t>(0));
-    context_->slice_tracker->Begin(timestamp, start_id,
-                                   suspend_resume_minimal_name_id_,
+    context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
                                    suspend_resume_minimal_slice_name_id_);
   } else {
-    TrackId end_id = context_->async_track_set_tracker->End(
-        async_track, static_cast<int64_t>(0));
-    context_->slice_tracker->End(timestamp, end_id);
+    context_->slice_tracker->End(timestamp, track_id);
   }
 }
 
@@ -3710,60 +3706,47 @@ void FtraceParser::ParseFuncgraphExit(
   context_->slice_tracker->End(timestamp, track, kNullStringId, name_id);
 }
 
-/** Parses android_fs_dataread_start event.*/
 void FtraceParser::ParseAndroidFsDatareadStart(int64_t ts,
                                                uint32_t pid,
                                                ConstBytes data) {
-  protos::pbzero::AndroidFsDatareadStartFtraceEvent::Decoder
-      android_fs_read_begin(data);
-  base::StringView file_path(android_fs_read_begin.pathbuf());
-  std::pair<uint64_t, int64_t> key(android_fs_read_begin.ino(),
-                                   android_fs_read_begin.offset());
-  inode_offset_thread_map_.Insert(key, pid);
-  // Create a new Track object for the event.
+  protos::pbzero::AndroidFsDatareadStartFtraceEvent::Decoder decoder(data);
+  inode_offset_thread_map_.Insert({decoder.ino(), decoder.offset()}, pid);
+
   auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
       android_fs_category_id_);
   TrackId track_id = context_->async_track_set_tracker->Begin(async_track, pid);
-  StringId string_id = context_->storage->InternString(file_path);
-  auto args_inserter = [this, &android_fs_read_begin,
-                        &string_id](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(file_path_id_, Variadic::String(string_id));
-    inserter->AddArg(offset_id_start_,
-                     Variadic::Integer(android_fs_read_begin.offset()));
-    inserter->AddArg(bytes_read_id_start_,
-                     Variadic::Integer(android_fs_read_begin.bytes()));
-  };
-  context_->slice_tracker->Begin(ts, track_id, kNullStringId,
-                                 android_fs_data_read_id_, args_inserter);
+  context_->slice_tracker->Begin(
+      ts, track_id, kNullStringId, android_fs_data_read_id_,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(file_path_id_,
+                         Variadic::String(context_->storage->InternString(
+                             base::StringView(decoder.pathbuf()))));
+        inserter->AddArg(offset_id_start_, Variadic::Integer(decoder.offset()));
+        inserter->AddArg(bytes_read_id_start_,
+                         Variadic::Integer(decoder.bytes()));
+      });
 }
 
-/** Parses android_fs_dataread_end event.*/
 void FtraceParser::ParseAndroidFsDatareadEnd(int64_t ts, ConstBytes data) {
-  protos::pbzero::AndroidFsDatareadEndFtraceEvent::Decoder android_fs_read_end(
-      data);
-  std::pair<uint64_t, int64_t> key(android_fs_read_end.ino(),
-                                   android_fs_read_end.offset());
-  // Find the corresponding (inode, offset) pair in the map.
-  auto it = inode_offset_thread_map_.Find(key);
+  protos::pbzero::AndroidFsDatareadEndFtraceEvent::Decoder decoder(data);
+  auto* it = inode_offset_thread_map_.Find({decoder.ino(), decoder.offset()});
   if (!it) {
     return;
   }
   uint32_t start_event_tid = *it;
+  inode_offset_thread_map_.Erase({decoder.ino(), decoder.offset()});
+
   auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
       android_fs_category_id_);
   TrackId track_id =
       context_->async_track_set_tracker->End(async_track, start_event_tid);
-  auto args_inserter =
-      [this, &android_fs_read_end](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(offset_id_end_,
-                         Variadic::Integer(android_fs_read_end.offset()));
+  context_->slice_tracker->End(
+      ts, track_id, kNullStringId, kNullStringId,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(offset_id_end_, Variadic::Integer(decoder.offset()));
         inserter->AddArg(bytes_read_id_end_,
-                         Variadic::Integer(android_fs_read_end.bytes()));
-      };
-  context_->slice_tracker->End(ts, track_id, kNullStringId, kNullStringId,
-                               args_inserter);
-  // Erase the entry from the map.
-  inode_offset_thread_map_.Erase(key);
+                         Variadic::Integer(decoder.bytes()));
+      });
 }
 
 StringId FtraceParser::GetRpmStatusStringId(int32_t rpm_status_val) {
